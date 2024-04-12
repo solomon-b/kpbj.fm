@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -15,15 +16,12 @@ TODO:
 
 --------------------------------------------------------------------------------
 
-import Control.Arrow ((>>>))
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.MVar qualified as MVar
+import Control.Exception (catch)
 import Control.Monad (void)
-import Control.Monad.Freer qualified as Freer
-import Control.Monad.Freer.Exception (Exc)
-import Control.Monad.Freer.Exception qualified as Exc
-import Control.Monad.Freer.Reader (Reader)
-import Control.Monad.Freer.Reader qualified as Reader
+import Control.Monad.Except (MonadError)
+import Control.Monad.Reader (MonadIO, MonadReader, ReaderT (..))
 import Control.Monad.Trans.Except (ExceptT (..))
 import Data.Aeson ((.=))
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -35,11 +33,10 @@ import Data.Has (Has)
 import Data.Has qualified as Has
 import Data.Maybe (catMaybes)
 import Data.Text.Encoding qualified as Text.Encoding
-import Effects.Logger (Logger)
-import Effects.Logger qualified as Logger
 import Effects.MailingList qualified as MailingList
 import Handlers.MailingList (MailingListAPI, mailingListHandler)
 import Handlers.SplashPage (SplashPageAPI, splashPageHandler)
+import Log (runLogT)
 import Log qualified
 import Log.Backend.StandardOutput qualified as Log
 import Network.HTTP.Types.Status qualified as Status
@@ -97,43 +94,33 @@ type AppContext = (Log.Logger, MVar MailingList.Table)
 
 type ServantContext = '[Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
+newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Servant.ServerError a)}
+  deriving (Functor, Applicative, Monad, MonadReader AppContext, MonadError Servant.ServerError, MonadIO, Log.MonadLog)
+    via ReaderT AppContext (Log.LogT (ExceptT Servant.ServerError IO))
+
+interpret :: AppContext -> AppM x -> Servant.Handler x
+interpret ctx@(logger, _) (AppM app) =
+  Servant.Handler $ ExceptT $ app ctx (Log.LoggerEnv logger "main" [] [] Log.defaultLogLevel)
+
 app :: Servant.Context ServantContext -> AppContext -> Servant.Application
 app cfg ctx =
-  let stdOutLogger = Has.getter ctx
-   in Servant.serveWithContext (Proxy @API) cfg $
-        Servant.hoistServerWithContext
-          (Proxy @API)
-          (Proxy @ServantContext)
-          (interpreter stdOutLogger ctx)
-          server
-
-interpreter ::
-  forall env a.
-  ( Has (MVar MailingList.Table) env,
-    Has Log.Logger env
-  ) =>
-  Log.Logger ->
-  env ->
-  Freer.Eff '[MailingList.Model, Exc MailingList.ModelError, Logger, Exc Servant.ServerError, Reader env, Log.LogT IO] a ->
-  Servant.Handler a
-interpreter stdOutLogger ctx =
-  Servant.Handler
-    . ExceptT
-    . Log.runLogT "main" stdOutLogger Log.defaultLogLevel
-    . Freer.runM
-    . flip Reader.runReader ctx
-    . Exc.runError
-    . Logger.runLogger
-    . (MailingList.runMailingListModel @env >>> Utils.toServerError)
+  Servant.serveWithContext (Proxy @API) cfg $
+    Servant.hoistServerWithContext
+      (Proxy @API)
+      (Proxy @ServantContext)
+      (interpret ctx)
+      server
 
 --------------------------------------------------------------------------------
 
 type API = SplashPageAPI :<|> MailingListAPI
 
 server ::
-  ( Freer.Member Logger r,
-    Freer.Member MailingList.Model r,
-    Freer.Member (Exc Servant.ServerError) r
+  ( MonadError Servant.ServerError m,
+    MonadReader env m,
+    Has (MVar MailingList.Table) env,
+    Log.MonadLog m,
+    MonadIO m
   ) =>
-  Servant.ServerT API (Freer.Eff r)
+  Servant.ServerT API m
 server = splashPageHandler :<|> mailingListHandler

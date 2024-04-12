@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -7,12 +8,14 @@ module Effects.MailingList where
 --------------------------------------------------------------------------------
 
 import Control.Concurrent.MVar (MVar)
-import Control.Monad.Freer qualified as Freer
-import Control.Monad.Freer.Exception (Exc)
-import Control.Monad.Freer.Exception qualified as Exc
-import Control.Monad.Freer.Reader (Reader)
+import Control.Concurrent.MVar qualified as MVar
+import Control.Monad.Error.Class (MonadError)
+import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader qualified as Reader
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Has (Has)
+import Data.Has qualified as Has
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
@@ -22,6 +25,14 @@ import GHC.Generics (Generic)
 import Log qualified
 import Servant qualified
 import Utils qualified
+
+--------------------------------------------------------------------------------
+
+insertEmailAddress' :: forall env m. (MonadReader env m, Has (MVar Table) env, Log.MonadLog m, MonadError Servant.ServerError m, MonadIO m) => Text -> m Id
+insertEmailAddress' emailAddress = do
+  pid <- Utils.viewTable @env @Table fst
+  Utils.overTable @env @Table $ fmap (Map.insert pid $ EmailAddress emailAddress)
+  pure pid
 
 --------------------------------------------------------------------------------
 
@@ -44,26 +55,6 @@ instance Utils.ToServerError ModelError where
      in Servant.err400 {Servant.errBody = "Duplicate email address: '" <> email' <> "'"}
 
 --------------------------------------------------------------------------------
--- Effect
-
-data Model a where
-  InsertEmailAddress :: Text -> Model Id
-
---------------------------------------------------------------------------------
--- Senders
-
-insertEmailAddress :: (Freer.Member Model r) => Text -> Freer.Eff r Id
-insertEmailAddress = Freer.send . InsertEmailAddress
-
---------------------------------------------------------------------------------
--- Interpreter
-
-runMailingListModel :: forall env r v. (Freer.Member (Log.LogT IO) r, Freer.Member (Exc ModelError) r, Freer.Member (Reader env) r, Has (MVar Table) env) => Freer.Eff (Model ': r) v -> Freer.Eff r v
-runMailingListModel = Utils.simpleRelay $ \case
-  InsertEmailAddress email -> do
-    pid <- Utils.viewTable @env @Table fst
-    Utils.overTable @env @Table $ fmap (Map.insert pid $ EmailAddress email)
-    pure pid
 
 type Table = (Id, Map Id EmailAddress)
 

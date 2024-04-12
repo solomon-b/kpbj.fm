@@ -11,11 +11,10 @@ module Utils where
 
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.MVar qualified as MVar
-import Control.Monad.Freer qualified as Freer
-import Control.Monad.Freer.Exception (Exc (..))
-import Control.Monad.Freer.Exception qualified as Exc
-import Control.Monad.Freer.Reader (Reader)
-import Control.Monad.Freer.Reader qualified as Reader
+import Control.Monad.Except (MonadError, mapError)
+import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader qualified as Reader'
 import Control.Monad.Trans.Class (lift)
 import Data.Has (Has)
 import Data.Has qualified as Has
@@ -24,43 +23,34 @@ import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
 
 --------------------------------------------------------------------------------
--- Helpers
-
-simpleRelay :: (forall a. t a -> Freer.Eff r a) -> Freer.Eff (t ': r) v -> Freer.Eff r v
-simpleRelay f = Freer.handleRelay pure (\e arr -> arr =<< f e)
-
-mapError :: forall e1 e2 r a. (Freer.Member (Exc e2) r) => (e1 -> e2) -> Freer.Eff (Exc e1 ': r) a -> Freer.Eff r a
-mapError f = simpleRelay $ \(Exc err) -> Exc.throwError (f err)
+-- Error Handling
 
 class ToServerError e where
   convertToServerError :: e -> Servant.ServerError
 
-toServerError :: (ToServerError e, Freer.Member (Exc Servant.ServerError) r) => Freer.Eff (Exc e : r) a -> Freer.Eff r a
-toServerError = mapError convertToServerError
-
-instance (Freer.Member (Exc Servant.ServerError) r) => Auth.Server.ThrowAll (Freer.Eff r a) where
-  throwAll = Exc.throwError
+-- toServerError :: (ToServerError e, MonadError e n, MonadError Servant.ServerError m) => n a -> m a
+-- toServerError = mapError _ --convertToServerError
 
 --------------------------------------------------------------------------------
 -- Has Pattern
 
 -- | View the contents of a @table@ in an 'MVar'. This is temporary until I
 -- introduce an actual database.
-viewTable :: forall env table r a. (Has (MVar table) env, Freer.Member (Log.LogT IO) r, Freer.Member (Reader env) r) => (table -> a) -> Freer.Eff r a
+viewTable :: forall env table m a. (Has (MVar table) env, Log.MonadLog m, MonadReader env m, MonadIO m) => (table -> a) -> m a
 viewTable k = do
-  mvar <- Reader.asks @env Has.getter
-  Freer.send $ lift @Log.LogT $ MVar.withMVar mvar (pure . k)
+  mvar <- Reader'.asks @env Has.getter
+  liftIO $ MVar.withMVar mvar (pure . k)
 
 -- | Update the contents of a @table@ in an 'MVar'. This is temporary until I
 -- introduce an actual database.
 overTable ::
-  forall env table r.
-  (Has (MVar table) env, Freer.Member (Log.LogT IO) r, Freer.Member (Reader env) r) =>
+  forall env table m.
+  (Has (MVar table) env, Log.MonadLog m, MonadReader env m, MonadIO m) =>
   (table -> table) ->
-  Freer.Eff r ()
+  m ()
 overTable k = do
-  mvar <- Reader.asks @env Has.getter
-  Freer.send $ lift @Log.LogT $ MVar.modifyMVar_ mvar (pure . k)
+  mvar <- Reader'.asks @env Has.getter
+  liftIO $ MVar.modifyMVar_ mvar (pure . k)
 
 --------------------------------------------------------------------------------
 -- Variants
