@@ -2,8 +2,6 @@ module Handlers.SplashPage where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.Freer (Eff)
-import Control.Monad.Freer qualified as Freer
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -44,5 +42,5 @@ type SplashPageAPI =
 --------------------------------------------------------------------------------
 -- Handler
 
-splashPageHandler :: Servant.ServerT SplashPageAPI (Eff r)
+splashPageHandler :: (Monad m) => Servant.ServerT SplashPageAPI m
 splashPageHandler = pure SplashPage :<|> Servant.serveDirectoryWebApp "./backend/static"

@@ -69,16 +69,14 @@ library
   import: common-extensions
   build-depends:  , aeson
                   , base ^>=4.18.1.0
-                  , bifunctors
                   , case-insensitive
                   , containers
                   , data-has
-                  , freer-effects
                   , http-api-data
                   , http-types
                   , log-base
                   , lucid
-                  , oops
+                  , mtl
                   , servant-auth
                   , servant-auth-server
                   , servant-lucid
@@ -91,7 +89,6 @@ library
   exposed-modules:
     App
     Effects.MailingList
-    Effects.Logger
     Handlers.MailingList
     Handlers.SplashPage
     Utils

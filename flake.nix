@@ -17,7 +17,7 @@
           pkgs = import nixpkgs { inherit system; };
           hsPkgs = pkgs.haskell.packages.${compiler}.override {
             overrides = hfinal: hprev: {
-              kpbj-fm-api = (hfinal.callCabal2nix "kpbj-fm-api" ./api { });
+              kpbj-fm-api = (hfinal.callCabal2nix "kpbj-fm-api" ./backend { });
             };
           };
         in
@@ -30,6 +30,7 @@
               pkgs.nixpkgs-fmt
               pkgs.ormolu
               pkgs.openssl
+              pkgs.postgresql
               pkgs.zlib
             ];
           };

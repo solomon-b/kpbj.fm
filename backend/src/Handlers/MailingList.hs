@@ -2,17 +2,17 @@ module Handlers.MailingList where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.Freer (Eff)
-import Control.Monad.Freer qualified as Freer
-import Control.Monad.Freer.Exception (Exc)
-import Control.Monad.Freer.Exception qualified as Exc
+import Control.Concurrent (MVar)
+import Control.Monad.Except (MonadError)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Has (Has)
 import Data.Text (Text)
-import Effects.Logger (Logger)
-import Effects.Logger qualified as Logger
 import Effects.MailingList qualified as MailingList
 import GHC.Generics (Generic)
+import Log qualified
 import Servant ((:<|>) (..), (:>))
 import Servant qualified
 import Web.FormUrlEncoded (FromForm)
@@ -31,10 +31,10 @@ type MailingListAPI =
 --------------------------------------------------------------------------------
 -- Handler
 
-mailingListHandler :: (Freer.Member (Exc Servant.ServerError) r, Freer.Member MailingList.Model r, Freer.Member Logger r) => Servant.ServerT MailingListAPI (Eff r)
+mailingListHandler :: (MonadReader env m, Has (MVar MailingList.Table) env, MonadError Servant.ServerError m, Log.MonadLog m, MonadIO m) => Servant.ServerT MailingListAPI m
 mailingListHandler MailingListForm {..} = do
-  pid <- MailingList.insertEmailAddress emailAddress
-  Logger.logInfo "Submited Email Address:" (KeyMap.singleton "email" (show emailAddress))
+  pid <- MailingList.insertEmailAddress' emailAddress
+  Log.logInfo "Submited Email Address:" (KeyMap.singleton "email" (show emailAddress))
 
   -- TODO: Very hacky solution until we support htmx:
-  Exc.throwError $ Servant.err301 {Servant.errHeaders = [("Location", "https://www.kpbj.fm")]}
+  Servant.throwError $ Servant.err301 {Servant.errHeaders = [("Location", "https://www.kpbj.fm")]}
