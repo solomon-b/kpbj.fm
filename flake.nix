@@ -2,11 +2,16 @@
   description = "kpbj.fm";
 
   inputs = {
-    nixpkgs.url = github:NixOS/nixpkgs/nixos-23.11;
+    nixpkgs.url = github:NixOS/nixpkgs/nixpkgs-unstable;
     flake-utils.url = github:numtide/flake-utils;
+
+    cfg-src = {
+      url = github:JonathanLorimer/cfg;
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, cfg-src }:
     let
       ghcVersion = "963";
       compiler = "ghc${ghcVersion}";
@@ -17,7 +22,10 @@
           pkgs = import nixpkgs { inherit system; };
           hsPkgs = pkgs.haskell.packages.${compiler}.override {
             overrides = hfinal: hprev: {
-              kpbj-fm-api = (hfinal.callCabal2nix "kpbj-fm-api" ./backend { });
+              kpbj-backend = (hfinal.callCabal2nix "kpbj-backend" ./backend { });
+              cfg = pkgs.haskell.lib.doJailbreak (hfinal.callCabal2nix "cfg" "${cfg-src}" { });
+              rel8 = pkgs.haskell.lib.dontCheck hprev.rel8;
+              servant-auth-server = pkgs.haskell.lib.markUnbroken (pkgs.haskell.lib.dontCheck hprev.servant-auth-server);
             };
           };
         in
@@ -37,9 +45,17 @@
 
           formatter = pkgs.nixpkgs-fmt;
           packages = flake-utils.lib.flattenTree {
-            kpbj-fm-api = hsPkgs.kpbj-fm-api;
+            kpbj-backend = hsPkgs.kpbj-backend;
           };
 
-          defaultPackage = packages.kpbj-fm-api;
+          defaultPackage = packages.kpbj-backend;
+
+          apps = {
+            kpbj-backend = { 
+              type = "app";
+              program = "${self.packages.${system}.kpbj-backend}/bin/kpbj-backend";
+            };
+            default = self.apps.${system}.kpbj-backend;
+          };
         });
 }
