@@ -15,6 +15,9 @@ TODO:
 
 --------------------------------------------------------------------------------
 
+import Cfg qualified
+import Cfg.Env (getEnvConfig)
+import Config
 import Control.Monad (void)
 import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT (..))
@@ -43,28 +46,34 @@ import Servant (Context ((:.)), (:<|>) (..), (:>))
 import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
 import System.Posix.Signals qualified as Posix
-import qualified Data.Aeson as Aeson
 
 --------------------------------------------------------------------------------
 
 runApp :: IO ()
 runApp =
   Log.withJsonStdOutLogger $ \stdOutLogger -> do
-    putStrLn "Launching service on port 3000"
-    -- TODO: Options parsing for config data, such as pg conn string, port, jwk path, debug mode
-    let connectionSettings = HSQL.settings "host" 5432 "user" "pass" "db"
-    -- TODO: ERROR NICELY:
-    Right connection <- HSQL.acquire connectionSettings
-    let jwtCfg = Auth.Server.defaultJWTSettings (error "TODO: CREATE A JWK")
-        cfg = Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
-    Warp.runSettings (warpSettings stdOutLogger) (app cfg (stdOutLogger, connection))
+    getEnvConfig @AppConfig >>= \case
+      Left err ->
+        Log.runLogT "main" stdOutLogger Log.defaultLogLevel $ Log.logAttention "Config Failure" (show err)
+      Right AppConfig {..} -> do
+        let PostgresConfig {..} = appConfigPostgresSettings
+        -- TODO: Is it weird to be instantiating 'LogT' multiple times?
+        Log.runLogT "main" stdOutLogger Log.defaultLogLevel $
+          Log.logInfo "Launching Service" (KeyMap.fromList ["port" .= warpConfigPort appConfigWarpSettings, "environment" .= appConfigEnvironment])
+        let connectionSettings = HSQL.settings postgresConfigHost postgresConfigPort postgresConfigUser postgresConfigPassword postgresConfigDB
+        -- TODO: ERROR NICELY:
+        Right connection <- HSQL.acquire connectionSettings
+        let jwtCfg = Auth.Server.defaultJWTSettings (error "TODO: CREATE A JWK")
+            cfg = Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
+        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, connection))
 
-warpSettings :: Log.Logger -> Warp.Settings
-warpSettings logger' =
+warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
+warpSettings logger' WarpConfig {..} =
   Warp.defaultSettings
+    & Warp.setServerName warpConfigServerName
     & Warp.setLogger (warpStructuredLogger logger')
-    & Warp.setPort 3000
-    & Warp.setGracefulShutdownTimeout (Just 100)
+    & Warp.setPort warpConfigPort
+    & Warp.setGracefulShutdownTimeout (Just warpConfigTimeout)
     & Warp.setInstallShutdownHandler shutdownHandler
 
 warpStructuredLogger :: Log.Logger -> Wai.Request -> Status.Status -> Maybe Integer -> IO ()

@@ -42,4 +42,3 @@ mailingListHandler MailingListForm {..} = do
   -- TODO: Very hacky solution until we support htmx.
   -- TODO: Would be nice to render the splash page with a success message.
   Servant.throwError $ Servant.err301 {Servant.errHeaders = [("Location", "https://www.kpbj.fm")]}
-
