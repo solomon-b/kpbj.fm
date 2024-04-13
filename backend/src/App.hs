@@ -54,11 +54,11 @@ runApp =
   Log.withJsonStdOutLogger $ \stdOutLogger -> do
     getEnvConfig @AppConfig >>= \case
       Left err ->
-        Log.runLogT "main" stdOutLogger Log.defaultLogLevel $ Log.logAttention "Config Failure" (show err)
+        Log.runLogT "kpbj-backend" stdOutLogger Log.defaultLogLevel $ Log.logAttention "Config Failure" (show err)
       Right AppConfig {..} -> do
         let PostgresConfig {..} = appConfigPostgresSettings
         -- TODO: Is it weird to be instantiating 'LogT' multiple times?
-        Log.runLogT "main" stdOutLogger Log.defaultLogLevel $
+        Log.runLogT "kpbj-backend" stdOutLogger Log.defaultLogLevel $
           Log.logInfo "Launching Service" (KeyMap.fromList ["port" .= warpConfigPort appConfigWarpSettings, "environment" .= appConfigEnvironment])
         let connectionSettings = HSQL.settings postgresConfigHost postgresConfigPort postgresConfigUser postgresConfigPassword postgresConfigDB
         -- TODO: ERROR NICELY:
@@ -79,7 +79,7 @@ warpSettings logger' WarpConfig {..} =
 warpStructuredLogger :: Log.Logger -> Wai.Request -> Status.Status -> Maybe Integer -> IO ()
 warpStructuredLogger logger' req s sz = do
   reqBody <- Wai.getRequestBodyChunk req
-  Log.runLogT "main" logger' Log.defaultLogLevel $
+  Log.runLogT "kpbj-backend" logger' Log.defaultLogLevel $
     Log.logInfo "Request" $
       KeyMap.fromList $
         [ "statusCode" .= Status.statusCode s,
@@ -111,7 +111,7 @@ newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Serv
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
 interpret ctx@(logger, _) (AppM app) =
-  Servant.Handler $ ExceptT $ app ctx (Log.LoggerEnv logger "main" [] [] Log.defaultLogLevel)
+  Servant.Handler $ ExceptT $ app ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)
 
 app :: Servant.Context ServantContext -> AppContext -> Servant.Application
 app cfg ctx =
