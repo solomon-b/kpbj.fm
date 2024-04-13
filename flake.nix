@@ -46,6 +46,17 @@
           formatter = pkgs.nixpkgs-fmt;
           packages = flake-utils.lib.flattenTree {
             kpbj-backend = hsPkgs.kpbj-backend;
+
+            docker = import ./docker.nix {
+              inherit pkgs;
+              kpbj-backend = hsPkgs.kpbj-backend;
+            };
+
+            deploy = pkgs.writeShellScriptBin "deploy" ''
+              nix build .#docker
+              image=$(docker load -i result | sed -n 's#^Loaded image: \([a-zA-Z0-9\.\/\-\:]*\)#\1#p')
+              docker push $image
+            '';
           };
 
           defaultPackage = packages.kpbj-backend;
@@ -55,6 +66,8 @@
               type = "app";
               program = "${self.packages.${system}.kpbj-backend}/bin/kpbj-backend";
             };
+
+            deploy = flake-utils.lib.mkApp { drv = self.packages.${system}.deploy; };
             default = self.apps.${system}.kpbj-backend;
           };
         });
