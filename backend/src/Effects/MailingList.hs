@@ -1,62 +1,89 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Effects.MailingList where
 
 --------------------------------------------------------------------------------
 
-import Control.Concurrent.MVar (MVar)
-import Control.Concurrent.MVar qualified as MVar
 import Control.Monad.Error.Class (MonadError)
+import Control.Monad.Except (throwError)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Reader qualified as Reader
+import DB.Utils qualified
 import Data.Aeson (FromJSON, ToJSON)
+import Data.ByteString.Lazy qualified as BL
 import Data.Has (Has)
 import Data.Has qualified as Has
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
+import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Encoding
 import GHC.Generics (Generic)
+import Hasql.Connection qualified as Connection
+import Hasql.Session qualified as Session
+import Hasql.Statement qualified as HSQL
 import Log qualified
+import Rel8 qualified
 import Servant qualified
-import Utils qualified
+import Web.FormUrlEncoded (FromForm)
 
 --------------------------------------------------------------------------------
+-- Domain
 
-insertEmailAddress' :: forall env m. (MonadReader env m, Has (MVar Table) env, Log.MonadLog m, MonadError Servant.ServerError m, MonadIO m) => Text -> m Id
-insertEmailAddress' emailAddress = do
-  pid <- Utils.viewTable @env @Table fst
-  Utils.overTable @env @Table $ fmap (Map.insert pid $ EmailAddress emailAddress)
-  pure pid
-
---------------------------------------------------------------------------------
-
+-- TODO: Use case-insensitive:
 newtype EmailAddress = EmailAddress {emailAddress :: Text}
   deriving stock (Show, Generic, Eq)
+  deriving newtype (Servant.FromHttpApiData)
   deriving anyclass (FromJSON, ToJSON)
 
-newtype Id = Id Int
+newtype Id = Id Int64
   deriving stock (Generic)
-  deriving newtype (Show, Eq, Ord, Num, Servant.FromHttpApiData)
+  deriving newtype (Show, Eq, Ord, Num, Servant.FromHttpApiData, Rel8.DBEq, Rel8.DBType)
   deriving anyclass (ToJSON, FromJSON)
 
-newtype ModelError = DuplicateEmail Text
-  deriving stock (Show)
+--------------------------------------------------------------------------------
+-- Effect
 
-instance Utils.ToServerError ModelError where
-  convertToServerError :: ModelError -> Servant.ServerError
-  convertToServerError (DuplicateEmail email) =
-    let email' = Text.Encoding.encodeUtf8 $ Text.Lazy.pack $ show email
-     in Servant.err400 {Servant.errBody = "Duplicate email address: '" <> email' <> "'"}
+insertEmailAddress ::
+  forall env m.
+  ( Log.MonadLog m,
+    MonadIO m,
+    MonadError Servant.ServerError m,
+    MonadReader env m,
+    Has Connection.Connection env
+  ) =>
+  EmailAddress ->
+  m Id
+insertEmailAddress email =
+  DB.Utils.execQuerySpanThrowMessage "Failed to insert email address" $ insertEmailAddressSql email
+
+insertEmailAddressSql :: EmailAddress -> HSQL.Statement () Id
+insertEmailAddressSql EmailAddress {..} =
+  Rel8.run1 $
+    Rel8.insert $
+      Rel8.Insert
+        { Rel8.into = mailingListSchema,
+          Rel8.rows = Rel8.values [MailingListF Rel8.unsafeDefault (Rel8.litExpr emailAddress)],
+          Rel8.onConflict = Rel8.Abort,
+          Rel8.returning = Rel8.Returning mailingListId
+        }
 
 --------------------------------------------------------------------------------
+-- Database
 
-type Table = (Id, Map Id EmailAddress)
+-- | Database Model for the `mailing_list` table.
+data MailingListF f = MailingListF
+  { mailingListId :: Rel8.Column f Id,
+    email :: Rel8.Column f Text
+  }
+  deriving stock (Generic)
+  deriving anyclass (Rel8.Rel8able)
 
-emailTable :: Map Id EmailAddress
-emailTable = Map.fromList [(0, EmailAddress "jones@microsoft.net"), (1, EmailAddress "tim@google.com"), (2, EmailAddress "foo@bar.baz")]
+mailingListSchema :: Rel8.TableSchema (MailingListF Rel8.Name)
+mailingListSchema =
+  Rel8.TableSchema
+    { Rel8.name = "mailing_list",
+      Rel8.columns =
+        MailingListF
+          { mailingListId = "id",
+            email = "email"
+          }
+    }

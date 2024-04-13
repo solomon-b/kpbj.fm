@@ -9,16 +9,12 @@ TODO:
 - JWTs
 - Rate Limiting
 - Caching
-- Postgres
 - Tracing
 - Test suite
 -}
 
 --------------------------------------------------------------------------------
 
-import Control.Concurrent.MVar (MVar)
-import Control.Concurrent.MVar qualified as MVar
-import Control.Exception (catch)
 import Control.Monad (void)
 import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT (..))
@@ -36,6 +32,7 @@ import Data.Text.Encoding qualified as Text.Encoding
 import Effects.MailingList qualified as MailingList
 import Handlers.MailingList (MailingListAPI, mailingListHandler)
 import Handlers.SplashPage (SplashPageAPI, splashPageHandler)
+import Hasql.Connection qualified as HSQL
 import Log (runLogT)
 import Log qualified
 import Log.Backend.StandardOutput qualified as Log
@@ -46,7 +43,7 @@ import Servant (Context ((:.)), (:<|>) (..), (:>))
 import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
 import System.Posix.Signals qualified as Posix
-import Utils qualified
+import qualified Data.Aeson as Aeson
 
 --------------------------------------------------------------------------------
 
@@ -54,10 +51,13 @@ runApp :: IO ()
 runApp =
   Log.withJsonStdOutLogger $ \stdOutLogger -> do
     putStrLn "Launching service on port 3000"
-    mvar <- MVar.newMVar (3, MailingList.emailTable)
+    -- TODO: Options parsing for config data, such as pg conn string, port, jwk path, debug mode
+    let connectionSettings = HSQL.settings "host" 5432 "user" "pass" "db"
+    -- TODO: ERROR NICELY:
+    Right connection <- HSQL.acquire connectionSettings
     let jwtCfg = Auth.Server.defaultJWTSettings (error "TODO: CREATE A JWK")
         cfg = Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
-    Warp.runSettings (warpSettings stdOutLogger) (app cfg (stdOutLogger, mvar))
+    Warp.runSettings (warpSettings stdOutLogger) (app cfg (stdOutLogger, connection))
 
 warpSettings :: Log.Logger -> Warp.Settings
 warpSettings logger' =
@@ -68,7 +68,8 @@ warpSettings logger' =
     & Warp.setInstallShutdownHandler shutdownHandler
 
 warpStructuredLogger :: Log.Logger -> Wai.Request -> Status.Status -> Maybe Integer -> IO ()
-warpStructuredLogger logger' req s sz =
+warpStructuredLogger logger' req s sz = do
+  reqBody <- Wai.getRequestBodyChunk req
   Log.runLogT "main" logger' Log.defaultLogLevel $
     Log.logInfo "Request" $
       KeyMap.fromList $
@@ -79,8 +80,8 @@ warpStructuredLogger logger' req s sz =
           "queryString" .= fmap (bimap Text.Encoding.decodeUtf8 (fmap Text.Encoding.decodeUtf8)) (Wai.queryString req),
           "headers" .= fmap (bimap (Text.Encoding.decodeUtf8 . CI.foldedCase) Text.Encoding.decodeUtf8) (Wai.requestHeaders req),
           "isSecure" .= Wai.isSecure req,
-          "remoteHost" .= show (Wai.remoteHost req)
-          -- "requestBody" .= _ req
+          "remoteHost" .= show (Wai.remoteHost req),
+          "requestBody" .= Text.Encoding.decodeUtf8 reqBody
         ]
           <> catMaybes [fmap ("requestSize" .=) sz]
 
@@ -90,12 +91,13 @@ shutdownHandler closeSocket =
 
 --------------------------------------------------------------------------------
 
-type AppContext = (Log.Logger, MVar MailingList.Table)
+type AppContext = (Log.Logger, HSQL.Connection)
 
 type ServantContext = '[Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
 newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Servant.ServerError a)}
-  deriving (Functor, Applicative, Monad, MonadReader AppContext, MonadError Servant.ServerError, MonadIO, Log.MonadLog)
+  deriving
+    (Functor, Applicative, Monad, MonadReader AppContext, MonadError Servant.ServerError, MonadIO, Log.MonadLog)
     via ReaderT AppContext (Log.LogT (ExceptT Servant.ServerError IO))
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
@@ -118,7 +120,7 @@ type API = SplashPageAPI :<|> MailingListAPI
 server ::
   ( MonadError Servant.ServerError m,
     MonadReader env m,
-    Has (MVar MailingList.Table) env,
+    Has HSQL.Connection env,
     Log.MonadLog m,
     MonadIO m
   ) =>
