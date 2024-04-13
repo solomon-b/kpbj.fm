@@ -27,6 +27,7 @@ common common-extensions
       LambdaCase
       MultiParamTypeClasses
       OverloadedStrings
+      RankNTypes
       RecordWildCards
       TypeApplications
       TypeOperators
@@ -69,19 +70,24 @@ library
   import: common-extensions
   build-depends:  , aeson
                   , base ^>=4.18.1.0
+                  , bytestring
                   , case-insensitive
                   , containers
                   , data-has
+                  , hasql
                   , http-api-data
                   , http-types
                   , log-base
                   , lucid
                   , mtl
+                  , opaleye
+                  , rel8
                   , servant-auth
                   , servant-auth-server
                   , servant-lucid
                   , servant-server
                   , text
+                  , time
                   , transformers
                   , unix
                   , wai
@@ -91,7 +97,7 @@ library
     Effects.MailingList
     Handlers.MailingList
     Handlers.SplashPage
-    Utils
+    DB.Utils
 
   hs-source-dirs: src
   default-language: Haskell2010
