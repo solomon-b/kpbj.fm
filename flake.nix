@@ -35,10 +35,12 @@
               pkgs.cabal-install
               pkgs.haskell.compiler.${compiler}
               pkgs.haskell.packages.${compiler}.haskell-language-server
+              pkgs.just
               pkgs.nixpkgs-fmt
               pkgs.ormolu
               pkgs.openssl
               pkgs.postgresql
+              pkgs.shellcheck
               pkgs.zlib
             ];
           };
@@ -62,7 +64,7 @@
           defaultPackage = packages.kpbj-backend;
 
           apps = {
-            kpbj-backend = { 
+            kpbj-backend = {
               type = "app";
               program = "${self.packages.${system}.kpbj-backend}/bin/kpbj-backend";
             };
