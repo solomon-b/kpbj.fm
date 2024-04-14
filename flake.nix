@@ -41,6 +41,7 @@
               pkgs.openssl
               pkgs.postgresql
               pkgs.shellcheck
+              pkgs.sqlx-cli
               pkgs.zlib
             ];
           };
