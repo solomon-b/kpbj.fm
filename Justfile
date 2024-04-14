@@ -119,3 +119,22 @@ gen-keys:
   openssl genrsa -out backend/keys/private.pem 4096
   openssl rsa -in backend/keys/private.pem -out backend/keys/public.pem -pubout
   openssl pkcs12 -export -inkey keys/private.pem -in backend/keys/cert.pem -out backend/keys/keys.pfx -name "kpbj-backend"
+
+#-------------------------------------------------------------------------------
+## Database
+
+# Connect to local dev db with psql.
+psql-dev:
+  @psql $DATABASE_URL
+
+# Create a new SQL migration.
+add-migration MIGRATION:
+  sqlx migrate add {{MIGRATION}} --source backend/migrations
+
+# Run SQL migrations.
+run-migrations:
+  sqlx migrate run --source backend/migrations
+
+# List all SQL migrations.
+list-migrations:
+  sqlx migrate info --source backend/migrations
