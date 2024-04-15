@@ -3,7 +3,7 @@
 pkgs.dockerTools.buildLayeredImage {
   name = "sbothwell/kpbj.fm";
   created = "now";
-  tag = "latest";
+  tag = kpbj-backend.version;
   contents = [
     pkgs.bash
     pkgs.docker-client
