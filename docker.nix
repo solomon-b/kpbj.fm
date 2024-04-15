@@ -1,7 +1,7 @@
 { pkgs, kpbj-backend }:
 
 pkgs.dockerTools.buildLayeredImage {
-  name = "ghcr.io/solomon-b/kpbj.fm";
+  name = "sbothwell/kpbj.fm";
   created = "now";
   tag = "latest";
   contents = [
