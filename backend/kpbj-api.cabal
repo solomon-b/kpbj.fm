@@ -75,6 +75,7 @@ library
                   , cfg
                   , containers
                   , data-has
+                  , email-validate
                   , hasql
                   , http-api-data
                   , http-types
