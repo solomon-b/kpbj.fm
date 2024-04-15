@@ -29,4 +29,4 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Deploy 🚀
-      run: nix run .#deploy
+      run: ./deploy.sh
