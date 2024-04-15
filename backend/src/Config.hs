@@ -34,11 +34,11 @@ data WarpConfig = WarpConfig
   deriving (ConfigSource, ConfigParser) via (ConfigOpts [StripPrefix "warpConfig", ToUpper] WarpConfig)
 
 data PostgresConfig = PostgresConfig
-  { postgresConfigHost :: ByteString,
-    postgresConfigPort :: Word16,
-    postgresConfigDB :: ByteString,
-    postgresConfigUser :: ByteString,
-    postgresConfigPassword :: ByteString
+  { postgresConfigHost :: Maybe ByteString,
+    postgresConfigPort :: Maybe Word16,
+    postgresConfigDB :: Maybe ByteString,
+    postgresConfigUser :: Maybe ByteString,
+    postgresConfigPassword :: Maybe ByteString
   }
   deriving stock (Generic, Show)
   deriving anyclass (DefaultSource)
