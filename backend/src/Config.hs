@@ -36,7 +36,7 @@ data WarpConfig = WarpConfig
 data PostgresConfig = PostgresConfig
   { postgresConfigHost :: ByteString,
     postgresConfigPort :: Word16,
-    postgresConfigDB :: ByteString,
+    postgresConfigDB :: Maybe ByteString,
     postgresConfigUser :: ByteString,
     postgresConfigPassword :: ByteString
   }
