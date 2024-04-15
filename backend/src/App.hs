@@ -30,7 +30,7 @@ import Data.Data (Proxy (..))
 import Data.Function ((&))
 import Data.Has (Has)
 import Data.Has qualified as Has
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text.Encoding qualified as Text.Encoding
 import Effects.MailingList qualified as MailingList
 import Handlers.MailingList (MailingListAPI, mailingListHandler)
@@ -60,7 +60,7 @@ runApp =
         -- TODO: Is it weird to be instantiating 'LogT' multiple times?
         Log.runLogT "kpbj-backend" stdOutLogger Log.defaultLogLevel $
           Log.logInfo "Launching Service" (KeyMap.fromList ["port" .= warpConfigPort appConfigWarpSettings, "environment" .= appConfigEnvironment])
-        let connectionSettings = HSQL.settings postgresConfigHost postgresConfigPort postgresConfigUser postgresConfigPassword postgresConfigDB
+        let connectionSettings = HSQL.settings postgresConfigHost postgresConfigPort postgresConfigUser postgresConfigPassword (fromMaybe "" postgresConfigDB)
         -- TODO: ERROR NICELY:
         Right connection <- HSQL.acquire connectionSettings
         let jwtCfg = Auth.Server.defaultJWTSettings (error "TODO: CREATE A JWK")
