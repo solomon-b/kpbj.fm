@@ -34,6 +34,7 @@
           devShell = pkgs.mkShell {
             buildInputs = [
               pkgs.cabal-install
+              pkgs.flyctl
               pkgs.haskell.compiler.${compiler}
               pkgs.haskell.packages.${compiler}.haskell-language-server
               pkgs.haskell.packages.${compiler}.hlint
