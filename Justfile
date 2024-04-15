@@ -140,3 +140,11 @@ migrations-run:
 # List all SQL migrations.
 migrations-list:
   sqlx migrate info --source backend/migrations
+
+#-------------------------------------------------------------------------------
+## Deployment
+
+# Deploy 
+deploy:
+  nix run .#deploy
+  fly deploy
