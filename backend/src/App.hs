@@ -37,6 +37,9 @@ import Effects.MailingList qualified as MailingList
 import Handlers.MailingList (MailingListAPI, mailingListHandler)
 import Handlers.SplashPage (SplashPageAPI, splashPageHandler)
 import Hasql.Connection qualified as HSQL
+import Hasql.Pool qualified as HSQL (Pool)
+import Hasql.Pool qualified as HSQL.Pool
+import Hasql.Pool.Config as HSQL.Pool.Config
 import Log (runLogT)
 import Log qualified
 import Log.Backend.StandardOutput qualified as Log
@@ -61,12 +64,14 @@ runApp =
         -- TODO: Is it weird to be instantiating 'LogT' multiple times?
         Log.runLogT "kpbj-backend" stdOutLogger Log.defaultLogLevel $
           Log.logInfo "Launching Service" (KeyMap.fromList ["port" .= warpConfigPort appConfigWarpSettings, "environment" .= appConfigEnvironment])
-        let connectionSettings = HSQL.settings (fold postgresConfigHost) (fromMaybe 0 postgresConfigPort) (fold postgresConfigUser) (fold postgresConfigPassword) (fold postgresConfigDB)
-        -- TODO: ERROR NICELY:
-        Right connection <- HSQL.acquire connectionSettings
+
+        let hsqlSettings = HSQL.settings (fold postgresConfigHost) (fromMaybe 0 postgresConfigPort) (fold postgresConfigUser) (fold postgresConfigPassword) (fold postgresConfigDB)
+        let poolSettings = HSQL.Pool.Config.settings [HSQL.Pool.Config.staticConnectionSettings hsqlSettings]
+        pgPool <- HSQL.Pool.acquire poolSettings
+
         let jwtCfg = Auth.Server.defaultJWTSettings (error "TODO: CREATE A JWK")
             cfg = Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
-        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, connection))
+        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -101,7 +106,7 @@ shutdownHandler closeSocket =
 
 --------------------------------------------------------------------------------
 
-type AppContext = (Log.Logger, HSQL.Connection)
+type AppContext = (Log.Logger, HSQL.Pool)
 
 type ServantContext = '[Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
@@ -130,7 +135,7 @@ type API = SplashPageAPI :<|> MailingListAPI
 server ::
   ( MonadError Servant.ServerError m,
     MonadReader env m,
-    Has HSQL.Connection env,
+    Has HSQL.Pool env,
     Log.MonadLog m,
     MonadIO m
   ) =>
