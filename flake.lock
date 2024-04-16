@@ -3,11 +3,11 @@
     "cfg-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1702753223,
-        "narHash": "sha256-lM9dlv2B7YXsdm3Dyd/RhZ79TH0a+JnLl+JOt5QVG5o=",
+        "lastModified": 1713115729,
+        "narHash": "sha256-sbPhaC7uLjUG99Euad1LpP5bRVzQ7N8CR1YbnJ5Ihhs=",
         "owner": "JonathanLorimer",
         "repo": "cfg",
-        "rev": "86c9f5ff806ab725daeaedfe8cbfa35138f82877",
+        "rev": "f68e34faf78fabccc54de395ef093d525bb7d39e",
         "type": "github"
       },
       "original": {
@@ -36,11 +36,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1712883908,
-        "narHash": "sha256-icE1IJE9fHcbDfJ0+qWoDdcBXUoZCcIJxME4lMHwvSM=",
+        "lastModified": 1713254108,
+        "narHash": "sha256-0TZIsfDbHG5zibtlw6x0yOp3jkInIGaJ35B7Y4G8Pec=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "a0c9e3aee1000ac2bfb0e5b98c94c946a5d180a9",
+        "rev": "2fd19c8be2551a61c1ddc3d9f86d748f4db94f00",
         "type": "github"
       },
       "original": {
