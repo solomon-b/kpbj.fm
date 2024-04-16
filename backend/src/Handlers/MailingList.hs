@@ -17,6 +17,7 @@ import Effects.MailingList (EmailAddress (EmailAddress))
 import Effects.MailingList qualified as MailingList
 import GHC.Generics (Generic)
 import Hasql.Connection qualified as Connection
+import Hasql.Pool qualified as HSQL
 import Log qualified
 import Servant ((:<|>) (..), (:>))
 import Servant qualified
@@ -37,7 +38,7 @@ type MailingListAPI =
 --------------------------------------------------------------------------------
 -- Handler
 
-mailingListHandler :: (MonadReader env m, Has Connection.Connection env, MonadError Servant.ServerError m, Log.MonadLog m, MonadIO m) => Servant.ServerT MailingListAPI m
+mailingListHandler :: (MonadReader env m, Has HSQL.Pool env, MonadError Servant.ServerError m, Log.MonadLog m, MonadIO m) => Servant.ServerT MailingListAPI m
 mailingListHandler (MailingListForm e@(EmailAddress {..})) = do
   unless (Email.isValid $ Text.Encoding.encodeUtf8 emailAddress) $ Servant.throwError $ Servant.err401 {Servant.errBody = "Invalid Email Address"}
   pid <- MailingList.insertEmailAddress e

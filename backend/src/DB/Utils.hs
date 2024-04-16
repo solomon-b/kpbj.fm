@@ -8,10 +8,12 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Reader qualified as Reader
 import Data.ByteString.Char8 qualified as Char8
 import Data.ByteString.Lazy qualified as BL
+import Data.Foldable (fold)
 import Data.Has (Has)
 import Data.Has qualified as Has
 import Data.Text qualified as Text
 import Hasql.Connection qualified as HSQL
+import Hasql.Pool qualified as HSQL
 import Hasql.Session qualified as HSQL
 import Hasql.Statement qualified as HSQL
 import Log qualified
@@ -24,14 +26,14 @@ execQuerySpan ::
   ( Log.MonadLog m,
     MonadIO m,
     MonadReader env m,
-    Has HSQL.Connection env
+    Has HSQL.Pool env
   ) =>
   HSQL.Statement () result ->
-  m (Either HSQL.QueryError result)
+  m (Either HSQL.UsageError result)
 execQuerySpan statement@(HSQL.Statement bs _ _ _) = do
   Log.logInfo "db query" $ Text.pack $ Char8.unpack bs
   conn <- Reader.asks Has.getter
-  liftIO $ HSQL.run (HSQL.statement () statement) conn
+  liftIO $ HSQL.use conn (HSQL.statement () statement)
 
 execQuerySpanThrow ::
   ( Log.MonadLog m,
@@ -39,7 +41,7 @@ execQuerySpanThrow ::
     MonadError Servant.ServerError m,
     MonadIO m,
     MonadReader env m,
-    Has HSQL.Connection env
+    Has HSQL.Pool env
   ) =>
   HSQL.Statement () result ->
   m result
@@ -54,7 +56,7 @@ execQuerySpanThrowMessage ::
     MonadError Servant.ServerError m,
     MonadIO m,
     MonadReader env m,
-    Has HSQL.Connection env
+    Has HSQL.Pool env
   ) =>
   BL.ByteString ->
   HSQL.Statement () result ->

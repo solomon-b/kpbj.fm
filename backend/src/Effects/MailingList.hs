@@ -17,7 +17,7 @@ import Data.Text (Text)
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Encoding
 import GHC.Generics (Generic)
-import Hasql.Connection qualified as Connection
+import Hasql.Pool qualified as HSQL
 import Hasql.Session qualified as Session
 import Hasql.Statement qualified as HSQL
 import Log qualified
@@ -48,7 +48,7 @@ insertEmailAddress ::
     MonadIO m,
     MonadError Servant.ServerError m,
     MonadReader env m,
-    Has Connection.Connection env
+    Has HSQL.Pool env
   ) =>
   EmailAddress ->
   m Id

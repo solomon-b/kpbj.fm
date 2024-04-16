@@ -22,8 +22,9 @@
           pkgs = import nixpkgs { inherit system; };
           hsPkgs = pkgs.haskell.packages.${compiler}.override {
             overrides = hfinal: hprev: {
-              kpbj-backend = (hfinal.callCabal2nix "kpbj-backend" ./backend { });
-              cfg = pkgs.haskell.lib.doJailbreak (hfinal.callCabal2nix "cfg" "${cfg-src}" { });
+              hasql-pool = pkgs.haskell.lib.dontCheck hprev.hasql-pool_1_0_1;
+              kpbj-backend = hfinal.callCabal2nix "kpbj-backend" ./backend { };
+              cfg = hfinal.callCabal2nix "cfg" "${cfg-src}" { };
               rel8 = pkgs.haskell.lib.dontCheck hprev.rel8;
               servant-auth-server = pkgs.haskell.lib.markUnbroken (pkgs.haskell.lib.dontCheck hprev.servant-auth-server);
             };
