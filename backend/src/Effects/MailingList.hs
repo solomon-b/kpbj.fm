@@ -63,8 +63,8 @@ insertEmailAddressSql EmailAddress {..} =
 
 -- | Database Model for the `mailing_list` table.
 data MailingListF f = MailingListF
-  { mailingListId :: Rel8.Column f Id,
-    email :: Rel8.Column f Text
+  { mailingListId :: f Id,
+    email :: f Text
   }
   deriving stock (Generic)
   deriving anyclass (Rel8.Rel8able)
