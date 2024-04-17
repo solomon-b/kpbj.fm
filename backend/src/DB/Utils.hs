@@ -58,12 +58,13 @@ execQuerySpanThrow ::
   m result
 execQuerySpanThrow statement = do
   execQuerySpan statement >>= \case
-    Left _err -> throwError $ Servant.err500 {Servant.errBody = "Something went wrong"}
+    Left err -> do
+      Log.logAttention "Query Execution Error" (show err)
+      throwError $ Servant.err500 {Servant.errBody = "Something went wrong"}
     Right res -> pure res
 
 execQuerySpanThrowMessage ::
   ( Log.MonadLog m,
-    Show result,
     MonadError Servant.ServerError m,
     MonadIO m,
     MonadReader env m,
@@ -74,5 +75,7 @@ execQuerySpanThrowMessage ::
   m result
 execQuerySpanThrowMessage msg statement = do
   execQuerySpan statement >>= \case
-    Left _err -> throwError $ Servant.err500 {Servant.errBody = msg}
+    Left err -> do
+      Log.logAttention "Query Execution Error" (show err)
+      throwError $ Servant.err500 {Servant.errBody = msg}
     Right res -> pure res
