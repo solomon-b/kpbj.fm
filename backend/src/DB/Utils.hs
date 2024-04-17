@@ -1,3 +1,5 @@
+{-# LANGUAGE KindSignatures #-}
+
 module DB.Utils where
 
 --------------------------------------------------------------------------------
@@ -10,15 +12,26 @@ import Data.ByteString.Char8 qualified as Char8
 import Data.ByteString.Lazy qualified as BL
 import Data.Has (Has)
 import Data.Has qualified as Has
+import Data.Kind (Type)
 import Data.Text qualified as Text
 import Hasql.Pool qualified as HSQL
 import Hasql.Session qualified as HSQL
 import Hasql.Statement qualified as HSQL
 import Log qualified
+import Rel8 qualified
 import Servant qualified
 
 --------------------------------------------------------------------------------
--- DB
+-- Working with Models and Domains
+
+class ModelParser (model :: (Type -> Type) -> Type) (domain :: Type) where
+  parseModel :: model Rel8.Result -> domain
+
+class ModelPrinter (model :: (Type -> Type) -> Type) (domain :: Type) where
+  printModel :: domain -> model Rel8.Expr
+
+--------------------------------------------------------------------------------
+-- Query Execution
 
 execQuerySpan ::
   ( Log.MonadLog m,
