@@ -13,7 +13,6 @@ import Cfg.Source
 import Cfg.Source.Default
 import Data.Aeson (ToJSON)
 import Data.ByteString (ByteString)
-import Data.Text (Text)
 import Data.Word (Word16)
 import GHC.Generics
 

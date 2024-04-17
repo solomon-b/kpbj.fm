@@ -8,11 +8,9 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Reader qualified as Reader
 import Data.ByteString.Char8 qualified as Char8
 import Data.ByteString.Lazy qualified as BL
-import Data.Foldable (fold)
 import Data.Has (Has)
 import Data.Has qualified as Has
 import Data.Text qualified as Text
-import Hasql.Connection qualified as HSQL
 import Hasql.Pool qualified as HSQL
 import Hasql.Session qualified as HSQL
 import Hasql.Statement qualified as HSQL
@@ -47,7 +45,7 @@ execQuerySpanThrow ::
   m result
 execQuerySpanThrow statement = do
   execQuerySpan statement >>= \case
-    Left err -> throwError $ Servant.err500 {Servant.errBody = "Something went wrong"}
+    Left _err -> throwError $ Servant.err500 {Servant.errBody = "Something went wrong"}
     Right res -> pure res
 
 execQuerySpanThrowMessage ::
@@ -63,5 +61,5 @@ execQuerySpanThrowMessage ::
   m result
 execQuerySpanThrowMessage msg statement = do
   execQuerySpan statement >>= \case
-    Left err -> throwError $ Servant.err500 {Servant.errBody = msg}
+    Left _err -> throwError $ Servant.err500 {Servant.errBody = msg}
     Right res -> pure res

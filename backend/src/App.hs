@@ -15,7 +15,6 @@ TODO:
 
 --------------------------------------------------------------------------------
 
-import Cfg qualified
 import Cfg.Env (getEnvConfig)
 import Config
 import Control.Monad (void)
@@ -30,10 +29,8 @@ import Data.Data (Proxy (..))
 import Data.Foldable (fold)
 import Data.Function ((&))
 import Data.Has (Has)
-import Data.Has qualified as Has
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text.Encoding qualified as Text.Encoding
-import Effects.MailingList qualified as MailingList
 import Handlers.MailingList (MailingListAPI, mailingListHandler)
 import Handlers.SplashPage (SplashPageAPI, splashPageHandler)
 import Hasql.Connection qualified as HSQL
@@ -46,7 +43,7 @@ import Log.Backend.StandardOutput qualified as Log
 import Network.HTTP.Types.Status qualified as Status
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
-import Servant (Context ((:.)), (:<|>) (..), (:>))
+import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
 import System.Posix.Signals qualified as Posix
@@ -116,8 +113,8 @@ newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Serv
     via ReaderT AppContext (Log.LogT (ExceptT Servant.ServerError IO))
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
-interpret ctx@(logger, _) (AppM app) =
-  Servant.Handler $ ExceptT $ app ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)
+interpret ctx@(logger, _) (AppM appM) =
+  Servant.Handler $ ExceptT $ appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)
 
 app :: Servant.Context ServantContext -> AppContext -> Servant.Application
 app cfg ctx =
