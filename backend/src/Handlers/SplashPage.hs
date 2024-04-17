@@ -2,9 +2,6 @@ module Handlers.SplashPage where
 
 --------------------------------------------------------------------------------
 
-import Data.Aeson (FromJSON, ToJSON)
-import Data.Text (Text)
-import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:<|>) (..), (:>))
 import Servant qualified

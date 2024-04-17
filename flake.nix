@@ -36,6 +36,7 @@
               pkgs.cabal-install
               pkgs.haskell.compiler.${compiler}
               pkgs.haskell.packages.${compiler}.haskell-language-server
+              pkgs.haskell.packages.${compiler}.hlint
               pkgs.just
               pkgs.nixpkgs-fmt
               pkgs.ormolu
