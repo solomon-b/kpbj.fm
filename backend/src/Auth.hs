@@ -1,10 +1,16 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Auth where
 
 --------------------------------------------------------------------------------
 
+import Crypto.JOSE qualified as Jose
 import DB.Utils qualified
+import Data.Aeson (FromJSON)
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy as BL
 import Data.Text.Encoding qualified as Text.Encoding
 import Effects.User (EmailAddress (..), Password (..), User, UserF (..), userFSchema)
 import Hasql.Pool qualified as HSQL
@@ -13,24 +19,30 @@ import Hasql.Statement qualified as HSQL
 import Log qualified
 import Rel8 ((&&.), (==.))
 import Rel8 qualified
-import Servant qualified
+import Servant.Auth.Server qualified as Servant.Auth
 
 --------------------------------------------------------------------------------
 -- User Auth
 
-checkBasicAuth :: HSQL.Pool -> Log.Logger -> Servant.BasicAuthCheck User
-checkBasicAuth pool logger = Servant.BasicAuthCheck $ \basicAuthData ->
-  let email = EmailAddress $ Text.Encoding.decodeUtf8 (Servant.basicAuthUsername basicAuthData)
-      pass = Password $ Text.Encoding.decodeUtf8 (Servant.basicAuthPassword basicAuthData)
+type instance Servant.Auth.BasicAuthCfg = Servant.Auth.BasicAuthData -> IO (Servant.Auth.AuthResult User)
+
+instance Servant.Auth.FromBasicAuthData User where
+  fromBasicAuthData authData authCheckFunction = authCheckFunction authData
+
+-- TODO: Hash password!
+checkAuth :: HSQL.Pool -> Log.Logger -> Servant.Auth.BasicAuthData -> IO (Servant.Auth.AuthResult User)
+checkAuth pool logger (Servant.Auth.BasicAuthData email' pass') =
+  let email = EmailAddress $ Text.Encoding.decodeUtf8 email'
+      pass = Password $ Text.Encoding.decodeUtf8 pass'
    in HSQL.use pool (HSQL.statement () (userByEmailQuery email pass)) >>= \case
         Left err -> do
           Log.runLogT "kpbj-backend" logger Log.defaultLogLevel $
             Log.logAttention "SQL Error" (show err)
-          pure Servant.Unauthorized
+          pure Servant.Auth.Indefinite
         Right (Just (DB.Utils.parseModel -> user)) ->
-          pure $ Servant.Authorized user
+          pure $ Servant.Auth.Authenticated user
         Right Nothing ->
-          pure Servant.Unauthorized
+          pure Servant.Auth.NoSuchUser
 
 userByEmailQuery :: EmailAddress -> Password -> HSQL.Statement () (Maybe (UserF Rel8.Result))
 userByEmailQuery (EmailAddress email) (Password pass) =
@@ -39,3 +51,13 @@ userByEmailQuery (EmailAddress email) (Password pass) =
     Rel8.where_ $
       userFEmail userF ==. Rel8.litExpr email &&. Rel8.litExpr pass ==. userFPassword userF
     pure userF
+
+readJson :: (FromJSON a) => FilePath -> IO a
+readJson path' = do
+  raw <- Aeson.eitherDecode <$> BL.readFile path'
+  case raw of
+    Left err -> error $ show err
+    Right json -> pure json
+
+readJWK :: FilePath -> IO Jose.JWK
+readJWK = readJson
