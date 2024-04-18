@@ -24,6 +24,7 @@ import Log qualified
 import Rel8 ((==.))
 import Rel8 qualified
 import Servant qualified
+import Servant.Auth.JWT (FromJWT, ToJWT)
 
 --------------------------------------------------------------------------------
 -- Domain
@@ -42,7 +43,7 @@ data User = User
     userIsAdmin :: Bool
   }
   deriving stock (Show, Generic, Eq)
-  deriving anyclass (FromJSON, ToJSON)
+  deriving anyclass (FromJSON, ToJSON, ToJWT, FromJWT)
 
 instance DB.Utils.ModelParser UserF User where
   parseModel :: UserF Rel8.Result -> User

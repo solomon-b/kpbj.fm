@@ -6,7 +6,6 @@ module App where
 
 {-
 TODO:
-- JWTs
 - Rate Limiting
 - Caching
 - Tracing
@@ -15,7 +14,7 @@ TODO:
 
 --------------------------------------------------------------------------------
 
-import Auth (checkBasicAuth)
+import Auth (checkAuth, readJWK)
 import Cfg.Env (getEnvConfig)
 import Config
 import Control.Monad (void)
@@ -32,7 +31,6 @@ import Data.Function ((&))
 import Data.Has (Has)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text.Encoding qualified as Text.Encoding
-import Effects.User (User)
 import Handlers.MailingList (MailingListAPI, mailingListHandler)
 import Handlers.SplashPage (SplashPageAPI, splashPageHandler)
 import Handlers.User (UserAPI, userHandler)
@@ -49,6 +47,7 @@ import Network.Wai.Handler.Warp qualified as Warp
 import Servant (Context ((:.)), (:<|>) (..), (:>))
 import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
+import Servant.Auth.Server qualified as Servant.Auth
 import System.Posix.Signals qualified as Posix
 
 --------------------------------------------------------------------------------
@@ -69,8 +68,9 @@ runApp =
         let poolSettings = HSQL.Pool.Config.settings [HSQL.Pool.Config.staticConnectionSettings hsqlSettings]
         pgPool <- HSQL.Pool.acquire poolSettings
 
-        let jwtCfg = Auth.Server.defaultJWTSettings (error "TODO: CREATE A JWK")
-            cfg = checkBasicAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
+        jwk <- readJWK "./backend/jwk.json"
+        let jwtCfg = Auth.Server.defaultJWTSettings jwk
+            cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
         Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
@@ -108,7 +108,7 @@ shutdownHandler closeSocket =
 
 type AppContext = (Log.Logger, HSQL.Pool)
 
-type ServantContext = '[Servant.BasicAuthCheck User, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
+type ServantContext = '[Servant.Auth.BasicAuthCfg, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
 newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Servant.ServerError a)}
   deriving

@@ -76,6 +76,7 @@ library
                   , hasql-pool
                   , http-api-data
                   , http-types
+                  , jose
                   , log-base
                   , lucid
                   , mtl
