@@ -128,13 +128,13 @@ psql-dev:
   @psql $DATABASE_URL
 
 # Create a new SQL migration.
-add-migration MIGRATION:
+migrations-add MIGRATION:
   sqlx migrate add {{MIGRATION}} --source backend/migrations
 
 # Run SQL migrations.
-run-migrations:
+migrations-run:
   sqlx migrate run --source backend/migrations
 
 # List all SQL migrations.
-list-migrations:
+migrations-list:
   sqlx migrate info --source backend/migrations

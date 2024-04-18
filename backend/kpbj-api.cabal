@@ -96,8 +96,10 @@ library
     App
     Config
     Effects.MailingList
+    Effects.User
     Handlers.MailingList
     Handlers.SplashPage
+    Handlers.User
     DB.Utils
 
   hs-source-dirs: src
