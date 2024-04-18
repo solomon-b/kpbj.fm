@@ -19,15 +19,19 @@ import Servant qualified
 type UserAPI =
   Servant.Get '[Servant.JSON] [User]
     :<|> Servant.Capture "id" User.Id :> Servant.Get '[Servant.JSON] User
+    :<|> Servant.BasicAuth "current-user" User :> Servant.Get '[Servant.JSON] User
 
 --------------------------------------------------------------------------------
 -- Handler
 
 userHandler :: (MonadReader env m, Has HSQL.Pool env, MonadError Servant.ServerError m, Log.MonadLog m, MonadIO m) => Servant.ServerT UserAPI m
-userHandler = usersHandler :<|> userProfileHandler
+userHandler = usersHandler :<|> userProfileHandler :<|> currentUserHandler
 
 usersHandler :: (MonadReader env m, Has HSQL.Pool env, MonadError Servant.ServerError m, Log.MonadLog m, MonadIO m) => m [User]
 usersHandler = User.getUsers
 
 userProfileHandler :: (MonadReader env m, Has HSQL.Pool env, MonadError Servant.ServerError m, Log.MonadLog m, MonadIO m) => User.Id -> m User
 userProfileHandler = User.getUser
+
+currentUserHandler :: (MonadReader env m, Has HSQL.Pool env, MonadError Servant.ServerError m, Log.MonadLog m, MonadIO m) => User -> m User
+currentUserHandler = pure

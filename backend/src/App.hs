@@ -15,6 +15,7 @@ TODO:
 
 --------------------------------------------------------------------------------
 
+import Auth (checkBasicAuth)
 import Cfg.Env (getEnvConfig)
 import Config
 import Control.Monad (void)
@@ -31,6 +32,7 @@ import Data.Function ((&))
 import Data.Has (Has)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text.Encoding qualified as Text.Encoding
+import Effects.User (User)
 import Handlers.MailingList (MailingListAPI, mailingListHandler)
 import Handlers.SplashPage (SplashPageAPI, splashPageHandler)
 import Handlers.User (UserAPI, userHandler)
@@ -68,7 +70,7 @@ runApp =
         pgPool <- HSQL.Pool.acquire poolSettings
 
         let jwtCfg = Auth.Server.defaultJWTSettings (error "TODO: CREATE A JWK")
-            cfg = Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
+            cfg = checkBasicAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
         Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
@@ -106,7 +108,7 @@ shutdownHandler closeSocket =
 
 type AppContext = (Log.Logger, HSQL.Pool)
 
-type ServantContext = '[Auth.Server.CookieSettings, Auth.Server.JWTSettings]
+type ServantContext = '[Servant.BasicAuthCheck User, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
 newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Servant.ServerError a)}
   deriving

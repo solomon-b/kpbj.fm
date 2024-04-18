@@ -94,6 +94,7 @@ library
                   , warp
   exposed-modules:
     App
+    Auth
     Config
     Effects.MailingList
     Effects.User
