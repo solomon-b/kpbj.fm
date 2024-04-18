@@ -29,7 +29,7 @@ newtype MailingListForm = MailingListForm
   deriving anyclass (FromJSON, ToJSON, FromForm)
 
 type MailingListAPI =
-  "mailing-list" :> "signup" :> Servant.ReqBody '[Servant.JSON, Servant.FormUrlEncoded] MailingListForm :> Servant.Post '[Servant.JSON] ()
+  "signup" :> Servant.ReqBody '[Servant.JSON, Servant.FormUrlEncoded] MailingListForm :> Servant.Post '[Servant.JSON] ()
 
 --------------------------------------------------------------------------------
 -- Handler
