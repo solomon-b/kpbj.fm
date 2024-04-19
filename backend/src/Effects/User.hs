@@ -13,6 +13,8 @@ import Control.Monad.Reader (MonadReader)
 import DB.Utils (execQuerySpanThrowMessage)
 import DB.Utils qualified
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types (FromJSON (..))
 import Data.Coerce (coerce)
 import Data.Has (Has)
 import Data.Int (Int64)
@@ -21,7 +23,7 @@ import GHC.Generics
 import Hasql.Pool qualified as HSQL
 import Hasql.Statement qualified as HSQL
 import Log qualified
-import Rel8 ((==.))
+import Rel8 ((&&.), (==.))
 import Rel8 qualified
 import Servant qualified
 import Servant.Auth.JWT (FromJWT, ToJWT)
@@ -29,16 +31,10 @@ import Servant.Auth.JWT (FromJWT, ToJWT)
 --------------------------------------------------------------------------------
 -- Domain
 
--- data AdminStatus = IsAdmin | IsNotAdmin
-
-newtype Password = Password Text
-  deriving stock (Show, Generic, Eq)
-  deriving newtype (FromJSON, ToJSON)
-
 data User = User
   { userId :: Id,
     userEmail :: EmailAddress,
-    userDisplayName :: Text,
+    userDisplayName :: DisplayName,
     userAvatarUrl :: Maybe Text,
     userIsAdmin :: Bool
   }
@@ -59,27 +55,47 @@ instance DB.Utils.ModelParser UserF User where
             userIsAdmin = coerce userFIsAdmin
           }
 
-instance DB.Utils.ModelPrinter UserF (User, Password) where
-  printModel :: (User, Password) -> UserF Rel8.Expr
-  printModel (User {..}, Password p) =
+instance DB.Utils.ModelPrinter UserF (EmailAddress, Password, DisplayName, AdminStatus) where
+  printModel :: (EmailAddress, Password, DisplayName, AdminStatus) -> UserF Rel8.Expr
+  printModel (email, pass, DisplayName displayName, adminStatus) =
     UserF
       { userFId = Rel8.unsafeDefault,
-        userFEmail = Rel8.litExpr (coerce userEmail),
-        userFPassword = Rel8.litExpr p,
-        userFDisplayName = Rel8.litExpr userDisplayName,
-        userFAvatarUrl = Rel8.litExpr userAvatarUrl,
-        userFIsAdmin = Rel8.litExpr userIsAdmin
+        userFEmail = Rel8.litExpr (coerce email),
+        userFPassword = Rel8.litExpr (coerce pass),
+        userFDisplayName = Rel8.litExpr displayName,
+        userFAvatarUrl = Rel8.litExpr Nothing,
+        userFIsAdmin = Rel8.litExpr $ isAdmin adminStatus
       }
 
 newtype EmailAddress = EmailAddress {emailAddress :: Text}
   deriving stock (Show, Generic, Eq)
-  deriving newtype (Servant.FromHttpApiData)
-  deriving anyclass (FromJSON, ToJSON)
+  deriving newtype (Servant.FromHttpApiData, FromJSON, ToJSON)
+
+newtype DisplayName = DisplayName {displayName :: Text}
+  deriving stock (Show, Generic, Eq)
+  deriving newtype (Servant.FromHttpApiData, FromJSON, ToJSON)
 
 newtype Id = Id Int64
   deriving stock (Generic)
-  deriving newtype (Show, Eq, Ord, Num, Servant.FromHttpApiData, Rel8.DBEq, Rel8.DBType)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving newtype (Show, Eq, Ord, Num, Servant.FromHttpApiData, Rel8.DBEq, Rel8.DBType, ToJSON, FromJSON)
+  deriving anyclass (ToJWT, FromJWT)
+
+newtype Password = Password Text
+  deriving stock (Show, Generic, Eq)
+  deriving newtype (FromJSON, ToJSON)
+
+data AdminStatus = IsAdmin | IsNotAdmin
+  deriving stock (Show, Generic, Eq)
+
+instance FromJSON AdminStatus where
+  parseJSON = Aeson.withBool "IsAdmin" $ \case
+    True -> pure IsAdmin
+    False -> pure IsNotAdmin
+
+isAdmin :: AdminStatus -> Bool
+isAdmin = \case
+  IsAdmin -> True
+  IsNotAdmin -> False
 
 --------------------------------------------------------------------------------
 -- Model
@@ -123,15 +139,56 @@ getUser ::
     Has HSQL.Pool env
   ) =>
   Id ->
-  m User
+  m (Maybe User)
 getUser uid = do
   user <- execQuerySpanThrowMessage "Failed to query users table" (selectUserQuery uid)
-  pure $ DB.Utils.parseModel user
+  pure $ fmap DB.Utils.parseModel user
 
-selectUserQuery :: Id -> HSQL.Statement () (UserF Rel8.Result)
-selectUserQuery uid = Rel8.run1 . Rel8.select $ do
+selectUserQuery :: Id -> HSQL.Statement () (Maybe (UserF Rel8.Result))
+selectUserQuery uid = Rel8.runMaybe . Rel8.select $ do
   userF <- Rel8.each userFSchema
   Rel8.where_ $ userFId userF ==. Rel8.litExpr uid
+  pure userF
+
+getUserByCredential ::
+  forall env m.
+  ( Log.MonadLog m,
+    MonadIO m,
+    MonadError Servant.ServerError m,
+    MonadReader env m,
+    Has HSQL.Pool env
+  ) =>
+  EmailAddress ->
+  Password ->
+  m (Maybe User)
+getUserByCredential email pass = do
+  user <- execQuerySpanThrowMessage "Failed to query users table" (selectUserByCredentialQuery email pass)
+  pure $ fmap DB.Utils.parseModel user
+
+selectUserByCredentialQuery :: EmailAddress -> Password -> HSQL.Statement () (Maybe (UserF Rel8.Result))
+selectUserByCredentialQuery (EmailAddress email) (Password pass) = Rel8.runMaybe . Rel8.select $ do
+  userF <- Rel8.each userFSchema
+  Rel8.where_ $ userFEmail userF ==. Rel8.litExpr email &&. userFPassword userF ==. Rel8.litExpr pass
+  pure userF
+
+getUserByEmail ::
+  forall env m.
+  ( Log.MonadLog m,
+    MonadIO m,
+    MonadError Servant.ServerError m,
+    MonadReader env m,
+    Has HSQL.Pool env
+  ) =>
+  EmailAddress ->
+  m (Maybe User)
+getUserByEmail email = do
+  user <- execQuerySpanThrowMessage "Failed to query users table" (selectUserByEmailQuery email)
+  pure $ fmap DB.Utils.parseModel user
+
+selectUserByEmailQuery :: EmailAddress -> HSQL.Statement () (Maybe (UserF Rel8.Result))
+selectUserByEmailQuery (EmailAddress email) = Rel8.runMaybe . Rel8.select $ do
+  userF <- Rel8.each userFSchema
+  Rel8.where_ $ userFEmail userF ==. Rel8.litExpr email
   pure userF
 
 getUsers ::
@@ -158,17 +215,17 @@ insertUser ::
     MonadReader env m,
     Has HSQL.Pool env
   ) =>
-  (User, Password) ->
+  (EmailAddress, Password, DisplayName, AdminStatus) ->
   m Id
 insertUser = execQuerySpanThrowMessage "Failed to insert user" . insertUserQuery
 
-insertUserQuery :: (User, Password) -> HSQL.Statement () Id
-insertUserQuery user =
+insertUserQuery :: (EmailAddress, Password, DisplayName, AdminStatus) -> HSQL.Statement () Id
+insertUserQuery newUser =
   Rel8.run1 $
     Rel8.insert $
       Rel8.Insert
         { into = userFSchema,
-          rows = Rel8.values [DB.Utils.printModel user],
+          rows = Rel8.values [DB.Utils.printModel newUser],
           onConflict = Rel8.Abort,
           returning = Rel8.Returning userFId
         }
