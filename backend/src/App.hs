@@ -72,7 +72,7 @@ runApp =
         jwk <- readJSON "./backend/jwk.json"
         let jwtCfg = Auth.Server.defaultJWTSettings jwk
             cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
-        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool))
+        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool, jwtCfg))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -107,7 +107,7 @@ shutdownHandler closeSocket =
 
 --------------------------------------------------------------------------------
 
-type AppContext = (Log.Logger, HSQL.Pool)
+type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings)
 
 type ServantContext = '[Servant.Auth.BasicAuthCfg, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
@@ -117,7 +117,7 @@ newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Serv
     via ReaderT AppContext (Log.LogT (ExceptT Servant.ServerError IO))
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
-interpret ctx@(logger, _) (AppM appM) =
+interpret ctx@(logger, _, _) (AppM appM) =
   Servant.Handler $ ExceptT $ appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)
 
 app :: Servant.Context ServantContext -> AppContext -> Servant.Application
@@ -140,6 +140,7 @@ server ::
   ( MonadError Servant.ServerError m,
     MonadReader env m,
     Has HSQL.Pool env,
+    Has Servant.Auth.JWTSettings env,
     Log.MonadLog m,
     MonadIO m
   ) =>
