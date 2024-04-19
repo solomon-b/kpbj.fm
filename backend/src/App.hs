@@ -14,7 +14,7 @@ TODO:
 
 --------------------------------------------------------------------------------
 
-import Auth (checkAuth, readJWK)
+import Auth (checkAuth)
 import Cfg.Env (getEnvConfig)
 import Config
 import Control.Monad (void)
@@ -49,6 +49,7 @@ import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
 import Servant.Auth.Server qualified as Servant.Auth
 import System.Posix.Signals qualified as Posix
+import Utils
 
 --------------------------------------------------------------------------------
 
@@ -68,7 +69,7 @@ runApp =
         let poolSettings = HSQL.Pool.Config.settings [HSQL.Pool.Config.staticConnectionSettings hsqlSettings]
         pgPool <- HSQL.Pool.acquire poolSettings
 
-        jwk <- readJWK "./backend/jwk.json"
+        jwk <- readJSON "./backend/jwk.json"
         let jwtCfg = Auth.Server.defaultJWTSettings jwk
             cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
         Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool))
