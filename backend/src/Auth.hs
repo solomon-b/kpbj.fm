@@ -6,11 +6,7 @@ module Auth where
 
 --------------------------------------------------------------------------------
 
-import Crypto.JOSE qualified as Jose
 import DB.Utils qualified
-import Data.Aeson (FromJSON)
-import Data.Aeson qualified as Aeson
-import Data.ByteString.Lazy as BL
 import Data.Text.Encoding qualified as Text.Encoding
 import Effects.User (EmailAddress (..), Password (..), User, UserF (..), userFSchema)
 import Hasql.Pool qualified as HSQL
@@ -51,13 +47,3 @@ userByEmailQuery (EmailAddress email) (Password pass) =
     Rel8.where_ $
       userFEmail userF ==. Rel8.litExpr email &&. Rel8.litExpr pass ==. userFPassword userF
     pure userF
-
-readJson :: (FromJSON a) => FilePath -> IO a
-readJson path' = do
-  raw <- Aeson.eitherDecode <$> BL.readFile path'
-  case raw of
-    Left err -> error $ show err
-    Right json -> pure json
-
-readJWK :: FilePath -> IO Jose.JWK
-readJWK = readJson
