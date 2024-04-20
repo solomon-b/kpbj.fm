@@ -112,13 +112,15 @@ lint-shell-changed:
 
 #-------------------------------------------------------------------------------
 ## Key Gen
+# https://ruleoftech.com/2020/generating-jwt-and-jwk-for-information-exchange-between-services
 
-## gen-keys: generate RSA key for JWK
+# Generate RSA key for JWK
 gen-keys:
-  mkdir -p keys
+  mkdir -p backend/keys
   openssl genrsa -out backend/keys/private.pem 4096
   openssl rsa -in backend/keys/private.pem -out backend/keys/public.pem -pubout
-  openssl pkcs12 -export -inkey keys/private.pem -in backend/keys/cert.pem -out backend/keys/keys.pfx -name "kpbj-backend"
+  openssl req -key backend/keys/private.pem -new -x509 -days 3650 -subj "/C=FI/ST=Helsinki/O=Rule of Tech/OU=Information unit/CN=ruleoftech.com" -out backend/keys/cert.pem
+  openssl pkcs12 -export -inkey backend/keys/private.pem -in backend/keys/cert.pem -out backend/keys/keys.pfx -name "kpbj-backend"
 
 #-------------------------------------------------------------------------------
 ## Database
@@ -128,13 +130,13 @@ psql-dev:
   @psql $DATABASE_URL
 
 # Create a new SQL migration.
-add-migration MIGRATION:
+migrations-add MIGRATION:
   sqlx migrate add {{MIGRATION}} --source backend/migrations
 
 # Run SQL migrations.
-run-migrations:
+migrations-run:
   sqlx migrate run --source backend/migrations
 
 # List all SQL migrations.
-list-migrations:
+migrations-list:
   sqlx migrate info --source backend/migrations
