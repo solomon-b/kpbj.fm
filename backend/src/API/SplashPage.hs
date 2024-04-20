@@ -1,4 +1,4 @@
-module Handlers.SplashPage where
+module API.SplashPage where
 
 --------------------------------------------------------------------------------
 

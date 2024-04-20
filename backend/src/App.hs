@@ -14,6 +14,7 @@ TODO:
 
 --------------------------------------------------------------------------------
 
+import API
 import Auth (checkAuth)
 import Cfg.Env (getEnvConfig)
 import Config
@@ -28,12 +29,8 @@ import Data.CaseInsensitive qualified as CI
 import Data.Data (Proxy (..))
 import Data.Foldable (fold)
 import Data.Function ((&))
-import Data.Has (Has)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text.Encoding qualified as Text.Encoding
-import Handlers.MailingList (MailingListAPI, mailingListHandler)
-import Handlers.SplashPage (SplashPageAPI, splashPageHandler)
-import Handlers.User (UserAPI, userHandler)
 import Hasql.Connection qualified as HSQL
 import Hasql.Pool qualified as HSQL (Pool)
 import Hasql.Pool qualified as HSQL.Pool
@@ -44,7 +41,7 @@ import Log.Backend.StandardOutput qualified as Log
 import Network.HTTP.Types.Status qualified as Status
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
-import Servant (Context ((:.)), (:<|>) (..), (:>))
+import Servant (Context ((:.)))
 import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
 import Servant.Auth.Server qualified as Servant.Auth
@@ -128,21 +125,3 @@ app cfg ctx =
       (Proxy @ServantContext)
       (interpret ctx)
       server
-
---------------------------------------------------------------------------------
-
-type API =
-  SplashPageAPI
-    :<|> ("mailing-list" :> MailingListAPI)
-    :<|> ("user" :> UserAPI)
-
-server ::
-  ( MonadError Servant.ServerError m,
-    MonadReader env m,
-    Has HSQL.Pool env,
-    Has Servant.Auth.JWTSettings env,
-    Log.MonadLog m,
-    MonadIO m
-  ) =>
-  Servant.ServerT API m
-server = splashPageHandler :<|> mailingListHandler :<|> userHandler

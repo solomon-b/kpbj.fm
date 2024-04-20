@@ -1,4 +1,4 @@
-module Handlers.MailingList where
+module API.MailingList where
 
 --------------------------------------------------------------------------------
 
