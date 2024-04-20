@@ -3,13 +3,10 @@ module Database.Queries.MailingList where
 --------------------------------------------------------------------------------
 
 import Control.Monad.Error.Class (MonadError)
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
+import Database.Class (MonadDB)
 import Database.Tables.MailingList
 import Database.Utils
 import Domain.Types.Email
-import Hasql.Pool qualified as HSQL
 import Hasql.Statement qualified as HSQL
 import Log qualified
 import Rel8 qualified
@@ -18,12 +15,9 @@ import Servant qualified
 --------------------------------------------------------------------------------
 
 insertEmailAddress ::
-  forall env m.
   ( Log.MonadLog m,
-    MonadIO m,
-    MonadError Servant.ServerError m,
-    MonadReader env m,
-    Has HSQL.Pool env
+    MonadDB m,
+    MonadError Servant.ServerError m
   ) =>
   EmailAddress ->
   m Id

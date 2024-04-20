@@ -111,6 +111,7 @@ library
     API.User.Current
     API.User.Login
     API.User.Register
+    Database.Class
     Database.Queries.User
     Database.Queries.MailingList
     Database.Tables.User

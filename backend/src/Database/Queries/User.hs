@@ -3,9 +3,7 @@ module Database.Queries.User where
 --------------------------------------------------------------------------------
 
 import Control.Monad.Error.Class (MonadError)
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
+import Database.Class (MonadDB)
 import Database.Tables.User
 import Database.Utils
 import Domain.Types.AdminStatus
@@ -13,7 +11,6 @@ import Domain.Types.DisplayName
 import Domain.Types.Email
 import Domain.Types.Password
 import Domain.Types.User ()
-import Hasql.Pool qualified as HSQL
 import Hasql.Statement qualified as HSQL
 import Log qualified
 import Rel8 ((&&.), (==.))
@@ -24,12 +21,9 @@ import Servant qualified
 -- Effect
 
 getUser ::
-  forall env m.
   ( Log.MonadLog m,
-    MonadIO m,
-    MonadError Servant.ServerError m,
-    MonadReader env m,
-    Has HSQL.Pool env
+    MonadDB m,
+    MonadError Servant.ServerError m
   ) =>
   Id ->
   m (Maybe (UserF Rel8.Result))
@@ -42,12 +36,9 @@ selectUserQuery uid = Rel8.runMaybe . Rel8.select $ do
   pure userF
 
 getUserByCredential ::
-  forall env m.
   ( Log.MonadLog m,
-    MonadIO m,
-    MonadError Servant.ServerError m,
-    MonadReader env m,
-    Has HSQL.Pool env
+    MonadDB m,
+    MonadError Servant.ServerError m
   ) =>
   EmailAddress ->
   Password ->
@@ -61,12 +52,9 @@ selectUserByCredentialQuery (EmailAddress email) (Password pass) = Rel8.runMaybe
   pure userF
 
 getUserByEmail ::
-  forall env m.
   ( Log.MonadLog m,
-    MonadIO m,
-    MonadError Servant.ServerError m,
-    MonadReader env m,
-    Has HSQL.Pool env
+    MonadDB m,
+    MonadError Servant.ServerError m
   ) =>
   EmailAddress ->
   m (Maybe (UserF Rel8.Result))
@@ -79,12 +67,9 @@ selectUserByEmailQuery (EmailAddress email) = Rel8.runMaybe . Rel8.select $ do
   pure userF
 
 getUsers ::
-  forall env m.
   ( Log.MonadLog m,
-    MonadIO m,
-    MonadError Servant.ServerError m,
-    MonadReader env m,
-    Has HSQL.Pool env
+    MonadDB m,
+    MonadError Servant.ServerError m
   ) =>
   m [UserF Rel8.Result]
 getUsers = execQuerySpanThrowMessage "Failed to query users table" selectUsersQuery
@@ -93,12 +78,9 @@ selectUsersQuery :: HSQL.Statement () [UserF Rel8.Result]
 selectUsersQuery = Rel8.run . Rel8.select $ Rel8.each userFSchema
 
 insertUser ::
-  forall env m.
   ( Log.MonadLog m,
-    MonadIO m,
-    MonadError Servant.ServerError m,
-    MonadReader env m,
-    Has HSQL.Pool env
+    MonadDB m,
+    MonadError Servant.ServerError m
   ) =>
   (EmailAddress, Password, DisplayName, AdminStatus) ->
   m Id
