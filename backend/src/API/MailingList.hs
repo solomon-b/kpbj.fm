@@ -10,8 +10,8 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Has (Has)
 import Data.Text.Encoding qualified as Text.Encoding
-import Effects.MailingList (EmailAddress (EmailAddress))
-import Effects.MailingList qualified as MailingList
+import Database.Queries.MailingList qualified as MailingList
+import Domain.Types.Email (EmailAddress (..))
 import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL
 import Log qualified
@@ -24,7 +24,7 @@ import Web.FormUrlEncoded (FromForm)
 -- Route
 
 newtype MailingListForm = MailingListForm
-  {emailAddress :: MailingList.EmailAddress}
+  {emailAddress :: EmailAddress}
   deriving stock (Show, Generic)
   deriving anyclass (FromJSON, ToJSON, FromForm)
 

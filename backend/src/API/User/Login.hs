@@ -2,6 +2,7 @@ module API.User.Login where
 
 --------------------------------------------------------------------------------
 
+import Auth qualified
 import Control.Monad (unless)
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -10,9 +11,12 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
 import Data.Has (Has)
 import Data.Text.Encoding qualified as Text.Encoding
+import Database.Queries.User qualified as User
+import Database.Utils
 import Deriving.Aeson qualified as Deriving
-import Effects.Auth qualified
-import Effects.User qualified as User
+import Domain.Types.Email
+import Domain.Types.Password
+import Domain.Types.User (User)
 import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL
 import Log qualified
@@ -23,8 +27,8 @@ import Text.Email.Validate qualified as Email
 --------------------------------------------------------------------------------
 
 data Login = Login
-  { ulEmail :: User.EmailAddress,
-    ulPassword :: User.Password
+  { ulEmail :: EmailAddress,
+    ulPassword :: Password
   }
   deriving stock (Generic)
   deriving
@@ -40,13 +44,13 @@ handler ::
     MonadIO m
   ) =>
   Login ->
-  m Effects.Auth.JWTToken
+  m Auth.JWTToken
 handler Login {..} = do
   unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce ulEmail) $ Servant.throwError $ Servant.err403 {Servant.errBody = "Invalid Email Address"}
   User.getUserByCredential ulEmail ulPassword >>= \case
     Just user -> do
       Log.logInfo "Login Attempt" ulEmail
-      Effects.Auth.generateJWTToken user
+      Auth.generateJWTToken $ parseModel @_ @User user
     Nothing -> do
       Log.logInfo "Invalid Credentials" ulEmail
       Servant.throwError $ Servant.err401 {Servant.errBody = "Invalid Credentials."}

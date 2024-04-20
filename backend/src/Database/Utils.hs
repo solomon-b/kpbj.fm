@@ -1,6 +1,6 @@
 {-# LANGUAGE KindSignatures #-}
 
-module DB.Utils where
+module Database.Utils where
 
 --------------------------------------------------------------------------------
 
