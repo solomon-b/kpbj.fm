@@ -9,7 +9,7 @@ import Control.Monad.Identity (Identity (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
 import Data.Text (Text)
-import Database.Tables.User
+import Database.Tables.User qualified as User
 import Database.Utils
 import Domain.Types.AdminStatus
 import Domain.Types.DisplayName
@@ -23,7 +23,7 @@ import Servant.Auth.JWT (FromJWT, ToJWT)
 -- Domain
 
 data User = User
-  { userId :: Id,
+  { userId :: User.Id,
     userEmail :: EmailAddress,
     userDisplayName :: DisplayName,
     userAvatarUrl :: Maybe Text,
@@ -32,28 +32,28 @@ data User = User
   deriving stock (Show, Generic, Eq)
   deriving anyclass (FromJSON, ToJSON, ToJWT, FromJWT)
 
-instance ModelParser UserF User where
-  parseModel :: UserF Rel8.Result -> User
+instance ModelParser User.Model User where
+  parseModel :: User.Model Rel8.Result -> User
   parseModel = parser . runIdentity . bsequence'
     where
-      parser :: UserF Identity -> User
-      parser UserF {..} =
+      parser :: User.Model Identity -> User
+      parser User.Model {..} =
         User
-          { userId = coerce userFId,
-            userEmail = coerce userFEmail,
-            userDisplayName = coerce userFDisplayName,
-            userAvatarUrl = coerce userFAvatarUrl,
-            userIsAdmin = coerce userFIsAdmin
+          { userId = coerce umId,
+            userEmail = coerce umEmail,
+            userDisplayName = coerce umDisplayName,
+            userAvatarUrl = coerce umAvatarUrl,
+            userIsAdmin = coerce umIsAdmin
           }
 
-instance ModelPrinter UserF (EmailAddress, Password, DisplayName, AdminStatus) where
-  printModel :: (EmailAddress, Password, DisplayName, AdminStatus) -> UserF Rel8.Expr
+instance ModelPrinter User.Model (EmailAddress, Password, DisplayName, AdminStatus) where
+  printModel :: (EmailAddress, Password, DisplayName, AdminStatus) -> User.Model Rel8.Expr
   printModel (email, pass, DisplayName displayName, adminStatus) =
-    UserF
-      { userFId = Rel8.unsafeDefault,
-        userFEmail = Rel8.litExpr (coerce email),
-        userFPassword = Rel8.litExpr (coerce pass),
-        userFDisplayName = Rel8.litExpr displayName,
-        userFAvatarUrl = Rel8.litExpr Nothing,
-        userFIsAdmin = Rel8.litExpr $ isAdmin adminStatus
+    User.Model
+      { umId = Rel8.unsafeDefault,
+        umEmail = Rel8.litExpr (coerce email),
+        umPassword = Rel8.litExpr (coerce pass),
+        umDisplayName = Rel8.litExpr displayName,
+        umAvatarUrl = Rel8.litExpr Nothing,
+        umIsAdmin = Rel8.litExpr $ isAdmin adminStatus
       }

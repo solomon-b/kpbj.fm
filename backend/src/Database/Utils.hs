@@ -67,3 +67,15 @@ execQuerySpanThrowMessage msg statement = do
       Log.logAttention "Query Execution Error" (show err)
       throwError $ Servant.err500 {Servant.errBody = msg}
     Right res -> pure res
+
+execQuerySpanThrowMessage' ::
+  ( Log.MonadLog m,
+    MonadError Servant.ServerError m,
+    MonadDB m,
+    ModelParser result domain
+  ) =>
+  BL.ByteString ->
+  HSQL.Statement () (result Rel8.Result) ->
+  m domain
+execQuerySpanThrowMessage' msg statement =
+  parseModel <$> execQuerySpanThrowMessage msg statement
