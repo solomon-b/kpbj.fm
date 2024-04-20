@@ -99,13 +99,23 @@ library
     App
     Auth
     Config
-    Effects.Auth
-    Effects.MailingList
-    Effects.User
-    Handlers.MailingList
-    Handlers.SplashPage
-    Handlers.User
-    DB.Utils
+    Domain.Types.AdminStatus
+    Domain.Types.DisplayName
+    Domain.Types.Email
+    Domain.Types.Password
+    Domain.Types.User
+    API
+    API.MailingList
+    API.SplashPage
+    API.User
+    API.User.Current
+    API.User.Login
+    API.User.Register
+    Database.Queries.User
+    Database.Queries.MailingList
+    Database.Tables.User
+    Database.Tables.MailingList
+    Database.Utils
     Utils
 
   hs-source-dirs: src
