@@ -20,7 +20,9 @@ import Cfg.Env (getEnvConfig)
 import Config
 import Control.Monad (void)
 import Control.Monad.Except (MonadError)
-import Control.Monad.Reader (MonadIO, MonadReader, ReaderT (..))
+import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Reader (MonadReader, ReaderT (..))
+import Control.Monad.Reader qualified as Reader
 import Control.Monad.Trans.Except (ExceptT (..))
 import Data.Aeson ((.=))
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -29,12 +31,16 @@ import Data.CaseInsensitive qualified as CI
 import Data.Data (Proxy (..))
 import Data.Foldable (fold)
 import Data.Function ((&))
+import Data.Has qualified as Has
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text.Encoding qualified as Text.Encoding
+import Database.Class
 import Hasql.Connection qualified as HSQL
 import Hasql.Pool qualified as HSQL (Pool)
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Pool.Config as HSQL.Pool.Config
+import Hasql.Session qualified as HSQL
+import Hasql.Statement qualified as HSQL
 import Log (runLogT)
 import Log qualified
 import Log.Backend.StandardOutput qualified as Log
@@ -112,6 +118,15 @@ newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Serv
   deriving
     (Functor, Applicative, Monad, MonadReader AppContext, MonadError Servant.ServerError, MonadIO, Log.MonadLog)
     via ReaderT AppContext (Log.LogT (ExceptT Servant.ServerError IO))
+
+instance MonadDB AppM where
+  runDB :: HSQL.Session a -> AppM (Either HSQL.Pool.UsageError a)
+  runDB s = do
+    pool <- Reader.asks Has.getter
+    liftIO $ HSQL.Pool.use pool s
+
+  execStatement :: HSQL.Statement () a -> AppM (Either HSQL.Pool.UsageError a)
+  execStatement = runDB . HSQL.statement ()
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
 interpret ctx@(logger, _, _) (AppM appM) =
