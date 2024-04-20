@@ -4,16 +4,13 @@ module API.MailingList where
 
 import Control.Monad (unless)
 import Control.Monad.Except (MonadError)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.KeyMap qualified as KeyMap
-import Data.Has (Has)
 import Data.Text.Encoding qualified as Text.Encoding
+import Database.Class (MonadDB)
 import Database.Queries.MailingList qualified as MailingList
 import Domain.Types.Email (EmailAddress (..))
 import GHC.Generics (Generic)
-import Hasql.Pool qualified as HSQL
 import Log qualified
 import Servant ((:>))
 import Servant qualified
@@ -34,7 +31,12 @@ type MailingListAPI =
 --------------------------------------------------------------------------------
 -- Handler
 
-mailingListHandler :: (MonadReader env m, Has HSQL.Pool env, MonadError Servant.ServerError m, Log.MonadLog m, MonadIO m) => Servant.ServerT MailingListAPI m
+mailingListHandler ::
+  ( MonadError Servant.ServerError m,
+    Log.MonadLog m,
+    MonadDB m
+  ) =>
+  Servant.ServerT MailingListAPI m
 mailingListHandler (MailingListForm e@(EmailAddress {..})) = do
   unless (Email.isValid $ Text.Encoding.encodeUtf8 emailAddress) $ Servant.throwError $ Servant.err401 {Servant.errBody = "Invalid Email Address"}
   _pid <- MailingList.insertEmailAddress e
