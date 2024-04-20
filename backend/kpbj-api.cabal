@@ -9,14 +9,12 @@ build-type:         Simple
 
 --------------------------------------------------------------------------------
 
-common warnings
-    ghc-options: -Wall
-
 common common-extensions
   default-extensions:
       DataKinds
       DerivingStrategies
       DeriveAnyClass
+      DerivingVia
       DeriveGeneric
       FlexibleContexts
       FlexibleInstances
@@ -36,9 +34,7 @@ common common-extensions
 --------------------------------------------------------------------------------
 
 executable kpbj-backend
-  import:
-      warnings
-    , common-extensions
+  import:           common-extensions
   main-is:          Main.hs
   build-depends:    base ^>=4.18.1.0
                   , kpbj-backend
@@ -49,9 +45,7 @@ executable kpbj-backend
 --------------------------------------------------------------------------------
 
 executable gen-jwk
-  import:
-      warnings
-    , common-extensions
+  import:           common-extensions
   main-is:          Main.hs
   build-depends:    aeson
                   , base ^>=4.18.1.0
@@ -64,23 +58,27 @@ executable gen-jwk
                   , x509-store
   hs-source-dirs:   jwk-gen
   default-language: Haskell2010
+  ghc-options:    -Wall -threaded -rtsopts -with-rtsopts=-N
 
 --------------------------------------------------------------------------------
 
 library
   import: common-extensions
   build-depends:  , aeson
+                  , barbies
                   , base ^>=4.18.1.0
                   , bytestring
                   , case-insensitive
                   , cfg
                   , containers
                   , data-has
+                  , deriving-aeson
                   , email-validate
                   , hasql
                   , hasql-pool
                   , http-api-data
                   , http-types
+                  , jose
                   , log-base
                   , lucid
                   , mtl
@@ -99,11 +97,17 @@ library
                   , warp
   exposed-modules:
     App
+    Auth
     Config
+    Effects.Auth
     Effects.MailingList
+    Effects.User
     Handlers.MailingList
     Handlers.SplashPage
+    Handlers.User
     DB.Utils
+    Utils
 
   hs-source-dirs: src
   default-language: Haskell2010
+  ghc-options:    -Wall -threaded

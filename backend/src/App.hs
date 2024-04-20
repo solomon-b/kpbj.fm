@@ -6,7 +6,6 @@ module App where
 
 {-
 TODO:
-- JWTs
 - Rate Limiting
 - Caching
 - Tracing
@@ -15,7 +14,7 @@ TODO:
 
 --------------------------------------------------------------------------------
 
-import Cfg qualified
+import Auth (checkAuth)
 import Cfg.Env (getEnvConfig)
 import Config
 import Control.Monad (void)
@@ -30,12 +29,11 @@ import Data.Data (Proxy (..))
 import Data.Foldable (fold)
 import Data.Function ((&))
 import Data.Has (Has)
-import Data.Has qualified as Has
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text.Encoding qualified as Text.Encoding
-import Effects.MailingList qualified as MailingList
 import Handlers.MailingList (MailingListAPI, mailingListHandler)
 import Handlers.SplashPage (SplashPageAPI, splashPageHandler)
+import Handlers.User (UserAPI, userHandler)
 import Hasql.Connection qualified as HSQL
 import Hasql.Pool qualified as HSQL (Pool)
 import Hasql.Pool qualified as HSQL.Pool
@@ -49,7 +47,9 @@ import Network.Wai.Handler.Warp qualified as Warp
 import Servant (Context ((:.)), (:<|>) (..), (:>))
 import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
+import Servant.Auth.Server qualified as Servant.Auth
 import System.Posix.Signals qualified as Posix
+import Utils
 
 --------------------------------------------------------------------------------
 
@@ -69,9 +69,10 @@ runApp =
         let poolSettings = HSQL.Pool.Config.settings [HSQL.Pool.Config.staticConnectionSettings hsqlSettings]
         pgPool <- HSQL.Pool.acquire poolSettings
 
-        let jwtCfg = Auth.Server.defaultJWTSettings (error "TODO: CREATE A JWK")
-            cfg = Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
-        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool))
+        jwk <- readJSON "./backend/jwk.json"
+        let jwtCfg = Auth.Server.defaultJWTSettings jwk
+            cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
+        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool, jwtCfg))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -106,9 +107,9 @@ shutdownHandler closeSocket =
 
 --------------------------------------------------------------------------------
 
-type AppContext = (Log.Logger, HSQL.Pool)
+type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings)
 
-type ServantContext = '[Auth.Server.CookieSettings, Auth.Server.JWTSettings]
+type ServantContext = '[Servant.Auth.BasicAuthCfg, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
 newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Servant.ServerError a)}
   deriving
@@ -116,8 +117,8 @@ newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Serv
     via ReaderT AppContext (Log.LogT (ExceptT Servant.ServerError IO))
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
-interpret ctx@(logger, _) (AppM app) =
-  Servant.Handler $ ExceptT $ app ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)
+interpret ctx@(logger, _, _) (AppM appM) =
+  Servant.Handler $ ExceptT $ appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)
 
 app :: Servant.Context ServantContext -> AppContext -> Servant.Application
 app cfg ctx =
@@ -130,14 +131,18 @@ app cfg ctx =
 
 --------------------------------------------------------------------------------
 
-type API = SplashPageAPI :<|> MailingListAPI
+type API =
+  SplashPageAPI
+    :<|> ("mailing-list" :> MailingListAPI)
+    :<|> ("user" :> UserAPI)
 
 server ::
   ( MonadError Servant.ServerError m,
     MonadReader env m,
     Has HSQL.Pool env,
+    Has Servant.Auth.JWTSettings env,
     Log.MonadLog m,
     MonadIO m
   ) =>
   Servant.ServerT API m
-server = splashPageHandler :<|> mailingListHandler
+server = splashPageHandler :<|> mailingListHandler :<|> userHandler

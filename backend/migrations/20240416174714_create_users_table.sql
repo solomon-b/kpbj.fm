@@ -1,0 +1,10 @@
+CREATE TABLE users
+  ( id SERIAL8 PRIMARY KEY UNIQUE
+  , email VARCHAR NOT NULL
+  , password VARCHAR NOT NULL
+  , display_name VARCHAR NOT NULL
+  , avatar_url VARCHAR
+  , is_admin BOOL NOT NULL
+  , created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+  , updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
