@@ -9,12 +9,6 @@ import Data.ByteString.Lazy qualified as BL
 
 --------------------------------------------------------------------------------
 
-infixr 8 ...
-
--- | The blackbird combinator
-(...) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
-(...) = (.) . (.)
-
 -- | Read and parse JSON data from disk.
 readJSON :: (FromJSON a) => FilePath -> IO a
 readJSON path' = do

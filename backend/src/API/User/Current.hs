@@ -6,7 +6,7 @@ import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Effects.User (User (..))
+import Domain.Types.User (User)
 import Hasql.Pool qualified as HSQL
 import Log qualified
 import Servant qualified
