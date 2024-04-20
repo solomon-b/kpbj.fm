@@ -11,7 +11,7 @@ import Data.Coerce (coerce)
 import Data.Has (Has)
 import Data.Text.Encoding qualified as Text.Encoding
 import Database.Class (MonadDB)
-import Database.Queries.User qualified as User
+import Database.Queries.User
 import Database.Utils
 import Deriving.Aeson qualified as Deriving
 import Domain.Types.Email
@@ -45,7 +45,7 @@ handler ::
   m Auth.JWTToken
 handler Login {..} = do
   unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce ulEmail) $ Servant.throwError $ Servant.err403 {Servant.errBody = "Invalid Email Address"}
-  User.getUserByCredential ulEmail ulPassword >>= \case
+  execQuerySpanThrowMessage "Failed to query users table" (selectUserByCredentialQuery ulEmail ulPassword) >>= \case
     Just user -> do
       Log.logInfo "Login Attempt" ulEmail
       Auth.generateJWTToken $ parseModel @_ @User user

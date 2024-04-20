@@ -19,29 +19,29 @@ newtype Id = Id Int64
   deriving newtype (Show, Eq, Ord, Num, Servant.FromHttpApiData, Rel8.DBEq, Rel8.DBType, ToJSON, FromJSON)
   deriving anyclass (ToJWT, FromJWT)
 
--- | Database Model for the `userF` table.
-data UserF f = UserF
-  { userFId :: f Id,
-    userFEmail :: f Text,
-    userFPassword :: f Text,
-    userFDisplayName :: f Text,
-    userFAvatarUrl :: f (Maybe Text),
-    userFIsAdmin :: f Bool
+-- | Database Model for the `user` table.
+data Model f = Model
+  { umId :: f Id,
+    umEmail :: f Text,
+    umPassword :: f Text,
+    umDisplayName :: f Text,
+    umAvatarUrl :: f (Maybe Text),
+    umIsAdmin :: f Bool
   }
   deriving stock (Generic)
   deriving anyclass (Rel8.Rel8able, FunctorB, TraversableB, ApplicativeB, ConstraintsB)
 
-userFSchema :: Rel8.TableSchema (UserF Rel8.Name)
-userFSchema =
+schema :: Rel8.TableSchema (Model Rel8.Name)
+schema =
   Rel8.TableSchema
     { Rel8.name = "users",
       Rel8.columns =
-        UserF
-          { userFId = "id",
-            userFEmail = "email",
-            userFPassword = "password",
-            userFDisplayName = "display_name",
-            userFAvatarUrl = "avatar_url",
-            userFIsAdmin = "is_admin"
+        Model
+          { umId = "id",
+            umEmail = "email",
+            umPassword = "password",
+            umDisplayName = "display_name",
+            umAvatarUrl = "avatar_url",
+            umIsAdmin = "is_admin"
           }
     }

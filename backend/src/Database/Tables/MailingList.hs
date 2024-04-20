@@ -17,20 +17,20 @@ newtype Id = Id Int64
   deriving anyclass (ToJSON, FromJSON)
 
 -- | Database Model for the `mailing_list` table.
-data MailingListF f = MailingListF
-  { mailingListId :: f Id,
-    email :: f Text
+data Model f = Model
+  { mlId :: f Id,
+    mlEmail :: f Text
   }
   deriving stock (Generic)
   deriving anyclass (Rel8.Rel8able)
 
-mailingListSchema :: Rel8.TableSchema (MailingListF Rel8.Name)
-mailingListSchema =
+schema :: Rel8.TableSchema (Model Rel8.Name)
+schema =
   Rel8.TableSchema
     { Rel8.name = "mailing_list",
       Rel8.columns =
-        MailingListF
-          { mailingListId = "id",
-            email = "email"
+        Model
+          { mlId = "id",
+            mlEmail = "email"
           }
     }

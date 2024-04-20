@@ -12,7 +12,7 @@ import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Database.Class (MonadDB)
-import Database.Queries.User qualified as User
+import Database.Queries.User
 import Database.Tables.User qualified as User
 import Database.Utils
 import Domain.Types.User
@@ -52,7 +52,7 @@ usersHandler ::
     MonadDB m
   ) =>
   m [User]
-usersHandler = fmap parseModel <$> User.getUsers
+usersHandler = fmap parseModel <$> execQuerySpanThrowMessage "Failed to query users table" selectUsersQuery
 
 userProfileHandler ::
   ( MonadError Servant.ServerError m,
@@ -62,6 +62,6 @@ userProfileHandler ::
   User.Id ->
   m User
 userProfileHandler uid =
-  User.getUser uid >>= \case
+  execQuerySpanThrowMessage "Failed to query users table" (selectUserQuery uid) >>= \case
     Nothing -> Servant.throwError Servant.err403
     Just user -> pure $ parseModel user
