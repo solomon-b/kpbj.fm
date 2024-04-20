@@ -1,5 +1,4 @@
 {-# LANGUAGE KindSignatures #-}
-{-# OPTIONS_GHC -Wno-missing-fields #-}
 
 module Effects.User where
 
