@@ -8,7 +8,6 @@ module App where
 TODO:
 - Rate Limiting
 - Caching
-- Tracing
 - Test suite
 -}
 
@@ -47,12 +46,16 @@ import Log.Backend.StandardOutput qualified as Log
 import Network.HTTP.Types.Status qualified as Status
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
+import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware')
+import OpenTelemetry.Trace qualified as OTEL
 import Servant (Context ((:.)))
 import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
 import Servant.Auth.Server qualified as Servant.Auth
 import System.Posix.Signals qualified as Posix
+import Tracing (withTracer)
 import Utils
+import Control.Monad.IO.Unlift (MonadUnliftIO (..))
 
 --------------------------------------------------------------------------------
 
@@ -75,7 +78,10 @@ runApp =
         jwk <- readJSON "./backend/jwk.json"
         let jwtCfg = Auth.Server.defaultJWTSettings jwk
             cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
-        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool, jwtCfg))
+        withTracer $ \tracerProvider mkTracer -> do
+          let tracer = mkTracer OTEL.tracerOptions
+          let otelMiddleware = newOpenTelemetryWaiMiddleware' tracerProvider
+          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app cfg (stdOutLogger, pgPool, jwtCfg, tracer))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -110,7 +116,7 @@ shutdownHandler closeSocket =
 
 --------------------------------------------------------------------------------
 
-type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings)
+type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings, OTEL.Tracer)
 
 type ServantContext = '[Servant.Auth.BasicAuthCfg, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
@@ -129,7 +135,7 @@ instance MonadDB AppM where
   execStatement = runDB . HSQL.statement ()
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
-interpret ctx@(logger, _, _) (AppM appM) =
+interpret ctx@(logger, _, _, _) (AppM appM) =
   Servant.Handler $ ExceptT $ appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)
 
 app :: Servant.Context ServantContext -> AppContext -> Servant.Application
