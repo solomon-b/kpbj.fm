@@ -6,6 +6,7 @@ import Barbies
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
 import Data.Text (Text)
+import Data.Text.Display (Display)
 import GHC.Generics
 import Rel8 qualified
 import Servant qualified
@@ -16,7 +17,7 @@ import Servant.Auth.JWT (FromJWT, ToJWT)
 
 newtype Id = Id Int64
   deriving stock (Generic)
-  deriving newtype (Show, Eq, Ord, Num, Servant.FromHttpApiData, Rel8.DBEq, Rel8.DBType, ToJSON, FromJSON)
+  deriving newtype (Show, Eq, Ord, Num, Servant.FromHttpApiData, Rel8.DBEq, Rel8.DBType, ToJSON, FromJSON, Display)
   deriving anyclass (ToJWT, FromJWT)
 
 -- | Database Model for the `user` table.
