@@ -8,7 +8,8 @@ import API.User.Login qualified as Login
 import API.User.Register
 import API.User.Register qualified as Register
 import Auth qualified
-import Control.Monad.Catch (MonadThrow (..))
+import Control.Monad.Catch (MonadCatch, MonadThrow (..))
+import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Database.Class (MonadDB)
@@ -18,6 +19,7 @@ import Database.Utils
 import Domain.Types.User
 import Errors (throw403')
 import Log qualified
+import OpenTelemetry.Trace qualified as OTEL
 import Servant ((:<|>) (..), (:>))
 import Servant qualified
 import Servant.Auth (Auth)
@@ -40,9 +42,12 @@ type UserAPI =
 userHandler ::
   ( MonadReader env m,
     Has SAS.JWTSettings env,
+    Has OTEL.Tracer env,
     Log.MonadLog m,
     MonadDB m,
-    MonadThrow m
+    MonadThrow m,
+    MonadUnliftIO m,
+    MonadCatch m
   ) =>
   Servant.ServerT UserAPI m
 userHandler = usersHandler :<|> userProfileHandler :<|> Current.handler :<|> Register.handler :<|> Login.handler

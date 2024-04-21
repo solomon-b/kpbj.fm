@@ -19,7 +19,7 @@ import Cfg.Env (getEnvConfig)
 import Config
 import Control.Exception (catch)
 import Control.Monad (void)
-import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO (..))
 import Control.Monad.Reader (MonadReader, ReaderT (..))
@@ -123,7 +123,7 @@ type ServantContext = '[Servant.Auth.BasicAuthCfg, Auth.Server.CookieSettings, A
 
 newtype AppM a = AppM {runAppM' :: AppContext -> Log.LoggerEnv -> IO a}
   deriving
-    (Functor, Applicative, Monad, MonadReader AppContext, MonadIO, MonadThrow, MonadUnliftIO, Log.MonadLog)
+    (Functor, Applicative, Monad, MonadReader AppContext, MonadIO, MonadThrow, MonadCatch, MonadUnliftIO, Log.MonadLog)
     via ReaderT AppContext (Log.LogT IO)
 
 instance MonadDB AppM where
