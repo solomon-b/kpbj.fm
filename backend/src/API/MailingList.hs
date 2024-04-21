@@ -3,7 +3,7 @@ module API.MailingList where
 --------------------------------------------------------------------------------
 
 import Control.Monad (unless)
-import Control.Monad.Except (MonadError)
+import Control.Monad.Catch (MonadThrow (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Text.Encoding qualified as Text.Encoding
@@ -32,16 +32,16 @@ type MailingListAPI =
 -- Handler
 
 mailingListHandler ::
-  ( MonadError Servant.ServerError m,
-    Log.MonadLog m,
-    MonadDB m
+  ( Log.MonadLog m,
+    MonadDB m,
+    MonadThrow m
   ) =>
   Servant.ServerT MailingListAPI m
 mailingListHandler (MailingListForm e@(EmailAddress {..})) = do
-  unless (Email.isValid $ Text.Encoding.encodeUtf8 emailAddress) $ Servant.throwError $ Servant.err401 {Servant.errBody = "Invalid Email Address"}
+  unless (Email.isValid $ Text.Encoding.encodeUtf8 emailAddress) $ throwM $ Servant.err401 {Servant.errBody = "Invalid Email Address"}
   _pid <- MailingList.insertEmailAddress e
   Log.logInfo "Submited Email Address:" (KeyMap.singleton "email" (show emailAddress))
 
   -- TODO: Very hacky solution until we support htmx.
   -- TODO: Would be nice to render the splash page with a success message.
-  Servant.throwError $ Servant.err301 {Servant.errHeaders = [("Location", "https://www.kpbj.fm")]}
+  throwM $ Servant.err301 {Servant.errHeaders = [("Location", "https://www.kpbj.fm")]}
