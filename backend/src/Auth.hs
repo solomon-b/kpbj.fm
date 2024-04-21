@@ -15,6 +15,7 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Has (Has)
 import Data.Has qualified as Has
 import Data.Text (Text)
+import Data.Text.Display (Display)
 import Data.Text.Encoding qualified as Text.Encoding
 import Database.Queries.User
 import Database.Utils
@@ -58,6 +59,7 @@ checkAuth pool logger (Servant.Auth.BasicAuthData email' pass') =
 
 newtype JWTToken = JWTToken {getJWTToken :: Text}
   deriving stock (Generic)
+  deriving newtype (Display)
   deriving
     (FromJSON, ToJSON)
     via Deriving.CustomJSON '[Deriving.FieldLabelModifier '[Deriving.StripPrefix "getJWT", Deriving.CamelToSnake]] JWTToken
