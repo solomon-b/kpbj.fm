@@ -8,7 +8,6 @@ module App where
 TODO:
 - Rate Limiting
 - Caching
-- Tracing
 - Test suite
 -}
 
@@ -18,9 +17,11 @@ import API
 import Auth (checkAuth)
 import Cfg.Env (getEnvConfig)
 import Config
+import Control.Exception (catch)
 import Control.Monad (void)
-import Control.Monad.Except (MonadError)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.IO.Unlift (MonadUnliftIO (..))
 import Control.Monad.Reader (MonadReader, ReaderT (..))
 import Control.Monad.Reader qualified as Reader
 import Control.Monad.Trans.Except (ExceptT (..))
@@ -47,11 +48,14 @@ import Log.Backend.StandardOutput qualified as Log
 import Network.HTTP.Types.Status qualified as Status
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
+import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware')
+import OpenTelemetry.Trace qualified as OTEL
 import Servant (Context ((:.)))
 import Servant qualified
 import Servant.Auth.Server qualified as Auth.Server
 import Servant.Auth.Server qualified as Servant.Auth
 import System.Posix.Signals qualified as Posix
+import Tracing (withTracer)
 import Utils
 
 --------------------------------------------------------------------------------
@@ -75,7 +79,10 @@ runApp =
         jwk <- readJSON "./backend/jwk.json"
         let jwtCfg = Auth.Server.defaultJWTSettings jwk
             cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
-        Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (app cfg (stdOutLogger, pgPool, jwtCfg))
+        withTracer appConfigEnvironment $ \tracerProvider mkTracer -> do
+          let tracer = mkTracer OTEL.tracerOptions
+          let otelMiddleware = newOpenTelemetryWaiMiddleware' tracerProvider
+          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app cfg (stdOutLogger, pgPool, jwtCfg, tracer))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -110,14 +117,14 @@ shutdownHandler closeSocket =
 
 --------------------------------------------------------------------------------
 
-type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings)
+type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings, OTEL.Tracer)
 
 type ServantContext = '[Servant.Auth.BasicAuthCfg, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
-newtype AppM a = AppM {runAppM :: AppContext -> Log.LoggerEnv -> IO (Either Servant.ServerError a)}
+newtype AppM a = AppM {runAppM' :: AppContext -> Log.LoggerEnv -> IO a}
   deriving
-    (Functor, Applicative, Monad, MonadReader AppContext, MonadError Servant.ServerError, MonadIO, Log.MonadLog)
-    via ReaderT AppContext (Log.LogT (ExceptT Servant.ServerError IO))
+    (Functor, Applicative, Monad, MonadReader AppContext, MonadIO, MonadThrow, MonadCatch, MonadUnliftIO, Log.MonadLog)
+    via ReaderT AppContext (Log.LogT IO)
 
 instance MonadDB AppM where
   runDB :: HSQL.Session a -> AppM (Either HSQL.Pool.UsageError a)
@@ -129,8 +136,8 @@ instance MonadDB AppM where
   execStatement = runDB . HSQL.statement ()
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
-interpret ctx@(logger, _, _) (AppM appM) =
-  Servant.Handler $ ExceptT $ appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)
+interpret ctx@(logger, _, _, _) (AppM appM) =
+  Servant.Handler $ ExceptT $ catch (Right <$> appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)) $ \(e :: Servant.ServerError) -> pure $ Left e
 
 app :: Servant.Context ServantContext -> AppContext -> Servant.Application
 app cfg ctx =

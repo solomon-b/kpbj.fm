@@ -8,7 +8,8 @@ import API.User.Login qualified as Login
 import API.User.Register
 import API.User.Register qualified as Register
 import Auth qualified
-import Control.Monad.Except (MonadError)
+import Control.Monad.Catch (MonadCatch, MonadThrow (..))
+import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Database.Class (MonadDB)
@@ -16,7 +17,9 @@ import Database.Queries.User
 import Database.Tables.User qualified as User
 import Database.Utils
 import Domain.Types.User
+import Errors (throw403')
 import Log qualified
+import OpenTelemetry.Trace qualified as OTEL
 import Servant ((:<|>) (..), (:>))
 import Servant qualified
 import Servant.Auth (Auth)
@@ -39,29 +42,32 @@ type UserAPI =
 userHandler ::
   ( MonadReader env m,
     Has SAS.JWTSettings env,
-    MonadError Servant.ServerError m,
+    Has OTEL.Tracer env,
     Log.MonadLog m,
-    MonadDB m
+    MonadDB m,
+    MonadThrow m,
+    MonadUnliftIO m,
+    MonadCatch m
   ) =>
   Servant.ServerT UserAPI m
 userHandler = usersHandler :<|> userProfileHandler :<|> Current.handler :<|> Register.handler :<|> Login.handler
 
 usersHandler ::
-  ( MonadError Servant.ServerError m,
-    Log.MonadLog m,
-    MonadDB m
+  ( Log.MonadLog m,
+    MonadDB m,
+    MonadThrow m
   ) =>
   m [User]
 usersHandler = fmap parseModel <$> execQuerySpanThrowMessage "Failed to query users table" selectUsersQuery
 
 userProfileHandler ::
-  ( MonadError Servant.ServerError m,
-    Log.MonadLog m,
-    MonadDB m
+  ( Log.MonadLog m,
+    MonadDB m,
+    MonadThrow m
   ) =>
   User.Id ->
   m User
 userProfileHandler uid =
   execQuerySpanThrowMessage "Failed to query users table" (selectUserQuery uid) >>= \case
-    Nothing -> Servant.throwError Servant.err403
+    Nothing -> throw403'
     Just user -> pure $ parseModel user
