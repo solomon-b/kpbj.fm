@@ -2,6 +2,7 @@ module Tracing where
 
 --------------------------------------------------------------------------------
 
+import Config (Environment (..))
 import Control.Exception (bracket)
 import Control.Monad.Catch (MonadCatch, MonadThrow (..), catchAll)
 import Control.Monad.IO.Unlift
@@ -51,21 +52,19 @@ formatter component ImmutableSpan {..} = do
                 ]
           ]
 
-withTracer :: (OTEL.TracerProvider -> (OTEL.TracerOptions -> OTEL.Tracer) -> IO c) -> IO c
-withTracer f =
-  bracket
-    -- Install the SDK, pulling configuration from the environment
-    ( do
-        providerOpts <- snd <$> OTEL.getTracerProviderInitializationOptions
-        processor <-
-          simpleProcessor . SimpleProcessorConfig $
-            stdoutExporter' (formatter "kpbj-backend")
-        OTEL.createTracerProvider [processor] providerOpts
-    )
-    -- Ensure that any spans that haven't been exported yet are flushed
-    OTEL.shutdownTracerProvider
-    -- Get a tracer so you can create spans
-    (\tracerProvider -> f tracerProvider $ OTEL.makeTracer tracerProvider "kpbj-fm")
+withTracer :: Environment -> (OTEL.TracerProvider -> (OTEL.TracerOptions -> OTEL.Tracer) -> IO c) -> IO c
+withTracer env f =
+  let acquire = case env of
+        Production -> OTEL.initializeGlobalTracerProvider
+        Development -> do
+          providerOpts <- snd <$> OTEL.getTracerProviderInitializationOptions
+          processor <-
+            simpleProcessor . SimpleProcessorConfig $
+              stdoutExporter' (formatter "kpbj-backend")
+          OTEL.createTracerProvider [processor] providerOpts
+      release = OTEL.shutdownTracerProvider
+      work tracerProvider = f tracerProvider $ OTEL.makeTracer tracerProvider "kpbj-fm"
+   in bracket acquire release work
 
 handlerSpan ::
   ( MonadReader env m,
