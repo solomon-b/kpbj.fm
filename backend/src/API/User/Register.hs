@@ -19,9 +19,9 @@ import Domain.Types.DisplayName
 import Domain.Types.Email
 import Domain.Types.Password
 import Domain.Types.User
+import Errors (throw401, throw500')
 import GHC.Generics (Generic)
 import Log qualified
-import Servant qualified
 import Servant.Auth.Server qualified as SAS
 import Text.Email.Validate qualified as Email
 
@@ -47,16 +47,16 @@ handler ::
   Register ->
   m Auth.JWTToken
 handler Register {..} = do
-  unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce urEmail) $ throwM $ Servant.err401 {Servant.errBody = "Invalid Email Address"}
+  unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce urEmail) $ throw401 "Invalid Email Address"
   execQuerySpanThrowMessage "Failed to query users table" (selectUserByEmailQuery urEmail) >>= \case
     Just _ -> do
       Log.logInfo "Email address is already registered" urEmail
-      throwM $ Servant.err401 {Servant.errBody = "Email address is already registered"}
+      throw401 "Email address is already registered"
     Nothing -> do
       Log.logInfo "Registering New User" urEmail
       uid <- insertUser (urEmail, urPassword, urDisplayName, IsNotAdmin)
       execQuerySpanThrowMessage "Failed to query users table" (selectUserQuery uid) >>= \case
         Nothing ->
-          throwM Servant.err500
+          throw500'
         Just user ->
           Auth.generateJWTToken $ parseModel @_ @User user

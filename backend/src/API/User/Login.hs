@@ -17,9 +17,9 @@ import Deriving.Aeson qualified as Deriving
 import Domain.Types.Email
 import Domain.Types.Password
 import Domain.Types.User (User)
+import Errors (throw401, throw403)
 import GHC.Generics (Generic)
 import Log qualified
-import Servant qualified
 import Servant.Auth.Server qualified
 import Text.Email.Validate qualified as Email
 
@@ -44,11 +44,11 @@ handler ::
   Login ->
   m Auth.JWTToken
 handler Login {..} = do
-  unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce ulEmail) $ throwM $ Servant.err403 {Servant.errBody = "Invalid Email Address"}
+  unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce ulEmail) $ throw403 "Invalid Email Address"
   execQuerySpanThrowMessage "Failed to query users table" (selectUserByCredentialQuery ulEmail ulPassword) >>= \case
     Just user -> do
       Log.logInfo "Login Attempt" ulEmail
       Auth.generateJWTToken $ parseModel @_ @User user
     Nothing -> do
       Log.logInfo "Invalid Credentials" ulEmail
-      throwM $ Servant.err401 {Servant.errBody = "Invalid Credentials."}
+      throw401 "Invalid Credentials."

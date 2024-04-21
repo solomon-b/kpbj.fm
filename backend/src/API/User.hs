@@ -16,6 +16,7 @@ import Database.Queries.User
 import Database.Tables.User qualified as User
 import Database.Utils
 import Domain.Types.User
+import Errors (throw403')
 import Log qualified
 import Servant ((:<|>) (..), (:>))
 import Servant qualified
@@ -63,5 +64,5 @@ userProfileHandler ::
   m User
 userProfileHandler uid =
   execQuerySpanThrowMessage "Failed to query users table" (selectUserQuery uid) >>= \case
-    Nothing -> throwM Servant.err403
+    Nothing -> throw403'
     Just user -> pure $ parseModel user
