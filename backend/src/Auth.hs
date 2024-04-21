@@ -6,7 +6,7 @@ module Auth where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.Except (MonadError)
+import Control.Monad.Catch (MonadThrow (..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Reader qualified as Reader
@@ -67,16 +67,16 @@ newtype JWTToken = JWTToken {getJWTToken :: Text}
 generateJWTToken ::
   ( MonadReader env m,
     Has Servant.Auth.Server.JWTSettings env,
-    MonadError Servant.ServerError m,
     Log.MonadLog m,
     MonadIO m,
-    ToJWT a
+    ToJWT a,
+    MonadThrow m
   ) =>
   a ->
   m JWTToken
 generateJWTToken a = do
   jwtSettings <- Reader.asks Has.getter
   liftIO (Servant.Auth.Server.makeJWT a jwtSettings Nothing) >>= \case
-    Left _err -> Servant.throwError Servant.err500
+    Left _err -> throwM Servant.err500
     Right jwt ->
       pure $ JWTToken $ Text.Encoding.decodeUtf8 $ BL.toStrict jwt

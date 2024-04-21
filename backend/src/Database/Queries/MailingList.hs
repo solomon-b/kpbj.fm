@@ -2,7 +2,7 @@ module Database.Queries.MailingList where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.Error.Class (MonadError)
+import Control.Monad.Catch (MonadThrow)
 import Database.Class (MonadDB)
 import Database.Tables.MailingList qualified as MailingList
 import Database.Utils
@@ -10,14 +10,13 @@ import Domain.Types.Email
 import Hasql.Statement qualified as HSQL
 import Log qualified
 import Rel8 qualified
-import Servant qualified
 
 --------------------------------------------------------------------------------
 
 insertEmailAddress ::
   ( Log.MonadLog m,
     MonadDB m,
-    MonadError Servant.ServerError m
+    MonadThrow m
   ) =>
   EmailAddress ->
   m MailingList.Id

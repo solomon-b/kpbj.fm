@@ -2,7 +2,7 @@ module Database.Queries.User where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.Error.Class (MonadError)
+import Control.Monad.Catch (MonadThrow)
 import Database.Class (MonadDB)
 import Database.Tables.User qualified as User
 import Database.Utils
@@ -15,7 +15,6 @@ import Hasql.Statement qualified as HSQL
 import Log qualified
 import Rel8 ((&&.), (==.))
 import Rel8 qualified
-import Servant qualified
 
 --------------------------------------------------------------------------------
 
@@ -43,7 +42,7 @@ selectUsersQuery = Rel8.run . Rel8.select $ Rel8.each User.schema
 insertUser ::
   ( Log.MonadLog m,
     MonadDB m,
-    MonadError Servant.ServerError m
+    MonadThrow m
   ) =>
   (EmailAddress, Password, DisplayName, AdminStatus) ->
   m User.Id

@@ -4,7 +4,7 @@ module API.User.Login where
 
 import Auth qualified
 import Control.Monad (unless)
-import Control.Monad.Except (MonadError)
+import Control.Monad.Catch (MonadThrow (..))
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
@@ -37,18 +37,18 @@ data Login = Login
 handler ::
   ( MonadReader env m,
     Has Servant.Auth.Server.JWTSettings env,
-    MonadError Servant.ServerError m,
     Log.MonadLog m,
-    MonadDB m
+    MonadDB m,
+    MonadThrow m
   ) =>
   Login ->
   m Auth.JWTToken
 handler Login {..} = do
-  unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce ulEmail) $ Servant.throwError $ Servant.err403 {Servant.errBody = "Invalid Email Address"}
+  unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce ulEmail) $ throwM $ Servant.err403 {Servant.errBody = "Invalid Email Address"}
   execQuerySpanThrowMessage "Failed to query users table" (selectUserByCredentialQuery ulEmail ulPassword) >>= \case
     Just user -> do
       Log.logInfo "Login Attempt" ulEmail
       Auth.generateJWTToken $ parseModel @_ @User user
     Nothing -> do
       Log.logInfo "Invalid Credentials" ulEmail
-      Servant.throwError $ Servant.err401 {Servant.errBody = "Invalid Credentials."}
+      throwM $ Servant.err401 {Servant.errBody = "Invalid Credentials."}
