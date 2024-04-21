@@ -9,6 +9,7 @@ import Control.Monad.Identity (Identity (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
 import Data.Text (Text)
+import Data.Text.Display (Display (..), RecordInstance (..))
 import Database.Tables.User qualified as User
 import Database.Utils
 import Domain.Types.AdminStatus
@@ -30,6 +31,7 @@ data User = User
     userIsAdmin :: Bool
   }
   deriving stock (Show, Generic, Eq)
+  deriving (Display) via (RecordInstance User)
   deriving anyclass (FromJSON, ToJSON, ToJWT, FromJWT)
 
 instance ModelParser User.Model User where

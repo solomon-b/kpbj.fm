@@ -46,7 +46,8 @@ formatter component ImmutableSpan {..} = do
                   "spanId" .= Text.unpack (spanIdBaseEncodedText Base16 $ OTEL.spanId spanContext),
                   "spanStart" .= show (toNanoSecs $ coerce spanStart),
                   "spanName" .= spanName,
-                  "spanParent" .= show spanParent
+                  "spanParent" .= show spanParent,
+                  "spanAttributes" .= show spanAttributes
                 ]
           ]
 
