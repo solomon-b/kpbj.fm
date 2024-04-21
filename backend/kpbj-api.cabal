@@ -70,12 +70,19 @@ library
                   , bytestring
                   , case-insensitive
                   , cfg
+                  , clock
                   , containers
                   , data-has
                   , deriving-aeson
+                  , exceptions
                   , email-validate
                   , hasql
                   , hasql-pool
+                  , hs-opentelemetry-api
+                  , hs-opentelemetry-exporter-handle
+                  , hs-opentelemetry-instrumentation-wai
+                  , hs-opentelemetry-sdk
+                  , hs-opentelemetry-utils-exceptions
                   , http-api-data
                   , http-types
                   , jose
@@ -90,9 +97,12 @@ library
                   , servant-lucid
                   , servant-server
                   , text
+                  , text-display
                   , time
                   , transformers
                   , unix
+                  , unliftio-core
+                  , unordered-containers
                   , wai
                   , warp
   exposed-modules:
@@ -117,6 +127,8 @@ library
     Database.Tables.User
     Database.Tables.MailingList
     Database.Utils
+    Errors
+    Tracing
     Utils
 
   hs-source-dirs: src

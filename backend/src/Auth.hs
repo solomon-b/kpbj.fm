@@ -6,7 +6,7 @@ module Auth where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.Except (MonadError)
+import Control.Monad.Catch (MonadThrow (..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Reader qualified as Reader
@@ -15,6 +15,7 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Has (Has)
 import Data.Has qualified as Has
 import Data.Text (Text)
+import Data.Text.Display (Display)
 import Data.Text.Encoding qualified as Text.Encoding
 import Database.Queries.User
 import Database.Utils
@@ -22,11 +23,11 @@ import Deriving.Aeson qualified as Deriving
 import Domain.Types.Email
 import Domain.Types.Password
 import Domain.Types.User (User)
+import Errors (throw500')
 import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL
 import Hasql.Session qualified as HSQL
 import Log qualified
-import Servant qualified
 import Servant.Auth.JWT (ToJWT)
 import Servant.Auth.Server qualified
 import Servant.Auth.Server qualified as Servant.Auth
@@ -58,6 +59,7 @@ checkAuth pool logger (Servant.Auth.BasicAuthData email' pass') =
 
 newtype JWTToken = JWTToken {getJWTToken :: Text}
   deriving stock (Generic)
+  deriving newtype (Display)
   deriving
     (FromJSON, ToJSON)
     via Deriving.CustomJSON '[Deriving.FieldLabelModifier '[Deriving.StripPrefix "getJWT", Deriving.CamelToSnake]] JWTToken
@@ -67,16 +69,16 @@ newtype JWTToken = JWTToken {getJWTToken :: Text}
 generateJWTToken ::
   ( MonadReader env m,
     Has Servant.Auth.Server.JWTSettings env,
-    MonadError Servant.ServerError m,
     Log.MonadLog m,
     MonadIO m,
-    ToJWT a
+    ToJWT a,
+    MonadThrow m
   ) =>
   a ->
   m JWTToken
 generateJWTToken a = do
   jwtSettings <- Reader.asks Has.getter
   liftIO (Servant.Auth.Server.makeJWT a jwtSettings Nothing) >>= \case
-    Left _err -> Servant.throwError Servant.err500
+    Left _err -> throw500'
     Right jwt ->
       pure $ JWTToken $ Text.Encoding.decodeUtf8 $ BL.toStrict jwt

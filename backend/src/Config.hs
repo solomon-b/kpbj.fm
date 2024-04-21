@@ -23,6 +23,8 @@ data Environment = Development | Production
   deriving anyclass (ToJSON, ConfigParser, DefaultSource)
   deriving (ConfigSource, ValueParser) via (Value Environment)
 
+--------------------------------------------------------------------------------
+
 data WarpConfig = WarpConfig
   { warpConfigPort :: Int,
     warpConfigTimeout :: Int,
@@ -31,6 +33,8 @@ data WarpConfig = WarpConfig
   deriving stock (Generic, Show)
   deriving anyclass (DefaultSource)
   deriving (ConfigSource, ConfigParser) via (ConfigOpts [StripPrefix "warpConfig", ToUpper] WarpConfig)
+
+--------------------------------------------------------------------------------
 
 data PostgresConfig = PostgresConfig
   { postgresConfigHost :: Maybe ByteString,
@@ -43,10 +47,38 @@ data PostgresConfig = PostgresConfig
   deriving anyclass (DefaultSource)
   deriving (ConfigSource, ConfigParser) via (ConfigOpts [StripPrefix "postgresConfig", ToUpper] PostgresConfig)
 
+--------------------------------------------------------------------------------
+
+data ObservabilityConfig = ObservabilityConfig
+  { observabilityConfigVerbosity :: Verbosity,
+    observabilityConfigExporter :: AppExporter
+  }
+  deriving stock (Generic, Show)
+  deriving
+    (ConfigSource, ConfigParser)
+    via (ConfigOpts [StripPrefix "observabilityConfig", ToUpper] ObservabilityConfig)
+
+instance DefaultSource ObservabilityConfig where
+  defaults "observabilityConfigVerbosity" = Just "Quiet"
+  defaults _ = Nothing
+
+data Verbosity = Quiet | Loud
+  deriving stock (Generic, Show)
+  deriving anyclass (DefaultSource)
+  deriving (ConfigSource, ConfigParser) via (Value Verbosity)
+
+data AppExporter = StdOut
+  deriving (Generic, Show)
+  deriving anyclass (DefaultSource)
+  deriving (ConfigSource, ConfigParser) via (Value AppExporter)
+
+--------------------------------------------------------------------------------
+
 data AppConfig = AppConfig
   { appConfigWarpSettings :: WarpConfig,
     appConfigPostgresSettings :: PostgresConfig,
-    appConfigEnvironment :: Environment
+    appConfigEnvironment :: Environment,
+    appConfigObservability :: ObservabilityConfig
   }
   deriving stock (Generic, Show)
   deriving

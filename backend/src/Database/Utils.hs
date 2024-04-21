@@ -4,17 +4,17 @@ module Database.Utils where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Catch (MonadThrow (..))
 import Data.ByteString.Char8 qualified as Char8
 import Data.ByteString.Lazy qualified as BL
 import Data.Kind (Type)
 import Data.Text qualified as Text
 import Database.Class
+import Errors (throw500)
 import Hasql.Pool qualified as HSQL
 import Hasql.Statement qualified as HSQL
 import Log qualified
 import Rel8 qualified
-import Servant qualified
 
 --------------------------------------------------------------------------------
 -- Working with Models and Domains
@@ -41,8 +41,8 @@ execQuerySpan statement@(HSQL.Statement bs _ _ _) = do
 execQuerySpanThrow ::
   ( Log.MonadLog m,
     Show result,
-    MonadError Servant.ServerError m,
-    MonadDB m
+    MonadDB m,
+    MonadThrow m
   ) =>
   HSQL.Statement () result ->
   m result
@@ -50,13 +50,13 @@ execQuerySpanThrow statement = do
   execQuerySpan statement >>= \case
     Left err -> do
       Log.logAttention "Query Execution Error" (show err)
-      throwError $ Servant.err500 {Servant.errBody = "Something went wrong"}
+      throw500 "Something went wrong"
     Right res -> pure res
 
 execQuerySpanThrowMessage ::
   ( Log.MonadLog m,
-    MonadError Servant.ServerError m,
-    MonadDB m
+    MonadDB m,
+    MonadThrow m
   ) =>
   BL.ByteString ->
   HSQL.Statement () result ->
@@ -65,14 +65,14 @@ execQuerySpanThrowMessage msg statement = do
   execQuerySpan statement >>= \case
     Left err -> do
       Log.logAttention "Query Execution Error" (show err)
-      throwError $ Servant.err500 {Servant.errBody = msg}
+      throw500 msg
     Right res -> pure res
 
 execQuerySpanThrowMessage' ::
   ( Log.MonadLog m,
-    MonadError Servant.ServerError m,
     MonadDB m,
-    ModelParser result domain
+    ModelParser result domain,
+    MonadThrow m
   ) =>
   BL.ByteString ->
   HSQL.Statement () (result Rel8.Result) ->
