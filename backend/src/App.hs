@@ -79,7 +79,7 @@ runApp =
         jwk <- readJSON "./backend/jwk.json"
         let jwtCfg = Auth.Server.defaultJWTSettings jwk
             cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
-        withTracer $ \tracerProvider mkTracer -> do
+        withTracer appConfigEnvironment $ \tracerProvider mkTracer -> do
           let tracer = mkTracer OTEL.tracerOptions
           let otelMiddleware = newOpenTelemetryWaiMiddleware' tracerProvider
           Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app cfg (stdOutLogger, pgPool, jwtCfg, tracer))
