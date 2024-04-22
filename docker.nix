@@ -4,6 +4,7 @@ pkgs.dockerTools.buildImage {
   name = "sbothwell/kpbj.fm";
   created = "now";
   tag = kpbj-backend.version;
+  # https://discourse.nixos.org/t/copy-files-into-a-docker-container-using-copytoroot/21144/5
   copyToRoot = pkgs.buildEnv {
     name = "image-root";
     pathsToLink = [ "/bin" "/backend/static" ];
