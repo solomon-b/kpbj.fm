@@ -82,7 +82,7 @@ runApp =
         withTracer appConfigEnvironment $ \tracerProvider mkTracer -> do
           let tracer = mkTracer OTEL.tracerOptions
           let otelMiddleware = newOpenTelemetryWaiMiddleware' tracerProvider
-          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app cfg (stdOutLogger, pgPool, jwtCfg, tracer))
+          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app appConfigEnvironment cfg (stdOutLogger, pgPool, jwtCfg, tracer))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -139,11 +139,11 @@ interpret :: AppContext -> AppM x -> Servant.Handler x
 interpret ctx@(logger, _, _, _) (AppM appM) =
   Servant.Handler $ ExceptT $ catch (Right <$> appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)) $ \(e :: Servant.ServerError) -> pure $ Left e
 
-app :: Servant.Context ServantContext -> AppContext -> Servant.Application
-app cfg ctx =
+app :: Environment -> Servant.Context ServantContext -> AppContext -> Servant.Application
+app env cfg ctx =
   Servant.serveWithContext (Proxy @API) cfg $
     Servant.hoistServerWithContext
       (Proxy @API)
       (Proxy @ServantContext)
       (interpret ctx)
-      server
+      (server env)
