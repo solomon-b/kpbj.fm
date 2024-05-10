@@ -3,3 +3,4 @@
 /dist-newstyle/
 /result
 /backend/keys/
+/secrets.env

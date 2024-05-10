@@ -56,7 +56,6 @@ import Servant.Auth.Server qualified as Auth.Server
 import Servant.Auth.Server qualified as Servant.Auth
 import System.Posix.Signals qualified as Posix
 import Tracing (withTracer)
-import Utils
 
 --------------------------------------------------------------------------------
 
@@ -76,8 +75,7 @@ runApp =
         let poolSettings = HSQL.Pool.Config.settings [HSQL.Pool.Config.staticConnectionSettings hsqlSettings]
         pgPool <- HSQL.Pool.acquire poolSettings
 
-        jwk <- readJSON "./backend/jwk.json"
-        let jwtCfg = Auth.Server.defaultJWTSettings jwk
+        let jwtCfg = Auth.Server.defaultJWTSettings $ getJwk appConfigJwtConfig
             cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
         withTracer appConfigEnvironment $ \tracerProvider mkTracer -> do
           let tracer = mkTracer OTEL.tracerOptions
