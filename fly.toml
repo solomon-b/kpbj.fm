@@ -9,6 +9,9 @@ primary_region = 'lax'
 [build]
   image = 'sbothwell/kpbj.fm:0.1.0.2'
 
+[deploy]
+  release_command = "-c '/bin/sqlx migrate run --source backend/migrations'"
+
 [env]
   APP_ENVIRONMENT = 'Development'
   APP_OBSERVABILITY_EXPORTER = 'StdOut'
