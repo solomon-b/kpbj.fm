@@ -5,6 +5,7 @@ module API where
 import API.MailingList
 import API.SplashPage
 import API.User
+import Config (Environment)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -37,5 +38,6 @@ server ::
     MonadUnliftIO m,
     MonadCatch m
   ) =>
+  Environment ->
   Servant.ServerT API m
-server = splashPageHandler :<|> mailingListHandler :<|> userHandler
+server env = splashPageHandler env :<|> mailingListHandler :<|> userHandler

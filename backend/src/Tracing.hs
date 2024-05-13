@@ -55,8 +55,9 @@ formatter component ImmutableSpan {..} = do
 withTracer :: Environment -> (OTEL.TracerProvider -> (OTEL.TracerOptions -> OTEL.Tracer) -> IO c) -> IO c
 withTracer env f =
   let acquire = case env of
-        Production -> OTEL.initializeGlobalTracerProvider
-        Development -> do
+        -- TODO: Use jaeger or some other tracing service in production:
+        -- Production -> OTEL.initializeGlobalTracerProvider
+        _ -> do
           providerOpts <- snd <$> OTEL.getTracerProviderInitializationOptions
           processor <-
             simpleProcessor . SimpleProcessorConfig $

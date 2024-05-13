@@ -56,7 +56,6 @@ import Servant.Auth.Server qualified as Auth.Server
 import Servant.Auth.Server qualified as Servant.Auth
 import System.Posix.Signals qualified as Posix
 import Tracing (withTracer)
-import Utils
 
 --------------------------------------------------------------------------------
 
@@ -76,13 +75,12 @@ runApp =
         let poolSettings = HSQL.Pool.Config.settings [HSQL.Pool.Config.staticConnectionSettings hsqlSettings]
         pgPool <- HSQL.Pool.acquire poolSettings
 
-        jwk <- readJSON "./backend/jwk.json"
-        let jwtCfg = Auth.Server.defaultJWTSettings jwk
+        let jwtCfg = Auth.Server.defaultJWTSettings $ getJwk appConfigJwtConfig
             cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
         withTracer appConfigEnvironment $ \tracerProvider mkTracer -> do
           let tracer = mkTracer OTEL.tracerOptions
           let otelMiddleware = newOpenTelemetryWaiMiddleware' tracerProvider
-          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app cfg (stdOutLogger, pgPool, jwtCfg, tracer))
+          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app appConfigEnvironment cfg (stdOutLogger, pgPool, jwtCfg, tracer))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -139,11 +137,11 @@ interpret :: AppContext -> AppM x -> Servant.Handler x
 interpret ctx@(logger, _, _, _) (AppM appM) =
   Servant.Handler $ ExceptT $ catch (Right <$> appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)) $ \(e :: Servant.ServerError) -> pure $ Left e
 
-app :: Servant.Context ServantContext -> AppContext -> Servant.Application
-app cfg ctx =
+app :: Environment -> Servant.Context ServantContext -> AppContext -> Servant.Application
+app env cfg ctx =
   Servant.serveWithContext (Proxy @API) cfg $
     Servant.hoistServerWithContext
       (Proxy @API)
       (Proxy @ServantContext)
       (interpret ctx)
-      server
+      (server env)

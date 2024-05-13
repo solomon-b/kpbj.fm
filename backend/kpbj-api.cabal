@@ -67,6 +67,7 @@ library
   build-depends:  , aeson
                   , barbies
                   , base ^>=4.18.1.0
+                  , base64
                   , bytestring
                   , case-insensitive
                   , cfg
@@ -88,6 +89,7 @@ library
                   , jose
                   , log-base
                   , lucid
+                  , megaparsec
                   , mtl
                   , opaleye
                   , pretty-simple

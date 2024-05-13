@@ -11,10 +11,17 @@ import Cfg.Options (RootKey (..))
 import Cfg.Parser
 import Cfg.Source
 import Cfg.Source.Default
+import Crypto.JOSE qualified as JOSE
 import Data.Aeson (ToJSON)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types (FromJSON)
 import Data.ByteString (ByteString)
+import Data.Text.Encoding.Base64 (decodeBase64Lenient)
+import Data.Text.Lazy qualified as Text.Lazy
+import Data.Text.Lazy.Encoding qualified as Text.Lazy.Encoding
 import Data.Word (Word16)
 import GHC.Generics
+import Text.Megaparsec
 
 --------------------------------------------------------------------------------
 
@@ -74,11 +81,28 @@ data AppExporter = StdOut
 
 --------------------------------------------------------------------------------
 
+newtype JwtConfig = JwtConfig {getJwk :: JOSE.JWK}
+  deriving stock (Generic, Show)
+  deriving newtype (FromJSON, ToJSON)
+  deriving anyclass (DefaultSource, ConfigParser)
+  deriving (ConfigSource) via (Value JwtConfig)
+
+instance ValueParser JwtConfig where
+  parser :: Parser JwtConfig
+  parser = do
+    x <- takeRest
+    case Aeson.eitherDecode @JwtConfig (Text.Lazy.Encoding.encodeUtf8 $ Text.Lazy.fromStrict $ decodeBase64Lenient x) of
+      Left err -> fail err
+      Right jwk -> pure jwk
+
+--------------------------------------------------------------------------------
+
 data AppConfig = AppConfig
   { appConfigWarpSettings :: WarpConfig,
     appConfigPostgresSettings :: PostgresConfig,
     appConfigEnvironment :: Environment,
-    appConfigObservability :: ObservabilityConfig
+    appConfigObservability :: ObservabilityConfig,
+    appConfigJwtConfig :: JwtConfig
   }
   deriving stock (Generic, Show)
   deriving

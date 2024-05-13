@@ -1,0 +1,34 @@
+# fly.toml app configuration file generated for kpbj-fm on 2024-04-21T13:16:02-07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'kpbj-fm'
+primary_region = 'lax'
+
+[build]
+  image = 'sbothwell/kpbj.fm:0.1.0.2'
+
+[deploy]
+  release_command = "-c '/bin/sqlx migrate run --source backend/migrations'"
+
+[env]
+  APP_ENVIRONMENT = 'Development'
+  APP_OBSERVABILITY_EXPORTER = 'StdOut'
+  APP_OBSERVABILITY_VERBOSITY = 'Quiet'
+  APP_WARP_PORT = '4000'
+  APP_WARP_SERVERNAME = 'kpbj.fm'
+  APP_WARP_TIMEOUT = '100'
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 4000
+
+[[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
