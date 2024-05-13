@@ -75,12 +75,12 @@ runApp =
         let poolSettings = HSQL.Pool.Config.settings [HSQL.Pool.Config.staticConnectionSettings hsqlSettings]
         pgPool <- HSQL.Pool.acquire poolSettings
 
-        let jwtCfg = Auth.Server.defaultJWTSettings $ getJwk appConfigJwtConfig
-            cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
+        let jwkCfg = Auth.Server.defaultJWTSettings $ getJwk appConfigJwk
+            cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwkCfg :. Servant.EmptyContext
         withTracer appConfigEnvironment $ \tracerProvider mkTracer -> do
           let tracer = mkTracer OTEL.tracerOptions
           let otelMiddleware = newOpenTelemetryWaiMiddleware' tracerProvider
-          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app appConfigEnvironment cfg (stdOutLogger, pgPool, jwtCfg, tracer, appConfigSmtp))
+          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app appConfigEnvironment cfg (stdOutLogger, pgPool, jwkCfg, tracer, appConfigSmtp))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =

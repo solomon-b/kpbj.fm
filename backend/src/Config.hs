@@ -82,17 +82,17 @@ data AppExporter = StdOut
 
 --------------------------------------------------------------------------------
 
-newtype JwtConfig = JwtConfig {getJwk :: JOSE.JWK}
+newtype JwkConfig = JwkConfig {getJwk :: JOSE.JWK}
   deriving stock (Generic, Show)
   deriving newtype (FromJSON, ToJSON)
   deriving anyclass (DefaultSource, ConfigParser)
-  deriving (ConfigSource) via (Value JwtConfig)
+  deriving (ConfigSource) via (Value JwkConfig)
 
-instance ValueParser JwtConfig where
-  parser :: Parser JwtConfig
+instance ValueParser JwkConfig where
+  parser :: Parser JwkConfig
   parser = do
     x <- takeRest
-    case Aeson.eitherDecode @JwtConfig (Text.Lazy.Encoding.encodeUtf8 $ Text.Lazy.fromStrict $ decodeBase64Lenient x) of
+    case Aeson.eitherDecode @JwkConfig (Text.Lazy.Encoding.encodeUtf8 $ Text.Lazy.fromStrict $ decodeBase64Lenient x) of
       Left err -> fail err
       Right jwk -> pure jwk
 
@@ -110,7 +110,7 @@ data AppConfig = AppConfig
     appConfigPostgresSettings :: PostgresConfig,
     appConfigEnvironment :: Environment,
     appConfigObservability :: ObservabilityConfig,
-    appConfigJwtConfig :: JwtConfig,
+    appConfigJwk :: JwkConfig,
     appConfigSmtp :: SmtpConfig
   }
   deriving stock (Generic, Show)
