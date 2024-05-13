@@ -27,5 +27,13 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Deploy 🚀
+    - name: Build & Deploy Docker Image
       run: nix run .#deploy
+
+    - name: Link flyctl 🪰
+      uses: superfly/flyctl-actions/setup-flyctl@master
+
+    - name: Deploy To Fly.io 🚀
+      run: flyctl deploy --remote-only
+      env:
+        FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

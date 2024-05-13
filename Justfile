@@ -147,4 +147,3 @@ migrations-list:
 # Deploy 
 deploy:
   nix run .#deploy
-  fly deploy
