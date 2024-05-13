@@ -2,6 +2,7 @@ module API.SplashPage where
 
 --------------------------------------------------------------------------------
 
+import Config (Environment (..))
 import Lucid qualified
 import Servant ((:<|>) (..), (:>))
 import Servant qualified
@@ -39,5 +40,7 @@ type SplashPageAPI =
 --------------------------------------------------------------------------------
 -- Handler
 
-splashPageHandler :: (Monad m) => Servant.ServerT SplashPageAPI m
-splashPageHandler = pure SplashPage :<|> Servant.serveDirectoryWebApp "./backend/static"
+splashPageHandler :: (Monad m) => Environment -> Servant.ServerT SplashPageAPI m
+splashPageHandler = \case
+  Production -> pure SplashPage :<|> Servant.serveDirectoryWebApp "/backend/static"
+  Development -> pure SplashPage :<|> Servant.serveDirectoryWebApp "./backend/static"
