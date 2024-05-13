@@ -80,7 +80,7 @@ runApp =
         withTracer appConfigEnvironment $ \tracerProvider mkTracer -> do
           let tracer = mkTracer OTEL.tracerOptions
           let otelMiddleware = newOpenTelemetryWaiMiddleware' tracerProvider
-          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app appConfigEnvironment cfg (stdOutLogger, pgPool, jwtCfg, tracer))
+          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app appConfigEnvironment cfg (stdOutLogger, pgPool, jwtCfg, tracer, appConfigSmtp))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -115,7 +115,7 @@ shutdownHandler closeSocket =
 
 --------------------------------------------------------------------------------
 
-type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings, OTEL.Tracer)
+type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings, OTEL.Tracer, SmtpConfig)
 
 type ServantContext = '[Servant.Auth.BasicAuthCfg, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
@@ -134,7 +134,7 @@ instance MonadDB AppM where
   execStatement = runDB . HSQL.statement ()
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
-interpret ctx@(logger, _, _, _) (AppM appM) =
+interpret ctx@(logger, _, _, _, _) (AppM appM) =
   Servant.Handler $ ExceptT $ catch (Right <$> appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)) $ \(e :: Servant.ServerError) -> pure $ Left e
 
 app :: Environment -> Servant.Context ServantContext -> AppContext -> Servant.Application

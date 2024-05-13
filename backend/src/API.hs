@@ -5,7 +5,7 @@ module API where
 import API.MailingList
 import API.SplashPage
 import API.User
-import Config (Environment)
+import Config (Environment, SmtpConfig)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -31,6 +31,7 @@ server ::
     Has HSQL.Pool env,
     Has Servant.Auth.JWTSettings env,
     Has OTEL.Tracer env,
+    Has SmtpConfig env,
     Log.MonadLog m,
     MonadDB m,
     MonadIO m,

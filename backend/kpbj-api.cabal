@@ -91,6 +91,7 @@ library
                   , lucid
                   , megaparsec
                   , mtl
+		  , mime-mail
                   , opaleye
                   , pretty-simple
                   , rel8
@@ -98,6 +99,7 @@ library
                   , servant-auth-server
                   , servant-lucid
                   , servant-server
+		  , smtp-mail
                   , text
                   , text-display
                   , time

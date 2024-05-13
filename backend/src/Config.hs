@@ -16,6 +16,7 @@ import Data.Aeson (ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON)
 import Data.ByteString (ByteString)
+import Data.Text (Text)
 import Data.Text.Encoding.Base64 (decodeBase64Lenient)
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy.Encoding
@@ -97,12 +98,20 @@ instance ValueParser JwtConfig where
 
 --------------------------------------------------------------------------------
 
+data SmtpConfig = SmtpConfig {smtpConfigServer :: Text, smtpConfigUsername :: Text, smtpConfigPassword :: Text}
+  deriving stock (Generic, Show)
+  deriving anyclass (DefaultSource)
+  deriving (ConfigSource, ConfigParser) via (ConfigOpts [StripPrefix "smtpConfig", ToUpper] SmtpConfig)
+
+--------------------------------------------------------------------------------
+
 data AppConfig = AppConfig
   { appConfigWarpSettings :: WarpConfig,
     appConfigPostgresSettings :: PostgresConfig,
     appConfigEnvironment :: Environment,
     appConfigObservability :: ObservabilityConfig,
-    appConfigJwtConfig :: JwtConfig
+    appConfigJwtConfig :: JwtConfig,
+    appConfigSmtp :: SmtpConfig
   }
   deriving stock (Generic, Show)
   deriving
