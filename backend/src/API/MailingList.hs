@@ -5,14 +5,12 @@ module API.MailingList where
 import Config (SmtpConfig (..))
 import Control.Monad (unless)
 import Control.Monad.Catch (MonadCatch, MonadThrow (..))
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Control.Monad.Reader qualified as Reader
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.CaseInsensitive qualified as CI
 import Data.Has (Has)
-import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display, display)
@@ -20,11 +18,12 @@ import Data.Text.Encoding qualified as Text.Encoding
 import Database.Class (MonadDB)
 import Database.Queries.MailingList qualified as MailingList
 import Domain.Types.Email (EmailAddress (..))
+import Email.Class
 import Errors (throw401)
 import GHC.Generics (Generic)
 import Log qualified
 import Network.Mail.Mime qualified as Mime
-import Network.Mail.SMTP
+import Network.Mail.SMTP qualified as SMTP
 import OpenTelemetry.Trace qualified as OTEL
 import Servant ((:>))
 import Servant qualified
@@ -53,6 +52,7 @@ mailingListHandler ::
     Has OTEL.Tracer env,
     Has SmtpConfig env,
     MonadDB m,
+    MonadEmail m,
     MonadThrow m,
     MonadCatch m,
     MonadUnliftIO m
@@ -60,20 +60,19 @@ mailingListHandler ::
   Servant.ServerT MailingListAPI m
 mailingListHandler req@(MailingListForm e@(EmailAddress {..})) = do
   handlerSpan "/mailing-list" req display $ do
-    unless (Email.isValid $ Text.Encoding.encodeUtf8 emailAddress) $ throw401 "Invalid Email Address"
+    unless (Email.isValid $ Text.Encoding.encodeUtf8 $ CI.original emailAddress) $ throw401 "Invalid Email Address"
 
     _pid <- MailingList.insertEmailAddress e
-    Log.logInfo "Submited Email Address:" (KeyMap.singleton "email" (Text.unpack emailAddress))
+    Log.logInfo "Submited Email Address:" (KeyMap.singleton "email" (Text.unpack $ CI.original emailAddress))
 
-    smtpConfig <- Reader.asks Has.getter
-    liftIO $ sendConfirmationEmail smtpConfig e
+    sendConfirmationEmail e
 
     -- TODO: Very hacky solution until we support htmx.
     -- TODO: Would be nice to render the splash page with a success message.
     throwM $ Servant.err301 {Servant.errHeaders = [("Location", "https://www.kpbj.fm")]}
 
-sendConfirmationEmail :: SmtpConfig -> EmailAddress -> IO ()
-sendConfirmationEmail SmtpConfig {..} EmailAddress {..} =
+sendConfirmationEmail :: (MonadEmail m) => EmailAddress -> m ()
+sendConfirmationEmail EmailAddress {..} =
   let subject :: Text
       subject = "Welcome to kpbj.fm"
 
@@ -81,5 +80,5 @@ sendConfirmationEmail SmtpConfig {..} EmailAddress {..} =
       body = Mime.plainPart "Thank you for your interest in kpbj.fm. We are still in early development but will reach out soon with more information."
 
       mail :: Mime.Mail
-      mail = simpleMail (Address Nothing "contact@kpbj.fm") [Address Nothing emailAddress] [] [] subject [body]
-   in sendMailWithLoginTLS (Text.unpack smtpConfigServer) (Text.unpack smtpConfigUsername) (Text.unpack smtpConfigPassword) mail
+      mail = SMTP.simpleMail (SMTP.Address Nothing "contact@kpbj.fm") [SMTP.Address Nothing $ CI.original emailAddress] [] [] subject [body]
+   in sendEmail mail

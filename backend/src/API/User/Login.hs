@@ -8,6 +8,7 @@ import Control.Monad.Catch (MonadCatch, MonadThrow (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.CaseInsensitive qualified as CI
 import Data.Coerce (coerce)
 import Data.Has (Has)
 import Data.Text.Display (Display, RecordInstance (..), display)
@@ -53,7 +54,7 @@ handler ::
   m Auth.JWTToken
 handler req@Login {..} = do
   handlerSpan "/user/login" req display $ do
-    unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce ulEmail) $ throw403 "Invalid Email Address"
+    unless (Email.isValid $ Text.Encoding.encodeUtf8 $ CI.original $ coerce ulEmail) $ throw403 "Invalid Email Address"
     execQuerySpanThrowMessage "Failed to query users table" (selectUserByCredentialQuery ulEmail ulPassword) >>= \case
       Just user -> do
         Log.logInfo "Login Attempt" ulEmail

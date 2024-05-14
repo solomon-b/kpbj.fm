@@ -7,6 +7,7 @@ module Domain.Types.User where
 import Barbies
 import Control.Monad.Identity (Identity (..))
 import Data.Aeson (FromJSON, ToJSON)
+import Data.CaseInsensitive qualified as CI
 import Data.Coerce (coerce)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
@@ -42,7 +43,7 @@ instance ModelParser User.Model User where
       parser User.Model {..} =
         User
           { userId = coerce umId,
-            userEmail = coerce umEmail,
+            userEmail = EmailAddress (CI.mk (runIdentity umEmail)),
             userDisplayName = coerce umDisplayName,
             userAvatarUrl = coerce umAvatarUrl,
             userIsAdmin = coerce umIsAdmin
@@ -53,7 +54,7 @@ instance ModelPrinter User.Model (EmailAddress, Password, DisplayName, AdminStat
   printModel (email, pass, DisplayName displayName, adminStatus) =
     User.Model
       { umId = Rel8.unsafeDefault,
-        umEmail = Rel8.litExpr (coerce email),
+        umEmail = Rel8.litExpr (CI.original (coerce email)),
         umPassword = Rel8.litExpr (coerce pass),
         umDisplayName = Rel8.litExpr displayName,
         umAvatarUrl = Rel8.litExpr Nothing,

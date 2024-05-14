@@ -3,6 +3,7 @@ module Database.Queries.MailingList where
 --------------------------------------------------------------------------------
 
 import Control.Monad.Catch (MonadThrow)
+import Data.CaseInsensitive qualified as CI
 import Database.Class (MonadDB)
 import Database.Tables.MailingList qualified as MailingList
 import Database.Utils
@@ -29,7 +30,7 @@ insertEmailAddressSql EmailAddress {..} =
     Rel8.insert $
       Rel8.Insert
         { Rel8.into = MailingList.schema,
-          Rel8.rows = Rel8.values [MailingList.Model Rel8.unsafeDefault (Rel8.litExpr emailAddress)],
+          Rel8.rows = Rel8.values [MailingList.Model Rel8.unsafeDefault (Rel8.litExpr (CI.original emailAddress))],
           Rel8.onConflict = Rel8.Abort,
           Rel8.returning = Rel8.Returning MailingList.mlId
         }

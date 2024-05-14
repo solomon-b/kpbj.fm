@@ -3,6 +3,7 @@ module Database.Queries.User where
 --------------------------------------------------------------------------------
 
 import Control.Monad.Catch (MonadThrow)
+import Data.CaseInsensitive qualified as CI
 import Database.Class (MonadDB)
 import Database.Tables.User qualified as User
 import Database.Utils
@@ -27,13 +28,13 @@ selectUserQuery uid = Rel8.runMaybe . Rel8.select $ do
 selectUserByCredentialQuery :: EmailAddress -> Password -> HSQL.Statement () (Maybe (User.Model Rel8.Result))
 selectUserByCredentialQuery (EmailAddress email) (Password pass) = Rel8.runMaybe . Rel8.select $ do
   um <- Rel8.each User.schema
-  Rel8.where_ $ User.umEmail um ==. Rel8.litExpr email &&. User.umPassword um ==. Rel8.litExpr pass
+  Rel8.where_ $ User.umEmail um ==. Rel8.litExpr (CI.original email) &&. User.umPassword um ==. Rel8.litExpr pass
   pure um
 
 selectUserByEmailQuery :: EmailAddress -> HSQL.Statement () (Maybe (User.Model Rel8.Result))
 selectUserByEmailQuery (EmailAddress email) = Rel8.runMaybe . Rel8.select $ do
   um <- Rel8.each User.schema
-  Rel8.where_ $ User.umEmail um ==. Rel8.litExpr email
+  Rel8.where_ $ User.umEmail um ==. Rel8.litExpr (CI.original email)
   pure um
 
 selectUsersQuery :: HSQL.Statement () [User.Model Rel8.Result]

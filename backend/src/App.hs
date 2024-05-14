@@ -34,8 +34,10 @@ import Data.Foldable (fold)
 import Data.Function ((&))
 import Data.Has qualified as Has
 import Data.Maybe (catMaybes, fromMaybe)
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
 import Database.Class
+import Email.Class (MonadEmail (..))
 import Hasql.Connection qualified as HSQL
 import Hasql.Pool qualified as HSQL (Pool)
 import Hasql.Pool qualified as HSQL.Pool
@@ -46,6 +48,8 @@ import Log (runLogT)
 import Log qualified
 import Log.Backend.StandardOutput qualified as Log
 import Network.HTTP.Types.Status qualified as Status
+import Network.Mail.Mime qualified as Mime
+import Network.Mail.SMTP qualified as SMTP
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware')
@@ -132,6 +136,14 @@ instance MonadDB AppM where
 
   execStatement :: HSQL.Statement () a -> AppM (Either HSQL.Pool.UsageError a)
   execStatement = runDB . HSQL.statement ()
+
+instance MonadEmail AppM where
+  sendEmail :: Mime.Mail -> AppM ()
+  sendEmail mail = do
+    SmtpConfig {..} <- Reader.asks Has.getter
+    liftIO $ SMTP.sendMailWithLoginTLS (Text.unpack smtpConfigServer) (Text.unpack smtpConfigUsername) (Text.unpack smtpConfigPassword) mail
+
+--------------------------------------------------------------------------------
 
 interpret :: AppContext -> AppM x -> Servant.Handler x
 interpret ctx@(logger, _, _, _, _) (AppM appM) =

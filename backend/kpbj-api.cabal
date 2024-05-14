@@ -131,6 +131,7 @@ library
     Database.Tables.User
     Database.Tables.MailingList
     Database.Utils
+    Email.Class
     Errors
     Tracing
     Utils

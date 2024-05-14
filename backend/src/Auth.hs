@@ -12,6 +12,7 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Reader qualified as Reader
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Lazy qualified as BL
+import Data.CaseInsensitive qualified as CI
 import Data.Has (Has)
 import Data.Has qualified as Has
 import Data.Text (Text)
@@ -43,7 +44,7 @@ instance Servant.Auth.FromBasicAuthData User where
 -- TODO: Hash password!
 checkAuth :: HSQL.Pool -> Log.Logger -> Servant.Auth.BasicAuthData -> IO (Servant.Auth.AuthResult User)
 checkAuth pool logger (Servant.Auth.BasicAuthData email' pass') =
-  let email = EmailAddress $ Text.Encoding.decodeUtf8 email'
+  let email = EmailAddress $ CI.mk $ Text.Encoding.decodeUtf8 email'
       pass = Password $ Text.Encoding.decodeUtf8 pass'
    in HSQL.use pool (HSQL.statement () (selectUserByCredentialQuery email pass)) >>= \case
         Left err -> do
