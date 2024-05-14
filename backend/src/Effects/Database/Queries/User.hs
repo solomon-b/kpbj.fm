@@ -1,17 +1,17 @@
-module Database.Queries.User where
+module Effects.Database.Queries.User where
 
 --------------------------------------------------------------------------------
 
 import Control.Monad.Catch (MonadThrow)
 import Data.CaseInsensitive qualified as CI
-import Database.Class (MonadDB)
-import Database.Tables.User qualified as User
-import Database.Utils
 import Domain.Types.AdminStatus
 import Domain.Types.DisplayName
 import Domain.Types.Email
 import Domain.Types.Password
 import Domain.Types.User ()
+import Effects.Database.Class (MonadDB)
+import Effects.Database.Tables.User qualified as User
+import Effects.Database.Utils
 import Hasql.Statement qualified as HSQL
 import Log qualified
 import Rel8 ((&&.), (==.))

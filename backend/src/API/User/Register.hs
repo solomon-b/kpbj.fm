@@ -15,15 +15,15 @@ import Data.Has (Has)
 import Data.Text.Display (Display, display)
 import Data.Text.Display.Generic (RecordInstance (..))
 import Data.Text.Encoding qualified as Text.Encoding
-import Database.Class (MonadDB)
-import Database.Queries.User
-import Database.Utils
 import Deriving.Aeson qualified as Deriving
 import Domain.Types.AdminStatus
 import Domain.Types.DisplayName
 import Domain.Types.Email
 import Domain.Types.Password
 import Domain.Types.User
+import Effects.Database.Class (MonadDB)
+import Effects.Database.Queries.User
+import Effects.Database.Utils
 import Errors (throw401, throw500')
 import GHC.Generics (Generic)
 import Log qualified

@@ -36,8 +36,8 @@ import Data.Has qualified as Has
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
-import Database.Class
-import Email.Class (MonadEmail (..))
+import Effects.Database.Class
+import Effects.Email.Class (MonadEmail (..))
 import Hasql.Connection qualified as HSQL
 import Hasql.Pool qualified as HSQL (Pool)
 import Hasql.Pool qualified as HSQL.Pool

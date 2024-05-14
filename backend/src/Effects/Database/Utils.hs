@@ -1,6 +1,6 @@
 {-# LANGUAGE KindSignatures #-}
 
-module Database.Utils where
+module Effects.Database.Utils where
 
 --------------------------------------------------------------------------------
 
@@ -9,7 +9,7 @@ import Data.ByteString.Char8 qualified as Char8
 import Data.ByteString.Lazy qualified as BL
 import Data.Kind (Type)
 import Data.Text qualified as Text
-import Database.Class
+import Effects.Database.Class
 import Errors (throw500)
 import Hasql.Pool qualified as HSQL
 import Hasql.Statement qualified as HSQL

@@ -1,4 +1,4 @@
-module Database.Tables.MailingList where
+module Effects.Database.Tables.MailingList where
 
 --------------------------------------------------------------------------------
 

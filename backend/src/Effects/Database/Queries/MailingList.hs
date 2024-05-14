@@ -1,13 +1,13 @@
-module Database.Queries.MailingList where
+module Effects.Database.Queries.MailingList where
 
 --------------------------------------------------------------------------------
 
 import Control.Monad.Catch (MonadThrow)
 import Data.CaseInsensitive qualified as CI
-import Database.Class (MonadDB)
-import Database.Tables.MailingList qualified as MailingList
-import Database.Utils
 import Domain.Types.Email
+import Effects.Database.Class (MonadDB)
+import Effects.Database.Tables.MailingList qualified as MailingList
+import Effects.Database.Utils
 import Hasql.Statement qualified as HSQL
 import Log qualified
 import Rel8 qualified

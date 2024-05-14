@@ -11,8 +11,8 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Database.Class (MonadDB)
-import Email.Class (MonadEmail)
+import Effects.Database.Class (MonadDB)
+import Effects.Email.Class (MonadEmail)
 import Hasql.Pool qualified as HSQL
 import Log qualified
 import OpenTelemetry.Trace qualified as OTEL

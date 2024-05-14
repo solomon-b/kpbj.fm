@@ -125,13 +125,13 @@ library
     API.User.Current
     API.User.Login
     API.User.Register
-    Database.Class
-    Database.Queries.User
-    Database.Queries.MailingList
-    Database.Tables.User
-    Database.Tables.MailingList
-    Database.Utils
-    Email.Class
+    Effects.Database.Class
+    Effects.Database.Queries.User
+    Effects.Database.Queries.MailingList
+    Effects.Database.Tables.User
+    Effects.Database.Tables.MailingList
+    Effects.Database.Utils
+    Effects.Email.Class
     Errors
     Tracing
     Utils

@@ -15,10 +15,10 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display, display)
 import Data.Text.Encoding qualified as Text.Encoding
-import Database.Class (MonadDB)
-import Database.Queries.MailingList qualified as MailingList
 import Domain.Types.Email (EmailAddress (..))
-import Email.Class
+import Effects.Database.Class (MonadDB)
+import Effects.Database.Queries.MailingList qualified as MailingList
+import Effects.Email.Class
 import Errors (throw401)
 import GHC.Generics (Generic)
 import Log qualified

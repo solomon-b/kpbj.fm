@@ -1,4 +1,4 @@
-module Email.Class where
+module Effects.Email.Class where
 
 --------------------------------------------------------------------------------
 

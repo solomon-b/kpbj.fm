@@ -11,12 +11,12 @@ import Data.CaseInsensitive qualified as CI
 import Data.Coerce (coerce)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
-import Database.Tables.User qualified as User
-import Database.Utils
 import Domain.Types.AdminStatus
 import Domain.Types.DisplayName
 import Domain.Types.Email
 import Domain.Types.Password
+import Effects.Database.Tables.User qualified as User
+import Effects.Database.Utils
 import GHC.Generics
 import Rel8 qualified
 import Servant.Auth.JWT (FromJWT, ToJWT)

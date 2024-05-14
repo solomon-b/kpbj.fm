@@ -18,12 +18,12 @@ import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text.Display (Display)
 import Data.Text.Encoding qualified as Text.Encoding
-import Database.Queries.User
-import Database.Utils
 import Deriving.Aeson qualified as Deriving
 import Domain.Types.Email
 import Domain.Types.Password
 import Domain.Types.User (User)
+import Effects.Database.Queries.User
+import Effects.Database.Utils
 import Errors (throw500')
 import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL
