@@ -93,6 +93,7 @@ handlerSpan handlerName req getRes handlerAction = do
 
     handlerResult <-
       handlerAction `catchAll` \exception -> do
+        liftIO $ print exception
         OTEL.addEvent reqSpan $
           OTEL.NewEvent
             { newEventName = "handler error",

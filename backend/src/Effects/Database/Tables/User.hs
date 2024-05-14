@@ -1,4 +1,4 @@
-module Database.Tables.User where
+module Effects.Database.Tables.User where
 
 --------------------------------------------------------------------------------
 

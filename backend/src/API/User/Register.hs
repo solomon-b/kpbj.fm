@@ -9,20 +9,21 @@ import Control.Monad.Catch.Pure (MonadCatch)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.CaseInsensitive qualified as CI
 import Data.Coerce (coerce)
 import Data.Has (Has)
 import Data.Text.Display (Display, display)
 import Data.Text.Display.Generic (RecordInstance (..))
 import Data.Text.Encoding qualified as Text.Encoding
-import Database.Class (MonadDB)
-import Database.Queries.User
-import Database.Utils
 import Deriving.Aeson qualified as Deriving
 import Domain.Types.AdminStatus
 import Domain.Types.DisplayName
 import Domain.Types.Email
 import Domain.Types.Password
 import Domain.Types.User
+import Effects.Database.Class (MonadDB)
+import Effects.Database.Queries.User
+import Effects.Database.Utils
 import Errors (throw401, throw500')
 import GHC.Generics (Generic)
 import Log qualified
@@ -58,7 +59,7 @@ handler ::
   m Auth.JWTToken
 handler req@Register {..} = do
   handlerSpan "/user/register" req display $ do
-    unless (Email.isValid $ Text.Encoding.encodeUtf8 $ coerce urEmail) $ throw401 "Invalid Email Address"
+    unless (Email.isValid $ Text.Encoding.encodeUtf8 $ CI.original $ coerce urEmail) $ throw401 "Invalid Email Address"
     execQuerySpanThrowMessage "Failed to query users table" (selectUserByEmailQuery urEmail) >>= \case
       Just _ -> do
         Log.logInfo "Email address is already registered" urEmail

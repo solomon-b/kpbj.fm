@@ -34,8 +34,10 @@ import Data.Foldable (fold)
 import Data.Function ((&))
 import Data.Has qualified as Has
 import Data.Maybe (catMaybes, fromMaybe)
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
-import Database.Class
+import Effects.Database.Class
+import Effects.Email.Class (MonadEmail (..))
 import Hasql.Connection qualified as HSQL
 import Hasql.Pool qualified as HSQL (Pool)
 import Hasql.Pool qualified as HSQL.Pool
@@ -46,6 +48,8 @@ import Log (runLogT)
 import Log qualified
 import Log.Backend.StandardOutput qualified as Log
 import Network.HTTP.Types.Status qualified as Status
+import Network.Mail.Mime qualified as Mime
+import Network.Mail.SMTP qualified as SMTP
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware')
@@ -75,12 +79,12 @@ runApp =
         let poolSettings = HSQL.Pool.Config.settings [HSQL.Pool.Config.staticConnectionSettings hsqlSettings]
         pgPool <- HSQL.Pool.acquire poolSettings
 
-        let jwtCfg = Auth.Server.defaultJWTSettings $ getJwk appConfigJwtConfig
-            cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwtCfg :. Servant.EmptyContext
+        let jwkCfg = Auth.Server.defaultJWTSettings $ getJwk appConfigJwk
+            cfg = checkAuth pgPool stdOutLogger :. Auth.Server.defaultCookieSettings :. jwkCfg :. Servant.EmptyContext
         withTracer appConfigEnvironment $ \tracerProvider mkTracer -> do
           let tracer = mkTracer OTEL.tracerOptions
           let otelMiddleware = newOpenTelemetryWaiMiddleware' tracerProvider
-          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app appConfigEnvironment cfg (stdOutLogger, pgPool, jwtCfg, tracer))
+          Warp.runSettings (warpSettings stdOutLogger appConfigWarpSettings) (otelMiddleware $ app appConfigEnvironment cfg (stdOutLogger, pgPool, jwkCfg, tracer, appConfigSmtp))
 
 warpSettings :: Log.Logger -> WarpConfig -> Warp.Settings
 warpSettings logger' WarpConfig {..} =
@@ -115,7 +119,7 @@ shutdownHandler closeSocket =
 
 --------------------------------------------------------------------------------
 
-type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings, OTEL.Tracer)
+type AppContext = (Log.Logger, HSQL.Pool, Servant.Auth.JWTSettings, OTEL.Tracer, SmtpConfig)
 
 type ServantContext = '[Servant.Auth.BasicAuthCfg, Auth.Server.CookieSettings, Auth.Server.JWTSettings]
 
@@ -133,8 +137,16 @@ instance MonadDB AppM where
   execStatement :: HSQL.Statement () a -> AppM (Either HSQL.Pool.UsageError a)
   execStatement = runDB . HSQL.statement ()
 
+instance MonadEmail AppM where
+  sendEmail :: Mime.Mail -> AppM ()
+  sendEmail mail = do
+    SmtpConfig {..} <- Reader.asks Has.getter
+    liftIO $ SMTP.sendMailWithLoginTLS (Text.unpack smtpConfigServer) (Text.unpack smtpConfigUsername) (Text.unpack smtpConfigPassword) mail
+
+--------------------------------------------------------------------------------
+
 interpret :: AppContext -> AppM x -> Servant.Handler x
-interpret ctx@(logger, _, _, _) (AppM appM) =
+interpret ctx@(logger, _, _, _, _) (AppM appM) =
   Servant.Handler $ ExceptT $ catch (Right <$> appM ctx (Log.LoggerEnv logger "kpbj-backend" [] [] Log.defaultLogLevel)) $ \(e :: Servant.ServerError) -> pure $ Left e
 
 app :: Environment -> Servant.Context ServantContext -> AppContext -> Servant.Application

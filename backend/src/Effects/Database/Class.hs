@@ -1,4 +1,4 @@
-module Database.Class where
+module Effects.Database.Class where
 
 --------------------------------------------------------------------------------
 

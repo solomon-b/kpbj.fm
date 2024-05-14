@@ -12,11 +12,11 @@ import Control.Monad.Catch (MonadCatch, MonadThrow (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Database.Class (MonadDB)
-import Database.Queries.User
-import Database.Tables.User qualified as User
-import Database.Utils
 import Domain.Types.User
+import Effects.Database.Class (MonadDB)
+import Effects.Database.Queries.User
+import Effects.Database.Tables.User qualified as User
+import Effects.Database.Utils
 import Errors (throw403')
 import Log qualified
 import OpenTelemetry.Trace qualified as OTEL
