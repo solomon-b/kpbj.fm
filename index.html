@@ -21,26 +21,51 @@
         <h3 class="text-2xl font-bold mb-4">Stay in the Loop</h3>
 
 
-        <form action="https://docs.google.com/forms/d/e/1FAIpQLScEt4vkt2G_Wx4k70rtumxP5JM8dzXijeiLu-dX6thTO46ZTg/formResponse"
+        <!-- Hidden iframe target -->
+        <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+
+        <!-- Form -->
+        <form action="https://docs.google.com/forms/u/0/d/e/1FAIpQLSfeM91iQ_A7ybaa070b8jiznHNRIJ_2JU0F7wJjo7vAvkS3tQ/formResponse"
               method="POST"
-              target="_blank"
+              target="hidden_iframe"
+              onsubmit="handleSubmit(event)"
               class="w-full max-w-sm">
           <div class="flex items-center border-b border-gray-500 py-2">
             <input type="email"
-                   name="entry.1401112893"
+                   name="entry.936311333"
                    required
                    placeholder="you@example.com"
                    aria-label="Email Address"
-                   class="appearance-none bg-transparent border-none  w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none" />
-            <button
-              type="submit"
-              class="px-3 py-2 text-xs font-medium text-center inline-flex items-center text-white bg-gray-700 rounded-md hover:bg-gray-800 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800">
+                   class="appearance-none bg-transparent border-none w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none" />
+            <button type="submit"
+                    id="subscribe-button"
+                    class="px-3 py-2 text-xs font-medium text-center inline-flex items-center text-white bg-gray-700 rounded-md hover:bg-gray-800 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800">
               Subscribe
             </button>
           </div>
+          <p id="form-confirmation" class="mt-2 text-green-700" style="display: none;">Thanks for subscribing!</p>
         </form>
+
       </section>
     </main>
+    <script>
+      function handleSubmit(event) {
+        const form = event.target;
+        const confirmation = form.querySelector('#form-confirmation');
+        const button = form.querySelector('#subscribe-button');
+
+        // Prevent multiple submissions
+        button.disabled = true;
+        button.innerText = 'Submitting...';
+
+        setTimeout(() => {
+          confirmation.style.display = 'block';
+          form.reset();
+          button.disabled = false;
+          button.innerText = 'Subscribe';
+        }, 500);
+      }
+    </script>
 
     <!-- Component: Footer -->
     $FOOTER
