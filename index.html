@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kpbj.fm</title>
+    <link rel="stylesheet" href="/assets/css/output.css">
+  </head>
+  <body class="relative font-body flex flex-col min-h-screen">
+    <!-- Component: Header -->
+    <div id="header-container"></div>
+
+    <!-- Hero Section -->
+    <main class="relative flex-grow flex flex-col items-center text-center">
+      <a href="https://fccdata.org/?call=kpbj&amp;facid=&amp;city=&amp;state=&amp;ccode=1&amp;country=US">
+        <img src="assets/img/range.png" />
+      </a>
+
+      <!-- Email Signup Form -->
+      <section class="mt-12  text-center">
+        <h3 class="text-2xl font-bold mb-4">Stay in the Loop</h3>
+
+
+        <form action="https://docs.google.com/forms/d/e/1FAIpQLScEt4vkt2G_Wx4k70rtumxP5JM8dzXijeiLu-dX6thTO46ZTg/formResponse"
+              method="POST"
+              target="_blank"
+              class="w-full max-w-sm">
+          <div class="flex items-center border-b border-gray-500 py-2">
+            <input type="email"
+                   name="entry.1401112893"
+                   required
+                   placeholder="you@example.com"
+                   aria-label="Email Address"
+                   class="appearance-none bg-transparent border-none  w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none" />
+            <button
+              type="submit"
+              class="px-3 py-2 text-xs font-medium text-center inline-flex items-center text-white bg-gray-700 rounded-md hover:bg-gray-800 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800">
+              Subscribe
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <!-- Component: Footer -->
+    <div id="footer-container"></div>
+
+    <!-- Load Components -->
+    <script>
+      async function loadComponent(id, url) {
+        try {
+          const res = await fetch(url);
+          const html = await res.text();
+          document.getElementById(id).innerHTML = html;
+        } catch (err) {
+          console.error(`Failed to load component: ${url}`, err);
+        }
+      }
+
+      loadComponent('header-container', './components/header.html');
+      loadComponent('footer-container', './components/footer.html');
+    </script>
+  </body>
+</html>

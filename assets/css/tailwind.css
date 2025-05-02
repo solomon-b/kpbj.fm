@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* your custom styles */
+
+@font-face {
+  font-family: 'Ceuphoria Demo';
+  src: url('../fonts/CeuphoriaDemoRegular-mLVn5.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-logo {
+  font-family: 'Ceuphoria Demo', cursive;
+}
+
+.font-body {
+  font-family: 'Work Sans', sans-serif;
+}
+
+.bg-gradient-sky {
+  background: linear-gradient(to bottom, #0A0A0A 0%, #3D1A5D 30%, #6D3A9C 60%, #D8B7ED 100%);
+}
+
+.bg-starscape {
+  background-image: url('../img/starscape.jpg');
+}

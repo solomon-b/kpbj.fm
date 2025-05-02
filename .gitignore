@@ -1,0 +1,5 @@
+/*.eld
+/.direnv/
+/.envrc.local
+.aider*
+/node_modules/
