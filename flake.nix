@@ -18,6 +18,7 @@
               pkgs.nodejs
               pkgs.nodePackages.serve
               pkgs.nodePackages.tailwindcss
+              pkgs.just
             ];
           };
 
