@@ -8,7 +8,7 @@
   </head>
   <body class="relative font-body flex flex-col min-h-screen">
     <!-- Component: Header -->
-    <div id="header-container"></div>
+    $HEADER
 
     <!-- Hero Section -->
     <main class="relative flex-grow flex flex-col items-center text-center">
@@ -43,22 +43,6 @@
     </main>
 
     <!-- Component: Footer -->
-    <div id="footer-container"></div>
-
-    <!-- Load Components -->
-    <script>
-      async function loadComponent(id, url) {
-        try {
-          const res = await fetch(url);
-          const html = await res.text();
-          document.getElementById(id).innerHTML = html;
-        } catch (err) {
-          console.error(`Failed to load component: ${url}`, err);
-        }
-      }
-
-      loadComponent('header-container', './components/header.html');
-      loadComponent('footer-container', './components/footer.html');
-    </script>
+    $FOOTER
   </body>
 </html>

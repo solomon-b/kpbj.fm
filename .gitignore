@@ -3,3 +3,4 @@
 /.envrc.local
 .aider*
 /node_modules/
+/dist/

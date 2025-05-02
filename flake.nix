@@ -16,9 +16,12 @@
           devShell = pkgs.mkShell {
             buildInputs = [
               pkgs.nodejs
+              pkgs.nodePackages.concurrently
               pkgs.nodePackages.serve
               pkgs.nodePackages.tailwindcss
               pkgs.just
+              pkgs.envsubst
+              pkgs.entr
             ];
           };
 
