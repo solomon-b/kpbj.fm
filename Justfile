@@ -3,8 +3,10 @@ default:
 
 build:
     rm -rf dist
-    mkdir -p dist
-    cp -r assets dist/assets
+    mkdir -p dist/assets/css dist/assets/img
+    just tailwind-build
+    cp -r assets/img/* dist/assets/img/
+    cp -r assets/css/* dist/assets/css/
     just inject-components index.html > dist/index.html
 
 inject-components src:
@@ -21,7 +23,8 @@ serve:
     serve dist
 
 tailwind-build:
-    tailwindcss -i ./assets/css/tailwind.css -o ./assets/css/output.css --minify
+    mkdir -p dist/assets/css
+    tailwindcss -i ./assets/css/tailwind.css -o dist/assets/css/output.css --minify
 
 watch:
     just list-watched-files | entr -r just build
