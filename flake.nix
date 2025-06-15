@@ -19,6 +19,7 @@
               pkgs.nodePackages.concurrently
               pkgs.nodePackages.serve
               pkgs.nodePackages.tailwindcss
+              pkgs.nodePackages.wrangler
               pkgs.just
               pkgs.envsubst
               pkgs.entr

@@ -4,15 +4,13 @@ default:
 build:
     rm -rf dist
     mkdir -p dist/assets/css dist/assets/img
-    just tailwind-build
     cp -r assets/img/* dist/assets/img/
     cp -r assets/css/* dist/assets/css/
     just inject-components index.html > dist/index.html
+    just tailwind-build
 
 inject-components src:
-    HEADER="$(cat components/header.html)" \
-    FOOTER="$(cat components/footer.html)" \
-    envsubst < {{src}}
+    HEADER="$(cat components/header.html)" FOOTER="$(cat components/footer.html)" envsubst < {{src}}
 
 dev:
     concurrently --kill-others --names "watch,serve" \
@@ -24,7 +22,7 @@ serve:
 
 tailwind-build:
     mkdir -p dist/assets/css
-    tailwindcss -i ./assets/css/tailwind.css -o dist/assets/css/output.css --minify
+    tailwindcss -i ./assets/css/tailwind.css -o dist/assets/css/output.css --minify --content "dist/**/*.html"
 
 watch:
     just list-watched-files | entr -r just build
