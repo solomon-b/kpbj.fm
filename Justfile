@@ -6,13 +6,24 @@ build:
     mkdir -p dist/assets/css dist/assets/img
     cp -r assets/img/* dist/assets/img/
     cp -r assets/css/* dist/assets/css/
-    mkdir dist/donate
-    just inject-components src/index.html > dist/index.html
-    just inject-components src/donate/index.html > dist/donate/index.html
+    just build-html
     just tailwind-build
 
+build-html:
+    #!/usr/bin/env bash
+    find src -name "*.html" -type f | while read -r src_file; do
+        # Get relative path from src/
+        rel_path="${src_file#src/}"
+        # Create output path in dist/
+        output_file="dist/$rel_path"
+        # Create directory if it doesn't exist
+        mkdir -p "$(dirname "$output_file")"
+        # Process the file
+        just inject-components "$src_file" > "$output_file"
+    done
+
 inject-components src:
-    HEADER="$(cat components/header.html)" FOOTER="$(cat components/footer.html)" envsubst < {{src}}
+    MAIN_CONTENT="$(cat {{src}})" envsubst < components/page-template.html
 
 dev:
     concurrently --kill-others --names "watch,serve" \

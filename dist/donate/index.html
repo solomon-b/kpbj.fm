@@ -11,30 +11,32 @@
     </script>
   </head>
   <body class="relative font-body flex flex-col min-h-screen">
-    <!-- Component: Header -->
     <header class="relative z-50">
-  <div class="relative flex justify-center items-center p-6">
-    <nav class="space-x-6 text-lg">
-        <pre class="font-mono text-sm leading-tight text-gray-800">
+      <div class="relative flex justify-center items-center p-6">
+        <nav class="space-x-6 text-lg">
+            <pre class="font-mono text-sm leading-tight text-gray-800">
 ▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
 █▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
 ▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·
 ▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌
 ·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀
-        </pre>
-    </nav>
-  </div>
-</header>
+            </pre>
+        </nav>
+      </div>
+    </header>
 
-    <!-- Hero Section -->
     <main>
-        <div id="paypal-container-YBRDJJA6AGBL6"></div>
-        <script>
-          paypal.HostedButtons({
-              hostedButtonId: "YBRDJJA6AGBL6",
-          }).render("#paypal-container-YBRDJJA6AGBL6")
-        </script>
-    </main>
+    <div id="paypal-container-YBRDJJA6AGBL6"></div>
+    <script>
+      paypal.HostedButtons({
+          hostedButtonId: "YBRDJJA6AGBL6",
+      }).render("#paypal-container-YBRDJJA6AGBL6")
+    </script>
+</main>
+
+    <footer class="relative z-10 bg-transparent p-6 text-center mt-auto">
+      <p>&copy; 2025 KPBJ</p>
+    </footer>
 
     <script>
       function handleSubmit(event) {
@@ -54,10 +56,5 @@
         }, 500);
       }
     </script>
-
-    <!-- Component: Footer -->
-    <footer class="relative z-10 bg-transparent p-6 text-center mt-auto">
-  <p>&copy; 2025 KPBJ</p>
-</footer>
   </body>
 </html>
