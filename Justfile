@@ -6,7 +6,9 @@ build:
     mkdir -p dist/assets/css dist/assets/img
     cp -r assets/img/* dist/assets/img/
     cp -r assets/css/* dist/assets/css/
-    just inject-components index.html > dist/index.html
+    mkdir dist/donate
+    just inject-components src/index.html > dist/index.html
+    just inject-components src/donate/index.html > dist/donate/index.html
     just tailwind-build
 
 inject-components src:

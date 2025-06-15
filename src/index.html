@@ -12,6 +12,7 @@
 
     <!-- Hero Section -->
     <main class="relative flex-grow flex flex-col items-center text-center">
+      <a class="text-2xl mb-4" href="/donate">CLICK HERE TO DONATE</a>
       <a href="https://fccdata.org/?call=kpbj&amp;facid=&amp;city=&amp;state=&amp;ccode=1&amp;country=US">
         <img src="/assets/img/range.png" />
       </a>
@@ -45,28 +46,8 @@
           </div>
           <p id="form-confirmation" class="mt-2 text-green-700" style="display: none;">Thanks for subscribing!</p>
         </form>
-
       </section>
     </main>
-    <script>
-      function handleSubmit(event) {
-        const form = event.target;
-        const confirmation = form.querySelector('#form-confirmation');
-        const button = form.querySelector('#subscribe-button');
-
-        // Prevent multiple submissions
-        button.disabled = true;
-        button.innerText = 'Submitting...';
-
-        setTimeout(() => {
-          confirmation.style.display = 'block';
-          form.reset();
-          button.disabled = false;
-          button.innerText = 'Subscribe';
-        }, 500);
-      }
-    </script>
-
     <!-- Component: Footer -->
     $FOOTER
   </body>

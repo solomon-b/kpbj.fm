@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kpbj.fm</title>
+    <link rel="stylesheet" href="/assets/css/output.css">
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <script
+      src="https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD">
+    </script>
+  </head>
+  <body class="relative font-body flex flex-col min-h-screen">
+    <!-- Component: Header -->
+    $HEADER
+
+    <!-- Hero Section -->
+    <main>
+        <div id="paypal-container-YBRDJJA6AGBL6"></div>
+        <script>
+          paypal.HostedButtons({
+              hostedButtonId: "YBRDJJA6AGBL6",
+          }).render("#paypal-container-YBRDJJA6AGBL6")
+        </script>
+    </main>
+
+    <script>
+      function handleSubmit(event) {
+        const form = event.target;
+        const confirmation = form.querySelector('#form-confirmation');
+        const button = form.querySelector('#subscribe-button');
+
+        // Prevent multiple submissions
+        button.disabled = true;
+        button.innerText = 'Submitting...';
+
+        setTimeout(() => {
+          confirmation.style.display = 'block';
+          form.reset();
+          button.disabled = false;
+          button.innerText = 'Subscribe';
+        }, 500);
+      }
+    </script>
+
+    <!-- Component: Footer -->
+    $FOOTER
+  </body>
+</html>
