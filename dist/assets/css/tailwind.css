@@ -29,5 +29,9 @@
 }
 
 a:hover {
-  font-weight: bold;
+  text-shadow: 0.5px 0 0 currentColor;
+}
+
+#form-container-YBRDJJA6AGBL6 {
+  margin: 0 auto;
 }
