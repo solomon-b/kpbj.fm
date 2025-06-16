@@ -27,3 +27,7 @@
 .bg-starscape {
   background-image: url('../img/starscape.jpg');
 }
+
+a:hover {
+  font-weight: bold;
+}
