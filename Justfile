@@ -3,9 +3,10 @@ default:
 
 build:
     rm -rf dist
-    mkdir -p dist/assets/css dist/assets/img
+    mkdir -p dist/assets/css dist/assets/img dist/assets/text
     cp -r assets/img/* dist/assets/img/
     cp -r assets/css/* dist/assets/css/
+    cp -r assets/text/* dist/assets/text/
     just build-html
     just tailwind-build
 
