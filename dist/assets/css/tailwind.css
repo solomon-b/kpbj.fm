@@ -35,3 +35,8 @@ a:hover {
 #form-container-YBRDJJA6AGBL6 {
   margin: 0 auto;
 }
+
+@keyframes pulse {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
