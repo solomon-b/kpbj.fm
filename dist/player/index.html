@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kpbj.fm</title>
+    <link rel="stylesheet" href="/assets/css/output.css">
+    <script
+      src="https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD">
+    </script>
+  </head>
+  <body class="relative font-body flex flex-col min-h-screen">
+    <header class="relative z-50">
+      <div class="relative flex flex-col justify-center items-center p-6">
+        <nav class="text-center">
+            <a href="/">
+              <pre class="font-mono text-sm leading-tight text-gray-800">
+▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
+█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
+▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·
+▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌
+·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀
+              </pre>
+            </a>
+            <div class="text-sm space-x-4">
+                <a href="/player">LISTEN LIVE</a>
+                <span class="text-gray-500">|</span>
+                <a href="/donate">DONATE</a>
+                <span class="text-gray-500">|</span>
+                <a href="/about-us">ABOUT US</a>
+                <span class="text-gray-500">|</span>
+                <a href="mailto:contact@kpbj.fm">CONTACT</a>
+            </div>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Music Player Section -->
+<main class="relative flex-grow flex flex-col items-center text-center">
+  <!-- Live Player Header -->
+  <div class="mb-8">
+    <pre class="font-mono text-sm leading-tight text-gray-800">
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                               LIVE STREAM PLAYER                             ║
+║                            NOW STREAMING: KPBJ.FM                            ║
+║                               95.9 FM Shadow Hills                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+    </pre>
+  </div>
+
+  <!-- Audio Player Container -->
+  <div class="mb-6">
+    <!-- Hidden audio element -->
+    <audio id="radioPlayer" preload="none" style="display: none;">
+      <source src="https://placeholder-stream.example.com/stream" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+
+    <pre class="font-mono text-sm leading-tight text-left text-gray-800">
+┌──────────────────────────────────────────┐
+│              AUDIO PLAYER                │▒
+│              ─────────────               │▒
+│                                          │▒
+│ STATUS: <span id="stream-status">READY TO PLAY</span>                    │▒
+│                                          │▒
+│ CONTROLS:                                │▒
+│                                          │▒
+│  <span id="playBtn">[ PLAY ]</span><span id="stopBtn">[ STOP ]</span>                        │▒
+│                                          │▒
+│ VOLUME: <span id="volumeDisplay">[████████████████████████████░░]</span> │▒
+│         <span id="volDownBtn">[-]</span> <span id="volumeValue">50</span>% <span id="volUpBtn">[+]</span>                      │▒
+│                                          │▒
+│                                          │▒
+└──────────────────────────────────────────┘▒
+  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+    </pre>
+  </div>
+
+  <!-- Now Playing Info -->
+  <div class="mb-6">
+    <pre class="font-mono text-sm leading-tight text-left text-gray-800">
+┌─────────────────────────────────────────┐
+│              NOW PLAYING                │▒
+│              ───────────                │▒
+│                                         │▒
+│ TRACK: <span id="currentTrack">Steve Kado</span>                       │▒
+│ ARTIST: <span id="currentArtist">ONE THING</span>                       │▒
+│                                         │▒
+│ LAST UPDATE: <span id="lastUpdate">--:--:--</span>                   │▒
+│                                         │▒
+└─────────────────────────────────────────┘▒
+  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+    </pre>
+  </div>
+
+  <!-- Player Info Box -->
+  <div class="text-center">
+    <pre class="font-mono text-xs leading-tight text-left text-gray-800">
+┌─────────────────────────────────────────┐
+│              STREAM INFO                │▒
+│              ───────────                │▒
+│                                         │▒
+│ BITRATE: 128kbps                        │▒
+│ FORMAT : MP3                            │▒
+│ STATUS : LIVE 24/7                      │▒
+│                                         │▒
+│ Having trouble? Try refreshing          │▒
+│ or check your internet connection.      │▒
+└─────────────────────────────────────────┘▒
+  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+    </pre>
+  </div>
+</main>
+
+<style>
+  pre span {
+    /* Reset all possible span styling to behave exactly like plain text */
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+    word-spacing: inherit;
+  }
+  
+  .ascii-button {
+    cursor: pointer;
+  }
+  .ascii-button:hover {
+    text-decoration: underline;
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const audio = document.getElementById('radioPlayer');
+  const playBtn = document.getElementById('playBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const volUpBtn = document.getElementById('volUpBtn');
+  const volDownBtn = document.getElementById('volDownBtn');
+  const volumeValue = document.getElementById('volumeValue');
+  const volumeDisplay = document.getElementById('volumeDisplay');
+  const streamStatus = document.getElementById('stream-status');
+  const currentTrack = document.getElementById('currentTrack');
+  const currentArtist = document.getElementById('currentArtist');
+  const lastUpdate = document.getElementById('lastUpdate');
+
+  // Add hover effects to buttons
+  [playBtn, stopBtn, volUpBtn, volDownBtn].forEach(btn => {
+    btn.classList.add('ascii-button');
+  });
+
+  // Set initial volume
+  let currentVolume = 50;
+  audio.volume = 0.5;
+
+  // Function to update volume display bar
+  function updateVolumeDisplay() {
+    const filledBars = Math.floor(currentVolume / 3.33); // 30 total bars, scale to 0-100
+    const emptyBars = 30 - filledBars;
+    const display = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+    volumeDisplay.textContent = `[${display}]`;
+    volumeValue.textContent = currentVolume;
+  }
+
+  // Function to update timestamp
+  function updateTimestamp() {
+    const now = new Date();
+    const timeString = now.toTimeString().split(' ')[0];
+    lastUpdate.textContent = timeString;
+  }
+
+  // Volume up button
+  volUpBtn.addEventListener('click', function() {
+    if (currentVolume < 100) {
+      rurrentVolume = Math.min(100, currentVolume + 5);
+      audio.volume = currentVolume / 100;
+      updateVolumeDisplay();
+    }
+  });
+
+  // Volume down button
+  volDownBtn.addEventListener('click', function() {
+    if (currentVolume > 0) {
+      currentVolume = Math.max(0, currentVolume - 5);
+      audio.volume = currentVolume / 100;
+      updateVolumeDisplay();
+    }
+  });
+
+  // Play button functionality
+  playBtn.addEventListener('click', function() {
+    if (audio.paused) {
+      audio.play().then(() => {
+        streamStatus.textContent = 'STREAMING LIVE';
+        streamStatus.style.color = '#16a34a'; // green-600
+        playBtn.innerHTML = '[ PAUSE ]';
+      }).catch((error) => {
+        streamStatus.textContent = 'CONNECTION ERROR';
+        streamStatus.style.color = '#dc2626'; // red-600
+        console.error('Error playing audio:', error);
+      });
+    } else {
+      audio.pause();
+    }
+  });
+
+  // Stop button functionality
+  stopBtn.addEventListener('click', function() {
+    audio.pause();
+    audio.currentTime = 0;
+    streamStatus.textContent = 'STOPPED';
+    streamStatus.style.color = '#4b5563'; // gray-600
+    playBtn.innerHTML = '[ PLAY ]';
+  });
+
+  // Audio event listeners
+  audio.addEventListener('play', function() {
+    playBtn.innerHTML = '[ PAUSE ]';
+    streamStatus.textContent = 'STREAMING LIVE';
+    streamStatus.style.color = '#16a34a'; // green-600
+  });
+
+  audio.addEventListener('pause', function() {
+    playBtn.innerHTML = '[ PLAY ]';
+    if (streamStatus.textContent === 'STREAMING LIVE') {
+      streamStatus.textContent = 'PAUSED';
+      streamStatus.style.color = '#ca8a04'; // yellow-600
+    }
+  });
+
+  audio.addEventListener('loadstart', function() {
+    streamStatus.textContent = 'CONNECTING...';
+    streamStatus.style.color = '#2563eb'; // blue-600
+  });
+
+  audio.addEventListener('error', function(e) {
+    streamStatus.textContent = 'CONNECTION ERROR';
+    streamStatus.style.color = '#dc2626'; // red-600
+    currentTrack.textContent = 'Stream unavailable';
+    currentArtist.textContent = 'Please try again later';
+  });
+
+  // Initialize display
+  updateVolumeDisplay();
+  updateTimestamp();
+
+  // Update track info and timestamp every 30 seconds
+  function updateTrackInfo() {
+    // This would typically fetch from a metadata API
+    currentTrack.textContent = 'Steve Kado';
+    currentArtist.textContent = 'ONE THING';
+    updateTimestamp();
+  }
+
+  updateTrackInfo();
+  setInterval(updateTrackInfo, 30000);
+});
+</script>
+
+    <footer class="relative z-10 bg-transparent p-6 text-center mt-auto text-sm">
+      <p>&copy; 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization</p>
+    </footer>
+
+    <script>
+      function handleSubmit(event) {
+        const form = event.target;
+        const confirmation = form.querySelector('#form-confirmation');
+        const button = form.querySelector('#subscribe-button');
+
+        // Prevent multiple submissions
+        button.disabled = true;
+        button.innerText = 'Submitting...';
+
+        setTimeout(() => {
+          confirmation.style.display = 'block';
+          form.reset();
+          button.disabled = false;
+          button.innerText = 'Subscribe';
+        }, 500);
+      }
+    </script>
+  </body>
+</html>
