@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Email - KPBJ 95.9FM Staff</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-mono bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+    <!-- Header with Navigation -->
+    <header class="bg-white border-b-2 border-gray-800 p-4">
+        <div class="max-w-6xl mx-auto flex flex-col items-center gap-4">
+            <!-- ASCII Logo -->
+            <a href="index.html" class="text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600">
+▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
+█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
+▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·
+▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌
+·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀
+            </a>
+            
+            <!-- Main Navigation -->
+            <nav class="flex gap-8 items-center flex-wrap">
+                <a href="listen.html" class="font-bold uppercase hover:underline">Listen</a>
+                <a href="shows-schedule.html" class="font-bold uppercase hover:underline">Shows</a>
+                <a href="archive.html" class="font-bold uppercase hover:underline">Archive</a>
+                <a href="blog.html" class="font-bold uppercase hover:underline">Blog</a>
+                <a href="events.html" class="font-bold uppercase hover:underline">Events</a>
+                <a href="store.html" class="font-bold uppercase hover:underline">Store</a>
+                <a href="about.html" class="font-bold uppercase hover:underline">About</a>
+            </nav>
+            
+            <!-- User Navigation - Staff Login -->
+            <div class="flex gap-4 items-center text-sm text-gray-600">
+                <a href="/search" class="hover:text-gray-800">🔍 Search</a>
+                <span class="text-gray-400">•</span>
+                <span class="text-red-600 font-bold">📡 STAFF ACCESS</span>
+                <span class="text-gray-800 font-bold">Station Manager Alex</span>
+                <a href="/logout" class="hover:text-gray-800">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Breadcrumb Navigation -->
+    <nav class="bg-gray-100 px-4 py-2 border-b border-gray-300">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-sm text-gray-600">
+                <a href="index.html" class="hover:text-gray-800">Home</a> 
+                <span class="mx-2">/</span>
+                <a href="staff-dashboard.html" class="hover:text-gray-800">Staff Dashboard</a>
+                <span class="mx-2">/</span>
+                <a href="host-manager.html" class="hover:text-gray-800">Host Manager</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-800 font-bold">Bulk Email</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow px-4 py-8 max-w-4xl mx-auto w-full">
+        
+        <!-- Header -->
+        <section class="bg-blue-600 text-white p-6 mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold mb-2">📧 BULK EMAIL</h1>
+                    <div class="text-blue-200 text-sm">
+                        Send Announcements • Host Communications • Station Updates
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <a href="draft-emails.html" class="bg-yellow-600 text-white px-6 py-3 font-bold hover:bg-yellow-700">
+                        EMAIL MANAGER
+                    </a>
+                    <a href="host-manager.html" class="bg-blue-700 text-white px-6 py-3 font-bold hover:bg-blue-800">
+                        BACK TO HOST MANAGER
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Email Form -->
+        <form class="space-y-8">
+            
+            <!-- Recipients -->
+            <section class="bg-white border-2 border-gray-800 p-6">
+                <h2 class="text-xl font-bold mb-4">📬 RECIPIENTS</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block font-bold mb-2">Send To</label>
+                        <div class="space-y-2">
+                            <div class="flex items-center">
+                                <input type="checkbox" id="all-hosts" checked class="mr-3">
+                                <label for="all-hosts" class="font-bold">All Active Hosts</label>
+                                <span class="ml-2 text-sm text-gray-600">(19 recipients)</span>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="warning-hosts" class="mr-3">
+                                <label for="warning-hosts">Hosts with Warnings</label>
+                                <span class="ml-2 text-sm text-red-600">(1 recipient)</span>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="new-hosts" class="mr-3">
+                                <label for="new-hosts">New Hosts</label>
+                                <span class="ml-2 text-sm text-blue-600">(1 recipient)</span>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="available-hosts" class="mr-3">
+                                <label for="available-hosts">Available Hosts</label>
+                                <span class="ml-2 text-sm text-yellow-600">(2 recipients)</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-100 p-4 border">
+                        <div class="font-bold text-sm mb-2">Selected Recipients: <span id="recipient-count">19</span></div>
+                        <div class="text-xs text-gray-600">DJ Chrome, DJ Nyx, DJ Signal, DJ Cipher, and 15 others...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Email Details -->
+            <section class="bg-white border-2 border-gray-800 p-6">
+                <h2 class="text-xl font-bold mb-4">✉️ MESSAGE DETAILS</h2>
+                
+                <div class="space-y-6">
+                    <div>
+                        <label class="block font-bold mb-2">Subject Line *</label>
+                        <input type="text" class="w-full p-3 border-2 border-gray-400 font-mono" placeholder="e.g. Station Updates - New Equipment Training">
+                    </div>
+                    
+                    <div>
+                        <label class="block font-bold mb-2">Message Body *</label>
+                        <textarea rows="12" class="w-full p-3 border-2 border-gray-400 font-mono" placeholder="Write your message to hosts here..."></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block font-bold mb-2">Priority</label>
+                            <select class="w-full p-3 border-2 border-gray-400 font-mono bg-white">
+                                <option>Normal</option>
+                                <option>High Priority</option>
+                                <option>Urgent</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-bold mb-2">Reply To</label>
+                            <input type="email" value="manager@kpbj.fm" class="w-full p-3 border-2 border-gray-400 font-mono">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Email Templates -->
+            <section class="bg-white border-2 border-gray-800 p-6">
+                <h2 class="text-xl font-bold mb-4">📋 QUICK TEMPLATES</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button type="button" class="bg-green-600 text-white p-4 font-bold hover:bg-green-700 text-left">
+                        <div class="font-bold text-sm mb-1">📅 Schedule Update</div>
+                        <div class="text-xs">Announce schedule changes</div>
+                    </button>
+                    <button type="button" class="bg-purple-600 text-white p-4 font-bold hover:bg-purple-700 text-left">
+                        <div class="font-bold text-sm mb-1">🎧 Equipment News</div>
+                        <div class="text-xs">New gear or maintenance</div>
+                    </button>
+                    <button type="button" class="bg-yellow-600 text-white p-4 font-bold hover:bg-yellow-700 text-left">
+                        <div class="font-bold text-sm mb-1">📢 Station News</div>
+                        <div class="text-xs">General announcements</div>
+                    </button>
+                    <button type="button" class="bg-red-600 text-white p-4 font-bold hover:bg-red-700 text-left">
+                        <div class="font-bold text-sm mb-1">⚠️ Urgent Notice</div>
+                        <div class="text-xs">Critical information</div>
+                    </button>
+                    <button type="button" class="bg-blue-600 text-white p-4 font-bold hover:bg-blue-700 text-left">
+                        <div class="font-bold text-sm mb-1">🎉 Event Promotion</div>
+                        <div class="text-xs">Upcoming events or fundraisers</div>
+                    </button>
+                    <button type="button" class="bg-gray-600 text-white p-4 font-bold hover:bg-gray-700 text-left">
+                        <div class="font-bold text-sm mb-1">📚 Training Info</div>
+                        <div class="text-xs">Educational content</div>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Delivery Options -->
+            <section class="bg-white border-2 border-gray-800 p-6">
+                <h2 class="text-xl font-bold mb-4">🚀 DELIVERY OPTIONS</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block font-bold mb-2">Send Method</label>
+                        <div class="space-y-2">
+                            <div class="flex items-center">
+                                <input type="radio" id="send-now" name="delivery" checked class="mr-3">
+                                <label for="send-now" class="font-bold">Send Immediately</label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="radio" id="schedule" name="delivery" class="mr-3">
+                                <label for="schedule">Schedule for Later</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="schedule-options" class="hidden pl-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block font-bold text-sm mb-2">Date</label>
+                                <input type="date" class="w-full p-2 border border-gray-400 font-mono">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-sm mb-2">Time</label>
+                                <input type="time" class="w-full p-2 border border-gray-400 font-mono">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center">
+                        <input type="checkbox" id="bcc" checked class="mr-3">
+                        <label for="bcc">Use BCC (hide recipient list)</label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Form Actions -->
+            <section class="bg-gray-100 border-2 border-gray-400 p-6">
+                <div class="flex justify-end items-center">
+                    <div class="flex gap-4">
+                        <button type="button" class="bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700">
+                            SAVE DRAFT
+                        </button>
+                        <button type="button" class="bg-yellow-600 text-white px-6 py-3 font-bold hover:bg-yellow-700">
+                            PREVIEW EMAIL
+                        </button>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700">
+                            SEND EMAIL
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+        </form>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white border-t-2 border-black p-8 mt-auto">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+                <h3 class="font-bold mb-4">LISTEN</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="listen.html" class="text-gray-300 hover:text-white hover:underline">Live Stream</a></li>
+                    <li><a href="shows-schedule.html" class="text-gray-300 hover:text-white hover:underline">Show Schedule</a></li>
+                    <li><a href="archive.html" class="text-gray-300 hover:text-white hover:underline">Episode Archive</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">COMMUNITY</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="blog.html" class="text-gray-300 hover:text-white hover:underline">Station Blog</a></li>
+                    <li><a href="events.html" class="text-gray-300 hover:text-white hover:underline">Events</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Get A Show</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Volunteer</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">SUPPORT</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Donate</a></li>
+                    <li><a href="store.html" class="text-gray-300 hover:text-white hover:underline">Store</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Membership</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">ABOUT</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="about.html" class="text-gray-300 hover:text-white hover:underline">About KPBJ</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Contact</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Press Kit</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Privacy Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="max-w-6xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-sm text-gray-400">
+            © 2024 KPBJ 95.9FM Community Radio • Shadow Hills • Non-profit Broadcasting • FCC License: LPFM-2018-KPBJ
+        </div>
+    </footer>
+
+</body>
+</html>

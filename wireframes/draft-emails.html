@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Manager - KPBJ 95.9FM Staff</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-mono bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+    <!-- Header with Navigation -->
+    <header class="bg-white border-b-2 border-gray-800 p-4">
+        <div class="max-w-6xl mx-auto flex flex-col items-center gap-4">
+            <!-- ASCII Logo -->
+            <a href="index.html" class="text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600">
+▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
+█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
+▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·
+▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌
+·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀
+            </a>
+            
+            <!-- Main Navigation -->
+            <nav class="flex gap-8 items-center flex-wrap">
+                <a href="listen.html" class="font-bold uppercase hover:underline">Listen</a>
+                <a href="shows-schedule.html" class="font-bold uppercase hover:underline">Shows</a>
+                <a href="archive.html" class="font-bold uppercase hover:underline">Archive</a>
+                <a href="blog.html" class="font-bold uppercase hover:underline">Blog</a>
+                <a href="events.html" class="font-bold uppercase hover:underline">Events</a>
+                <a href="store.html" class="font-bold uppercase hover:underline">Store</a>
+                <a href="about.html" class="font-bold uppercase hover:underline">About</a>
+            </nav>
+            
+            <!-- User Navigation - Staff Login -->
+            <div class="flex gap-4 items-center text-sm text-gray-600">
+                <a href="/search" class="hover:text-gray-800">🔍 Search</a>
+                <span class="text-gray-400">•</span>
+                <span class="text-red-600 font-bold">📡 STAFF ACCESS</span>
+                <span class="text-gray-800 font-bold">Station Manager Alex</span>
+                <a href="/logout" class="hover:text-gray-800">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Breadcrumb Navigation -->
+    <nav class="bg-gray-100 px-4 py-2 border-b border-gray-300">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-sm text-gray-600">
+                <a href="index.html" class="hover:text-gray-800">Home</a> 
+                <span class="mx-2">/</span>
+                <a href="staff-dashboard.html" class="hover:text-gray-800">Staff Dashboard</a>
+                <span class="mx-2">/</span>
+                <a href="host-manager.html" class="hover:text-gray-800">Host Manager</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-800 font-bold">Email Manager</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow px-4 py-8 max-w-6xl mx-auto w-full">
+        
+        <!-- Header -->
+        <section class="bg-blue-600 text-white p-6 mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold mb-2">📧 EMAIL MANAGER</h1>
+                    <div class="text-blue-200 text-sm">
+                        View Email History • Manage Drafts • Monitor Delivery
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <a href="bulk-email.html" class="bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700">
+                        NEW EMAIL
+                    </a>
+                    <a href="host-manager.html" class="bg-blue-700 text-white px-6 py-3 font-bold hover:bg-blue-800">
+                        BACK TO HOST MANAGER
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Draft List -->
+        <section class="bg-white border-2 border-gray-800">
+            
+            <!-- Table Controls -->
+            <div class="bg-gray-100 border-b border-gray-400 p-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="select-all" class="rounded">
+                            <label for="select-all" class="text-sm font-bold">Select All</label>
+                        </div>
+                        <span class="text-sm text-gray-600">7 emails total</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <select class="border border-gray-400 p-2 text-sm font-mono bg-white">
+                            <option>All Emails</option>
+                            <option>Sent</option>
+                            <option>Scheduled</option>
+                            <option>Drafts</option>
+                            <option>Failed</option>
+                        </select>
+                        <button class="bg-blue-600 text-white px-3 py-2 text-sm font-bold hover:bg-blue-700 disabled:bg-gray-400" disabled>
+                            SEND SELECTED (0)
+                        </button>
+                        <button class="bg-red-600 text-white px-3 py-2 text-sm font-bold hover:bg-red-700 disabled:bg-gray-400" disabled>
+                            DELETE SELECTED (0)
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Table Header -->
+            <div class="bg-gray-200 border-b-2 border-gray-800 p-4">
+                <div class="grid grid-cols-12 gap-4 font-bold text-sm items-center">
+                    <div class="col-span-1"></div>
+                    <div class="col-span-3">SUBJECT</div>
+                    <div class="col-span-2">RECIPIENTS</div>
+                    <div class="col-span-1">STATUS</div>
+                    <div class="col-span-2">TYPE</div>
+                    <div class="col-span-2">LAST MODIFIED</div>
+                    <div class="col-span-1">ACTIONS</div>
+                </div>
+            </div>
+
+            <!-- Draft Rows -->
+            
+            <!-- Sent Email -->
+            <div class="border-b border-gray-300 p-4 hover:bg-gray-50">
+                <div class="grid grid-cols-12 gap-4 items-center">
+                    <div class="col-span-1 text-center">
+                        <input type="checkbox" class="rounded">
+                    </div>
+                    <div class="col-span-3">
+                        <div class="font-bold">Monthly Host Newsletter - October</div>
+                        <div class="text-sm text-gray-600 mt-1">Hey everyone! Here's what's happening this month...</div>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">All Active Hosts</div>
+                        <div class="text-xs text-gray-600">19 recipients</div>
+                    </div>
+                    <div class="col-span-1">
+                        <span class="bg-green-600 text-white px-2 py-1 text-xs font-bold rounded">SENT</span>
+                        <div class="text-xs text-gray-600 mt-1">Oct 15, 9:00 AM</div>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="bg-gray-600 text-white px-2 py-1 text-xs font-bold rounded">STATION NEWS</span>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">Yesterday</div>
+                        <div class="text-xs text-gray-600">Oct 14, 2024</div>
+                    </div>
+                    <div class="col-span-1">
+                        <div class="flex flex-col gap-1">
+                            <button class="bg-gray-400 text-white px-2 py-1 text-xs font-bold">VIEW</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Draft Email -->
+            <div class="border-b border-gray-300 p-4 hover:bg-gray-50">
+                <div class="grid grid-cols-12 gap-4 items-center">
+                    <div class="col-span-1 text-center">
+                        <input type="checkbox" class="rounded">
+                    </div>
+                    <div class="col-span-3">
+                        <div class="font-bold">Equipment Maintenance - Studio Downtime</div>
+                        <div class="text-sm text-gray-600 mt-1">We'll be upgrading the mixing board this weekend and...</div>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">All Active Hosts</div>
+                        <div class="text-xs text-gray-600">19 recipients</div>
+                    </div>
+                    <div class="col-span-1">
+                        <span class="bg-yellow-600 text-white px-2 py-1 text-xs font-bold rounded">DRAFT</span>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="bg-purple-600 text-white px-2 py-1 text-xs font-bold rounded">EQUIPMENT NEWS</span>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">2 hours ago</div>
+                        <div class="text-xs text-gray-600">Oct 15, 2024</div>
+                    </div>
+                    <div class="col-span-1">
+                        <div class="flex flex-col gap-1">
+                            <button class="bg-blue-600 text-white px-2 py-1 text-xs font-bold hover:bg-blue-700">EDIT</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scheduled Email -->
+            <div class="border-b border-gray-300 p-4 hover:bg-gray-50 bg-green-50">
+                <div class="grid grid-cols-12 gap-4 items-center">
+                    <div class="col-span-1 text-center">
+                        <input type="checkbox" class="rounded">
+                    </div>
+                    <div class="col-span-3">
+                        <div class="font-bold">Halloween Show Planning</div>
+                        <div class="text-sm text-gray-600 mt-1">Hey everyone! Halloween is coming up and we want to...</div>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">All Active Hosts</div>
+                        <div class="text-xs text-gray-600">19 recipients</div>
+                    </div>
+                    <div class="col-span-1">
+                        <span class="bg-blue-600 text-white px-2 py-1 text-xs font-bold rounded">SCHEDULED</span>
+                        <div class="text-xs text-gray-600 mt-1">Oct 20, 9:00 AM</div>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="bg-orange-600 text-white px-2 py-1 text-xs font-bold rounded">EVENT PROMOTION</span>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">Yesterday</div>
+                        <div class="text-xs text-gray-600">Oct 14, 2024</div>
+                    </div>
+                    <div class="col-span-1">
+                        <div class="flex flex-col gap-1">
+                            <button class="bg-blue-600 text-white px-2 py-1 text-xs font-bold hover:bg-blue-700">EDIT</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Draft Email -->
+            <div class="border-b border-gray-300 p-4 hover:bg-gray-50">
+                <div class="grid grid-cols-12 gap-4 items-center">
+                    <div class="col-span-1 text-center">
+                        <input type="checkbox" class="rounded">
+                    </div>
+                    <div class="col-span-3">
+                        <div class="font-bold">Fundraiser Updates</div>
+                        <div class="text-sm text-gray-600 mt-1">Thanks to everyone who helped with the pledge drive...</div>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">All Active Hosts</div>
+                        <div class="text-xs text-gray-600">19 recipients</div>
+                    </div>
+                    <div class="col-span-1">
+                        <span class="bg-yellow-600 text-white px-2 py-1 text-xs font-bold rounded">DRAFT</span>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="bg-gray-600 text-white px-2 py-1 text-xs font-bold rounded">STATION NEWS</span>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">3 days ago</div>
+                        <div class="text-xs text-gray-600">Oct 12, 2024</div>
+                    </div>
+                    <div class="col-span-1">
+                        <div class="flex flex-col gap-1">
+                            <button class="bg-blue-600 text-white px-2 py-1 text-xs font-bold hover:bg-blue-700">EDIT</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Draft Email -->
+            <div class="border-b border-gray-300 p-4 hover:bg-gray-50">
+                <div class="grid grid-cols-12 gap-4 items-center">
+                    <div class="col-span-1 text-center">
+                        <input type="checkbox" class="rounded">
+                    </div>
+                    <div class="col-span-3">
+                        <div class="font-bold">Show Attendance Reminder</div>
+                        <div class="text-sm text-gray-600 mt-1">We've noticed some hosts have been missing their scheduled...</div>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">Hosts with Warnings</div>
+                        <div class="text-xs text-red-600">1 recipient</div>
+                    </div>
+                    <div class="col-span-1">
+                        <span class="bg-yellow-600 text-white px-2 py-1 text-xs font-bold rounded">DRAFT</span>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="bg-red-600 text-white px-2 py-1 text-xs font-bold rounded">URGENT NOTICE</span>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-sm">1 week ago</div>
+                        <div class="text-xs text-gray-600">Oct 8, 2024</div>
+                    </div>
+                    <div class="col-span-1">
+                        <div class="flex flex-col gap-1">
+                            <button class="bg-blue-600 text-white px-2 py-1 text-xs font-bold hover:bg-blue-700">EDIT</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty state would go here if no drafts -->
+            
+        </section>
+
+        <!-- Email Stats -->
+        <section class="bg-white border-2 border-gray-800 p-6 mt-8">
+            <h2 class="text-xl font-bold mb-4">📊 EMAIL STATS</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-8 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-blue-600">7</div>
+                    <div class="text-xs">TOTAL EMAILS</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-gray-600">3</div>
+                    <div class="text-xs">SENT</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-green-600">1</div>
+                    <div class="text-xs">SCHEDULED</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-yellow-600">3</div>
+                    <div class="text-xs">DRAFTS</div>
+                </div>
+                <div>
+                    <div class="text-sm font-bold">This Month</div>
+                    <div class="text-xs text-gray-600">12 emails sent</div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white border-t-2 border-black p-8 mt-auto">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+                <h3 class="font-bold mb-4">LISTEN</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="listen.html" class="text-gray-300 hover:text-white hover:underline">Live Stream</a></li>
+                    <li><a href="shows-schedule.html" class="text-gray-300 hover:text-white hover:underline">Show Schedule</a></li>
+                    <li><a href="archive.html" class="text-gray-300 hover:text-white hover:underline">Episode Archive</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">COMMUNITY</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="blog.html" class="text-gray-300 hover:text-white hover:underline">Station Blog</a></li>
+                    <li><a href="events.html" class="text-gray-300 hover:text-white hover:underline">Events</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Get A Show</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Volunteer</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">SUPPORT</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Donate</a></li>
+                    <li><a href="store.html" class="text-gray-300 hover:text-white hover:underline">Store</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Membership</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">ABOUT</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="about.html" class="text-gray-300 hover:text-white hover:underline">About KPBJ</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Contact</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Press Kit</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Privacy Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="max-w-6xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-sm text-gray-400">
+            © 2024 KPBJ 95.9FM Community Radio • Shadow Hills • Non-profit Broadcasting • FCC License: LPFM-2018-KPBJ
+        </div>
+    </footer>
+
+</body>
+</html>
