@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Dashboard - KPBJ 95.9FM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-mono bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+    <!-- Header with Navigation -->
+    <header class="bg-white border-b-2 border-gray-800 p-4">
+        <div class="max-w-6xl mx-auto flex flex-col items-center gap-4">
+            <!-- ASCII Logo -->
+            <a href="index.html" class="text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600">
+▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
+█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
+▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·
+▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌
+·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀
+            </a>
+            
+            <!-- Main Navigation -->
+            <nav class="flex gap-8 items-center flex-wrap">
+                <a href="listen.html" class="font-bold uppercase hover:underline">Listen</a>
+                <a href="shows-schedule.html" class="font-bold uppercase hover:underline">Shows</a>
+                <a href="archive.html" class="font-bold uppercase hover:underline">Archive</a>
+                <a href="blog.html" class="font-bold uppercase hover:underline">Blog</a>
+                <a href="events.html" class="font-bold uppercase hover:underline">Events</a>
+                <a href="store.html" class="font-bold uppercase hover:underline">Store</a>
+                <a href="about.html" class="font-bold uppercase hover:underline">About</a>
+            </nav>
+            
+            <!-- User Navigation - Staff Login -->
+            <div class="flex gap-4 items-center text-sm text-gray-600">
+                <a href="/search" class="hover:text-gray-800">🔍 Search</a>
+                <span class="text-gray-400">•</span>
+                <span class="text-red-600 font-bold">📡 STAFF ACCESS</span>
+                <span class="text-gray-800 font-bold">Station Manager Alex</span>
+                <a href="/logout" class="hover:text-gray-800">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Breadcrumb Navigation -->
+    <nav class="bg-gray-100 px-4 py-2 border-b border-gray-300">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-sm text-gray-600">
+                <a href="index.html" class="hover:text-gray-800">Home</a> 
+                <span class="mx-2">/</span>
+                <span class="text-gray-800 font-bold">Staff Dashboard</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow px-4 py-8 max-w-7xl mx-auto w-full">
+        
+        <!-- Dashboard Header -->
+        <section class="bg-red-600 text-white p-6 mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold mb-2">📡 STAFF DASHBOARD</h1>
+                    <div class="text-red-200 text-sm">
+                        Station Operations • Schedule Management • Host Administration
+                    </div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-red-200 mb-1">ON AIR</div>
+                    <div class="font-bold text-lg">The Midnight Frequency</div>
+                    <div class="text-red-200 text-sm">DJ Nyx • Live until 2:00 AM</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quick Stats -->
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white border-2 border-gray-800 p-6 text-center">
+                <div class="text-3xl font-bold text-blue-600 mb-2">23</div>
+                <div class="text-sm font-bold">ACTIVE HOSTS</div>
+            </div>
+            <div class="bg-white border-2 border-gray-800 p-6 text-center">
+                <div class="text-3xl font-bold text-green-600 mb-2">47</div>
+                <div class="text-sm font-bold">SHOWS THIS WEEK</div>
+            </div>
+            <div class="bg-white border-2 border-gray-800 p-6 text-center">
+                <div class="text-3xl font-bold text-purple-600 mb-2">3.2K</div>
+                <div class="text-sm font-bold">LISTENERS NOW</div>
+            </div>
+            <div class="bg-white border-2 border-gray-800 p-6 text-center">
+                <div class="text-3xl font-bold text-orange-600 mb-2">96%</div>
+                <div class="text-sm font-bold">UPTIME</div>
+            </div>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Left Column -->
+            <div class="space-y-8">
+                
+                <!-- Schedule Management -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-bold">📅 SCHEDULE MANAGEMENT</h2>
+                        <a href="schedule-manager.html" class="bg-blue-600 text-white px-4 py-2 text-sm font-bold hover:bg-blue-700">
+                            EDIT SCHEDULE
+                        </a>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <!-- Overall Completion -->
+                        <div class="text-center p-4 bg-green-50 border border-green-400">
+                            <div class="text-2xl font-bold text-green-600 mb-1">67%</div>
+                            <div class="text-sm font-bold">SCHEDULE COMPLETE</div>
+                        </div>
+                        
+                        <!-- Quick Stats Grid -->
+                        <div class="grid grid-cols-2 gap-4 text-center">
+                            <div class="p-3 bg-gray-50 border">
+                                <div class="font-bold text-blue-600">19</div>
+                                <div class="text-xs">FILLED SLOTS</div>
+                            </div>
+                            <div class="p-3 bg-yellow-50 border border-yellow-400">
+                                <div class="font-bold text-yellow-600">9</div>
+                                <div class="text-xs">NEED HOSTS</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Weekly Breakdown -->
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span>Monday</span>
+                                <span class="text-green-600 font-bold">3/4</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Tuesday</span>
+                                <span class="text-green-600 font-bold">4/4</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Wednesday</span>
+                                <span class="text-red-600 font-bold">1/4</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Thursday</span>
+                                <span class="text-yellow-600 font-bold">2/4</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Host Management -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-bold">👥 HOST MANAGEMENT</h2>
+                        <div class="flex gap-2">
+                            <a href="add-new-host.html" class="bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700">
+                                NEW HOST
+                            </a>
+                            <a href="host-manager.html" class="bg-blue-600 text-white px-4 py-2 text-sm font-bold hover:bg-blue-700">
+                                MANAGE
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <!-- Host Status Overview -->
+                        <div class="text-center p-4 bg-blue-50 border border-blue-400">
+                            <div class="text-2xl font-bold text-blue-600 mb-1">23</div>
+                            <div class="text-sm font-bold">TOTAL HOSTS</div>
+                        </div>
+                        
+                        <!-- Status Breakdown -->
+                        <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                            <div class="p-2 bg-green-50 border border-green-400">
+                                <div class="font-bold text-green-600">19</div>
+                                <div>ACTIVE</div>
+                            </div>
+                            <div class="p-2 bg-yellow-50 border border-yellow-400">
+                                <div class="font-bold text-yellow-600">2</div>
+                                <div>AVAILABLE</div>
+                            </div>
+                            <div class="p-2 bg-red-50 border border-red-400">
+                                <div class="font-bold text-red-600">1</div>
+                                <div>WARNING</div>
+                            </div>
+                            <div class="p-2 bg-gray-50 border border-gray-400">
+                                <div class="font-bold text-gray-600">1</div>
+                                <div>INACTIVE</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Recent Activity -->
+                        <div class="space-y-2 text-xs">
+                            <div class="font-bold mb-2">Recent Activity</div>
+                            <div class="flex justify-between">
+                                <span>DJ Signal completed training</span>
+                                <span class="text-gray-500">2h ago</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>DJ Pulse missed 3rd show</span>
+                                <span class="text-gray-500">1d ago</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>DJ Chrome uploaded episode</span>
+                                <span class="text-gray-500">2d ago</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- Right Column -->
+            <div class="space-y-8">
+
+                <!-- Broadcast Controls -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <h2 class="text-xl font-bold mb-4">📻 BROADCAST CONTROLS</h2>
+                    
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <button class="bg-green-600 text-white p-4 font-bold hover:bg-green-700 text-center">
+                                <div class="text-sm mb-1">STREAM</div>
+                                <div class="text-xs">LIVE</div>
+                            </button>
+                            <button class="bg-red-600 text-white p-4 font-bold hover:bg-red-700 text-center">
+                                <div class="text-sm mb-1">EMERGENCY</div>
+                                <div class="text-xs">STANDBY</div>
+                            </button>
+                        </div>
+                        
+                        <div class="border p-4 bg-gray-50">
+                            <div class="font-bold text-sm mb-2">Current Show</div>
+                            <div class="text-xs text-gray-600 mb-3">The Midnight Frequency • DJ Nyx • Live until 2:00 AM</div>
+                            <div class="flex gap-2">
+                                <button class="bg-blue-600 text-white px-3 py-2 text-xs font-bold hover:bg-blue-700">CONTACT HOST</button>
+                                <button class="bg-yellow-600 text-white px-3 py-2 text-xs font-bold hover:bg-yellow-700">BROADCAST MSG</button>
+                            </div>
+                        </div>
+                        
+                        <div class="border p-4 bg-gray-50">
+                            <div class="font-bold text-sm mb-2">Audio Levels</div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-xs">
+                                    <span>Input</span>
+                                    <span class="text-green-600 font-bold">-12dB</span>
+                                </div>
+                                <div class="flex justify-between text-xs">
+                                    <span>Output</span>
+                                    <span class="text-green-600 font-bold">-8dB</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- System Status -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <h2 class="text-xl font-bold mb-4">🔧 SYSTEM STATUS</h2>
+                    
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center p-3 bg-green-50 border border-green-400">
+                            <div>
+                                <div class="font-bold text-sm">Stream Status</div>
+                                <div class="text-xs text-gray-600">Broadcasting • 3247 listeners</div>
+                            </div>
+                            <span class="text-green-600 font-bold text-xs">ONLINE</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-green-50 border border-green-400">
+                            <div>
+                                <div class="font-bold text-sm">Server Health</div>
+                                <div class="text-xs text-gray-600">CPU: 23% • RAM: 67% • Storage: 45%</div>
+                            </div>
+                            <span class="text-green-600 font-bold text-xs">HEALTHY</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-yellow-50 border border-yellow-400">
+                            <div>
+                                <div class="font-bold text-sm">Backup System</div>
+                                <div class="text-xs text-gray-600">Last backup: 6 hours ago</div>
+                            </div>
+                            <span class="text-yellow-600 font-bold text-xs">DELAYED</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recent Activity -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <h2 class="text-xl font-bold mb-4">📊 RECENT ACTIVITY</h2>
+                    
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                            <span>DJ Chrome uploaded new episode</span>
+                            <span class="text-gray-500">2h ago</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                            <span>Schedule updated for next week</span>
+                            <span class="text-gray-500">4h ago</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                            <span>Blog post published by DJ Nyx</span>
+                            <span class="text-gray-500">1d ago</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                            <span>Host training session completed</span>
+                            <span class="text-gray-500">2d ago</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2">
+                            <span>Emergency broadcast test</span>
+                            <span class="text-gray-500">3d ago</span>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+
+        </div>
+
+        <!-- Admin Actions -->
+        <section class="bg-gray-800 text-white p-6 mt-8">
+            <h2 class="text-xl font-bold mb-4">🛠️ ADMINISTRATION</h2>
+            <div class="text-sm text-gray-300 mb-4">Admin-level access required</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button class="bg-purple-600 text-white p-4 font-bold hover:bg-purple-700">
+                    📋 CONTENT MODERATION
+                </button>
+                <button class="bg-blue-600 text-white p-4 font-bold hover:bg-blue-700">
+                    👤 USER MANAGEMENT
+                </button>
+                <button class="bg-yellow-600 text-white p-4 font-bold hover:bg-yellow-700">
+                    🔧 SYSTEM SETTINGS
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white border-t-2 border-black p-8 mt-auto">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+                <h3 class="font-bold mb-4">LISTEN</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="listen.html" class="text-gray-300 hover:text-white hover:underline">Live Stream</a></li>
+                    <li><a href="shows-schedule.html" class="text-gray-300 hover:text-white hover:underline">Show Schedule</a></li>
+                    <li><a href="archive.html" class="text-gray-300 hover:text-white hover:underline">Episode Archive</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">COMMUNITY</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="blog.html" class="text-gray-300 hover:text-white hover:underline">Station Blog</a></li>
+                    <li><a href="events.html" class="text-gray-300 hover:text-white hover:underline">Events</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Get A Show</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Volunteer</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">SUPPORT</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Donate</a></li>
+                    <li><a href="store.html" class="text-gray-300 hover:text-white hover:underline">Store</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Membership</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">ABOUT</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="about.html" class="text-gray-300 hover:text-white hover:underline">About KPBJ</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Contact</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Press Kit</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Privacy Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="max-w-6xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-sm text-gray-400">
+            © 2024 KPBJ 95.9FM Community Radio • Shadow Hills • Non-profit Broadcasting • FCC License: LPFM-2018-KPBJ
+        </div>
+    </footer>
+
+</body>
+</html>

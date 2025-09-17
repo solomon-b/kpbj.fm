@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Midnight Frequency - KPBJ 95.9FM Show Page Wireframe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-mono bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+    <!-- Header with Navigation -->
+    <header class="bg-white border-b-2 border-gray-800 p-4">
+        <div class="max-w-6xl mx-auto flex flex-col items-center gap-4">
+            <!-- ASCII Logo -->
+            <a href="index.html" class="text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600">
+▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
+█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
+▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·
+▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌
+·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀
+            </a>
+            
+            <!-- Main Navigation -->
+            <nav class="flex gap-8 items-center flex-wrap">
+                <a href="listen.html" class="font-bold uppercase hover:underline">Listen</a>
+                <a href="shows-schedule.html" class="font-bold uppercase hover:underline">Shows</a>
+                <a href="archive.html" class="font-bold uppercase hover:underline">Archive</a>
+                <a href="blog.html" class="font-bold uppercase hover:underline">Blog</a>
+                <a href="events.html" class="font-bold uppercase hover:underline">Events</a>
+                <a href="store.html" class="font-bold uppercase hover:underline">Store</a>
+                <a href="about.html" class="font-bold uppercase hover:underline">About</a>
+            </nav>
+            
+            <!-- User Navigation -->
+            <div class="flex gap-4 items-center text-sm text-gray-600">
+                <a href="/search" class="hover:text-gray-800">🔍 Search</a>
+                <a href="host-dashboard.html" class="hover:text-gray-800">Login</a>
+                <a href="/register" class="hover:text-gray-800">Sign Up</a>
+                <a href="/contact" class="hover:text-gray-800">Contact</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Persistent Live Player Widget -->
+    <div class="bg-gray-800 text-white p-4 sticky top-0 z-40 border-b-2 border-black">
+        <div class="max-w-6xl mx-auto flex items-center gap-4 md:flex-row flex-col">
+            <div class="flex items-center gap-2">
+                <button class="bg-white text-gray-800 px-4 py-2 font-bold cursor-pointer hover:bg-gray-200">▶ LIVE</button>
+            </div>
+            <div class="flex-grow text-center">
+                <h3 class="mb-1 font-bold">Now Playing: The Midnight Frequency</h3>
+                <p class="text-sm text-gray-300">Host: DJ Nyx • 95.9 FM Shadow Hills • Live Stream</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm">Vol:</span>
+                <input type="range" min="0" max="100" value="80" class="w-20">
+            </div>
+        </div>
+    </div>
+
+    <!-- Breadcrumb Navigation -->
+    <nav class="bg-gray-100 px-4 py-2 border-b border-gray-300">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-sm text-gray-600">
+                <a href="index.html" class="hover:text-gray-800">Home</a> 
+                <span class="mx-2">/</span>
+                <a href="shows-schedule.html" class="hover:text-gray-800">Shows</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-800 font-bold">The Midnight Frequency</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow px-4 py-8 max-w-6xl mx-auto w-full">
+        
+        <!-- Show Header -->
+        <section class="bg-white border-2 border-gray-800 p-8 mb-8">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <!-- Show Image -->
+                <div class="lg:col-span-1">
+                    <div class="w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg">
+                        [SHOW IMAGE]
+                    </div>
+                    <!-- Social/Subscribe Buttons -->
+                    <div class="mt-4 space-y-2">
+                        <button class="w-full bg-gray-800 text-white py-2 px-4 font-bold hover:bg-gray-700">♡ FOLLOW SHOW</button>
+                        <button class="w-full border-2 border-gray-800 bg-white text-gray-800 py-2 px-4 font-bold hover:bg-gray-100">🔔 NOTIFICATIONS</button>
+                    </div>
+                </div>
+                
+                <!-- Show Info -->
+                <div class="lg:col-span-3">
+                    <div class="mb-4">
+                        <h1 class="text-3xl font-bold mb-2">THE MIDNIGHT FREQUENCY</h1>
+                        <div class="text-lg text-gray-600 mb-4">
+                            <span class="font-bold">Host:</span> DJ Nyx • 
+                            <span class="font-bold">Schedule:</span> Fridays 11PM-1AM • 
+                            <span class="font-bold">Genre:</span> Ambient, Experimental
+                        </div>
+                    </div>
+                    
+                    <!-- Show Description -->
+                    <div class="mb-6">
+                        <h2 class="text-xl font-bold mb-3 uppercase border-b border-gray-800 pb-2">About The Show</h2>
+                        <p class="mb-4 leading-relaxed">
+                            A late-night journey through the darker corners of electronic music and ambient soundscapes. 
+                            DJ Nyx curates sonic experiences that blur the lines between dreams and reality, featuring 
+                            underground artists, field recordings, and live call-ins from insomniacs across the valley.
+                        </p>
+                        <p class="leading-relaxed">
+                            Each episode explores themes of solitude, urban isolation, and the strange beauty found 
+                            in the liminal hours between night and dawn. Listeners are encouraged to call in and share 
+                            their late-night thoughts, dreams, or confessions.
+                        </p>
+                    </div>
+                    
+                    <!-- Tags -->
+                    <div>
+                        <span class="text-sm font-bold uppercase">Tags:</span>
+                        <span class="inline-flex gap-2 ml-2 flex-wrap">
+                            <span class="bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono">#ambient</span>
+                            <span class="bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono">#experimental</span>
+                            <span class="bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono">#darkwave</span>
+                            <span class="bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono">#callin</span>
+                            <span class="bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono">#latenight</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Content Tabs Navigation -->
+        <div class="mb-8">
+            <div class="border-b-2 border-gray-800">
+                <nav class="flex gap-8">
+                    <button class="py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5">Episodes</button>
+                    <a href="show-page-host-blog.html" class="py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800">Blog</a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Episodes Section -->
+            <section class="lg:col-span-2">
+                <!-- Featured/Latest Episode -->
+                <div class="bg-white border-2 border-gray-800 p-6 mb-8">
+                    <h2 class="text-xl font-bold mb-4 uppercase border-b border-gray-800 pb-2">Latest Episode</h2>
+                    
+                    <div class="flex gap-4 mb-6">
+                        <div class="w-24 h-24 bg-gray-300 border border-gray-600 flex items-center justify-center text-xs flex-shrink-0">
+                            [EP IMG]
+                        </div>
+                        <div class="flex-grow">
+                            <h3 class="text-lg font-bold mb-2">Late Night Confessions #47</h3>
+                            <div class="text-sm text-gray-600 mb-2">
+                                Aired: Sept 13, 2025 • Duration: 1h 12min • 47 likes • 12 comments
+                            </div>
+                            <p class="text-sm mb-4">
+                                Tonight we dive deep into the strange dreams of night shift workers, featuring ambient 
+                                tracks from local artists and some unexpected call-ins from the valley's night owls.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Audio Player -->
+                    <div class="bg-gray-100 border-2 border-gray-600 p-4 mb-4">
+                        <div class="flex items-center gap-4 mb-2">
+                            <button class="bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700">▶ PLAY</button>
+                            <div class="flex-grow bg-gray-300 h-2 rounded">
+                                <div class="bg-gray-800 h-2 rounded w-1/3"></div>
+                            </div>
+                            <span class="text-sm font-mono">24:15 / 1:12:03</span>
+                        </div>
+                        <div class="text-xs text-gray-600">
+                            Now Playing: "Midnight Transit" by Valley Depths
+                        </div>
+                    </div>
+                    
+                    <!-- Track Listing -->
+                    <div class="mb-6">
+                        <h4 class="font-bold mb-3 text-sm uppercase">Track Listing</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between p-2 bg-gray-50 border-l-4 border-gray-800">
+                                <span>"Midnight Transit" - Valley Depths</span>
+                                <span class="text-gray-600">0:00</span>
+                            </div>
+                            <div class="flex justify-between p-2 hover:bg-gray-50">
+                                <span>"Neon Reflections" - Synth Valley</span>
+                                <span class="text-gray-600">4:23</span>
+                            </div>
+                            <div class="flex justify-between p-2 hover:bg-gray-50">
+                                <span>"Call-in: Dreams from Burbank"</span>
+                                <span class="text-gray-600">12:45</span>
+                            </div>
+                            <div class="flex justify-between p-2 hover:bg-gray-50">
+                                <span>"Liminal Spaces" - Underground FM</span>
+                                <span class="text-gray-600">18:30</span>
+                            </div>
+                            <button class="text-xs text-gray-600 hover:text-gray-800 mt-2">+ Show all 12 tracks</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Social Actions -->
+                    <div class="flex gap-4 items-center text-sm">
+                        <button class="flex items-center gap-2 hover:text-gray-600">
+                            <span>♡</span> Like (47)
+                        </button>
+                        <button class="flex items-center gap-2 hover:text-gray-600">
+                            <span>💬</span> Comment (12)
+                        </button>
+                        <button class="flex items-center gap-2 hover:text-gray-600">
+                            <span>↗</span> Share
+                        </button>
+                        <button class="flex items-center gap-2 hover:text-gray-600">
+                            <span>⬇</span> Download
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Episode Archive -->
+                <div class="bg-white border-2 border-gray-800 p-6">
+                    <h2 class="text-xl font-bold mb-4 uppercase border-b border-gray-800 pb-2">Previous Episodes</h2>
+                    
+                    <!-- Filter/Sort Controls -->
+                    <div class="flex gap-4 mb-6 text-sm">
+                        <select class="border-2 border-gray-600 px-3 py-2 bg-white font-mono">
+                            <option>Sort by: Latest</option>
+                            <option>Sort by: Most Liked</option>
+                            <option>Sort by: Most Commented</option>
+                        </select>
+                        <input type="text" placeholder="Search episodes..." class="border-2 border-gray-600 px-3 py-2 bg-white font-mono flex-grow">
+                        <button class="border-2 border-gray-800 bg-gray-800 text-white px-4 py-2 font-bold hover:bg-gray-700">SEARCH</button>
+                    </div>
+                    
+                    <!-- Episode List -->
+                    <div class="space-y-4">
+                        <article class="flex gap-4 p-4 border border-gray-300 hover:bg-gray-50">
+                            <div class="w-16 h-16 bg-gray-300 border border-gray-600 flex items-center justify-center text-xs flex-shrink-0">[IMG]</div>
+                            <div class="flex-grow">
+                                <h4 class="font-bold mb-1">Insomnia Soundtrack #46</h4>
+                                <div class="text-xs text-gray-600 mb-2">Sept 6, 2025 • 58min • 32 likes</div>
+                                <p class="text-sm mb-2">Ambient textures for the sleepless, featuring drone works and field recordings...</p>
+                                <button class="bg-gray-800 text-white px-3 py-1 text-xs hover:bg-gray-700">▶ PLAY</button>
+                            </div>
+                        </article>
+                        
+                        <article class="flex gap-4 p-4 border border-gray-300 hover:bg-gray-50">
+                            <div class="w-16 h-16 bg-gray-300 border border-gray-600 flex items-center justify-center text-xs flex-shrink-0">[IMG]</div>
+                            <div class="flex-grow">
+                                <h4 class="font-bold mb-1">Valley After Dark #45</h4>
+                                <div class="text-xs text-gray-600 mb-2">Aug 30, 2025 • 1h 5min • 28 likes</div>
+                                <p class="text-sm mb-2">Exploring the hidden sounds of San Fernando Valley's night shift workers...</p>
+                                <button class="bg-gray-800 text-white px-3 py-1 text-xs hover:bg-gray-700">▶ PLAY</button>
+                            </div>
+                        </article>
+                        
+                        <article class="flex gap-4 p-4 border border-gray-300 hover:bg-gray-50">
+                            <div class="w-16 h-16 bg-gray-300 border border-gray-600 flex items-center justify-center text-xs flex-shrink-0">[IMG]</div>
+                            <div class="flex-grow">
+                                <h4 class="font-bold mb-1">Liminal Hour Special #44</h4>
+                                <div class="text-xs text-gray-600 mb-2">Aug 23, 2025 • 2h 15min • 45 likes</div>
+                                <p class="text-sm mb-2">Extended journey into experimental soundscapes with live calls...</p>
+                                <button class="bg-gray-800 text-white px-3 py-1 text-xs hover:bg-gray-700">▶ PLAY</button>
+                            </div>
+                        </article>
+                    </div>
+                    
+                    <!-- Load More -->
+                    <div class="text-center mt-6">
+                        <button class="border-2 border-gray-800 bg-white text-gray-800 px-6 py-3 font-bold hover:bg-gray-100">LOAD MORE EPISODES</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sidebar -->
+            <aside class="flex flex-col gap-8">
+                <!-- Host Bio -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <h3 class="text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2">About DJ Nyx</h3>
+                    <div class="text-center mb-4">
+                        <div class="w-24 h-24 bg-gray-300 border-2 border-gray-600 rounded-full mx-auto mb-3 flex items-center justify-center">
+                            [HOST]
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            <div class="font-bold">Host since: 2023</div>
+                            <div>47 episodes • 1.2k followers</div>
+                        </div>
+                    </div>
+                    <p class="text-sm mb-4 leading-relaxed">
+                        Nyx has been exploring the intersection of sound and consciousness for over a decade. 
+                        Based in Shadow Hills, they curate sonic experiences that challenge conventional radio formats.
+                    </p>
+                    <div class="text-xs space-y-1">
+                        <div><strong>Influences:</strong> Brian Eno, Tim Hecker, Grouper</div>
+                        <div><strong>Equipment:</strong> Teenage Engineering, Soma Labs</div>
+                        <div><strong>Contact:</strong> nyx@kpbj.fm</div>
+                    </div>
+                </section>
+
+                <!-- Show Stats -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <h3 class="text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2">Show Stats</h3>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between">
+                            <span>Total Episodes:</span>
+                            <span class="font-bold">47</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Total Listeners:</span>
+                            <span class="font-bold">12.4k</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Average Duration:</span>
+                            <span class="font-bold">1h 8min</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Show Rating:</span>
+                            <span class="font-bold">4.8/5 ⭐</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Next Show:</span>
+                            <span class="font-bold text-green-700">Fri 11PM</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recent Blog Posts -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <h3 class="text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2">Recent from Host Blog</h3>
+                    <div class="space-y-4">
+                        <article class="border-l-4 border-gray-800 pl-4">
+                            <div class="text-xs text-gray-600 mb-1">3 days ago</div>
+                            <h4 class="font-bold text-sm mb-2">Finding Beauty in Static</h4>
+                            <p class="text-xs text-gray-700 leading-relaxed">
+                                Thoughts on how radio interference can become part of the artistic experience...
+                            </p>
+                            <a href="#" class="text-xs text-gray-800 underline hover:no-underline">Read more</a>
+                        </article>
+                        
+                        <article class="border-l-4 border-gray-800 pl-4">
+                            <div class="text-xs text-gray-600 mb-1">1 week ago</div>
+                            <h4 class="font-bold text-sm mb-2">Upcoming Collaborations</h4>
+                            <p class="text-xs text-gray-700 leading-relaxed">
+                                Excited to announce some cross-show experiments with other KPBJ hosts...
+                            </p>
+                            <a href="#" class="text-xs text-gray-800 underline hover:no-underline">Read more</a>
+                        </article>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <a href="#" class="text-sm text-gray-800 underline hover:no-underline">View All Posts</a>
+                    </div>
+                </section>
+
+                <!-- Comments Section -->
+                <section class="bg-white border-2 border-gray-800 p-6">
+                    <h3 class="text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2">Recent Comments</h3>
+                    <div class="space-y-4">
+                        <div class="text-sm">
+                            <div class="flex justify-between items-start mb-1">
+                                <strong class="text-xs">nightshift_sarah</strong>
+                                <span class="text-xs text-gray-600">2h ago</span>
+                            </div>
+                            <p class="text-xs leading-relaxed">
+                                That track from Valley Depths was perfect for my 3AM drive home. Thanks Nyx! 🌙
+                            </p>
+                        </div>
+                        
+                        <div class="text-sm">
+                            <div class="flex justify-between items-start mb-1">
+                                <strong class="text-xs">ambient_lover</strong>
+                                <span class="text-xs text-gray-600">1 day ago</span>
+                            </div>
+                            <p class="text-xs leading-relaxed">
+                                The call-in segment was so moving. More of that please!
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <textarea placeholder="Add a comment..." class="w-full border-2 border-gray-600 p-2 text-xs font-mono bg-white" rows="3"></textarea>
+                        <button class="mt-2 bg-gray-800 text-white px-4 py-2 text-xs font-bold hover:bg-gray-700">POST COMMENT</button>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white px-4 py-8 mt-auto">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div>
+                <h4 class="font-bold uppercase mb-4">Listen</h4>
+                <ul class="space-y-2">
+                    <li><a href="listen.html" class="text-gray-300 hover:text-white hover:underline">Live Stream</a></li>
+                    <li><a href="shows-schedule.html" class="text-gray-300 hover:text-white hover:underline">Show Schedule</a></li>
+                    <li><a href="archive.html" class="text-gray-300 hover:text-white hover:underline">Episode Archive</a></li>
+                    <li><a href="/apps" class="text-gray-300 hover:text-white hover:underline">Mobile Apps</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-bold uppercase mb-4">Community</h4>
+                <ul class="space-y-2">
+                    <li><a href="/shows/apply" class="text-gray-300 hover:text-white hover:underline">Get A Show</a></li>
+                    <li><a href="/volunteer" class="text-gray-300 hover:text-white hover:underline">Volunteer</a></li>
+                    <li><a href="events.html" class="text-gray-300 hover:text-white hover:underline">Events</a></li>
+                    <li><a href="/blog" class="text-gray-300 hover:text-white hover:underline">Blog</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-bold uppercase mb-4">Support</h4>
+                <ul class="space-y-2">
+                    <li><a href="/donate" class="text-gray-300 hover:text-white hover:underline">Donate</a></li>
+                    <li><a href="store.html" class="text-gray-300 hover:text-white hover:underline">Merch Store</a></li>
+                    <li><a href="/sponsors" class="text-gray-300 hover:text-white hover:underline">Become a Sponsor</a></li>
+                    <li><a href="/membership" class="text-gray-300 hover:text-white hover:underline">Membership</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-bold uppercase mb-4">Connect</h4>
+                <ul class="space-y-2">
+                    <li><a href="/contact" class="text-gray-300 hover:text-white hover:underline">Contact Us</a></li>
+                    <li><a href="mailto:contact@kpbj.fm" class="text-gray-300 hover:text-white hover:underline">Email</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Instagram</a></li>
+                    <li><a href="/newsletter" class="text-gray-300 hover:text-white hover:underline">Newsletter</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="text-center mt-8 pt-4 border-t border-gray-600 text-gray-400">
+            <p>&copy; 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization</p>
+        </div>
+    </footer>
+</body>
+</html>
