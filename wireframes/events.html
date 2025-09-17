@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Events - KPBJ 95.9FM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-mono bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+    <!-- Header with Navigation -->
+    <header class="bg-white border-b-2 border-gray-800 p-4">
+        <div class="max-w-6xl mx-auto flex flex-col items-center gap-4">
+            <!-- ASCII Logo -->
+            <a href="index.html" class="text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600">
+▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
+█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
+▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·
+▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌
+·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀
+            </a>
+            
+            <!-- Main Navigation -->
+            <nav class="flex gap-8 items-center flex-wrap">
+                <a href="listen.html" class="font-bold uppercase hover:underline">Listen</a>
+                <a href="shows-schedule.html" class="font-bold uppercase hover:underline">Shows</a>
+                <a href="archive.html" class="font-bold uppercase hover:underline">Archive</a>
+                <a href="blog.html" class="font-bold uppercase hover:underline">Blog</a>
+                <a href="events.html" class="font-bold uppercase border-b-2 border-gray-800 pb-1">Events</a>
+                <a href="store.html" class="font-bold uppercase hover:underline">Store</a>
+                <a href="about.html" class="font-bold uppercase hover:underline">About</a>
+            </nav>
+            
+            <!-- User Navigation -->
+            <div class="flex gap-4 items-center text-sm text-gray-600">
+                <a href="/search" class="hover:text-gray-800">🔍 Search</a>
+                <a href="/login" class="hover:text-gray-800">Login</a>
+                <a href="/register" class="hover:text-gray-800">Sign Up</a>
+                <a href="/contact" class="hover:text-gray-800">Contact</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Persistent Live Player Widget -->
+    <div class="bg-gray-800 text-white p-4 sticky top-0 z-40 border-b-2 border-black">
+        <div class="max-w-6xl mx-auto flex items-center gap-4 md:flex-row flex-col">
+            <div class="flex items-center gap-2">
+                <button class="bg-white text-gray-800 px-4 py-2 font-bold cursor-pointer hover:bg-gray-200">▶ LIVE</button>
+            </div>
+            <div class="flex-grow text-center">
+                <h3 class="mb-1 font-bold">Now Playing: The Midnight Frequency</h3>
+                <p class="text-sm text-gray-300">Host: DJ Nyx • 95.9 FM Shadow Hills • Live Stream</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm">Vol:</span>
+                <input type="range" min="0" max="100" value="80" class="w-20">
+            </div>
+        </div>
+    </div>
+
+    <!-- Breadcrumb Navigation -->
+    <nav class="bg-gray-100 px-4 py-2 border-b border-gray-300">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-sm text-gray-600">
+                <a href="index.html" class="hover:text-gray-800">Home</a> 
+                <span class="mx-2">/</span>
+                <span class="text-gray-800 font-bold">Events</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow px-4 py-8 max-w-6xl mx-auto w-full">
+        
+        <!-- Events Header -->
+        <section class="bg-white border-2 border-gray-800 p-8 mb-8 text-center">
+            <h1 class="text-3xl font-bold mb-4">COMMUNITY EVENTS</h1>
+            <p class="text-lg text-gray-600 mb-6">Connect with the KPBJ community through live shows, fundraisers, and gatherings</p>
+            
+            <pre class="text-xs leading-tight text-gray-800 mb-6">
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           COME TOGETHER                                     ║
+║                     MUSIC • COMMUNITY • CULTURE                            ║
+║                        WHERE VOICES MEET                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+            </pre>
+        </section>
+
+        <!-- View Controls & Filters -->
+        <section class="bg-white border-2 border-gray-800 p-6 mb-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                
+                <!-- View Toggle -->
+                <div class="flex items-center gap-4">
+                    <span class="font-bold text-sm">VIEW:</span>
+                    <div class="flex border-2 border-gray-800">
+                        <button onclick="showView('list')" id="view-list" class="px-4 py-2 bg-gray-800 text-white font-bold">LIST</button>
+                        <button onclick="showView('month')" id="view-month" class="px-4 py-2 bg-white text-gray-800 font-bold hover:bg-gray-100">MONTH</button>
+                        <button onclick="showView('week')" id="view-week" class="px-4 py-2 bg-white text-gray-800 font-bold hover:bg-gray-100">WEEK</button>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="flex flex-wrap items-center gap-4">
+                    <span class="font-bold text-sm">FILTER:</span>
+                    <select class="border-2 border-gray-600 p-2 font-mono text-sm">
+                        <option>All Events</option>
+                        <option>Live Shows</option>
+                        <option>Fundraisers</option>
+                        <option>Community</option>
+                        <option>Workshops</option>
+                    </select>
+                    <select class="border-2 border-gray-600 p-2 font-mono text-sm">
+                        <option>All Time</option>
+                        <option>This Week</option>
+                        <option>This Month</option>
+                        <option>Next Month</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- Events Content -->
+        <div class="space-y-8">
+
+            <!-- List View (Default) -->
+            <section id="content-list" class="view-content">
+                <div class="space-y-6">
+
+                    <!-- Featured Event -->
+                    <article class="bg-white border-2 border-gray-800 p-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            <div class="lg:col-span-1">
+                                <div class="w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg mb-4">
+                                    [EVENT IMAGE]
+                                </div>
+                                <div class="text-center">
+                                    <div class="bg-yellow-200 text-yellow-800 px-2 py-1 text-xs font-bold mb-2">FEATURED</div>
+                                    <div class="bg-red-200 text-red-800 px-2 py-1 text-xs font-bold">LIVE MUSIC</div>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-3">
+                                <h2 class="text-2xl font-bold mb-3"><a href="event-spring-concert.html" class="hover:underline">KPBJ Spring Fundraiser Concert</a></h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                                    <div>
+                                        <div class="font-bold text-gray-800">📅 DATE & TIME</div>
+                                        <div class="text-gray-600">Saturday, April 6, 2024</div>
+                                        <div class="text-gray-600">7:00 PM - 11:00 PM</div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-gray-800">📍 LOCATION</div>
+                                        <div class="text-gray-600">Shadow Hills Community Center</div>
+                                        <div class="text-gray-600">1247 Underground Ave</div>
+                                    </div>
+                                </div>
+                                <p class="text-gray-700 mb-4 leading-relaxed">
+                                    Join us for an unforgettable night of live music featuring KPBJ hosts and local underground artists. 
+                                    All proceeds support our community radio mission and help us upgrade our equipment for better sound quality.
+                                </p>
+                                <div class="flex items-center gap-2 mb-4 text-sm">
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#fundraiser</span>
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#livemusic</span>
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#community</span>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <a href="event-spring-concert.html" class="bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700 inline-block">VIEW EVENT & GET TICKETS</a>
+                                    <div class="text-sm text-gray-600">
+                                        💖 47 interested • 🎫 156 going
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Regular Events -->
+                    <article class="bg-white border-2 border-gray-800 p-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            <div class="lg:col-span-1">
+                                <div class="w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg mb-4">
+                                    [EVENT IMAGE]
+                                </div>
+                                <div class="text-center">
+                                    <div class="bg-blue-200 text-blue-800 px-2 py-1 text-xs font-bold">WORKSHOP</div>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-3">
+                                <h2 class="text-xl font-bold mb-3">DIY Radio Workshop: Start Your Own Show</h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                                    <div>
+                                        <div class="font-bold text-gray-800">📅 DATE & TIME</div>
+                                        <div class="text-gray-600">Sunday, April 14, 2024</div>
+                                        <div class="text-gray-600">2:00 PM - 5:00 PM</div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-gray-800">📍 LOCATION</div>
+                                        <div class="text-gray-600">KPBJ Station</div>
+                                        <div class="text-gray-600">958 Frequency Rd</div>
+                                    </div>
+                                </div>
+                                <p class="text-gray-700 mb-4 leading-relaxed">
+                                    Learn the basics of radio hosting, equipment operation, and show planning. Perfect for aspiring hosts 
+                                    who want to bring their voice to community radio.
+                                </p>
+                                <div class="flex items-center gap-2 mb-4 text-sm">
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#workshop</span>
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#education</span>
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#hosts</span>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <button class="bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700">REGISTER (FREE)</button>
+                                    <div class="text-sm text-gray-600">
+                                        💖 23 interested • 🎫 8 going • 12 spots left
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="bg-white border-2 border-gray-800 p-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            <div class="lg:col-span-1">
+                                <div class="w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg mb-4">
+                                    [EVENT IMAGE]
+                                </div>
+                                <div class="text-center">
+                                    <div class="bg-green-200 text-green-800 px-2 py-1 text-xs font-bold">COMMUNITY</div>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-3">
+                                <h2 class="text-xl font-bold mb-3">Monthly Listener Meetup</h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                                    <div>
+                                        <div class="font-bold text-gray-800">📅 DATE & TIME</div>
+                                        <div class="text-gray-600">Friday, April 19, 2024</div>
+                                        <div class="text-gray-600">7:00 PM - 9:00 PM</div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-gray-800">📍 LOCATION</div>
+                                        <div class="text-gray-600">The Underground Cafe</div>
+                                        <div class="text-gray-600">442 Shadow St</div>
+                                    </div>
+                                </div>
+                                <p class="text-gray-700 mb-4 leading-relaxed">
+                                    Connect with fellow KPBJ listeners, hosts, and community members. Share music discoveries, 
+                                    discuss shows, and build connections over coffee and conversation.
+                                </p>
+                                <div class="flex items-center gap-2 mb-4 text-sm">
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#community</span>
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#meetup</span>
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#social</span>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <button class="bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700">RSVP (FREE)</button>
+                                    <div class="text-sm text-gray-600">
+                                        💖 15 interested • 🎫 12 going
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="bg-white border-2 border-gray-800 p-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            <div class="lg:col-span-1">
+                                <div class="w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg mb-4">
+                                    [EVENT IMAGE]
+                                </div>
+                                <div class="text-center">
+                                    <div class="bg-purple-200 text-purple-800 px-2 py-1 text-xs font-bold">LIVE SHOW</div>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-3">
+                                <h2 class="text-xl font-bold mb-3">The Midnight Frequency - Live from Blackout Bar</h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                                    <div>
+                                        <div class="font-bold text-gray-800">📅 DATE & TIME</div>
+                                        <div class="text-gray-600">Saturday, April 27, 2024</div>
+                                        <div class="text-gray-600">10:00 PM - 2:00 AM</div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-gray-800">📍 LOCATION</div>
+                                        <div class="text-gray-600">Blackout Bar</div>
+                                        <div class="text-gray-600">789 Underground Blvd</div>
+                                    </div>
+                                </div>
+                                <p class="text-gray-700 mb-4 leading-relaxed">
+                                    DJ Nyx takes The Midnight Frequency on the road for a special late-night broadcast from Blackout Bar. 
+                                    Experience the show live with exclusive tracks and guest DJs.
+                                </p>
+                                <div class="flex items-center gap-2 mb-4 text-sm">
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#liveshow</span>
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#djnyx</span>
+                                    <span class="bg-gray-200 text-gray-800 px-2 py-1 font-mono">#electronic</span>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <button class="bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700">FREE ENTRY</button>
+                                    <div class="text-sm text-gray-600">
+                                        💖 89 interested • 🎫 34 going
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                </div>
+
+                <!-- Pagination -->
+                <div class="flex justify-center mt-8">
+                    <div class="flex items-center space-x-2">
+                        <button class="px-3 py-1 text-gray-400 hover:text-gray-800">‹ Previous</button>
+                        <button class="px-3 py-1 bg-gray-800 text-white font-bold">1</button>
+                        <button class="px-3 py-1 text-gray-800 hover:bg-gray-200">2</button>
+                        <button class="px-3 py-1 text-gray-800 hover:bg-gray-200">3</button>
+                        <button class="px-3 py-1 text-gray-800 hover:text-gray-600">Next ›</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Month View (Hidden by default) -->
+            <section id="content-month" class="view-content hidden">
+                <div class="bg-white border-2 border-gray-800 p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-xl font-bold">APRIL 2024</h2>
+                        <div class="flex gap-2">
+                            <button class="px-3 py-1 text-gray-600 hover:text-gray-800">‹ March</button>
+                            <button class="px-3 py-1 text-gray-600 hover:text-gray-800">May ›</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Calendar Grid -->
+                    <div class="grid grid-cols-7 gap-1 text-sm">
+                        <!-- Header -->
+                        <div class="p-2 font-bold text-center bg-gray-200">SUN</div>
+                        <div class="p-2 font-bold text-center bg-gray-200">MON</div>
+                        <div class="p-2 font-bold text-center bg-gray-200">TUE</div>
+                        <div class="p-2 font-bold text-center bg-gray-200">WED</div>
+                        <div class="p-2 font-bold text-center bg-gray-200">THU</div>
+                        <div class="p-2 font-bold text-center bg-gray-200">FRI</div>
+                        <div class="p-2 font-bold text-center bg-gray-200">SAT</div>
+                        
+                        <!-- Calendar Days -->
+                        <div class="p-2 h-20 border border-gray-200 text-gray-400">31</div>
+                        <div class="p-2 h-20 border border-gray-200">1</div>
+                        <div class="p-2 h-20 border border-gray-200">2</div>
+                        <div class="p-2 h-20 border border-gray-200">3</div>
+                        <div class="p-2 h-20 border border-gray-200">4</div>
+                        <div class="p-2 h-20 border border-gray-200">5</div>
+                        <div class="p-2 h-20 border border-gray-200 bg-yellow-50">
+                            <div class="font-bold">6</div>
+                            <div class="text-xs text-yellow-800 truncate">Spring Concert</div>
+                        </div>
+                        <div class="p-2 h-20 border border-gray-200">7</div>
+                        <div class="p-2 h-20 border border-gray-200">8</div>
+                        <div class="p-2 h-20 border border-gray-200">9</div>
+                        <div class="p-2 h-20 border border-gray-200">10</div>
+                        <div class="p-2 h-20 border border-gray-200">11</div>
+                        <div class="p-2 h-20 border border-gray-200">12</div>
+                        <div class="p-2 h-20 border border-gray-200">13</div>
+                        <div class="p-2 h-20 border border-gray-200 bg-blue-50">
+                            <div class="font-bold">14</div>
+                            <div class="text-xs text-blue-800 truncate">DIY Workshop</div>
+                        </div>
+                        <div class="p-2 h-20 border border-gray-200">15</div>
+                        <div class="p-2 h-20 border border-gray-200">16</div>
+                        <div class="p-2 h-20 border border-gray-200">17</div>
+                        <div class="p-2 h-20 border border-gray-200">18</div>
+                        <div class="p-2 h-20 border border-gray-200 bg-green-50">
+                            <div class="font-bold">19</div>
+                            <div class="text-xs text-green-800 truncate">Listener Meetup</div>
+                        </div>
+                        <div class="p-2 h-20 border border-gray-200">20</div>
+                        <div class="p-2 h-20 border border-gray-200">21</div>
+                        <div class="p-2 h-20 border border-gray-200">22</div>
+                        <div class="p-2 h-20 border border-gray-200">23</div>
+                        <div class="p-2 h-20 border border-gray-200">24</div>
+                        <div class="p-2 h-20 border border-gray-200">25</div>
+                        <div class="p-2 h-20 border border-gray-200">26</div>
+                        <div class="p-2 h-20 border border-gray-200 bg-purple-50">
+                            <div class="font-bold">27</div>
+                            <div class="text-xs text-purple-800 truncate">Live Show</div>
+                        </div>
+                        <div class="p-2 h-20 border border-gray-200">28</div>
+                        <div class="p-2 h-20 border border-gray-200">29</div>
+                        <div class="p-2 h-20 border border-gray-200">30</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Week View (Hidden by default) -->
+            <section id="content-week" class="view-content hidden">
+                <div class="bg-white border-2 border-gray-800 p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-xl font-bold">WEEK OF APRIL 6 - 12, 2024</h2>
+                        <div class="flex gap-2">
+                            <button class="px-3 py-1 text-gray-600 hover:text-gray-800">‹ Previous Week</button>
+                            <button class="px-3 py-1 text-gray-600 hover:text-gray-800">Next Week ›</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Week Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-7 gap-4">
+                        <div class="border border-gray-200 p-3">
+                            <div class="font-bold mb-2 text-center">SUN 6</div>
+                            <div class="space-y-2">
+                                <div class="bg-yellow-100 text-yellow-800 p-2 text-xs">
+                                    <div class="font-bold">7 PM</div>
+                                    <div class="truncate">Spring Concert</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border border-gray-200 p-3">
+                            <div class="font-bold mb-2 text-center">MON 7</div>
+                            <div class="text-xs text-gray-400 text-center mt-8">No events</div>
+                        </div>
+                        <div class="border border-gray-200 p-3">
+                            <div class="font-bold mb-2 text-center">TUE 8</div>
+                            <div class="text-xs text-gray-400 text-center mt-8">No events</div>
+                        </div>
+                        <div class="border border-gray-200 p-3">
+                            <div class="font-bold mb-2 text-center">WED 9</div>
+                            <div class="text-xs text-gray-400 text-center mt-8">No events</div>
+                        </div>
+                        <div class="border border-gray-200 p-3">
+                            <div class="font-bold mb-2 text-center">THU 10</div>
+                            <div class="text-xs text-gray-400 text-center mt-8">No events</div>
+                        </div>
+                        <div class="border border-gray-200 p-3">
+                            <div class="font-bold mb-2 text-center">FRI 11</div>
+                            <div class="text-xs text-gray-400 text-center mt-8">No events</div>
+                        </div>
+                        <div class="border border-gray-200 p-3">
+                            <div class="font-bold mb-2 text-center">SAT 12</div>
+                            <div class="text-xs text-gray-400 text-center mt-8">No events</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white border-t-2 border-black p-8 mt-auto">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+                <h3 class="font-bold mb-4">LISTEN</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="listen.html" class="text-gray-300 hover:text-white hover:underline">Live Stream</a></li>
+                    <li><a href="shows-schedule.html" class="text-gray-300 hover:text-white hover:underline">Show Schedule</a></li>
+                    <li><a href="archive.html" class="text-gray-300 hover:text-white hover:underline">Episode Archive</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">COMMUNITY</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="blog.html" class="text-gray-300 hover:text-white hover:underline">Station Blog</a></li>
+                    <li><a href="events.html" class="text-gray-300 hover:text-white hover:underline">Events</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Get A Show</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Volunteer</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">SUPPORT</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Donate</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Store</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Membership</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4">CONTACT</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">About</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Contact</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Instagram</a></li>
+                    <li><a href="#" class="text-gray-300 hover:text-white hover:underline">Twitter</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="max-w-6xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-sm text-gray-400">
+            © 2024 KPBJ 95.9FM Community Radio • Shadow Hills • Non-profit Broadcasting
+        </div>
+    </footer>
+
+    <script>
+        // View switching functionality
+        function showView(viewName) {
+            // Hide all views
+            const views = document.querySelectorAll('.view-content');
+            views.forEach(view => view.classList.add('hidden'));
+            
+            // Remove active styles from all buttons
+            const buttons = document.querySelectorAll('[id^="view-"]');
+            buttons.forEach(button => {
+                button.classList.remove('bg-gray-800', 'text-white');
+                button.classList.add('bg-white', 'text-gray-800', 'hover:bg-gray-100');
+            });
+            
+            // Show selected view
+            document.getElementById(`content-${viewName}`).classList.remove('hidden');
+            
+            // Add active styles to selected button
+            const activeButton = document.getElementById(`view-${viewName}`);
+            activeButton.classList.remove('bg-white', 'text-gray-800', 'hover:bg-gray-100');
+            activeButton.classList.add('bg-gray-800', 'text-white');
+        }
+    </script>
+
+</body>
+</html>
