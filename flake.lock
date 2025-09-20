@@ -1,21 +1,5 @@
 {
   "nodes": {
-    "cfg-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1713115729,
-        "narHash": "sha256-sbPhaC7uLjUG99Euad1LpP5bRVzQ7N8CR1YbnJ5Ihhs=",
-        "owner": "JonathanLorimer",
-        "repo": "cfg",
-        "rev": "f68e34faf78fabccc54de395ef093d525bb7d39e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "JonathanLorimer",
-        "repo": "cfg",
-        "type": "github"
-      }
-    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -31,6 +15,57 @@
       "original": {
         "owner": "numtide",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "flake-utils_2": {
+      "inputs": {
+        "systems": "systems_2"
+      },
+      "locked": {
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "hasql-interpolate-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1742226962,
+        "narHash": "sha256-oANUeRbBoFJaJnOGFVZt5no3t46korNOQr9eFBPKTBU=",
+        "owner": "awkward-squad",
+        "repo": "hasql-interpolate",
+        "rev": "f1d04cea75868ba3051ad158e314ebbeccfbda80",
+        "type": "github"
+      },
+      "original": {
+        "owner": "awkward-squad",
+        "repo": "hasql-interpolate",
+        "type": "github"
+      }
+    },
+    "hasql-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1729181625,
+        "narHash": "sha256-1S3/Apisb1vGz49ljcYnfIye3J5ClzpEqPAtU00ocBc=",
+        "owner": "JonathanLorimer",
+        "repo": "hasql",
+        "rev": "3b993b2afbdf9619d3d74b0ea3caddb87b3e00d4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "JonathanLorimer",
+        "ref": "expose-hasql-encoders-params",
+        "repo": "hasql",
         "type": "github"
       }
     },
@@ -50,11 +85,27 @@
         "type": "github"
       }
     },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1758216857,
+        "narHash": "sha256-h1BW2y7CY4LI9w61R02wPaOYfmYo82FyRqHIwukQ6SY=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d2ed99647a4b195f0bcc440f76edfa10aeb3b743",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-25.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
-        "cfg-src": "cfg-src",
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "web-server-core": "web-server-core"
       }
     },
     "systems": {
@@ -69,6 +120,59 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "systems_2": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    },
+    "tmp-postgres-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1691516008,
+        "narHash": "sha256-dE1OQN7I4Lxy6RBdLCvm75Z9D/Hu+9G4ejV2pEtvL1A=",
+        "owner": "jfischoff",
+        "repo": "tmp-postgres",
+        "rev": "7f2467a6d6d5f6db7eed59919a6773fe006cf22b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jfischoff",
+        "repo": "tmp-postgres",
+        "type": "github"
+      }
+    },
+    "web-server-core": {
+      "inputs": {
+        "flake-utils": "flake-utils_2",
+        "hasql-interpolate-src": "hasql-interpolate-src",
+        "hasql-src": "hasql-src",
+        "nixpkgs": "nixpkgs_2",
+        "tmp-postgres-src": "tmp-postgres-src"
+      },
+      "locked": {
+        "lastModified": 1758347287,
+        "narHash": "sha256-1jlJ/pdkY/6WvfLP+A6QsddRc9Azh1vDN5Xb6Ri2z/g=",
+        "owner": "solomon-b",
+        "repo": "web-server",
+        "rev": "5c9512adbe1ad26333de3e2d271d0db42a325d6b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "solomon-b",
+        "repo": "web-server",
         "type": "github"
       }
     }

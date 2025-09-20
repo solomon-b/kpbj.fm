@@ -1,21 +1,21 @@
-{ pkgs, kpbj-backend }:
+{ pkgs, kpbj-api }:
 
 pkgs.dockerTools.buildImage {
   name = "sbothwell/kpbj.fm";
   created = "now";
-  tag = kpbj-backend.version;
+  tag = kpbj-api.version;
   # https://discourse.nixos.org/t/copy-files-into-a-docker-container-using-copytoroot/21144/5
   copyToRoot = pkgs.buildEnv {
     name = "image-root";
     pathsToLink = [ "/bin" "/backend/static" "/backend/migrations" ];
-    paths = [ pkgs.sqlx-cli (pkgs.haskell.lib.justStaticExecutables kpbj-backend) ./. ];
+    paths = [ pkgs.sqlx-cli (pkgs.haskell.lib.justStaticExecutables kpbj-api) ./. ];
   };
 
   config = {
     Entrypoint = [ "${pkgs.bash}/bin/bash" ];
     Cmd = [
       "-c"
-      "/bin/kpbj-backend"
+      "/bin/kpbj-api"
     ];
 
     Env = [
@@ -33,4 +33,3 @@ pkgs.dockerTools.buildImage {
     ];
   };
 }
-

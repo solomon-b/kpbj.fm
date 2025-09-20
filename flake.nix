@@ -5,29 +5,50 @@
     nixpkgs.url = github:NixOS/nixpkgs/nixos-25.05;
     flake-utils.url = github:numtide/flake-utils;
 
-    cfg-src = {
-      url = github:JonathanLorimer/cfg;
-      flake = false;
+    web-server-core = {
+      url = github:solomon-b/web-server;
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, cfg-src }:
-    let
-      ghcVersion = "984";
-      compiler = "ghc${ghcVersion}";
-    in
+  outputs = { self, nixpkgs, flake-utils, web-server-core }:
     flake-utils.lib.eachDefaultSystem
       (system:
         let
-          pkgs = import nixpkgs { inherit system; };
-          hsPkgs = pkgs.haskell.packages.${compiler}.override {
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+              web-server-core.overlays.web-server-core
+            ];
+          };
+          hsPkgs = pkgs.haskellPackages.override {
             overrides = hfinal: hprev: {
-              #hasql-pool = pkgs.haskell.lib.dontCheck hprev.hasql-pool_1_0_1;
-              kpbj-backend = hfinal.callCabal2nix "kpbj-backend" ./backend { };
-              cfg = hfinal.callCabal2nix "cfg" "${cfg-src}" { };
-              #rel8 = pkgs.haskell.lib.dontCheck hprev.rel8;
-              #servant-auth-server = pkgs.haskell.lib.markUnbroken (pkgs.haskell.lib.dontCheck hprev.servant-auth-server);
-              tmp-postgres = pkgs.haskell.lib.markUnbroken (pkgs.haskell.lib.dontCheck hprev.tmp-postgres);
+              hasql = hfinal.lib.dontCheck pkgs.haskellPackages.hasql_1_9_1_2;
+
+              hasql-pool = hfinal.lib.dontCheck (
+                hfinal.lib.dontCheck (
+                  hfinal.callHackageDirect {
+                    pkg = "hasql-pool";
+                    ver = "1.3.0.2";
+                    sha256 = "sha256-3tADBDSR7MErgVLzIZdivVqyU99/A7jsRV3qUS7wWns=";
+                  } { }
+                )
+              );
+
+              hasql-transaction = hfinal.lib.dontCheck (
+                hfinal.lib.dontCheck (
+                  hfinal.callHackageDirect {
+                    pkg = "hasql-transaction";
+                    ver = "1.2.0.1";
+                    sha256 = "sha256-gXLDMlD6E3degEUJOtFCiZf9EAsWEBJqsOfZK54iBSA=";
+                  } { }
+                )
+              );
+
+              kpbj-api = hfinal.callCabal2nix "kpbj-api" ./backend { };
+
+              text-builder = hfinal.lib.dontCheck hfinal.text-builder_1_0_0_3;
+
+              web-server-core = web-server-core.packages.${system}.web-server-core;
             };
           };
         in
@@ -36,9 +57,9 @@
             buildInputs = [
               pkgs.cabal-install
               pkgs.flyctl
-              pkgs.haskell.compiler.${compiler}
-              pkgs.haskell.packages.${compiler}.haskell-language-server
-              pkgs.haskell.packages.${compiler}.hlint
+              pkgs.haskellPackages.ghc
+              pkgs.haskellPackages.haskell-language-server
+              pkgs.haskellPackages.hlint
               pkgs.just
               pkgs.nixpkgs-fmt
               pkgs.ormolu
@@ -47,16 +68,21 @@
               pkgs.shellcheck
               pkgs.sqlx-cli
               pkgs.zlib
+              pkgs.zlib.dev
             ];
+            shellHook = ''
+              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.zlib pkgs.openssl ]}"
+              export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" [ pkgs.zlib pkgs.openssl ]}"
+            '';
           };
 
           formatter = pkgs.nixpkgs-fmt;
           packages = flake-utils.lib.flattenTree {
-            kpbj-backend = hsPkgs.kpbj-backend;
+            kpbj-api = hsPkgs.kpbj-api;
 
             docker = import ./docker.nix {
               inherit pkgs;
-              kpbj-backend = hsPkgs.kpbj-backend;
+              kpbj-api = hsPkgs.kpbj-api;
             };
 
             deploy = pkgs.writeShellScriptBin "deploy" ''
@@ -66,16 +92,16 @@
             '';
           };
 
-          defaultPackage = packages.kpbj-backend;
+          defaultPackage = packages.kpbj-api;
 
           apps = {
-            kpbj-backend = {
+            kpbj-api = {
               type = "app";
-              program = "${self.packages.${system}.kpbj-backend}/bin/kpbj-backend";
+              program = "${self.packages.${system}.kpbj-api}/bin/kpbj-api";
             };
 
             deploy = flake-utils.lib.mkApp { drv = self.packages.${system}.deploy; };
-            default = self.apps.${system}.kpbj-backend;
+            default = self.apps.${system}.kpbj-api;
           };
         });
 }
