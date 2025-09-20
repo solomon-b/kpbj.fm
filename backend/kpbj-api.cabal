@@ -52,6 +52,7 @@ library
                   , data-has
                   , exceptions
                   , hasql-interpolate
+                  , hasql-pool
                   , hs-opentelemetry-sdk
                   , log-base
                   , lucid2
@@ -66,6 +67,7 @@ library
                   , web-server-core
   exposed-modules:
     API
+    API.Get
     API.User.Login.Get
     API.User.Login.Form
     Component.Frame
