@@ -3,8 +3,8 @@ module API.User.Login.Get where
 --------------------------------------------------------------------------------
 
 import API.User.Login.Form (template)
-import Component.Frame (loadFrame)
 import App.Observability qualified as Observability
+import Component.Frame (loadFrame)
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Unlift (MonadUnliftIO)

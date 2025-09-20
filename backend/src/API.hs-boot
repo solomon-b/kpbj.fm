@@ -8,4 +8,5 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
+rootGetLink :: Links.Link
 userLoginGetLink :: Maybe Text -> Maybe EmailAddress -> Links.Link
