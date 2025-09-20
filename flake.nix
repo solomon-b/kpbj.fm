@@ -2,7 +2,7 @@
   description = "kpbj.fm";
 
   inputs = {
-    nixpkgs.url = github:NixOS/nixpkgs/nixpkgs-unstable;
+    nixpkgs.url = github:NixOS/nixpkgs/nixos-25.05;
     flake-utils.url = github:numtide/flake-utils;
 
     cfg-src = {
@@ -13,7 +13,7 @@
 
   outputs = { self, nixpkgs, flake-utils, cfg-src }:
     let
-      ghcVersion = "963";
+      ghcVersion = "984";
       compiler = "ghc${ghcVersion}";
     in
     flake-utils.lib.eachDefaultSystem
@@ -22,11 +22,12 @@
           pkgs = import nixpkgs { inherit system; };
           hsPkgs = pkgs.haskell.packages.${compiler}.override {
             overrides = hfinal: hprev: {
-              hasql-pool = pkgs.haskell.lib.dontCheck hprev.hasql-pool_1_0_1;
+              #hasql-pool = pkgs.haskell.lib.dontCheck hprev.hasql-pool_1_0_1;
               kpbj-backend = hfinal.callCabal2nix "kpbj-backend" ./backend { };
               cfg = hfinal.callCabal2nix "cfg" "${cfg-src}" { };
-              rel8 = pkgs.haskell.lib.dontCheck hprev.rel8;
-              servant-auth-server = pkgs.haskell.lib.markUnbroken (pkgs.haskell.lib.dontCheck hprev.servant-auth-server);
+              #rel8 = pkgs.haskell.lib.dontCheck hprev.rel8;
+              #servant-auth-server = pkgs.haskell.lib.markUnbroken (pkgs.haskell.lib.dontCheck hprev.servant-auth-server);
+              tmp-postgres = pkgs.haskell.lib.markUnbroken (pkgs.haskell.lib.dontCheck hprev.tmp-postgres);
             };
           };
         in

@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               kpbj-backend
+name:               kpbj-api
 version:            0.1.0.2
 license:            Apache-2.0
 license-file:       LICENSE
@@ -33,30 +33,13 @@ common common-extensions
 
 --------------------------------------------------------------------------------
 
-executable kpbj-backend
+executable kpbj-api
   import:           common-extensions
   main-is:          Main.hs
-  build-depends:    base ^>=4.18.1.0
-                  , kpbj-backend
+  build-depends:    base
+                  , kpbj-api
+                  , web-server-core
   hs-source-dirs:   app
-  default-language: Haskell2010
-  ghc-options:    -Wall -threaded -rtsopts -with-rtsopts=-N
-
---------------------------------------------------------------------------------
-
-executable gen-jwk
-  import:           common-extensions
-  main-is:          Main.hs
-  build-depends:    aeson
-                  , base ^>=4.18.1.0
-                  , bytestring
-                  , crypton
-                  , jose
-                  , lens
-                  , text
-                  , x509
-                  , x509-store
-  hs-source-dirs:   jwk-gen
   default-language: Haskell2010
   ghc-options:    -Wall -threaded -rtsopts -with-rtsopts=-N
 
@@ -64,74 +47,9 @@ executable gen-jwk
 
 library
   import: common-extensions
-  build-depends:  , aeson
-                  , barbies
-                  , base ^>=4.18.1.0
-                  , base64
-                  , bytestring
-                  , case-insensitive
-                  , cfg
-                  , clock
-                  , containers
-                  , data-has
-                  , deriving-aeson
-                  , exceptions
-                  , email-validate
-                  , hasql
-                  , hasql-pool
-                  , hs-opentelemetry-api
-                  , hs-opentelemetry-exporter-handle
-                  , hs-opentelemetry-instrumentation-wai
-                  , hs-opentelemetry-sdk
-                  , hs-opentelemetry-utils-exceptions
-                  , http-api-data
-                  , http-types
-                  , jose
-                  , log-base
-                  , lucid
-                  , megaparsec
-                  , mtl
-                  , opaleye
-                  , pretty-simple
-                  , rel8
-                  , servant-auth
-                  , servant-auth-server
-                  , servant-lucid
-                  , servant-server
-                  , text
-                  , text-display
-                  , time
-                  , transformers
-                  , unix
-                  , unliftio-core
-                  , unordered-containers
-                  , wai
-                  , warp
+  build-depends:
+                  , base
   exposed-modules:
-    App
-    Auth
-    Config
-    Domain.Types.AdminStatus
-    Domain.Types.DisplayName
-    Domain.Types.Email
-    Domain.Types.Password
-    Domain.Types.User
-    API
-    API.MailingList
-    API.SplashPage
-    API.User
-    API.User.Current
-    API.User.Login
-    API.User.Register
-    Database.Class
-    Database.Queries.User
-    Database.Queries.MailingList
-    Database.Tables.User
-    Database.Tables.MailingList
-    Database.Utils
-    Errors
-    Tracing
-    Utils
 
   hs-source-dirs: src
   default-language: Haskell2010
