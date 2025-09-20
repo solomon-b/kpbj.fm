@@ -3,8 +3,7 @@ module API.User.Login.Get where
 --------------------------------------------------------------------------------
 
 import API.User.Login.Form (template)
--- import Component.Frame (loadFrame)
-
+import Component.Frame (loadFrame)
 import App.Observability qualified as Observability
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
@@ -46,4 +45,5 @@ handler ::
   m (Lucid.Html ())
 handler hxCurrentUrl redirectQueryParam emailQueryParam =
   Observability.handlerSpan "GET /user/login" $ do
-    pure $ template emailQueryParam $ hxCurrentUrl <|> redirectQueryParam
+    let loginForm = template emailQueryParam $ hxCurrentUrl <|> redirectQueryParam
+    loadFrame loginForm

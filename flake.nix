@@ -22,10 +22,10 @@
           };
           hsPkgs = pkgs.haskellPackages.override {
             overrides = hfinal: hprev: {
-              hasql = hfinal.lib.dontCheck pkgs.haskellPackages.hasql_1_9_1_2;
+              hasql = pkgs.haskell.lib.dontCheck hfinal.hasql_1_9_1_2;
 
-              hasql-pool = hfinal.lib.dontCheck (
-                hfinal.lib.dontCheck (
+              hasql-pool = pkgs.haskell.lib.dontCheck (
+                pkgs.haskell.lib.dontCheck (
                   hfinal.callHackageDirect {
                     pkg = "hasql-pool";
                     ver = "1.3.0.2";
@@ -34,8 +34,8 @@
                 )
               );
 
-              hasql-transaction = hfinal.lib.dontCheck (
-                hfinal.lib.dontCheck (
+              hasql-transaction = pkgs.haskell.lib.dontCheck (
+                pkgs.haskell.lib.dontCheck (
                   hfinal.callHackageDirect {
                     pkg = "hasql-transaction";
                     ver = "1.2.0.1";
@@ -46,7 +46,7 @@
 
               kpbj-api = hfinal.callCabal2nix "kpbj-api" ./backend { };
 
-              text-builder = hfinal.lib.dontCheck hfinal.text-builder_1_0_0_3;
+              text-builder = pkgs.haskell.lib.dontCheck hfinal.text-builder_1_0_0_3;
 
               web-server-core = web-server-core.packages.${system}.web-server-core;
             };
