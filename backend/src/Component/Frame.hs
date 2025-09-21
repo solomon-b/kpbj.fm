@@ -49,7 +49,7 @@ template mUser main =
               "▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌\n"
               "·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀"
           nav_ [class_ "flex gap-8 items-center flex-wrap"] $ do
-            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Donate"
+            a_ [href_ "/donate", class_ "font-bold uppercase hover:underline"] "Donate"
             -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Listen"
             -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Shows"
             -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Archive"

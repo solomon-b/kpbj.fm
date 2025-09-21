@@ -74,6 +74,7 @@ library
                   , web-server-core
   exposed-modules:
     API
+    API.Donate.Get
     API.Get
     API.Static.Get
     API.User.Login.Get
