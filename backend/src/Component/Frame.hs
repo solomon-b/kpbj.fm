@@ -56,7 +56,7 @@ template mUser main =
             -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Blog"
             -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Events"
             -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Store"
-            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "About"
+            a_ [href_ "/about", class_ "font-bold uppercase hover:underline"] "About"
             a_ [href_ "mailto:contact@kpbj.fm", class_ "font-bold uppercase hover:underline"] "Contact"
           div_ [class_ "flex gap-4 items-center text-sm text-gray-600"] $ do
             a_ [href_ "/", class_ "hover:text-gray-800"] "🔍 Search"

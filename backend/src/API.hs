@@ -2,6 +2,7 @@ module API where
 
 --------------------------------------------------------------------------------
 
+import API.About.Get qualified as About.Get
 import API.Donate.Get qualified as Donate.Get
 import API.Get qualified as Root.Get
 import API.Static.Get qualified as Static.Get
@@ -41,6 +42,7 @@ runApi = App.runApp @API server ()
 type API =
   Root.Get.Route
     :<|> Static.Get.Route
+    :<|> About.Get.Route
     :<|> Donate.Get.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
@@ -67,6 +69,7 @@ server ::
 server env =
   Root.Get.handler
     :<|> Static.Get.handler env
+    :<|> About.Get.handler
     :<|> Donate.Get.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
@@ -84,6 +87,10 @@ rootGetLink = Links.safeLink (Proxy @API) (Proxy @Root.Get.Route)
 -- | Route: GET /static
 staticGetLink :: Links.Link
 staticGetLink = Links.safeLink (Proxy @API) (Proxy @Static.Get.Route)
+
+-- | Route: GET /about
+aboutGetLink :: Links.Link
+aboutGetLink = Links.safeLink (Proxy @API) (Proxy @About.Get.Route)
 
 -- | Route: GET /donate
 donateGetLink :: Links.Link
