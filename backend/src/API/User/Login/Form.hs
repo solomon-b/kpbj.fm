@@ -5,7 +5,7 @@ module API.User.Login.Form where
 
 --------------------------------------------------------------------------------
 
--- import {-# SOURCE #-} API (userLoginPostLink, userRegisterGetLink)
+import {-# SOURCE #-} API (userLoginPostLink, userRegisterGetLink)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text
@@ -18,11 +18,11 @@ import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
 
--- userLoginPostUrl :: Text -> Link.URI
--- userLoginPostUrl = Link.linkURI . userLoginPostLink . Just
+userLoginPostUrl :: Text -> Link.URI
+userLoginPostUrl = Link.linkURI . userLoginPostLink . Just
 
--- userRegisterGetUrl :: Link.URI
--- userRegisterGetUrl = Link.linkURI (userRegisterGetLink Nothing Nothing Nothing)
+userRegisterGetUrl :: Link.URI
+userRegisterGetUrl = Link.linkURI (userRegisterGetLink Nothing Nothing Nothing)
 
 emailField :: Lucid.Html ()
 emailField =
@@ -102,8 +102,7 @@ template emailAddress redirectLink =
             [class_ "flex items-center justify-between p-4 md:p-5 border-b rounded-t"]
             (h3_ [class_ "text-xl font-semibold text-gray-900"] "Sign In")
           div_ [class_ "p-5"] do
-            -- form_ [class_ "space-y-4", hxPost_ [i|/#{userLoginPostUrl redirectLink'}|]] do
-            form_ [class_ "space-y-4", hxPost_ [i|/user/login}|]] do
+            form_ [class_ "space-y-4", hxPost_ [i|/#{userLoginPostUrl redirectLink'}|]] do
               validationNotice
               emailField
               passwordField
@@ -112,8 +111,7 @@ template emailAddress redirectLink =
               div_ [class_ "text-sm font-medium text-gray-500"] do
                 span_ [class_ "px-2"] "Not registered?"
                 a_
-                  -- [href_ "#", hxGet_ [i|/#{userRegisterGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", class_ "text-green-700 hover:underline"]
-                  [href_ "#", hxGet_ [i|/user/signup}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", class_ "text-green-700 hover:underline"]
+                  [href_ "#", hxGet_ [i|/#{userRegisterGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", class_ "text-green-700 hover:underline"]
                   "Create account"
 
             alpineHandler

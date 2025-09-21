@@ -4,17 +4,11 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
--- import {-# SOURCE #-} API (adminBlogGetLink)
-import App.Auth qualified as Auth
 import Control.Monad.Catch (MonadThrow)
-import Control.Monad.IO.Class (MonadIO)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Log qualified
-import Lucid (body_, button_, class_, defer_, div_, doctypehtml_, footer_, head_, hr_, href_, id_, li_, link_, main_, nav_, rel_, script_, span_, src_, title_, ul_)
+import Lucid (body_, class_, defer_, div_, doctypehtml_, footer_, head_, hr_, href_, id_, link_, main_, nav_, rel_, script_, span_, src_, title_)
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
-import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
 
