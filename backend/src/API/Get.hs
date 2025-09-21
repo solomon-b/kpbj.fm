@@ -3,13 +3,17 @@ module API.Get where
 --------------------------------------------------------------------------------
 
 import App.Auth qualified as Auth
-import Component.Frame (loadFrame)
+import Component.Frame (UserInfo (..), loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.Text (Text)
+import Effects.Database.Class (MonadDB)
+import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -43,11 +47,26 @@ handler ::
     MonadUnliftIO m,
     MonadCatch m,
     MonadIO m,
+    MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
   Maybe Text ->
   m (Lucid.Html ())
 handler cookie =
   Observability.handlerSpan "GET /" $ do
-    _loginState <- Auth.userLoginState cookie
-    loadFrame template
+    loginState <- Auth.userLoginState cookie
+    case loginState of
+      Auth.IsNotLoggedIn ->
+        loadFrame template
+      Auth.IsLoggedIn user -> do
+        eUserMetadata <- execQuerySpan (UserMetadata.getUserMetadata (User.mId user))
+        case eUserMetadata of
+          Left _err ->
+            -- Database error
+            loadFrame template
+          Right Nothing ->
+            -- No metadata found
+            loadFrame template
+          Right (Just userMetadata) ->
+            let userInfo = UserInfo { userDisplayName = UserMetadata.mDisplayName userMetadata }
+             in loadFrameWithUser userInfo template

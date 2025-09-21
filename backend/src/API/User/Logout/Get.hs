@@ -51,4 +51,4 @@ handler Auth.Authz {..} =
         liftIO $ print err
         throwErr $ InternalServerError $ Text.pack $ show err
       Right _ ->
-        pure $ Servant.addHeader "/user/current" Servant.NoContent
+        pure $ Servant.addHeader "/" Servant.NoContent
