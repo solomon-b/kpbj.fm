@@ -34,8 +34,7 @@ type Route =
 
 template :: Lucid.Html ()
 template = do
-  Lucid.div_ [Lucid.class_ "flex justify-center"] $ do
-    Lucid.div_ [Lucid.id_ "paypal-container-YBRDJJA6AGBL6", Lucid.class_ "w-96"] ""
+  Lucid.div_ [Lucid.id_ "paypal-container-YBRDJJA6AGBL6", Lucid.class_ "w-96"] ""
   Lucid.script_ [Lucid.src_ "https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD"] (mempty :: Text)
   Lucid.script_ [] ("paypal.HostedButtons({ hostedButtonId: \"YBRDJJA6AGBL6\" }).render(\"#paypal-container-YBRDJJA6AGBL6\")" :: Text)
 
