@@ -2,7 +2,7 @@ name: nix:deploy
 on:
   push:
     branches:
-      - main
+      # - main
 jobs:
   docker:
     runs-on: ubuntu-latest
