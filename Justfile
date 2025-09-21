@@ -18,7 +18,7 @@ SHELLCHECK := "$(shellcheck --external-sources --source-path=SCRIPTDIR)"
 
 # Run the backend service
 run:
-  cabal run exe:kpbj-backend
+  cabal run exe:kpbj-api
 
 # Build all haskell packages.
 build:
