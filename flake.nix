@@ -26,21 +26,25 @@
 
               hasql-pool = pkgs.haskell.lib.dontCheck (
                 pkgs.haskell.lib.dontCheck (
-                  hfinal.callHackageDirect {
-                    pkg = "hasql-pool";
-                    ver = "1.3.0.2";
-                    sha256 = "sha256-3tADBDSR7MErgVLzIZdivVqyU99/A7jsRV3qUS7wWns=";
-                  } { }
+                  hfinal.callHackageDirect
+                    {
+                      pkg = "hasql-pool";
+                      ver = "1.3.0.2";
+                      sha256 = "sha256-3tADBDSR7MErgVLzIZdivVqyU99/A7jsRV3qUS7wWns=";
+                    }
+                    { }
                 )
               );
 
               hasql-transaction = pkgs.haskell.lib.dontCheck (
                 pkgs.haskell.lib.dontCheck (
-                  hfinal.callHackageDirect {
-                    pkg = "hasql-transaction";
-                    ver = "1.2.0.1";
-                    sha256 = "sha256-gXLDMlD6E3degEUJOtFCiZf9EAsWEBJqsOfZK54iBSA=";
-                  } { }
+                  hfinal.callHackageDirect
+                    {
+                      pkg = "hasql-transaction";
+                      ver = "1.2.0.1";
+                      sha256 = "sha256-gXLDMlD6E3degEUJOtFCiZf9EAsWEBJqsOfZK54iBSA=";
+                    }
+                    { }
                 )
               );
 

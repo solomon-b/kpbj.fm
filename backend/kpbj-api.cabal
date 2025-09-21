@@ -48,15 +48,21 @@ executable kpbj-api
 library
   import: common-extensions
   build-depends:
+                  , aeson
                   , base
                   , data-has
+                  , deriving-aeson
                   , exceptions
+                  , hasql
                   , hasql-interpolate
                   , hasql-pool
                   , hs-opentelemetry-sdk
+                  , http-api-data
                   , log-base
                   , lucid2
                   , mtl
+                  , network
+                  , password
                   , servant
                   , servant-multipart
                   , servant-server
@@ -64,13 +70,21 @@ library
                   , text
                   , text-display
                   , unliftio-core
+                  , validation
                   , web-server-core
   exposed-modules:
     API
     API.Get
     API.User.Login.Get
     API.User.Login.Form
+    API.User.Login.Post
+    API.User.Logout.Get
+    API.User.Logout.Post
+    API.User.Register.Get
+    API.User.Register.Form
+    API.User.Register.Post
     Component.Frame
+    Effects.Database.Tables.UserMetadata
     Lucid.Extras
   hs-source-dirs: src
   default-language: Haskell2010

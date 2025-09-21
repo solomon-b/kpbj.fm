@@ -1,30 +1,23 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module API.Get where
 
 --------------------------------------------------------------------------------
 
 import App.Auth qualified as Auth
-import App.Observability qualified as Observability
 import Component.Frame (loadFrame)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Text.Display (display)
-import Effects.Database.Class (MonadDB)
+import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
-import Lucid (alt_, aside_, button_, class_, div_, for_, form_, h3_, id_, img_, input_, label_, name_, p_, placeholder_, required_, span_, src_, type_)
+import Lucid (alt_, class_, div_, img_, p_, src_)
 import Lucid qualified
-import Lucid.Extras
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
-import Servant.Links qualified as Link
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -56,5 +49,5 @@ handler ::
   m (Lucid.Html ())
 handler cookie =
   Observability.handlerSpan "GET /" $ do
-    loginState <- Auth.userLoginState cookie
+    _loginState <- Auth.userLoginState cookie
     loadFrame template
