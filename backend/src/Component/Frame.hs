@@ -12,7 +12,7 @@ import Lucid.Extras (hxGet_)
 
 --------------------------------------------------------------------------------
 
-newtype UserInfo = UserInfo { userDisplayName :: DisplayName}
+newtype UserInfo = UserInfo {userDisplayName :: DisplayName}
 
 template :: Maybe UserInfo -> Lucid.Html () -> Lucid.Html ()
 template mUser main =

@@ -3,6 +3,7 @@ module API where
 --------------------------------------------------------------------------------
 
 import API.Get qualified as Root.Get
+import API.Static.Get qualified as Static.Get
 import API.User.Login.Get qualified as User.Login.Get
 import API.User.Login.Post qualified as User.Login.Post
 import API.User.Logout.Get qualified as User.Logout.Get
@@ -38,6 +39,7 @@ runApi = App.runApp @API server ()
 
 type API =
   Root.Get.Route
+    :<|> Static.Get.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
     :<|> User.Logout.Get.Route
@@ -55,12 +57,14 @@ server ::
     MonadClock m,
     MonadDB m,
     MonadReader env m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has Environment env
   ) =>
   Environment ->
   Servant.ServerT API m
-server _env =
+server env =
   Root.Get.handler
+    :<|> Static.Get.handler env
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
     :<|> User.Logout.Get.handler
@@ -73,6 +77,10 @@ server _env =
 -- | Route: GET /
 rootGetLink :: Links.Link
 rootGetLink = Links.safeLink (Proxy @API) (Proxy @Root.Get.Route)
+
+-- | Route: GET /static
+staticGetLink :: Links.Link
+staticGetLink = Links.safeLink (Proxy @API) (Proxy @Static.Get.Route)
 
 -- | Route: GET /user/login
 userLoginGetLink :: Maybe Text -> Maybe EmailAddress -> Links.Link
