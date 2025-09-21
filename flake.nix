@@ -70,10 +70,6 @@
               pkgs.zlib
               pkgs.zlib.dev
             ];
-            shellHook = ''
-              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.zlib pkgs.openssl ]}"
-              export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" [ pkgs.zlib pkgs.openssl ]}"
-            '';
           };
 
           formatter = pkgs.nixpkgs-fmt;
