@@ -11,6 +11,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 rootGetLink :: Links.Link
+staticGetLink :: Links.Link
 userLoginGetLink :: Maybe Text -> Maybe EmailAddress -> Links.Link
 userLoginPostLink :: Maybe Text -> Links.Link
 userLogoutGetLink :: Links.Link

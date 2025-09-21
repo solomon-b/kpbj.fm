@@ -75,6 +75,7 @@ library
   exposed-modules:
     API
     API.Get
+    API.Static.Get
     API.User.Login.Get
     API.User.Login.Form
     API.User.Login.Post
