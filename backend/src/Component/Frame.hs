@@ -49,20 +49,21 @@ template mUser main =
               "▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌\n"
               "·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀"
           nav_ [class_ "flex gap-8 items-center flex-wrap"] $ do
-            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Listen"
-            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Shows"
-            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Archive"
-            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Blog"
-            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Events"
-            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Store"
+            a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Donate"
+            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Listen"
+            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Shows"
+            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Archive"
+            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Blog"
+            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Events"
+            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Store"
             a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "About"
+            a_ [href_ "mailto:contact@kpbj.fm", class_ "font-bold uppercase hover:underline"] "Contact"
           div_ [class_ "flex gap-4 items-center text-sm text-gray-600"] $ do
             a_ [href_ "/", class_ "hover:text-gray-800"] "🔍 Search"
             case mUser of
               Nothing -> do
                 a_ [href_ "/user/login", class_ "hover:text-gray-800"] "Login"
                 a_ [href_ "/user/register", class_ "hover:text-gray-800"] "Sign Up"
-                a_ [href_ "/", class_ "hover:text-gray-800"] "Contact"
               Just user -> do
                 span_ [class_ "text-gray-400"] "•"
                 span_ [class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml (userDisplayName user))
