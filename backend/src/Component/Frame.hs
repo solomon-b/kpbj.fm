@@ -14,6 +14,19 @@ import Lucid.Extras (hxGet_)
 
 newtype UserInfo = UserInfo {userDisplayName :: DisplayName}
 
+musicPlayer :: Lucid.Html ()
+musicPlayer =
+  div_ [class_ "bg-gray-800 text-white p-4 sticky top-0 z-40 border-b-2 border-black"] $ do
+    div_ [class_ "max-w-6xl mx-auto flex items-center gap-4 md:flex-row flex-col"] $ do
+      div_ [class_ "flex items-center gap-2"] $ do
+        button_ [class_ "bg-white text-gray-800 px-4 py-2 font-bold cursor-pointer hover:bg-gray-200"] "▶ LIVE"
+      div_ [class_ "flex-grow text-center"] $ do
+        h3_ [class_ "mb-1 font-bold"] "Now Playing: The Midnight Frequency"
+        p_ [class_ "text-sm text-gray-300"] "Host: DJ Nyx • 95.9 FM Shadow Hills • Live Stream"
+      div_ [class_ "flex items-center gap-2"] $ do
+        span_ [class_ "text-sm"] "Vol:"
+        input_ [type_ "range", Lucid.min_ "0", Lucid.max_ "100", Lucid.value_ "80", class_ "w-20"]
+
 template :: Maybe UserInfo -> Lucid.Html () -> Lucid.Html ()
 template mUser main =
   doctypehtml_ $ do
@@ -55,16 +68,7 @@ template mUser main =
                 span_ [class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml (userDisplayName user))
                 a_ [href_ "/", class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
                 a_ [href_ "/user/logout", class_ "hover:text-gray-800", hxGet_ "/user/logout"] "Logout"
-      div_ [class_ "bg-gray-800 text-white p-4 sticky top-0 z-40 border-b-2 border-black"] $ do
-        div_ [class_ "max-w-6xl mx-auto flex items-center gap-4 md:flex-row flex-col"] $ do
-          div_ [class_ "flex items-center gap-2"] $ do
-            button_ [class_ "bg-white text-gray-800 px-4 py-2 font-bold cursor-pointer hover:bg-gray-200"] "▶ LIVE"
-          div_ [class_ "flex-grow text-center"] $ do
-            h3_ [class_ "mb-1 font-bold"] "Now Playing: The Midnight Frequency"
-            p_ [class_ "text-sm text-gray-300"] "Host: DJ Nyx • 95.9 FM Shadow Hills • Live Stream"
-          div_ [class_ "flex items-center gap-2"] $ do
-            span_ [class_ "text-sm"] "Vol:"
-            input_ [type_ "range", Lucid.min_ "0", Lucid.max_ "100", Lucid.value_ "80", class_ "w-20"]
+      -- musicPlayer
       main_ [class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full"] main
       footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
         div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do
