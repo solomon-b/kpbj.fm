@@ -1,14 +1,38 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Component.Frame where
 
 --------------------------------------------------------------------------------
 
+import {-# SOURCE #-} API (aboutGetLink, donateGetLink, rootGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
 import Control.Monad.Catch (MonadThrow)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Log qualified
-import Lucid (a_, body_, button_, class_, defer_, div_, doctypehtml_, footer_, h3_, h4_, head_, header_, href_, input_, li_, link_, main_, nav_, p_, pre_, rel_, script_, span_, src_, style_, title_, type_, ul_)
 import Lucid qualified
 import Lucid.Extras (hxGet_)
+import Servant.Links qualified as Link
+
+--------------------------------------------------------------------------------
+
+rootGetUrl :: Link.URI
+rootGetUrl = Link.linkURI rootGetLink
+
+aboutGetUrl :: Link.URI
+aboutGetUrl = Link.linkURI aboutGetLink
+
+donateGetUrl :: Link.URI
+donateGetUrl = Link.linkURI donateGetLink
+
+userLoginGetUrl :: Link.URI
+userLoginGetUrl = Link.linkURI $ userLoginGetLink Nothing Nothing
+
+userRegisterGetUrl :: Link.URI
+userRegisterGetUrl = Link.linkURI $ userRegisterGetLink Nothing Nothing Nothing
+
+userLogoutGetUrl :: Link.URI
+userLogoutGetUrl = Link.linkURI userLogoutGetLink
 
 --------------------------------------------------------------------------------
 
@@ -16,63 +40,63 @@ newtype UserInfo = UserInfo {userDisplayName :: DisplayName}
 
 musicPlayer :: Lucid.Html ()
 musicPlayer =
-  div_ [class_ "bg-gray-800 text-white p-4 sticky top-0 z-40 border-b-2 border-black"] $ do
-    div_ [class_ "max-w-6xl mx-auto flex items-center gap-4 md:flex-row flex-col"] $ do
-      div_ [class_ "flex items-center gap-2"] $ do
-        button_ [class_ "bg-white text-gray-800 px-4 py-2 font-bold cursor-pointer hover:bg-gray-200"] "▶ LIVE"
-      div_ [class_ "flex-grow text-center"] $ do
-        h3_ [class_ "mb-1 font-bold"] "Now Playing: The Midnight Frequency"
-        p_ [class_ "text-sm text-gray-300"] "Host: DJ Nyx • 95.9 FM Shadow Hills • Live Stream"
-      div_ [class_ "flex items-center gap-2"] $ do
-        span_ [class_ "text-sm"] "Vol:"
-        input_ [type_ "range", Lucid.min_ "0", Lucid.max_ "100", Lucid.value_ "80", class_ "w-20"]
+  Lucid.div_ [Lucid.class_ "bg-gray-800 text-white p-4 sticky top-0 z-40 border-b-2 border-black"] $ do
+    Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto flex items-center gap-4 md:flex-row flex-col"] $ do
+      Lucid.div_ [Lucid.class_ "flex items-center gap-2"] $ do
+        Lucid.button_ [Lucid.class_ "bg-white text-gray-800 px-4 py-2 font-bold cursor-pointer hover:bg-gray-200"] "▶ LIVE"
+      Lucid.div_ [Lucid.class_ "flex-grow text-center"] $ do
+        Lucid.h3_ [Lucid.class_ "mb-1 font-bold"] "Now Playing: The Midnight Frequency"
+        Lucid.p_ [Lucid.class_ "text-sm text-gray-300"] "Host: DJ Nyx • 95.9 FM Shadow Hills • Live Stream"
+      Lucid.div_ [Lucid.class_ "flex items-center gap-2"] $ do
+        Lucid.span_ [Lucid.class_ "text-sm"] "Vol:"
+        Lucid.input_ [Lucid.type_ "range", Lucid.min_ "0", Lucid.max_ "100", Lucid.value_ "80", Lucid.class_ "w-20"]
 
 template :: Maybe UserInfo -> Lucid.Html () -> Lucid.Html ()
 template mUser main =
-  doctypehtml_ $ do
-    head_ $ do
-      title_ "KPBJ 95.9FM"
-      link_ [rel_ "stylesheet", href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
-      script_ [src_ "https://cdn.tailwindcss.com"] (mempty @Text)
-      script_ [src_ "https://unpkg.com/htmx.org@2.0.0"] (mempty @Text)
-      script_ [src_ "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"] (mempty @Text)
-      script_ [src_ "//unpkg.com/alpinejs", defer_ "true"] (mempty @Text)
-      script_ [] ("tailwind.config = { theme: { extend: { fontFamily: { mono: ['Courier New', 'monospace'] } } } }" :: Text)
-    body_ [class_ "font-mono bg-gray-50 text-gray-800 min-h-screen flex flex-col"] $ do
-      header_ [class_ "bg-white border-b-2 border-gray-800 p-4"] $ do
-        div_ [class_ "max-w-6xl mx-auto flex flex-col items-center gap-4"] $ do
-          a_ [href_ "/", class_ "text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600"] $ do
-            pre_ [style_ "margin: 0;"] $ do
+  Lucid.doctypehtml_ $ do
+    Lucid.head_ $ do
+      Lucid.title_ "KPBJ 95.9FM"
+      Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
+      Lucid.script_ [Lucid.src_ "https://cdn.tailwindcss.com"] (mempty @Text)
+      Lucid.script_ [Lucid.src_ "https://unpkg.com/htmx.org@2.0.0"] (mempty @Text)
+      Lucid.script_ [Lucid.src_ "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"] (mempty @Text)
+      Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
+      Lucid.script_ [] ("tailwind.config = { theme: { extend: { fontFamily: { mono: ['Courier New', 'monospace'] } } } }" :: Text)
+    Lucid.body_ [Lucid.class_ "font-mono bg-gray-50 text-gray-800 min-h-screen flex flex-col"] $ do
+      Lucid.header_ [Lucid.class_ "bg-white border-b-2 border-gray-800 p-4"] $ do
+        Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto flex flex-col items-center gap-4"] $ do
+          Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], Lucid.class_ "text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600"] $ do
+            Lucid.pre_ [Lucid.style_ "margin: 0;"] $ do
               "▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.\n"
               "█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪\n"
               "▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·\n"
               "▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌\n"
               "·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀"
-          nav_ [class_ "flex gap-8 items-center flex-wrap"] $ do
-            a_ [href_ "/donate", class_ "font-bold uppercase hover:underline"] "Donate"
-            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Listen"
-            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Shows"
-            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Archive"
-            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Blog"
-            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Events"
-            -- a_ [href_ "/", class_ "font-bold uppercase hover:underline"] "Store"
-            a_ [href_ "/about", class_ "font-bold uppercase hover:underline"] "About"
-            a_ [href_ "mailto:contact@kpbj.fm", class_ "font-bold uppercase hover:underline"] "Contact"
-          div_ [class_ "flex gap-4 items-center text-sm text-gray-600"] $ do
-            -- a_ [href_ "/", class_ "hover:text-gray-800"] "🔍 Search"
+          Lucid.nav_ [Lucid.class_ "flex gap-8 items-center flex-wrap"] $ do
+            Lucid.a_ [Lucid.href_ [i|/#{donateGetUrl}|], Lucid.class_ "font-bold uppercase hover:underline"] "Donate"
+            -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Listen"
+            -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Shows"
+            -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Archive"
+            -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Blog"
+            -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Events"
+            -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Store"
+            Lucid.a_ [Lucid.href_ [i|/#{aboutGetUrl}|], Lucid.class_ "font-bold uppercase hover:underline"] "About"
+            Lucid.a_ [Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ "font-bold uppercase hover:underline"] "Contact"
+          Lucid.div_ [Lucid.class_ "flex gap-4 items-center text-sm text-gray-600"] $ do
+            -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "hover:text-gray-800"] "🔍 Search"
             case mUser of
               Nothing -> do
-                a_ [href_ "/user/login", class_ "hover:text-gray-800"] "Login"
-                a_ [href_ "/user/register", class_ "hover:text-gray-800"] "Sign Up"
+                Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], Lucid.class_ "hover:text-gray-800"] "Login"
+                Lucid.a_ [Lucid.href_ [i|/#{userRegisterGetUrl}|], Lucid.class_ "hover:text-gray-800"] "Sign Up"
               Just user -> do
-                span_ [class_ "text-gray-400"] "•"
-                span_ [class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml (userDisplayName user))
-                a_ [href_ "/", class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
-                a_ [href_ "/user/logout", class_ "hover:text-gray-800", hxGet_ "/user/logout"] "Logout"
-      -- musicPlayer
-      main_ [class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center"] main
-      footer_ [class_ "px-4 py-8 mt-auto text-center"] $ do
-        p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
+                Lucid.span_ [Lucid.class_ "text-gray-400"] "•"
+                Lucid.span_ [Lucid.class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml (userDisplayName user))
+                Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
+                Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
+      musicPlayer
+      Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center"] main
+      Lucid.footer_ [Lucid.class_ "px-4 py-8 mt-auto text-center"] $ do
+        Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
 
 -- footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
 --   div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do
