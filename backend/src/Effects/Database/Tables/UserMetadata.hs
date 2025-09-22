@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -9,15 +11,73 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
 import Data.Password.Argon2 (Argon2, PasswordHash)
 import Data.Text (Text)
-import Data.Text.Display (Display, RecordInstance (..))
+import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
-import Hasql.Interpolate (DecodeRow, DecodeValue, EncodeRow, EncodeValue, OneRow, interp, sql)
+import Hasql.Decoders qualified as Decoders
+import Hasql.Encoders qualified as Encoders
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneRow, interp, sql)
 import Hasql.Statement qualified as Hasql
 import Servant qualified
+
+--------------------------------------------------------------------------------
+-- UserRole Type
+
+data UserRole = User | Host | Staff | Admin
+  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
+  deriving anyclass (FromJSON, ToJSON)
+
+instance Display UserRole where
+  displayBuilder User = "User"
+  displayBuilder Host = "Host"
+  displayBuilder Staff = "Staff"
+  displayBuilder Admin = "Admin"
+
+instance DecodeValue UserRole where
+  decodeValue = Decoders.enum $ \case
+    "User" -> Just User
+    "Host" -> Just Host
+    "Staff" -> Just Staff
+    "Admin" -> Just Admin
+    _ -> Nothing
+
+instance EncodeValue UserRole where
+  encodeValue = Encoders.enum $ \case
+    User -> "User"
+    Host -> "Host"
+    Staff -> "Staff"
+    Admin -> "Admin"
+
+instance Servant.FromHttpApiData UserRole where
+  parseUrlPiece "User" = Right User
+  parseUrlPiece "Host" = Right Host
+  parseUrlPiece "Staff" = Right Staff
+  parseUrlPiece "Admin" = Right Admin
+  parseUrlPiece invalid = Left $ "Invalid UserRole: " <> invalid
+
+instance Servant.ToHttpApiData UserRole where
+  toUrlPiece = display
+
+-- | Check if a user role has administrative privileges
+isAdmin :: UserRole -> Bool
+isAdmin Admin = True
+isAdmin _ = False
+
+-- | Check if a user role has staff-level privileges or higher
+isStaffOrHigher :: UserRole -> Bool
+isStaffOrHigher Staff = True
+isStaffOrHigher Admin = True
+isStaffOrHigher _ = False
+
+-- | Check if a user role has host-level privileges or higher
+isHostOrHigher :: UserRole -> Bool
+isHostOrHigher Host = True
+isHostOrHigher Staff = True
+isHostOrHigher Admin = True
+isHostOrHigher _ = False
 
 --------------------------------------------------------------------------------
 -- Model
@@ -46,7 +106,7 @@ data Model = Model
     mDisplayName :: DisplayName,
     mFullName :: FullName,
     mAvatarUrl :: Maybe Text,
-    mIsAdmin :: Bool
+    mUserRole :: UserRole
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
@@ -59,7 +119,7 @@ data Domain = Domain
     dDisplayName :: DisplayName,
     dFullName :: FullName,
     dAvatarUrl :: Maybe Text,
-    dIsAdmin :: Bool
+    dUserRole :: UserRole
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance Domain)
@@ -73,7 +133,7 @@ toDomain Model {..} =
       dDisplayName = mDisplayName,
       dFullName = mFullName,
       dAvatarUrl = mAvatarUrl,
-      dIsAdmin = mIsAdmin
+      dUserRole = mUserRole
     }
 
 --------------------------------------------------------------------------------
@@ -83,7 +143,7 @@ getUserMetadata userId =
   interp
     False
     [sql|
-    SELECT id, user_id, display_name, full_name, avatar_url, is_admin
+    SELECT id, user_id, display_name, full_name, avatar_url, user_role
     FROM user_metadata
     WHERE user_id = #{userId}
   |]
@@ -93,7 +153,7 @@ data ModelInsert = ModelInsert
     miDisplayName :: DisplayName,
     miFullName :: FullName,
     miAvatarUrl :: Maybe Text,
-    miIsAdmin :: Bool
+    miUserRole :: UserRole
   }
   deriving stock (Generic, Show, Eq)
   deriving (EncodeRow) via ModelInsert
@@ -104,8 +164,8 @@ insertUserMetadata ModelInsert {..} =
   interp
     False
     [sql|
-    INSERT INTO user_metadata(user_id, display_name, full_name, avatar_url, is_admin, created_at, updated_at)
-    VALUES (#{miUserId}, #{miDisplayName}, #{miFullName}, #{miAvatarUrl}, #{miIsAdmin}, NOW(), NOW())
+    INSERT INTO user_metadata(user_id, display_name, full_name, avatar_url, user_role, created_at, updated_at)
+    VALUES (#{miUserId}, #{miDisplayName}, #{miFullName}, #{miAvatarUrl}, #{miUserRole}, NOW(), NOW())
     RETURNING id
   |]
 
@@ -116,7 +176,7 @@ data UserWithMetadataInsert = UserWithMetadataInsert
     uwmiDisplayName :: DisplayName,
     uwmiFullName :: FullName,
     uwmiAvatarUrl :: Maybe Text,
-    uwmiIsAdmin :: Bool
+    uwmiUserRole :: UserRole
   }
   deriving stock (Generic, Show, Eq)
   deriving (EncodeRow) via UserWithMetadataInsert
@@ -134,8 +194,8 @@ insertUserWithMetadata UserWithMetadataInsert {..} =
       RETURNING id
     )
     , new_metadata AS (
-      INSERT INTO user_metadata(user_id, display_name, full_name, avatar_url, is_admin, created_at, updated_at)
-      SELECT id, #{uwmiDisplayName}, #{uwmiFullName}, #{uwmiAvatarUrl}, #{uwmiIsAdmin}, NOW(), NOW()
+      INSERT INTO user_metadata(user_id, display_name, full_name, avatar_url, user_role, created_at, updated_at)
+      SELECT id, #{uwmiDisplayName}, #{uwmiFullName}, #{uwmiAvatarUrl}, #{uwmiUserRole}, NOW(), NOW()
       FROM new_user
       RETURNING user_id
     )

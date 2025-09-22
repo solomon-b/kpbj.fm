@@ -169,7 +169,7 @@ registerUser ::
 registerUser sockAddr mUserAgent RegisterParsed {..} newsletterSubscription = do
   Log.logInfo "Registering New User" urpEmail
   OneRow uid <- execQuerySpanThrow $ User.insertUser $ User.ModelInsert urpEmail urpPassword
-  _ <- execQuerySpanThrow $ UserMetadata.insertUserMetadata $ UserMetadata.ModelInsert uid urpDisplayName urpFullName Nothing False
+  _ <- execQuerySpanThrow $ UserMetadata.insertUserMetadata $ UserMetadata.ModelInsert uid urpDisplayName urpFullName Nothing UserMetadata.User
   execQuerySpanThrow (User.getUser uid) >>= \case
     Nothing ->
       throwErr Forbidden
