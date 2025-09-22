@@ -3,7 +3,7 @@ module API.User.Login.Get where
 --------------------------------------------------------------------------------
 
 import API.User.Login.Form (template)
-import Component.Frame (loadFrame)
+import Component.Frame (loadContentOnly, loadFrame)
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -25,6 +25,7 @@ type Route =
   "user"
     :> "login"
     :> Servant.Header "HX-Current-Url" Text
+    :> Servant.Header "HX-Request" Text
     :> Servant.QueryParam "redirect" Text
     :> Servant.QueryParam "email" EmailAddress
     :> Servant.Get '[HTML] (Lucid.Html ())
@@ -41,9 +42,15 @@ handler ::
   ) =>
   Maybe Text ->
   Maybe Text ->
+  Maybe Text ->
   Maybe EmailAddress ->
   m (Lucid.Html ())
-handler hxCurrentUrl redirectQueryParam emailQueryParam =
+handler hxCurrentUrl hxRequest redirectQueryParam emailQueryParam =
   Observability.handlerSpan "GET /user/login" $ do
     let loginForm = template emailQueryParam $ hxCurrentUrl <|> redirectQueryParam
-    loadFrame loginForm
+        isHtmxRequest = case hxRequest of
+          Just "true" -> True
+          _ -> False
+    if isHtmxRequest
+      then loadContentOnly loginForm
+      else loadFrame loginForm

@@ -3,7 +3,7 @@ module API.Get where
 --------------------------------------------------------------------------------
 
 import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadFrame, loadFrameWithUser)
+import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -26,7 +26,10 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
-type Route = Servant.Header "Cookie" Text :> Servant.Get '[HTML] (Lucid.Html ())
+type Route =
+  Servant.Header "Cookie" Text
+    :> Servant.Header "HX-Request" Text
+    :> Servant.Get '[HTML] (Lucid.Html ())
 
 --------------------------------------------------------------------------------
 
@@ -61,22 +64,35 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Maybe Text ->
+  Maybe Text ->
   m (Lucid.Html ())
-handler cookie =
+handler cookie hxRequest =
   Observability.handlerSpan "GET /" $ do
     loginState <- Auth.userLoginState cookie
+    let isHtmxRequest = case hxRequest of
+          Just "true" -> True
+          _ -> False
+
     case loginState of
       Auth.IsNotLoggedIn ->
-        loadFrame template
+        if isHtmxRequest
+          then loadContentOnly template
+          else loadFrame template
       Auth.IsLoggedIn user -> do
         eUserMetadata <- execQuerySpan (UserMetadata.getUserMetadata (User.mId user))
         case eUserMetadata of
           Left _err ->
             -- Database error
-            loadFrame template
+            if isHtmxRequest
+              then loadContentOnly template
+              else loadFrame template
           Right Nothing ->
             -- No metadata found
-            loadFrame template
+            if isHtmxRequest
+              then loadContentOnly template
+              else loadFrame template
           Right (Just userMetadata) ->
             let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-             in loadFrameWithUser userInfo template
+             in if isHtmxRequest
+                  then loadContentOnly template
+                  else loadFrameWithUser userInfo template

@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, xData_, xModel_, xOnClick_, xOnInput_, xRef_, xShow_, xText_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xModel_, xOnClick_, xOnInput_, xRef_, xShow_, xText_)
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
@@ -225,9 +225,10 @@ template mUser main =
       Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { theme: { extend: { fontFamily: { mono: ['Courier New', 'monospace'] } } } }" :: Text)
     Lucid.body_ [Lucid.class_ "font-mono bg-gray-50 text-gray-800 min-h-screen flex flex-col"] $ do
+      -- Persistent header with navigation
       Lucid.header_ [Lucid.class_ "bg-white border-b-2 border-gray-800 p-4"] $ do
         Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto flex flex-col items-center gap-4"] $ do
-          Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], Lucid.class_ "text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600"] $ do
+          Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600"] $ do
             Lucid.pre_ [Lucid.style_ "margin: 0;"] $ do
               "▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.\n"
               "█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪\n"
@@ -235,30 +236,33 @@ template mUser main =
               "▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌\n"
               "·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀"
           Lucid.nav_ [Lucid.class_ "flex gap-8 items-center flex-wrap"] $ do
-            Lucid.a_ [Lucid.href_ [i|/#{donateGetUrl}|], Lucid.class_ "font-bold uppercase hover:underline"] "Donate"
+            Lucid.a_ [Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Donate"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Listen"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Shows"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Archive"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Blog"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Events"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Store"
-            Lucid.a_ [Lucid.href_ [i|/#{aboutGetUrl}|], Lucid.class_ "font-bold uppercase hover:underline"] "About"
+            Lucid.a_ [Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "About"
             Lucid.a_ [Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ "font-bold uppercase hover:underline"] "Contact"
           Lucid.div_ [Lucid.class_ "flex gap-4 items-center text-sm text-gray-600"] $ do
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "hover:text-gray-800"] "🔍 Search"
             case mUser of
               Nothing -> do
-                Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], Lucid.class_ "hover:text-gray-800"] "Login"
-                Lucid.a_ [Lucid.href_ [i|/#{userRegisterGetUrl}|], Lucid.class_ "hover:text-gray-800"] "Sign Up"
+                Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Login"
+                Lucid.a_ [Lucid.href_ [i|/#{userRegisterGetUrl}|], hxGet_ [i|/#{userRegisterGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Sign Up"
               Just user -> do
                 Lucid.span_ [Lucid.class_ "text-gray-400"] "•"
                 Lucid.span_ [Lucid.class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml (userDisplayName user))
-                Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
+                Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
                 Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
+      -- Persistent music player
       musicPlayer
-      Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center"] main
-      Lucid.footer_ [Lucid.class_ "px-4 py-8 mt-auto text-center"] $ do
-        Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
+      -- Main content area that gets swapped via HTMX
+      Lucid.div_ [Lucid.id_ "main-content"] $ do
+        Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center"] main
+        Lucid.footer_ [Lucid.class_ "px-4 py-8 mt-auto text-center"] $ do
+          Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
 
 -- footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
 --   div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do
@@ -295,8 +299,19 @@ template mUser main =
 
 --------------------------------------------------------------------------------
 
+-- | Content-only template for HTMX responses (just main + footer)
+contentOnly :: Lucid.Html () -> Lucid.Html ()
+contentOnly main = do
+  Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center"] main
+  Lucid.footer_ [Lucid.class_ "px-4 py-8 mt-auto text-center"] $ do
+    Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
+
 loadFrame :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())
 loadFrame = pure . template Nothing
 
 loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => UserInfo -> Lucid.Html () -> m (Lucid.Html ())
 loadFrameWithUser user = pure . template (Just user)
+
+-- | Load content-only for HTMX responses
+loadContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())
+loadContentOnly = pure . contentOnly
