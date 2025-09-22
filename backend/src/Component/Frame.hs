@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (aboutGetLink, donateGetLink, rootGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
+import {-# SOURCE #-} API (aboutGetLink, blogGetLink, donateGetLink, rootGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -24,6 +24,9 @@ aboutGetUrl = Link.linkURI aboutGetLink
 
 donateGetUrl :: Link.URI
 donateGetUrl = Link.linkURI donateGetLink
+
+blogGetUrl :: Link.URI
+blogGetUrl = Link.linkURI $ blogGetLink Nothing Nothing Nothing
 
 userLoginGetUrl :: Link.URI
 userLoginGetUrl = Link.linkURI $ userLoginGetLink Nothing Nothing
@@ -240,7 +243,7 @@ template mUser main =
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Listen"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Shows"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Archive"
-            -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Blog"
+            Lucid.a_ [Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Blog"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Events"
             -- Lucid.a_ [Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Store"
             Lucid.a_ [Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "About"

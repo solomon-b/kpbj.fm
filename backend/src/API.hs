@@ -3,6 +3,10 @@ module API where
 --------------------------------------------------------------------------------
 
 import API.About.Get qualified as About.Get
+import API.Blog.Get qualified as Blog.Get
+import API.Blog.New.Get qualified as Blog.New.Get
+import API.Blog.New.Post qualified as Blog.New.Post
+import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Donate.Get qualified as Donate.Get
 import API.Get qualified as Root.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
@@ -20,6 +24,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Data.Int (Int64)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
@@ -45,6 +50,10 @@ type API =
   Root.Get.Route
     :<|> Static.Get.Route
     :<|> About.Get.Route
+    :<|> Blog.Get.Route
+    :<|> Blog.New.Get.Route
+    :<|> Blog.New.Post.Route
+    :<|> Blog.Post.Get.Route
     :<|> Donate.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
@@ -74,6 +83,10 @@ server env =
   Root.Get.handler
     :<|> Static.Get.handler env
     :<|> About.Get.handler
+    :<|> Blog.Get.handler
+    :<|> Blog.New.Get.handler
+    :<|> Blog.New.Post.handler
+    :<|> Blog.Post.Get.handler
     :<|> Donate.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
@@ -97,6 +110,22 @@ staticGetLink = Links.safeLink (Proxy @API) (Proxy @Static.Get.Route)
 -- | Route: GET /about
 aboutGetLink :: Links.Link
 aboutGetLink = Links.safeLink (Proxy @API) (Proxy @About.Get.Route)
+
+-- | Route: GET /blog
+blogGetLink :: Maybe Int64 -> Maybe Text -> Maybe Text -> Links.Link
+blogGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Get.Route)
+
+-- | Route: GET /blog/new
+blogNewGetLink :: Links.Link
+blogNewGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.New.Get.Route)
+
+-- | Route: POST /blog/new
+blogNewPostLink :: Links.Link
+blogNewPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.New.Post.Route)
+
+-- | Route: GET /blog/:slug
+blogPostGetLink :: Text -> Links.Link
+blogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.Route)
 
 -- | Route: GET /donate
 donateGetLink :: Links.Link
