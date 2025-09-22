@@ -72,39 +72,40 @@ template mUser main =
       -- musicPlayer
       main_ [class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center"] main
       footer_ [class_ "px-4 py-8 mt-auto text-center"] $ do
-          p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
-      -- footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
-      --   div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do
-      --     div_ $ do
-      --       h4_ [class_ "font-bold uppercase mb-4"] "Listen"
-      --       ul_ [class_ "space-y-2"] $ do
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Live Stream"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Show Schedule"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Episode Archive"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Mobile Apps"
-      --     div_ $ do
-      --       h4_ [class_ "font-bold uppercase mb-4"] "Community"
-      --       ul_ [class_ "space-y-2"] $ do
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Get A Show"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Volunteer"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Events"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Blog"
-      --     div_ $ do
-      --       h4_ [class_ "font-bold uppercase mb-4"] "Support"
-      --       ul_ [class_ "space-y-2"] $ do
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Donate"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Merch Store"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Become a Sponsor"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Membership"
-      --     div_ $ do
-      --       h4_ [class_ "font-bold uppercase mb-4"] "Connect"
-      --       ul_ [class_ "space-y-2"] $ do
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Contact Us"
-      --         li_ $ a_ [href_ "mailto:contact@kpbj.fm", class_ "text-gray-300 hover:text-white hover:underline"] "Email"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Instagram"
-      --         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Newsletter"
-      --   div_ [class_ "text-center mt-8 pt-4 border-t border-gray-600 text-gray-400"] $ do
-      --     p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
+        p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
+
+-- footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
+--   div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do
+--     div_ $ do
+--       h4_ [class_ "font-bold uppercase mb-4"] "Listen"
+--       ul_ [class_ "space-y-2"] $ do
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Live Stream"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Show Schedule"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Episode Archive"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Mobile Apps"
+--     div_ $ do
+--       h4_ [class_ "font-bold uppercase mb-4"] "Community"
+--       ul_ [class_ "space-y-2"] $ do
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Get A Show"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Volunteer"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Events"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Blog"
+--     div_ $ do
+--       h4_ [class_ "font-bold uppercase mb-4"] "Support"
+--       ul_ [class_ "space-y-2"] $ do
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Donate"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Merch Store"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Become a Sponsor"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Membership"
+--     div_ $ do
+--       h4_ [class_ "font-bold uppercase mb-4"] "Connect"
+--       ul_ [class_ "space-y-2"] $ do
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Contact Us"
+--         li_ $ a_ [href_ "mailto:contact@kpbj.fm", class_ "text-gray-300 hover:text-white hover:underline"] "Email"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Instagram"
+--         li_ $ a_ [href_ "/", class_ "text-gray-300 hover:text-white hover:underline"] "Newsletter"
+--   div_ [class_ "text-center mt-8 pt-4 border-t border-gray-600 text-gray-400"] $ do
+--     p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
 
 --------------------------------------------------------------------------------
 

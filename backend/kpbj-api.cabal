@@ -58,6 +58,8 @@ library
                   , hasql-pool
                   , hs-opentelemetry-sdk
                   , http-api-data
+                  , http-conduit
+                  , http-types
                   , log-base
                   , lucid2
                   , mtl

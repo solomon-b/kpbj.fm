@@ -65,6 +65,9 @@ xRef_ = Lucid.makeAttributes "x-ref"
 xHtml_ :: Text -> Lucid.Attributes
 xHtml_ = Lucid.makeAttributes "x-html"
 
+xShow_ :: Text -> Lucid.Attributes
+xShow_ = Lucid.makeAttributes "x-show"
+
 dataDropdownToggle_ :: Text -> Lucid.Attributes
 dataDropdownToggle_ = Lucid.makeAttributes "data-dropdown-toggle"
 
