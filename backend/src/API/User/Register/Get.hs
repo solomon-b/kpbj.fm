@@ -23,13 +23,16 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 type Route =
-  "user"
-    :> "register"
-    :> Servant.Header "HX-Request" Text
-    :> Servant.QueryParam "emailAddress" EmailAddress
-    :> Servant.QueryParam "displayName" DisplayName
-    :> Servant.QueryParam "fullName" FullName
-    :> Servant.Get '[HTML] (Lucid.Html ())
+  Observability.WithSpan
+    "GET /user/register"
+    ( "user"
+        :> "register"
+        :> Servant.Header "HX-Request" Text
+        :> Servant.QueryParam "emailAddress" EmailAddress
+        :> Servant.QueryParam "displayName" DisplayName
+        :> Servant.QueryParam "fullName" FullName
+        :> Servant.Get '[HTML] (Lucid.Html ())
+    )
 
 --------------------------------------------------------------------------------
 
@@ -41,17 +44,17 @@ handler ::
     MonadUnliftIO m,
     MonadReader env m
   ) =>
+  Trace.Tracer ->
   Maybe Text ->
   Maybe EmailAddress ->
   Maybe DisplayName ->
   Maybe FullName ->
   m (Lucid.Html ())
-handler hxRequest emailAddress displayName fullName =
-  Observability.handlerSpan "GET /user/register" $ do
-    let registerForm = template displayName fullName emailAddress Nothing
-        isHtmxRequest = case hxRequest of
-          Just "true" -> True
-          _ -> False
-    if isHtmxRequest
-      then loadContentOnly registerForm
-      else loadFrame registerForm
+handler _tracer hxRequest emailAddress displayName fullName = do
+  let registerForm = template displayName fullName emailAddress Nothing
+      isHtmxRequest = case hxRequest of
+        Just "true" -> True
+        _ -> False
+  if isHtmxRequest
+    then loadContentOnly registerForm
+    else loadFrame registerForm

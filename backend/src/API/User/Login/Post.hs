@@ -40,13 +40,16 @@ import Web.HttpApiData qualified as Http
 --------------------------------------------------------------------------------
 
 type Route =
-  "user"
-    :> "login"
-    :> Servant.RemoteHost
-    :> Servant.Header "User-Agent" Text
-    :> Servant.ReqBody '[Servant.FormUrlEncoded] Login
-    :> Servant.QueryParam "redirect" Text
-    :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
+  Observability.WithSpan
+    "POST /user/login"
+    ( "user"
+        :> "login"
+        :> Servant.RemoteHost
+        :> Servant.Header "User-Agent" Text
+        :> Servant.ReqBody '[Servant.FormUrlEncoded] Login
+        :> Servant.QueryParam "redirect" Text
+        :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
+    )
 
 --------------------------------------------------------------------------------
 
@@ -80,6 +83,7 @@ handler ::
     MonadCatch m,
     Has OTEL.Tracer env
   ) =>
+  OTEL.Tracer ->
   SockAddr ->
   Maybe Text ->
   Login ->
@@ -91,18 +95,17 @@ handler ::
          ]
         Servant.NoContent
     )
-handler sockAddr mUserAgent Login {..} redirectQueryParam = do
-  Observability.handlerSpan "POST /user/login" $ do
-    execQuerySpanThrow (User.getUserByEmail ulEmail) >>= \case
-      Just user -> do
-        Log.logInfo "Login Attempt" ulEmail
-        if checkPassword ulPassword (User.mPassword user) == PasswordCheckSuccess
-          then
-            let redirectLink = fromMaybe (Http.toUrlPiece rootGetLink) redirectQueryParam
-             in attemptLogin sockAddr mUserAgent redirectLink user
-          else invalidCredentialResponse ulEmail (Aeson.object [("field", "password"), "value" .= ulPassword])
-      Nothing ->
-        invalidCredentialResponse ulEmail (Aeson.object [("field", "email"), "value" .= ulEmail])
+handler _tracer sockAddr mUserAgent Login {..} redirectQueryParam = do
+  execQuerySpanThrow (User.getUserByEmail ulEmail) >>= \case
+    Just user -> do
+      Log.logInfo "Login Attempt" ulEmail
+      if checkPassword ulPassword (User.mPassword user) == PasswordCheckSuccess
+        then
+          let redirectLink = fromMaybe (Http.toUrlPiece rootGetLink) redirectQueryParam
+           in attemptLogin sockAddr mUserAgent redirectLink user
+        else invalidCredentialResponse ulEmail (Aeson.object [("field", "password"), "value" .= ulPassword])
+    Nothing ->
+      invalidCredentialResponse ulEmail (Aeson.object [("field", "email"), "value" .= ulEmail])
 
 attemptLogin ::
   ( MonadClock m,

@@ -22,13 +22,16 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 type Route =
-  "user"
-    :> "login"
-    :> Servant.Header "HX-Current-Url" Text
-    :> Servant.Header "HX-Request" Text
-    :> Servant.QueryParam "redirect" Text
-    :> Servant.QueryParam "email" EmailAddress
-    :> Servant.Get '[HTML] (Lucid.Html ())
+  Observability.WithSpan
+    "GET /user/login"
+    ( "user"
+        :> "login"
+        :> Servant.Header "HX-Current-Url" Text
+        :> Servant.Header "HX-Request" Text
+        :> Servant.QueryParam "redirect" Text
+        :> Servant.QueryParam "email" EmailAddress
+        :> Servant.Get '[HTML] (Lucid.Html ())
+    )
 
 --------------------------------------------------------------------------------
 
@@ -40,17 +43,17 @@ handler ::
     MonadUnliftIO m,
     MonadReader env m
   ) =>
+  Trace.Tracer ->
   Maybe Text ->
   Maybe Text ->
   Maybe Text ->
   Maybe EmailAddress ->
   m (Lucid.Html ())
-handler hxCurrentUrl hxRequest redirectQueryParam emailQueryParam =
-  Observability.handlerSpan "GET /user/login" $ do
-    let loginForm = template emailQueryParam $ hxCurrentUrl <|> redirectQueryParam
-        isHtmxRequest = case hxRequest of
-          Just "true" -> True
-          _ -> False
-    if isHtmxRequest
-      then loadContentOnly loginForm
-      else loadFrame loginForm
+handler _tracer hxCurrentUrl hxRequest redirectQueryParam emailQueryParam = do
+  let loginForm = template emailQueryParam $ hxCurrentUrl <|> redirectQueryParam
+      isHtmxRequest = case hxRequest of
+        Just "true" -> True
+        _ -> False
+  if isHtmxRequest
+    then loadContentOnly loginForm
+    else loadFrame loginForm

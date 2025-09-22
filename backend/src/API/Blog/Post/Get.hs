@@ -45,11 +45,14 @@ blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing Nothing (Just tag)
 --------------------------------------------------------------------------------
 
 type Route =
-  "blog"
-    :> Servant.Capture "slug" Text
-    :> Servant.Header "Cookie" Text
-    :> Servant.Header "HX-Request" Text
-    :> Servant.Get '[HTML] (Lucid.Html ())
+  Observability.WithSpan
+    "GET /blog/:slug"
+    ( "blog"
+        :> Servant.Capture "slug" Text
+        :> Servant.Header "Cookie" Text
+        :> Servant.Header "HX-Request" Text
+        :> Servant.Get '[HTML] (Lucid.Html ())
+    )
 
 --------------------------------------------------------------------------------
 
@@ -201,43 +204,43 @@ handler ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  Tracer ->
   Text ->
   Maybe Text ->
   Maybe Text ->
   m (Lucid.Html ())
-handler slug cookie hxRequest =
-  Observability.handlerSpan ("GET /blog/" <> slug) $ do
-    let isHtmxRequest = checkHtmxRequest hxRequest
+handler _tracer slug cookie hxRequest = do
+  let isHtmxRequest = checkHtmxRequest hxRequest
 
-    -- Get user info once upfront
-    loginState <- Auth.userLoginState cookie
-    mUserInfo <- case loginState of
-      Auth.IsNotLoggedIn -> pure Nothing
-      Auth.IsLoggedIn user -> do
-        execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-          Right (Just userMetadata) ->
-            pure $ Just $ UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-          _ -> pure Nothing
+  -- Get user info once upfront
+  loginState <- Auth.userLoginState cookie
+  mUserInfo <- case loginState of
+    Auth.IsNotLoggedIn -> pure Nothing
+    Auth.IsLoggedIn user -> do
+      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
+        Right (Just userMetadata) ->
+          pure $ Just $ UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
+        _ -> pure Nothing
 
-    execQuerySpan (Blog.getBlogPostBySlug slug) >>= \case
-      Left _err -> do
-        Log.logInfo "Failed to fetch blog post from database" slug
-        renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
-      Right Nothing -> do
-        Log.logInfo "Blog post not found" slug
-        renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
-      Right (Just blogPost) -> do
-        execQuerySpan (UserMetadata.getUserMetadata (Blog.bpmAuthorId blogPost)) >>= \case
-          Left _err -> do
-            Log.logInfo "Failed to fetch blog post author" (Blog.bpmAuthorId blogPost)
-            renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
-          Right Nothing -> do
-            Log.logInfo "Blog post author not found" (Blog.bpmAuthorId blogPost)
-            renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
-          Right (Just author) -> do
-            tagsResult <- execQuerySpan (Blog.getTagsForPost (Blog.bpmId blogPost))
-            let tags = case tagsResult of
-                  Left _err -> []
-                  Right tagModels -> map Blog.toDomainBlogTag tagModels
-                postTemplate = template blogPost (UserMetadata.toDomain author) tags
-            renderTemplate isHtmxRequest mUserInfo postTemplate
+  execQuerySpan (Blog.getBlogPostBySlug slug) >>= \case
+    Left _err -> do
+      Log.logInfo "Failed to fetch blog post from database" slug
+      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+    Right Nothing -> do
+      Log.logInfo "Blog post not found" slug
+      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+    Right (Just blogPost) -> do
+      execQuerySpan (UserMetadata.getUserMetadata (Blog.bpmAuthorId blogPost)) >>= \case
+        Left _err -> do
+          Log.logInfo "Failed to fetch blog post author" (Blog.bpmAuthorId blogPost)
+          renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+        Right Nothing -> do
+          Log.logInfo "Blog post author not found" (Blog.bpmAuthorId blogPost)
+          renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+        Right (Just author) -> do
+          tagsResult <- execQuerySpan (Blog.getTagsForPost (Blog.bpmId blogPost))
+          let tags = case tagsResult of
+                Left _err -> []
+                Right tagModels -> map Blog.toDomainBlogTag tagModels
+              postTemplate = template blogPost (UserMetadata.toDomain author) tags
+          renderTemplate isHtmxRequest mUserInfo postTemplate

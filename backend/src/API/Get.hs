@@ -27,9 +27,12 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 type Route =
-  Servant.Header "Cookie" Text
-    :> Servant.Header "HX-Request" Text
-    :> Servant.Get '[HTML] (Lucid.Html ())
+  Observability.WithSpan
+    "GET /"
+    ( Servant.Header "Cookie" Text
+        :> Servant.Header "HX-Request" Text
+        :> Servant.Get '[HTML] (Lucid.Html ())
+    )
 
 --------------------------------------------------------------------------------
 
@@ -63,36 +66,36 @@ handler ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  Tracer ->
   Maybe Text ->
   Maybe Text ->
   m (Lucid.Html ())
-handler cookie hxRequest =
-  Observability.handlerSpan "GET /" $ do
-    loginState <- Auth.userLoginState cookie
-    let isHtmxRequest = case hxRequest of
-          Just "true" -> True
-          _ -> False
+handler _tracer cookie hxRequest = do
+  loginState <- Auth.userLoginState cookie
+  let isHtmxRequest = case hxRequest of
+        Just "true" -> True
+        _ -> False
 
-    case loginState of
-      Auth.IsNotLoggedIn ->
-        if isHtmxRequest
-          then loadContentOnly template
-          else loadFrame template
-      Auth.IsLoggedIn user -> do
-        eUserMetadata <- execQuerySpan (UserMetadata.getUserMetadata (User.mId user))
-        case eUserMetadata of
-          Left _err ->
-            -- Database error
-            if isHtmxRequest
-              then loadContentOnly template
-              else loadFrame template
-          Right Nothing ->
-            -- No metadata found
-            if isHtmxRequest
-              then loadContentOnly template
-              else loadFrame template
-          Right (Just userMetadata) ->
-            let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-             in if isHtmxRequest
-                  then loadContentOnly template
-                  else loadFrameWithUser userInfo template
+  case loginState of
+    Auth.IsNotLoggedIn ->
+      if isHtmxRequest
+        then loadContentOnly template
+        else loadFrame template
+    Auth.IsLoggedIn user -> do
+      eUserMetadata <- execQuerySpan (UserMetadata.getUserMetadata (User.mId user))
+      case eUserMetadata of
+        Left _err ->
+          -- Database error
+          if isHtmxRequest
+            then loadContentOnly template
+            else loadFrame template
+        Right Nothing ->
+          -- No metadata found
+          if isHtmxRequest
+            then loadContentOnly template
+            else loadFrame template
+        Right (Just userMetadata) ->
+          let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
+           in if isHtmxRequest
+                then loadContentOnly template
+                else loadFrameWithUser userInfo template

@@ -57,13 +57,16 @@ blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing Nothing (Just tag)
 --------------------------------------------------------------------------------
 
 type Route =
-  "blog"
-    :> Servant.QueryParam "page" Int64
-    :> Servant.QueryParam "category" Text
-    :> Servant.QueryParam "tag" Text
-    :> Servant.Header "Cookie" Text
-    :> Servant.Header "HX-Request" Text
-    :> Servant.Get '[HTML] (Lucid.Html ())
+  Observability.WithSpan
+    "GET /blog"
+    ( "blog"
+        :> Servant.QueryParam "page" Int64
+        :> Servant.QueryParam "category" Text
+        :> Servant.QueryParam "tag" Text
+        :> Servant.Header "Cookie" Text
+        :> Servant.Header "HX-Request" Text
+        :> Servant.Get '[HTML] (Lucid.Html ())
+    )
 
 --------------------------------------------------------------------------------
 
@@ -293,56 +296,56 @@ handler ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  Tracer ->
   Maybe Int64 ->
   Maybe Text ->
   Maybe Text ->
   Maybe Text ->
   Maybe Text ->
   m (Lucid.Html ())
-handler maybePage maybeCategory maybeTag cookie hxRequest =
-  Observability.handlerSpan "GET /blog" $ do
-    let page = fromMaybe 1 maybePage
-        limit = 10
-        offset = (page - 1) * limit
-        isHtmxRequest = checkHtmxRequest hxRequest
+handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
+  let page = fromMaybe 1 maybePage
+      limit = 10
+      offset = (page - 1) * limit
+      isHtmxRequest = checkHtmxRequest hxRequest
 
-    -- Get user info once upfront
-    loginState <- Auth.userLoginState cookie
-    mUserInfo <- case loginState of
-      Auth.IsNotLoggedIn -> pure Nothing
-      Auth.IsLoggedIn user -> do
-        execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-          Right (Just userMetadata) ->
-            pure $ Just $ UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-          _ -> pure Nothing
+  -- Get user info once upfront
+  loginState <- Auth.userLoginState cookie
+  mUserInfo <- case loginState of
+    Auth.IsNotLoggedIn -> pure Nothing
+    Auth.IsLoggedIn user -> do
+      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
+        Right (Just userMetadata) ->
+          pure $ Just $ UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
+        _ -> pure Nothing
 
-    -- Get sidebar data
-    tagsResult <- execQuerySpan Blog.getTagsWithCounts
-    categoriesResult <- execQuerySpan Blog.getCategoriesWithCounts
+  -- Get sidebar data
+  tagsResult <- execQuerySpan Blog.getTagsWithCounts
+  categoriesResult <- execQuerySpan Blog.getCategoriesWithCounts
 
-    let tagsWithCounts = fromRight [] tagsResult
-        categoriesWithCounts = fromRight [] categoriesResult
+  let tagsWithCounts = fromRight [] tagsResult
+      categoriesWithCounts = fromRight [] categoriesResult
 
-    -- Get blog posts based on filters (category or tag)
-    blogPostsResult <- case (maybeCategory, maybeTag) of
-      (Just category, _) ->
-        execQuerySpan (Blog.getBlogPostsByCategory category limit offset)
-      (_, Just tagName) ->
-        execQuerySpan (Blog.getTagByName tagName) >>= \case
-          Left err ->
-            pure (Left err)
-          Right Nothing ->
-            pure (Right [])
-          Right (Just tag) ->
-            execQuerySpan (Blog.getPostsByTag (Blog.btmId tag) limit offset)
-      (Nothing, Nothing) ->
-        execQuerySpan (Blog.getPublishedBlogPosts limit offset)
-    case blogPostsResult of
-      Left _err -> do
-        Log.logInfo "Failed to fetch blog posts from database" ()
-        renderTemplate isHtmxRequest mUserInfo (errorTemplate "Failed to load blog posts. Please try again.")
-      Right allPosts -> do
-        let posts = take (fromIntegral limit) allPosts
-            hasMore = length allPosts > fromIntegral limit
-            blogTemplate = template posts page hasMore tagsWithCounts categoriesWithCounts
-        renderTemplate isHtmxRequest mUserInfo blogTemplate
+  -- Get blog posts based on filters (category or tag)
+  blogPostsResult <- case (maybeCategory, maybeTag) of
+    (Just category, _) ->
+      execQuerySpan (Blog.getBlogPostsByCategory category limit offset)
+    (_, Just tagName) ->
+      execQuerySpan (Blog.getTagByName tagName) >>= \case
+        Left err ->
+          pure (Left err)
+        Right Nothing ->
+          pure (Right [])
+        Right (Just tag) ->
+          execQuerySpan (Blog.getPostsByTag (Blog.btmId tag) limit offset)
+    (Nothing, Nothing) ->
+      execQuerySpan (Blog.getPublishedBlogPosts limit offset)
+  case blogPostsResult of
+    Left _err -> do
+      Log.logInfo "Failed to fetch blog posts from database" ()
+      renderTemplate isHtmxRequest mUserInfo (errorTemplate "Failed to load blog posts. Please try again.")
+    Right allPosts -> do
+      let posts = take (fromIntegral limit) allPosts
+          hasMore = length allPosts > fromIntegral limit
+          blogTemplate = template posts page hasMore tagsWithCounts categoriesWithCounts
+      renderTemplate isHtmxRequest mUserInfo blogTemplate
