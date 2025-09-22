@@ -56,12 +56,15 @@ import Web.HttpApiData qualified as Http
 --------------------------------------------------------------------------------
 
 type Route =
-  "user"
-    :> "register"
-    :> Servant.RemoteHost
-    :> Servant.Header "User-Agent" Text
-    :> Servant.ReqBody '[Servant.FormUrlEncoded] Register
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
+  Observability.WithSpan
+    "POST /user/register"
+    ( "user"
+        :> "register"
+        :> Servant.RemoteHost
+        :> Servant.Header "User-Agent" Text
+        :> Servant.ReqBody '[Servant.FormUrlEncoded] Register
+        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
+    )
 
 --------------------------------------------------------------------------------
 
@@ -122,6 +125,7 @@ handler ::
     MonadUnliftIO m,
     MonadCatch m
   ) =>
+  OTEL.Tracer ->
   SockAddr ->
   Maybe Text ->
   Register ->
@@ -132,17 +136,16 @@ handler ::
          ]
         Servant.NoContent
     )
-handler sockAddr mUserAgent req@Register {..} = do
-  Observability.handlerSpan "POST /user/register" $ do
-    validateRequest req >>= \case
-      Failure errors ->
-        logValidationFailure "POST /user/register Request validation failure" req errors
-      Success parsedRequest -> do
-        execQuerySpanThrow (User.getUserByEmail urEmail) >>= \case
-          Just _ ->
-            logValidationFailure "Email address is already registered." req [InvalidEmailAddress]
-          Nothing ->
-            registerUser sockAddr mUserAgent parsedRequest urNewsletter
+handler _tracer sockAddr mUserAgent req@Register {..} = do
+  validateRequest req >>= \case
+    Failure errors ->
+      logValidationFailure "POST /user/register Request validation failure" req errors
+    Success parsedRequest -> do
+      execQuerySpanThrow (User.getUserByEmail urEmail) >>= \case
+        Just _ ->
+          logValidationFailure "Email address is already registered." req [InvalidEmailAddress]
+        Nothing ->
+          registerUser sockAddr mUserAgent parsedRequest urNewsletter
 
 registerUser ::
   ( MonadClock m,

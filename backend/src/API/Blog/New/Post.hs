@@ -54,12 +54,15 @@ userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 --------------------------------------------------------------------------------
 
 type Route =
-  "blog"
-    :> "new"
-    :> Servant.Header "Cookie" Text
-    :> Servant.Header "HX-Request" Text
-    :> Servant.ReqBody '[Servant.FormUrlEncoded] NewBlogPostForm
-    :> Servant.Post '[HTML] (Lucid.Html ())
+  Observability.WithSpan
+    "POST /blog/new"
+    ( "blog"
+        :> "new"
+        :> Servant.Header "Cookie" Text
+        :> Servant.Header "HX-Request" Text
+        :> Servant.ReqBody '[Servant.FormUrlEncoded] NewBlogPostForm
+        :> Servant.Post '[HTML] (Lucid.Html ())
+    )
 
 --------------------------------------------------------------------------------
 
@@ -350,30 +353,30 @@ handler ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  Tracer ->
   Maybe Text ->
   Maybe Text ->
   NewBlogPostForm ->
   m (Lucid.Html ())
-handler cookie hxRequest form =
-  Observability.handlerSpan "POST /blog/new" $ do
-    let isHtmxRequest = checkHtmxRequest hxRequest
+handler _tracer cookie hxRequest form = do
+  let isHtmxRequest = checkHtmxRequest hxRequest
 
-    Auth.userLoginState cookie >>= \case
-      Auth.IsNotLoggedIn ->
-        renderWithoutAuth isHtmxRequest loginRequiredTemplate
-      Auth.IsLoggedIn user -> do
-        execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-          Right (Just userMetadata) ->
-            case UserMetadata.mUserRole userMetadata of
-              role | UserMetadata.isStaffOrHigher role ->
-                case validateNewBlogPost form (UserMetadata.mUserId userMetadata) of
-                  Left errorMsg -> do
-                    Log.logInfo ("Blog post creation failed: " <> errorMsg) ()
-                    renderWithUserAuth isHtmxRequest userMetadata (errorTemplate errorMsg)
-                  Right blogPostData ->
-                    handlePostCreation isHtmxRequest userMetadata blogPostData form
-              _ ->
-                renderWithoutAuth isHtmxRequest permissionDeniedTemplate
-          _ -> do
-            Log.logInfo "Failed to fetch user metadata for blog creation" ()
-            renderWithoutAuth isHtmxRequest userMetadataErrorTemplate
+  Auth.userLoginState cookie >>= \case
+    Auth.IsNotLoggedIn ->
+      renderWithoutAuth isHtmxRequest loginRequiredTemplate
+    Auth.IsLoggedIn user -> do
+      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
+        Right (Just userMetadata) ->
+          case UserMetadata.mUserRole userMetadata of
+            role | UserMetadata.isStaffOrHigher role ->
+              case validateNewBlogPost form (UserMetadata.mUserId userMetadata) of
+                Left errorMsg -> do
+                  Log.logInfo ("Blog post creation failed: " <> errorMsg) ()
+                  renderWithUserAuth isHtmxRequest userMetadata (errorTemplate errorMsg)
+                Right blogPostData ->
+                  handlePostCreation isHtmxRequest userMetadata blogPostData form
+            _ ->
+              renderWithoutAuth isHtmxRequest permissionDeniedTemplate
+        _ -> do
+          Log.logInfo "Failed to fetch user metadata for blog creation" ()
+          renderWithoutAuth isHtmxRequest userMetadataErrorTemplate

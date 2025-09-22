@@ -23,7 +23,7 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
-type Route = Servant.AuthProtect "cookie-auth" :> "user" :> "logout" :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] Servant.NoContent)
+type Route = Observability.WithSpan "GET /user/logout" (Servant.AuthProtect "cookie-auth" :> "user" :> "logout" :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] Servant.NoContent))
 
 --------------------------------------------------------------------------------
 
@@ -37,6 +37,7 @@ handler ::
     MonadCatch m,
     MonadUnliftIO m
   ) =>
+  OTEL.Tracer ->
   Auth.Authz ->
   m
     ( Servant.Headers
@@ -44,11 +45,10 @@ handler ::
          ]
         Servant.NoContent
     )
-handler Auth.Authz {..} =
-  Observability.handlerSpan "GET /user/logout" $ do
-    Auth.expireServerSession (Session.dSessionId $ Session.toDomain authzSession) >>= \case
-      Left err -> do
-        liftIO $ print err
-        throwErr $ InternalServerError $ Text.pack $ show err
-      Right _ ->
-        pure $ Servant.addHeader "/" Servant.NoContent
+handler _tracer Auth.Authz {..} = do
+  Auth.expireServerSession (Session.dSessionId $ Session.toDomain authzSession) >>= \case
+    Left err -> do
+      liftIO $ print err
+      throwErr $ InternalServerError $ Text.pack $ show err
+    Right _ ->
+      pure $ Servant.addHeader "/" Servant.NoContent

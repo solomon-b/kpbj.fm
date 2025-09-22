@@ -44,11 +44,14 @@ userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 --------------------------------------------------------------------------------
 
 type Route =
-  "blog"
-    :> "new"
-    :> Servant.Header "Cookie" Text
-    :> Servant.Header "HX-Request" Text
-    :> Servant.Get '[HTML] (Lucid.Html ())
+  Observability.WithSpan
+    "GET /blog/new"
+    ( "blog"
+        :> "new"
+        :> Servant.Header "Cookie" Text
+        :> Servant.Header "HX-Request" Text
+        :> Servant.Get '[HTML] (Lucid.Html ())
+    )
 
 --------------------------------------------------------------------------------
 
@@ -228,25 +231,25 @@ handler ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  Tracer ->
   Maybe Text ->
   Maybe Text ->
   m (Lucid.Html ())
-handler cookie hxRequest =
-  Observability.handlerSpan "GET /blog/new" $ do
-    let isHtmxRequest = checkHtmxRequest hxRequest
+handler _tracer cookie hxRequest = do
+  let isHtmxRequest = checkHtmxRequest hxRequest
 
-    Auth.userLoginState cookie >>= \case
-      Auth.IsNotLoggedIn ->
-        renderTemplate isHtmxRequest Nothing loginRequiredTemplate
-      Auth.IsLoggedIn user ->
-        execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-          Right (Just userMetadata) -> do
-            let userRole = UserMetadata.mUserRole userMetadata
-                userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
+  Auth.userLoginState cookie >>= \case
+    Auth.IsNotLoggedIn ->
+      renderTemplate isHtmxRequest Nothing loginRequiredTemplate
+    Auth.IsLoggedIn user ->
+      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
+        Right (Just userMetadata) -> do
+          let userRole = UserMetadata.mUserRole userMetadata
+              userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
 
-            if UserMetadata.isStaffOrHigher userRole
-              then renderTemplate isHtmxRequest (Just userInfo) (template userMetadata)
-              else renderTemplate isHtmxRequest Nothing permissionDeniedTemplate
-          _ -> do
-            Log.logInfo "Failed to fetch user metadata for blog form" ()
-            renderTemplate isHtmxRequest Nothing userMetadataErrorTemplate
+          if UserMetadata.isStaffOrHigher userRole
+            then renderTemplate isHtmxRequest (Just userInfo) (template userMetadata)
+            else renderTemplate isHtmxRequest Nothing permissionDeniedTemplate
+        _ -> do
+          Log.logInfo "Failed to fetch user metadata for blog form" ()
+          renderTemplate isHtmxRequest Nothing userMetadataErrorTemplate

@@ -26,9 +26,12 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 type Route =
-  "privacy-policy"
-    :> Servant.Header "Cookie" Text
-    :> Servant.Get '[HTML] (Lucid.Html ())
+  Observability.WithSpan
+    "GET /privacy-policy"
+    ( "privacy-policy"
+        :> Servant.Header "Cookie" Text
+        :> Servant.Get '[HTML] (Lucid.Html ())
+    )
 
 --------------------------------------------------------------------------------
 
@@ -111,21 +114,21 @@ handler ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  Tracer ->
   Maybe Text ->
   m (Lucid.Html ())
-handler cookie =
-  Observability.handlerSpan "GET /privacy-policy" $ do
-    loginState <- Auth.userLoginState cookie
-    case loginState of
-      Auth.IsNotLoggedIn ->
-        loadFrame template
-      Auth.IsLoggedIn user -> do
-        eUserMetadata <- execQuerySpan (UserMetadata.getUserMetadata (User.mId user))
-        case eUserMetadata of
-          Left _err ->
-            loadFrame template
-          Right Nothing ->
-            loadFrame template
-          Right (Just userMetadata) ->
-            let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-             in loadFrameWithUser userInfo template
+handler _tracer cookie = do
+  loginState <- Auth.userLoginState cookie
+  case loginState of
+    Auth.IsNotLoggedIn ->
+      loadFrame template
+    Auth.IsLoggedIn user -> do
+      eUserMetadata <- execQuerySpan (UserMetadata.getUserMetadata (User.mId user))
+      case eUserMetadata of
+        Left _err ->
+          loadFrame template
+        Right Nothing ->
+          loadFrame template
+        Right (Just userMetadata) ->
+          let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
+           in loadFrameWithUser userInfo template
