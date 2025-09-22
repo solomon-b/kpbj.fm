@@ -79,7 +79,9 @@ library
     API.About.Get
     API.Donate.Get
     API.Get
+    API.PrivacyPolicy.Get
     API.Static.Get
+    API.TermsOfService.Get
     API.User.Login.Get
     API.User.Login.Form
     API.User.Login.Post
