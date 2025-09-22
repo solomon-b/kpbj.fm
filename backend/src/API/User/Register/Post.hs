@@ -5,6 +5,7 @@ module API.User.Register.Post where
 import {-# SOURCE #-} API (userRegisterGetLink)
 import App.Auth qualified as Auth
 import App.Errors (Forbidden (..), InternalServerError (..), throwErr)
+import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow (..))
 import Control.Monad.Catch.Pure (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -15,6 +16,7 @@ import Data.Aeson qualified as Aeson
 import Data.Bifunctor (first)
 import Data.Foldable (foldl')
 import Data.Has (Has)
+import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword, mkPassword)
 import Data.Password.Validate qualified as PW.Validate
 import Data.Text (Text)
@@ -22,6 +24,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (Display, display)
 import Data.Text.Display.Core (Display (..))
 import Data.Text.Display.Generic (RecordInstance (..))
+import Data.Text.Encoding qualified as Text
 import Data.Validation
 import Deriving.Aeson qualified as Deriving
 import Domain.Types.DisplayName (DisplayName)
@@ -38,6 +41,8 @@ import GHC.Generics (Generic)
 import Hasql.Interpolate (OneRow (..))
 import Hasql.Pool qualified
 import Log qualified
+import Network.HTTP.Simple qualified as HTTP
+import Network.HTTP.Types.Status qualified as HTTP
 import Network.Socket (SockAddr)
 import OpenTelemetry.Trace qualified as OTEL
 import OrphanInstances.OneRow ()
@@ -64,7 +69,8 @@ data Register = Register
   { urEmail :: EmailAddress,
     urPassword :: Password,
     urDisplayName :: DisplayName,
-    urFullName :: FullName
+    urFullName :: FullName,
+    urNewsletter :: Maybe Bool
   }
   deriving stock (Generic)
   deriving (Display) via (RecordInstance Register)
@@ -79,6 +85,7 @@ instance FormUrlEncoded.FromForm Register where
       <*> fmap mkPassword (FormUrlEncoded.parseUnique "password" f)
       <*> FormUrlEncoded.parseUnique "displayName" f
       <*> FormUrlEncoded.parseUnique "fullName" f
+      <*> pure (either (pure Nothing) (const $ Just True) (FormUrlEncoded.parseMaybe @Text "newsletter" f))
 
 data RegisterParsed = RegisterParsed
   { urpEmail :: EmailAddress,
@@ -135,7 +142,7 @@ handler sockAddr mUserAgent req@Register {..} = do
           Just _ ->
             logValidationFailure "Email address is already registered." req [InvalidEmailAddress]
           Nothing ->
-            registerUser sockAddr mUserAgent parsedRequest
+            registerUser sockAddr mUserAgent parsedRequest urNewsletter
 
 registerUser ::
   ( MonadClock m,
@@ -151,6 +158,7 @@ registerUser ::
   SockAddr ->
   Maybe Text ->
   RegisterParsed ->
+  Maybe Bool ->
   m
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
@@ -158,7 +166,7 @@ registerUser ::
          ]
         Servant.NoContent
     )
-registerUser sockAddr mUserAgent RegisterParsed {..} = do
+registerUser sockAddr mUserAgent RegisterParsed {..} newsletterSubscription = do
   Log.logInfo "Registering New User" urpEmail
   OneRow uid <- execQuerySpanThrow $ User.insertUser $ User.ModelInsert urpEmail urpPassword
   _ <- execQuerySpanThrow $ UserMetadata.insertUserMetadata $ UserMetadata.ModelInsert uid urpDisplayName urpFullName Nothing False
@@ -166,6 +174,8 @@ registerUser sockAddr mUserAgent RegisterParsed {..} = do
     Nothing ->
       throwErr Forbidden
     Just _user -> do
+      when (isJust newsletterSubscription) (subscribeToNewsletter urpEmail)
+
       Auth.login uid sockAddr mUserAgent >>= \case
         Left err ->
           throwErr $ InternalServerError $ Text.pack $ show err
@@ -190,6 +200,19 @@ validateRequest Register {..} = do
   let emailValidation = fromEither $ first (const [InvalidEmailAddress]) $ EmailAddress.validate urEmail
   passwordValidation <- parsePassword urPassword
   pure $ RegisterParsed <$> emailValidation <*> passwordValidation <*> pure urDisplayName <*> pure urFullName
+
+subscribeToNewsletter :: (MonadIO m, Log.MonadLog m, MonadThrow m) => EmailAddress -> m ()
+subscribeToNewsletter email = do
+  Log.logInfo "Subscribing user to newsletter" email
+  let formData = [("entry.936311333", Text.encodeUtf8 $ display email)]
+  request' <- HTTP.parseRequest "POST https://docs.google.com/forms/u/0/d/e/1FAIpQLSfeM91iQ_A7ybaa070b8jiznHNRIJ_2JU0F7wJjo7vAvkS3tQ/formResponse"
+  let request = HTTP.setRequestBodyURLEncoded formData request'
+  response <- HTTP.httpNoBody request
+  let status = HTTP.getResponseStatus response
+      statusCode = HTTP.statusCode status
+  if statusCode >= 200 && statusCode < 300
+    then Log.logInfo "Newsletter subscription successful" email
+    else Log.logInfo "Newsletter subscription failed" (email, HTTP.statusCode status)
 
 logValidationFailure ::
   ( Log.MonadLog m
