@@ -5,7 +5,7 @@ module API.User.Register.Form where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (userLoginGetLink, userLoginPostLink, userRegisterGetLink, userRegisterPostLink)
+import {-# SOURCE #-} API (privacyPolicyGetLink, termsOfServiceGetLink, userLoginGetLink, userLoginPostLink, userRegisterGetLink, userRegisterPostLink)
 import Data.String.Interpolate (i)
 import Data.Text
 import Data.Text.Display (display)
@@ -29,6 +29,12 @@ userRegisterPostUrl = Link.linkURI userRegisterPostLink
 
 userLoginGetUrl :: Link.URI
 userLoginGetUrl = Link.linkURI (userLoginGetLink Nothing Nothing)
+
+privacyPolicyGetUrl :: Link.URI
+privacyPolicyGetUrl = Link.linkURI privacyPolicyGetLink
+
+termsOfServiceGetUrl :: Link.URI
+termsOfServiceGetUrl = Link.linkURI termsOfServiceGetLink
 
 displayNameField :: Lucid.Html ()
 displayNameField =
@@ -141,9 +147,9 @@ termsCheckbox =
       Lucid.span_ [Lucid.class_ "font-bold"] "I agree to the Terms of Service and Privacy Policy *"
       Lucid.div_ [Lucid.class_ "text-gray-600"] do
         Lucid.span_ "By creating an account, you agree to our "
-        Lucid.a_ [Lucid.href_ "#", hxGet_ "/terms-of-service", hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:underline"] "Terms of Service"
+        Lucid.a_ [Lucid.href_ [i|/#{termsOfServiceGetUrl}|], hxGet_ [i|/#{termsOfServiceGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:underline"] "Terms of Service"
         Lucid.span_ " and "
-        Lucid.a_ [Lucid.href_ "#", hxGet_ "/privacy-policy", hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:underline"] "Privacy Policy"
+        Lucid.a_ [Lucid.href_ [i|/#{privacyPolicyGetUrl}|], hxGet_ [i|/#{privacyPolicyGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:underline"] "Privacy Policy"
 
 submitButton :: Lucid.Html ()
 submitButton =

@@ -20,3 +20,5 @@ userLogoutGetLink :: Links.Link
 userLogoutPostLink :: Links.Link
 userRegisterGetLink :: Maybe EmailAddress -> Maybe DisplayName -> Maybe FullName -> Links.Link
 userRegisterPostLink :: Links.Link
+privacyPolicyGetLink :: Links.Link
+termsOfServiceGetLink :: Links.Link

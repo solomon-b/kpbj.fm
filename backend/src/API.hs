@@ -5,7 +5,9 @@ module API where
 import API.About.Get qualified as About.Get
 import API.Donate.Get qualified as Donate.Get
 import API.Get qualified as Root.Get
+import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Static.Get qualified as Static.Get
+import API.TermsOfService.Get qualified as TermsOfService.Get
 import API.User.Login.Get qualified as User.Login.Get
 import API.User.Login.Post qualified as User.Login.Post
 import API.User.Logout.Get qualified as User.Logout.Get
@@ -44,6 +46,8 @@ type API =
     :<|> Static.Get.Route
     :<|> About.Get.Route
     :<|> Donate.Get.Route
+    :<|> PrivacyPolicy.Get.Route
+    :<|> TermsOfService.Get.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
     :<|> User.Logout.Get.Route
@@ -71,6 +75,8 @@ server env =
     :<|> Static.Get.handler env
     :<|> About.Get.handler
     :<|> Donate.Get.handler
+    :<|> PrivacyPolicy.Get.handler
+    :<|> TermsOfService.Get.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
     :<|> User.Logout.Get.handler
@@ -119,3 +125,11 @@ userRegisterGetLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Get.Rout
 -- | Route: POST /user/register
 userRegisterPostLink :: Links.Link
 userRegisterPostLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Post.Route)
+
+-- | Route: GET /privacy-policy
+privacyPolicyGetLink :: Links.Link
+privacyPolicyGetLink = Links.safeLink (Proxy @API) (Proxy @PrivacyPolicy.Get.Route)
+
+-- | Route: GET /terms-of-service
+termsOfServiceGetLink :: Links.Link
+termsOfServiceGetLink = Links.safeLink (Proxy @API) (Proxy @TermsOfService.Get.Route)
