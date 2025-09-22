@@ -5,7 +5,7 @@ module API.User.Register.Form where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (userLoginPostLink, userRegisterGetLink)
+import {-# SOURCE #-} API (userLoginGetLink, userLoginPostLink, userRegisterGetLink, userRegisterPostLink)
 import Data.String.Interpolate (i)
 import Data.Text
 import Data.Text.Display (display)
@@ -23,6 +23,12 @@ userLoginPostUrl = Link.linkURI . userLoginPostLink
 
 userRegisterGetUrl :: Link.URI
 userRegisterGetUrl = Link.linkURI (userRegisterGetLink Nothing Nothing Nothing)
+
+userRegisterPostUrl :: Link.URI
+userRegisterPostUrl = Link.linkURI userRegisterPostLink
+
+userLoginGetUrl :: Link.URI
+userLoginGetUrl = Link.linkURI (userLoginGetLink Nothing Nothing)
 
 displayNameField :: Lucid.Html ()
 displayNameField =
@@ -162,7 +168,8 @@ template displayName fullName emailAddress _redirectLink =
       emailValue = maybe "" display emailAddress
    in Lucid.div_
         [ Lucid.class_ "max-w-2xl mx-auto",
-          xData_ [i|{ 
+          xData_
+            [i|{ 
             fields: { 
               displayName: { value: `#{displayNameValue}`, isValid: true }, 
               fullName: { value: `#{fullNameValue}`, isValid: true }, 
@@ -201,7 +208,7 @@ template displayName fullName emailAddress _redirectLink =
               Lucid.h3_ [Lucid.class_ "text-2xl font-bold mb-2"] "📝 CREATE ACCOUNT"
               Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] "Join the KPBJ community and unlock exclusive features"
 
-            Lucid.form_ [hxPost_ [i|/#{userRegisterGetUrl}|], Lucid.class_ "space-y-6"] do
+            Lucid.form_ [hxPost_ [i|/#{userRegisterPostUrl}|], Lucid.class_ "space-y-6"] do
               validationNotice
 
               Lucid.div_ [Lucid.class_ "space-y-4"] do
@@ -225,7 +232,7 @@ template displayName fullName emailAddress _redirectLink =
 
             Lucid.div_ [Lucid.class_ "mt-8 pt-6 border-t border-gray-300 text-center"] do
               Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-4"] "Already have an account?"
-              Lucid.a_ [Lucid.href_ "/user/login", hxGet_ "/user/login", hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block"] "LOGIN"
+              Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block"] "LOGIN"
 
           Lucid.div_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6 mt-6"] do
             Lucid.h3_ [Lucid.class_ "font-bold mb-4"] "🎯 WHAT YOU GET WITH AN ACCOUNT"
@@ -246,4 +253,3 @@ template displayName fullName emailAddress _redirectLink =
             Lucid.div_ [Lucid.class_ "mt-4 p-3 bg-blue-50 border border-blue-400 text-sm"] do
               Lucid.div_ [Lucid.class_ "font-bold text-blue-800 mb-1"] "🎙️ Interested in Hosting?"
               Lucid.div_ [Lucid.class_ "text-blue-700"] "Create your account first, then contact our staff about hosting opportunities. We're always looking for passionate community members to join our DJ team!"
-
