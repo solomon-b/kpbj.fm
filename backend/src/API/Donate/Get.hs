@@ -3,7 +3,7 @@ module API.Donate.Get where
 --------------------------------------------------------------------------------
 
 import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadFrame, loadFrameWithUser)
+import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -28,6 +28,7 @@ import Text.HTML (HTML)
 type Route =
   "donate"
     :> Servant.Header "Cookie" Text
+    :> Servant.Header "HX-Request" Text
     :> Servant.Get '[HTML] (Lucid.Html ())
 
 --------------------------------------------------------------------------------
@@ -35,8 +36,8 @@ type Route =
 template :: Lucid.Html ()
 template = do
   Lucid.div_ [Lucid.id_ "paypal-container-YBRDJJA6AGBL6", Lucid.class_ "w-96"] ""
-  Lucid.script_ [Lucid.src_ "https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD"] (mempty :: Text)
-  Lucid.script_ [] ("paypal.HostedButtons({ hostedButtonId: \"YBRDJJA6AGBL6\" }).render(\"#paypal-container-YBRDJJA6AGBL6\")" :: Text)
+  -- Load PayPal SDK if not already loaded
+  Lucid.script_ [] ("if (typeof paypal === 'undefined') { const script = document.createElement('script'); script.src = 'https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD'; script.onload = function() { paypal.HostedButtons({ hostedButtonId: 'YBRDJJA6AGBL6' }).render('#paypal-container-YBRDJJA6AGBL6'); }; document.head.appendChild(script); } else { paypal.HostedButtons({ hostedButtonId: 'YBRDJJA6AGBL6' }).render('#paypal-container-YBRDJJA6AGBL6'); }" :: Text)
 
 --------------------------------------------------------------------------------
 
@@ -51,22 +52,35 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Maybe Text ->
+  Maybe Text ->
   m (Lucid.Html ())
-handler cookie =
+handler cookie hxRequest =
   Observability.handlerSpan "GET /donate" $ do
     loginState <- Auth.userLoginState cookie
+    let isHtmxRequest = case hxRequest of
+          Just "true" -> True
+          _ -> False
+
     case loginState of
       Auth.IsNotLoggedIn ->
-        loadFrame template
+        if isHtmxRequest
+          then loadContentOnly template
+          else loadFrame template
       Auth.IsLoggedIn user -> do
         eUserMetadata <- execQuerySpan (UserMetadata.getUserMetadata (User.mId user))
         case eUserMetadata of
           Left _err ->
             -- Database error
-            loadFrame template
+            if isHtmxRequest
+              then loadContentOnly template
+              else loadFrame template
           Right Nothing ->
             -- No metadata found
-            loadFrame template
+            if isHtmxRequest
+              then loadContentOnly template
+              else loadFrame template
           Right (Just userMetadata) ->
             let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-             in loadFrameWithUser userInfo template
+             in if isHtmxRequest
+                  then loadContentOnly template
+                  else loadFrameWithUser userInfo template
