@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_)
+import Lucid.Extras (hxGet_, xData_, xModel_, xOnClick_, xOnInput_, xRef_, xShow_, xText_)
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
@@ -40,16 +40,178 @@ newtype UserInfo = UserInfo {userDisplayName :: DisplayName}
 
 musicPlayer :: Lucid.Html ()
 musicPlayer =
-  Lucid.div_ [Lucid.class_ "bg-gray-800 text-white p-4 sticky top-0 z-40 border-b-2 border-black"] $ do
-    Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto flex items-center gap-4 md:flex-row flex-col"] $ do
-      Lucid.div_ [Lucid.class_ "flex items-center gap-2"] $ do
-        Lucid.button_ [Lucid.class_ "bg-white text-gray-800 px-4 py-2 font-bold cursor-pointer hover:bg-gray-200"] "▶ LIVE"
-      Lucid.div_ [Lucid.class_ "flex-grow text-center"] $ do
-        Lucid.h3_ [Lucid.class_ "mb-1 font-bold"] "Now Playing: The Midnight Frequency"
-        Lucid.p_ [Lucid.class_ "text-sm text-gray-300"] "Host: DJ Nyx • 95.9 FM Shadow Hills • Live Stream"
-      Lucid.div_ [Lucid.class_ "flex items-center gap-2"] $ do
-        Lucid.span_ [Lucid.class_ "text-sm"] "Vol:"
-        Lucid.input_ [Lucid.type_ "range", Lucid.min_ "0", Lucid.max_ "100", Lucid.value_ "80", Lucid.class_ "w-20"]
+  Lucid.div_
+    [ Lucid.class_ "bg-gray-800 text-white p-4 sticky top-0 z-40 border-b-2 border-black",
+      xData_ playerData
+    ]
+    $ do
+      Lucid.audio_
+        [ xRef_ "audio",
+          Lucid.preload_ "none"
+        ]
+        mempty
+      Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto flex items-center gap-4 md:flex-row flex-col"] $ do
+        Lucid.div_ [Lucid.class_ "flex items-center gap-2"] $ do
+          Lucid.button_
+            [ Lucid.class_ "bg-white text-gray-800 px-4 py-2 font-bold cursor-pointer hover:bg-gray-200 transition-colors",
+              xOnClick_ "togglePlay()",
+              xText_ "isPlaying ? '⏸ LIVE' : '▶ LIVE'"
+            ]
+            "▶ LIVE"
+        Lucid.div_ [Lucid.class_ "flex-grow text-center"] $ do
+          Lucid.h3_ [Lucid.class_ "mb-1 font-bold", xText_ "currentShow || 'KPBJ 95.9 FM'"] "KPBJ 95.9 FM"
+          Lucid.p_
+            [ Lucid.class_ "text-sm text-gray-300",
+              xText_ "currentTrack || 'Click LIVE to start streaming'"
+            ]
+            "Click LIVE to start streaming"
+          Lucid.p_
+            [ Lucid.class_ "text-xs text-gray-400",
+              xText_ "currentArtist || ''"
+            ]
+            mempty
+          Lucid.p_
+            [ Lucid.class_ "text-xs text-red-400",
+              xShow_ "errorMessage",
+              xText_ "errorMessage"
+            ]
+            mempty
+        Lucid.div_ [Lucid.class_ "flex items-center gap-2"] $ do
+          Lucid.span_ [Lucid.class_ "text-sm"] "Vol:"
+          Lucid.input_
+            [ Lucid.type_ "range",
+              Lucid.min_ "0",
+              Lucid.max_ "100",
+              xModel_ "volume",
+              xOnInput_ "setVolume($event.target.value)",
+              Lucid.class_ "w-20"
+            ]
+  where
+    playerData =
+      [i|{
+      isPlaying: false,
+      volume: 80,
+      streamUrl: 'https://kchungradio.out.airtime.pro/kchungradio_a',
+      metadataUrl: 'https://kchungradio.out.airtime.pro/admin/stats.php',
+
+      // Metadata
+      currentShow: '',
+      currentTrack: '',
+      currentArtist: '',
+      errorMessage: '',
+      metadataInterval: null,
+
+      init() {
+        this.setVolume(this.volume);
+        this.fetchMetadata(); // Initial fetch
+      },
+
+      togglePlay() {
+        console.log('Toggle play clicked, isPlaying:', this.isPlaying);
+        this.isPlaying ? this.stop() : this.play();
+      },
+
+      play() {
+        console.log('Starting audio stream...');
+        const audio = this.$refs.audio;
+        audio.src = this.streamUrl;
+        audio.volume = this.volume / 100;
+
+        audio.play()
+          .then(() => {
+            console.log('Audio started successfully');
+            this.isPlaying = true;
+            this.startMetadataPolling();
+          })
+          .catch((error) => {
+            console.error('Audio play failed:', error);
+            this.errorMessage = 'Failed to start stream: ' + error.message;
+            setTimeout(() => this.errorMessage = '', 5000);
+          });
+      },
+
+      stop() {
+        console.log('Stopping audio stream...');
+        const audio = this.$refs.audio;
+        audio.pause();
+        audio.src = '';
+        this.isPlaying = false;
+        this.stopMetadataPolling();
+      },
+
+      setVolume(value) {
+        this.volume = value;
+        const audio = this.$refs.audio;
+        if (audio) {
+          audio.volume = value / 100;
+        }
+      },
+
+      async fetchMetadata() {
+        try {
+          // Try multiple approaches to get stream metadata
+          const response = await fetch(this.streamUrl, {
+            method: 'HEAD',
+            headers: {
+              'Icy-MetaData': '1'
+            }
+          });
+
+          const icyTitle = response.headers.get('icy-name') || response.headers.get('icy-description');
+          const icyGenre = response.headers.get('icy-genre');
+
+          console.log(icyTitle);
+
+          if (icyTitle) {
+            this.currentShow = icyTitle;
+            this.errorMessage = '';
+            console.log('Fetched metadata:', icyTitle);
+          } else {
+            // Fallback: parse common metadata formats
+            this.parseStreamTitle('KPBJ 95.9 FM - Community Radio');
+          }
+        } catch (error) {
+          console.log('Metadata fetch failed, using default');
+          this.currentShow = 'KPBJ 95.9 FM';
+          this.currentTrack = 'Live Community Radio';
+        }
+      },
+
+      parseStreamTitle(title) {
+        if (!title) return;
+
+        // Common patterns: "Artist - Track", "Show: Artist - Track", etc.
+        if (title.includes(' - ')) {
+          const parts = title.split(' - ');
+          if (parts.length >= 2) {
+            this.currentArtist = parts[0].trim();
+            this.currentTrack = parts.slice(1).join(' - ').trim();
+          }
+        } else if (title.includes(':')) {
+          const parts = title.split(':');
+          this.currentShow = parts[0].trim();
+          if (parts[1]) {
+            this.parseStreamTitle(parts[1].trim());
+          }
+        } else {
+          this.currentTrack = title.trim();
+        }
+      },
+
+      startMetadataPolling() {
+        // Poll for metadata every 30 seconds
+        this.metadataInterval = setInterval(() => {
+          this.fetchMetadata();
+        }, 30000);
+      },
+
+      stopMetadataPolling() {
+        if (this.metadataInterval) {
+          clearInterval(this.metadataInterval);
+          this.metadataInterval = null;
+        }
+      }
+    }|]
 
 template :: Maybe UserInfo -> Lucid.Html () -> Lucid.Html ()
 template mUser main =
