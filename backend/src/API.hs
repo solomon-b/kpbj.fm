@@ -8,6 +8,10 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Donate.Get qualified as Donate.Get
+import API.Events.Event.Get qualified as Events.Event.Get
+import API.Events.Get qualified as Events.Get
+import API.Events.New.Get qualified as Events.New.Get
+import API.Events.New.Post qualified as Events.New.Post
 import API.Get qualified as Root.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Static.Get qualified as Static.Get
@@ -30,6 +34,7 @@ import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
+import Domain.Types.PageView
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
 import Hasql.Pool qualified as HSQL.Pool
@@ -55,6 +60,10 @@ type API =
     :<|> Blog.New.Post.Route
     :<|> Blog.Post.Get.Route
     :<|> Donate.Get.Route
+    :<|> Events.Get.Route
+    :<|> Events.New.Get.Route
+    :<|> Events.New.Post.Route
+    :<|> Events.Event.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
     :<|> User.Login.Get.Route
@@ -88,6 +97,10 @@ server env =
     :<|> Blog.New.Post.handler
     :<|> Blog.Post.Get.handler
     :<|> Donate.Get.handler
+    :<|> Events.Get.handler
+    :<|> Events.New.Get.handler
+    :<|> Events.New.Post.handler
+    :<|> Events.Event.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
     :<|> User.Login.Get.handler
@@ -162,3 +175,19 @@ privacyPolicyGetLink = Links.safeLink (Proxy @API) (Proxy @PrivacyPolicy.Get.Rou
 -- | Route: GET /terms-of-service
 termsOfServiceGetLink :: Links.Link
 termsOfServiceGetLink = Links.safeLink (Proxy @API) (Proxy @TermsOfService.Get.Route)
+
+-- | Route: GET /events
+eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
+eventsGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Get.Route)
+
+-- | Route: GET /events/new
+eventsNewGetLink :: Links.Link
+eventsNewGetLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Get.Route)
+
+-- | Route: POST /events/new
+eventsNewPostLink :: Links.Link
+eventsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Post.Route)
+
+-- | Route: GET /events/:slug
+eventGetLink :: Text -> Links.Link
+eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.Route)

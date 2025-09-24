@@ -7,6 +7,7 @@ import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
+import Domain.Types.PageView
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -27,3 +28,7 @@ userRegisterGetLink :: Maybe EmailAddress -> Maybe DisplayName -> Maybe FullName
 userRegisterPostLink :: Links.Link
 privacyPolicyGetLink :: Links.Link
 termsOfServiceGetLink :: Links.Link
+eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
+eventsNewGetLink :: Links.Link
+eventsNewPostLink :: Links.Link
+eventGetLink :: Text -> Links.Link

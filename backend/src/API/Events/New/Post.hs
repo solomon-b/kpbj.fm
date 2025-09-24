@@ -1,0 +1,437 @@
+{-# LANGUAGE QuasiQuotes #-}
+
+module API.Events.New.Post where
+
+--------------------------------------------------------------------------------
+
+import {-# SOURCE #-} API (eventGetLink, eventsGetLink, eventsNewGetLink, userLoginGetLink)
+import App.Auth qualified as Auth
+import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import Control.Monad (when)
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Unlift (MonadUnliftIO)
+import Control.Monad.Reader (MonadReader)
+import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
+import Data.Foldable (traverse_)
+import Data.Has (Has)
+import Data.List (find)
+import Data.String.Interpolate (i)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (UTCTime)
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Effects.Database.Class (MonadDB)
+import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Observability qualified as Observability
+import Hasql.Pool qualified as HSQL.Pool
+import Log qualified
+import Lucid qualified
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import OpenTelemetry.Trace (Tracer)
+import Servant ((:>))
+import Servant qualified
+import Servant.Links qualified as Links
+import Text.HTML (HTML)
+import Web.FormUrlEncoded (FromForm (..), parseUnique)
+
+--------------------------------------------------------------------------------
+
+-- URL helpers
+eventsGetUrl :: Links.URI
+eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
+
+eventsNewGetUrl :: Links.URI
+eventsNewGetUrl = Links.linkURI eventsNewGetLink
+
+eventGetUrl :: Text -> Links.URI
+eventGetUrl slug = Links.linkURI $ eventGetLink slug
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+
+--------------------------------------------------------------------------------
+
+type Route =
+  Observability.WithSpan
+    "POST /events/new"
+    ( "events"
+        :> "new"
+        :> Servant.Header "Cookie" Text
+        :> Servant.Header "HX-Request" Text
+        :> Servant.ReqBody '[Servant.FormUrlEncoded] NewEventForm
+        :> Servant.Post '[HTML] (Lucid.Html ())
+    )
+
+--------------------------------------------------------------------------------
+
+-- | Success template after event creation
+successTemplate :: Events.EventModel -> Lucid.Html ()
+successTemplate event = do
+  Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
+    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Event Created Successfully!"
+    Lucid.p_ [Lucid.class_ "mb-6"] $ do
+      "Your event \""
+      Lucid.strong_ $ Lucid.toHtml event.emTitle
+      "\" has been "
+      case event.emStatus of
+        Events.Published -> "published and is now live."
+        Events.Draft -> "saved as a draft."
+
+    Lucid.div_ [Lucid.class_ "space-x-4"] $ do
+      Lucid.a_
+        [ Lucid.href_ [i|/#{eventGetUrl (Events.emSlug event)}|],
+          hxGet_ [i|/#{eventGetUrl (Events.emSlug event)}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block"
+        ]
+        "VIEW EVENT"
+      Lucid.a_
+        [ Lucid.href_ [i|/#{eventsGetUrl}|],
+          hxGet_ [i|/#{eventsGetUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
+        ]
+        "← BACK TO EVENTS"
+      Lucid.a_
+        [ Lucid.href_ [i|/#{eventsNewGetUrl}|],
+          hxGet_ [i|/#{eventsNewGetUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700 inline-block"
+        ]
+        "CREATE ANOTHER EVENT"
+
+-- | Error template for validation failures
+errorTemplate :: [Text] -> Lucid.Html ()
+errorTemplate errors = do
+  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8"] $ do
+    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Event Creation Failed"
+    Lucid.div_ [Lucid.class_ "mb-6"] $ do
+      Lucid.p_ [Lucid.class_ "mb-4 font-bold"] "Please fix the following errors:"
+      Lucid.ul_ [Lucid.class_ "list-disc list-inside space-y-2"] $ do
+        mapM_ (Lucid.li_ [Lucid.class_ "text-red-700"] . Lucid.toHtml) errors
+
+    Lucid.div_ [Lucid.class_ "text-center"] $ do
+      Lucid.a_
+        [ Lucid.href_ [i|/#{eventsNewGetUrl}|],
+          hxGet_ [i|/#{eventsNewGetUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
+        ]
+        "← TRY AGAIN"
+
+-- | Template for unauthorized access
+notAuthorizedTemplate :: Lucid.Html ()
+notAuthorizedTemplate = do
+  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
+    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Access Denied"
+    Lucid.p_ [Lucid.class_ "mb-6"] "Only Staff and Admin users can create events."
+    Lucid.div_ [Lucid.class_ "space-x-4"] $ do
+      Lucid.a_
+        [ Lucid.href_ [i|/#{eventsGetUrl}|],
+          hxGet_ [i|/#{eventsGetUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
+        ]
+        "← BACK TO EVENTS"
+
+--------------------------------------------------------------------------------
+
+-- | Parse comma-separated tags
+parseTags :: Text -> [Text]
+parseTags tagText =
+  filter (not . Text.null) $
+    map Text.strip $
+      Text.splitOn "," tagText
+
+-- Form data structure
+data NewEventForm = NewEventForm
+  { nefTitle :: Text,
+    nefTags :: Text,
+    nefDescription :: Text,
+    nefStartsAt :: Text,
+    nefEndsAt :: Text,
+    nefLocationName :: Text,
+    nefLocationAddress :: Text,
+    nefStatus :: Text
+  }
+  deriving (Show, Eq)
+
+instance FromForm NewEventForm where
+  fromForm f =
+    NewEventForm
+      <$> parseUnique "title" f
+      <*> parseUnique "tags" f
+      <*> parseUnique "description" f
+      <*> parseUnique "starts_at" f
+      <*> parseUnique "ends_at" f
+      <*> parseUnique "location_name" f
+      <*> parseUnique "location_address" f
+      <*> parseUnique "status" f
+
+--------------------------------------------------------------------------------
+
+-- Validation functions
+validateEventForm :: NewEventForm -> Either [Text] (Text, Text, UTCTime, UTCTime, Text, Text, Events.EventStatus)
+validateEventForm form = do
+  title <- validateTitle form.nefTitle
+  description <- validateDescription form.nefDescription
+  startsAt <- validateDateTime "Start date/time" form.nefStartsAt
+  endsAt <- validateDateTime "End date/time" form.nefEndsAt
+  locationName <- validateLocationName form.nefLocationName
+  locationAddress <- validateLocationAddress form.nefLocationAddress
+  status <- validateStatus form.nefStatus
+
+  -- Validate that end time is after start time
+  when (endsAt <= startsAt) $
+    Left ["End time must be after start time"]
+
+  pure (title, description, startsAt, endsAt, locationName, locationAddress, status)
+
+validateTitle :: Text -> Either [Text] Text
+validateTitle title
+  | Text.null (Text.strip title) = Left ["Event title cannot be empty"]
+  | Text.length title < 3 = Left ["Event title must be at least 3 characters long"]
+  | Text.length title > 200 = Left ["Event title cannot exceed 200 characters"]
+  | otherwise = Right (Text.strip title)
+
+validateDescription :: Text -> Either [Text] Text
+validateDescription description
+  | Text.null (Text.strip description) = Left ["Event description cannot be empty"]
+  | Text.length description < 10 = Left ["Event description must be at least 10 characters long"]
+  | Text.length description > 5000 = Left ["Event description cannot exceed 5000 characters"]
+  | otherwise = Right (Text.strip description)
+
+validateDateTime :: Text -> Text -> Either [Text] UTCTime
+validateDateTime fieldName dateTimeStr
+  | Text.null (Text.strip dateTimeStr) = Left [fieldName <> " cannot be empty"]
+  | otherwise = case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" (Text.unpack dateTimeStr) of
+      Nothing -> Left [fieldName <> " is not in a valid format"]
+      Just utcTime -> Right utcTime
+
+validateLocationName :: Text -> Either [Text] Text
+validateLocationName locationName
+  | Text.null (Text.strip locationName) = Left ["Venue name cannot be empty"]
+  | Text.length locationName < 2 = Left ["Venue name must be at least 2 characters long"]
+  | Text.length locationName > 200 = Left ["Venue name cannot exceed 200 characters"]
+  | otherwise = Right (Text.strip locationName)
+
+validateLocationAddress :: Text -> Either [Text] Text
+validateLocationAddress locationAddress
+  | Text.null (Text.strip locationAddress) = Left ["Address cannot be empty"]
+  | Text.length locationAddress < 5 = Left ["Address must be at least 5 characters long"]
+  | Text.length locationAddress > 300 = Left ["Address cannot exceed 300 characters"]
+  | otherwise = Right (Text.strip locationAddress)
+
+validateStatus :: Text -> Either [Text] Events.EventStatus
+validateStatus status = case status of
+  "draft" -> Right Events.Draft
+  "published" -> Right Events.Published
+  _ -> Left ["Invalid status selected"]
+
+-- Generate URL-friendly slug from title
+generateSlug :: Text -> Text
+generateSlug title =
+  Text.intercalate "-" $
+    Text.words $
+      Text.map replaceChar $
+        Text.toLower $
+          Text.strip title
+  where
+    replaceChar c
+      | isAsciiLower c || isDigit c = c
+      | isAsciiUpper c = c
+      | otherwise = ' '
+
+-- Render template with proper HTMX handling
+renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserInfo -> Lucid.Html () -> m (Lucid.Html ())
+renderTemplate isHtmxRequest mUserInfo templateContent =
+  case mUserInfo of
+    Just userInfo ->
+      if isHtmxRequest
+        then loadContentOnly templateContent
+        else loadFrameWithUser userInfo templateContent
+    Nothing ->
+      if isHtmxRequest
+        then loadContentOnly templateContent
+        else loadFrame templateContent
+
+checkHtmxRequest :: Maybe Text -> Bool
+checkHtmxRequest = \case
+  Just "true" -> True
+  _ -> False
+
+--------------------------------------------------------------------------------
+
+handler ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Tracer ->
+  Maybe Text ->
+  Maybe Text ->
+  NewEventForm ->
+  m (Lucid.Html ())
+handler _tracer cookie hxRequest form = do
+  let isHtmxRequest = checkHtmxRequest hxRequest
+
+  checkAuth isHtmxRequest cookie $ \user userInfo ->
+    validateForm isHtmxRequest user userInfo form $ \eventInsert ->
+      insertEvent isHtmxRequest userInfo eventInsert $ \eventId -> do
+        Log.logInfo "Event created successfully" eventId
+
+        traverse_ (addTag eventId) (parseTags (nefTags form))
+
+        fetchEvent isHtmxRequest userInfo eventId
+
+checkAuth ::
+  ( MonadDB m,
+    MonadCatch m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m
+  ) =>
+  Bool ->
+  Maybe Text ->
+  (User.Model -> UserInfo -> m (Lucid.Html ())) ->
+  m (Lucid.Html ())
+checkAuth isHtmxRequest cookie k = do
+  Auth.userLoginState cookie >>= \case
+    Auth.IsNotLoggedIn -> do
+      Log.logInfo "Unauthorized access to event creation form" ()
+      renderTemplate isHtmxRequest Nothing notAuthorizedTemplate
+    Auth.IsLoggedIn user -> do
+      execQuerySpan (UserMetadata.getUserMetadata user.mId) >>= \case
+        Right (Just userMetadata) ->
+          let userInfo = UserInfo {userDisplayName = userMetadata.mDisplayName}
+           in if UserMetadata.isStaffOrHigher userMetadata.mUserRole
+                then k user userInfo
+                else do
+                  Log.logInfo "User without Staff/Admin role tried to create event" userMetadata.mDisplayName
+                  let mUserInfo = Just $ UserInfo {userDisplayName = userMetadata.mDisplayName}
+                  renderTemplate isHtmxRequest mUserInfo notAuthorizedTemplate
+        _ -> do
+          Log.logInfo "Failed to fetch user metadata for event creation" user.mId
+          renderTemplate isHtmxRequest Nothing notAuthorizedTemplate
+
+validateForm ::
+  ( Log.MonadLog m,
+    MonadCatch m
+  ) =>
+  Bool ->
+  User.Model ->
+  UserInfo ->
+  NewEventForm ->
+  (Events.EventInsert -> m (Lucid.Html ())) ->
+  m (Lucid.Html ())
+validateForm isHtmxRequest user userInfo form k =
+  case validateEventForm form of
+    Left errors -> do
+      Log.logInfo "Event creation failed validation" errors
+      let mUserInfo = Just userInfo
+      renderTemplate isHtmxRequest mUserInfo (errorTemplate errors)
+    Right (title, description, startsAt, endsAt, locationName, locationAddress, status) ->
+      let slug = generateSlug title
+          eventInsert =
+            Events.EventInsert
+              { Events.eiTitle = title,
+                Events.eiSlug = slug,
+                Events.eiDescription = description,
+                Events.eiStartsAt = startsAt,
+                Events.eiEndsAt = endsAt,
+                Events.eiLocationName = locationName,
+                Events.eiLocationAddress = locationAddress,
+                Events.eiStatus = status,
+                Events.eiAuthorId = user.mId
+              }
+       in k eventInsert
+
+insertEvent ::
+  ( Log.MonadLog m,
+    MonadDB m,
+    MonadReader env0 m,
+    MonadCatch m,
+    Has Tracer env0,
+    MonadUnliftIO m
+  ) =>
+  Bool ->
+  UserInfo ->
+  Events.EventInsert ->
+  (Events.EventId -> m (Lucid.Html ())) ->
+  m (Lucid.Html ())
+insertEvent isHtmxRequest userInfo eventInsert k =
+  execQuerySpan (Events.insertEvent eventInsert) >>= \case
+    Left _err -> do
+      Log.logInfo "Failed to create event in database" ()
+      let mUserInfo = Just userInfo
+      renderTemplate isHtmxRequest mUserInfo (errorTemplate ["Database error occurred. Please try again."])
+    Right eventId ->
+      k eventId
+
+addTag ::
+  ( MonadUnliftIO m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has Tracer env
+  ) =>
+  Events.EventId ->
+  Text ->
+  m ()
+addTag eventId tagName = do
+  -- Get all existing tags to check if this one exists
+  execQuerySpan Events.getAllEventTags >>= \case
+    Right allTags -> do
+      case find (\tag -> tag.etmName == tagName) allTags of
+        Just existingTag -> do
+          -- Tag exists, assign it to event
+          _ <- execQuerySpan (Events.assignTagToEvent eventId existingTag.etmId)
+          pure ()
+        Nothing -> do
+          -- Tag doesn't exist, create it first then assign
+          execQuerySpan (Events.insertEventTag (Events.EventTagInsert tagName)) >>= \case
+            Right newTagId -> do
+              _ <- execQuerySpan (Events.assignTagToEvent eventId newTagId)
+              pure ()
+            Left _ ->
+              -- TODO: Handle tag creation failures
+              pure ()
+    Left _ ->
+      -- TODO: Handle tag lookup failures
+      pure ()
+
+fetchEvent ::
+  ( Log.MonadLog m,
+    MonadDB m,
+    MonadReader env m,
+    Has Tracer env,
+    MonadUnliftIO m,
+    MonadCatch m
+  ) =>
+  Bool ->
+  UserInfo ->
+  Events.EventId ->
+  m (Lucid.Html ())
+fetchEvent isHtmxRequest userInfo eventId =
+  execQuerySpan (Events.getEventById eventId) >>= \case
+    Right (Just event) -> do
+      let mUserInfo = Just userInfo
+      renderTemplate isHtmxRequest mUserInfo (successTemplate event)
+    _ ->
+      error "TODO ERROR HANDLE"
