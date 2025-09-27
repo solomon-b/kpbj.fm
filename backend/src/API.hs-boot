@@ -32,3 +32,7 @@ eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
 eventsNewGetLink :: Links.Link
 eventsNewPostLink :: Links.Link
 eventGetLink :: Text -> Links.Link
+showsGetLink :: Maybe Int64 -> Maybe Text -> Maybe Text -> Links.Link
+showGetLink :: Text -> Links.Link
+episodeUploadGetLink :: Links.Link
+episodeUploadPostLink :: Links.Link
