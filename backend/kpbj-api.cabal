@@ -54,6 +54,7 @@ library
                   , data-has
                   , deriving-aeson
                   , exceptions
+                  , filepath
                   , hasql
                   , hasql-interpolate
                   , hasql-pool
@@ -101,9 +102,16 @@ library
     API.User.Register.Form
     API.User.Register.Post
     Component.Frame
+    Domain.Types.Episode
+    Domain.Types.FileStorage
     Domain.Types.PageView
+    Domain.Types.Show
+    Domain.Types.ShowBlog
     Effects.Database.Tables.Blog
+    Effects.Database.Tables.Episode
     Effects.Database.Tables.Events
+    Effects.Database.Tables.Show
+    Effects.Database.Tables.ShowBlog
     Effects.Database.Tables.UserMetadata
     Lucid.Extras
   hs-source-dirs: src
