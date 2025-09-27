@@ -70,8 +70,10 @@ resourceTypePath = \case
 dateHierarchyFromTime :: UTCTime -> DateHierarchy
 dateHierarchyFromTime time =
   let day = formatTime defaultTimeLocale "%F" time -- YYYY-MM-DD
-      [year, month, dayOfMonth] = Text.splitOn "-" (Text.pack day)
-   in DateHierarchy year month dayOfMonth
+      parts = Text.splitOn "-" (Text.pack day)
+   in case parts of
+        [year, month, dayOfMonth] -> DateHierarchy year month dayOfMonth
+        _ -> DateHierarchy "1970" "01" "01" -- Fallback date
 
 -- | Build full storage path
 -- Example: /tmp/kpbj/audio/2024/09/27/episodes/show-slug_episode-123_audio.mp3

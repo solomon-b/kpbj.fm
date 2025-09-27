@@ -51,8 +51,10 @@ library
   build-depends:
                   , aeson
                   , base
+                  , bytestring
                   , data-has
                   , deriving-aeson
+                  , directory
                   , exceptions
                   , filepath
                   , hasql
@@ -71,11 +73,13 @@ library
                   , servant-multipart
                   , servant-server
                   , string-interpolate
+                  , temporary
                   , text
                   , text-display
                   , time
                   , unliftio-core
                   , validation
+                  , wai-extra
                   , web-server-core
   exposed-modules:
     API
@@ -104,6 +108,7 @@ library
     Component.Frame
     Domain.Types.Episode
     Domain.Types.FileStorage
+    Domain.Types.FileUpload
     Domain.Types.PageView
     Domain.Types.Show
     Domain.Types.ShowBlog
@@ -113,6 +118,7 @@ library
     Effects.Database.Tables.Show
     Effects.Database.Tables.ShowBlog
     Effects.Database.Tables.UserMetadata
+    Effects.FileUpload
     Lucid.Extras
   hs-source-dirs: src
   default-language: Haskell2010
