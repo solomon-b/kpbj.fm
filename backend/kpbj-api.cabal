@@ -89,12 +89,16 @@ library
     API.Blog.New.Post
     API.Blog.Post.Get
     API.Donate.Get
+    API.Episodes.Upload.Get
+    API.Episodes.Upload.Post
     API.Events.Get
     API.Events.New.Get
     API.Events.New.Post
     API.Events.Event.Get
     API.Get
     API.PrivacyPolicy.Get
+    API.Show.Get
+    API.Shows.Get
     API.Static.Get
     API.TermsOfService.Get
     API.User.Login.Get

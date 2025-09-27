@@ -383,9 +383,9 @@ getShowById showId =
     WHERE id = #{showId}
   |]
 
--- | Get shows by status
-getShowsByStatus :: ShowStatus -> Hasql.Statement () [ShowModel]
-getShowsByStatus status =
+-- | Get shows by status with pagination
+getShowsByStatus :: Text -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getShowsByStatus status limit offset =
   interp
     False
     [sql|
@@ -393,6 +393,45 @@ getShowsByStatus status =
     FROM shows
     WHERE status = #{status}
     ORDER BY title
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Get all shows with pagination
+getAllShows :: Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getAllShows limit offset =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    FROM shows
+    ORDER BY title
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Get shows by genre with pagination
+getShowsByGenre :: Text -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getShowsByGenre genre limit offset =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    FROM shows
+    WHERE genre = #{genre}
+    ORDER BY title
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Get shows by genre and status with pagination
+getShowsByGenreAndStatus :: Text -> Text -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getShowsByGenreAndStatus genre status limit offset =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    FROM shows
+    WHERE genre = #{genre} AND status = #{status}
+    ORDER BY title
+    LIMIT #{limit} OFFSET #{offset}
   |]
 
 -- | Insert a new show

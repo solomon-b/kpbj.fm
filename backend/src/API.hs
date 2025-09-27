@@ -8,12 +8,16 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Donate.Get qualified as Donate.Get
+import API.Episodes.Upload.Get qualified as Episodes.Upload.Get
+import API.Episodes.Upload.Post qualified as Episodes.Upload.Post
 import API.Events.Event.Get qualified as Events.Event.Get
 import API.Events.Get qualified as Events.Get
 import API.Events.New.Get qualified as Events.New.Get
 import API.Events.New.Post qualified as Events.New.Post
 import API.Get qualified as Root.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
+import API.Show.Get qualified as Show.Get
+import API.Shows.Get qualified as Shows.Get
 import API.Static.Get qualified as Static.Get
 import API.TermsOfService.Get qualified as TermsOfService.Get
 import API.User.Login.Get qualified as User.Login.Get
@@ -60,12 +64,16 @@ type API =
     :<|> Blog.New.Post.Route
     :<|> Blog.Post.Get.Route
     :<|> Donate.Get.Route
+    :<|> Episodes.Upload.Get.Route
+    :<|> Episodes.Upload.Post.Route
     :<|> Events.Get.Route
     :<|> Events.New.Get.Route
     :<|> Events.New.Post.Route
     :<|> Events.Event.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
+    :<|> Shows.Get.Route
+    :<|> Show.Get.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
     :<|> User.Logout.Get.Route
@@ -97,12 +105,16 @@ server env =
     :<|> Blog.New.Post.handler
     :<|> Blog.Post.Get.handler
     :<|> Donate.Get.handler
+    :<|> Episodes.Upload.Get.handler
+    :<|> Episodes.Upload.Post.handler
     :<|> Events.Get.handler
     :<|> Events.New.Get.handler
     :<|> Events.New.Post.handler
     :<|> Events.Event.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
+    :<|> Shows.Get.handler
+    :<|> Show.Get.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
     :<|> User.Logout.Get.handler
@@ -191,3 +203,19 @@ eventsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Post.Route)
 -- | Route: GET /events/:slug
 eventGetLink :: Text -> Links.Link
 eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.Route)
+
+-- | Route: GET /shows
+showsGetLink :: Maybe Int64 -> Maybe Text -> Maybe Text -> Links.Link
+showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
+
+-- | Route: GET /shows/:slug
+showGetLink :: Text -> Links.Link
+showGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Get.Route)
+
+-- | Route: GET /episodes/upload
+episodeUploadGetLink :: Links.Link
+episodeUploadGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Get.Route)
+
+-- | Route: POST /episodes/upload
+episodeUploadPostLink :: Links.Link
+episodeUploadPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Post.Route)
