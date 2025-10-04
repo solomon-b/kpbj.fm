@@ -3,7 +3,7 @@ module API.TermsOfService.Get where
 --------------------------------------------------------------------------------
 
 import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadFrame, loadFrameWithUser)
+import Component.Frame (loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -161,5 +161,4 @@ handler _tracer cookie = do
         Right Nothing ->
           loadFrame template
         Right (Just userMetadata) ->
-          let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-           in loadFrameWithUser userInfo template
+          loadFrameWithUser userMetadata template

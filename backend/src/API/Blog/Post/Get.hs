@@ -6,7 +6,8 @@ module API.Blog.Post.Get where
 
 import {-# SOURCE #-} API (blogGetLink)
 import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
+import Control.Monad (unless)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -120,7 +121,7 @@ template post author tags = do
           Nothing -> Lucid.span_ "Draft"
 
       -- Tags
-      when (not (null tags)) $
+      unless (null tags) $
         renderTags tags
 
     -- Post Content
@@ -152,9 +153,6 @@ template post author tags = do
         Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
       ]
       "← BACK TO BLOG"
-  where
-    when True action = action
-    when False _ = pure ()
 
 -- | Template for when blog post is not found
 notFoundTemplate :: Text -> Lucid.Html ()
@@ -175,7 +173,7 @@ notFoundTemplate slug = do
       "← BACK TO BLOG"
 
 -- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserInfo -> Lucid.Html () -> m (Lucid.Html ())
+renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
 renderTemplate isHtmxRequest mUserInfo templateContent =
   case mUserInfo of
     Just userInfo ->
@@ -218,8 +216,8 @@ handler _tracer slug cookie hxRequest = do
     Auth.IsNotLoggedIn -> pure Nothing
     Auth.IsLoggedIn user -> do
       execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-        Right (Just userMetadata) ->
-          pure $ Just $ UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
+        Right userMetadata ->
+          pure userMetadata
         _ -> pure Nothing
 
   execQuerySpan (Blog.getBlogPostBySlug slug) >>= \case

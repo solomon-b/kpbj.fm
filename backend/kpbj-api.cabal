@@ -89,6 +89,8 @@ library
     API.Blog.New.Post
     API.Blog.Post.Get
     API.Donate.Get
+    API.Episodes.Edit.Get
+    API.Episodes.Edit.Post
     API.Episodes.Upload.Get
     API.Episodes.Upload.Post
     API.Events.Get
@@ -96,6 +98,7 @@ library
     API.Events.New.Post
     API.Events.Event.Get
     API.Get
+    API.Host.Dashboard.Get
     API.PrivacyPolicy.Get
     API.Show.Get
     API.Shows.Get
@@ -109,13 +112,18 @@ library
     API.User.Register.Get
     API.User.Register.Form
     API.User.Register.Post
+    App.Common
     Component.Frame
+    Domain.Types.PostStatus
+    Domain.Types.Cookie
     Domain.Types.Episode
     Domain.Types.FileStorage
     Domain.Types.FileUpload
+    Domain.Types.Genre
+    Domain.Types.HxRequest
+    Domain.Types.PageNumber
     Domain.Types.PageView
-    Domain.Types.Show
-    Domain.Types.ShowBlog
+    Domain.Types.Search
     Effects.Database.Tables.Blog
     Effects.Database.Tables.Episode
     Effects.Database.Tables.Events
@@ -124,6 +132,7 @@ library
     Effects.Database.Tables.UserMetadata
     Effects.FileUpload
     Lucid.Extras
+    Utils
   hs-source-dirs: src
   default-language: Haskell2010
-  ghc-options:    -Wall -threaded
+  ghc-options:    -Wall -threaded -Werror -Wno-missed-extra-shared-lib

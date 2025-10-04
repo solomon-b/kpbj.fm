@@ -6,7 +6,7 @@ module API.Events.Event.Get where
 
 import {-# SOURCE #-} API (eventsGetLink)
 import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Cont (ContT (..), evalContT)
 import Control.Monad.IO.Class (MonadIO)
@@ -92,7 +92,8 @@ template event eventTags author = do
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-4 gap-8"] $ do
       -- Event Image
       Lucid.div_ [Lucid.class_ "lg:col-span-1"] $ do
-        Lucid.div_ [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg"] $
+        Lucid.div_
+          [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg"]
           "[CONCERT POSTER]"
 
       -- Event Header Info
@@ -177,7 +178,7 @@ notFoundTemplate slug = do
       "← BACK TO EVENTS"
 
 -- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserInfo -> Lucid.Html () -> m (Lucid.Html ())
+renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
 renderTemplate isHtmxRequest mUserInfo templateContent =
   case mUserInfo of
     Just userInfo ->
@@ -229,7 +230,7 @@ getUserInfo ::
     MonadUnliftIO m
   ) =>
   Maybe Text ->
-  (Maybe UserInfo -> m a) ->
+  (Maybe UserMetadata.Model -> m a) ->
   m a
 getUserInfo cookie k =
   Auth.userLoginState cookie >>= \case
@@ -238,7 +239,7 @@ getUserInfo cookie k =
     Auth.IsLoggedIn user ->
       execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
         Right (Just userMetadata) ->
-          k $ Just $ UserInfo {userDisplayName = userMetadata.mDisplayName}
+          k $ Just userMetadata
         _ ->
           k Nothing
 
@@ -251,7 +252,7 @@ getEvent ::
     MonadCatch m
   ) =>
   Bool ->
-  Maybe UserInfo ->
+  Maybe UserMetadata.Model ->
   Text ->
   (Events.EventModel -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
@@ -275,9 +276,11 @@ getAuthor ::
     MonadCatch m
   ) =>
   Bool ->
-  Maybe UserInfo ->
+  -- | Logged in user:
+  Maybe UserMetadata.Model ->
   Text ->
   Events.EventModel ->
+  -- | Author of the event:
   (UserMetadata.Model -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
 getAuthor isHtmxRequest mUserInfo slug event k =
@@ -300,7 +303,7 @@ fetchTags ::
     MonadCatch m
   ) =>
   Bool ->
-  Maybe UserInfo ->
+  Maybe UserMetadata.Model ->
   Events.EventModel ->
   UserMetadata.Model ->
   m (Lucid.Html ())

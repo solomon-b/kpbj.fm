@@ -3,7 +3,7 @@ module API.Get where
 --------------------------------------------------------------------------------
 
 import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -95,7 +95,6 @@ handler _tracer cookie hxRequest = do
             then loadContentOnly template
             else loadFrame template
         Right (Just userMetadata) ->
-          let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-           in if isHtmxRequest
-                then loadContentOnly template
-                else loadFrameWithUser userInfo template
+          if isHtmxRequest
+            then loadContentOnly template
+            else loadFrameWithUser userMetadata template
