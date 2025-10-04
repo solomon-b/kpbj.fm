@@ -6,7 +6,7 @@ module API.Blog.Get where
 
 import {-# SOURCE #-} API (blogGetLink, blogPostGetLink)
 import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad (unless)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -267,7 +267,7 @@ renderSidebar tagsWithCounts categoriesWithCounts = do
             $ "#" <> tagName
 
 -- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserInfo -> Lucid.Html () -> m (Lucid.Html ())
+renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
 renderTemplate isHtmxRequest mUserInfo templateContent =
   case mUserInfo of
     Just userInfo ->
@@ -315,8 +315,7 @@ handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
     Auth.IsNotLoggedIn -> pure Nothing
     Auth.IsLoggedIn user -> do
       execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-        Right (Just userMetadata) ->
-          pure $ Just $ UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
+        Right userMetadata -> pure userMetadata
         _ -> pure Nothing
 
   -- Get sidebar data

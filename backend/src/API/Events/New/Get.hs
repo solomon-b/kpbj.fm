@@ -1,22 +1,21 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module API.Events.New.Get where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (eventsGetLink, eventsNewPostLink, userLoginGetLink)
-import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
+import Domain.Types.Cookie (Cookie)
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -48,8 +47,8 @@ type Route =
     "GET /events/new"
     ( "events"
         :> "new"
-        :> Servant.Header "Cookie" Text
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
@@ -220,19 +219,6 @@ notAuthorizedTemplate = do
         ]
         "LOGIN"
 
--- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserInfo -> Lucid.Html () -> m (Lucid.Html ())
-renderTemplate isHtmxRequest mUserInfo templateContent =
-  case mUserInfo of
-    Just userInfo ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrameWithUser userInfo templateContent
-    Nothing ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrame templateContent
-
 --------------------------------------------------------------------------------
 
 handler ::
@@ -246,50 +232,20 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer cookie hxRequest = do
-  let isHtmxRequest = checkHtmxRequest hxRequest
-
-  checkAuth isHtmxRequest cookie $ \userMetadata ->
-    if UserMetadata.isStaffOrHigher userMetadata.mUserRole
-      then do
-        Log.logInfo "Authorized user accessing event creation form" userMetadata.mDisplayName
-        let mUserInfo = Just $ UserInfo {userDisplayName = userMetadata.mDisplayName}
-            formTemplate = template userMetadata
-        renderTemplate isHtmxRequest mUserInfo formTemplate
-      else do
-        Log.logInfo "User without Staff/Admin role tried to create event" userMetadata.mDisplayName
-        let mUserInfo = Just $ UserInfo {userDisplayName = userMetadata.mDisplayName}
-        renderTemplate isHtmxRequest mUserInfo notAuthorizedTemplate
-
-checkHtmxRequest :: Maybe Text -> Bool
-checkHtmxRequest = \case
-  Just "true" -> True
-  _ -> False
-
-checkAuth ::
-  ( MonadDB m,
-    MonadCatch m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
-  Bool ->
-  Maybe Text ->
-  (UserMetadata.Model -> m (Lucid.Html ())) ->
-  m (Lucid.Html ())
-checkAuth isHtmxRequest cookie k = do
-  Auth.userLoginState cookie >>= \case
-    Auth.IsNotLoggedIn -> do
+handler _tracer cookie (foldHxReq -> hxRequest) = do
+  getUserInfo cookie $ \case
+    Nothing -> do
       Log.logInfo "Unauthorized access to event creation form" ()
-      renderTemplate isHtmxRequest Nothing notAuthorizedTemplate
-    Auth.IsLoggedIn user -> do
-      execQuerySpan (UserMetadata.getUserMetadata user.mId) >>= \case
-        Right (Just userMetadata) -> k userMetadata
-        _ -> do
-          Log.logInfo "Failed to fetch user metadata for event creation" user.mId
-          renderTemplate isHtmxRequest Nothing notAuthorizedTemplate
+      renderTemplate hxRequest Nothing notAuthorizedTemplate
+    Just (_user, userMetadata) ->
+      if UserMetadata.isStaffOrHigher userMetadata.mUserRole
+        then do
+          Log.logInfo "Authorized user accessing event creation form" userMetadata.mDisplayName
+          let formTemplate = template userMetadata
+          renderTemplate hxRequest (Just userMetadata) formTemplate
+        else do
+          Log.logInfo "User without Staff/Admin role tried to create event" userMetadata.mDisplayName
+          renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate

@@ -160,110 +160,6 @@ data EpisodeTrackModel = EpisodeTrackModel
   deriving (Display) via (RecordInstance EpisodeTrackModel)
 
 --------------------------------------------------------------------------------
--- Domain Types
-
-data EpisodeDomain = EpisodeDomain
-  { edId :: EpisodeId,
-    edShowId :: Show.ShowId,
-    edTitle :: Text,
-    edSlug :: Text,
-    edDescription :: Maybe Text,
-    edEpisodeNumber :: Maybe EpisodeNumber,
-    edSeasonNumber :: Int64,
-    edAudioFilePath :: Maybe Text,
-    edAudioFileSize :: Maybe Int64,
-    edAudioMimeType :: Maybe Text,
-    edDurationSeconds :: Maybe Int64,
-    edArtworkUrl :: Maybe Text,
-    edScheduledAt :: Maybe UTCTime,
-    edPublishedAt :: Maybe UTCTime,
-    edStatus :: EpisodeStatus,
-    edCreatedBy :: User.Id,
-    edCreatedAt :: UTCTime,
-    edUpdatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance EpisodeDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
-data EpisodeTrackDomain = EpisodeTrackDomain
-  { etdId :: EpisodeTrackId,
-    etdEpisodeId :: EpisodeId,
-    etdTrackNumber :: Int64,
-    etdTitle :: Text,
-    etdArtist :: Text,
-    etdAlbum :: Maybe Text,
-    etdYear :: Maybe Int64,
-    etdDuration :: Maybe Text,
-    etdLabel :: Maybe Text,
-    etdIsExclusivePremiere :: Bool,
-    etdCreatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance EpisodeTrackDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | Episode with tracks
-data EpisodeWithTracks = EpisodeWithTracks
-  { ewtEpisode :: EpisodeDomain,
-    ewtTracks :: [EpisodeTrackDomain]
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance EpisodeWithTracks)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | Episode with show information
-data EpisodeWithShow = EpisodeWithShow
-  { ewsEpisode :: EpisodeDomain,
-    ewsShow :: Show.ShowDomain
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance EpisodeWithShow)
-  deriving anyclass (FromJSON, ToJSON)
-
---------------------------------------------------------------------------------
--- Conversion Functions
-
-toDomainEpisode :: EpisodeModel -> EpisodeDomain
-toDomainEpisode EpisodeModel {..} =
-  EpisodeDomain
-    { edId = emId,
-      edShowId = emShowId,
-      edTitle = emTitle,
-      edSlug = emSlug,
-      edDescription = emDescription,
-      edEpisodeNumber = emEpisodeNumber,
-      edSeasonNumber = emSeasonNumber,
-      edAudioFilePath = emAudioFilePath,
-      edAudioFileSize = emAudioFileSize,
-      edAudioMimeType = emAudioMimeType,
-      edDurationSeconds = emDurationSeconds,
-      edArtworkUrl = emArtworkUrl,
-      edScheduledAt = emScheduledAt,
-      edPublishedAt = emPublishedAt,
-      edStatus = emStatus,
-      edCreatedBy = emCreatedBy,
-      edCreatedAt = emCreatedAt,
-      edUpdatedAt = emUpdatedAt
-    }
-
-toDomainEpisodeTrack :: EpisodeTrackModel -> EpisodeTrackDomain
-toDomainEpisodeTrack EpisodeTrackModel {..} =
-  EpisodeTrackDomain
-    { etdId = etmId,
-      etdEpisodeId = etmEpisodeId,
-      etdTrackNumber = etmTrackNumber,
-      etdTitle = etmTitle,
-      etdArtist = etmArtist,
-      etdAlbum = etmAlbum,
-      etdYear = etmYear,
-      etdDuration = etmDuration,
-      etdLabel = etmLabel,
-      etdIsExclusivePremiere = etmIsExclusivePremiere,
-      etdCreatedAt = etmCreatedAt
-    }
-
---------------------------------------------------------------------------------
 -- Insert Types
 
 data EpisodeInsert = EpisodeInsert
@@ -300,6 +196,21 @@ data EpisodeTrackInsert = EpisodeTrackInsert
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
   deriving (Display) via (RecordInstance EpisodeTrackInsert)
+
+--------------------------------------------------------------------------------
+-- Update Types
+
+-- | Episode Update data for partial updates
+data EpisodeUpdate = EpisodeUpdate
+  { euId :: EpisodeId,
+    euTitle :: Text,
+    euDescription :: Maybe Text,
+    euEpisodeNumber :: Maybe EpisodeNumber,
+    euSeasonNumber :: Int64
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (EncodeRow)
+  deriving (Display) via (RecordInstance EpisodeUpdate)
 
 --------------------------------------------------------------------------------
 -- Database Queries
@@ -421,25 +332,17 @@ insertEpisode EpisodeInsert {..} =
         RETURNING id
       |]
 
--- | Update an episode
-updateEpisode :: EpisodeId -> EpisodeInsert -> Hasql.Statement () (Maybe EpisodeId)
-updateEpisode episodeId EpisodeInsert {..} =
+-- | Update an episode with partial data (for editing)
+updateEpisode :: EpisodeUpdate -> Hasql.Statement () (Maybe EpisodeId)
+updateEpisode EpisodeUpdate {..} =
   interp
     False
     [sql|
     UPDATE episodes
-    SET title = #{eiTitle}, slug = #{eiSlug}, description = #{eiDescription},
-        episode_number = #{eiEpisodeNumber}, season_number = #{eiSeasonNumber},
-        audio_file_path = #{eiAudioFilePath}, audio_file_size = #{eiAudioFileSize},
-        audio_mime_type = #{eiAudioMimeType}, duration_seconds = #{eiDurationSeconds},
-        artwork_url = #{eiArtworkUrl}, scheduled_at = #{eiScheduledAt}, status = #{eiStatus},
-        published_at = CASE
-          WHEN #{eiStatus}::text = 'published' AND published_at IS NULL THEN NOW()
-          WHEN #{eiStatus}::text != 'published' THEN NULL
-          ELSE published_at
-        END,
+    SET title = #{euTitle}, description = #{euDescription},
+        episode_number = #{euEpisodeNumber}, season_number = #{euSeasonNumber},
         updated_at = NOW()
-    WHERE id = #{episodeId}
+    WHERE id = #{euId}
     RETURNING id
   |]
 

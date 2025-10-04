@@ -7,7 +7,12 @@ import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
-import Domain.Types.PageView
+import Domain.Types.Genre (Genre)
+import Domain.Types.PageNumber (PageNumber)
+import Domain.Types.PageView (PageView)
+import Domain.Types.Search (Search)
+import Effects.Database.Tables.Episode (EpisodeId)
+import Effects.Database.Tables.Show (ShowStatus)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -32,7 +37,10 @@ eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
 eventsNewGetLink :: Links.Link
 eventsNewPostLink :: Links.Link
 eventGetLink :: Text -> Links.Link
-showsGetLink :: Maybe Int64 -> Maybe Text -> Maybe Text -> Links.Link
+showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe ShowStatus -> Maybe Search -> Links.Link
 showGetLink :: Text -> Links.Link
 episodeUploadGetLink :: Links.Link
 episodeUploadPostLink :: Links.Link
+episodeEditGetLink :: EpisodeId -> Links.Link
+episodeEditPostLink :: Int64 -> Links.Link
+hostDashboardGetLink :: Links.Link

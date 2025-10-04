@@ -8,6 +8,8 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Donate.Get qualified as Donate.Get
+import API.Episodes.Edit.Get qualified as Episodes.Edit.Get
+import API.Episodes.Edit.Post qualified as Episodes.Edit.Post
 import API.Episodes.Upload.Get qualified as Episodes.Upload.Get
 import API.Episodes.Upload.Post qualified as Episodes.Upload.Post
 import API.Events.Event.Get qualified as Events.Event.Get
@@ -15,6 +17,7 @@ import API.Events.Get qualified as Events.Get
 import API.Events.New.Get qualified as Events.New.Get
 import API.Events.New.Post qualified as Events.New.Post
 import API.Get qualified as Root.Get
+import API.Host.Dashboard.Get qualified as Host.Dashboard.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Show.Get qualified as Show.Get
 import API.Shows.Get qualified as Shows.Get
@@ -38,9 +41,14 @@ import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
-import Domain.Types.PageView
+import Domain.Types.Genre (Genre)
+import Domain.Types.PageNumber (PageNumber)
+import Domain.Types.PageView (PageView)
+import Domain.Types.Search (Search)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
+import Effects.Database.Tables.Episode (EpisodeId)
+import Effects.Database.Tables.Show (ShowStatus)
 import Hasql.Pool qualified as HSQL.Pool
 import Log (MonadLog)
 import OpenTelemetry.Trace (Tracer)
@@ -64,12 +72,15 @@ type API =
     :<|> Blog.New.Post.Route
     :<|> Blog.Post.Get.Route
     :<|> Donate.Get.Route
+    :<|> Episodes.Edit.Get.Route
+    :<|> Episodes.Edit.Post.Route
     :<|> Episodes.Upload.Get.Route
     :<|> Episodes.Upload.Post.Route
     :<|> Events.Get.Route
     :<|> Events.New.Get.Route
     :<|> Events.New.Post.Route
     :<|> Events.Event.Get.Route
+    :<|> Host.Dashboard.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
     :<|> Shows.Get.Route
@@ -105,12 +116,15 @@ server env =
     :<|> Blog.New.Post.handler
     :<|> Blog.Post.Get.handler
     :<|> Donate.Get.handler
+    :<|> Episodes.Edit.Get.handler
+    :<|> Episodes.Edit.Post.handler
     :<|> Episodes.Upload.Get.handler
     :<|> Episodes.Upload.Post.handler
     :<|> Events.Get.handler
     :<|> Events.New.Get.handler
     :<|> Events.New.Post.handler
     :<|> Events.Event.Get.handler
+    :<|> Host.Dashboard.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
     :<|> Shows.Get.handler
@@ -205,7 +219,7 @@ eventGetLink :: Text -> Links.Link
 eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.Route)
 
 -- | Route: GET /shows
-showsGetLink :: Maybe Int64 -> Maybe Text -> Maybe Text -> Links.Link
+showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe ShowStatus -> Maybe Search -> Links.Link
 showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
 
 -- | Route: GET /shows/:slug
@@ -219,3 +233,15 @@ episodeUploadGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Get.R
 -- | Route: POST /episodes/upload
 episodeUploadPostLink :: Links.Link
 episodeUploadPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Post.Route)
+
+-- | Route: GET /episodes/:id/edit
+episodeEditGetLink :: EpisodeId -> Links.Link
+episodeEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
+
+-- | Route: POST /episodes/:id/edit
+episodeEditPostLink :: Int64 -> Links.Link
+episodeEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Post.Route)
+
+-- | Route: GET /host/dashboard
+hostDashboardGetLink :: Links.Link
+hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Host.Dashboard.Get.Route)

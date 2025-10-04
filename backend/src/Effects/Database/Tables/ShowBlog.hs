@@ -7,57 +7,17 @@ module Effects.Database.Tables.ShowBlog where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
+import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
+import Domain.Types.PostStatus (BlogPostStatus (..))
 import Effects.Database.Tables.Show qualified as Show
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.Generics
-import Hasql.Decoders qualified as Decoders
-import Hasql.Encoders qualified as Encoders
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneColumn (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.UTCTime ()
 import Servant qualified
-
---------------------------------------------------------------------------------
--- Show Blog Status Type
-
-data ShowBlogStatus = BlogDraft | BlogPublished | BlogArchived
-  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
-  deriving anyclass (FromJSON, ToJSON)
-
-instance Display ShowBlogStatus where
-  displayBuilder BlogDraft = "draft"
-  displayBuilder BlogPublished = "published"
-  displayBuilder BlogArchived = "archived"
-
-instance DecodeValue ShowBlogStatus where
-  decodeValue = Decoders.enum decodeShowBlogStatus
-
-decodeShowBlogStatus :: Text -> Maybe ShowBlogStatus
-decodeShowBlogStatus = \case
-  "draft" -> Just BlogDraft
-  "published" -> Just BlogPublished
-  "archived" -> Just BlogArchived
-  _ -> Nothing
-
-instance EncodeValue ShowBlogStatus where
-  encodeValue = Encoders.enum $ \case
-    BlogDraft -> "draft"
-    BlogPublished -> "published"
-    BlogArchived -> "archived"
-
-instance Servant.FromHttpApiData ShowBlogStatus where
-  parseUrlPiece "draft" = Right BlogDraft
-  parseUrlPiece "published" = Right BlogPublished
-  parseUrlPiece "archived" = Right BlogArchived
-  parseUrlPiece invalid = Left $ "Invalid ShowBlogStatus: " <> invalid
-
-instance Servant.ToHttpApiData ShowBlogStatus where
-  toUrlPiece = display
 
 --------------------------------------------------------------------------------
 -- ID Types
@@ -107,7 +67,7 @@ data ShowBlogPostModel = ShowBlogPostModel
     sbpmContent :: Text,
     sbpmExcerpt :: Maybe Text,
     sbpmAuthorId :: User.Id,
-    sbpmStatus :: ShowBlogStatus,
+    sbpmStatus :: BlogPostStatus,
     sbpmPublishedAt :: Maybe UTCTime,
     sbpmCreatedAt :: UTCTime,
     sbpmUpdatedAt :: UTCTime
@@ -126,91 +86,6 @@ data ShowBlogTagModel = ShowBlogTagModel
   deriving (Display) via (RecordInstance ShowBlogTagModel)
 
 --------------------------------------------------------------------------------
--- Domain Types
-
-data ShowBlogPostDomain = ShowBlogPostDomain
-  { sbpdId :: ShowBlogPostId,
-    sbpdShowId :: Show.ShowId,
-    sbpdTitle :: Text,
-    sbpdSlug :: Text,
-    sbpdContent :: Text,
-    sbpdExcerpt :: Maybe Text,
-    sbpdAuthorId :: User.Id,
-    sbpdStatus :: ShowBlogStatus,
-    sbpdPublishedAt :: Maybe UTCTime,
-    sbpdCreatedAt :: UTCTime,
-    sbpdUpdatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance ShowBlogPostDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
-data ShowBlogTagDomain = ShowBlogTagDomain
-  { sbtdId :: ShowBlogTagId,
-    sbtdName :: Text,
-    sbtdCreatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance ShowBlogTagDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | Show blog post with author information
-data ShowBlogPostWithAuthor = ShowBlogPostWithAuthor
-  { sbpwaPost :: ShowBlogPostDomain,
-    sbpwaAuthor :: UserMetadata.Domain
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance ShowBlogPostWithAuthor)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | Show blog post with tags
-data ShowBlogPostWithTags = ShowBlogPostWithTags
-  { sbpwtPost :: ShowBlogPostDomain,
-    sbpwtTags :: [ShowBlogTagDomain]
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance ShowBlogPostWithTags)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | Show blog post with complete information (author + tags + show)
-data ShowBlogPostComplete = ShowBlogPostComplete
-  { sbpcPost :: ShowBlogPostDomain,
-    sbpcAuthor :: UserMetadata.Domain,
-    sbpcShow :: Show.ShowDomain,
-    sbpcTags :: [ShowBlogTagDomain]
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance ShowBlogPostComplete)
-  deriving anyclass (FromJSON, ToJSON)
-
---------------------------------------------------------------------------------
--- Conversion Functions
-
-toDomainShowBlogPost :: ShowBlogPostModel -> ShowBlogPostDomain
-toDomainShowBlogPost ShowBlogPostModel {..} =
-  ShowBlogPostDomain
-    { sbpdId = sbpmId,
-      sbpdShowId = sbpmShowId,
-      sbpdTitle = sbpmTitle,
-      sbpdSlug = sbpmSlug,
-      sbpdContent = sbpmContent,
-      sbpdExcerpt = sbpmExcerpt,
-      sbpdAuthorId = sbpmAuthorId,
-      sbpdStatus = sbpmStatus,
-      sbpdPublishedAt = sbpmPublishedAt,
-      sbpdCreatedAt = sbpmCreatedAt,
-      sbpdUpdatedAt = sbpmUpdatedAt
-    }
-
-toDomainShowBlogTag :: ShowBlogTagModel -> ShowBlogTagDomain
-toDomainShowBlogTag ShowBlogTagModel {..} =
-  ShowBlogTagDomain
-    { sbtdId = sbtmId,
-      sbtdName = sbtmName,
-      sbtdCreatedAt = sbtmCreatedAt
-    }
-
---------------------------------------------------------------------------------
 -- Insert Types
 
 data ShowBlogPostInsert = ShowBlogPostInsert
@@ -220,7 +95,7 @@ data ShowBlogPostInsert = ShowBlogPostInsert
     sbpiContent :: Text,
     sbpiExcerpt :: Maybe Text,
     sbpiAuthorId :: User.Id,
-    sbpiStatus :: ShowBlogStatus
+    sbpiStatus :: BlogPostStatus
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
@@ -300,7 +175,7 @@ getRecentPublishedShowBlogPosts limit offset =
 insertShowBlogPost :: ShowBlogPostInsert -> Hasql.Statement () ShowBlogPostId
 insertShowBlogPost ShowBlogPostInsert {..} =
   case sbpiStatus of
-    BlogPublished ->
+    Published ->
       getOneRow
         <$> interp
           False
@@ -349,8 +224,8 @@ deleteShowBlogPost postId =
     RETURNING id
   |]
 
--- | Check if user can edit show blog post (must be host of the show) (TODO: Fix Bool DecodeRow issue)
-canUserEditShowBlogPost :: User.Id -> ShowBlogPostId -> Hasql.Statement () (OneColumn Bool)
+-- | Check if user can edit show blog post (must be host of the show)
+canUserEditShowBlogPost :: User.Id -> ShowBlogPostId -> Hasql.Statement () Bool
 canUserEditShowBlogPost userId postId =
   let query =
         interp
@@ -362,7 +237,7 @@ canUserEditShowBlogPost userId postId =
           WHERE sbp.id = #{postId} AND sh.user_id = #{userId} AND sh.left_at IS NULL
         )
       |]
-   in fromMaybe (OneColumn False) <$> query
+   in maybe False getOneColumn <$> query
 
 --------------------------------------------------------------------------------
 -- Show Blog Tag Queries

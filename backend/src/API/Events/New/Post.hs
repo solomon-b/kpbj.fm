@@ -1,17 +1,19 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module API.Events.New.Post where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (eventGetLink, eventsGetLink, eventsNewGetLink, userLoginGetLink)
-import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Aeson ((.=))
+import Data.Aeson qualified as Aeson
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Foldable (traverse_)
 import Data.Has (Has)
@@ -21,6 +23,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Domain.Types.Cookie (Cookie)
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
@@ -60,8 +64,8 @@ type Route =
     "POST /events/new"
     ( "events"
         :> "new"
-        :> Servant.Header "Cookie" Text
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.ReqBody '[Servant.FormUrlEncoded] NewEventForm
         :> Servant.Post '[HTML] (Lucid.Html ())
     )
@@ -251,24 +255,6 @@ generateSlug title =
       | isAsciiUpper c = c
       | otherwise = ' '
 
--- Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserInfo -> Lucid.Html () -> m (Lucid.Html ())
-renderTemplate isHtmxRequest mUserInfo templateContent =
-  case mUserInfo of
-    Just userInfo ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrameWithUser userInfo templateContent
-    Nothing ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrame templateContent
-
-checkHtmxRequest :: Maybe Text -> Bool
-checkHtmxRequest = \case
-  Just "true" -> True
-  _ -> False
-
 --------------------------------------------------------------------------------
 
 handler ::
@@ -282,70 +268,38 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
   NewEventForm ->
   m (Lucid.Html ())
-handler _tracer cookie hxRequest form = do
-  let isHtmxRequest = checkHtmxRequest hxRequest
+handler _tracer cookie (foldHxReq -> hxRequest) form = do
+  getUserInfo cookie $ \case
+    Just (user, userMetadata) | UserMetadata.isStaffOrHigher userMetadata.mUserRole ->
+      validateForm hxRequest user userMetadata form $ \eventInsert ->
+        insertEvent hxRequest userMetadata eventInsert $ \eventId -> do
+          Log.logInfo "Event created successfully" eventId
+          traverse_ (addTag eventId) (parseTags (nefTags form))
 
-  checkAuth isHtmxRequest cookie $ \user userInfo ->
-    validateForm isHtmxRequest user userInfo form $ \eventInsert ->
-      insertEvent isHtmxRequest userInfo eventInsert $ \eventId -> do
-        Log.logInfo "Event created successfully" eventId
-
-        traverse_ (addTag eventId) (parseTags (nefTags form))
-
-        fetchEvent isHtmxRequest userInfo eventId
-
-checkAuth ::
-  ( MonadDB m,
-    MonadCatch m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
-  Bool ->
-  Maybe Text ->
-  (User.Model -> UserInfo -> m (Lucid.Html ())) ->
-  m (Lucid.Html ())
-checkAuth isHtmxRequest cookie k = do
-  Auth.userLoginState cookie >>= \case
-    Auth.IsNotLoggedIn -> do
+          fetchEvent hxRequest userMetadata eventId
+    _ -> do
       Log.logInfo "Unauthorized access to event creation form" ()
-      renderTemplate isHtmxRequest Nothing notAuthorizedTemplate
-    Auth.IsLoggedIn user -> do
-      execQuerySpan (UserMetadata.getUserMetadata user.mId) >>= \case
-        Right (Just userMetadata) ->
-          let userInfo = UserInfo {userDisplayName = userMetadata.mDisplayName}
-           in if UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                then k user userInfo
-                else do
-                  Log.logInfo "User without Staff/Admin role tried to create event" userMetadata.mDisplayName
-                  let mUserInfo = Just $ UserInfo {userDisplayName = userMetadata.mDisplayName}
-                  renderTemplate isHtmxRequest mUserInfo notAuthorizedTemplate
-        _ -> do
-          Log.logInfo "Failed to fetch user metadata for event creation" user.mId
-          renderTemplate isHtmxRequest Nothing notAuthorizedTemplate
+      renderTemplate hxRequest Nothing notAuthorizedTemplate
 
 validateForm ::
   ( Log.MonadLog m,
     MonadCatch m
   ) =>
-  Bool ->
+  HxRequest ->
   User.Model ->
-  UserInfo ->
+  UserMetadata.Model ->
   NewEventForm ->
   (Events.EventInsert -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
-validateForm isHtmxRequest user userInfo form k =
+validateForm hxRequest user userMetadata form k =
   case validateEventForm form of
     Left errors -> do
       Log.logInfo "Event creation failed validation" errors
-      let mUserInfo = Just userInfo
-      renderTemplate isHtmxRequest mUserInfo (errorTemplate errors)
+      renderTemplate hxRequest (Just userMetadata) (errorTemplate errors)
     Right (title, description, startsAt, endsAt, locationName, locationAddress, status) ->
       let slug = generateSlug title
           eventInsert =
@@ -370,17 +324,16 @@ insertEvent ::
     Has Tracer env0,
     MonadUnliftIO m
   ) =>
-  Bool ->
-  UserInfo ->
+  HxRequest ->
+  UserMetadata.Model ->
   Events.EventInsert ->
   (Events.EventId -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
-insertEvent isHtmxRequest userInfo eventInsert k =
+insertEvent hxRequest userMetadata eventInsert k =
   execQuerySpan (Events.insertEvent eventInsert) >>= \case
     Left _err -> do
       Log.logInfo "Failed to create event in database" ()
-      let mUserInfo = Just userInfo
-      renderTemplate isHtmxRequest mUserInfo (errorTemplate ["Database error occurred. Please try again."])
+      renderTemplate hxRequest (Just userMetadata) (errorTemplate ["Database error occurred. Please try again."])
     Right eventId ->
       k eventId
 
@@ -424,14 +377,14 @@ fetchEvent ::
     MonadUnliftIO m,
     MonadCatch m
   ) =>
-  Bool ->
-  UserInfo ->
+  HxRequest ->
+  UserMetadata.Model ->
   Events.EventId ->
   m (Lucid.Html ())
-fetchEvent isHtmxRequest userInfo eventId =
+fetchEvent hxRequest userMetadata eventId =
   execQuerySpan (Events.getEventById eventId) >>= \case
     Right (Just event) -> do
-      let mUserInfo = Just userInfo
-      renderTemplate isHtmxRequest mUserInfo (successTemplate event)
-    _ ->
-      error "TODO ERROR HANDLE"
+      renderTemplate hxRequest (Just userMetadata) (successTemplate event)
+    _ -> do
+      Log.logInfo "Failed to fetc event" (Aeson.object ["eventId" .= eventId])
+      renderTemplate hxRequest (Just userMetadata) (errorTemplate ["Database error occurred. Please try again."])

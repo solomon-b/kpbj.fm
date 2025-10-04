@@ -6,8 +6,8 @@ module API.Events.Get where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (eventGetLink, eventsGetLink)
-import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo)
+import Component.Frame (loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -26,13 +26,13 @@ import Data.Time (MonthOfYear, UTCTime (..), Year, addDays, fromGregorian, toGre
 import Data.Time.Calendar (gregorianMonthLength)
 import Data.Time.Calendar.WeekDate (fromWeekDate, toWeekDate)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Cookie (Cookie)
+import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.PageView (PageView (..), isMonthView, isWeekView)
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -71,18 +71,10 @@ type Route =
     ( "events"
         :> Servant.QueryParam "tag" Text
         :> Servant.QueryParam "view" PageView
-        :> Servant.Header "Cookie" Text
+        :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
-
-data HxRequest = IsHxRequest | IsNotHxRequest
-  deriving (Show)
-
-instance Servant.FromHttpApiData HxRequest where
-  parseQueryParam = \case
-    "true" -> Right IsHxRequest
-    _ -> Right IsNotHxRequest
 
 --------------------------------------------------------------------------------
 
@@ -508,8 +500,7 @@ handler ::
   Maybe Text ->
   -- | Page View Query Param
   Maybe PageView ->
-  -- | Cookie
-  Maybe Text ->
+  Maybe Cookie ->
   -- | @hx-request@ header
   Maybe HxRequest ->
   m (Lucid.Html ())
@@ -538,8 +529,8 @@ handler _tracer (normalizeTagFilter -> tagFilter) (fromMaybe ListView -> view) c
         pure template
       _ ->
         case mUserInfo of
-          Just userInfo ->
-            loadFrameWithUser userInfo template
+          Just (_user, userMetadata) ->
+            loadFrameWithUser userMetadata template
           Nothing ->
             loadFrame template
 
@@ -577,28 +568,6 @@ normalizeTagFilter :: Maybe Text -> Maybe Text
 normalizeTagFilter = \case
   Just "" -> Nothing
   other -> other
-
-getUserInfo ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
-  Maybe Text ->
-  (Maybe UserInfo -> m a) ->
-  m a
-getUserInfo cookie k =
-  Auth.userLoginState cookie >>= \case
-    Auth.IsNotLoggedIn ->
-      k Nothing
-    Auth.IsLoggedIn user ->
-      execQuerySpan (UserMetadata.getUserMetadata user.mId) >>= \case
-        Right (Just userMetadata) ->
-          k $ Just $ UserInfo {userDisplayName = userMetadata.mDisplayName}
-        _ ->
-          k Nothing
 
 getAllEventTags ::
   ( Log.MonadLog m,

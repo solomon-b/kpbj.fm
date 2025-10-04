@@ -1,28 +1,31 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module API.Show.Get where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (showGetLink, showsGetLink)
-import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad (unless)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Aeson ((.=))
+import Data.Aeson qualified as Aeson
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episode qualified as Episode
 import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -41,7 +44,7 @@ showGetUrl :: Text -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
 showsGetUrl :: Links.URI
-showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing
+showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -50,8 +53,8 @@ type Route =
     "GET /shows/:slug"
     ( "shows"
         :> Servant.Capture "slug" Text
-        :> Servant.Header "Cookie" Text
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
@@ -117,8 +120,8 @@ renderEpisodeCard episode = do
         Nothing -> mempty
 
 -- | Render show header with info
-renderShowHeader :: Show.ShowModel -> [Episode.EpisodeModel] -> Lucid.Html ()
-renderShowHeader showModel episodes = do
+renderShowHeader :: Show.ShowModel -> [Episode.EpisodeModel] -> [Show.ShowHostWithUser] -> [Show.ShowScheduleModel] -> Lucid.Html ()
+renderShowHeader showModel episodes hosts schedules = do
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8"] $ do
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-4 gap-8"] $ do
       -- Show Image
@@ -139,11 +142,35 @@ renderShowHeader showModel episodes = do
           Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-2"] $ Lucid.toHtml (Text.toUpper $ Show.smTitle showModel)
 
           Lucid.div_ [Lucid.class_ "text-lg text-gray-600 mb-4"] $ do
-            -- TODO: Show host information from show_hosts table
-            Lucid.span_ [Lucid.class_ "font-bold"] "Host: " <> "TBD"
+            -- Show host information
+            Lucid.span_ [Lucid.class_ "font-bold"] "Host: "
+            case hosts of
+              [] -> "TBD"
+              (host : otherHosts) -> do
+                let displayName = Show.shwuDisplayName host
+                Lucid.toHtml displayName
+                unless (null otherHosts) $ do
+                  ", "
+                  let otherNames = map (Lucid.toHtml . Show.shwuDisplayName) otherHosts
+                  mconcat $ map (", " <>) otherNames
             " • "
-            -- TODO: Show schedule information from show_schedules table
-            Lucid.span_ [Lucid.class_ "font-bold"] "Schedule: " <> "TBD"
+            -- Show schedule information
+            Lucid.span_ [Lucid.class_ "font-bold"] "Schedule: "
+            case schedules of
+              [] -> "TBD"
+              (schedule : _) -> do
+                let dayName = case Show.ssmDayOfWeek schedule of
+                      0 -> "Sunday"
+                      1 -> "Monday"
+                      2 -> "Tuesday"
+                      3 -> "Wednesday"
+                      4 -> "Thursday"
+                      5 -> "Friday"
+                      6 -> "Saturday"
+                      _ -> "Unknown"
+                    startTime = Show.ssmStartTime schedule
+                    endTime = Show.ssmEndTime schedule
+                Lucid.toHtml $ dayName <> "s " <> startTime <> " - " <> endTime
             " • "
             case Show.smGenre showModel of
               Just genre -> Lucid.span_ [Lucid.class_ "font-bold"] "Genre: " <> Lucid.toHtml genre
@@ -182,9 +209,9 @@ renderBreadcrumb showModel = do
   Lucid.nav_ [Lucid.class_ "bg-gray-100 px-4 py-2 border-b border-gray-300"] $ do
     Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto"] $ do
       Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $ do
-        Lucid.a_ [Lucid.href_ "/", Lucid.class_ "hover:text-gray-800"] "Home"
+        Lucid.a_ [Lucid.href_ "/", hxGet_ "/", hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Home"
         Lucid.span_ [Lucid.class_ "mx-2"] "/"
-        Lucid.a_ [Lucid.href_ [i|/#{showsGetUrl}|], Lucid.class_ "hover:text-gray-800"] "Shows"
+        Lucid.a_ [Lucid.href_ [i|/#{showsGetUrl}|], hxGet_ [i|/#{showsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Shows"
         Lucid.span_ [Lucid.class_ "mx-2"] "/"
         Lucid.span_ [Lucid.class_ "text-gray-800 font-bold"] $ Lucid.toHtml (Show.smTitle showModel)
 
@@ -219,13 +246,13 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Show.ShowModel -> [Episode.EpisodeModel] -> Lucid.Html ()
-template showModel episodes = do
+template :: Show.ShowModel -> [Episode.EpisodeModel] -> [Show.ShowHostWithUser] -> [Show.ShowScheduleModel] -> Lucid.Html ()
+template showModel episodes hosts schedules = do
   -- Breadcrumb
   renderBreadcrumb showModel
 
   -- Show Header
-  renderShowHeader showModel episodes
+  renderShowHeader showModel episodes hosts schedules
 
   -- Content Tabs Navigation
   Lucid.div_ [Lucid.class_ "mb-8"] $ do
@@ -291,24 +318,6 @@ template showModel episodes = do
           Lucid.div_ "📧 hello@kpbj.fm"
           Lucid.div_ "📞 (555) 959-KPBJ"
 
--- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserInfo -> Lucid.Html () -> m (Lucid.Html ())
-renderTemplate isHtmxRequest mUserInfo templateContent =
-  case mUserInfo of
-    Just userInfo ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrameWithUser userInfo templateContent
-    Nothing ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrame templateContent
-
-checkHtmxRequest :: Maybe Text -> Bool
-checkHtmxRequest = \case
-  Just "true" -> True
-  _ -> False
-
 --------------------------------------------------------------------------------
 
 handler ::
@@ -323,41 +332,33 @@ handler ::
   ) =>
   Tracer ->
   Text ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer slug cookie hxRequest = do
-  let isHtmxRequest = checkHtmxRequest hxRequest
+handler _tracer slug cookie (foldHxReq -> hxRequest) = do
+  getUserInfo cookie $ \(fmap snd -> mUserInfo) -> do
+    showResult <- execQuerySpan (Show.getShowBySlug slug)
 
-  -- Get user info once upfront
-  loginState <- Auth.userLoginState cookie
-  mUserInfo <- case loginState of
-    Auth.IsNotLoggedIn -> pure Nothing
-    Auth.IsLoggedIn user -> do
-      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-        Right (Just userMetadata) ->
-          pure $ Just $ UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-        _ -> pure Nothing
+    case showResult of
+      Left err -> do
+        Log.logInfo "Failed to fetch show from database" (Aeson.object ["error" .= show err])
+        renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")
+      Right Nothing -> do
+        Log.logInfo ("Show not found: " <> slug) ()
+        renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
+      Right (Just showModel) -> do
+        episodesResult <- execQuerySpan (Episode.getEpisodesByShowId (Show.smId showModel))
+        hostsResult <- execQuerySpan (Show.getShowHostsWithUsers (Show.smId showModel))
+        schedulesResult <- execQuerySpan (Show.getShowSchedules (Show.smId showModel))
 
-  -- Get show by slug
-  showResult <- execQuerySpan (Show.getShowBySlug slug)
-
-  case showResult of
-    Left _err -> do
-      Log.logInfo "Failed to fetch show from database" ()
-      renderTemplate isHtmxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")
-    Right Nothing -> do
-      Log.logInfo ("Show not found: " <> slug) ()
-      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
-    Right (Just showModel) -> do
-      -- Get episodes for this show
-      episodesResult <- execQuerySpan (Episode.getEpisodesByShowId (Show.smId showModel))
-
-      case episodesResult of
-        Left _err -> do
-          Log.logInfo "Failed to fetch episodes from database" ()
-          let showTemplate = template showModel []
-          renderTemplate isHtmxRequest mUserInfo showTemplate
-        Right episodes -> do
-          let showTemplate = template showModel episodes
-          renderTemplate isHtmxRequest mUserInfo showTemplate
+        case (episodesResult, hostsResult, schedulesResult) of
+          (Right episodes, Right hosts, Right schedules) -> do
+            let showTemplate = template showModel episodes hosts schedules
+            renderTemplate hxRequest mUserInfo showTemplate
+          _ ->
+            -- If any query fails, show with empty data for the failed parts
+            let episodes = fromRight [] episodesResult
+                hosts = fromRight [] hostsResult
+                schedules = fromRight [] schedulesResult
+                showTemplate = template showModel episodes hosts schedules
+             in renderTemplate hxRequest mUserInfo showTemplate

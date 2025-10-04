@@ -7,12 +7,13 @@ module Effects.Database.Tables.Show where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Data.Text.Display (Display, RecordInstance (..), displayBuilder)
+import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (Day, UTCTime)
+import Domain.Types.DisplayName (DisplayName)
+import Domain.Types.Genre (Genre)
+import Domain.Types.Search (Search)
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
@@ -24,15 +25,21 @@ import Servant qualified
 --------------------------------------------------------------------------------
 -- Show Status and Frequency Types
 
-data ShowStatus = Active | Inactive | Hiatus | Archived
+data ShowStatus = Active | Inactive
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
+
+instance Servant.ToHttpApiData ShowStatus where
+  toQueryParam = \case
+    Active -> "active"
+    Inactive -> "inactive"
+
+instance Servant.FromHttpApiData ShowStatus where
+  parseQueryParam = maybe (Left "Invalid ShowStatus") Right . decodeShowStatus
 
 instance Display ShowStatus where
   displayBuilder Active = "active"
   displayBuilder Inactive = "inactive"
-  displayBuilder Hiatus = "hiatus"
-  displayBuilder Archived = "archived"
 
 instance DecodeValue ShowStatus where
   decodeValue = Decoders.enum decodeShowStatus
@@ -41,16 +48,12 @@ decodeShowStatus :: Text -> Maybe ShowStatus
 decodeShowStatus = \case
   "active" -> Just Active
   "inactive" -> Just Inactive
-  "hiatus" -> Just Hiatus
-  "archived" -> Just Archived
   _ -> Nothing
 
 instance EncodeValue ShowStatus where
   encodeValue = Encoders.enum $ \case
     Active -> "active"
     Inactive -> "inactive"
-    Hiatus -> "hiatus"
-    Archived -> "archived"
 
 data ShowFrequency = Weekly | Biweekly | Monthly | Occasional | OneTime
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
@@ -193,117 +196,29 @@ data ShowScheduleModel = ShowScheduleModel
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
 
---------------------------------------------------------------------------------
--- Domain Types
+instance Display ShowScheduleModel where
+  displayBuilder _ = "ShowScheduleModel"
 
-data ShowDomain = ShowDomain
-  { sdId :: ShowId,
-    sdTitle :: Text,
-    sdSlug :: Text,
-    sdDescription :: Text,
-    sdGenre :: Maybe Text,
-    sdLogoUrl :: Maybe Text,
-    sdBannerUrl :: Maybe Text,
-    sdStatus :: ShowStatus,
-    sdFrequency :: ShowFrequency,
-    sdDurationMinutes :: Maybe Int64,
-    sdCreatedAt :: UTCTime,
-    sdUpdatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance ShowDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
-data ShowHostDomain = ShowHostDomain
-  { shdShowId :: ShowId,
-    shdUserId :: User.Id,
-    shdRole :: HostRole,
-    shdIsPrimary :: Bool,
-    shdJoinedAt :: UTCTime,
-    shdLeftAt :: Maybe UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance ShowHostDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
-data ShowScheduleDomain = ShowScheduleDomain
-  { ssdId :: ShowScheduleId,
-    ssdShowId :: ShowId,
-    ssdDayOfWeek :: Int64,
-    ssdStartTime :: Text,
-    ssdEndTime :: Text,
-    ssdTimezone :: Text,
-    ssdIsActive :: Bool,
-    ssdEffectiveFrom :: Day,
-    ssdEffectiveUntil :: Maybe Day,
-    ssdCreatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | Show with hosts information
-data ShowWithHosts = ShowWithHosts
-  { swhShow :: ShowDomain,
-    swhHosts :: [ShowHostWithUser]
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance ShowWithHosts)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | Show host with user information
+-- | Show host with user information (for SQL joins)
 data ShowHostWithUser = ShowHostWithUser
-  { shwuHost :: ShowHostDomain,
-    shwuUser :: UserMetadata.Domain
+  { shwuShowId :: ShowId,
+    shwuUserId :: User.Id,
+    shwuRole :: HostRole,
+    shwuIsPrimary :: Bool,
+    shwuJoinedAt :: UTCTime,
+    shwuLeftAt :: Maybe UTCTime,
+    shwuUserEmail :: Text,
+    shwuUserCreatedAt :: UTCTime,
+    shwuUserUpdatedAt :: UTCTime,
+    shwuDisplayName :: DisplayName,
+    shwuFullName :: Text,
+    shwuAvatarUrl :: Maybe Text,
+    shwuMetadataCreatedAt :: UTCTime,
+    shwuMetadataUpdatedAt :: UTCTime
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance ShowHostWithUser)
-  deriving anyclass (FromJSON, ToJSON)
-
---------------------------------------------------------------------------------
--- Conversion Functions
-
-toDomainShow :: ShowModel -> ShowDomain
-toDomainShow ShowModel {..} =
-  ShowDomain
-    { sdId = smId,
-      sdTitle = smTitle,
-      sdSlug = smSlug,
-      sdDescription = smDescription,
-      sdGenre = smGenre,
-      sdLogoUrl = smLogoUrl,
-      sdBannerUrl = smBannerUrl,
-      sdStatus = smStatus,
-      sdFrequency = smFrequency,
-      sdDurationMinutes = smDurationMinutes,
-      sdCreatedAt = smCreatedAt,
-      sdUpdatedAt = smUpdatedAt
-    }
-
-toDomainShowHost :: ShowHostModel -> ShowHostDomain
-toDomainShowHost ShowHostModel {..} =
-  ShowHostDomain
-    { shdShowId = shmShowId,
-      shdUserId = shmUserId,
-      shdRole = shmRole,
-      shdIsPrimary = shmIsPrimary,
-      shdJoinedAt = shmJoinedAt,
-      shdLeftAt = shmLeftAt
-    }
-
-toDomainShowSchedule :: ShowScheduleModel -> ShowScheduleDomain
-toDomainShowSchedule ShowScheduleModel {..} =
-  ShowScheduleDomain
-    { ssdId = ssmId,
-      ssdShowId = ssmShowId,
-      ssdDayOfWeek = ssmDayOfWeek,
-      ssdStartTime = ssmStartTime,
-      ssdEndTime = ssmEndTime,
-      ssdTimezone = ssmTimezone,
-      ssdIsActive = ssmIsActive,
-      ssdEffectiveFrom = ssmEffectiveFrom,
-      ssdEffectiveUntil = ssmEffectiveUntil,
-      ssdCreatedAt = ssmCreatedAt
-    }
+  deriving anyclass (DecodeRow, FromJSON, ToJSON)
 
 --------------------------------------------------------------------------------
 -- Insert Types
@@ -409,20 +324,20 @@ getAllShows limit offset =
   |]
 
 -- | Get shows by genre with pagination
-getShowsByGenre :: Text -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getShowsByGenre :: Genre -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
 getShowsByGenre genre limit offset =
   interp
     False
     [sql|
     SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
     FROM shows
-    WHERE genre = #{genre}
+    WHERE genre = #{display genre}
     ORDER BY title
     LIMIT #{limit} OFFSET #{offset}
   |]
 
 -- | Get shows by genre and status with pagination
-getShowsByGenreAndStatus :: Text -> Text -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getShowsByGenreAndStatus :: Genre -> ShowStatus -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
 getShowsByGenreAndStatus genre status limit offset =
   interp
     False
@@ -489,6 +404,27 @@ getShowsForUser userId =
     ORDER BY s.title
   |]
 
+-- | Search shows by text query with pagination
+searchShows :: Search -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+searchShows searchTerm limit offset =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    FROM shows
+    WHERE (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern} OR genre ILIKE #{searchPattern})
+    ORDER BY
+      CASE
+        WHEN title ILIKE #{searchPattern} THEN 1
+        WHEN description ILIKE #{searchPattern} THEN 2
+        ELSE 3
+      END,
+      title
+    LIMIT #{limit + 1} OFFSET #{offset}
+  |]
+  where
+    searchPattern = "%" <> searchTerm <> "%"
+
 -- | Add host to show
 insertShowHost :: ShowHostInsert -> Hasql.Statement () ()
 insertShowHost ShowHostInsert {..} =
@@ -512,8 +448,8 @@ removeShowHost showId userId =
     WHERE show_id = #{showId} AND user_id = #{userId}
   |]
 
--- | Check if user is host of show (TODO: Fix Bool DecodeRow issue)
-isUserHostOfShow :: User.Id -> ShowId -> Hasql.Statement () (OneColumn Bool)
+-- | Check if user is host of show
+isUserHostOfShow :: User.Id -> ShowId -> Hasql.Statement () Bool
 isUserHostOfShow userId showId =
   let query =
         interp
@@ -524,7 +460,7 @@ isUserHostOfShow userId showId =
           WHERE user_id = #{userId} AND show_id = #{showId} AND left_at IS NULL
         )
       |]
-   in fromMaybe (OneColumn False) <$> query
+   in maybe False getOneColumn <$> query
 
 --------------------------------------------------------------------------------
 -- Show Schedule Queries
@@ -592,4 +528,21 @@ deactivateShowSchedule scheduleId =
     SET is_active = false
     WHERE id = #{scheduleId}
     RETURNING id
+  |]
+
+-- | Get show hosts with user information
+getShowHostsWithUsers :: ShowId -> Hasql.Statement () [ShowHostWithUser]
+getShowHostsWithUsers showId =
+  interp
+    False
+    [sql|
+    SELECT
+      sh.show_id, sh.user_id, sh.role, sh.is_primary, sh.joined_at, sh.left_at,
+      u.email, u.created_at, u.updated_at,
+      um.display_name, um.full_name, um.avatar_url, um.created_at, um.updated_at
+    FROM show_hosts sh
+    JOIN users u ON sh.user_id = u.id
+    JOIN user_metadata um ON u.id = um.user_id
+    WHERE sh.show_id = #{showId} AND sh.left_at IS NULL
+    ORDER BY sh.is_primary DESC, sh.joined_at ASC
   |]

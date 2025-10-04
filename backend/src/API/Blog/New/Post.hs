@@ -6,7 +6,7 @@ module API.Blog.New.Post where
 
 import {-# SOURCE #-} API (blogGetLink, blogNewGetLink, blogPostGetLink, userLoginGetLink)
 import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad (unless, void, when)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
@@ -19,6 +19,7 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Blog qualified as Blog
@@ -76,9 +77,9 @@ successTemplate post = do
       Lucid.strong_ $ Lucid.toHtml (Blog.bpmTitle post)
       "\" has been "
       case Blog.bpmStatus post of
-        Blog.Published -> "published and is now live."
-        Blog.Draft -> "saved as a draft."
-        Blog.Archived -> "archived."
+        Published -> "published and is now live."
+        Draft -> "saved as a draft."
+        Archived -> "archived."
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
@@ -215,7 +216,7 @@ validateNewBlogPost form authorId = do
   when (Text.null (nbpfTitle form)) (Left "Title is required")
   when (Text.null (nbpfContent form)) (Left "Content is required")
 
-  let status = fromMaybe Blog.Published $ Blog.decodeBlogPost =<< nbpfStatus form
+  let status = fromMaybe Published $ decodeBlogPost =<< nbpfStatus form
       slug = mkSlug (nbpfTitle form)
 
   Right $
@@ -241,10 +242,9 @@ renderWithUserAuth ::
   Lucid.Html () ->
   m (Lucid.Html ())
 renderWithUserAuth isHtmxRequest userMetadata template =
-  let userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-   in if isHtmxRequest
-        then loadContentOnly template
-        else loadFrameWithUser userInfo template
+  if isHtmxRequest
+    then loadContentOnly template
+    else loadFrameWithUser userMetadata template
 
 -- | Create tags for a blog post
 createPostTags ::

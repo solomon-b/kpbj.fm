@@ -1,12 +1,12 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module API.Blog.New.Get where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (blogGetLink, blogNewPostLink, userLoginGetLink)
-import App.Auth qualified as Auth
-import Component.Frame (UserInfo (..), loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -14,9 +14,9 @@ import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -48,8 +48,8 @@ type Route =
     "GET /blog/new"
     ( "blog"
         :> "new"
-        :> Servant.Header "Cookie" Text
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
@@ -201,19 +201,6 @@ userMetadataErrorTemplate =
     Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Error"
     Lucid.p_ "Unable to load user information."
 
--- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserInfo -> Lucid.Html () -> m (Lucid.Html ())
-renderTemplate isHtmxRequest mUserInfo templateContent =
-  case mUserInfo of
-    Just userInfo ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrameWithUser userInfo templateContent
-    Nothing ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrame templateContent
-
 --------------------------------------------------------------------------------
 
 checkHtmxRequest :: Maybe Text -> Bool
@@ -232,24 +219,14 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer cookie hxRequest = do
-  let isHtmxRequest = checkHtmxRequest hxRequest
-
-  Auth.userLoginState cookie >>= \case
-    Auth.IsNotLoggedIn ->
-      renderTemplate isHtmxRequest Nothing loginRequiredTemplate
-    Auth.IsLoggedIn user ->
-      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-        Right (Just userMetadata) -> do
-          let userRole = UserMetadata.mUserRole userMetadata
-              userInfo = UserInfo {userDisplayName = UserMetadata.mDisplayName userMetadata}
-
-          if UserMetadata.isStaffOrHigher userRole
-            then renderTemplate isHtmxRequest (Just userInfo) (template userMetadata)
-            else renderTemplate isHtmxRequest Nothing permissionDeniedTemplate
-        _ -> do
-          Log.logInfo "Failed to fetch user metadata for blog form" ()
-          renderTemplate isHtmxRequest Nothing userMetadataErrorTemplate
+handler _tracer cookie (foldHxReq -> hxRequest) = do
+  getUserInfo cookie $ \case
+    Nothing ->
+      renderTemplate hxRequest Nothing loginRequiredTemplate
+    Just (_user, userMetadata) -> do
+      if UserMetadata.isStaffOrHigher userMetadata.mUserRole
+        then renderTemplate hxRequest (Just userMetadata) (template userMetadata)
+        else renderTemplate hxRequest Nothing permissionDeniedTemplate

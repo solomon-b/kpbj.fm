@@ -4,11 +4,12 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (aboutGetLink, blogGetLink, donateGetLink, eventsGetLink, rootGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
+import {-# SOURCE #-} API (aboutGetLink, blogGetLink, donateGetLink, eventsGetLink, hostDashboardGetLink, rootGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xModel_, xOnClick_, xOnInput_, xRef_, xShow_, xText_)
@@ -39,6 +40,9 @@ userRegisterGetUrl = Link.linkURI $ userRegisterGetLink Nothing Nothing Nothing
 
 userLogoutGetUrl :: Link.URI
 userLogoutGetUrl = Link.linkURI userLogoutGetLink
+
+hostDashboardGetUrl :: Link.URI
+hostDashboardGetUrl = Link.linkURI hostDashboardGetLink
 
 --------------------------------------------------------------------------------
 
@@ -219,7 +223,7 @@ musicPlayer =
       }
     }|]
 
-template :: Maybe UserInfo -> Lucid.Html () -> Lucid.Html ()
+template :: Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
 template mUser main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
@@ -244,7 +248,7 @@ template mUser main =
           Lucid.nav_ [Lucid.class_ "flex gap-8 items-center flex-wrap"] $ do
             Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Donate"
             -- Lucid.a_ [Lucid.id_ "nav-list", Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Listen"
-            -- Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Shows"
+            Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ "/shows", hxGet_ "/shows", hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Shows"
             -- Lucid.a_ [Lucid.id_ "nav-archive", Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Archive"
             Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Blog"
             Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Events"
@@ -259,8 +263,8 @@ template mUser main =
                 Lucid.a_ [Lucid.href_ [i|/#{userRegisterGetUrl}|], hxGet_ [i|/#{userRegisterGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Sign Up"
               Just user -> do
                 Lucid.span_ [Lucid.class_ "text-gray-400"] "•"
-                Lucid.span_ [Lucid.class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml (userDisplayName user))
-                Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
+                Lucid.span_ [Lucid.class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
+                Lucid.a_ [Lucid.href_ [i|/#{hostDashboardGetUrl}|], hxGet_ [i|/#{hostDashboardGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
                 Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
       -- Persistent music player
       musicPlayer
@@ -306,7 +310,7 @@ template mUser main =
 loadFrame :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())
 loadFrame = pure . template Nothing
 
-loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => UserInfo -> Lucid.Html () -> m (Lucid.Html ())
+loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
 loadFrameWithUser user = pure . template (Just user)
 
 -- | Load content-only for HTMX responses
