@@ -1,0 +1,827 @@
+-- Mock Shows Data for KPBJ 95.9FM
+-- 84 unique shows filling 24/7 schedule, each airing once per week
+-- Password for all users: "password"
+
+-- First, clear existing data
+TRUNCATE TABLE show_schedules, show_hosts, episode_tracks, episodes, shows, event_tag_assignments, event_tags, events, blog_post_tags, blog_tags, blog_posts RESTART IDENTITY CASCADE;
+
+-- Create admin user (password: "password")
+INSERT INTO users (email, password) VALUES
+  ('admin@kpbj.fm', '$argon2id$v=19$m=65536,t=2,p=1$IBMrLbPnVTsuf02vfr/jbA$u5UMpeqN0c7BR2L/AlIKpwk6lQ1E4y1j7OGXvRb7X5I')
+ON CONFLICT (email) DO NOTHING;
+
+-- Create admin user_metadata
+INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
+SELECT u.id, 'Admin', 'KPBJ Administrator', 'Admin'
+FROM users u WHERE u.email = 'admin@kpbj.fm';
+
+-- Insert 84 diverse radio shows (mix of 1hr and 2hr shows = 168 hours total)
+-- Format: title, slug, description, genre, duration (60 or 120 minutes)
+INSERT INTO shows (title, slug, description, genre, status, frequency, duration_minutes) VALUES
+-- SUNDAY (24 hours = 12 shows of 2hrs each)
+('Sunday Morning Jazz', 'sunday-morning-jazz', 'Start your Sunday with smooth jazz classics', 'Jazz', 'active', 'weekly', 120),
+('Gospel Hour', 'gospel-hour', 'Uplifting gospel music and spirituals', 'Gospel', 'active', 'weekly', 120),
+('World Music Passport', 'world-music-passport', 'Global sounds from every continent', 'World', 'active', 'weekly', 120),
+('Classical Sundays', 'classical-sundays', 'Timeless classical compositions', 'Classical', 'active', 'weekly', 120),
+('Indie Mixtape', 'indie-mixtape', 'Fresh independent music discoveries', 'Indie', 'active', 'weekly', 120),
+('Soul Kitchen', 'soul-kitchen', 'Classic soul, R&B, and funk', 'Soul/R&B', 'active', 'weekly', 120),
+('Acoustic Sessions', 'acoustic-sessions', 'Stripped-down acoustic performances', 'Folk', 'active', 'weekly', 120),
+('Electronic Sunday', 'electronic-sunday', 'Electronic beats to end your weekend', 'Electronic', 'active', 'weekly', 120),
+('Reggae Vibes', 'reggae-vibes', 'Roots reggae and dancehall', 'Reggae', 'active', 'weekly', 120),
+('Blues After Dark', 'blues-after-dark', 'Late night blues classics', 'Blues', 'active', 'weekly', 120),
+('Experimental Sounds', 'experimental-sounds', 'Avant-garde and boundary-pushing music', 'Experimental', 'active', 'weekly', 120),
+('Midnight Ambient', 'midnight-ambient', 'Atmospheric soundscapes for late night', 'Ambient', 'active', 'weekly', 120),
+
+-- MONDAY (24 hours = mix of 1hr and 2hr shows)
+('Monday Morning Wake Up', 'monday-morning-wake-up', 'Energetic music to start your week', 'Pop', 'active', 'weekly', 120),
+('Coffee & Classics', 'coffee-and-classics', 'Classical music for your morning routine', 'Classical', 'active', 'weekly', 120),
+('Folk Tales', 'folk-tales', 'Folk music and storytelling', 'Folk', 'active', 'weekly', 120),
+('Midday Mix', 'midday-mix', 'Eclectic midday music mix', 'Variety', 'active', 'weekly', 120),
+('Latin Grooves', 'latin-grooves', 'Salsa, cumbia, and Latin rhythms', 'Latin', 'active', 'weekly', 120),
+('Rock Solid', 'rock-solid', 'Classic rock anthems', 'Rock', 'active', 'weekly', 120),
+('Drive Time', 'drive-time', 'Perfect soundtrack for your commute', 'Eclectic', 'active', 'weekly', 120),
+('Hip-Hop Fundamentals', 'hip-hop-fundamentals', 'Essential hip-hop tracks', 'Hip-Hop', 'active', 'weekly', 120),
+('Jazz Lounge', 'jazz-lounge', 'Sophisticated evening jazz', 'Jazz', 'active', 'weekly', 120),
+('Punk Power Hour', 'punk-power-hour', 'High-energy punk rock', 'Punk', 'active', 'weekly', 60),
+('Metal Madness', 'metal-madness', 'Heavy metal and hard rock', 'Metal', 'active', 'weekly', 120),
+('Late Night Chill', 'late-night-chill', 'Downtempo beats for night owls', 'Downtempo', 'active', 'weekly', 120),
+('Graveyard Shift', 'graveyard-shift', 'Music for the wee hours', 'Eclectic', 'active', 'weekly', 60),
+
+-- TUESDAY (24 hours)
+('Tuesday Sunrise', 'tuesday-sunrise', 'Gentle morning sounds', 'Acoustic', 'active', 'weekly', 120),
+('Morning Brew', 'morning-brew', 'Coffee-fueled eclectic mix', 'Eclectic', 'active', 'weekly', 120),
+('Singer-Songwriter Showcase', 'singer-songwriter-showcase', 'Spotlighting lyrical storytellers', 'Folk', 'active', 'weekly', 120),
+('World Beat', 'world-beat', 'Percussion and rhythm from around the globe', 'World', 'active', 'weekly', 120),
+('Indie Rock Hour', 'indie-rock-hour', 'Independent rock discoveries', 'Indie Rock', 'active', 'weekly', 60),
+('Soul Stirrers', 'soul-stirrers', 'Deep soul and classic R&B', 'Soul/R&B', 'active', 'weekly', 60),
+('Alternative Nation', 'alternative-nation', 'Alternative rock past and present', 'Alternative', 'active', 'weekly', 120),
+('Electronic Evolution', 'electronic-evolution', 'The progression of electronic music', 'Electronic', 'active', 'weekly', 120),
+('Country Roads', 'country-roads', 'Traditional and modern country', 'Country', 'active', 'weekly', 120),
+('Funk Sessions', 'funk-sessions', 'Get down with classic funk', 'Funk', 'active', 'weekly', 120),
+('Jazz Standards', 'jazz-standards', 'Timeless jazz classics', 'Jazz', 'active', 'weekly', 120),
+('Noise & Space', 'noise-and-space', 'Experimental and noise music', 'Experimental', 'active', 'weekly', 60),
+('Deep Night Mix', 'deep-night-mix', 'Music for the deep night hours', 'Ambient', 'active', 'weekly', 120),
+
+-- WEDNESDAY (24 hours)
+('Midweek Morning', 'midweek-morning', 'Hump day starts here', 'Pop/Rock', 'active', 'weekly', 120),
+('Classical Interlude', 'classical-interlude', 'Classical music break', 'Classical', 'active', 'weekly', 120),
+('Folk Underground', 'folk-underground', 'Deep folk and Americana', 'Folk', 'active', 'weekly', 120),
+('Lunch Hour Favorites', 'lunch-hour-favorites', 'Midday music you love', 'Variety', 'active', 'weekly', 120),
+('Afrobeat Express', 'afrobeat-express', 'West African grooves', 'Afrobeat', 'active', 'weekly', 120),
+('Psychedelic Journey', 'psychedelic-journey', 'Mind-expanding psych rock', 'Psychedelic', 'active', 'weekly', 120),
+('Hip-Hop Heritage', 'hip-hop-heritage', 'Golden age to modern hip-hop', 'Hip-Hop', 'active', 'weekly', 120),
+('Dub Vibrations', 'dub-vibrations', 'Dub, roots, and bass', 'Dub/Reggae', 'active', 'weekly', 120),
+('Shoegaze & Dream Pop', 'shoegaze-and-dream-pop', 'Ethereal guitar soundscapes', 'Shoegaze', 'active', 'weekly', 120),
+('Jazz Fusion', 'jazz-fusion', 'Where jazz meets rock and funk', 'Jazz Fusion', 'active', 'weekly', 120),
+('Post-Rock Horizons', 'post-rock-horizons', 'Instrumental post-rock epics', 'Post-Rock', 'active', 'weekly', 60),
+('Industrial Underground', 'industrial-underground', 'Industrial and EBM', 'Industrial', 'active', 'weekly', 60),
+('Night Drones', 'night-drones', 'Drone and dark ambient', 'Ambient', 'active', 'weekly', 120),
+
+-- THURSDAY (24 hours)
+('Thursday Wake-Up Call', 'thursday-wake-up-call', 'Almost Friday energy', 'Rock/Pop', 'active', 'weekly', 120),
+('Baroque & Beyond', 'baroque-and-beyond', 'Early classical music', 'Classical', 'active', 'weekly', 120),
+('Bluegrass & Old Time', 'bluegrass-and-old-time', 'Traditional Americana', 'Bluegrass', 'active', 'weekly', 120),
+('Tropical Sounds', 'tropical-sounds', 'Caribbean and island music', 'Caribbean', 'active', 'weekly', 120),
+('Garage Rock Revival', 'garage-rock-revival', 'Raw, energetic rock & roll', 'Garage Rock', 'active', 'weekly', 120),
+('New Wave Nostalgia', 'new-wave-nostalgia', '80s new wave classics', 'New Wave', 'active', 'weekly', 120),
+('Techno Territory', 'techno-territory', 'Pure techno beats', 'Techno', 'active', 'weekly', 120),
+('Ska & Rocksteady', 'ska-and-rocksteady', 'Upbeat ska grooves', 'Ska', 'active', 'weekly', 120),
+('R&B Slow Jams', 'r-and-b-slow-jams', 'Smooth R&B ballads', 'R&B', 'active', 'weekly', 120),
+('Hardcore Punk', 'hardcore-punk', 'Fast and furious hardcore', 'Hardcore', 'active', 'weekly', 60),
+('Doom & Stoner', 'doom-and-stoner', 'Heavy, slow, and loud', 'Doom Metal', 'active', 'weekly', 60),
+('Witch House', 'witch-house', 'Dark electronic atmospheres', 'Witch House', 'active', 'weekly', 60),
+('Late Night Jazz', 'late-night-jazz', 'Sophisticated late night jazz', 'Jazz', 'active', 'weekly', 120),
+('Minimal Techno', 'minimal-techno', 'Stripped-down electronic beats', 'Minimal', 'active', 'weekly', 120),
+
+-- FRIDAY (24 hours)
+('Friday Morning Groove', 'friday-morning-groove', 'Get ready for the weekend', 'Soul/Funk', 'active', 'weekly', 120),
+('Chamber Music', 'chamber-music', 'Small ensemble classical', 'Classical', 'active', 'weekly', 120),
+('Desert Rock', 'desert-rock', 'Stoner and desert rock', 'Stoner Rock', 'active', 'weekly', 120),
+('Cumbia & Chicha', 'cumbia-and-chicha', 'Latin American grooves', 'Cumbia', 'active', 'weekly', 120),
+('Post-Punk Power', 'post-punk-power', 'Dark and danceable post-punk', 'Post-Punk', 'active', 'weekly', 120),
+('House Music All Night', 'house-music-all-night', 'Classic house beats', 'House', 'active', 'weekly', 120),
+('Weekend Warm-Up', 'weekend-warm-up', 'Eclectic pre-weekend mix', 'Variety', 'active', 'weekly', 120),
+('Trap & Bass', 'trap-and-bass', 'Modern trap and bass music', 'Trap', 'active', 'weekly', 120),
+('Disco Fever', 'disco-fever', 'Classic disco grooves', 'Disco', 'active', 'weekly', 120),
+('Emo Night', 'emo-night', 'Emotional hardcore and emo', 'Emo', 'active', 'weekly', 60),
+('Black Metal', 'black-metal', 'Atmospheric black metal', 'Black Metal', 'active', 'weekly', 60),
+('Vaporwave Dreams', 'vaporwave-dreams', 'Surreal electronic nostalgia', 'Vaporwave', 'active', 'weekly', 60),
+('Midnight Madness', 'midnight-madness', 'Late night party mix', 'Eclectic', 'active', 'weekly', 120),
+('Deep House', 'deep-house', 'Soulful deep house music', 'Deep House', 'active', 'weekly', 120),
+
+-- SATURDAY (24 hours)
+('Saturday Morning Cartoons', 'saturday-morning-cartoons', 'Fun music to start your weekend', 'Pop', 'active', 'weekly', 120),
+('Opera Hour', 'opera-hour', 'Grand opera performances', 'Opera', 'active', 'weekly', 120),
+('Surf Rock', 'surf-rock', 'Reverb-drenched guitar instrumentals', 'Surf Rock', 'active', 'weekly', 120),
+('Global Bass', 'global-bass', 'Bass music from around the world', 'Global Bass', 'active', 'weekly', 120),
+('Britpop & Beyond', 'britpop-and-beyond', '90s British rock revival', 'Britpop', 'active', 'weekly', 120),
+('Drum & Bass', 'drum-and-bass', 'High-energy jungle and D&B', 'Drum & Bass', 'active', 'weekly', 120),
+('Saturday Dance Party', 'saturday-dance-party', 'Dance floor favorites', 'Dance', 'active', 'weekly', 120),
+('Lo-Fi Hip-Hop', 'lo-fi-hip-hop', 'Chill beats to relax to', 'Lo-Fi', 'active', 'weekly', 120),
+('Motown & Stax', 'motown-and-stax', 'Classic soul labels', 'Soul', 'active', 'weekly', 120),
+('Thrash Metal', 'thrash-metal', 'Speed and aggression', 'Thrash Metal', 'active', 'weekly', 60),
+('Synthwave Night', 'synthwave-night', 'Retro-futuristic synth music', 'Synthwave', 'active', 'weekly', 120),
+('Ambient Soundscapes', 'ambient-soundscapes', 'Peaceful ambient textures', 'Ambient', 'active', 'weekly', 120),
+('Late Night Beats', 'late-night-beats', 'Chill beats for late night', 'Beats', 'active', 'weekly', 60);
+
+-- Create host users (one per show)
+INSERT INTO users (email, password)
+SELECT
+    'host-' || slug || '@kpbj.fm',
+    '$argon2id$v=19$m=65536,t=2,p=1$IBMrLbPnVTsuf02vfr/jbA$u5UMpeqN0c7BR2L/AlIKpwk6lQ1E4y1j7OGXvRb7X5I'
+FROM shows
+ON CONFLICT (email) DO NOTHING;
+
+-- Create user_metadata for all host users
+INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
+SELECT
+    u.id,
+    INITCAP(REPLACE(REPLACE(u.email, 'host-', ''), '@kpbj.fm', '')) as display_name,
+    INITCAP(REPLACE(REPLACE(REPLACE(u.email, 'host-', ''), '@kpbj.fm', ''), '-', ' ')) as full_name,
+    'Host' as user_role
+FROM users u
+WHERE u.email LIKE 'host-%@kpbj.fm';
+
+-- Link hosts to their shows
+INSERT INTO show_hosts (show_id, user_id, role, is_primary)
+SELECT s.id, u.id, 'host', TRUE
+FROM shows s
+JOIN users u ON u.email = 'host-' || s.slug || '@kpbj.fm';
+
+-- Create show schedules: each show airs once per week at a specific time
+-- Distribute shows across the week to fill 24/7
+INSERT INTO show_schedules (show_id, day_of_week, start_time, end_time) VALUES
+-- SUNDAY (0)
+((SELECT id FROM shows WHERE slug = 'sunday-morning-jazz'), 0, '00:00', '02:00'),
+((SELECT id FROM shows WHERE slug = 'gospel-hour'), 0, '02:00', '04:00'),
+((SELECT id FROM shows WHERE slug = 'world-music-passport'), 0, '04:00', '06:00'),
+((SELECT id FROM shows WHERE slug = 'classical-sundays'), 0, '06:00', '08:00'),
+((SELECT id FROM shows WHERE slug = 'indie-mixtape'), 0, '08:00', '10:00'),
+((SELECT id FROM shows WHERE slug = 'soul-kitchen'), 0, '10:00', '12:00'),
+((SELECT id FROM shows WHERE slug = 'acoustic-sessions'), 0, '12:00', '14:00'),
+((SELECT id FROM shows WHERE slug = 'electronic-sunday'), 0, '14:00', '16:00'),
+((SELECT id FROM shows WHERE slug = 'reggae-vibes'), 0, '16:00', '18:00'),
+((SELECT id FROM shows WHERE slug = 'blues-after-dark'), 0, '18:00', '20:00'),
+((SELECT id FROM shows WHERE slug = 'experimental-sounds'), 0, '20:00', '22:00'),
+((SELECT id FROM shows WHERE slug = 'midnight-ambient'), 0, '22:00', '24:00'),
+
+-- MONDAY (1)
+((SELECT id FROM shows WHERE slug = 'monday-morning-wake-up'), 1, '00:00', '02:00'),
+((SELECT id FROM shows WHERE slug = 'coffee-and-classics'), 1, '02:00', '04:00'),
+((SELECT id FROM shows WHERE slug = 'folk-tales'), 1, '04:00', '06:00'),
+((SELECT id FROM shows WHERE slug = 'midday-mix'), 1, '06:00', '08:00'),
+((SELECT id FROM shows WHERE slug = 'latin-grooves'), 1, '08:00', '10:00'),
+((SELECT id FROM shows WHERE slug = 'rock-solid'), 1, '10:00', '12:00'),
+((SELECT id FROM shows WHERE slug = 'drive-time'), 1, '12:00', '14:00'),
+((SELECT id FROM shows WHERE slug = 'hip-hop-fundamentals'), 1, '14:00', '16:00'),
+((SELECT id FROM shows WHERE slug = 'jazz-lounge'), 1, '16:00', '18:00'),
+((SELECT id FROM shows WHERE slug = 'punk-power-hour'), 1, '18:00', '19:00'),
+((SELECT id FROM shows WHERE slug = 'metal-madness'), 1, '19:00', '21:00'),
+((SELECT id FROM shows WHERE slug = 'late-night-chill'), 1, '21:00', '23:00'),
+((SELECT id FROM shows WHERE slug = 'graveyard-shift'), 1, '23:00', '24:00'),
+
+-- TUESDAY (2)
+((SELECT id FROM shows WHERE slug = 'tuesday-sunrise'), 2, '00:00', '02:00'),
+((SELECT id FROM shows WHERE slug = 'morning-brew'), 2, '02:00', '04:00'),
+((SELECT id FROM shows WHERE slug = 'singer-songwriter-showcase'), 2, '04:00', '06:00'),
+((SELECT id FROM shows WHERE slug = 'world-beat'), 2, '06:00', '08:00'),
+((SELECT id FROM shows WHERE slug = 'indie-rock-hour'), 2, '08:00', '09:00'),
+((SELECT id FROM shows WHERE slug = 'soul-stirrers'), 2, '09:00', '10:00'),
+((SELECT id FROM shows WHERE slug = 'alternative-nation'), 2, '10:00', '12:00'),
+((SELECT id FROM shows WHERE slug = 'electronic-evolution'), 2, '12:00', '14:00'),
+((SELECT id FROM shows WHERE slug = 'country-roads'), 2, '14:00', '16:00'),
+((SELECT id FROM shows WHERE slug = 'funk-sessions'), 2, '16:00', '18:00'),
+((SELECT id FROM shows WHERE slug = 'jazz-standards'), 2, '18:00', '20:00'),
+((SELECT id FROM shows WHERE slug = 'noise-and-space'), 2, '20:00', '21:00'),
+((SELECT id FROM shows WHERE slug = 'deep-night-mix'), 2, '21:00', '23:00'),
+
+-- WEDNESDAY (3)
+((SELECT id FROM shows WHERE slug = 'midweek-morning'), 3, '00:00', '02:00'),
+((SELECT id FROM shows WHERE slug = 'classical-interlude'), 3, '02:00', '04:00'),
+((SELECT id FROM shows WHERE slug = 'folk-underground'), 3, '04:00', '06:00'),
+((SELECT id FROM shows WHERE slug = 'lunch-hour-favorites'), 3, '06:00', '08:00'),
+((SELECT id FROM shows WHERE slug = 'afrobeat-express'), 3, '08:00', '10:00'),
+((SELECT id FROM shows WHERE slug = 'psychedelic-journey'), 3, '10:00', '12:00'),
+((SELECT id FROM shows WHERE slug = 'hip-hop-heritage'), 3, '12:00', '14:00'),
+((SELECT id FROM shows WHERE slug = 'dub-vibrations'), 3, '14:00', '16:00'),
+((SELECT id FROM shows WHERE slug = 'shoegaze-and-dream-pop'), 3, '16:00', '18:00'),
+((SELECT id FROM shows WHERE slug = 'jazz-fusion'), 3, '18:00', '20:00'),
+((SELECT id FROM shows WHERE slug = 'post-rock-horizons'), 3, '20:00', '21:00'),
+((SELECT id FROM shows WHERE slug = 'industrial-underground'), 3, '21:00', '22:00'),
+((SELECT id FROM shows WHERE slug = 'night-drones'), 3, '22:00', '24:00'),
+
+-- THURSDAY (4)
+((SELECT id FROM shows WHERE slug = 'thursday-wake-up-call'), 4, '00:00', '02:00'),
+((SELECT id FROM shows WHERE slug = 'baroque-and-beyond'), 4, '02:00', '04:00'),
+((SELECT id FROM shows WHERE slug = 'bluegrass-and-old-time'), 4, '04:00', '06:00'),
+((SELECT id FROM shows WHERE slug = 'tropical-sounds'), 4, '06:00', '08:00'),
+((SELECT id FROM shows WHERE slug = 'garage-rock-revival'), 4, '08:00', '10:00'),
+((SELECT id FROM shows WHERE slug = 'new-wave-nostalgia'), 4, '10:00', '12:00'),
+((SELECT id FROM shows WHERE slug = 'techno-territory'), 4, '12:00', '14:00'),
+((SELECT id FROM shows WHERE slug = 'ska-and-rocksteady'), 4, '14:00', '16:00'),
+((SELECT id FROM shows WHERE slug = 'r-and-b-slow-jams'), 4, '16:00', '18:00'),
+((SELECT id FROM shows WHERE slug = 'hardcore-punk'), 4, '18:00', '19:00'),
+((SELECT id FROM shows WHERE slug = 'doom-and-stoner'), 4, '19:00', '20:00'),
+((SELECT id FROM shows WHERE slug = 'witch-house'), 4, '20:00', '21:00'),
+((SELECT id FROM shows WHERE slug = 'late-night-jazz'), 4, '21:00', '23:00'),
+((SELECT id FROM shows WHERE slug = 'minimal-techno'), 4, '23:00', '24:00'),
+
+-- FRIDAY (5)
+((SELECT id FROM shows WHERE slug = 'friday-morning-groove'), 5, '00:00', '02:00'),
+((SELECT id FROM shows WHERE slug = 'chamber-music'), 5, '02:00', '04:00'),
+((SELECT id FROM shows WHERE slug = 'desert-rock'), 5, '04:00', '06:00'),
+((SELECT id FROM shows WHERE slug = 'cumbia-and-chicha'), 5, '06:00', '08:00'),
+((SELECT id FROM shows WHERE slug = 'post-punk-power'), 5, '08:00', '10:00'),
+((SELECT id FROM shows WHERE slug = 'house-music-all-night'), 5, '10:00', '12:00'),
+((SELECT id FROM shows WHERE slug = 'weekend-warm-up'), 5, '12:00', '14:00'),
+((SELECT id FROM shows WHERE slug = 'trap-and-bass'), 5, '14:00', '16:00'),
+((SELECT id FROM shows WHERE slug = 'disco-fever'), 5, '16:00', '18:00'),
+((SELECT id FROM shows WHERE slug = 'emo-night'), 5, '18:00', '19:00'),
+((SELECT id FROM shows WHERE slug = 'black-metal'), 5, '19:00', '20:00'),
+((SELECT id FROM shows WHERE slug = 'vaporwave-dreams'), 5, '20:00', '21:00'),
+((SELECT id FROM shows WHERE slug = 'midnight-madness'), 5, '21:00', '23:00'),
+((SELECT id FROM shows WHERE slug = 'deep-house'), 5, '23:00', '24:00'),
+
+-- SATURDAY (6)
+((SELECT id FROM shows WHERE slug = 'saturday-morning-cartoons'), 6, '00:00', '02:00'),
+((SELECT id FROM shows WHERE slug = 'opera-hour'), 6, '02:00', '04:00'),
+((SELECT id FROM shows WHERE slug = 'surf-rock'), 6, '04:00', '06:00'),
+((SELECT id FROM shows WHERE slug = 'global-bass'), 6, '06:00', '08:00'),
+((SELECT id FROM shows WHERE slug = 'britpop-and-beyond'), 6, '08:00', '10:00'),
+((SELECT id FROM shows WHERE slug = 'drum-and-bass'), 6, '10:00', '12:00'),
+((SELECT id FROM shows WHERE slug = 'saturday-dance-party'), 6, '12:00', '14:00'),
+((SELECT id FROM shows WHERE slug = 'lo-fi-hip-hop'), 6, '14:00', '16:00'),
+((SELECT id FROM shows WHERE slug = 'motown-and-stax'), 6, '16:00', '18:00'),
+((SELECT id FROM shows WHERE slug = 'thrash-metal'), 6, '18:00', '19:00'),
+((SELECT id FROM shows WHERE slug = 'synthwave-night'), 6, '19:00', '21:00'),
+((SELECT id FROM shows WHERE slug = 'ambient-soundscapes'), 6, '21:00', '23:00'),
+((SELECT id FROM shows WHERE slug = 'late-night-beats'), 6, '23:00', '24:00');
+
+-- Generate episodes for the past 2 weeks based on show schedules
+-- Each show gets 2 episodes (one per week for 2 weeks)
+INSERT INTO episodes (show_id, title, slug, description, episode_number, status, scheduled_at, published_at, created_by)
+SELECT
+    s.id as show_id,
+    s.title || ' - Episode ' || (row_number() OVER (PARTITION BY s.id ORDER BY generate_series DESC))::text as title,
+    lower(regexp_replace(s.title, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || to_char(generate_series, 'YYYY-MM-DD') as slug,
+    'A great episode of ' || s.title || ' from ' || to_char(generate_series, 'FMMonth DD, YYYY') as description,
+    (row_number() OVER (PARTITION BY s.id ORDER BY generate_series DESC))::int as episode_number,
+    'published' as status,
+    generate_series + ss.start_time::time as scheduled_at,
+    generate_series + ss.start_time::time as published_at,
+    u.id as created_by
+FROM shows s
+JOIN show_schedules ss ON ss.show_id = s.id
+JOIN users u ON u.email = 'host-' || s.slug || '@kpbj.fm'
+CROSS JOIN LATERAL (
+    -- Generate dates for the past 2 weeks for this show's day of week
+    SELECT generate_series
+    FROM generate_series(
+        CURRENT_DATE - INTERVAL '14 days',
+        CURRENT_DATE - INTERVAL '1 day',
+        INTERVAL '1 day'
+    ) AS generate_series
+    WHERE EXTRACT(DOW FROM generate_series) = ss.day_of_week
+) dates
+ORDER BY s.id, generate_series DESC;
+
+-- Create staff user (password: "password")
+INSERT INTO users (email, password) VALUES
+  ('staff@kpbj.fm', '$argon2id$v=19$m=65536,t=2,p=1$IBMrLbPnVTsuf02vfr/jbA$u5UMpeqN0c7BR2L/AlIKpwk6lQ1E4y1j7OGXvRb7X5I')
+ON CONFLICT (email) DO NOTHING;
+
+-- Create staff user_metadata
+INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
+SELECT u.id, 'Staff Member', 'KPBJ Staff', 'Staff'
+FROM users u WHERE u.email = 'staff@kpbj.fm';
+
+-- Create event tags
+INSERT INTO event_tags (name) VALUES
+  ('Live Music'),
+  ('DJ Night'),
+  ('Fundraiser'),
+  ('Community'),
+  ('All Ages'),
+  ('21+'),
+  ('Free'),
+  ('Ticketed')
+ON CONFLICT (name) DO NOTHING;
+
+-- Create mock events (1 per week for past 2 months on Fridays/Saturdays)
+INSERT INTO events (title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id)
+SELECT * FROM (VALUES
+  (
+    'Summer Block Party',
+    'summer-block-party-2025-08-08',
+    'Join us for an afternoon of live music, local vendors, and community celebration! Featuring performances from local bands and DJs. Free admission, all ages welcome.',
+    '2025-08-08 14:00:00-07'::timestamptz,
+    '2025-08-08 22:00:00-07'::timestamptz,
+    'KPBJ Community Plaza',
+    '123 Radio Street, Portland, OR 97201',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'Late Night Techno: DJ Aurelia',
+    'late-night-techno-dj-aurelia-2025-08-16',
+    'Experience cutting-edge techno with special guest DJ Aurelia from Berlin. Dark, hypnotic beats until dawn. 21+ only.',
+    '2025-08-16 22:00:00-07'::timestamptz,
+    '2025-08-17 03:00:00-07'::timestamptz,
+    'The Underground',
+    '456 Basement Ave, Portland, OR 97214',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'Record Fair & Swap Meet',
+    'record-fair-swap-meet-2025-08-22',
+    'Dig through crates of vinyl from local collectors and record stores. Buy, sell, trade! Free admission. Rare finds and affordable gems.',
+    '2025-08-22 10:00:00-07'::timestamptz,
+    '2025-08-22 16:00:00-07'::timestamptz,
+    'KPBJ Studio Parking Lot',
+    '123 Radio Street, Portland, OR 97201',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'Indie Rock Showcase',
+    'indie-rock-showcase-2025-08-30',
+    'Three local indie rock bands take the stage! Featuring The Static Waves, Moonlight Drivers, and Paper Tigers. $10 at the door.',
+    '2025-08-30 19:00:00-07'::timestamptz,
+    '2025-08-30 23:30:00-07'::timestamptz,
+    'The Velvet Room',
+    '789 Music Lane, Portland, OR 97212',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'KPBJ Fundraiser: Jazz Night',
+    'kpbj-fundraiser-jazz-night-2025-09-05',
+    'Support community radio! Live jazz performances, silent auction, and special guests. All proceeds benefit KPBJ programming. $25 suggested donation.',
+    '2025-09-05 18:00:00-07'::timestamptz,
+    '2025-09-05 22:00:00-07'::timestamptz,
+    'The Crystal Ballroom',
+    '1332 W Burnside St, Portland, OR 97209',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'All Ages Punk Matinee',
+    'all-ages-punk-matinee-2025-09-13',
+    'Afternoon punk rock for all ages! Four fast and loud bands. Safe space, positive vibes. $8 admission, under 16 free with adult.',
+    '2025-09-13 14:00:00-07'::timestamptz,
+    '2025-09-13 18:00:00-07'::timestamptz,
+    'The Firehouse',
+    '555 Youth Plaza, Portland, OR 97202',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'Open Mic Night',
+    'open-mic-night-2025-09-19',
+    'Bring your instrument, poetry, or comedy! Sign up starts at 7pm, performances at 8pm. Free admission, donations welcome.',
+    '2025-09-19 19:00:00-07'::timestamptz,
+    '2025-09-19 23:00:00-07'::timestamptz,
+    'KPBJ Live Room',
+    '123 Radio Street, Portland, OR 97201',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'Autumn DJ Showcase',
+    'autumn-dj-showcase-2025-09-27',
+    'Celebrate the changing season with five KPBJ DJs spinning their favorite fall vibes. Hip-hop, soul, funk, and more. Free event!',
+    '2025-09-27 20:00:00-07'::timestamptz,
+    '2025-09-28 01:00:00-07'::timestamptz,
+    'Rooftop Garden Bar',
+    '999 Sky View Terrace, Portland, OR 97205',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'Halloween Costume Party & Dance Night',
+    'halloween-costume-party-dance-night-2025-10-04',
+    'Kick off spooky season with a costume party featuring DJs spinning goth, darkwave, and Halloween classics. Costume contest with prizes! 21+.',
+    '2025-10-04 21:00:00-07'::timestamptz,
+    '2025-10-05 02:00:00-07'::timestamptz,
+    'The Underground',
+    '456 Basement Ave, Portland, OR 97214',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'Local Legends: Portland Music History Panel',
+    'local-legends-portland-music-history-panel-2025-10-11',
+    'Join us for an intimate conversation with Portland music scene veterans discussing the city''s rich musical heritage. Q&A and book signing to follow. Free admission.',
+    '2025-10-11 18:00:00-07'::timestamptz,
+    '2025-10-11 20:30:00-07'::timestamptz,
+    'KPBJ Live Room',
+    '123 Radio Street, Portland, OR 97201',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'Acoustic Songwriter Circle',
+    'acoustic-songwriter-circle-2025-10-18',
+    'An intimate evening featuring five local singer-songwriters performing original material. All ages welcome. $8 suggested donation.',
+    '2025-10-18 19:30:00-07'::timestamptz,
+    '2025-10-18 22:00:00-07'::timestamptz,
+    'The Velvet Room',
+    '789 Music Lane, Portland, OR 97212',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  ),
+  (
+    'KPBJ Fall Fundraiser: Silent Auction & Live Music',
+    'kpbj-fall-fundraiser-silent-auction-2025-10-25',
+    'Support community radio! Silent auction featuring local art, concert tickets, and vintage gear. Live performances by KPBJ host bands. $20 admission includes appetizers and one drink.',
+    '2025-10-25 17:00:00-07'::timestamptz,
+    '2025-10-25 21:00:00-07'::timestamptz,
+    'KPBJ Community Plaza',
+    '123 Radio Street, Portland, OR 97201',
+    'published',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
+  )
+) AS events_data;
+
+-- Assign tags to events
+INSERT INTO event_tag_assignments (event_id, tag_id)
+SELECT e.id, t.id
+FROM events e
+JOIN event_tags t ON t.name IN (
+  CASE e.slug
+    WHEN 'summer-block-party-2025-08-08' THEN 'Live Music'
+    WHEN 'summer-block-party-2025-08-08' THEN 'Community'
+    WHEN 'summer-block-party-2025-08-08' THEN 'All Ages'
+    WHEN 'summer-block-party-2025-08-08' THEN 'Free'
+    WHEN 'late-night-techno-dj-aurelia-2025-08-16' THEN 'DJ Night'
+    WHEN 'late-night-techno-dj-aurelia-2025-08-16' THEN '21+'
+    WHEN 'late-night-techno-dj-aurelia-2025-08-16' THEN 'Ticketed'
+    WHEN 'record-fair-swap-meet-2025-08-22' THEN 'Community'
+    WHEN 'record-fair-swap-meet-2025-08-22' THEN 'All Ages'
+    WHEN 'record-fair-swap-meet-2025-08-22' THEN 'Free'
+    WHEN 'indie-rock-showcase-2025-08-30' THEN 'Live Music'
+    WHEN 'indie-rock-showcase-2025-08-30' THEN 'Ticketed'
+    WHEN 'kpbj-fundraiser-jazz-night-2025-09-05' THEN 'Live Music'
+    WHEN 'kpbj-fundraiser-jazz-night-2025-09-05' THEN 'Fundraiser'
+    WHEN 'kpbj-fundraiser-jazz-night-2025-09-05' THEN 'Ticketed'
+    WHEN 'all-ages-punk-matinee-2025-09-13' THEN 'Live Music'
+    WHEN 'all-ages-punk-matinee-2025-09-13' THEN 'All Ages'
+    WHEN 'all-ages-punk-matinee-2025-09-13' THEN 'Ticketed'
+    WHEN 'open-mic-night-2025-09-19' THEN 'Live Music'
+    WHEN 'open-mic-night-2025-09-19' THEN 'Community'
+    WHEN 'open-mic-night-2025-09-19' THEN 'All Ages'
+    WHEN 'open-mic-night-2025-09-19' THEN 'Free'
+    WHEN 'autumn-dj-showcase-2025-09-27' THEN 'DJ Night'
+    WHEN 'autumn-dj-showcase-2025-09-27' THEN 'Community'
+    WHEN 'autumn-dj-showcase-2025-09-27' THEN 'Free'
+    WHEN 'halloween-costume-party-dance-night-2025-10-04' THEN 'DJ Night'
+    WHEN 'halloween-costume-party-dance-night-2025-10-04' THEN '21+'
+    WHEN 'halloween-costume-party-dance-night-2025-10-04' THEN 'Ticketed'
+    WHEN 'local-legends-portland-music-history-panel-2025-10-11' THEN 'Community'
+    WHEN 'local-legends-portland-music-history-panel-2025-10-11' THEN 'All Ages'
+    WHEN 'local-legends-portland-music-history-panel-2025-10-11' THEN 'Free'
+    WHEN 'acoustic-songwriter-circle-2025-10-18' THEN 'Live Music'
+    WHEN 'acoustic-songwriter-circle-2025-10-18' THEN 'All Ages'
+    WHEN 'acoustic-songwriter-circle-2025-10-18' THEN 'Ticketed'
+    WHEN 'kpbj-fall-fundraiser-silent-auction-2025-10-25' THEN 'Live Music'
+    WHEN 'kpbj-fall-fundraiser-silent-auction-2025-10-25' THEN 'Fundraiser'
+    WHEN 'kpbj-fall-fundraiser-silent-auction-2025-10-25' THEN 'Ticketed'
+    WHEN 'kpbj-fall-fundraiser-silent-auction-2025-10-25' THEN 'Community'
+  END
+);
+
+-- Create blog tags
+INSERT INTO blog_tags (name) VALUES
+  ('award'),
+  ('community'),
+  ('underground'),
+  ('interviews'),
+  ('local-scene'),
+  ('fundraising'),
+  ('new-shows'),
+  ('music-discovery')
+ON CONFLICT (name) DO NOTHING;
+
+-- Create mock blog posts (1 per week for past 2 months)
+INSERT INTO blog_posts (title, slug, content, excerpt, author_id, category, status, published_at)
+SELECT * FROM (VALUES
+  (
+    'KPBJ Wins 2025 Community Radio Excellence Award',
+    'kpbj-wins-2025-community-radio-excellence-award',
+    E'We are thrilled to announce that KPBJ 95.9FM has been recognized with the prestigious **2025 Community Radio Excellence Award** from the National Association of Community Broadcasters!\n\nThis honor recognizes our commitment to serving the Portland community through diverse programming, local artist support, and meaningful community engagement. The award specifically highlighted our innovative approach to combining traditional radio broadcasting with modern digital engagement.\n\n> "This award belongs to our entire community. From our dedicated volunteer hosts to our loyal listeners and supporters, everyone plays a vital role in making KPBJ the vibrant community resource it is today."\n> \n> — Station Manager Sarah Chen\n\nThe judging panel noted KPBJ''s exceptional programming diversity, with 84 unique shows covering everything from jazz and classical to experimental electronic and punk rock. They also praised our commitment to amplifying underrepresented voices in the music industry and providing a platform for emerging local artists.\n\n## What This Means for KPBJ\n\n- National recognition for our programming excellence\n- Increased visibility in the community radio landscape\n- Validation of our community-first approach\n- Inspiration to continue pushing boundaries\n\nThank you to everyone who makes KPBJ possible. Here''s to many more years of community-powered radio!',
+    'KPBJ 95.9FM receives the 2025 Community Radio Excellence Award for outstanding programming and community engagement.',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm'),
+    'Station News',
+    'published',
+    '2025-08-04 10:00:00-07'::timestamptz
+  ),
+  (
+    'Behind the Scenes: A Day in the Life of a KPBJ Host',
+    'behind-the-scenes-day-in-life-kpbj-host',
+    E'Ever wondered what it takes to produce a radio show? We sat down with **Marcus Williams**, host of "Late Night Jazz" every Thursday at 9pm, to get an inside look at the creative process behind community radio.\n\n## Morning: Digging Through the Crates\n\n> "I usually start my week by listening through new releases and revisiting classics. For a two-hour jazz show, I''ll typically prepare about 3-4 hours of material. You never know when you''ll want to extend a vibe or need to pivot the mood."\n> \n> — Marcus Williams\n\nMarcus spends Monday and Tuesday mornings at local record shops, browsing both new arrivals and used sections. "Some of my best discoveries have come from the dollar bins," he laughs.\n\n## Mid-Week: Building the Flow\n\nBy Wednesday, Marcus starts sequencing his show. "It''s like creating a mixtape for a friend. You want to take them on a journey. I usually start mellow, build energy in the middle hour, then wind down for the late-night crowd."\n\n## Show Night: Going Live\n\nThursday evening, Marcus arrives at the studio **two hours early**:\n\n- Reviews his notes\n- Double-checks that all records are cued up\n- Runs a sound check\n- Prepares backup selections\n\n"Once we go live, it''s just me, the music, and whoever''s listening out there in the Portland night."\n\n## The Reward\n\n> "The best part is the texts and calls we get. Knowing that someone driving home from a late shift or studying for an exam is vibing to the music you selected—that''s what community radio is all about."\n\n*Tune in to Late Night Jazz every Thursday at 9pm on KPBJ 95.9FM.*',
+    'Meet Marcus Williams, host of Late Night Jazz, and discover what goes into creating a weekly radio show.',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm'),
+    'Host Spotlights',
+    'published',
+    '2025-08-11 14:00:00-07'::timestamptz
+  ),
+  (
+    'New Shows Premiering This Fall: Expanding the KPBJ Sound',
+    'new-shows-premiering-fall-2025',
+    E'We''re excited to announce **three brand new shows** joining the KPBJ lineup this September!\n\n## "Queer Frequencies" - Mondays 8-10pm\n\nHosted by **DJ Phoenix**, this show celebrates LGBTQ+ artists and allies across all genres. From underground queer punk to mainstream pop allies, "Queer Frequencies" creates space for authentic voices and stories from the community.\n\n**What to expect:**\n- Diverse LGBTQ+ artists from all decades\n- Interviews with local queer musicians\n- Safe space for authentic expression\n\n## "Immigrant Stories" - Wednesdays 6-7pm\n\nProduced by a collective of first and second-generation immigrants, this show blends music from around the world with personal narratives about identity, belonging, and cultural fusion. Each week focuses on a different community within Portland''s diverse immigrant population.\n\n**Featured communities include:**\n- Vietnamese diaspora\n- East African refugees\n- Latin American immigrants\n- Middle Eastern communities\n\n## "Beats & Rhymes: Hip-Hop History" - Saturdays 3-5pm\n\nDJ Knowledge takes listeners on a **chronological journey through hip-hop**, starting from the Bronx in the 1970s and moving decade by decade. Each episode focuses on a specific year, exploring the cultural context and musical innovations that shaped the genre.\n\n---\n\nAll three shows represent KPBJ''s ongoing commitment to diverse, community-focused programming. **Tune in starting September 8th!**\n\n### Want to Host a Show?\n\nWe''re always looking for passionate community members with unique perspectives and musical knowledge. Visit [kpbj.fm/become-a-host](https://kpbj.fm/become-a-host) to learn more about our training program.',
+    'Three exciting new shows join KPBJ this fall, expanding our commitment to diverse community voices.',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm'),
+    'Station News',
+    'published',
+    '2025-08-18 09:00:00-07'::timestamptz
+  ),
+  (
+    'Portland''s Underground Music Scene: Why Local Venues Matter',
+    'portland-underground-music-scene-venues-matter',
+    E'In an era of streaming algorithms and viral TikTok sounds, Portland''s independent music venues remain **vital spaces for authentic community** and artistic development. But these venues face ongoing challenges that threaten their survival.\n\n## The Ecosystem of Live Music\n\nLocal venues like **The Firehouse**, **The Underground**, and **Velvet Room** aren''t just concert spaces—they''re community centers where artists develop their craft, fans discover new sounds, and cultural movements take root.\n\n> "Every major Portland band you know started by playing small venues. You can''t skip those steps. The intimacy of a 100-capacity room teaches you how to connect with an audience in ways that streaming stats never will."\n> \n> — Sarah Kim, owner of The Firehouse\n\n## Economic Pressures\n\nRising rents, noise complaints, and increased insurance costs have forced several beloved venues to close in recent years. **The Eastside Music Hall** and **The Underground Station** both shuttered in 2024, leaving significant gaps in the city''s music infrastructure.\n\n### Challenges Facing Venues:\n\n- Rising commercial rent costs\n- Noise complaints from new residential developments\n- Increased liability insurance premiums\n- Competition from larger corporate venues\n- Thin profit margins on ticket sales\n\n## How You Can Help\n\n1. **Buy tickets in advance** - This helps venues plan and pay deposits\n2. **Purchase drinks and merch** - Most venues make minimal profit on tickets\n3. **Respect noise ordinances** - Be considerate to neighbors\n4. **Show up for matinees** - All-ages afternoon shows need support too\n5. **Tip your bartenders and sound techs** - They make it all possible\n\n---\n\nKPBJ partners with Portland venues to promote local shows and support emerging artists. Check our [events calendar](https://kpbj.fm/events) to find shows happening this week!',
+    'Exploring the vital role of independent venues in Portland''s music ecosystem and how you can support them.',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm'),
+    'Local Scene',
+    'published',
+    '2025-08-25 11:00:00-07'::timestamptz
+  ),
+  (
+    'Fundraising Update: Summer Pledge Drive Results',
+    'fundraising-update-summer-2025-pledge-drive',
+    E'Thank you, Portland! Our **Summer 2025 Pledge Drive** exceeded all expectations, raising **$87,000** to support KPBJ''s operations and programming.\n\n## By the Numbers\n\n- **1,247** individual donors\n- **$70** average contribution\n- **412** new monthly sustainers\n- **89%** of our annual funding goal reached\n\n## What Your Support Provides\n\n- **Equipment maintenance** - New microphones, mixers, and transmitter upkeep\n- **Host training** - Workshops and technical education for volunteer DJs\n- **Music licensing** - Fees required to legally broadcast music\n- **Studio upgrades** - Improved recording capabilities for interviews and performances\n- **Community events** - Free concerts, workshops, and public gatherings\n\n## Special Thanks\n\nWe want to recognize several exceptional supporters:\n\n- **Sustainer Champion**: The Rodriguez Family, who committed to $100/month for the next year\n- **Business Partner**: Jackpot Records, who matched donations up to $5,000\n- **Volunteer Hero**: DJ Marcus (Late Night Jazz), who hosted 12 hours of live pledge drive programming\n\n## Not Too Late to Contribute\n\nWhile the official drive has ended, KPBJ accepts donations year-round. Monthly sustainers provide crucial stable funding that helps us plan programming and invest in improvements. Even **$10/month** makes a real difference.\n\nVisit [kpbj.fm/donate](https://kpbj.fm/donate) to set up your monthly contribution today. Every dollar directly supports independent, community-powered radio.\n\n---\n\n*Thank you for believing in the power of community media!*',
+    'Summer 2025 pledge drive raises $87,000, exceeding goals and securing stable funding for community radio.',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm'),
+    'Station News',
+    'published',
+    '2025-09-01 10:00:00-07'::timestamptz
+  ),
+  (
+    'Discovering Hidden Gems: KPBJ''s Guide to Vinyl Shopping in Portland',
+    'discovering-hidden-gems-vinyl-shopping-portland',
+    E'Portland''s vinyl scene offers incredible opportunities for music discovery, from legendary record stores to pop-up sales and estate finds. Our DJs share their favorite spots and strategies for building a collection.\n\n## The Legendary Stores\n\n### Jackpot Records (Hawthorne)\n> "The staff picks here are incredible. They really know their catalog and aren''t afraid to recommend obscure stuff."\n> \n> — DJ Phoenix\n\n### Everyday Music (Multiple locations)\nWith three locations and massive inventory, Everyday Music is where many DJs find rare imports and deleted pressings.\n\n### Mississippi Records\nSpecializing in reissues of global folk music, gospel, and vintage country.\n\n> "This place expanded my entire musical worldview."\n> \n> — DJ Knowledge\n\n## Hidden Gems\n\n- **Exiled Records** (SE Portland) - Punk, hardcore, and metal specialist with knowledgeable staff and regular in-store performances\n- **Tender Loving Empire** (Alberta) - Local artists and Pacific Northwest labels. Great for discovering Portland musicians\n\n## Tips from KPBJ DJs\n\n1. **Shop dollar bins first** - "I''ve found Coltrane and Mingus records for $1," says Marcus Williams. "Never skip the cheap stuff."\n2. **Ask about listening stations** - Most stores let you preview before buying\n3. **Follow store social media** - Many announce new arrivals and sales online\n4. **Bring a list** - But stay open to surprises\n5. **Check condition carefully** - Look at the vinyl itself, not just the sleeve\n6. **Support buying local** - Many Portland artists sell directly to local shops\n\n## Monthly Record Fairs\n\nThe **Portland Record Show** happens the last Sunday of every month at the Doubletree Hotel. Over 50 vendors from across the Pacific Northwest bring crates of vinyl, CDs, and music memorabilia.\n\nKPBJ will be hosting our own **Record Fair & Swap Meet** on August 22nd—check our [events page](https://kpbj.fm/events) for details!',
+    'KPBJ DJs share their favorite Portland record stores and vinyl shopping strategies for music collectors.',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm'),
+    'Music',
+    'published',
+    '2025-09-08 13:00:00-07'::timestamptz
+  ),
+  (
+    'Community Voices: How KPBJ Listeners Shape Our Programming',
+    'community-voices-listeners-shape-programming',
+    E'KPBJ isn''t just radio *for* the community—it''s radio *by* the community. Here''s how listener feedback and participation directly influence our programming decisions.\n\n## The Listener Survey\n\nEach year, we survey our audience about their listening habits, favorite shows, and what they''d like to hear more of. This year''s survey received **2,300+ responses** and revealed some fascinating patterns:\n\n- **67%** listen via streaming rather than traditional FM\n- **Most popular time slot**: Weeknight 8-11pm drive home hours\n- **Top requested new genre**: More experimental electronic and ambient\n- **Most appreciated aspect**: "Musical diversity I can''t find anywhere else"\n\n## Rotating Guest DJ Spots\n\nBased on listener requests, we''ve implemented **"Guest DJ Fridays"** where community members can apply to program a one-hour set. Applications open quarterly, and selected DJs receive training and technical support.\n\n> "I never thought I''d be on actual radio. The KPBJ team made it so welcoming and fun."\n> \n> — Priya Sharma, August Guest DJ (Bollywood disco remixes)\n\n## Call-In Requests and Dedications\n\nSeveral shows accept live requests via text and phone. These interactions create real-time dialogue between DJs and listeners:\n\n> "Someone texted during my show requesting an obscure Brazilian psych record. I didn''t have it, but I found something similar. We ended up texting back and forth about the genre. That''s the magic of community radio—you''re not just playing music into the void."\n> \n> — DJ Aurora\n\n## Your Voice Matters\n\nWe read every email, respond to social media comments, and seriously consider all feedback. The next listener survey launches in **November**—your input helps shape KPBJ''s future.\n\n**Have programming ideas?**\n- Email: [feedback@kpbj.fm](mailto:feedback@kpbj.fm)\n- Text during any show\n- Submit suggestions via our website\n\n*Community radio only works when the community participates!*',
+    'How KPBJ incorporates listener feedback, surveys, and community participation into programming decisions.',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm'),
+    'Community',
+    'published',
+    '2025-09-15 10:30:00-07'::timestamptz
+  ),
+  (
+    'Looking Ahead: KPBJ''s Plans for 2026',
+    'looking-ahead-kpbj-plans-2026',
+    E'As we approach the end of 2025, we''re excited to share our vision for KPBJ''s growth and evolution in the coming year.\n\n## Technical Upgrades\n\n### New Transmitter\nWe''re investing in upgraded broadcast equipment that will improve signal clarity and expand our coverage area.\n\n### Remote Broadcasting\nNew mobile equipment will allow us to broadcast live from community events, concerts, and festivals throughout Portland.\n\n### Improved Streaming\nWorking with technical partners to enhance our web player and launch a dedicated mobile app.\n\n## Programming Expansions\n\n### Podcast Studio\nConverting an unused storage room into a podcast production space available to community members. This will allow local podcasters to access professional equipment and training.\n\n### Youth Radio Program\nPartnering with **Portland Public Schools** to offer radio production classes and mentorship. Students will produce monthly shows featuring youth perspectives on music, culture, and social issues.\n\n### Live Performance Space\nPlanning a small performance venue for intimate concerts, workshops, and community gatherings. All events will be broadcast live.\n\n## Community Partnerships\n\n- **Local Venues** - Expanding partnerships with Portland music venues to promote local shows and develop co-produced content\n- **Arts Organizations** - Collaborating with museums, theaters, and galleries to create programming that bridges music with other art forms\n- **Nonprofit Network** - Working with other community organizations to amplify important local initiatives and social programs\n\n## How You Can Help\n\nThese ambitious plans require community support:\n\n- **Monthly sustainers** provide stable funding for long-term projects\n- **Volunteer skills** in construction, marketing, or teaching can directly support new initiatives\n- **Community feedback** helps us prioritize which projects matter most\n\n## Stay Involved\n\nWe''ll share regular updates about these projects throughout 2026. Follow us on social media, subscribe to our monthly newsletter, or attend our quarterly community meetings to stay informed and involved.\n\n---\n\n*Thank you for making KPBJ possible. The best is yet to come!*',
+    'KPBJ announces ambitious plans for 2026 including technical upgrades, new programming, and expanded community partnerships.',
+    (SELECT id FROM users WHERE email = 'staff@kpbj.fm'),
+    'Station News',
+    'published',
+    '2025-09-22 09:00:00-07'::timestamptz
+  )
+) AS blog_data;
+
+-- Assign tags to blog posts
+INSERT INTO blog_post_tags (post_id, tag_id)
+SELECT bp.id, bt.id
+FROM blog_posts bp
+JOIN blog_tags bt ON bt.name IN (
+  CASE bp.slug
+    WHEN 'kpbj-wins-2025-community-radio-excellence-award' THEN 'award'
+    WHEN 'kpbj-wins-2025-community-radio-excellence-award' THEN 'community'
+    WHEN 'behind-the-scenes-day-in-life-kpbj-host' THEN 'interviews'
+    WHEN 'new-shows-premiering-fall-2025' THEN 'new-shows'
+    WHEN 'new-shows-premiering-fall-2025' THEN 'community'
+    WHEN 'portland-underground-music-scene-venues-matter' THEN 'local-scene'
+    WHEN 'portland-underground-music-scene-venues-matter' THEN 'underground'
+    WHEN 'portland-underground-music-scene-venues-matter' THEN 'community'
+    WHEN 'fundraising-update-summer-2025-pledge-drive' THEN 'fundraising'
+    WHEN 'fundraising-update-summer-2025-pledge-drive' THEN 'community'
+    WHEN 'discovering-hidden-gems-vinyl-shopping-portland' THEN 'music-discovery'
+    WHEN 'discovering-hidden-gems-vinyl-shopping-portland' THEN 'local-scene'
+    WHEN 'community-voices-listeners-shape-programming' THEN 'community'
+    WHEN 'looking-ahead-kpbj-plans-2026' THEN 'community'
+    WHEN 'looking-ahead-kpbj-plans-2026' THEN 'new-shows'
+  END
+);
+
+-- Generate track lists for each episode
+-- Each episode gets 8-12 tracks based on show duration and genre
+WITH track_library AS (
+    SELECT * FROM (VALUES
+        -- Jazz tracks
+        ('Take Five', 'Dave Brubeck Quartet', 'Time Out', 1959, '5:24', 'Columbia', ARRAY['Jazz', 'Jazz Fusion']),
+        ('So What', 'Miles Davis', 'Kind of Blue', 1959, '9:22', 'Columbia', ARRAY['Jazz', 'Jazz Fusion']),
+        ('A Love Supreme (Part 1)', 'John Coltrane', 'A Love Supreme', 1965, '7:42', 'Impulse!', ARRAY['Jazz', 'Jazz Fusion']),
+        ('Birdland', 'Weather Report', 'Heavy Weather', 1977, '5:59', 'Columbia', ARRAY['Jazz', 'Jazz Fusion']),
+        ('Cantaloupe Island', 'Herbie Hancock', 'Empyrean Isles', 1964, '5:32', 'Blue Note', ARRAY['Jazz', 'Jazz Fusion']),
+        ('Mercy, Mercy, Mercy', 'Cannonball Adderley', 'Mercy, Mercy, Mercy!', 1966, '6:52', 'Capitol', ARRAY['Jazz', 'Jazz Fusion']),
+        ('Blue Train', 'John Coltrane', 'Blue Train', 1957, '10:43', 'Blue Note', ARRAY['Jazz', 'Jazz Fusion']),
+        ('Watermelon Man', 'Herbie Hancock', 'Takin'' Off', 1962, '4:07', 'Blue Note', ARRAY['Jazz', 'Jazz Fusion']),
+
+        -- Rock tracks
+        ('Stairway to Heaven', 'Led Zeppelin', 'Led Zeppelin IV', 1971, '8:02', 'Atlantic', ARRAY['Rock', 'Garage Rock', 'Psychedelic']),
+        ('Bohemian Rhapsody', 'Queen', 'A Night at the Opera', 1975, '5:55', 'EMI', ARRAY['Rock', 'Garage Rock', 'Pop/Rock']),
+        ('While My Guitar Gently Weeps', 'The Beatles', 'The Beatles (White Album)', 1968, '4:45', 'Apple', ARRAY['Rock', 'Psychedelic', 'Pop/Rock']),
+        ('Kashmir', 'Led Zeppelin', 'Physical Graffiti', 1975, '8:37', 'Swan Song', ARRAY['Rock', 'Stoner Rock', 'Desert Rock']),
+        ('Comfortably Numb', 'Pink Floyd', 'The Wall', 1979, '6:23', 'Columbia', ARRAY['Rock', 'Psychedelic']),
+        ('Won''t Get Fooled Again', 'The Who', 'Who''s Next', 1971, '8:32', 'Track', ARRAY['Rock', 'Garage Rock']),
+
+        -- Electronic tracks
+        ('Windowlicker', 'Aphex Twin', 'Windowlicker EP', 1999, '6:08', 'Warp', ARRAY['Electronic', 'Experimental', 'Techno', 'Minimal']),
+        ('Blue Monday', 'New Order', 'Power, Corruption & Lies', 1983, '7:29', 'Factory', ARRAY['Electronic', 'New Wave', 'Synthwave']),
+        ('Around the World', 'Daft Punk', 'Homework', 1997, '7:09', 'Virgin', ARRAY['Electronic', 'House', 'Deep House']),
+        ('Xtal', 'Aphex Twin', 'Selected Ambient Works 85-92', 1992, '4:51', 'Apollo', ARRAY['Electronic', 'Ambient', 'Experimental']),
+        ('Age Of Love', 'Age of Love', 'The Age of Love', 1990, '6:40', 'React', ARRAY['Electronic', 'Techno']),
+        ('Papua New Guinea', 'The Future Sound of London', 'Accelerator', 1991, '8:47', 'Jumpin'' & Pumpin''', ARRAY['Electronic', 'Ambient']),
+
+        -- Hip-Hop tracks
+        ('N.Y. State of Mind', 'Nas', 'Illmatic', 1994, '4:54', 'Columbia', ARRAY['Hip-Hop', 'Lo-Fi', 'Trap']),
+        ('Juicy', 'The Notorious B.I.G.', 'Ready to Die', 1994, '5:02', 'Bad Boy', ARRAY['Hip-Hop', 'Trap']),
+        ('The Message', 'Grandmaster Flash and the Furious Five', 'The Message', 1982, '7:11', 'Sugar Hill', ARRAY['Hip-Hop']),
+        ('Rapper''s Delight', 'The Sugarhill Gang', 'Sugarhill Gang', 1979, '14:35', 'Sugar Hill', ARRAY['Hip-Hop']),
+        ('C.R.E.A.M.', 'Wu-Tang Clan', 'Enter the Wu-Tang', 1993, '4:12', 'Loud', ARRAY['Hip-Hop']),
+
+        -- Indie/Alternative tracks
+        ('Just Like Honey', 'The Jesus and Mary Chain', 'Psychocandy', 1985, '3:07', 'Blanco y Negro', ARRAY['Indie', 'Indie Rock', 'Alternative', 'Shoegaze']),
+        ('Age of Consent', 'New Order', 'Power, Corruption & Lies', 1983, '5:15', 'Factory', ARRAY['Indie', 'Alternative', 'Post-Punk']),
+        ('Only Shallow', 'My Bloody Valentine', 'Loveless', 1991, '4:17', 'Creation', ARRAY['Indie Rock', 'Shoegaze', 'Alternative']),
+        ('There Is a Light That Never Goes Out', 'The Smiths', 'The Queen Is Dead', 1986, '4:02', 'Rough Trade', ARRAY['Indie', 'Alternative']),
+        ('Ceremony', 'New Order', 'Ceremony', 1981, '4:28', 'Factory', ARRAY['Indie', 'Post-Punk', 'Alternative']),
+
+        -- Soul/R&B/Funk tracks
+        ('Superstition', 'Stevie Wonder', 'Talking Book', 1972, '4:26', 'Tamla', ARRAY['Soul/R&B', 'Funk', 'Soul', 'R&B', 'Soul/Funk', 'Disco']),
+        ('I Heard It Through the Grapevine', 'Marvin Gaye', 'In the Groove', 1968, '3:17', 'Tamla', ARRAY['Soul/R&B', 'Soul']),
+        ('Flash Light', 'Parliament', 'Funkentelechy vs. the Placebo Syndrome', 1977, '5:47', 'Casablanca', ARRAY['Funk', 'Soul/R&B', 'Soul/Funk']),
+        ('Le Freak', 'Chic', 'C''est Chic', 1978, '5:23', 'Atlantic', ARRAY['Funk', 'Disco', 'Soul/R&B', 'Soul/Funk']),
+        ('Ain''t No Mountain High Enough', 'Marvin Gaye & Tammi Terrell', 'United', 1967, '2:30', 'Tamla', ARRAY['Soul/R&B', 'Soul']),
+
+        -- Punk/Hardcore tracks
+        ('Anarchy in the U.K.', 'Sex Pistols', 'Never Mind the Bollocks', 1977, '3:33', 'Virgin', ARRAY['Punk', 'Hardcore', 'Post-Punk']),
+        ('Blitzkrieg Bop', 'Ramones', 'Ramones', 1976, '2:12', 'Sire', ARRAY['Punk', 'Hardcore', 'Garage Rock']),
+        ('Rise Above', 'Black Flag', 'Damaged', 1981, '2:27', 'SST', ARRAY['Punk', 'Hardcore']),
+        ('Minor Threat', 'Minor Threat', 'Minor Threat EP', 1981, '1:41', 'Dischord', ARRAY['Hardcore', 'Punk', 'Emo']),
+        ('Complete Control', 'The Clash', 'The Clash (US)', 1977, '3:13', 'CBS', ARRAY['Punk', 'Post-Punk']),
+
+        -- Metal tracks
+        ('Master of Puppets', 'Metallica', 'Master of Puppets', 1986, '8:35', 'Elektra', ARRAY['Metal', 'Thrash Metal']),
+        ('Paranoid', 'Black Sabbath', 'Paranoid', 1970, '2:48', 'Vertigo', ARRAY['Metal', 'Doom Metal', 'Doom & Stoner']),
+        ('Raining Blood', 'Slayer', 'Reign in Blood', 1986, '4:17', 'Def Jam', ARRAY['Metal', 'Thrash Metal']),
+        ('Dopethrone', 'Electric Wizard', 'Dopethrone', 2000, '5:45', 'Rise Above', ARRAY['Doom Metal', 'Doom & Stoner', 'Stoner Rock']),
+        ('Freezing Moon', 'Mayhem', 'De Mysteriis Dom Sathanas', 1994, '6:23', 'Deathlike Silence', ARRAY['Black Metal', 'Metal']),
+
+        -- Folk/Americana tracks
+        ('The Times They Are a-Changin''', 'Bob Dylan', 'The Times They Are a-Changin''', 1964, '3:15', 'Columbia', ARRAY['Folk', 'Acoustic']),
+        ('Big Yellow Taxi', 'Joni Mitchell', 'Ladies of the Canyon', 1970, '2:15', 'Reprise', ARRAY['Folk']),
+        ('Man of Constant Sorrow', 'The Stanley Brothers', 'For the Good People', 1960, '3:10', 'King', ARRAY['Bluegrass', 'Folk']),
+        ('Foggy Mountain Breakdown', 'Earl Scruggs', 'Foggy Mountain Jamboree', 1957, '2:42', 'Columbia', ARRAY['Bluegrass']),
+
+        -- Reggae/Dub tracks
+        ('One Love / People Get Ready', 'Bob Marley & The Wailers', 'Exodus', 1977, '2:52', 'Island', ARRAY['Reggae', 'Dub/Reggae', 'Ska']),
+        ('King Tubby Meets Rockers Uptown', 'Augustus Pablo', 'King Tubby Meets Rockers Uptown', 1976, '3:45', 'Clocktower', ARRAY['Dub/Reggae', 'Reggae']),
+        ('A Message to You Rudy', 'The Specials', 'The Specials', 1979, '2:52', '2 Tone', ARRAY['Ska', 'Reggae']),
+        ('Police and Thieves', 'Junior Murvin', 'Police and Thieves', 1976, '6:37', 'Island', ARRAY['Reggae', 'Dub/Reggae']),
+
+        -- World Music tracks
+        ('Pata Pata', 'Miriam Makeba', 'Pata Pata', 1967, '2:49', 'Reprise', ARRAY['World', 'Afrobeat', 'Global Bass']),
+        ('Zombie', 'Fela Kuti', 'Zombie', 1976, '12:26', 'Coconut', ARRAY['Afrobeat', 'World']),
+        ('Mas Que Nada', 'Sergio Mendes', 'Sergio Mendes & Brasil ''66', 1966, '2:35', 'A&M', ARRAY['Latin', 'World', 'Cumbia']),
+        ('Oye Como Va', 'Tito Puente', 'El Rey Bravo', 1963, '4:24', 'Tico', ARRAY['Latin', 'World']),
+
+        -- Classical tracks
+        ('Clair de Lune', 'Claude Debussy', 'Suite bergamasque', 1905, '4:37', NULL, ARRAY['Classical', 'Opera']),
+        ('The Four Seasons: Spring', 'Antonio Vivaldi', 'The Four Seasons', 1725, '10:25', NULL, ARRAY['Classical', 'Opera']),
+        ('Symphony No. 5', 'Ludwig van Beethoven', 'Symphony No. 5', 1808, '7:20', NULL, ARRAY['Classical', 'Opera']),
+
+        -- Gospel tracks
+        ('Oh Happy Day', 'Edwin Hawkins Singers', 'Let Us Go Into the House of the Lord', 1968, '4:50', 'Pavilion', ARRAY['Gospel']),
+
+        -- Country tracks
+        ('Ring of Fire', 'Johnny Cash', 'Ring of Fire: The Best of Johnny Cash', 1963, '2:36', 'Columbia', ARRAY['Country']),
+
+        -- Dance/House tracks
+        ('Lady (Hear Me Tonight)', 'Modjo', 'Modjo', 2000, '5:07', 'Soundofbarclay', ARRAY['House', 'Deep House', 'Dance']),
+
+        -- Drum & Bass tracks
+        ('Inner City Life', 'Goldie', 'Timeless', 1995, '10:30', 'FFRR', ARRAY['Drum & Bass']),
+
+        -- Britpop tracks
+        ('Parklife', 'Blur', 'Parklife', 1994, '3:06', 'Food', ARRAY['Britpop', 'Indie Rock']),
+
+        -- Surf Rock tracks
+        ('Misirlou', 'Dick Dale', 'Surfers'' Choice', 1962, '2:14', 'Deltone', ARRAY['Surf Rock']),
+
+        -- Post-Rock tracks
+        ('Mogwai Fear Satan', 'Mogwai', 'Young Team', 1997, '16:19', 'Chemikal Underground', ARRAY['Post-Rock']),
+
+        -- Industrial tracks
+        ('Head Like a Hole', 'Nine Inch Nails', 'Pretty Hate Machine', 1989, '4:58', 'TVT', ARRAY['Industrial']),
+
+        -- Witch House tracks
+        ('†OGETHER (SALEM REDUX)', 'SALEM', 'Yes I Smoke Crack', 2010, '3:48', NULL, ARRAY['Witch House']),
+
+        -- Vaporwave tracks
+        ('リサフランク420 / 現代のコンピュー', 'Macintosh Plus', 'Floral Shoppe', 2011, '7:44', NULL, ARRAY['Vaporwave']),
+
+        -- Beats/Lo-Fi tracks
+        ('Luv(sic) Part 3', 'Nujabes', 'Luv(sic) Hexalogy', 2008, '5:35', 'Hydeout Productions', ARRAY['Beats', 'Lo-Fi', 'Lo-Fi Hip-Hop']),
+
+        -- Downtempo tracks
+        ('Teardrop', 'Massive Attack', 'Mezzanine', 1998, '5:29', 'Circa', ARRAY['Downtempo']),
+
+        -- Caribbean tracks
+        ('Hot Hot Hot', 'Arrow', 'Hot Hot Hot', 1982, '3:52', 'London', ARRAY['Caribbean']),
+
+        -- Generic/filler tracks for variety (these match ANY genre)
+        ('Sweet Dreams', 'Eurythmics', 'Sweet Dreams', 1983, '3:36', 'RCA', ARRAY['Pop', 'Eclectic', 'Variety']),
+        ('Don''t Stop Believin''', 'Journey', 'Escape', 1981, '4:11', 'Columbia', ARRAY['Pop', 'Rock', 'Eclectic', 'Variety']),
+        ('Heart of Glass', 'Blondie', 'Parallel Lines', 1978, '5:50', 'Chrysalis', ARRAY['Pop', 'New Wave', 'Eclectic', 'Variety']),
+        ('Video Killed the Radio Star', 'The Buggles', 'The Age of Plastic', 1979, '4:12', 'Island', ARRAY['Pop', 'New Wave', 'Eclectic', 'Variety']),
+        ('Bizarre Love Triangle', 'New Order', 'Brotherhood', 1986, '4:21', 'Factory', ARRAY['New Wave', 'Electronic', 'Eclectic', 'Variety']),
+        ('Tainted Love', 'Soft Cell', 'Non-Stop Erotic Cabaret', 1981, '2:43', 'Some Bizzare', ARRAY['New Wave', 'Electronic', 'Eclectic', 'Variety']),
+        ('Common People', 'Pulp', 'Different Class', 1995, '5:50', 'Island', ARRAY['Britpop', 'Indie', 'Eclectic', 'Variety']),
+        ('Girls & Boys', 'Blur', 'Parklife', 1994, '4:50', 'Food', ARRAY['Britpop', 'Indie', 'Eclectic', 'Variety']),
+        ('Song 2', 'Blur', 'Blur', 1997, '2:02', 'Food', ARRAY['Britpop', 'Alternative', 'Eclectic', 'Variety']),
+        ('Bitter Sweet Symphony', 'The Verve', 'Urban Hymns', 1997, '5:58', 'Hut', ARRAY['Britpop', 'Alternative', 'Eclectic', 'Variety'])
+    ) AS tracks(title, artist, album, year, duration, label, genres)
+)
+INSERT INTO episode_tracks (episode_id, track_number, title, artist, album, year, duration, label, is_exclusive_premiere)
+SELECT
+    e.id as episode_id,
+    track_num as track_number,
+    tl.title,
+    tl.artist,
+    tl.album,
+    tl.year,
+    tl.duration,
+    tl.label,
+    (random() < 0.05)::boolean as is_exclusive_premiere
+FROM episodes e
+JOIN shows s ON s.id = e.show_id
+CROSS JOIN LATERAL (
+    SELECT track_num
+    FROM generate_series(1, CASE
+        WHEN s.duration_minutes = 60 THEN 8
+        ELSE 12
+    END) AS track_num
+) track_nums
+CROSS JOIN LATERAL (
+    SELECT *
+    FROM track_library tl
+    WHERE s.genre = ANY(tl.genres)
+    ORDER BY random()
+    LIMIT 1
+) tl;
+
+-- Display summary
+SELECT
+    'Shows' as metric,
+    COUNT(*) as count
+FROM shows
+UNION ALL
+SELECT
+    'Host Users' as metric,
+    COUNT(*) as count
+FROM users WHERE email LIKE 'host-%'
+UNION ALL
+SELECT
+    'Schedule Entries' as metric,
+    COUNT(*) as count
+FROM show_schedules
+UNION ALL
+SELECT
+    'Episodes' as metric,
+    COUNT(*) as count
+FROM episodes
+UNION ALL
+SELECT
+    'Episode Tracks' as metric,
+    COUNT(*) as count
+FROM episode_tracks
+UNION ALL
+SELECT
+    'Events' as metric,
+    COUNT(*) as count
+FROM events
+UNION ALL
+SELECT
+    'Event Tags' as metric,
+    COUNT(*) as count
+FROM event_tags
+UNION ALL
+SELECT
+    'Blog Posts' as metric,
+    COUNT(*) as count
+FROM blog_posts
+UNION ALL
+SELECT
+    'Blog Tags' as metric,
+    COUNT(*) as count
+FROM blog_tags;
