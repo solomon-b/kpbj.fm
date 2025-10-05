@@ -118,7 +118,7 @@ ALTER TABLE show_hosts ADD CONSTRAINT check_role CHECK (role IN ('host', 'co-hos
 ALTER TABLE episodes ADD CONSTRAINT check_status CHECK (status IN ('draft', 'scheduled', 'published', 'archived'));
 ALTER TABLE episodes ADD CONSTRAINT unique_episode_slug UNIQUE (show_id, slug);
 ALTER TABLE show_schedules ADD CONSTRAINT check_day_of_week CHECK (day_of_week >= 0 AND day_of_week <= 6);
-ALTER TABLE show_schedules ADD CONSTRAINT check_times CHECK (start_time < end_time);
+-- Note: No time constraint - shows can cross midnight (e.g., 23:00 to 01:00)
 
 -- Add comments for documentation
 COMMENT ON TABLE shows IS 'Radio shows - managed by Host+ users';

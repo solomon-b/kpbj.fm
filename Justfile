@@ -187,6 +187,12 @@ postgres-test-psql:
   echo "🌐 Connecting to the Test Postgres service.."
   psql -h localhost -U postgres -d test_db
 
+# Load mock data into the development database
+mock-data:
+  echo "📊 Loading mock data into dev_db..."
+  PGPASSWORD=postgres psql -h localhost -U postgres -d dev_db -f mock-data.sql
+  echo "✨ Mock data loaded successfully!"
+
 
 #-------------------------------------------------------------------------------
 ## Deployment
