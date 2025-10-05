@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Host.Dashboard.Get where
@@ -72,7 +73,7 @@ template userMeta userShows recentEpisodes blogPosts = do
           (primaryShow : _) -> do
             Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
               Lucid.strong_ "Show: "
-              Lucid.toHtml (Show.smTitle primaryShow)
+              Lucid.toHtml primaryShow.title
               " • "
               Lucid.strong_ "Host: "
               Lucid.toHtml userMeta.mDisplayName
@@ -81,7 +82,7 @@ template userMeta userShows recentEpisodes blogPosts = do
               Lucid.span_ "TBD" -- TODO: Add schedule info
               " • "
               Lucid.strong_ "Genre: "
-              maybe "TBD" Lucid.toHtml (Show.smGenre primaryShow)
+              maybe "TBD" Lucid.toHtml primaryShow.genre
       Lucid.div_ [Lucid.class_ "text-center"] $ do
         case userShows of
           [] -> Lucid.span_ [Lucid.class_ "text-gray-400"] "No show assigned"
@@ -144,19 +145,19 @@ renderEpisodeCard episode = do
   Lucid.div_ [Lucid.class_ "border border-gray-300 p-4"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-start mb-2"] $ do
       Lucid.div_ $ do
-        Lucid.h3_ [Lucid.class_ "font-bold"] $ Lucid.toHtml (Episode.emTitle episode)
+        Lucid.h3_ [Lucid.class_ "font-bold"] $ Lucid.toHtml episode.title
         Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $ do
-          Lucid.toHtml (show (Episode.emCreatedAt episode))
+          Lucid.toHtml (show episode.createdAt)
           " • "
           -- TODO: Add duration when available
           "Duration TBD"
       Lucid.div_ [Lucid.class_ "flex gap-2"] $ do
-        let episodeEditUrl = Links.linkURI $ episodeEditGetLink episode.emId
+        let episodeEditUrl = Links.linkURI $ episodeEditGetLink episode.id
         Lucid.a_ [Lucid.href_ [i|/#{episodeEditUrl}|], hxGet_ [i|/#{episodeEditUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "bg-gray-600 text-white px-3 py-1 text-xs font-bold hover:bg-gray-700 no-underline"] "EDIT"
         Lucid.button_ [Lucid.class_ "bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700"] "DELETE"
 
     Lucid.p_ [Lucid.class_ "text-sm text-gray-700 mb-3"] $ do
-      case Episode.emDescription episode of
+      case episode.description of
         Nothing -> "No description available"
         Just desc -> do
           Lucid.toHtml $ Text.take 150 desc
@@ -174,15 +175,15 @@ renderBlogPostCard post = do
   Lucid.div_ [Lucid.class_ "border border-gray-300 p-4"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-start mb-2"] $ do
       Lucid.div_ $ do
-        Lucid.h3_ [Lucid.class_ "font-bold"] $ Lucid.toHtml (ShowBlog.sbpmTitle post)
+        Lucid.h3_ [Lucid.class_ "font-bold"] $ Lucid.toHtml post.title
         Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $ do
-          Lucid.toHtml (show (ShowBlog.sbpmCreatedAt post))
+          Lucid.toHtml (show post.createdAt)
       Lucid.div_ [Lucid.class_ "flex gap-2"] $ do
         Lucid.button_ [Lucid.class_ "bg-gray-600 text-white px-3 py-1 text-xs font-bold hover:bg-gray-700"] "EDIT"
         Lucid.button_ [Lucid.class_ "bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700"] "DELETE"
 
     Lucid.p_ [Lucid.class_ "text-sm text-gray-700 mb-2"] $ do
-      let content = ShowBlog.sbpmContent post
+      let content = post.content
       Lucid.toHtml $ Text.take 120 content
       if Text.length content > 120 then "..." else ""
 
@@ -222,7 +223,7 @@ renderScheduleSection userShows = do
         Lucid.div_ [Lucid.class_ "text-xs text-gray-400"] "Contact station management to get your show scheduled."
       (primaryShow : _) -> do
         Lucid.div_ [Lucid.class_ "text-center text-sm mb-4"] $ do
-          Lucid.div_ [Lucid.class_ "text-lg font-bold mb-2"] $ Lucid.toHtml (Show.smTitle primaryShow)
+          Lucid.div_ [Lucid.class_ "text-lg font-bold mb-2"] $ Lucid.toHtml primaryShow.title
           Lucid.div_ [Lucid.class_ "mb-1"] "Schedule: TBD" -- TODO: Add schedule info
           Lucid.div_ [Lucid.class_ "text-xs text-gray-300"] "Set by station management"
 
@@ -318,7 +319,7 @@ handler _tracer cookie hxRequest = do
         recentEpisodes <- case userShows of
           [] -> pure []
           (primaryShow : _) -> do
-            episodesResult <- execQuerySpan (Episode.getEpisodesByShowId (Show.smId primaryShow))
+            episodesResult <- execQuerySpan (Episode.getEpisodesByShowId primaryShow.id)
             case episodesResult of
               Left _err -> pure []
               Right episodes -> pure episodes

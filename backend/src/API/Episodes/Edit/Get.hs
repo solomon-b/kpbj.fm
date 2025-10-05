@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -62,6 +63,7 @@ type Route =
 -- | Episode edit template
 template :: Episode.EpisodeModel -> Show.ShowModel -> UserMetadata.Model -> Lucid.Html ()
 template episode s userMeta = do
+  let episodeId = episode.id
   -- Form Header
   Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
@@ -69,7 +71,7 @@ template episode s userMeta = do
         Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "EDIT EPISODE"
         Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
           Lucid.strong_ "Show: "
-          Lucid.toHtml (Show.smTitle s)
+          Lucid.toHtml s.title
           " • "
           Lucid.strong_ "Host: "
           Lucid.toHtml userMeta.mDisplayName
@@ -84,7 +86,7 @@ template episode s userMeta = do
           "← BACK TO DASHBOARD"
 
   -- Edit Episode Form
-  Lucid.form_ [Lucid.action_ [i|/episodes/#{Episode.emId episode}/edit|], Lucid.method_ "post", Lucid.class_ "space-y-8 w-full"] $ do
+  Lucid.form_ [Lucid.action_ [i|/episodes/#{episodeId}/edit|], Lucid.method_ "post", Lucid.class_ "space-y-8 w-full"] $ do
     -- Episode Details
     Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
       Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "EPISODE DETAILS"
@@ -96,7 +98,7 @@ template episode s userMeta = do
             [ Lucid.type_ "text",
               Lucid.name_ "title",
               Lucid.required_ "true",
-              Lucid.value_ episode.emTitle,
+              Lucid.value_ episode.title,
               Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
               Lucid.placeholder_ "e.g. Industrial Depths #087"
             ]
@@ -106,7 +108,7 @@ template episode s userMeta = do
           Lucid.input_
             [ Lucid.type_ "number",
               Lucid.name_ "episode_number",
-              Lucid.value_ (display episode.emEpisodeNumber),
+              Lucid.value_ (display episode.episodeNumber),
               Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
               Lucid.placeholder_ "87"
             ]
@@ -116,7 +118,7 @@ template episode s userMeta = do
           Lucid.input_
             [ Lucid.type_ "number",
               Lucid.name_ "season_number",
-              Lucid.value_ (display episode.emSeasonNumber),
+              Lucid.value_ (display episode.seasonNumber),
               Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
               Lucid.placeholder_ "1"
             ]
@@ -129,7 +131,7 @@ template episode s userMeta = do
               Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono leading-relaxed",
               Lucid.placeholder_ "Describe this episode. What music was featured? Any special guests or themes?"
             ]
-            (maybe "" Lucid.toHtml episode.emDescription)
+            (maybe "" Lucid.toHtml episode.description)
 
     -- Form Actions
     Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
@@ -222,21 +224,21 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) = do
         renderTemplate hxRequest (Just userMetadata) notFoundTemplate
       Right (Just episode) ->
         -- Check if user is authorized to edit this episode
-        if Episode.emCreatedBy episode == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+        if episode.createdBy == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
           then do
             -- Fetch the show for this episode
-            showResult <- execQuerySpan (Show.getShowById episode.emShowId)
+            showResult <- execQuerySpan (Show.getShowById episode.showId)
             case showResult of
               Left _err ->
                 renderTemplate hxRequest (Just userMetadata) notFoundTemplate
               Right Nothing ->
                 renderTemplate hxRequest (Just userMetadata) notFoundTemplate
               Right (Just s) -> do
-                Log.logInfo "Authorized user accessing episode edit form" episode.emId
+                Log.logInfo "Authorized user accessing episode edit form" episode.id
                 let editTemplate = template episode s userMetadata
                 renderTemplate hxRequest (Just userMetadata) editTemplate
           else do
-            Log.logInfo "User tried to edit episode they don't own" episode.emId
+            Log.logInfo "User tried to edit episode they don't own" episode.id
             renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
 
 checkAuth ::

@@ -1,4 +1,6 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Effects.Database.Tables.Episode where
@@ -102,24 +104,24 @@ newtype EpisodeTrackId = EpisodeTrackId Int64
 -- Database Models
 
 data EpisodeModel = EpisodeModel
-  { emId :: EpisodeId,
-    emShowId :: Show.ShowId,
-    emTitle :: Text,
-    emSlug :: Text,
-    emDescription :: Maybe Text,
-    emEpisodeNumber :: Maybe EpisodeNumber,
-    emSeasonNumber :: Int64,
-    emAudioFilePath :: Maybe Text,
-    emAudioFileSize :: Maybe Int64,
-    emAudioMimeType :: Maybe Text,
-    emDurationSeconds :: Maybe Int64,
-    emArtworkUrl :: Maybe Text,
-    emScheduledAt :: Maybe UTCTime,
-    emPublishedAt :: Maybe UTCTime,
-    emStatus :: EpisodeStatus,
-    emCreatedBy :: User.Id,
-    emCreatedAt :: UTCTime,
-    emUpdatedAt :: UTCTime
+  { id :: EpisodeId,
+    showId :: Show.ShowId,
+    title :: Text,
+    slug :: Text,
+    description :: Maybe Text,
+    episodeNumber :: Maybe EpisodeNumber,
+    seasonNumber :: Int64,
+    audioFilePath :: Maybe Text,
+    audioFileSize :: Maybe Int64,
+    audioMimeType :: Maybe Text,
+    durationSeconds :: Maybe Int64,
+    artworkUrl :: Maybe Text,
+    scheduledAt :: Maybe UTCTime,
+    publishedAt :: Maybe UTCTime,
+    status :: EpisodeStatus,
+    createdBy :: User.Id,
+    createdAt :: UTCTime,
+    updatedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
@@ -143,17 +145,17 @@ newtype EpisodeNumber = EpisodeNumber Int64
     )
 
 data EpisodeTrackModel = EpisodeTrackModel
-  { etmId :: EpisodeTrackId,
-    etmEpisodeId :: EpisodeId,
-    etmTrackNumber :: Int64,
-    etmTitle :: Text,
-    etmArtist :: Text,
-    etmAlbum :: Maybe Text,
-    etmYear :: Maybe Int64,
-    etmDuration :: Maybe Text,
-    etmLabel :: Maybe Text,
-    etmIsExclusivePremiere :: Bool,
-    etmCreatedAt :: UTCTime
+  { id :: EpisodeTrackId,
+    episodeId :: EpisodeId,
+    trackNumber :: Int64,
+    title :: Text,
+    artist :: Text,
+    album :: Maybe Text,
+    year :: Maybe Int64,
+    duration :: Maybe Text,
+    label :: Maybe Text,
+    isExclusivePremiere :: Bool,
+    createdAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)

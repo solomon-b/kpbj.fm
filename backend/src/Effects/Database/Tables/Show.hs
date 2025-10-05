@@ -1,4 +1,6 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Effects.Database.Tables.Show where
@@ -152,18 +154,18 @@ newtype ShowScheduleId = ShowScheduleId Int64
 -- Database Models
 
 data ShowModel = ShowModel
-  { smId :: ShowId,
-    smTitle :: Text,
-    smSlug :: Text,
-    smDescription :: Text,
-    smGenre :: Maybe Text,
-    smLogoUrl :: Maybe Text,
-    smBannerUrl :: Maybe Text,
-    smStatus :: ShowStatus,
-    smFrequency :: ShowFrequency,
-    smDurationMinutes :: Maybe Int64,
-    smCreatedAt :: UTCTime,
-    smUpdatedAt :: UTCTime
+  { id :: ShowId,
+    title :: Text,
+    slug :: Text,
+    description :: Text,
+    genre :: Maybe Text,
+    logoUrl :: Maybe Text,
+    bannerUrl :: Maybe Text,
+    status :: ShowStatus,
+    frequency :: ShowFrequency,
+    durationMinutes :: Maybe Int64,
+    createdAt :: UTCTime,
+    updatedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
@@ -182,16 +184,16 @@ data ShowHostModel = ShowHostModel
   deriving (Display) via (RecordInstance ShowHostModel)
 
 data ShowScheduleModel = ShowScheduleModel
-  { ssmId :: ShowScheduleId,
-    ssmShowId :: ShowId,
-    ssmDayOfWeek :: Int64,
-    ssmStartTime :: Text,
-    ssmEndTime :: Text,
-    ssmTimezone :: Text,
-    ssmIsActive :: Bool,
-    ssmEffectiveFrom :: Day,
-    ssmEffectiveUntil :: Maybe Day,
-    ssmCreatedAt :: UTCTime
+  { id :: ShowScheduleId,
+    showId :: ShowId,
+    dayOfWeek :: Int64,
+    startTime :: Text,
+    endTime :: Text,
+    timezone :: Text,
+    isActive :: Bool,
+    effectiveFrom :: Day,
+    effectiveUntil :: Maybe Day,
+    createdAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
@@ -201,23 +203,40 @@ instance Display ShowScheduleModel where
 
 -- | Show host with user information (for SQL joins)
 data ShowHostWithUser = ShowHostWithUser
-  { shwuShowId :: ShowId,
-    shwuUserId :: User.Id,
-    shwuRole :: HostRole,
-    shwuIsPrimary :: Bool,
-    shwuJoinedAt :: UTCTime,
-    shwuLeftAt :: Maybe UTCTime,
-    shwuUserEmail :: Text,
-    shwuUserCreatedAt :: UTCTime,
-    shwuUserUpdatedAt :: UTCTime,
-    shwuDisplayName :: DisplayName,
-    shwuFullName :: Text,
-    shwuAvatarUrl :: Maybe Text,
-    shwuMetadataCreatedAt :: UTCTime,
-    shwuMetadataUpdatedAt :: UTCTime
+  { showId :: ShowId,
+    userId :: User.Id,
+    role :: HostRole,
+    isPrimary :: Bool,
+    joinedAt :: UTCTime,
+    leftAt :: Maybe UTCTime,
+    userEmail :: Text,
+    userCreatedAt :: UTCTime,
+    userUpdatedAt :: UTCTime,
+    displayName :: DisplayName,
+    fullName :: Text,
+    avatarUrl :: Maybe Text,
+    metadataCreatedAt :: UTCTime,
+    metadataUpdatedAt :: UTCTime
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance ShowHostWithUser)
+  deriving anyclass (DecodeRow, FromJSON, ToJSON)
+
+-- | Host details model
+data HostDetailsModel = HostDetailsModel
+  { id :: Int64,
+    userId :: User.Id,
+    bio :: Maybe Text,
+    websiteUrl :: Maybe Text,
+    instagramHandle :: Maybe Text,
+    twitterHandle :: Maybe Text,
+    soundcloudUrl :: Maybe Text,
+    bandcampUrl :: Maybe Text,
+    createdAt :: UTCTime,
+    updatedAt :: UTCTime
+  }
+  deriving stock (Show, Generic, Eq)
+  deriving (Display) via (RecordInstance HostDetailsModel)
   deriving anyclass (DecodeRow, FromJSON, ToJSON)
 
 --------------------------------------------------------------------------------
@@ -545,4 +564,15 @@ getShowHostsWithUsers showId =
     JOIN user_metadata um ON u.id = um.user_id
     WHERE sh.show_id = #{showId} AND sh.left_at IS NULL
     ORDER BY sh.is_primary DESC, sh.joined_at ASC
+  |]
+
+-- | Get host details for a user
+getHostDetails :: User.Id -> Hasql.Statement () (Maybe HostDetailsModel)
+getHostDetails userId =
+  interp
+    False
+    [sql|
+    SELECT id, user_id, bio, website_url, instagram_handle, twitter_handle, soundcloud_url, bandcamp_url, created_at, updated_at
+    FROM host_details
+    WHERE user_id = #{userId}
   |]
