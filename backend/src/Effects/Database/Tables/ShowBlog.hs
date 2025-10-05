@@ -1,4 +1,6 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Effects.Database.Tables.ShowBlog where
@@ -60,17 +62,17 @@ newtype ShowBlogTagId = ShowBlogTagId Int64
 -- Database Models
 
 data ShowBlogPostModel = ShowBlogPostModel
-  { sbpmId :: ShowBlogPostId,
-    sbpmShowId :: Show.ShowId,
-    sbpmTitle :: Text,
-    sbpmSlug :: Text,
-    sbpmContent :: Text,
-    sbpmExcerpt :: Maybe Text,
-    sbpmAuthorId :: User.Id,
-    sbpmStatus :: BlogPostStatus,
-    sbpmPublishedAt :: Maybe UTCTime,
-    sbpmCreatedAt :: UTCTime,
-    sbpmUpdatedAt :: UTCTime
+  { id :: ShowBlogPostId,
+    showId :: Show.ShowId,
+    title :: Text,
+    slug :: Text,
+    content :: Text,
+    excerpt :: Maybe Text,
+    authorId :: User.Id,
+    status :: BlogPostStatus,
+    publishedAt :: Maybe UTCTime,
+    createdAt :: UTCTime,
+    updatedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)

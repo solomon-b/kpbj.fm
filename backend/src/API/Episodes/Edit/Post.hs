@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -179,7 +180,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just episode) ->
           -- Check authorization - user must be episode creator or staff/admin
-          if Episode.emCreatedBy episode == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+          if episode.createdBy == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then do
               -- Parse form data
               let newEpisodeNumber = case eefEpisodeNumber editForm of
@@ -190,20 +191,20 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
                       Right (num, _) -> Just (Episode.EpisodeNumber num)
 
                   newSeasonNumber = case eefSeasonNumber editForm of
-                    Nothing -> Episode.emSeasonNumber episode
-                    Just "" -> Episode.emSeasonNumber episode
+                    Nothing -> episode.seasonNumber
+                    Just "" -> episode.seasonNumber
                     Just numStr -> case Text.Read.decimal numStr of
-                      Left _ -> Episode.emSeasonNumber episode
+                      Left _ -> episode.seasonNumber
                       Right (num, _) -> num
 
                   newDescription = case eefDescription editForm of
-                    Nothing -> Episode.emDescription episode
+                    Nothing -> episode.description
                     Just "" -> Nothing
                     Just desc -> Just desc
 
                   updateData =
                     Episode.EpisodeUpdate
-                      { euId = Episode.emId episode,
+                      { euId = episode.id,
                         euTitle = eefTitle editForm,
                         euDescription = newDescription,
                         euEpisodeNumber = newEpisodeNumber,

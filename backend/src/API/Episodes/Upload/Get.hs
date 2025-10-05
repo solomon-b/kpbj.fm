@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Episodes.Upload.Get where
@@ -55,10 +56,10 @@ type Route =
 renderShowOption :: Show.ShowModel -> Bool -> Lucid.Html ()
 renderShowOption s isSelected = do
   Lucid.option_
-    [ Lucid.value_ (Text.pack $ Prelude.show $ Show.smId s),
+    [ Lucid.value_ (Text.pack $ Prelude.show $ s.id),
       if isSelected then Lucid.selected_ "selected" else mempty
     ]
-    $ Lucid.toHtml (Show.smTitle s)
+    $ Lucid.toHtml s.title
 
 -- | Render the episode upload form
 episodeUploadForm :: [Show.ShowModel] -> Lucid.Html ()

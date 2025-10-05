@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
@@ -83,31 +84,34 @@ type Route =
 -- | Render a show card for the list view
 renderShowCard :: Show.ShowModel -> Lucid.Html ()
 renderShowCard s = do
+  let showSlug = s.slug
+      showTitle = s.title
+      showDescription = s.description
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
     -- Show Image
     Lucid.div_ [Lucid.class_ "text-center mb-4"] $ do
       Lucid.div_ [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center mb-4 text-lg"] $
-        case s.smLogoUrl of
-          Just logoUrl -> Lucid.img_ [Lucid.src_ logoUrl, Lucid.alt_ s.smTitle, Lucid.class_ "w-full h-full object-cover"]
+        case s.logoUrl of
+          Just logoUrl -> Lucid.img_ [Lucid.src_ logoUrl, Lucid.alt_ showTitle, Lucid.class_ "w-full h-full object-cover"]
           Nothing -> "[SHOW IMG]"
 
       -- Show Title and Basic Info
       Lucid.h3_ [Lucid.class_ "text-xl font-bold mb-2"]
         $ Lucid.a_
-          [ Lucid.href_ [i|/#{showGetUrl (Show.smSlug s)}|],
-            hxGet_ [i|/#{showGetUrl (Show.smSlug s)}|],
+          [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
+            hxGet_ [i|/#{showGetUrl showSlug}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ "hover:underline"
           ]
-        $ Lucid.toHtml s.smTitle
+        $ Lucid.toHtml showTitle
 
       Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-3"] $ do
         -- Schedule info would come from show_schedules table
         "Schedule info here" -- TODO: Join with schedule data
 
       -- Genre tag
-      case s.smGenre of
+      case s.genre of
         Just genre ->
           Lucid.div_ [Lucid.class_ "text-xs bg-gray-200 text-gray-800 px-2 py-1 font-mono mb-3"] $
             "#" <> Lucid.toHtml genre
@@ -115,14 +119,14 @@ renderShowCard s = do
 
     -- Description
     Lucid.p_ [Lucid.class_ "text-sm leading-relaxed mb-4"] $ do
-      let truncatedDesc = Text.take 150 (Show.smDescription s)
-      Lucid.toHtml $ truncatedDesc <> if Text.length (Show.smDescription s) > 150 then "..." else ""
+      let truncatedDesc = Text.take 150 showDescription
+      Lucid.toHtml $ truncatedDesc <> if Text.length showDescription > 150 then "..." else ""
 
     -- Actions
     Lucid.div_ [Lucid.class_ "flex gap-2"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{showGetUrl (Show.smSlug s)}|],
-          hxGet_ [i|/#{showGetUrl (Show.smSlug s)}|],
+        [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
+          hxGet_ [i|/#{showGetUrl showSlug}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700 flex-grow text-center"
