@@ -121,87 +121,30 @@ data EventTagModel = EventTagModel
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance EventTagModel)
 
--- | API Domain Type for @Event@
-data EventDomain = EventDomain
-  { edId :: EventId,
-    edTitle :: Text,
-    edSlug :: Text,
-    edDescription :: Text,
-    edStartsAt :: UTCTime,
-    edEndsAt :: UTCTime,
-    edLocationName :: Text,
-    edLocationAddress :: Text,
-    edStatus :: EventStatus,
-    edAuthorId :: User.Id,
-    edCreatedAt :: UTCTime,
-    edUpdatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance EventDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | API Domain Type for @EventTag@
-data EventTagDomain = EventTagDomain
-  { etdId :: EventTagId,
-    etdName :: Text,
-    etdCreatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance EventTagDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
 -- | Event with author information
 data EventWithAuthor = EventWithAuthor
-  { ewaEvent :: EventDomain,
-    ewaAuthor :: UserMetadata.Domain
+  { ewaEvent :: EventModel,
+    ewaAuthor :: UserMetadata.Model
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventWithAuthor)
-  deriving anyclass (FromJSON, ToJSON)
 
 -- | Event with tags
 data EventWithTags = EventWithTags
-  { ewtEvent :: EventDomain,
-    ewtTags :: [EventTagDomain]
+  { ewtEvent :: EventModel,
+    ewtTags :: [EventTagModel]
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventWithTags)
-  deriving anyclass (FromJSON, ToJSON)
 
 -- | Event with complete information (author + tags)
 data EventComplete = EventComplete
-  { ecEvent :: EventDomain,
-    ecAuthor :: UserMetadata.Domain,
-    ecTags :: [EventTagDomain]
+  { ecEvent :: EventModel,
+    ecAuthor :: UserMetadata.Model,
+    ecTags :: [EventTagModel]
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventComplete)
-  deriving anyclass (FromJSON, ToJSON)
-
-toDomainEvent :: EventModel -> EventDomain
-toDomainEvent EventModel {..} =
-  EventDomain
-    { edId = emId,
-      edTitle = emTitle,
-      edSlug = emSlug,
-      edDescription = emDescription,
-      edStartsAt = emStartsAt,
-      edEndsAt = emEndsAt,
-      edLocationName = emLocationName,
-      edLocationAddress = emLocationAddress,
-      edStatus = emStatus,
-      edAuthorId = emAuthorId,
-      edCreatedAt = emCreatedAt,
-      edUpdatedAt = emUpdatedAt
-    }
-
-toDomainEventTag :: EventTagModel -> EventTagDomain
-toDomainEventTag EventTagModel {..} =
-  EventTagDomain
-    { etdId = etmId,
-      etdName = etmName,
-      etdCreatedAt = etmCreatedAt
-    }
 
 --------------------------------------------------------------------------------
 -- Insert Types

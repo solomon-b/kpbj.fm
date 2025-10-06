@@ -84,85 +84,30 @@ data BlogTagModel = BlogTagModel
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance BlogTagModel)
 
--- | API Domain Type for @BlogPost@
-data BlogPostDomain = BlogPostDomain
-  { bpdId :: BlogPostId,
-    bpdTitle :: Text,
-    bpdSlug :: Text,
-    bpdContent :: Text,
-    bpdExcerpt :: Maybe Text,
-    bpdAuthorId :: User.Id,
-    bpdCategory :: Text,
-    bpdStatus :: BlogPostStatus,
-    bpdPublishedAt :: Maybe UTCTime,
-    bpdCreatedAt :: UTCTime,
-    bpdUpdatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance BlogPostDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
--- | API Domain Type for @BlogTag@
-data BlogTagDomain = BlogTagDomain
-  { btdId :: BlogTagId,
-    btdName :: Text,
-    btdCreatedAt :: UTCTime
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance BlogTagDomain)
-  deriving anyclass (FromJSON, ToJSON)
-
 -- | Blog post with author information
 data BlogPostWithAuthor = BlogPostWithAuthor
-  { bpwaPost :: BlogPostDomain,
-    bpwaAuthor :: UserMetadata.Domain
+  { bpwaPost :: BlogPostModel,
+    bpwaAuthor :: UserMetadata.Model
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance BlogPostWithAuthor)
-  deriving anyclass (FromJSON, ToJSON)
 
 -- | Blog post with tags
 data BlogPostWithTags = BlogPostWithTags
-  { bpwtPost :: BlogPostDomain,
-    bpwtTags :: [BlogTagDomain]
+  { bpwtPost :: BlogPostModel,
+    bpwtTags :: [BlogTagModel]
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance BlogPostWithTags)
-  deriving anyclass (FromJSON, ToJSON)
 
 -- | Blog post with complete information (author + tags)
 data BlogPostComplete = BlogPostComplete
-  { bpcPost :: BlogPostDomain,
-    bpcAuthor :: UserMetadata.Domain,
-    bpcTags :: [BlogTagDomain]
+  { bpcPost :: BlogPostModel,
+    bpcAuthor :: UserMetadata.Model,
+    bpcTags :: [BlogTagModel]
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance BlogPostComplete)
-  deriving anyclass (FromJSON, ToJSON)
-
-toDomainBlogPost :: BlogPostModel -> BlogPostDomain
-toDomainBlogPost BlogPostModel {..} =
-  BlogPostDomain
-    { bpdId = bpmId,
-      bpdTitle = bpmTitle,
-      bpdSlug = bpmSlug,
-      bpdContent = bpmContent,
-      bpdExcerpt = bpmExcerpt,
-      bpdAuthorId = bpmAuthorId,
-      bpdCategory = bpmCategory,
-      bpdStatus = bpmStatus,
-      bpdPublishedAt = bpmPublishedAt,
-      bpdCreatedAt = bpmCreatedAt,
-      bpdUpdatedAt = bpmUpdatedAt
-    }
-
-toDomainBlogTag :: BlogTagModel -> BlogTagDomain
-toDomainBlogTag BlogTagModel {..} =
-  BlogTagDomain
-    { btdId = btmId,
-      btdName = btmName,
-      btdCreatedAt = btmCreatedAt
-    }
 
 --------------------------------------------------------------------------------
 -- Insert Types

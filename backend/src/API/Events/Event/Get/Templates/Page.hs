@@ -46,19 +46,19 @@ renderEventDescription description = do
         else Lucid.p_ $ Lucid.toHtml para
 
 -- | Render a single tag
-renderTag :: Events.EventTagDomain -> Lucid.Html ()
+renderTag :: Events.EventTagModel -> Lucid.Html ()
 renderTag tag =
   Lucid.a_
-    [ Lucid.href_ [i|/#{eventsGetTagUrl (Events.etdName tag)}|],
-      hxGet_ [i|/#{eventsGetTagUrl (Events.etdName tag)}|],
+    [ Lucid.href_ [i|/#{eventsGetTagUrl (Events.etmName tag)}|],
+      hxGet_ [i|/#{eventsGetTagUrl (Events.etmName tag)}|],
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
       Lucid.class_ "bg-gray-200 text-gray-800 px-2 py-1 text-sm font-mono hover:bg-gray-300 no-underline"
     ]
-    $ Lucid.toHtml ("#" <> tag.etdName)
+    $ Lucid.toHtml ("#" <> tag.etmName)
 
 -- | Main event template
-template :: Events.EventModel -> [Events.EventTagDomain] -> UserMetadata.Domain -> Lucid.Html ()
+template :: Events.EventModel -> [Events.EventTagModel] -> UserMetadata.Model -> Lucid.Html ()
 template event eventTags author = do
   -- Event Header Section
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8"] $ do
@@ -113,13 +113,13 @@ template event eventTags author = do
       Lucid.div_ [Lucid.class_ "flex items-start gap-4"] $ do
         Lucid.div_ [Lucid.class_ "w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-sm"] $
           Lucid.toHtml $
-            Text.take 2 (display author.dDisplayName)
+            Text.take 2 (display author.mDisplayName)
         Lucid.div_ $ do
           Lucid.h3_ [Lucid.class_ "font-bold mb-1"] $
-            Lucid.toHtml ("Event created by " <> display author.dDisplayName)
+            Lucid.toHtml ("Event created by " <> display author.mDisplayName)
           Lucid.p_ [Lucid.class_ "text-sm text-gray-600"] $
             Lucid.toHtml $
-              "KPBJ " <> Text.pack (show author.dUserRole) <> " • " <> display author.dFullName
+              "KPBJ " <> Text.pack (show author.mUserRole) <> " • " <> display author.mFullName
 
   -- Navigation back to events
   Lucid.div_ [Lucid.class_ "text-center"] $ do

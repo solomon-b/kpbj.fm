@@ -112,30 +112,6 @@ data Model = Model
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance Model)
 
--- | API Domain Type for @UserMetadata@.
-data Domain = Domain
-  { dId :: Id,
-    dUserId :: User.Id,
-    dDisplayName :: DisplayName,
-    dFullName :: FullName,
-    dAvatarUrl :: Maybe Text,
-    dUserRole :: UserRole
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance Domain)
-  deriving anyclass (FromJSON, ToJSON)
-
-toDomain :: Model -> Domain
-toDomain Model {..} =
-  Domain
-    { dId = mId,
-      dUserId = mUserId,
-      dDisplayName = mDisplayName,
-      dFullName = mFullName,
-      dAvatarUrl = mAvatarUrl,
-      dUserRole = mUserRole
-    }
-
 --------------------------------------------------------------------------------
 
 getUserMetadata :: User.Id -> Hasql.Statement () (Maybe Model)

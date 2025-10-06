@@ -47,25 +47,25 @@ renderBlogContent content = do
         else Lucid.p_ $ Lucid.toHtml para
 
 -- | Render tags for a blog post
-renderTags :: [Blog.BlogTagDomain] -> Lucid.Html ()
+renderTags :: [Blog.BlogTagModel] -> Lucid.Html ()
 renderTags tags = do
   Lucid.div_ [Lucid.class_ "flex gap-2 mb-6"] $ do
     mapM_ renderTag tags
   where
-    renderTag :: Blog.BlogTagDomain -> Lucid.Html ()
+    renderTag :: Blog.BlogTagModel -> Lucid.Html ()
     renderTag tag =
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogGetTagUrl (Blog.btdName tag)}|],
-          hxGet_ [i|/#{blogGetTagUrl (Blog.btdName tag)}|],
+        [ Lucid.href_ [i|/#{blogGetTagUrl (Blog.btmName tag)}|],
+          hxGet_ [i|/#{blogGetTagUrl (Blog.btmName tag)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono hover:bg-gray-300 cursor-pointer"
         ]
         $ Lucid.toHtml
-        $ "#" <> Blog.btdName tag
+        $ "#" <> Blog.btmName tag
 
 -- | Main blog post template
-template :: Blog.BlogPostModel -> UserMetadata.Domain -> [Blog.BlogTagDomain] -> Lucid.Html ()
+template :: Blog.BlogPostModel -> UserMetadata.Model -> [Blog.BlogTagModel] -> Lucid.Html ()
 template post author tags = do
   -- Blog Post Content
   Lucid.article_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 w-full"] $ do
@@ -85,11 +85,11 @@ template post author tags = do
         Lucid.div_ [Lucid.class_ "flex items-center gap-2"] $ do
           Lucid.div_ [Lucid.class_ "w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-xs"] $
             Lucid.toHtml $
-              Text.take 2 (display (UserMetadata.dDisplayName author))
+              Text.take 2 (display (UserMetadata.mDisplayName author))
           Lucid.span_ $ do
             "By "
             Lucid.span_ [Lucid.class_ "font-bold text-gray-800"] $
-              Lucid.toHtml (display (UserMetadata.dDisplayName author))
+              Lucid.toHtml (display (UserMetadata.mDisplayName author))
 
         case Blog.bpmPublishedAt post of
           Just publishedAt -> do
@@ -111,14 +111,14 @@ template post author tags = do
         Lucid.div_ [Lucid.class_ "flex items-start gap-4"] $ do
           Lucid.div_ [Lucid.class_ "w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center text-xl"] $
             Lucid.toHtml $
-              Text.take 2 (display (UserMetadata.dDisplayName author))
+              Text.take 2 (display (UserMetadata.mDisplayName author))
           Lucid.div_ $ do
             Lucid.h3_ [Lucid.class_ "font-bold text-lg mb-2"] $
-              Lucid.toHtml (display (UserMetadata.dDisplayName author))
+              Lucid.toHtml (display (UserMetadata.mDisplayName author))
             Lucid.p_ [Lucid.class_ "text-sm text-gray-600 leading-relaxed"] $
               Lucid.toHtml $
                 Text.pack $
-                  "KPBJ " <> show (UserMetadata.dUserRole author) <> " • " <> Text.unpack (display (UserMetadata.dFullName author))
+                  "KPBJ " <> show (UserMetadata.mUserRole author) <> " • " <> Text.unpack (display (UserMetadata.mFullName author))
 
   -- Navigation
   Lucid.div_ [Lucid.class_ "mt-8 text-center"] $ do
