@@ -84,30 +84,66 @@ library
   exposed-modules:
     API
     API.About.Get
+    API.About.Get.Templates
     API.Blog.Get
+    API.Blog.Get.Templates.Error
+    API.Blog.Get.Templates.Page
+    API.Blog.Get.Templates.Pagination
+    API.Blog.Get.Templates.PostCard
     API.Blog.New.Get
+    API.Blog.New.Get.Templates.Error
+    API.Blog.New.Get.Templates.Form
     API.Blog.New.Post
     API.Blog.Post.Get
+    API.Blog.Post.Get.Templates.Page
     API.Donate.Get
+    API.Donate.Get.Templates
     API.Episodes.Edit.Get
+    API.Episodes.Edit.Get.Templates.Error
+    API.Episodes.Edit.Get.Templates.Form
     API.Episodes.Edit.Post
     API.Episodes.Upload.Get
+    API.Episodes.Upload.Get.Templates.Fields
+    API.Episodes.Upload.Get.Templates.Form
+    API.Episodes.Upload.Get.Templates.Scripts
     API.Episodes.Upload.Post
     API.Events.Get
+    API.Events.Get.Templates.Controls
+    API.Events.Get.Templates.Error
+    API.Events.Get.Templates.List
+    API.Events.Get.Templates.MonthView
+    API.Events.Get.Templates.Page
+    API.Events.Get.Templates.WeekView
     API.Events.New.Get
+    API.Events.New.Get.Templates.Auth
+    API.Events.New.Get.Templates.Form
     API.Events.New.Post
     API.Events.Event.Get
+    API.Events.Event.Get.Templates.Page
     API.Get
+    API.Get.Templates
     API.Host.Dashboard.Get
+    API.Host.Dashboard.Get.Templates.Auth
+    API.Host.Dashboard.Get.Templates.BlogPost
+    API.Host.Dashboard.Get.Templates.Episode
+    API.Host.Dashboard.Get.Templates.Page
+    API.Host.Dashboard.Get.Templates.Schedule
+    API.Host.Dashboard.Get.Templates.Stats
     API.PrivacyPolicy.Get
+    API.PrivacyPolicy.Get.Templates
     API.Show.Get
     API.Show.Get.Templates.Episode
     API.Show.Get.Templates.Page
     API.Show.Get.Templates.ShowHeader
     API.Show.Get.Templates.Sidebar
     API.Shows.Get
+    API.Shows.Get.Templates.Error
+    API.Shows.Get.Templates.Page
+    API.Shows.Get.Templates.Pagination
+    API.Shows.Get.Templates.ShowCard
     API.Static.Get
     API.TermsOfService.Get
+    API.TermsOfService.Get.Templates
     API.User.Login.Get
     API.User.Login.Form
     API.User.Login.Post
