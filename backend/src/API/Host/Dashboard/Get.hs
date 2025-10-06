@@ -64,7 +64,7 @@ type Route =
 template :: UserMetadata.Model -> [Show.ShowModel] -> [Episode.EpisodeModel] -> [ShowBlog.ShowBlogPostModel] -> Lucid.Html ()
 template userMeta userShows recentEpisodes blogPosts = do
   -- Dashboard Header
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8"] $ do
+  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
       Lucid.div_ $ do
         Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "HOST DASHBOARD"
@@ -93,7 +93,7 @@ template userMeta userShows recentEpisodes blogPosts = do
             Lucid.span_ [Lucid.class_ "text-blue-300 text-sm"] "VIEW PUBLIC PAGE"
 
   -- Quick Actions
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8"] $ do
+  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8 w-full"] $ do
     Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "QUICK ACTIONS"
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-3 gap-4"] $ do
       Lucid.a_ [Lucid.href_ [i|/#{episodeUploadGetUrl}|], hxGet_ [i|/#{episodeUploadGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "bg-blue-600 text-white p-4 font-bold hover:bg-blue-700 transition-colors block text-center"] $ do
@@ -104,7 +104,7 @@ template userMeta userShows recentEpisodes blogPosts = do
         "✏️ EDIT PROFILE"
 
   -- Main Dashboard Grid
-  Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8"] $ do
+  Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 w-full"] $ do
     -- Recent Episodes Section
     Lucid.div_ [Lucid.class_ "lg:col-span-2"] $ do
       Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8"] $ do

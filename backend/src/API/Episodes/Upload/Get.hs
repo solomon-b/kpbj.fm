@@ -14,7 +14,9 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (DayOfWeek (..), UTCTime)
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -61,9 +63,40 @@ renderShowOption s isSelected = do
     ]
     $ Lucid.toHtml s.title
 
+-- | Render an upcoming date option for the dropdown
+renderUpcomingDateOption :: Show.UpcomingShowDate -> Lucid.Html ()
+renderUpcomingDateOption date = do
+  Lucid.option_
+    [Lucid.value_ (Text.pack $ Prelude.show date.usdShowDate)]
+    $ Lucid.toHtml
+    $ formatUpcomingDate date
+  where
+    formatUpcomingDate :: Show.UpcomingShowDate -> Text
+    formatUpcomingDate d =
+      dayOfWeekName d.usdDayOfWeek
+        <> ", "
+        <> Text.pack (Prelude.show d.usdShowDate)
+        <> " ("
+        <> formatTime d.usdStartTime
+        <> " - "
+        <> formatTime d.usdEndTime
+        <> ")"
+
+    dayOfWeekName :: DayOfWeek -> Text
+    dayOfWeekName Sunday = "Sunday"
+    dayOfWeekName Monday = "Monday"
+    dayOfWeekName Tuesday = "Tuesday"
+    dayOfWeekName Wednesday = "Wednesday"
+    dayOfWeekName Thursday = "Thursday"
+    dayOfWeekName Friday = "Friday"
+    dayOfWeekName Saturday = "Saturday"
+
+    formatTime :: UTCTime -> Text
+    formatTime = Text.pack . Prelude.show -- TODO: Format nicely
+
 -- | Render the episode upload form
-episodeUploadForm :: [Show.ShowModel] -> Lucid.Html ()
-episodeUploadForm userShows = do
+episodeUploadForm :: [Show.ShowModel] -> [Show.UpcomingShowDate] -> Lucid.Html ()
+episodeUploadForm userShows upcomingDates = do
   Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-4xl mx-auto w-full"] $ do
     -- Form Header
     Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8"] $ do
@@ -157,11 +190,18 @@ episodeUploadForm userShows = do
 
                     Lucid.div_ $ do
                       Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
-                      Lucid.input_
-                        [ Lucid.type_ "date",
-                          Lucid.name_ "scheduled_date",
-                          Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono"
-                        ]
+                      if null upcomingDates
+                        then do
+                          Lucid.div_ [Lucid.class_ "w-full p-3 border-2 border-yellow-400 bg-yellow-50 font-mono text-sm"] $ do
+                            "No upcoming scheduled dates"
+                        else do
+                          Lucid.select_
+                            [ Lucid.name_ "scheduled_date",
+                              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono bg-white"
+                            ]
+                            $ do
+                              Lucid.option_ [Lucid.value_ ""] "-- Select Date --"
+                              mapM_ renderUpcomingDateOption upcomingDates
 
                   Lucid.div_ $ do
                     Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Tags"
@@ -389,4 +429,15 @@ handler _tracer cookie = do
               Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "Failed to load your shows."
               Lucid.a_ [Lucid.href_ "/host/dashboard", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Back to Dashboard"
         Right userShows -> do
-          loadFrameWithUser userMetadata (episodeUploadForm userShows)
+          -- Get upcoming dates for the user's first show (primary show)
+          upcomingDates <- case userShows of
+            [] -> pure []
+            (primaryShow : _) -> do
+              datesResult <- execQuerySpan (Show.getUpcomingShowDates primaryShow.id 4)
+              case datesResult of
+                Left _err -> do
+                  Log.logInfo "Failed to fetch upcoming show dates" primaryShow.id
+                  pure []
+                Right dates -> pure dates
+
+          loadFrameWithUser userMetadata (episodeUploadForm userShows upcomingDates)
