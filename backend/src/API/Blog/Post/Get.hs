@@ -14,7 +14,7 @@ import Data.Has (Has)
 import Data.Text (Text)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Blog qualified as Blog
+import Effects.Database.Tables.BlogPosts qualified as Blog
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability

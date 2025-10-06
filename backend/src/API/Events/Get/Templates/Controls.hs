@@ -17,7 +17,7 @@ import Data.Text qualified as Text
 import Data.Time (MonthOfYear, UTCTime, Year, utctDay)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Domain.Types.PageView (PageView (..), isMonthView, isWeekView)
-import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.EventTags qualified as EventTag
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxSwap_, hxTarget_, hxTrigger_)
 import Servant.Links qualified as Links
@@ -37,7 +37,7 @@ utcTimeToYearWeek utc =
 --------------------------------------------------------------------------------
 
 -- | Shared view controls component
-renderViewControls :: UTCTime -> PageView -> (Year, MonthOfYear) -> Maybe Text -> [Events.EventTagWithCount] -> Lucid.Html ()
+renderViewControls :: UTCTime -> PageView -> (Year, MonthOfYear) -> Maybe Text -> [EventTag.EventTagWithCount] -> Lucid.Html ()
 renderViewControls currentTime currentView currentMonth maybeTagFilter eventTagsWithCounts = do
   let currentWeek = utcTimeToYearWeek currentTime
   Lucid.div_ [Lucid.class_ "flex flex-col md:flex-row md:items-center md:justify-between gap-4"] $ do
@@ -103,7 +103,7 @@ renderViewControls currentTime currentView currentMonth maybeTagFilter eventTags
           Lucid.option_ ([Lucid.value_ ""] <> ([Lucid.selected_ "" | isNothing maybeTagFilter])) "All Events"
           traverse_ renderEventTagOption eventTagsWithCounts
   where
-    renderEventTagOption :: Events.EventTagWithCount -> Lucid.Html ()
+    renderEventTagOption :: EventTag.EventTagWithCount -> Lucid.Html ()
     renderEventTagOption tagWithCount =
       Lucid.option_
         ( [Lucid.value_ tagWithCount.etwcTag]

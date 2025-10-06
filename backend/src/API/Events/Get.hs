@@ -32,6 +32,7 @@ import Domain.Types.PageView (PageView (..))
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.EventTags qualified as EventTag
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -243,9 +244,9 @@ getAllEventTags ::
     Has Tracer env,
     MonadUnliftIO m
   ) =>
-  m [Events.EventTagWithCount]
+  m [EventTag.EventTagWithCount]
 getAllEventTags = do
-  tags <- execQuerySpan Events.getEventTagsWithCounts
+  tags <- execQuerySpan EventTag.getEventTagsWithCounts
   pure $ fromRight [] tags
 
 renderTemplate ::
@@ -260,7 +261,7 @@ renderTemplate ::
   Int64 ->
   Int64 ->
   Maybe Text ->
-  [Events.EventTagWithCount] ->
+  [EventTag.EventTagWithCount] ->
   Maybe PageView ->
   m (Lucid.Html ())
 renderTemplate now limit offset tagFilter eventTagsWithCounts = \case
@@ -282,7 +283,7 @@ renderListTemplate ::
   UTCTime ->
   (Year, MonthOfYear) ->
   Maybe Text ->
-  [Events.EventTagWithCount] ->
+  [EventTag.EventTagWithCount] ->
   Either err [Events.EventModel] ->
   m (Lucid.Html ())
 renderListTemplate currentTime currentMonth maybeTagFilter eventTagsWithCounts = \case
@@ -303,7 +304,7 @@ renderMonthTemplate ::
   Year ->
   MonthOfYear ->
   Maybe Text ->
-  [Events.EventTagWithCount] ->
+  [EventTag.EventTagWithCount] ->
   Either err [Events.EventModel] ->
   m (Lucid.Html ())
 renderMonthTemplate currentTime year month maybeTagFilter eventTagsWithCounts = \case
@@ -325,7 +326,7 @@ renderWeekTemplate ::
   Year ->
   Int ->
   Maybe Text ->
-  [Events.EventTagWithCount] ->
+  [EventTag.EventTagWithCount] ->
   Either err [Events.EventModel] ->
   m (Lucid.Html ())
 renderWeekTemplate currentTime year weekNum maybeTagFilter eventTagsWithCounts = \case

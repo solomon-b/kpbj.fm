@@ -11,13 +11,13 @@ import API.Events.Get.Templates.Controls (renderViewControls)
 import Data.Text (Text)
 import Data.Time (MonthOfYear, UTCTime, Year)
 import Domain.Types.PageView (PageView)
-import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.EventTags qualified as EventTag
 import Lucid qualified
 
 --------------------------------------------------------------------------------
 
 -- | Main events template header for all views
-header :: UTCTime -> PageView -> Maybe Text -> (Year, MonthOfYear) -> [Events.EventTagWithCount] -> Lucid.Html ()
+header :: UTCTime -> PageView -> Maybe Text -> (Year, MonthOfYear) -> [EventTag.EventTagWithCount] -> Lucid.Html ()
 header currentTime pageView maybeTagFilter currentMonth eventTagsWithCounts = do
   -- Events Header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center w-full"] $ do

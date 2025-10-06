@@ -6,7 +6,7 @@ module API.Host.Dashboard.Get.Templates.BlogPost
 where
 
 import Data.Text qualified as Text
-import Effects.Database.Tables.ShowBlog qualified as ShowBlog
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
 import Lucid qualified
 
 -- | Render individual blog post card

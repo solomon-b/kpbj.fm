@@ -14,7 +14,7 @@ import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Effects.Database.Tables.Episode qualified as Episode
 import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlog qualified as ShowBlog
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
 import Lucid qualified
 
 --------------------------------------------------------------------------------
@@ -65,14 +65,14 @@ renderHostBio host mHostDetails = do
         Just instagram ->
           Lucid.div_ $ do
             Lucid.strong_ "Instagram: "
-            Lucid.toHtml $ "@" <> instagram
+            Lucid.toHtml $ ("@" :: Text.Text) <> instagram
         Nothing -> mempty
 
       case mHostDetails >>= (.twitterHandle) of
         Just twitter ->
           Lucid.div_ $ do
             Lucid.strong_ "Twitter: "
-            Lucid.toHtml $ "@" <> twitter
+            Lucid.toHtml $ ("@" :: Text.Text) <> twitter
         Nothing -> mempty
 
 -- | Render Show Stats section

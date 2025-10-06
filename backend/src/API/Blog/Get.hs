@@ -17,7 +17,8 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Blog qualified as Blog
+import Effects.Database.Tables.BlogPosts qualified as Blog
+import Effects.Database.Tables.BlogTags qualified as BlogTag
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
@@ -98,8 +99,8 @@ handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
         _ -> pure Nothing
 
   -- Get sidebar data
-  tagsResult <- execQuerySpan Blog.getTagsWithCounts
-  categoriesResult <- execQuerySpan Blog.getCategoriesWithCounts
+  tagsResult <- execQuerySpan BlogTag.getTagsWithCounts
+  categoriesResult <- execQuerySpan BlogTag.getCategoriesWithCounts
 
   let tagsWithCounts = fromRight [] tagsResult
       categoriesWithCounts = fromRight [] categoriesResult
@@ -109,13 +110,13 @@ handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
     (Just category, _) ->
       execQuerySpan (Blog.getBlogPostsByCategory category limit offset)
     (_, Just tagName) ->
-      execQuerySpan (Blog.getTagByName tagName) >>= \case
+      execQuerySpan (BlogTag.getTagByName tagName) >>= \case
         Left err ->
           pure (Left err)
         Right Nothing ->
           pure (Right [])
         Right (Just tag) ->
-          execQuerySpan (Blog.getPostsByTag (Blog.btmId tag) limit offset)
+          execQuerySpan (Blog.getPostsByTag (BlogTag.btmId tag) limit offset)
     (Nothing, Nothing) ->
       execQuerySpan (Blog.getPublishedBlogPosts limit offset)
   case blogPostsResult of

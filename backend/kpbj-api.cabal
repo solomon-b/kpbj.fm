@@ -164,11 +164,18 @@ library
     Domain.Types.PageNumber
     Domain.Types.PageView
     Domain.Types.Search
-    Effects.Database.Tables.Blog
+    Effects.Database.Tables.BlogPosts
+    Effects.Database.Tables.BlogTags
     Effects.Database.Tables.Episode
+    Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
+    Effects.Database.Tables.EventTags
+    Effects.Database.Tables.HostDetails
     Effects.Database.Tables.Show
-    Effects.Database.Tables.ShowBlog
+    Effects.Database.Tables.ShowBlogPosts
+    Effects.Database.Tables.ShowBlogTags
+    Effects.Database.Tables.ShowHost
+    Effects.Database.Tables.ShowSchedule
     Effects.Database.Tables.UserMetadata
     Effects.FileUpload
     Lucid.Extras

@@ -17,7 +17,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Effects.Database.Tables.Blog qualified as Blog
+import Effects.Database.Tables.BlogPosts qualified as Blog
+import Effects.Database.Tables.BlogTags qualified as BlogTag
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -47,25 +48,25 @@ renderBlogContent content = do
         else Lucid.p_ $ Lucid.toHtml para
 
 -- | Render tags for a blog post
-renderTags :: [Blog.BlogTagModel] -> Lucid.Html ()
+renderTags :: [BlogTag.BlogTagModel] -> Lucid.Html ()
 renderTags tags = do
   Lucid.div_ [Lucid.class_ "flex gap-2 mb-6"] $ do
     mapM_ renderTag tags
   where
-    renderTag :: Blog.BlogTagModel -> Lucid.Html ()
+    renderTag :: BlogTag.BlogTagModel -> Lucid.Html ()
     renderTag tag =
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogGetTagUrl (Blog.btmName tag)}|],
-          hxGet_ [i|/#{blogGetTagUrl (Blog.btmName tag)}|],
+        [ Lucid.href_ [i|/#{blogGetTagUrl (BlogTag.btmName tag)}|],
+          hxGet_ [i|/#{blogGetTagUrl (BlogTag.btmName tag)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono hover:bg-gray-300 cursor-pointer"
         ]
         $ Lucid.toHtml
-        $ "#" <> Blog.btmName tag
+        $ "#" <> BlogTag.btmName tag
 
 -- | Main blog post template
-template :: Blog.BlogPostModel -> UserMetadata.Model -> [Blog.BlogTagModel] -> Lucid.Html ()
+template :: Blog.BlogPostModel -> UserMetadata.Model -> [BlogTag.BlogTagModel] -> Lucid.Html ()
 template post author tags = do
   -- Blog Post Content
   Lucid.article_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 w-full"] $ do

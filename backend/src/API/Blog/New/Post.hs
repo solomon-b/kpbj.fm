@@ -22,7 +22,8 @@ import Data.Text qualified as Text
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Blog qualified as Blog
+import Effects.Database.Tables.BlogPosts qualified as Blog
+import Effects.Database.Tables.BlogTags qualified as BlogTag
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
@@ -280,13 +281,13 @@ createOrAssociateTag ::
   Text ->
   m ()
 createOrAssociateTag postId tagName =
-  execQuerySpan (Blog.getTagByName tagName) >>= \case
+  execQuerySpan (BlogTag.getTagByName tagName) >>= \case
     Right (Just existingTag) -> do
       -- If tag exists, associate it
-      void $ execQuerySpan (Blog.addTagToPost postId (Blog.btmId existingTag))
+      void $ execQuerySpan (Blog.addTagToPost postId (BlogTag.btmId existingTag))
     _ -> do
       -- otherwise, create new tag and associate it
-      tagInsertResult <- execQuerySpan (Blog.insertTag (Blog.BlogTagInsert tagName))
+      tagInsertResult <- execQuerySpan (BlogTag.insertTag (BlogTag.BlogTagInsert tagName))
       case tagInsertResult of
         Right newTagId -> do
           void $ execQuerySpan (Blog.addTagToPost postId newTagId)

@@ -14,7 +14,7 @@ import API.Host.Dashboard.Get.Templates.Stats (renderStatsSection)
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.Episode qualified as Episode
 import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlog qualified as ShowBlog
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)

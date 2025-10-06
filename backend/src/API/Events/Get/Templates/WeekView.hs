@@ -19,6 +19,7 @@ import Data.Text qualified as Text
 import Data.Time (UTCTime, Year)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.PageView (PageView (..))
+import Effects.Database.Tables.EventTags qualified as EventTag
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -57,7 +58,7 @@ renderWeekContent ::
   Year ->
   Int ->
   Maybe Text ->
-  [Events.EventTagWithCount] ->
+  [EventTag.EventTagWithCount] ->
   [WeekDay] ->
   UTCTime ->
   UTCTime ->

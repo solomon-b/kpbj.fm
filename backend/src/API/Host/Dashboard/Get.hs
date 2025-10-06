@@ -16,7 +16,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episode qualified as Episode
 import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlog qualified as ShowBlog
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability

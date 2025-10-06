@@ -23,6 +23,7 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episode qualified as EpisodeDB
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrackDB
 import Effects.Database.Tables.Show qualified as ShowDB
 import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload qualified as FileUpload
@@ -309,7 +310,7 @@ insertTracks ::
   ) =>
   EpisodeDB.EpisodeId ->
   [TrackInfo] ->
-  m (Either Text [EpisodeDB.EpisodeTrackId])
+  m (Either Text [EpisodeTrackDB.EpisodeTrackId])
 insertTracks episodeId tracks = do
   results <- mapM (insertTrack episodeId) (zip [1 ..] tracks)
   let (errors, trackIds) = partitionEithers results
@@ -331,19 +332,19 @@ insertTracks episodeId tracks = do
       ) =>
       EpisodeDB.EpisodeId ->
       (Int64, TrackInfo) ->
-      m (Either Text EpisodeDB.EpisodeTrackId)
+      m (Either Text EpisodeTrackDB.EpisodeTrackId)
     insertTrack epId (trackNum, track) = do
       let trackInsert =
-            EpisodeDB.EpisodeTrackInsert
-              { EpisodeDB.etiEpisodeId = epId,
-                EpisodeDB.etiTrackNumber = trackNum,
-                EpisodeDB.etiTitle = tiTitle track,
-                EpisodeDB.etiArtist = tiArtist track,
-                EpisodeDB.etiAlbum = tiAlbum track,
-                EpisodeDB.etiYear = tiYear track,
-                EpisodeDB.etiDuration = tiDuration track,
-                EpisodeDB.etiLabel = tiLabel track,
-                EpisodeDB.etiIsExclusivePremiere = tiIsExclusive track
+            EpisodeTrackDB.EpisodeTrackInsert
+              { EpisodeTrackDB.etiEpisodeId = epId,
+                EpisodeTrackDB.etiTrackNumber = trackNum,
+                EpisodeTrackDB.etiTitle = tiTitle track,
+                EpisodeTrackDB.etiArtist = tiArtist track,
+                EpisodeTrackDB.etiAlbum = tiAlbum track,
+                EpisodeTrackDB.etiYear = tiYear track,
+                EpisodeTrackDB.etiDuration = tiDuration track,
+                EpisodeTrackDB.etiLabel = tiLabel track,
+                EpisodeTrackDB.etiIsExclusivePremiere = tiIsExclusive track
               }
 
       result <- execQuerySpan (EpisodeDB.insertEpisodeTrack trackInsert)
