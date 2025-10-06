@@ -177,9 +177,8 @@ fetchTags isHtmxRequest mUserInfo event author =
   execQuerySpan (Events.getEventTags event.emId) >>= \case
     Left err -> do
       Log.logInfo "Failed to fetch event tags" (Aeson.object ["event" .= event.emId, "error" .= show err])
-      let eventTemplate = template event [] (UserMetadata.toDomain author)
+      let eventTemplate = template event [] author
       renderTemplate isHtmxRequest mUserInfo eventTemplate
     Right eventTagModels -> do
-      let eventTags = map Events.toDomainEventTag eventTagModels
-      let eventTemplate = template event eventTags (UserMetadata.toDomain author)
+      let eventTemplate = template event eventTagModels author
       renderTemplate isHtmxRequest mUserInfo eventTemplate

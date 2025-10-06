@@ -117,6 +117,6 @@ handler _tracer slug cookie hxRequest = do
           tagsResult <- execQuerySpan (Blog.getTagsForPost (Blog.bpmId blogPost))
           let tags = case tagsResult of
                 Left _err -> []
-                Right tagModels -> map Blog.toDomainBlogTag tagModels
-              postTemplate = template blogPost (UserMetadata.toDomain author) tags
+                Right tagModels -> tagModels
+              postTemplate = template blogPost author tags
           renderTemplate isHtmxRequest mUserInfo postTemplate
