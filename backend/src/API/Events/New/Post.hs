@@ -27,6 +27,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.EventTags qualified as EventTag
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -349,7 +350,7 @@ addTag ::
   m ()
 addTag eventId tagName = do
   -- Get all existing tags to check if this one exists
-  execQuerySpan Events.getAllEventTags >>= \case
+  execQuerySpan EventTag.getAllEventTags >>= \case
     Right allTags -> do
       case find (\tag -> tag.etmName == tagName) allTags of
         Just existingTag -> do
@@ -358,7 +359,7 @@ addTag eventId tagName = do
           pure ()
         Nothing -> do
           -- Tag doesn't exist, create it first then assign
-          execQuerySpan (Events.insertEventTag (Events.EventTagInsert tagName)) >>= \case
+          execQuerySpan (EventTag.insertEventTag (EventTag.EventTagInsert tagName)) >>= \case
             Right newTagId -> do
               _ <- execQuerySpan (Events.assignTagToEvent eventId newTagId)
               pure ()

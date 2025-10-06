@@ -14,13 +14,14 @@ import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Effects.Database.Tables.Blog qualified as Blog
+import Effects.Database.Tables.BlogPosts qualified as Blog
+import Effects.Database.Tables.BlogTags qualified as BlogTag
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 -- | Main blog template
-template :: [Blog.BlogPostModel] -> Int64 -> Bool -> [Blog.BlogTagWithCount] -> [Blog.CategoryWithCount] -> Lucid.Html ()
+template :: [Blog.BlogPostModel] -> Int64 -> Bool -> [BlogTag.BlogTagWithCount] -> [BlogTag.CategoryWithCount] -> Lucid.Html ()
 template blogPosts currentPage hasMore tagsWithCounts categoriesWithCounts = do
   -- Blog Header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center w-full"] $ do
@@ -45,7 +46,7 @@ template blogPosts currentPage hasMore tagsWithCounts categoriesWithCounts = do
     renderSidebar tagsWithCounts categoriesWithCounts
 
 -- | Render the blog sidebar
-renderSidebar :: [Blog.BlogTagWithCount] -> [Blog.CategoryWithCount] -> Lucid.Html ()
+renderSidebar :: [BlogTag.BlogTagWithCount] -> [BlogTag.CategoryWithCount] -> Lucid.Html ()
 renderSidebar tagsWithCounts categoriesWithCounts = do
   Lucid.div_ [Lucid.class_ "lg:col-span-1 space-y-6"] $ do
     -- Search
@@ -88,25 +89,25 @@ renderSidebar tagsWithCounts categoriesWithCounts = do
     blogGetTagUrl :: Text -> Links.URI
     blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing Nothing (Just tag)
 
-    renderCategoryWithCount :: Blog.CategoryWithCount -> Lucid.Html ()
+    renderCategoryWithCount :: BlogTag.CategoryWithCount -> Lucid.Html ()
     renderCategoryWithCount categoryWithCount =
       Lucid.div_ [Lucid.class_ "flex justify-between"] $ do
         Lucid.a_
-          [ Lucid.href_ [i|/#{blogGetCategoryUrl (Blog.cwcCategory categoryWithCount)}|],
-            hxGet_ [i|/#{blogGetCategoryUrl (Blog.cwcCategory categoryWithCount)}|],
+          [ Lucid.href_ [i|/#{blogGetCategoryUrl (BlogTag.cwcCategory categoryWithCount)}|],
+            hxGet_ [i|/#{blogGetCategoryUrl (BlogTag.cwcCategory categoryWithCount)}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ "hover:underline"
           ]
-          $ Lucid.toHtml (Blog.cwcCategory categoryWithCount)
+          $ Lucid.toHtml (BlogTag.cwcCategory categoryWithCount)
         Lucid.span_ [Lucid.class_ "text-gray-600"] $
           Lucid.toHtml $
-            "(" <> show (Blog.cwcCount categoryWithCount) <> ")"
+            "(" <> show (BlogTag.cwcCount categoryWithCount) <> ")"
 
-    renderTagWithCount :: Blog.BlogTagWithCount -> Lucid.Html ()
+    renderTagWithCount :: BlogTag.BlogTagWithCount -> Lucid.Html ()
     renderTagWithCount tagWithCount =
-      let tagName = Blog.btwcName tagWithCount
-          count = Blog.btwcCount tagWithCount
+      let tagName = BlogTag.btwcName tagWithCount
+          count = BlogTag.btwcCount tagWithCount
        in Lucid.a_
             [ Lucid.href_ [i|/#{blogGetTagUrl tagName}|],
               hxGet_ [i|/#{blogGetTagUrl tagName}|],

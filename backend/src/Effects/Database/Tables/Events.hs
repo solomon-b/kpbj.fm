@@ -12,6 +12,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (MonthOfYear, UTCTime, Year)
+import Effects.Database.Tables.EventTags (EventTagId, EventTagModel)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.Generics
@@ -75,23 +76,6 @@ newtype EventId = EventId Int64
       EncodeValue
     )
 
-newtype EventTagId = EventTagId Int64
-  deriving stock (Generic)
-  deriving anyclass (DecodeRow)
-  deriving newtype
-    ( Show,
-      Eq,
-      Ord,
-      Num,
-      Servant.FromHttpApiData,
-      Servant.ToHttpApiData,
-      ToJSON,
-      FromJSON,
-      Display,
-      DecodeValue,
-      EncodeValue
-    )
-
 -- | Database Model for the @events@ table
 data EventModel = EventModel
   { emId :: EventId,
@@ -110,16 +94,6 @@ data EventModel = EventModel
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance EventModel)
-
--- | Database Model for the @event_tags@ table
-data EventTagModel = EventTagModel
-  { etmId :: EventTagId,
-    etmName :: Text,
-    etmCreatedAt :: UTCTime
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance EventTagModel)
 
 -- | Event with author information
 data EventWithAuthor = EventWithAuthor
@@ -163,13 +137,6 @@ data EventInsert = EventInsert
   deriving stock (Generic, Show, Eq)
   deriving (EncodeRow) via EventInsert
   deriving (Display) via (RecordInstance EventInsert)
-
-newtype EventTagInsert = EventTagInsert
-  { etiName :: Text
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving (EncodeRow) via EventTagInsert
-  deriving (Display) via (RecordInstance EventTagInsert)
 
 --------------------------------------------------------------------------------
 -- Database Queries
@@ -262,87 +229,6 @@ deleteEvent eventId =
     RETURNING id
   |]
 
--- | Get all event tags
-getAllEventTags :: Hasql.Statement () [EventTagModel]
-getAllEventTags =
-  interp
-    False
-    [sql|
-    SELECT id, name, created_at
-    FROM event_tags
-    ORDER BY name
-  |]
-
--- | Get tags for a specific event
-getEventTags :: EventId -> Hasql.Statement () [EventTagModel]
-getEventTags eventId =
-  interp
-    False
-    [sql|
-    SELECT et.id, et.name, et.created_at
-    FROM event_tags et
-    JOIN event_tag_assignments eta ON et.id = eta.tag_id
-    WHERE eta.event_id = #{eventId}
-    ORDER BY et.name
-  |]
-
--- | Insert a new event tag
-insertEventTag :: EventTagInsert -> Hasql.Statement () EventTagId
-insertEventTag EventTagInsert {..} =
-  getOneRow
-    <$> interp
-      False
-      [sql|
-    INSERT INTO event_tags(name, created_at)
-    VALUES (#{etiName}, NOW())
-    RETURNING id
-  |]
-
--- | Assign a tag to an event
-assignTagToEvent :: EventId -> EventTagId -> Hasql.Statement () ()
-assignTagToEvent eventId tagId =
-  interp
-    False
-    [sql|
-    INSERT INTO event_tag_assignments(event_id, tag_id)
-    VALUES (#{eventId}, #{tagId})
-    ON CONFLICT DO NOTHING
-  |]
-
--- | Remove a tag from an event
-removeTagFromEvent :: EventId -> EventTagId -> Hasql.Statement () ()
-removeTagFromEvent eventId tagId =
-  interp
-    False
-    [sql|
-    DELETE FROM event_tag_assignments
-    WHERE event_id = #{eventId} AND tag_id = #{tagId}
-  |]
-
--- Tag with count for queries
-data EventTagWithCount = EventTagWithCount
-  { etwcTag :: Text,
-    etwcCount :: Int64
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance EventTagWithCount)
-
--- | Get event tags with their counts
-getEventTagsWithCounts :: Hasql.Statement () [EventTagWithCount]
-getEventTagsWithCounts =
-  interp
-    False
-    [sql|
-    SELECT et.name, COUNT(*)::bigint as tag_count
-    FROM event_tags et
-    JOIN event_tag_assignments eta ON et.id = eta.tag_id
-    JOIN events e ON eta.event_id = e.id
-    WHERE e.status = 'published'
-    GROUP BY et.name
-    ORDER BY tag_count DESC, et.name
-  |]
-
 -- | Get events for a specific month and year, optionally filtered by tag
 getEventsForMonth :: Maybe Text -> Year -> MonthOfYear -> Hasql.Statement () [EventModel]
 getEventsForMonth maybeTagName year month =
@@ -375,4 +261,41 @@ getEventsForWeek maybeTagName year weekNum =
       AND EXTRACT(WEEK FROM e.starts_at) = #{fromIntegral weekNum :: Int64}
       AND (#{maybeTagName}::text IS NULL OR et.name = #{maybeTagName}::text)
     ORDER BY e.starts_at ASC
+  |]
+
+--------------------------------------------------------------------------------
+-- Junction Table Queries (event_tag_assignments)
+
+-- | Get tags for a specific event
+getEventTags :: EventId -> Hasql.Statement () [EventTagModel]
+getEventTags eventId =
+  interp
+    False
+    [sql|
+    SELECT et.id, et.name, et.created_at
+    FROM event_tags et
+    JOIN event_tag_assignments eta ON et.id = eta.tag_id
+    WHERE eta.event_id = #{eventId}
+    ORDER BY et.name
+  |]
+
+-- | Assign a tag to an event
+assignTagToEvent :: EventId -> EventTagId -> Hasql.Statement () ()
+assignTagToEvent eventId tagId =
+  interp
+    False
+    [sql|
+    INSERT INTO event_tag_assignments(event_id, tag_id)
+    VALUES (#{eventId}, #{tagId})
+    ON CONFLICT DO NOTHING
+  |]
+
+-- | Remove a tag from an event
+removeTagFromEvent :: EventId -> EventTagId -> Hasql.Statement () ()
+removeTagFromEvent eventId tagId =
+  interp
+    False
+    [sql|
+    DELETE FROM event_tag_assignments
+    WHERE event_id = #{eventId} AND tag_id = #{tagId}
   |]

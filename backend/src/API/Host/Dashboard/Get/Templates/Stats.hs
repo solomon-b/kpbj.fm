@@ -5,7 +5,7 @@ where
 
 import Effects.Database.Tables.Episode qualified as Episode
 import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlog qualified as ShowBlog
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
 import Lucid qualified
 
 -- | Render stats sidebar section
