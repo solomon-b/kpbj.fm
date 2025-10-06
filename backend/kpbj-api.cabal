@@ -101,6 +101,10 @@ library
     API.Host.Dashboard.Get
     API.PrivacyPolicy.Get
     API.Show.Get
+    API.Show.Get.Templates.Episode
+    API.Show.Get.Templates.Page
+    API.Show.Get.Templates.ShowHeader
+    API.Show.Get.Templates.Sidebar
     API.Shows.Get
     API.Static.Get
     API.TermsOfService.Get
