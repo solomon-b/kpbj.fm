@@ -102,9 +102,9 @@ renderLatestEpisode episode tracks = do
     renderTrack track = do
       Lucid.div_ [Lucid.class_ "flex justify-between p-2 hover:bg-gray-50"] $ do
         Lucid.div_ $ do
-          Lucid.span_ [Lucid.class_ "font-medium"] $ "\"" <> Lucid.toHtml (track.title) <> "\""
+          Lucid.span_ [Lucid.class_ "font-medium"] $ "\"" <> Lucid.toHtml track.title <> "\""
           " - "
-          Lucid.span_ $ Lucid.toHtml (track.artist)
+          Lucid.span_ $ Lucid.toHtml track.artist
           case track.album of
             Just album -> Lucid.span_ [Lucid.class_ "text-gray-600 ml-1"] $ " (" <> Lucid.toHtml album <> ")"
             Nothing -> mempty
@@ -124,7 +124,7 @@ renderEpisodeCard episode = do
 
     -- Episode info
     Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-      Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ Lucid.toHtml (episode.title)
+      Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ Lucid.toHtml episode.title
 
       Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-2"] $ do
         case episode.publishedAt of

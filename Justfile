@@ -111,6 +111,18 @@ lint-shell-changed:
   	{{SHELLCHECK}} {{CHANGED_SHELL_FILES}}; \
   fi
 
+# Lint Haskell source code using hlint.
+lint-hs:
+  @echo running hlint
+  @hlint {{HS_FILES}}
+
+# Lint Haskell source code using hlint (changed files only).
+lint-hs-changed:
+  @echo running hlint
+  @if [ -n "{{CHANGED_HS_FILES}}" ]; then \
+  	hlint {{CHANGED_HS_FILES}}; \
+  fi
+
 #-------------------------------------------------------------------------------
 ## Key Gen
 # https://ruleoftech.com/2020/generating-jwt-and-jwk-for-information-exchange-between-services

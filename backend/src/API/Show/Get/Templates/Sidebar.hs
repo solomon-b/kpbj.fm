@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module API.Show.Get.Templates.Sidebar
   ( renderHostBio,
@@ -25,7 +24,7 @@ renderHostBio :: Show.ShowHostWithUser -> Maybe Show.HostDetailsModel -> Lucid.H
 renderHostBio host mHostDetails = do
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
     Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] $
-      "About " <> Lucid.toHtml (host.displayName)
+      "About " <> Lucid.toHtml host.displayName
 
     Lucid.div_ [Lucid.class_ "text-center mb-4"] $ do
       -- Host avatar
@@ -38,7 +37,7 @@ renderHostBio host mHostDetails = do
       Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $ do
         Lucid.div_ [Lucid.class_ "font-bold"] $ do
           "Host since: "
-          let year = Text.pack $ formatTime defaultTimeLocale "%Y" (host.joinedAt)
+          let year = Text.pack $ formatTime defaultTimeLocale "%Y" host.joinedAt
           Lucid.toHtml year
 
     -- Bio text
@@ -101,7 +100,7 @@ renderShowStats showModel episodes schedules = do
       -- Show Status
       Lucid.div_ [Lucid.class_ "flex justify-between"] $ do
         Lucid.span_ "Status:"
-        Lucid.span_ [Lucid.class_ "font-bold"] $ Lucid.toHtml $ Text.toUpper $ Text.pack $ Prelude.show $ showModel.status
+        Lucid.span_ [Lucid.class_ "font-bold"] $ Lucid.toHtml $ Text.toUpper $ Text.pack $ Prelude.show showModel.status
 
       -- Next Show (if there's a schedule)
       unless (null schedules) $ do
@@ -143,7 +142,7 @@ renderRecentBlogPosts blogPosts = do
             Lucid.div_ [Lucid.class_ "text-xs text-gray-600 mb-1"] $ Lucid.toHtml dateStr
           Nothing -> mempty
 
-        Lucid.h4_ [Lucid.class_ "font-bold text-sm mb-2"] $ Lucid.toHtml (post.title)
+        Lucid.h4_ [Lucid.class_ "font-bold text-sm mb-2"] $ Lucid.toHtml post.title
 
         case post.excerpt of
           Just excerpt -> do

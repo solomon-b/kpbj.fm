@@ -56,7 +56,7 @@ type Route =
 renderShowOption :: Show.ShowModel -> Bool -> Lucid.Html ()
 renderShowOption s isSelected = do
   Lucid.option_
-    [ Lucid.value_ (Text.pack $ Prelude.show $ s.id),
+    [ Lucid.value_ (Text.pack $ Prelude.show s.id),
       if isSelected then Lucid.selected_ "selected" else mempty
     ]
     $ Lucid.toHtml s.title

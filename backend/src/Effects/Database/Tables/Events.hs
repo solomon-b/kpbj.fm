@@ -221,7 +221,7 @@ data EventInsert = EventInsert
   deriving (EncodeRow) via EventInsert
   deriving (Display) via (RecordInstance EventInsert)
 
-data EventTagInsert = EventTagInsert
+newtype EventTagInsert = EventTagInsert
   { etiName :: Text
   }
   deriving stock (Generic, Show, Eq)
