@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module API.Episodes.Upload.Post where
 
 --------------------------------------------------------------------------------
