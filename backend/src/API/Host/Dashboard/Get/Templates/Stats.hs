@@ -3,13 +3,13 @@ module API.Host.Dashboard.Get.Templates.Stats
   )
 where
 
-import Effects.Database.Tables.Episode qualified as Episode
-import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 
 -- | Render stats sidebar section
-renderStatsSection :: [Show.ShowModel] -> [Episode.EpisodeModel] -> [ShowBlog.ShowBlogPostModel] -> Lucid.Html ()
+renderStatsSection :: [Shows.Model] -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
 renderStatsSection userShows recentEpisodes blogPosts = do
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-4"] $ do
     Lucid.h3_ [Lucid.class_ "font-bold mb-4 text-center"] "SHOW STATISTICS"

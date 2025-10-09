@@ -27,7 +27,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.EventTags qualified as EventTag
+import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -74,7 +74,7 @@ type Route =
 --------------------------------------------------------------------------------
 
 -- | Success template after event creation
-successTemplate :: Events.EventModel -> Lucid.Html ()
+successTemplate :: Events.Model -> Lucid.Html ()
 successTemplate event = do
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Event Created Successfully!"
@@ -185,7 +185,7 @@ instance FromForm NewEventForm where
 --------------------------------------------------------------------------------
 
 -- Validation functions
-validateEventForm :: NewEventForm -> Either [Text] (Text, Text, UTCTime, UTCTime, Text, Text, Events.EventStatus)
+validateEventForm :: NewEventForm -> Either [Text] (Text, Text, UTCTime, UTCTime, Text, Text, Events.Status)
 validateEventForm form = do
   title <- validateTitle form.nefTitle
   description <- validateDescription form.nefDescription
@@ -236,7 +236,7 @@ validateLocationAddress locationAddress
   | Text.length locationAddress > 300 = Left ["Address cannot exceed 300 characters"]
   | otherwise = Right (Text.strip locationAddress)
 
-validateStatus :: Text -> Either [Text] Events.EventStatus
+validateStatus :: Text -> Either [Text] Events.Status
 validateStatus status = case status of
   "draft" -> Right Events.Draft
   "published" -> Right Events.Published
@@ -294,7 +294,7 @@ validateForm ::
   User.Model ->
   UserMetadata.Model ->
   NewEventForm ->
-  (Events.EventInsert -> m (Lucid.Html ())) ->
+  (Events.Insert -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
 validateForm hxRequest user userMetadata form k =
   case validateEventForm form of
@@ -304,7 +304,7 @@ validateForm hxRequest user userMetadata form k =
     Right (title, description, startsAt, endsAt, locationName, locationAddress, status) ->
       let slug = generateSlug title
           eventInsert =
-            Events.EventInsert
+            Events.Insert
               { Events.eiTitle = title,
                 Events.eiSlug = slug,
                 Events.eiDescription = description,
@@ -327,8 +327,8 @@ insertEvent ::
   ) =>
   HxRequest ->
   UserMetadata.Model ->
-  Events.EventInsert ->
-  (Events.EventId -> m (Lucid.Html ())) ->
+  Events.Insert ->
+  (Events.Id -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
 insertEvent hxRequest userMetadata eventInsert k =
   execQuerySpan (Events.insertEvent eventInsert) >>= \case
@@ -345,12 +345,12 @@ addTag ::
     MonadReader env m,
     Has Tracer env
   ) =>
-  Events.EventId ->
+  Events.Id ->
   Text ->
   m ()
 addTag eventId tagName = do
   -- Get all existing tags to check if this one exists
-  execQuerySpan EventTag.getAllEventTags >>= \case
+  execQuerySpan EventTags.getAllEventTags >>= \case
     Right allTags -> do
       case find (\tag -> tag.etmName == tagName) allTags of
         Just existingTag -> do
@@ -359,7 +359,7 @@ addTag eventId tagName = do
           pure ()
         Nothing -> do
           -- Tag doesn't exist, create it first then assign
-          execQuerySpan (EventTag.insertEventTag (EventTag.EventTagInsert tagName)) >>= \case
+          execQuerySpan (EventTags.insertEventTag (EventTags.Insert tagName)) >>= \case
             Right newTagId -> do
               _ <- execQuerySpan (Events.assignTagToEvent eventId newTagId)
               pure ()
@@ -380,7 +380,7 @@ fetchEvent ::
   ) =>
   HxRequest ->
   UserMetadata.Model ->
-  Events.EventId ->
+  Events.Id ->
   m (Lucid.Html ())
 fetchEvent hxRequest userMetadata eventId =
   execQuerySpan (Events.getEventById eventId) >>= \case

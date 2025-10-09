@@ -21,9 +21,10 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Episode qualified as Episode
-import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -74,7 +75,7 @@ handler ::
   m (Lucid.Html ())
 handler _tracer slug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie $ \(fmap snd -> mUserInfo) -> do
-    showResult <- execQuerySpan (Show.getShowBySlug slug)
+    showResult <- execQuerySpan (Shows.getShowBySlug slug)
 
     case showResult of
       Left err -> do
@@ -84,14 +85,14 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
         Log.logInfo ("Show not found: " <> slug) ()
         renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
       Right (Just showModel) -> do
-        episodesResult <- execQuerySpan (Episode.getEpisodesByShowId showModel.id)
-        hostsResult <- execQuerySpan (Show.getShowHostsWithUsers showModel.id)
-        schedulesResult <- execQuerySpan (Show.getShowSchedules showModel.id)
+        episodesResult <- execQuerySpan (Episodes.getEpisodesById showModel.id)
+        hostsResult <- execQuerySpan (Shows.getShowHostsWithUsers showModel.id)
+        schedulesResult <- execQuerySpan (Shows.getShowSchedules showModel.id)
 
         -- Fetch tracks for the latest episode if episodes exist
         latestEpisodeTracks <- case episodesResult of
           Right (latestEpisode : _) -> do
-            tracksResult <- execQuerySpan (Episode.getTracksForEpisode latestEpisode.id)
+            tracksResult <- execQuerySpan (Episodes.getTracksForEpisode latestEpisode.id)
             pure $ case tracksResult of
               Right tracks -> Just tracks
               Left _ -> Nothing
@@ -99,15 +100,15 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
 
         -- Fetch host details for the primary host
         mHostDetails <- case hostsResult of
-          Right (primaryHost : _) -> do
-            hostDetailsResult <- execQuerySpan (Show.getHostDetails primaryHost.userId)
+          Right (ShowHost.ShowHostWithUser {userId = uid} : _) -> do
+            hostDetailsResult <- execQuerySpan (Shows.getHostDetails uid)
             pure $ case hostDetailsResult of
               Right details -> details
               Left _ -> Nothing
           _ -> pure Nothing
 
         -- Fetch recent blog posts for this show
-        blogPostsResult <- execQuerySpan (ShowBlog.getPublishedShowBlogPosts showModel.id 3 0)
+        blogPostsResult <- execQuerySpan (ShowBlogPosts.getPublishedShowBlogPosts showModel.id 3 0)
         let blogPosts = fromRight [] blogPostsResult
 
         case (episodesResult, hostsResult, schedulesResult) of

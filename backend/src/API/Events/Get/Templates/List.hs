@@ -28,7 +28,7 @@ eventGetUrl slug = Links.linkURI $ eventGetLink slug
 --------------------------------------------------------------------------------
 
 -- | Render the events listing content
-renderListContent :: [Events.EventModel] -> Lucid.Html ()
+renderListContent :: [Events.Model] -> Lucid.Html ()
 renderListContent events = do
   Lucid.div_ [Lucid.class_ "space-y-8"] $ do
     Lucid.section_ [Lucid.class_ "space-y-6"] $ do
@@ -39,7 +39,7 @@ renderListContent events = do
         else traverse_ renderEventCard events
 
 -- | Render an event card for the list view
-renderEventCard :: Events.EventModel -> Lucid.Html ()
+renderEventCard :: Events.Model -> Lucid.Html ()
 renderEventCard event = do
   Lucid.article_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-6"] $ do
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-4 gap-6"] $ do

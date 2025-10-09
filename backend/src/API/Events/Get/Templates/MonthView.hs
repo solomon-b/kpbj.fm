@@ -17,7 +17,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (MonthOfYear, Year)
 import Domain.Types.PageView (PageView (..))
-import Effects.Database.Tables.EventTags qualified as EventTag
+import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -31,7 +31,7 @@ import Servant.Links qualified as Links
 data CalendarDay = CalendarDay
   { cdDay :: Int,
     cdIsCurrentMonth :: Bool,
-    cdEvents :: [Events.EventModel]
+    cdEvents :: [Events.Model]
   }
 
 --------------------------------------------------------------------------------
@@ -66,7 +66,7 @@ renderMonthContent ::
   Year ->
   MonthOfYear ->
   Maybe Text ->
-  [EventTag.EventTagWithCount] ->
+  [EventTags.EventTagWithCount] ->
   [[CalendarDay]] ->
   Lucid.Html ()
 renderMonthContent year month _maybeTagFilter _eventTagsWithCounts calendarGrid = do
@@ -119,7 +119,7 @@ renderCalendarDay day = do
     Lucid.div_ [Lucid.class_ "font-bold"] $ Lucid.toHtml $ Text.pack $ show $ cdDay day
     traverse_ renderEventInDay (take 1 $ cdEvents day) -- Only show first event
   where
-    renderEventInDay :: Events.EventModel -> Lucid.Html ()
+    renderEventInDay :: Events.Model -> Lucid.Html ()
     renderEventInDay event =
       Lucid.div_ [Lucid.class_ "text-xs truncate mt-1"]
         $ Lucid.a_

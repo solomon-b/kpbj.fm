@@ -17,8 +17,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Effects.Database.Tables.BlogPosts qualified as Blog
-import Effects.Database.Tables.BlogTags qualified as BlogTag
+import Effects.Database.Tables.BlogPosts qualified as BlogPosts
+import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -48,25 +48,25 @@ renderBlogContent content = do
         else Lucid.p_ $ Lucid.toHtml para
 
 -- | Render tags for a blog post
-renderTags :: [BlogTag.BlogTagModel] -> Lucid.Html ()
+renderTags :: [BlogTags.Model] -> Lucid.Html ()
 renderTags tags = do
   Lucid.div_ [Lucid.class_ "flex gap-2 mb-6"] $ do
     mapM_ renderTag tags
   where
-    renderTag :: BlogTag.BlogTagModel -> Lucid.Html ()
+    renderTag :: BlogTags.Model -> Lucid.Html ()
     renderTag tag =
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogGetTagUrl (BlogTag.btmName tag)}|],
-          hxGet_ [i|/#{blogGetTagUrl (BlogTag.btmName tag)}|],
+        [ Lucid.href_ [i|/#{blogGetTagUrl (BlogTags.btmName tag)}|],
+          hxGet_ [i|/#{blogGetTagUrl (BlogTags.btmName tag)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono hover:bg-gray-300 cursor-pointer"
         ]
         $ Lucid.toHtml
-        $ "#" <> BlogTag.btmName tag
+        $ "#" <> BlogTags.btmName tag
 
 -- | Main blog post template
-template :: Blog.BlogPostModel -> UserMetadata.Model -> [BlogTag.BlogTagModel] -> Lucid.Html ()
+template :: BlogPosts.Model -> UserMetadata.Model -> [BlogTags.Model] -> Lucid.Html ()
 template post author tags = do
   -- Blog Post Content
   Lucid.article_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 w-full"] $ do
@@ -75,11 +75,11 @@ template post author tags = do
       -- Category badge
       Lucid.div_ [Lucid.class_ "mb-4"] $ do
         Lucid.span_ [Lucid.class_ "bg-green-200 text-green-800 px-3 py-1 text-sm font-bold"] $
-          Lucid.toHtml (Blog.bpmCategory post)
+          Lucid.toHtml (BlogPosts.bpmCategory post)
 
       -- Title
       Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4 leading-tight"] $
-        Lucid.toHtml (Blog.bpmTitle post)
+        Lucid.toHtml (BlogPosts.bpmTitle post)
 
       -- Metadata
       Lucid.div_ [Lucid.class_ "flex items-center gap-6 text-sm text-gray-600 mb-6"] $ do
@@ -92,7 +92,7 @@ template post author tags = do
             Lucid.span_ [Lucid.class_ "font-bold text-gray-800"] $
               Lucid.toHtml (display (UserMetadata.mDisplayName author))
 
-        case Blog.bpmPublishedAt post of
+        case BlogPosts.bpmPublishedAt post of
           Just publishedAt -> do
             let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" publishedAt
             Lucid.span_ $ Lucid.toHtml dateStr
@@ -103,7 +103,7 @@ template post author tags = do
         renderTags tags
 
     -- Post Content
-    renderBlogContent (Blog.bpmContent post)
+    renderBlogContent (BlogPosts.bpmContent post)
 
     -- Post Footer
     Lucid.footer_ [Lucid.class_ "mt-8 pt-8 border-t border-gray-300"] $ do

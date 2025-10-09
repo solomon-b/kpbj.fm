@@ -25,7 +25,7 @@ import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -43,7 +43,7 @@ type Route =
     ( "shows"
         :> Servant.QueryParam "page" PageNumber
         :> Servant.QueryParam "genre" Genre
-        :> Servant.QueryParam "status" Show.ShowStatus
+        :> Servant.QueryParam "status" Shows.Status
         :> Servant.QueryParam "search" Search
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -65,7 +65,7 @@ handler ::
   Tracer ->
   Maybe PageNumber ->
   Maybe Genre ->
-  Maybe Show.ShowStatus ->
+  Maybe Shows.Status ->
   Maybe Search ->
   Maybe Cookie ->
   Maybe HxRequest ->
@@ -99,26 +99,26 @@ getShows ::
   Int64 ->
   Maybe Search ->
   Maybe Genre ->
-  Maybe Show.ShowStatus ->
-  m (Either HSQL.Pool.UsageError [Show.ShowModel])
+  Maybe Shows.Status ->
+  m (Either HSQL.Pool.UsageError [Shows.Model])
 getShows limit offset maybeSearch maybeGenre maybeStatus = do
   case maybeSearch of
     Just (Search searchTerm)
       | not (Text.null $ Text.strip searchTerm) ->
           -- If search term is provided, use search function
-          execQuerySpan (Show.searchShows (Search $ Text.strip searchTerm) limit offset)
+          execQuerySpan (Shows.searchShows (Search $ Text.strip searchTerm) limit offset)
     _ ->
       -- No search term, use existing filter logic
       case (maybeGenre, maybeStatus) of
         (Just genre, Nothing) ->
-          execQuerySpan (Show.getShowsByGenre genre limit offset)
+          execQuerySpan (Shows.getShowsByGenre genre limit offset)
         (Nothing, Just status) ->
           case status of
-            Show.Active ->
-              execQuerySpan Show.getActiveShows
-            Show.Inactive ->
-              execQuerySpan (Show.getAllShows limit offset)
+            Shows.Active ->
+              execQuerySpan Shows.getActiveShows
+            Shows.Inactive ->
+              execQuerySpan (Shows.getAllShows limit offset)
         (Just genre, Just status) ->
-          execQuerySpan (Show.getShowsByGenreAndStatus genre status limit offset)
+          execQuerySpan (Shows.getShowsByGenreAndStatus genre status limit offset)
         (Nothing, Nothing) ->
-          execQuerySpan (Show.getAllShows limit offset)
+          execQuerySpan (Shows.getAllShows limit offset)

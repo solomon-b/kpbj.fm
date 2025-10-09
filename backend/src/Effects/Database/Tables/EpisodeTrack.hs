@@ -9,16 +9,18 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
-import {-# SOURCE #-} Effects.Database.Tables.Episode (EpisodeId)
+import {-# SOURCE #-} Effects.Database.Tables.Episodes qualified as Episodes
 import GHC.Generics
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..))
 import OrphanInstances.UTCTime ()
 import Servant qualified
 
 --------------------------------------------------------------------------------
--- ID Types
+-- Database Models
 
-newtype EpisodeTrackId = EpisodeTrackId Int64
+newtype Id = Id Int64
+  --------------------------------------------------------------------------------
+  -- Update Types
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -35,12 +37,9 @@ newtype EpisodeTrackId = EpisodeTrackId Int64
       EncodeValue
     )
 
---------------------------------------------------------------------------------
--- Database Models
-
-data EpisodeTrackModel = EpisodeTrackModel
-  { id :: EpisodeTrackId,
-    episodeId :: EpisodeId,
+data Model = Model
+  { id :: Id,
+    episodeId :: Episodes.Id,
     trackNumber :: Int64,
     title :: Text,
     artist :: Text,
@@ -53,13 +52,10 @@ data EpisodeTrackModel = EpisodeTrackModel
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance EpisodeTrackModel)
+  deriving (Display) via (RecordInstance Model)
 
---------------------------------------------------------------------------------
--- Insert Types
-
-data EpisodeTrackInsert = EpisodeTrackInsert
-  { etiEpisodeId :: EpisodeId,
+data Insert = Insert
+  { etiEpisodeId :: Episodes.Id,
     etiTrackNumber :: Int64,
     etiTitle :: Text,
     etiArtist :: Text,
@@ -71,4 +67,4 @@ data EpisodeTrackInsert = EpisodeTrackInsert
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
-  deriving (Display) via (RecordInstance EpisodeTrackInsert)
+  deriving (Display) via (RecordInstance Insert)

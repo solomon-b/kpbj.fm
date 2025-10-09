@@ -32,7 +32,7 @@ import Domain.Types.PageView (PageView (..))
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.EventTags qualified as EventTag
+import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -81,7 +81,7 @@ type Route =
 -- Data structures and generation algorithms stay here (business logic)
 
 -- | Generate calendar grid for a specific month/year
-generateCalendarGrid :: Year -> MonthOfYear -> [Events.EventModel] -> [[CalendarDay]]
+generateCalendarGrid :: Year -> MonthOfYear -> [Events.Model] -> [[CalendarDay]]
 generateCalendarGrid year month events =
   let -- First day of the month
       firstDay = fromGregorian year month 1
@@ -107,7 +107,7 @@ generateCalendarGrid year month events =
       allDays = prevMonthDays ++ currentMonthDays ++ nextMonthDays
    in chunksOf 7 allDays
   where
-    eventsForDay :: Int -> [Events.EventModel]
+    eventsForDay :: Int -> [Events.Model]
     eventsForDay dayNum =
       filter
         ( \e ->
@@ -121,13 +121,13 @@ generateCalendarGrid year month events =
     chunksOf n xs = take n xs : chunksOf n (drop n xs)
 
 -- | Generate week grid for a specific year/week
-generateWeekGrid :: Year -> Int -> [Events.EventModel] -> [WeekDay]
+generateWeekGrid :: Year -> Int -> [Events.Model] -> [WeekDay]
 generateWeekGrid year weekNum events =
   let startDate = weekStartDate year weekNum
       days = [0 .. 6]
    in map (createWeekDay events startDate) days
   where
-    createWeekDay :: [Events.EventModel] -> UTCTime -> Int -> WeekDay
+    createWeekDay :: [Events.Model] -> UTCTime -> Int -> WeekDay
     createWeekDay evts startUTC dayOffset =
       let dayDate = addDays (fromIntegral dayOffset) (utctDay startUTC)
           dayUTC = UTCTime dayDate 0
@@ -144,7 +144,7 @@ generateWeekGrid year weekNum events =
           dayEvents = filter (eventOnDay dayUTC) evts
        in WeekDay dayName dayNum dayUTC dayEvents
 
-    eventOnDay :: UTCTime -> Events.EventModel -> Bool
+    eventOnDay :: UTCTime -> Events.Model -> Bool
     eventOnDay targetDay event =
       let eventDay = utctDay (Events.emStartsAt event)
           targetDayOnly = utctDay targetDay
@@ -244,9 +244,9 @@ getAllEventTags ::
     Has Tracer env,
     MonadUnliftIO m
   ) =>
-  m [EventTag.EventTagWithCount]
+  m [EventTags.EventTagWithCount]
 getAllEventTags = do
-  tags <- execQuerySpan EventTag.getEventTagsWithCounts
+  tags <- execQuerySpan EventTags.getEventTagsWithCounts
   pure $ fromRight [] tags
 
 renderTemplate ::
@@ -261,7 +261,7 @@ renderTemplate ::
   Int64 ->
   Int64 ->
   Maybe Text ->
-  [EventTag.EventTagWithCount] ->
+  [EventTags.EventTagWithCount] ->
   Maybe PageView ->
   m (Lucid.Html ())
 renderTemplate now limit offset tagFilter eventTagsWithCounts = \case
@@ -283,8 +283,8 @@ renderListTemplate ::
   UTCTime ->
   (Year, MonthOfYear) ->
   Maybe Text ->
-  [EventTag.EventTagWithCount] ->
-  Either err [Events.EventModel] ->
+  [EventTags.EventTagWithCount] ->
+  Either err [Events.Model] ->
   m (Lucid.Html ())
 renderListTemplate currentTime currentMonth maybeTagFilter eventTagsWithCounts = \case
   Left err -> do
@@ -304,8 +304,8 @@ renderMonthTemplate ::
   Year ->
   MonthOfYear ->
   Maybe Text ->
-  [EventTag.EventTagWithCount] ->
-  Either err [Events.EventModel] ->
+  [EventTags.EventTagWithCount] ->
+  Either err [Events.Model] ->
   m (Lucid.Html ())
 renderMonthTemplate currentTime year month maybeTagFilter eventTagsWithCounts = \case
   Left err -> do
@@ -326,8 +326,8 @@ renderWeekTemplate ::
   Year ->
   Int ->
   Maybe Text ->
-  [EventTag.EventTagWithCount] ->
-  Either err [Events.EventModel] ->
+  [EventTags.EventTagWithCount] ->
+  Either err [Events.Model] ->
   m (Lucid.Html ())
 renderWeekTemplate currentTime year weekNum maybeTagFilter eventTagsWithCounts = \case
   Left err -> do

@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.PostStatus (BlogPostStatus (..))
-import Effects.Database.Tables.BlogTags (BlogTagId, BlogTagModel)
+import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.Generics
@@ -23,7 +23,7 @@ import Servant qualified
 --------------------------------------------------------------------------------
 -- Blog Post Models
 
-newtype BlogPostId = BlogPostId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -41,8 +41,8 @@ newtype BlogPostId = BlogPostId Int64
     )
 
 -- | Database Model for the @blog_posts@ table
-data BlogPostModel = BlogPostModel
-  { bpmId :: BlogPostId,
+data Model = Model
+  { bpmId :: Id,
     bpmTitle :: Text,
     bpmSlug :: Text,
     bpmContent :: Text,
@@ -56,11 +56,11 @@ data BlogPostModel = BlogPostModel
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance BlogPostModel)
+  deriving (Display) via (RecordInstance Model)
 
 -- | Blog post with author information
 data BlogPostWithAuthor = BlogPostWithAuthor
-  { bpwaPost :: BlogPostModel,
+  { bpwaPost :: Model,
     bpwaAuthor :: UserMetadata.Model
   }
   deriving stock (Show, Generic, Eq)
@@ -68,17 +68,17 @@ data BlogPostWithAuthor = BlogPostWithAuthor
 
 -- | Blog post with tags
 data BlogPostWithTags = BlogPostWithTags
-  { bpwtPost :: BlogPostModel,
-    bpwtTags :: [BlogTagModel]
+  { bpwtPost :: Model,
+    bpwtTags :: [BlogTags.Model]
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance BlogPostWithTags)
 
 -- | Blog post with complete information (author + tags)
 data BlogPostComplete = BlogPostComplete
-  { bpcPost :: BlogPostModel,
+  { bpcPost :: Model,
     bpcAuthor :: UserMetadata.Model,
-    bpcTags :: [BlogTagModel]
+    bpcTags :: [BlogTags.Model]
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance BlogPostComplete)
@@ -86,7 +86,7 @@ data BlogPostComplete = BlogPostComplete
 --------------------------------------------------------------------------------
 -- Insert Types
 
-data BlogPostInsert = BlogPostInsert
+data Insert = Insert
   { bpiTitle :: Text,
     bpiSlug :: Text,
     bpiContent :: Text,
@@ -96,14 +96,14 @@ data BlogPostInsert = BlogPostInsert
     bpiStatus :: BlogPostStatus
   }
   deriving stock (Generic, Show, Eq)
-  deriving (EncodeRow) via BlogPostInsert
-  deriving (Display) via (RecordInstance BlogPostInsert)
+  deriving (EncodeRow) via Insert
+  deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get all published blog posts ordered by publication date
-getPublishedBlogPosts :: Int64 -> Int64 -> Hasql.Statement () [BlogPostModel]
+getPublishedBlogPosts :: Int64 -> Int64 -> Hasql.Statement () [Model]
 getPublishedBlogPosts limit offset =
   interp
     False
@@ -116,7 +116,7 @@ getPublishedBlogPosts limit offset =
   |]
 
 -- | Get blog post by slug
-getBlogPostBySlug :: Text -> Hasql.Statement () (Maybe BlogPostModel)
+getBlogPostBySlug :: Text -> Hasql.Statement () (Maybe Model)
 getBlogPostBySlug slug =
   interp
     False
@@ -127,7 +127,7 @@ getBlogPostBySlug slug =
   |]
 
 -- | Get blog post by ID
-getBlogPostById :: BlogPostId -> Hasql.Statement () (Maybe BlogPostModel)
+getBlogPostById :: Id -> Hasql.Statement () (Maybe Model)
 getBlogPostById postId =
   interp
     False
@@ -138,7 +138,7 @@ getBlogPostById postId =
   |]
 
 -- | Get blog posts by category
-getBlogPostsByCategory :: Text -> Int64 -> Int64 -> Hasql.Statement () [BlogPostModel]
+getBlogPostsByCategory :: Text -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getBlogPostsByCategory category limit offset =
   interp
     False
@@ -151,7 +151,7 @@ getBlogPostsByCategory category limit offset =
   |]
 
 -- | Get blog posts by author
-getBlogPostsByAuthor :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [BlogPostModel]
+getBlogPostsByAuthor :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getBlogPostsByAuthor authorId limit offset =
   interp
     False
@@ -164,8 +164,8 @@ getBlogPostsByAuthor authorId limit offset =
   |]
 
 -- | Insert a new blog post
-insertBlogPost :: BlogPostInsert -> Hasql.Statement () BlogPostId
-insertBlogPost BlogPostInsert {..} =
+insertBlogPost :: Insert -> Hasql.Statement () Id
+insertBlogPost Insert {..} =
   case bpiStatus of
     Published ->
       getOneRow
@@ -187,8 +187,8 @@ insertBlogPost BlogPostInsert {..} =
       |]
 
 -- | Update a blog post
-updateBlogPost :: BlogPostId -> BlogPostInsert -> Hasql.Statement () (Maybe BlogPostId)
-updateBlogPost postId BlogPostInsert {..} =
+updateBlogPost :: Id -> Insert -> Hasql.Statement () (Maybe Id)
+updateBlogPost postId Insert {..} =
   interp
     False
     [sql|
@@ -206,7 +206,7 @@ updateBlogPost postId BlogPostInsert {..} =
   |]
 
 -- | Delete a blog post
-deleteBlogPost :: BlogPostId -> Hasql.Statement () (Maybe BlogPostId)
+deleteBlogPost :: Id -> Hasql.Statement () (Maybe Id)
 deleteBlogPost postId =
   interp
     False
@@ -220,7 +220,7 @@ deleteBlogPost postId =
 -- Junction Table Queries (blog_post_tags)
 
 -- | Get tags for a blog post
-getTagsForPost :: BlogPostId -> Hasql.Statement () [BlogTagModel]
+getTagsForPost :: Id -> Hasql.Statement () [BlogTags.Model]
 getTagsForPost postId =
   interp
     False
@@ -233,7 +233,7 @@ getTagsForPost postId =
   |]
 
 -- | Add tag to post
-addTagToPost :: BlogPostId -> BlogTagId -> Hasql.Statement () ()
+addTagToPost :: Id -> BlogTags.Id -> Hasql.Statement () ()
 addTagToPost postId tagId =
   interp
     False
@@ -244,7 +244,7 @@ addTagToPost postId tagId =
   |]
 
 -- | Remove tag from post
-removeTagFromPost :: BlogPostId -> BlogTagId -> Hasql.Statement () ()
+removeTagFromPost :: Id -> BlogTags.Id -> Hasql.Statement () ()
 removeTagFromPost postId tagId =
   interp
     False
@@ -254,7 +254,7 @@ removeTagFromPost postId tagId =
   |]
 
 -- | Get posts with specific tag
-getPostsByTag :: BlogTagId -> Int64 -> Int64 -> Hasql.Statement () [BlogPostModel]
+getPostsByTag :: BlogTags.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getPostsByTag tagId limit offset =
   interp
     False

@@ -14,7 +14,7 @@ import Data.Has (Has)
 import Data.Text (Text)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.BlogPosts qualified as Blog
+import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
@@ -98,7 +98,7 @@ handler _tracer slug cookie hxRequest = do
           pure userMetadata
         _ -> pure Nothing
 
-  execQuerySpan (Blog.getBlogPostBySlug slug) >>= \case
+  execQuerySpan (BlogPosts.getBlogPostBySlug slug) >>= \case
     Left _err -> do
       Log.logInfo "Failed to fetch blog post from database" slug
       renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
@@ -106,15 +106,15 @@ handler _tracer slug cookie hxRequest = do
       Log.logInfo "Blog post not found" slug
       renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
     Right (Just blogPost) -> do
-      execQuerySpan (UserMetadata.getUserMetadata (Blog.bpmAuthorId blogPost)) >>= \case
+      execQuerySpan (UserMetadata.getUserMetadata (BlogPosts.bpmAuthorId blogPost)) >>= \case
         Left _err -> do
-          Log.logInfo "Failed to fetch blog post author" (Blog.bpmAuthorId blogPost)
+          Log.logInfo "Failed to fetch blog post author" (BlogPosts.bpmAuthorId blogPost)
           renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
         Right Nothing -> do
-          Log.logInfo "Blog post author not found" (Blog.bpmAuthorId blogPost)
+          Log.logInfo "Blog post author not found" (BlogPosts.bpmAuthorId blogPost)
           renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
         Right (Just author) -> do
-          tagsResult <- execQuerySpan (Blog.getTagsForPost (Blog.bpmId blogPost))
+          tagsResult <- execQuerySpan (BlogPosts.getTagsForPost (BlogPosts.bpmId blogPost))
           let tags = case tagsResult of
                 Left _err -> []
                 Right tagModels -> tagModels

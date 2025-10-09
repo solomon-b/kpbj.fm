@@ -13,14 +13,14 @@ import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Effects.Database.Tables.Episode qualified as Episode
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
+import Effects.Database.Tables.Episodes qualified as Episodes
 import Lucid qualified
 
 --------------------------------------------------------------------------------
 
 -- | Render a featured "Latest Episode" section with full details
-renderLatestEpisode :: Episode.EpisodeModel -> [EpisodeTrack.EpisodeTrackModel] -> Lucid.Html ()
+renderLatestEpisode :: Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
 renderLatestEpisode episode tracks = do
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8"] $ do
     Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Latest Episode"
@@ -99,7 +99,7 @@ renderLatestEpisode episode tracks = do
             Lucid.div_ [Lucid.id_ "all-tracks", Lucid.class_ "hidden space-y-2 mt-2"] $ do
               mapM_ renderTrack (drop 4 tracks)
   where
-    renderTrack :: EpisodeTrack.EpisodeTrackModel -> Lucid.Html ()
+    renderTrack :: EpisodeTrack.Model -> Lucid.Html ()
     renderTrack track = do
       Lucid.div_ [Lucid.class_ "flex justify-between p-2 hover:bg-gray-50"] $ do
         Lucid.div_ $ do
@@ -114,7 +114,7 @@ renderLatestEpisode episode tracks = do
           Nothing -> mempty
 
 -- | Render an episode card (for previous episodes list)
-renderEpisodeCard :: Episode.EpisodeModel -> Lucid.Html ()
+renderEpisodeCard :: Episodes.Model -> Lucid.Html ()
 renderEpisodeCard episode = do
   Lucid.div_ [Lucid.class_ "flex gap-4 mb-6"] $ do
     -- Episode thumbnail
