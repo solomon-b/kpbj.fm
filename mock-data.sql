@@ -132,21 +132,274 @@ SELECT
 FROM shows
 ON CONFLICT (email) DO NOTHING;
 
--- Create user_metadata for all host users
+-- Create user_metadata for all host users with fun, themed display names
 INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
 SELECT
     u.id,
-    INITCAP(REPLACE(REPLACE(u.email, 'host-', ''), '@kpbj.fm', '')) as display_name,
-    INITCAP(REPLACE(REPLACE(REPLACE(u.email, 'host-', ''), '@kpbj.fm', ''), '-', ' ')) as full_name,
+    CASE s.slug
+        -- SUNDAY
+        WHEN 'sunday-morning-jazz' THEN 'Smooth Sullivan'
+        WHEN 'gospel-hour' THEN 'Sister Joy'
+        WHEN 'world-music-passport' THEN 'DJ Wanderlust'
+        WHEN 'classical-sundays' THEN 'Maestro Chen'
+        WHEN 'indie-mixtape' THEN 'Cassette Kid'
+        WHEN 'soul-kitchen' THEN 'Chef Groove'
+        WHEN 'acoustic-sessions' THEN 'Willow Hart'
+        WHEN 'electronic-sunday' THEN 'Circuit Breaker'
+        WHEN 'reggae-vibes' THEN 'Irie Lion'
+        WHEN 'blues-after-dark' THEN 'Midnight Willie'
+        WHEN 'experimental-sounds' THEN 'The Sound Scientist'
+        WHEN 'midnight-ambient' THEN 'Lunar Drift'
+
+        -- MONDAY
+        WHEN 'monday-morning-wake-up' THEN 'Sunrise Sam'
+        WHEN 'coffee-and-classics' THEN 'Morning Mozart'
+        WHEN 'folk-tales' THEN 'Storyteller Sarah'
+        WHEN 'midday-mix' THEN 'DJ Kaleidoscope'
+        WHEN 'latin-grooves' THEN 'Ritmo Rico'
+        WHEN 'rock-solid' THEN 'Rockin'' Ricky'
+        WHEN 'drive-time' THEN 'Highway Holly'
+        WHEN 'hip-hop-fundamentals' THEN 'DJ Knowledge'
+        WHEN 'jazz-lounge' THEN 'Marcus the Velvet Voice'
+        WHEN 'punk-power-hour' THEN 'Spike Voltage'
+        WHEN 'metal-madness' THEN 'Thor the Destroyer'
+        WHEN 'late-night-chill' THEN 'Luna Waves'
+        WHEN 'graveyard-shift' THEN 'Nocturnal Nick'
+
+        -- TUESDAY
+        WHEN 'tuesday-sunrise' THEN 'Dawn Melody'
+        WHEN 'morning-brew' THEN 'Java Jones'
+        WHEN 'singer-songwriter-showcase' THEN 'Lyric Lou'
+        WHEN 'world-beat' THEN 'Rhythm Runner'
+        WHEN 'indie-rock-hour' THEN 'Garage Gary'
+        WHEN 'soul-stirrers' THEN 'Deep Soul Davis'
+        WHEN 'alternative-nation' THEN 'Alt Alex'
+        WHEN 'electronic-evolution' THEN 'Synth Prophet'
+        WHEN 'country-roads' THEN 'Honky Tonk Hannah'
+        WHEN 'funk-sessions' THEN 'Funky Fred'
+        WHEN 'jazz-standards' THEN 'Classic Coltrane'
+        WHEN 'noise-and-space' THEN 'Static Storm'
+        WHEN 'deep-night-mix' THEN 'Shadow Spinner'
+
+        -- WEDNESDAY
+        WHEN 'midweek-morning' THEN 'Hump Day Hero'
+        WHEN 'classical-interlude' THEN 'Violina Virtuoso'
+        WHEN 'folk-underground' THEN 'Woody Wanderer'
+        WHEN 'lunch-hour-favorites' THEN 'Midday Mike'
+        WHEN 'afrobeat-express' THEN 'Fela Junior'
+        WHEN 'psychedelic-journey' THEN 'Cosmic Carl'
+        WHEN 'hip-hop-heritage' THEN 'Old School O''Shea'
+        WHEN 'dub-vibrations' THEN 'Bass Commander'
+        WHEN 'shoegaze-and-dream-pop' THEN 'Reverb Rachel'
+        WHEN 'jazz-fusion' THEN 'Fusion Phil'
+        WHEN 'post-rock-horizons' THEN 'Epic Evan'
+        WHEN 'industrial-underground' THEN 'Factory Floor Fiona'
+        WHEN 'night-drones' THEN 'Drone Master D'
+
+        -- THURSDAY
+        WHEN 'thursday-wake-up-call' THEN 'Almost Friday Ali'
+        WHEN 'baroque-and-beyond' THEN 'Baroque Baron'
+        WHEN 'bluegrass-and-old-time' THEN 'Banjo Betty'
+        WHEN 'tropical-sounds' THEN 'Island Izzy'
+        WHEN 'garage-rock-revival' THEN 'Fuzz Face'
+        WHEN 'new-wave-nostalgia' THEN 'Neon Nancy'
+        WHEN 'techno-territory' THEN 'Berlin Bob'
+        WHEN 'ska-and-rocksteady' THEN 'Skank Master Steve'
+        WHEN 'r-and-b-slow-jams' THEN 'Smooth Operator Sade'
+        WHEN 'hardcore-punk' THEN 'Hardcore Harry'
+        WHEN 'doom-and-stoner' THEN 'Riff Lord Randy'
+        WHEN 'witch-house' THEN 'Hex Hannah'
+        WHEN 'late-night-jazz' THEN 'After Hours Marcus'
+        WHEN 'minimal-techno' THEN 'Minimal Max'
+
+        -- FRIDAY
+        WHEN 'friday-morning-groove' THEN 'Groove Master G'
+        WHEN 'chamber-music' THEN 'Quartet Quinn'
+        WHEN 'desert-rock' THEN 'Desert Dan'
+        WHEN 'cumbia-and-chicha' THEN 'Cumbia Carlos'
+        WHEN 'post-punk-power' THEN 'Dark Wave Dave'
+        WHEN 'house-music-all-night' THEN 'House Head Henry'
+        WHEN 'weekend-warm-up' THEN 'Party Starter Pat'
+        WHEN 'trap-and-bass' THEN '808 Tyler'
+        WHEN 'disco-fever' THEN 'Disco Donna'
+        WHEN 'emo-night' THEN 'Emotional Eric'
+        WHEN 'black-metal' THEN 'Frost Fenrir'
+        WHEN 'vaporwave-dreams' THEN 'Aesthetic Andy'
+        WHEN 'midnight-madness' THEN 'Wild Card Wanda'
+        WHEN 'deep-house' THEN 'Deep Space Diana'
+
+        -- SATURDAY
+        WHEN 'saturday-morning-cartoons' THEN 'Captain Cartoon'
+        WHEN 'opera-hour' THEN 'Opera Oscar'
+        WHEN 'surf-rock' THEN 'Wave Rider Wendy'
+        WHEN 'global-bass' THEN 'Bassline Boris'
+        WHEN 'britpop-and-beyond' THEN 'Britpop Barry'
+        WHEN 'drum-and-bass' THEN 'Jungle Jane'
+        WHEN 'saturday-dance-party' THEN 'Dance Floor Danny'
+        WHEN 'lo-fi-hip-hop' THEN 'Chill Beats Charlie'
+        WHEN 'motown-and-stax' THEN 'Motown Mary'
+        WHEN 'thrash-metal' THEN 'Thrash Tommy'
+        WHEN 'synthwave-night' THEN 'Retro Racer Rita'
+        WHEN 'ambient-soundscapes' THEN 'Ambient Aurora'
+        WHEN 'late-night-beats' THEN 'Beat Maker Ben'
+
+        ELSE INITCAP(REPLACE(REPLACE(u.email, 'host-', ''), '@kpbj.fm', ''))
+    END as display_name,
+    CASE s.slug
+        -- Generate matching full names that sound real
+        WHEN 'sunday-morning-jazz' THEN 'Marcus Sullivan'
+        WHEN 'gospel-hour' THEN 'Joyce Williams'
+        WHEN 'world-music-passport' THEN 'Amara Okafor'
+        WHEN 'classical-sundays' THEN 'Li Chen'
+        WHEN 'indie-mixtape' THEN 'Alex Thompson'
+        WHEN 'soul-kitchen' THEN 'Jerome Washington'
+        WHEN 'acoustic-sessions' THEN 'Willow Hart'
+        WHEN 'electronic-sunday' THEN 'Tyler Mitchell'
+        WHEN 'reggae-vibes' THEN 'Winston Clarke'
+        WHEN 'blues-after-dark' THEN 'Willie Johnson'
+        WHEN 'experimental-sounds' THEN 'Dr. Adrian Pierce'
+        WHEN 'midnight-ambient' THEN 'Luna Castellanos'
+        WHEN 'monday-morning-wake-up' THEN 'Samantha Rodriguez'
+        WHEN 'coffee-and-classics' THEN 'Wolfgang Bauer'
+        WHEN 'folk-tales' THEN 'Sarah Jennings'
+        WHEN 'midday-mix' THEN 'Kai Anderson'
+        WHEN 'latin-grooves' THEN 'Ricardo Gonzalez'
+        WHEN 'rock-solid' THEN 'Rick Stone'
+        WHEN 'drive-time' THEN 'Holly Martinez'
+        WHEN 'hip-hop-fundamentals' THEN 'Kenneth Wright'
+        WHEN 'jazz-lounge' THEN 'Marcus Williams'
+        WHEN 'punk-power-hour' THEN 'Spike Ramirez'
+        WHEN 'metal-madness' THEN 'Thor Magnusson'
+        WHEN 'late-night-chill' THEN 'Luna Chen'
+        WHEN 'graveyard-shift' THEN 'Nick Torres'
+        WHEN 'tuesday-sunrise' THEN 'Dawn Melody'
+        WHEN 'morning-brew' THEN 'James Jones'
+        WHEN 'singer-songwriter-showcase' THEN 'Louise Carter'
+        WHEN 'world-beat' THEN 'Kwame Mensah'
+        WHEN 'indie-rock-hour' THEN 'Gary Foster'
+        WHEN 'soul-stirrers' THEN 'David Davis'
+        WHEN 'alternative-nation' THEN 'Alex Morgan'
+        WHEN 'electronic-evolution' THEN 'Elijah Prophet'
+        WHEN 'country-roads' THEN 'Hannah Brooks'
+        WHEN 'funk-sessions' THEN 'Frederick Brown'
+        WHEN 'jazz-standards' THEN 'Miles Jefferson'
+        WHEN 'noise-and-space' THEN 'Storm Rivers'
+        WHEN 'deep-night-mix' THEN 'Shadow Kim'
+        WHEN 'midweek-morning' THEN 'Hero Patel'
+        WHEN 'classical-interlude' THEN 'Violina Rossi'
+        WHEN 'folk-underground' THEN 'Woody Sanders'
+        WHEN 'lunch-hour-favorites' THEN 'Michael Peterson'
+        WHEN 'afrobeat-express' THEN 'Segun Adeyemi'
+        WHEN 'psychedelic-journey' THEN 'Carl Morrison'
+        WHEN 'hip-hop-heritage' THEN 'O''Shea Jackson'
+        WHEN 'dub-vibrations' THEN 'Commander Bass'
+        WHEN 'shoegaze-and-dream-pop' THEN 'Rachel Summers'
+        WHEN 'jazz-fusion' THEN 'Phil Henderson'
+        WHEN 'post-rock-horizons' THEN 'Evan Roberts'
+        WHEN 'industrial-underground' THEN 'Fiona Steel'
+        WHEN 'night-drones' THEN 'Darius Moon'
+        WHEN 'thursday-wake-up-call' THEN 'Ali Hassan'
+        WHEN 'baroque-and-beyond' THEN 'Baron Von Schmidt'
+        WHEN 'bluegrass-and-old-time' THEN 'Betty Monroe'
+        WHEN 'tropical-sounds' THEN 'Isabella Cruz'
+        WHEN 'garage-rock-revival' THEN 'Fuzz Patterson'
+        WHEN 'new-wave-nostalgia' THEN 'Nancy Zhang'
+        WHEN 'techno-territory' THEN 'Bob Mueller'
+        WHEN 'ska-and-rocksteady' THEN 'Steve Campbell'
+        WHEN 'r-and-b-slow-jams' THEN 'Sade Johnson'
+        WHEN 'hardcore-punk' THEN 'Harry Collins'
+        WHEN 'doom-and-stoner' THEN 'Randy Pike'
+        WHEN 'witch-house' THEN 'Hannah Black'
+        WHEN 'late-night-jazz' THEN 'Marcus Williams'
+        WHEN 'minimal-techno' THEN 'Max Klein'
+        WHEN 'friday-morning-groove' THEN 'Gerald Green'
+        WHEN 'chamber-music' THEN 'Quinn Abbott'
+        WHEN 'desert-rock' THEN 'Daniel Coyote'
+        WHEN 'cumbia-and-chicha' THEN 'Carlos Vargas'
+        WHEN 'post-punk-power' THEN 'David Curtis'
+        WHEN 'house-music-all-night' THEN 'Henry Walker'
+        WHEN 'weekend-warm-up' THEN 'Patricia Lee'
+        WHEN 'trap-and-bass' THEN 'Tyler Young'
+        WHEN 'disco-fever' THEN 'Donna Summer'
+        WHEN 'emo-night' THEN 'Eric Heartbreak'
+        WHEN 'black-metal' THEN 'Fenrir Frost'
+        WHEN 'vaporwave-dreams' THEN 'Andy Digital'
+        WHEN 'midnight-madness' THEN 'Wanda Wild'
+        WHEN 'deep-house' THEN 'Diana Prince'
+        WHEN 'saturday-morning-cartoons' THEN 'Captain Carl'
+        WHEN 'opera-hour' THEN 'Oscar Pavarotti'
+        WHEN 'surf-rock' THEN 'Wendy Mavericks'
+        WHEN 'global-bass' THEN 'Boris Petrov'
+        WHEN 'britpop-and-beyond' THEN 'Barry Gallagher'
+        WHEN 'drum-and-bass' THEN 'Jane Jungler'
+        WHEN 'saturday-dance-party' THEN 'Danny Beats'
+        WHEN 'lo-fi-hip-hop' THEN 'Charlie Vibes'
+        WHEN 'motown-and-stax' THEN 'Mary Ross'
+        WHEN 'thrash-metal' THEN 'Tommy Mayhem'
+        WHEN 'synthwave-night' THEN 'Rita Neon'
+        WHEN 'ambient-soundscapes' THEN 'Aurora Fields'
+        WHEN 'late-night-beats' THEN 'Benjamin Producer'
+        ELSE INITCAP(REPLACE(REPLACE(REPLACE(u.email, 'host-', ''), '@kpbj.fm', ''), '-', ' '))
+    END as full_name,
     'Host' as user_role
 FROM users u
-WHERE u.email LIKE 'host-%@kpbj.fm';
+JOIN shows s ON u.email = 'host-' || s.slug || '@kpbj.fm';
 
 -- Link hosts to their shows
 INSERT INTO show_hosts (show_id, user_id, role, is_primary)
 SELECT s.id, u.id, 'host', TRUE
 FROM shows s
 JOIN users u ON u.email = 'host-' || s.slug || '@kpbj.fm';
+
+-- Create host details with bios and social links
+INSERT INTO host_details (user_id, bio, website_url, instagram_handle, twitter_handle, soundcloud_url, bandcamp_url)
+SELECT
+    u.id,
+    CASE s.slug
+        WHEN 'sunday-morning-jazz' THEN 'A jazz enthusiast since childhood, I grew up listening to my parents'' vinyl collection. After years of digging through crates and studying the masters, I bring you two hours of smooth jazz every Sunday morning to start your week right.'
+        WHEN 'gospel-hour' THEN 'Raised in the church, gospel music has been the soundtrack of my life. I''m honored to share uplifting spirituals and contemporary gospel that feed the soul and lift the spirit.'
+        WHEN 'world-music-passport' THEN 'As a first-generation immigrant, I use music to explore my roots and discover new cultures. Join me on a sonic journey across continents, from West African grooves to Eastern European folk.'
+        WHEN 'classical-sundays' THEN 'Trained as a classical violinist, I''ve spent 20 years performing and studying the great composers. These Sunday mornings are my chance to share the beauty and complexity of classical music with fellow enthusiasts.'
+        WHEN 'indie-mixtape' THEN 'Portland''s indie scene is where I found my musical home. I spend my weeks hunting down the freshest independent releases and underground gems to share with you every Sunday.'
+        WHEN 'soul-kitchen' THEN 'Soul, R&B, and funk aren''t just genres—they''re a way of life. I cook up a blend of classics and deep cuts that''ll make you move and groove all afternoon long.'
+        WHEN 'acoustic-sessions' THEN 'There''s something magical about stripped-down acoustic performances. As a singer-songwriter myself, I appreciate the raw emotion and craftsmanship that shines through when it''s just voice and instrument.'
+        WHEN 'electronic-sunday' THEN 'From Detroit techno to Berlin minimal, electronic music has been my passion for over a decade. I curate sets that take you on a journey through the evolution of electronic sound.'
+        WHEN 'reggae-vibes' THEN 'One love, one heart. Reggae taught me about resistance, peace, and unity. Every Sunday I share roots reggae, dancehall, and dub to spread positive vibrations.'
+        WHEN 'blues-after-dark' THEN 'The blues is where it all began. Late Sunday nights, I dig deep into the Mississippi Delta, Chicago electric blues, and contemporary blues artists keeping the tradition alive.'
+        WHEN 'experimental-sounds' THEN 'Music shouldn''t have boundaries. I''m here to challenge your ears with avant-garde compositions, noise experiments, and sounds that push the limits of what music can be.'
+        WHEN 'midnight-ambient' THEN 'For the night owls and insomniacs, I create atmospheric soundscapes that drift between consciousness and dreams. Let the music carry you through the late hours.'
+        WHEN 'late-night-jazz' THEN 'There''s something special about jazz after midnight. I''ve been a working jazz musician in Portland for 15 years, and these Thursday nights let me share the sophisticated sounds that define late-night cool.'
+        WHEN 'punk-power-hour' THEN 'Fast, loud, and unapologetic. I grew up in the DIY punk scene, and this hour is dedicated to the raw energy and politics of punk rock from 1977 to today.'
+        WHEN 'metal-madness' THEN 'Metal isn''t just music—it''s a lifestyle. From classic heavy metal to death and doom, I bring you two hours of crushing riffs and thunderous drums every Monday night.'
+        WHEN 'hip-hop-fundamentals' THEN 'Hip-hop is the most important cultural movement of the last 50 years. I break down the history, the culture, and the essential tracks that define this genre.'
+        WHEN 'disco-fever' THEN 'Disco never died—it just evolved. Every Friday I celebrate the groove, glamour, and liberation of disco culture with classics and modern takes on the sound.'
+        WHEN 'techno-territory' THEN 'Pure, unfiltered techno. No vocals, just hypnotic beats designed for the dance floor. I''ve been DJing techno in Portland clubs for a decade before bringing it to the airwaves.'
+        WHEN 'ambient-soundscapes' THEN 'As a sound designer and meditation instructor, I curate ambient music that creates space for reflection, relaxation, and inner exploration.'
+        WHEN 'local-legends-portland-music-history-panel-2025-10-11' THEN 'Portland music historian and archivist, documenting our city''s rich musical heritage through interviews, artifacts, and deep research into local scenes past and present.'
+        ELSE 'Community radio DJ passionate about sharing diverse music and connecting with Portland listeners. Broadcasting from KPBJ 95.9FM.'
+    END as bio,
+    CASE
+        WHEN random() < 0.3 THEN 'https://' || REPLACE(s.slug, '-', '') || '.com'
+        ELSE NULL
+    END as website_url,
+    CASE
+        WHEN random() < 0.5 THEN REPLACE(s.slug, '-', '_')
+        ELSE NULL
+    END as instagram_handle,
+    CASE
+        WHEN random() < 0.4 THEN REPLACE(s.slug, '-', '_')
+        ELSE NULL
+    END as twitter_handle,
+    CASE
+        WHEN random() < 0.2 THEN 'https://soundcloud.com/' || s.slug
+        ELSE NULL
+    END as soundcloud_url,
+    CASE
+        WHEN random() < 0.15 THEN 'https://' || REPLACE(s.slug, '-', '') || '.bandcamp.com'
+        ELSE NULL
+    END as bandcamp_url
+FROM users u
+JOIN shows s ON u.email = 'host-' || s.slug || '@kpbj.fm';
 
 -- Create show schedules: each show airs once per week at a specific time
 -- Distribute shows across the week to fill 24/7
@@ -790,6 +1043,11 @@ SELECT
     'Host Users' as metric,
     COUNT(*) as count
 FROM users WHERE email LIKE 'host-%'
+UNION ALL
+SELECT
+    'Host Details' as metric,
+    COUNT(*) as count
+FROM host_details
 UNION ALL
 SELECT
     'Schedule Entries' as metric,
