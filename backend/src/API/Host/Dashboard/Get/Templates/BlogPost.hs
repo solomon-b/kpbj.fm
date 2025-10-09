@@ -6,11 +6,11 @@ module API.Host.Dashboard.Get.Templates.BlogPost
 where
 
 import Data.Text qualified as Text
-import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Lucid qualified
 
 -- | Render individual blog post card
-renderBlogPostCard :: ShowBlog.ShowBlogPostModel -> Lucid.Html ()
+renderBlogPostCard :: ShowBlogPosts.Model -> Lucid.Html ()
 renderBlogPostCard post = do
   Lucid.div_ [Lucid.class_ "border border-gray-300 p-4"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-start mb-2"] $ do

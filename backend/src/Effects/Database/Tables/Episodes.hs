@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Effects.Database.Tables.Episode where
+module Effects.Database.Tables.Episodes where
 
 --------------------------------------------------------------------------------
 
@@ -12,8 +12,8 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (UTCTime)
-import Effects.Database.Tables.EpisodeTrack (EpisodeTrackId, EpisodeTrackInsert (..), EpisodeTrackModel)
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
@@ -26,48 +26,48 @@ import Servant qualified
 --------------------------------------------------------------------------------
 -- Episode Status Type
 
-data EpisodeStatus = Draft | Scheduled | Published | Archived
+data Status = Draft | Scheduled | Published | Archived
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
 
-instance Display EpisodeStatus where
+instance Display Status where
   displayBuilder Draft = "draft"
   displayBuilder Scheduled = "scheduled"
   displayBuilder Published = "published"
   displayBuilder Archived = "archived"
 
-instance DecodeValue EpisodeStatus where
-  decodeValue = Decoders.enum decodeEpisodeStatus
+instance DecodeValue Status where
+  decodeValue = Decoders.enum decodeStatus
 
-decodeEpisodeStatus :: Text -> Maybe EpisodeStatus
-decodeEpisodeStatus = \case
+decodeStatus :: Text -> Maybe Status
+decodeStatus = \case
   "draft" -> Just Draft
   "scheduled" -> Just Scheduled
   "published" -> Just Published
   "archived" -> Just Archived
   _ -> Nothing
 
-instance EncodeValue EpisodeStatus where
+instance EncodeValue Status where
   encodeValue = Encoders.enum $ \case
     Draft -> "draft"
     Scheduled -> "scheduled"
     Published -> "published"
     Archived -> "archived"
 
-instance Servant.FromHttpApiData EpisodeStatus where
+instance Servant.FromHttpApiData Status where
   parseUrlPiece "draft" = Right Draft
   parseUrlPiece "scheduled" = Right Scheduled
   parseUrlPiece "published" = Right Published
   parseUrlPiece "archived" = Right Archived
-  parseUrlPiece invalid = Left $ "Invalid EpisodeStatus: " <> invalid
+  parseUrlPiece invalid = Left $ "Invalid Status: " <> invalid
 
-instance Servant.ToHttpApiData EpisodeStatus where
+instance Servant.ToHttpApiData Status where
   toUrlPiece = display
 
 --------------------------------------------------------------------------------
--- ID Types
+-- Database Model
 
-newtype EpisodeId = EpisodeId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -84,12 +84,9 @@ newtype EpisodeId = EpisodeId Int64
       EncodeValue
     )
 
---------------------------------------------------------------------------------
--- Database Models
-
-data EpisodeModel = EpisodeModel
-  { id :: EpisodeId,
-    showId :: Show.ShowId,
+data Model = Model
+  { id :: Id,
+    showId :: Shows.Id,
     title :: Text,
     slug :: Text,
     description :: Maybe Text,
@@ -102,14 +99,14 @@ data EpisodeModel = EpisodeModel
     artworkUrl :: Maybe Text,
     scheduledAt :: Maybe UTCTime,
     publishedAt :: Maybe UTCTime,
-    status :: EpisodeStatus,
+    status :: Status,
     createdBy :: User.Id,
     createdAt :: UTCTime,
     updatedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance EpisodeModel)
+  deriving (Display) via (RecordInstance Model)
 
 newtype EpisodeNumber = EpisodeNumber Int64
   deriving stock (Generic)
@@ -128,11 +125,8 @@ newtype EpisodeNumber = EpisodeNumber Int64
       EncodeValue
     )
 
---------------------------------------------------------------------------------
--- Insert Types
-
-data EpisodeInsert = EpisodeInsert
-  { eiShowId :: Show.ShowId,
+data Insert = Insert
+  { eiId :: Shows.Id,
     eiTitle :: Text,
     eiSlug :: Text,
     eiDescription :: Maybe Text,
@@ -144,19 +138,16 @@ data EpisodeInsert = EpisodeInsert
     eiDurationSeconds :: Maybe Int64,
     eiArtworkUrl :: Maybe Text,
     eiScheduledAt :: Maybe UTCTime,
-    eiStatus :: EpisodeStatus,
+    eiStatus :: Status,
     eiCreatedBy :: User.Id
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
-  deriving (Display) via (RecordInstance EpisodeInsert)
-
---------------------------------------------------------------------------------
--- Update Types
+  deriving (Display) via (RecordInstance Insert)
 
 -- | Episode Update data for partial updates
-data EpisodeUpdate = EpisodeUpdate
-  { euId :: EpisodeId,
+data Update = Update
+  { euId :: Id,
     euTitle :: Text,
     euDescription :: Maybe Text,
     euEpisodeNumber :: Maybe EpisodeNumber,
@@ -164,13 +155,13 @@ data EpisodeUpdate = EpisodeUpdate
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
-  deriving (Display) via (RecordInstance EpisodeUpdate)
+  deriving (Display) via (RecordInstance Update)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get published episodes for a show
-getPublishedEpisodesForShow :: Show.ShowId -> Int64 -> Int64 -> Hasql.Statement () [EpisodeModel]
+getPublishedEpisodesForShow :: Shows.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getPublishedEpisodesForShow showId limit offset =
   interp
     False
@@ -185,8 +176,8 @@ getPublishedEpisodesForShow showId limit offset =
   |]
 
 -- | Get all episodes for a show (any status)
-getEpisodesByShowId :: Show.ShowId -> Hasql.Statement () [EpisodeModel]
-getEpisodesByShowId showId =
+getEpisodesById :: Shows.Id -> Hasql.Statement () [Model]
+getEpisodesById showId =
   interp
     False
     [sql|
@@ -199,7 +190,7 @@ getEpisodesByShowId showId =
   |]
 
 -- | Get episode by show slug and episode slug
-getEpisodeBySlug :: Text -> Text -> Hasql.Statement () (Maybe EpisodeModel)
+getEpisodeBySlug :: Text -> Text -> Hasql.Statement () (Maybe Model)
 getEpisodeBySlug showSlug episodeSlug =
   interp
     False
@@ -213,7 +204,7 @@ getEpisodeBySlug showSlug episodeSlug =
   |]
 
 -- | Get episode by ID
-getEpisodeById :: EpisodeId -> Hasql.Statement () (Maybe EpisodeModel)
+getEpisodeById :: Id -> Hasql.Statement () (Maybe Model)
 getEpisodeById episodeId =
   interp
     False
@@ -226,7 +217,7 @@ getEpisodeById episodeId =
   |]
 
 -- | Get episodes by user (episodes they created)
-getEpisodesByUser :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [EpisodeModel]
+getEpisodesByUser :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getEpisodesByUser userId limit offset =
   interp
     False
@@ -241,7 +232,7 @@ getEpisodesByUser userId limit offset =
   |]
 
 -- | Get recent published episodes across all shows
-getRecentPublishedEpisodes :: Int64 -> Int64 -> Hasql.Statement () [EpisodeModel]
+getRecentPublishedEpisodes :: Int64 -> Int64 -> Hasql.Statement () [Model]
 getRecentPublishedEpisodes limit offset =
   interp
     False
@@ -256,8 +247,8 @@ getRecentPublishedEpisodes limit offset =
   |]
 
 -- | Insert a new episode
-insertEpisode :: EpisodeInsert -> Hasql.Statement () EpisodeId
-insertEpisode EpisodeInsert {..} =
+insertEpisode :: Insert -> Hasql.Statement () Id
+insertEpisode Insert {..} =
   case eiStatus of
     Published ->
       getOneRow
@@ -267,7 +258,7 @@ insertEpisode EpisodeInsert {..} =
         INSERT INTO episodes(show_id, title, slug, description, episode_number, season_number,
                             audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
                             artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at)
-        VALUES (#{eiShowId}, #{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiEpisodeNumber}, #{eiSeasonNumber},
+        VALUES (#{eiId}, #{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiEpisodeNumber}, #{eiSeasonNumber},
                 #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
                 #{eiArtworkUrl}, #{eiScheduledAt}, NOW(), #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
         RETURNING id
@@ -280,15 +271,15 @@ insertEpisode EpisodeInsert {..} =
         INSERT INTO episodes(show_id, title, slug, description, episode_number, season_number,
                             audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
                             artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at)
-        VALUES (#{eiShowId}, #{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiEpisodeNumber}, #{eiSeasonNumber},
+        VALUES (#{eiId}, #{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiEpisodeNumber}, #{eiSeasonNumber},
                 #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
                 #{eiArtworkUrl}, #{eiScheduledAt}, NULL, #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
         RETURNING id
       |]
 
 -- | Update an episode with partial data (for editing)
-updateEpisode :: EpisodeUpdate -> Hasql.Statement () (Maybe EpisodeId)
-updateEpisode EpisodeUpdate {..} =
+updateEpisode :: Update -> Hasql.Statement () (Maybe Id)
+updateEpisode Update {..} =
   interp
     False
     [sql|
@@ -301,7 +292,7 @@ updateEpisode EpisodeUpdate {..} =
   |]
 
 -- | Delete an episode
-deleteEpisode :: EpisodeId -> Hasql.Statement () (Maybe EpisodeId)
+deleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
 deleteEpisode episodeId =
   interp
     False
@@ -315,7 +306,7 @@ deleteEpisode episodeId =
 -- Episode Track Queries
 
 -- | Get tracks for an episode
-getTracksForEpisode :: EpisodeId -> Hasql.Statement () [EpisodeTrackModel]
+getTracksForEpisode :: Id -> Hasql.Statement () [EpisodeTrack.Model]
 getTracksForEpisode episodeId =
   interp
     False
@@ -327,8 +318,8 @@ getTracksForEpisode episodeId =
   |]
 
 -- | Insert a new episode track
-insertEpisodeTrack :: EpisodeTrackInsert -> Hasql.Statement () EpisodeTrackId
-insertEpisodeTrack EpisodeTrackInsert {..} =
+insertEpisodeTrack :: EpisodeTrack.Insert -> Hasql.Statement () EpisodeTrack.Id
+insertEpisodeTrack EpisodeTrack.Insert {..} =
   getOneRow
     <$> interp
       False
@@ -339,8 +330,8 @@ insertEpisodeTrack EpisodeTrackInsert {..} =
   |]
 
 -- | Update an episode track
-updateEpisodeTrack :: EpisodeTrackId -> EpisodeTrackInsert -> Hasql.Statement () (Maybe EpisodeTrackId)
-updateEpisodeTrack trackId EpisodeTrackInsert {..} =
+updateEpisodeTrack :: EpisodeTrack.Id -> EpisodeTrack.Insert -> Hasql.Statement () (Maybe EpisodeTrack.Id)
+updateEpisodeTrack trackId EpisodeTrack.Insert {..} =
   interp
     False
     [sql|
@@ -353,7 +344,7 @@ updateEpisodeTrack trackId EpisodeTrackInsert {..} =
   |]
 
 -- | Delete an episode track
-deleteEpisodeTrack :: EpisodeTrackId -> Hasql.Statement () (Maybe EpisodeTrackId)
+deleteEpisodeTrack :: EpisodeTrack.Id -> Hasql.Statement () (Maybe EpisodeTrack.Id)
 deleteEpisodeTrack trackId =
   interp
     False
@@ -364,7 +355,7 @@ deleteEpisodeTrack trackId =
   |]
 
 -- | Delete all tracks for an episode
-deleteAllTracksForEpisode :: EpisodeId -> Hasql.Statement () RowsAffected
+deleteAllTracksForEpisode :: Id -> Hasql.Statement () RowsAffected
 deleteAllTracksForEpisode episodeId =
   interp
     False
@@ -374,7 +365,7 @@ deleteAllTracksForEpisode episodeId =
   |]
 
 -- | Get next episode number for a show
-getNextEpisodeNumber :: Show.ShowId -> Int64 -> Hasql.Statement () (Maybe EpisodeNumber)
+getNextEpisodeNumber :: Shows.Id -> Int64 -> Hasql.Statement () (Maybe EpisodeNumber)
 getNextEpisodeNumber showId seasonNumber =
   interp
     True

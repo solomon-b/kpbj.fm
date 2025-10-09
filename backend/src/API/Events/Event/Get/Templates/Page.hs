@@ -16,7 +16,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Effects.Database.Tables.EventTags qualified as EventTag
+import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -47,11 +47,11 @@ renderEventDescription description = do
         else Lucid.p_ $ Lucid.toHtml para
 
 -- | Render a single tag
-renderTag :: EventTag.EventTagModel -> Lucid.Html ()
+renderTag :: EventTags.Model -> Lucid.Html ()
 renderTag tag =
   Lucid.a_
-    [ Lucid.href_ [i|/#{eventsGetTagUrl (EventTag.etmName tag)}|],
-      hxGet_ [i|/#{eventsGetTagUrl (EventTag.etmName tag)}|],
+    [ Lucid.href_ [i|/#{eventsGetTagUrl (EventTags.etmName tag)}|],
+      hxGet_ [i|/#{eventsGetTagUrl (EventTags.etmName tag)}|],
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
       Lucid.class_ "bg-gray-200 text-gray-800 px-2 py-1 text-sm font-mono hover:bg-gray-300 no-underline"
@@ -59,7 +59,7 @@ renderTag tag =
     $ Lucid.toHtml ("#" <> tag.etmName)
 
 -- | Main event template
-template :: Events.EventModel -> [EventTag.EventTagModel] -> UserMetadata.Model -> Lucid.Html ()
+template :: Events.Model -> [EventTags.Model] -> UserMetadata.Model -> Lucid.Html ()
 template event eventTags author = do
   -- Event Header Section
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8"] $ do

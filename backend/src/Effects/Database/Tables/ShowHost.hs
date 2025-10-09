@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Effects.Database.Tables.ShowHost where
@@ -10,7 +11,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), displayBuilder)
 import Data.Time (UTCTime)
 import Domain.Types.DisplayName (DisplayName)
-import {-# SOURCE #-} Effects.Database.Tables.Show (ShowId)
+import {-# SOURCE #-} Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
@@ -48,10 +49,10 @@ instance EncodeValue HostRole where
     Guest -> "guest"
 
 --------------------------------------------------------------------------------
--- Show Host Models
+-- Database Model
 
-data ShowHostModel = ShowHostModel
-  { shmShowId :: ShowId,
+data Model = Model
+  { shmId :: Shows.Id,
     shmUserId :: User.Id,
     shmRole :: HostRole,
     shmIsPrimary :: Bool,
@@ -60,21 +61,21 @@ data ShowHostModel = ShowHostModel
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance ShowHostModel)
+  deriving (Display) via (RecordInstance Model)
 
-data ShowHostInsert = ShowHostInsert
-  { shiShowId :: ShowId,
+data Insert = Insert
+  { shiId :: Shows.Id,
     shiUserId :: User.Id,
     shiRole :: HostRole,
     shiIsPrimary :: Bool
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
-  deriving (Display) via (RecordInstance ShowHostInsert)
+  deriving (Display) via (RecordInstance Insert)
 
 -- | Show host with user information (for SQL joins)
 data ShowHostWithUser = ShowHostWithUser
-  { showId :: ShowId,
+  { showId :: Shows.Id,
     userId :: User.Id,
     role :: HostRole,
     isPrimary :: Bool,
@@ -97,7 +98,7 @@ data ShowHostWithUser = ShowHostWithUser
 -- Database Queries
 
 -- | Get hosts for a show
-getShowHosts :: ShowId -> Hasql.Statement () [ShowHostModel]
+getShowHosts :: Shows.Id -> Hasql.Statement () [Model]
 getShowHosts showId =
   interp
     False
@@ -109,7 +110,7 @@ getShowHosts showId =
   |]
 
 -- | Get show hosts with user information
-getShowHostsWithUsers :: ShowId -> Hasql.Statement () [ShowHostWithUser]
+getShowHostsWithUsers :: Shows.Id -> Hasql.Statement () [ShowHostWithUser]
 getShowHostsWithUsers showId =
   interp
     False
@@ -126,19 +127,19 @@ getShowHostsWithUsers showId =
   |]
 
 -- | Add host to show
-insertShowHost :: ShowHostInsert -> Hasql.Statement () ()
-insertShowHost ShowHostInsert {..} =
+insertShowHost :: Insert -> Hasql.Statement () ()
+insertShowHost Insert {..} =
   interp
     False
     [sql|
     INSERT INTO show_hosts(show_id, user_id, role, is_primary, joined_at)
-    VALUES (#{shiShowId}, #{shiUserId}, #{shiRole}, #{shiIsPrimary}, NOW())
+    VALUES (#{shiId}, #{shiUserId}, #{shiRole}, #{shiIsPrimary}, NOW())
     ON CONFLICT (show_id, user_id)
     DO UPDATE SET role = #{shiRole}, is_primary = #{shiIsPrimary}, left_at = NULL
   |]
 
 -- | Remove host from show (set left_at timestamp)
-removeShowHost :: ShowId -> User.Id -> Hasql.Statement () ()
+removeShowHost :: Shows.Id -> User.Id -> Hasql.Statement () ()
 removeShowHost showId userId =
   interp
     False
@@ -149,7 +150,7 @@ removeShowHost showId userId =
   |]
 
 -- | Check if user is host of show
-isUserHostOfShow :: User.Id -> ShowId -> Hasql.Statement () Bool
+isUserHostOfShow :: User.Id -> Shows.Id -> Hasql.Statement () Bool
 isUserHostOfShow userId showId =
   let query =
         interp
@@ -163,16 +164,16 @@ isUserHostOfShow userId showId =
    in maybe False getOneColumn <$> query
 
 -- | Add host to show (convenience function)
-addHostToShow :: ShowId -> User.Id -> Hasql.Statement () ()
+addHostToShow :: Shows.Id -> User.Id -> Hasql.Statement () ()
 addHostToShow showId userId =
   insertShowHost
-    ShowHostInsert
-      { shiShowId = showId,
+    Insert
+      { shiId = showId,
         shiUserId = userId,
         shiRole = Host,
         shiIsPrimary = False
       }
 
 -- | Remove host from show (convenience alias for removeShowHost)
-removeHostFromShow :: ShowId -> User.Id -> Hasql.Statement () ()
+removeHostFromShow :: Shows.Id -> User.Id -> Hasql.Statement () ()
 removeHostFromShow = removeShowHost

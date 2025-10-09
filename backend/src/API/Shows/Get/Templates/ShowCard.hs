@@ -9,13 +9,13 @@ where
 import {-# SOURCE #-} API (showGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 -- | Render a show card for the list view
-renderShowCard :: Show.ShowModel -> Lucid.Html ()
+renderShowCard :: Shows.Model -> Lucid.Html ()
 renderShowCard s = do
   let showSlug = s.slug
       showTitle = s.title

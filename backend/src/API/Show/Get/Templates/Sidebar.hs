@@ -12,15 +12,18 @@ where
 import Control.Monad (unless, when)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Effects.Database.Tables.Episode qualified as Episode
-import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.HostDetails qualified as HostDetails
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 
 --------------------------------------------------------------------------------
 
 -- | Render Host Bio section
-renderHostBio :: Show.ShowHostWithUser -> Maybe Show.HostDetailsModel -> Lucid.Html ()
+renderHostBio :: ShowHost.ShowHostWithUser -> Maybe HostDetails.Model -> Lucid.Html ()
 renderHostBio host mHostDetails = do
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
     Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] $
@@ -76,7 +79,7 @@ renderHostBio host mHostDetails = do
         Nothing -> mempty
 
 -- | Render Show Stats section
-renderShowStats :: Show.ShowModel -> [Episode.EpisodeModel] -> [Show.ShowScheduleModel] -> Lucid.Html ()
+renderShowStats :: Shows.Model -> [Episodes.Model] -> [ShowSchedule.Model] -> Lucid.Html ()
 renderShowStats showModel episodes schedules = do
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
     Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Show Stats"
@@ -122,7 +125,7 @@ renderShowStats showModel episodes schedules = do
           _ -> mempty
 
 -- | Render Recent Blog Posts section
-renderRecentBlogPosts :: [ShowBlog.ShowBlogPostModel] -> Lucid.Html ()
+renderRecentBlogPosts :: [ShowBlogPosts.Model] -> Lucid.Html ()
 renderRecentBlogPosts blogPosts = do
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
     Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Recent from Host Blog"
@@ -133,7 +136,7 @@ renderRecentBlogPosts blogPosts = do
         Lucid.div_ [Lucid.class_ "space-y-4"] $ do
           mapM_ renderBlogPostPreview (take 3 blogPosts)
   where
-    renderBlogPostPreview :: ShowBlog.ShowBlogPostModel -> Lucid.Html ()
+    renderBlogPostPreview :: ShowBlogPosts.Model -> Lucid.Html ()
     renderBlogPostPreview post = do
       Lucid.article_ [Lucid.class_ "border-l-4 border-gray-800 pl-4"] $ do
         case post.publishedAt of

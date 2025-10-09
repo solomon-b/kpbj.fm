@@ -16,9 +16,9 @@ import OrphanInstances.UTCTime ()
 import Servant qualified
 
 --------------------------------------------------------------------------------
--- Event Tag Models
+-- Database Model
 
-newtype EventTagId = EventTagId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -36,14 +36,14 @@ newtype EventTagId = EventTagId Int64
     )
 
 -- | Database Model for the @event_tags@ table
-data EventTagModel = EventTagModel
-  { etmId :: EventTagId,
+data Model = Model
+  { etmId :: Id,
     etmName :: Text,
     etmCreatedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance EventTagModel)
+  deriving (Display) via (RecordInstance Model)
 
 -- | Tag with count for queries
 data EventTagWithCount = EventTagWithCount
@@ -54,21 +54,18 @@ data EventTagWithCount = EventTagWithCount
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance EventTagWithCount)
 
---------------------------------------------------------------------------------
--- Insert Types
-
-newtype EventTagInsert = EventTagInsert
+newtype Insert = Insert
   { etiName :: Text
   }
   deriving stock (Generic, Show, Eq)
-  deriving (EncodeRow) via EventTagInsert
-  deriving (Display) via (RecordInstance EventTagInsert)
+  deriving (EncodeRow) via Insert
+  deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get all event tags
-getAllEventTags :: Hasql.Statement () [EventTagModel]
+getAllEventTags :: Hasql.Statement () [Model]
 getAllEventTags =
   interp
     False
@@ -79,8 +76,8 @@ getAllEventTags =
   |]
 
 -- | Insert a new event tag
-insertEventTag :: EventTagInsert -> Hasql.Statement () EventTagId
-insertEventTag EventTagInsert {..} =
+insertEventTag :: Insert -> Hasql.Statement () Id
+insertEventTag Insert {..} =
   getOneRow
     <$> interp
       False

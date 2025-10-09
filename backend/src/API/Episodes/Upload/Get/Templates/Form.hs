@@ -12,7 +12,8 @@ import {-# SOURCE #-} API (episodeUploadPostLink)
 import API.Episodes.Upload.Get.Templates.Fields (renderShowOption, renderUpcomingDateOption)
 import API.Episodes.Upload.Get.Templates.Scripts (renderTrackManagementScript)
 import Data.String.Interpolate (i)
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Servant.Links qualified as Links
 
@@ -25,7 +26,7 @@ episodeUploadPostUrl = Links.linkURI episodeUploadPostLink
 --------------------------------------------------------------------------------
 
 -- | Render the episode upload form
-episodeUploadForm :: [Show.ShowModel] -> [Show.UpcomingShowDate] -> Lucid.Html ()
+episodeUploadForm :: [Shows.Model] -> [ShowSchedule.UpcomingShowDate] -> Lucid.Html ()
 episodeUploadForm userShows upcomingDates = do
   Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-4xl mx-auto w-full"] $ do
     -- Form Header

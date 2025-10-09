@@ -12,9 +12,12 @@ where
 import {-# SOURCE #-} API (showsGetLink)
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text qualified as Text
-import Effects.Database.Tables.Episode qualified as Episode
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -28,7 +31,7 @@ showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
 --------------------------------------------------------------------------------
 
 -- | Render show header with info
-renderShowHeader :: Show.ShowModel -> [Episode.EpisodeModel] -> [Show.ShowHostWithUser] -> [Show.ShowScheduleModel] -> Lucid.Html ()
+renderShowHeader :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Lucid.Html ()
 renderShowHeader showModel episodes hosts schedules = do
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8"] $ do
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-4 gap-8"] $ do
@@ -54,20 +57,20 @@ renderShowHeader showModel episodes hosts schedules = do
             Lucid.span_ [Lucid.class_ "font-bold"] "Host: "
             case hosts of
               [] -> "TBD"
-              (host : otherHosts) -> do
-                let displayName = host.displayName
-                Lucid.toHtml displayName
+              (ShowHost.ShowHostWithUser {displayName = dn} : otherHosts) -> do
+                Lucid.toHtml dn
                 unless (null otherHosts) $ do
                   ", "
-                  let otherNames = map (Lucid.toHtml . (.displayName)) otherHosts
+                  let otherNames = map (\(ShowHost.ShowHostWithUser {displayName = n}) -> Lucid.toHtml n) otherHosts
                   mconcat $ map (", " <>) otherNames
             " • "
             -- Show schedule information
             Lucid.span_ [Lucid.class_ "font-bold"] "Schedule: "
             case schedules of
               [] -> "TBD"
-              (schedule : _) -> do
-                let dayName = case schedule.dayOfWeek of
+              (ShowSchedule.Model {dayOfWeek = dow, startTime = st, endTime = et} : _) -> do
+                let dayName :: Text
+                    dayName = case dow of
                       0 -> "Sunday"
                       1 -> "Monday"
                       2 -> "Tuesday"
@@ -76,9 +79,7 @@ renderShowHeader showModel episodes hosts schedules = do
                       5 -> "Friday"
                       6 -> "Saturday"
                       _ -> "Unknown"
-                    startTime = schedule.startTime
-                    endTime = schedule.endTime
-                Lucid.toHtml $ dayName <> "s " <> startTime <> " - " <> endTime
+                Lucid.toHtml $ dayName <> "s " <> st <> " - " <> et
             " • "
             case showModel.genre of
               Just genre -> Lucid.span_ [Lucid.class_ "font-bold"] "Genre: " <> Lucid.toHtml genre
@@ -112,7 +113,7 @@ renderShowHeader showModel episodes hosts schedules = do
               Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] "Duration"
 
 -- | Render breadcrumb navigation
-renderBreadcrumb :: Show.ShowModel -> Lucid.Html ()
+renderBreadcrumb :: Shows.Model -> Lucid.Html ()
 renderBreadcrumb showModel = do
   Lucid.nav_ [Lucid.class_ "bg-gray-100 px-4 py-2 border-b border-gray-300"] $ do
     Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto"] $ do

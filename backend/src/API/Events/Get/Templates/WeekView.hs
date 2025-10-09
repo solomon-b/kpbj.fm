@@ -19,7 +19,7 @@ import Data.Text qualified as Text
 import Data.Time (UTCTime, Year)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.PageView (PageView (..))
-import Effects.Database.Tables.EventTags qualified as EventTag
+import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -32,7 +32,7 @@ data WeekDay = WeekDay
   { wdDayName :: Text,
     wdDayNumber :: Int,
     wdDate :: UTCTime,
-    wdEvents :: [Events.EventModel]
+    wdEvents :: [Events.Model]
   }
 
 --------------------------------------------------------------------------------
@@ -58,7 +58,7 @@ renderWeekContent ::
   Year ->
   Int ->
   Maybe Text ->
-  [EventTag.EventTagWithCount] ->
+  [EventTags.EventTagWithCount] ->
   [WeekDay] ->
   UTCTime ->
   UTCTime ->
@@ -107,7 +107,7 @@ renderWeekDay day = do
         traverse_ renderWeekEvent (wdEvents day)
 
 -- | Render an event within a week day
-renderWeekEvent :: Events.EventModel -> Lucid.Html ()
+renderWeekEvent :: Events.Model -> Lucid.Html ()
 renderWeekEvent event = do
   Lucid.div_ [Lucid.class_ "bg-yellow-100 text-yellow-800 p-2 text-xs"] $ do
     Lucid.div_ [Lucid.class_ "font-bold"] $

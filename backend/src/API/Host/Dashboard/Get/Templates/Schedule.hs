@@ -5,11 +5,11 @@ module API.Host.Dashboard.Get.Templates.Schedule
   )
 where
 
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 
 -- | Render schedule sidebar section
-renderScheduleSection :: [Show.ShowModel] -> Lucid.Html ()
+renderScheduleSection :: [Shows.Model] -> Lucid.Html ()
 renderScheduleSection userShows = do
   Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-4"] $ do
     Lucid.h3_ [Lucid.class_ "font-bold mb-4 text-center"] "YOUR SCHEDULE"

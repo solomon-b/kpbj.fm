@@ -120,7 +120,7 @@ getEvent ::
   Bool ->
   Maybe UserMetadata.Model ->
   Text ->
-  (Events.EventModel -> m (Lucid.Html ())) ->
+  (Events.Model -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
 getEvent isHtmxRequest mUserInfo slug k =
   execQuerySpan (Events.getEventBySlug slug) >>= \case
@@ -145,7 +145,7 @@ getAuthor ::
   -- | Logged in user:
   Maybe UserMetadata.Model ->
   Text ->
-  Events.EventModel ->
+  Events.Model ->
   -- | Author of the event:
   (UserMetadata.Model -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
@@ -170,7 +170,7 @@ fetchTags ::
   ) =>
   Bool ->
   Maybe UserMetadata.Model ->
-  Events.EventModel ->
+  Events.Model ->
   UserMetadata.Model ->
   m (Lucid.Html ())
 fetchTags isHtmxRequest mUserInfo event author =

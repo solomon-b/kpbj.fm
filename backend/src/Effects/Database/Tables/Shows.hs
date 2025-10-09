@@ -3,13 +3,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Effects.Database.Tables.Show
-  ( module Effects.Database.Tables.Show,
-    module Effects.Database.Tables.ShowHost,
-    module Effects.Database.Tables.ShowSchedule,
-    module Effects.Database.Tables.HostDetails,
-  )
-where
+module Effects.Database.Tables.Shows where
 
 --------------------------------------------------------------------------------
 
@@ -20,9 +14,9 @@ import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (UTCTime)
 import Domain.Types.Genre (Genre)
 import Domain.Types.Search (Search)
-import Effects.Database.Tables.HostDetails
-import Effects.Database.Tables.ShowHost
-import Effects.Database.Tables.ShowSchedule
+import Effects.Database.Tables.HostDetails qualified as HostDetails
+import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
@@ -35,32 +29,32 @@ import Servant qualified
 --------------------------------------------------------------------------------
 -- Show Status and Frequency Types
 
-data ShowStatus = Active | Inactive
+data Status = Active | Inactive
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
 
-instance Servant.ToHttpApiData ShowStatus where
+instance Servant.ToHttpApiData Status where
   toQueryParam = \case
     Active -> "active"
     Inactive -> "inactive"
 
-instance Servant.FromHttpApiData ShowStatus where
-  parseQueryParam = maybe (Left "Invalid ShowStatus") Right . decodeShowStatus
+instance Servant.FromHttpApiData Status where
+  parseQueryParam = maybe (Left "Invalid Status") Right . decodeStatus
 
-instance Display ShowStatus where
+instance Display Status where
   displayBuilder Active = "active"
   displayBuilder Inactive = "inactive"
 
-instance DecodeValue ShowStatus where
-  decodeValue = Decoders.enum decodeShowStatus
+instance DecodeValue Status where
+  decodeValue = Decoders.enum decodeStatus
 
-decodeShowStatus :: Text -> Maybe ShowStatus
-decodeShowStatus = \case
+decodeStatus :: Text -> Maybe Status
+decodeStatus = \case
   "active" -> Just Active
   "inactive" -> Just Inactive
   _ -> Nothing
 
-instance EncodeValue ShowStatus where
+instance EncodeValue Status where
   encodeValue = Encoders.enum $ \case
     Active -> "active"
     Inactive -> "inactive"
@@ -97,9 +91,9 @@ instance EncodeValue ShowFrequency where
     OneTime -> "one-time"
 
 --------------------------------------------------------------------------------
--- ID Types
+-- Database Models
 
-newtype ShowId = ShowId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -116,18 +110,15 @@ newtype ShowId = ShowId Int64
       EncodeValue
     )
 
---------------------------------------------------------------------------------
--- Database Models
-
-data ShowModel = ShowModel
-  { id :: ShowId,
+data Model = Model
+  { id :: Id,
     title :: Text,
     slug :: Text,
     description :: Text,
     genre :: Maybe Text,
     logoUrl :: Maybe Text,
     bannerUrl :: Maybe Text,
-    status :: ShowStatus,
+    status :: Status,
     frequency :: ShowFrequency,
     durationMinutes :: Maybe Int64,
     createdAt :: UTCTime,
@@ -135,31 +126,28 @@ data ShowModel = ShowModel
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance ShowModel)
+  deriving (Display) via (RecordInstance Model)
 
---------------------------------------------------------------------------------
--- Insert Types
-
-data ShowInsert = ShowInsert
+data Insert = Insert
   { siTitle :: Text,
     siSlug :: Text,
     siDescription :: Text,
     siGenre :: Maybe Text,
     siLogoUrl :: Maybe Text,
     siBannerUrl :: Maybe Text,
-    siStatus :: ShowStatus,
+    siStatus :: Status,
     siFrequency :: ShowFrequency,
     siDurationMinutes :: Maybe Int64
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
-  deriving (Display) via (RecordInstance ShowInsert)
+  deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get all active shows ordered by title
-getActiveShows :: Hasql.Statement () [ShowModel]
+getActiveShows :: Hasql.Statement () [Model]
 getActiveShows =
   interp
     False
@@ -171,7 +159,7 @@ getActiveShows =
   |]
 
 -- | Get show by slug
-getShowBySlug :: Text -> Hasql.Statement () (Maybe ShowModel)
+getShowBySlug :: Text -> Hasql.Statement () (Maybe Model)
 getShowBySlug slug =
   interp
     False
@@ -182,7 +170,7 @@ getShowBySlug slug =
   |]
 
 -- | Get show by ID
-getShowById :: ShowId -> Hasql.Statement () (Maybe ShowModel)
+getShowById :: Id -> Hasql.Statement () (Maybe Model)
 getShowById showId =
   interp
     False
@@ -193,7 +181,7 @@ getShowById showId =
   |]
 
 -- | Get shows by status with pagination
-getShowsByStatus :: Text -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getShowsByStatus :: Text -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getShowsByStatus status limit offset =
   interp
     False
@@ -206,7 +194,7 @@ getShowsByStatus status limit offset =
   |]
 
 -- | Get all shows with pagination
-getAllShows :: Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getAllShows :: Int64 -> Int64 -> Hasql.Statement () [Model]
 getAllShows limit offset =
   interp
     False
@@ -218,7 +206,7 @@ getAllShows limit offset =
   |]
 
 -- | Get shows by genre with pagination
-getShowsByGenre :: Genre -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getShowsByGenre :: Genre -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getShowsByGenre genre limit offset =
   interp
     False
@@ -231,7 +219,7 @@ getShowsByGenre genre limit offset =
   |]
 
 -- | Get shows by genre and status with pagination
-getShowsByGenreAndStatus :: Genre -> ShowStatus -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+getShowsByGenreAndStatus :: Genre -> Status -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getShowsByGenreAndStatus genre status limit offset =
   interp
     False
@@ -244,8 +232,8 @@ getShowsByGenreAndStatus genre status limit offset =
   |]
 
 -- | Insert a new show
-insertShow :: ShowInsert -> Hasql.Statement () ShowId
-insertShow ShowInsert {..} =
+insertShow :: Insert -> Hasql.Statement () Id
+insertShow Insert {..} =
   getOneRow
     <$> interp
       False
@@ -256,8 +244,8 @@ insertShow ShowInsert {..} =
   |]
 
 -- | Update a show
-updateShow :: ShowId -> ShowInsert -> Hasql.Statement () (Maybe ShowId)
-updateShow showId ShowInsert {..} =
+updateShow :: Id -> Insert -> Hasql.Statement () (Maybe Id)
+updateShow showId Insert {..} =
   interp
     False
     [sql|
@@ -274,7 +262,7 @@ updateShow showId ShowInsert {..} =
 -- Show Host Queries (Junction table queries stay here)
 
 -- | Get shows for a user (active host assignments)
-getShowsForUser :: User.Id -> Hasql.Statement () [ShowModel]
+getShowsForUser :: User.Id -> Hasql.Statement () [Model]
 getShowsForUser userId =
   interp
     False
@@ -287,7 +275,7 @@ getShowsForUser userId =
   |]
 
 -- | Search shows by text query with pagination
-searchShows :: Search -> Int64 -> Int64 -> Hasql.Statement () [ShowModel]
+searchShows :: Search -> Int64 -> Int64 -> Hasql.Statement () [Model]
 searchShows searchTerm limit offset =
   interp
     False
@@ -308,7 +296,7 @@ searchShows searchTerm limit offset =
     searchPattern = "%" <> searchTerm <> "%"
 
 -- | Get host details for all hosts of a show (joins through show_hosts to host_details)
-getHostsForShow :: ShowId -> Hasql.Statement () [HostDetailsModel]
+getHostsForShow :: Id -> Hasql.Statement () [HostDetails.Model]
 getHostsForShow showId =
   interp
     False
@@ -324,9 +312,21 @@ getHostsForShow showId =
 -- Backward compatibility aliases
 
 -- | Alias for getSchedulesForShow (backward compatibility)
-getShowSchedules :: ShowId -> Hasql.Statement () [ShowScheduleModel]
-getShowSchedules = getSchedulesForShow
+getShowSchedules :: Id -> Hasql.Statement () [ShowSchedule.Model]
+getShowSchedules = ShowSchedule.getSchedulesForShow
 
 -- | Alias for getHostDetailsByUserId (backward compatibility)
-getHostDetails :: User.Id -> Hasql.Statement () (Maybe HostDetailsModel)
-getHostDetails = getHostDetailsByUserId
+getHostDetails :: User.Id -> Hasql.Statement () (Maybe HostDetails.Model)
+getHostDetails = HostDetails.getHostDetailsByUserId
+
+-- | Re-export isUserHostOfShow from ShowHost
+isUserHostOfShow :: User.Id -> Id -> Hasql.Statement () Bool
+isUserHostOfShow = ShowHost.isUserHostOfShow
+
+-- | Re-export getUpcomingShowDates from ShowSchedule
+getUpcomingShowDates :: Id -> Int64 -> Hasql.Statement () [ShowSchedule.UpcomingShowDate]
+getUpcomingShowDates = ShowSchedule.getUpcomingShowDates
+
+-- | Re-export getShowHostsWithUsers from ShowHost
+getShowHostsWithUsers :: Id -> Hasql.Statement () [ShowHost.ShowHostWithUser]
+getShowHostsWithUsers = ShowHost.getShowHostsWithUsers

@@ -13,8 +13,8 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.PostStatus (BlogPostStatus (..))
-import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlogTags (ShowBlogTagId, ShowBlogTagModel)
+import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneColumn (..), OneRow (..), interp, sql)
@@ -23,9 +23,9 @@ import OrphanInstances.UTCTime ()
 import Servant qualified
 
 --------------------------------------------------------------------------------
--- ID Types
+-- Database Models
 
-newtype ShowBlogPostId = ShowBlogPostId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -42,12 +42,9 @@ newtype ShowBlogPostId = ShowBlogPostId Int64
       EncodeValue
     )
 
---------------------------------------------------------------------------------
--- Database Models
-
-data ShowBlogPostModel = ShowBlogPostModel
-  { id :: ShowBlogPostId,
-    showId :: Show.ShowId,
+data Model = Model
+  { id :: Id,
+    showId :: Shows.Id,
     title :: Text,
     slug :: Text,
     content :: Text,
@@ -60,13 +57,10 @@ data ShowBlogPostModel = ShowBlogPostModel
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance ShowBlogPostModel)
+  deriving (Display) via (RecordInstance Model)
 
---------------------------------------------------------------------------------
--- Insert Types
-
-data ShowBlogPostInsert = ShowBlogPostInsert
-  { sbpiShowId :: Show.ShowId,
+data Insert = Insert
+  { sbpiId :: Shows.Id,
     sbpiTitle :: Text,
     sbpiSlug :: Text,
     sbpiContent :: Text,
@@ -76,13 +70,13 @@ data ShowBlogPostInsert = ShowBlogPostInsert
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
-  deriving (Display) via (RecordInstance ShowBlogPostInsert)
+  deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get published blog posts for a show
-getPublishedShowBlogPosts :: Show.ShowId -> Int64 -> Int64 -> Hasql.Statement () [ShowBlogPostModel]
+getPublishedShowBlogPosts :: Shows.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getPublishedShowBlogPosts showId limit offset =
   interp
     False
@@ -95,7 +89,7 @@ getPublishedShowBlogPosts showId limit offset =
   |]
 
 -- | Get show blog post by show slug and post slug
-getShowBlogPostBySlug :: Text -> Text -> Hasql.Statement () (Maybe ShowBlogPostModel)
+getShowBlogPostBySlug :: Text -> Text -> Hasql.Statement () (Maybe Model)
 getShowBlogPostBySlug showSlug postSlug =
   interp
     False
@@ -107,7 +101,7 @@ getShowBlogPostBySlug showSlug postSlug =
   |]
 
 -- | Get show blog post by ID
-getShowBlogPostById :: ShowBlogPostId -> Hasql.Statement () (Maybe ShowBlogPostModel)
+getShowBlogPostById :: Id -> Hasql.Statement () (Maybe Model)
 getShowBlogPostById postId =
   interp
     False
@@ -118,7 +112,7 @@ getShowBlogPostById postId =
   |]
 
 -- | Get show blog posts by author
-getShowBlogPostsByAuthor :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [ShowBlogPostModel]
+getShowBlogPostsByAuthor :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getShowBlogPostsByAuthor authorId limit offset =
   interp
     False
@@ -131,7 +125,7 @@ getShowBlogPostsByAuthor authorId limit offset =
   |]
 
 -- | Get recent published show blog posts across all shows
-getRecentPublishedShowBlogPosts :: Int64 -> Int64 -> Hasql.Statement () [ShowBlogPostModel]
+getRecentPublishedShowBlogPosts :: Int64 -> Int64 -> Hasql.Statement () [Model]
 getRecentPublishedShowBlogPosts limit offset =
   interp
     False
@@ -144,8 +138,8 @@ getRecentPublishedShowBlogPosts limit offset =
   |]
 
 -- | Insert a new show blog post
-insertShowBlogPost :: ShowBlogPostInsert -> Hasql.Statement () ShowBlogPostId
-insertShowBlogPost ShowBlogPostInsert {..} =
+insertShowBlogPost :: Insert -> Hasql.Statement () Id
+insertShowBlogPost Insert {..} =
   case sbpiStatus of
     Published ->
       getOneRow
@@ -153,7 +147,7 @@ insertShowBlogPost ShowBlogPostInsert {..} =
           False
           [sql|
         INSERT INTO show_blog_posts(show_id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at)
-        VALUES (#{sbpiShowId}, #{sbpiTitle}, #{sbpiSlug}, #{sbpiContent}, #{sbpiExcerpt}, #{sbpiAuthorId}, #{sbpiStatus}, NOW(), NOW(), NOW())
+        VALUES (#{sbpiId}, #{sbpiTitle}, #{sbpiSlug}, #{sbpiContent}, #{sbpiExcerpt}, #{sbpiAuthorId}, #{sbpiStatus}, NOW(), NOW(), NOW())
         RETURNING id
       |]
     _ ->
@@ -162,13 +156,13 @@ insertShowBlogPost ShowBlogPostInsert {..} =
           False
           [sql|
         INSERT INTO show_blog_posts(show_id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at)
-        VALUES (#{sbpiShowId}, #{sbpiTitle}, #{sbpiSlug}, #{sbpiContent}, #{sbpiExcerpt}, #{sbpiAuthorId}, #{sbpiStatus}, NULL, NOW(), NOW())
+        VALUES (#{sbpiId}, #{sbpiTitle}, #{sbpiSlug}, #{sbpiContent}, #{sbpiExcerpt}, #{sbpiAuthorId}, #{sbpiStatus}, NULL, NOW(), NOW())
         RETURNING id
       |]
 
 -- | Update a show blog post
-updateShowBlogPost :: ShowBlogPostId -> ShowBlogPostInsert -> Hasql.Statement () (Maybe ShowBlogPostId)
-updateShowBlogPost postId ShowBlogPostInsert {..} =
+updateShowBlogPost :: Id -> Insert -> Hasql.Statement () (Maybe Id)
+updateShowBlogPost postId Insert {..} =
   interp
     False
     [sql|
@@ -186,7 +180,7 @@ updateShowBlogPost postId ShowBlogPostInsert {..} =
   |]
 
 -- | Delete a show blog post
-deleteShowBlogPost :: ShowBlogPostId -> Hasql.Statement () (Maybe ShowBlogPostId)
+deleteShowBlogPost :: Id -> Hasql.Statement () (Maybe Id)
 deleteShowBlogPost postId =
   interp
     False
@@ -197,7 +191,7 @@ deleteShowBlogPost postId =
   |]
 
 -- | Check if user can edit show blog post (must be host of the show)
-canUserEditShowBlogPost :: User.Id -> ShowBlogPostId -> Hasql.Statement () Bool
+canUserEditShowBlogPost :: User.Id -> Id -> Hasql.Statement () Bool
 canUserEditShowBlogPost userId postId =
   let query =
         interp
@@ -215,7 +209,7 @@ canUserEditShowBlogPost userId postId =
 -- Junction Table Queries (show_blog_post_tags)
 
 -- | Get tags for a show blog post
-getTagsForShowBlogPost :: ShowBlogPostId -> Hasql.Statement () [ShowBlogTagModel]
+getTagsForShowBlogPost :: Id -> Hasql.Statement () [ShowBlogTags.Model]
 getTagsForShowBlogPost postId =
   interp
     False
@@ -228,7 +222,7 @@ getTagsForShowBlogPost postId =
   |]
 
 -- | Add tag to show blog post
-addTagToShowBlogPost :: ShowBlogPostId -> ShowBlogTagId -> Hasql.Statement () ()
+addTagToShowBlogPost :: Id -> ShowBlogTags.Id -> Hasql.Statement () ()
 addTagToShowBlogPost postId tagId =
   interp
     False
@@ -239,7 +233,7 @@ addTagToShowBlogPost postId tagId =
   |]
 
 -- | Remove tag from show blog post
-removeTagFromShowBlogPost :: ShowBlogPostId -> ShowBlogTagId -> Hasql.Statement () ()
+removeTagFromShowBlogPost :: Id -> ShowBlogTags.Id -> Hasql.Statement () ()
 removeTagFromShowBlogPost postId tagId =
   interp
     False
@@ -249,7 +243,7 @@ removeTagFromShowBlogPost postId tagId =
   |]
 
 -- | Get show blog posts with specific tag
-getShowBlogPostsByTag :: ShowBlogTagId -> Int64 -> Int64 -> Hasql.Statement () [ShowBlogPostModel]
+getShowBlogPostsByTag :: ShowBlogTags.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getShowBlogPostsByTag tagId limit offset =
   interp
     False
@@ -264,7 +258,7 @@ getShowBlogPostsByTag tagId limit offset =
 
 -- Show blog tag with count for queries
 data ShowBlogTagWithCount = ShowBlogTagWithCount
-  { sbtwcId :: ShowBlogTagId,
+  { sbtwcId :: ShowBlogTags.Id,
     sbtwcName :: Text,
     sbtwcCreatedAt :: UTCTime,
     sbtwcCount :: Int64

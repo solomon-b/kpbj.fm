@@ -10,14 +10,15 @@ where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (DayOfWeek (..), UTCTime)
-import Effects.Database.Tables.Show qualified as Show
+import Data.Time (Day, DayOfWeek (..), UTCTime)
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 
 --------------------------------------------------------------------------------
 
 -- | Render a show option for the dropdown
-renderShowOption :: Show.ShowModel -> Bool -> Lucid.Html ()
+renderShowOption :: Shows.Model -> Bool -> Lucid.Html ()
 renderShowOption s isSelected = do
   Lucid.option_
     [ Lucid.value_ (Text.pack $ Prelude.show s.id),
@@ -26,22 +27,22 @@ renderShowOption s isSelected = do
     $ Lucid.toHtml s.title
 
 -- | Render an upcoming date option for the dropdown
-renderUpcomingDateOption :: Show.UpcomingShowDate -> Lucid.Html ()
-renderUpcomingDateOption date = do
+renderUpcomingDateOption :: ShowSchedule.UpcomingShowDate -> Lucid.Html ()
+renderUpcomingDateOption (ShowSchedule.UpcomingShowDate {usdShowDate = showDate, usdDayOfWeek = dow, usdStartTime = startTime, usdEndTime = endTime}) = do
   Lucid.option_
-    [Lucid.value_ (Text.pack $ Prelude.show date.usdShowDate)]
+    [Lucid.value_ (Text.pack $ Prelude.show showDate)]
     $ Lucid.toHtml
-    $ formatUpcomingDate date
+    $ formatUpcomingDate dow showDate startTime endTime
   where
-    formatUpcomingDate :: Show.UpcomingShowDate -> Text
-    formatUpcomingDate d =
-      dayOfWeekName d.usdDayOfWeek
+    formatUpcomingDate :: DayOfWeek -> Day -> UTCTime -> UTCTime -> Text
+    formatUpcomingDate d sd st et =
+      dayOfWeekName d
         <> ", "
-        <> Text.pack (Prelude.show d.usdShowDate)
+        <> Text.pack (Prelude.show sd)
         <> " ("
-        <> formatTime d.usdStartTime
+        <> formatTime st
         <> " - "
-        <> formatTime d.usdEndTime
+        <> formatTime et
         <> ")"
 
     dayOfWeekName :: DayOfWeek -> Text
