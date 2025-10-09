@@ -19,8 +19,8 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Episode qualified as Episode
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
@@ -38,7 +38,7 @@ type Route =
   Observability.WithSpan
     "GET /episodes/:id/edit"
     ( "episodes"
-        :> Servant.Capture "id" Episode.EpisodeId
+        :> Servant.Capture "id" Episodes.Id
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -58,14 +58,14 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Episode.EpisodeId ->
+  Episodes.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer episodeId cookie (foldHxReq -> hxRequest) = do
   checkAuth hxRequest cookie $ \user userMetadata -> do
     -- Fetch the episode
-    episodeResult <- execQuerySpan (Episode.getEpisodeById episodeId)
+    episodeResult <- execQuerySpan (Episodes.getEpisodeById episodeId)
     case episodeResult of
       Left _err -> do
         renderTemplate hxRequest (Just userMetadata) notFoundTemplate
@@ -76,7 +76,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) = do
         if episode.createdBy == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
           then do
             -- Fetch the show for this episode
-            showResult <- execQuerySpan (Show.getShowById episode.showId)
+            showResult <- execQuerySpan (Shows.getShowById episode.showId)
             case showResult of
               Left _err ->
                 renderTemplate hxRequest (Just userMetadata) notFoundTemplate

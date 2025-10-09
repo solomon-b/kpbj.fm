@@ -16,9 +16,9 @@ import OrphanInstances.UTCTime ()
 import Servant qualified
 
 --------------------------------------------------------------------------------
--- Blog Tag Models
+-- Database Model
 
-newtype BlogTagId = BlogTagId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -36,18 +36,18 @@ newtype BlogTagId = BlogTagId Int64
     )
 
 -- | Database Model for the @blog_tags@ table
-data BlogTagModel = BlogTagModel
-  { btmId :: BlogTagId,
+data Model = Model
+  { btmId :: Id,
     btmName :: Text,
     btmCreatedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance BlogTagModel)
+  deriving (Display) via (RecordInstance Model)
 
 -- | Tag with count for queries (flattened for easier decoding)
 data BlogTagWithCount = BlogTagWithCount
-  { btwcId :: BlogTagId,
+  { btwcId :: Id,
     btwcName :: Text,
     btwcCreatedAt :: UTCTime,
     btwcCount :: Int64
@@ -68,16 +68,16 @@ data CategoryWithCount = CategoryWithCount
 --------------------------------------------------------------------------------
 -- Insert Types
 
-newtype BlogTagInsert = BlogTagInsert {btiName :: Text}
+newtype Insert = Insert {btiName :: Text}
   deriving stock (Generic, Show, Eq)
-  deriving (EncodeRow) via BlogTagInsert
-  deriving (Display) via (RecordInstance BlogTagInsert)
+  deriving (EncodeRow) via Insert
+  deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get all tags
-getAllTags :: Hasql.Statement () [BlogTagModel]
+getAllTags :: Hasql.Statement () [Model]
 getAllTags =
   interp
     False
@@ -88,7 +88,7 @@ getAllTags =
   |]
 
 -- | Get tag by name
-getTagByName :: Text -> Hasql.Statement () (Maybe BlogTagModel)
+getTagByName :: Text -> Hasql.Statement () (Maybe Model)
 getTagByName tagName =
   interp
     False
@@ -99,8 +99,8 @@ getTagByName tagName =
   |]
 
 -- | Insert a new tag
-insertTag :: BlogTagInsert -> Hasql.Statement () BlogTagId
-insertTag BlogTagInsert {..} =
+insertTag :: Insert -> Hasql.Statement () Id
+insertTag Insert {..} =
   getOneRow
     <$> interp
       False

@@ -11,8 +11,8 @@ where
 import {-# SOURCE #-} API (hostDashboardGetLink)
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
-import Effects.Database.Tables.Episode qualified as Episode
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -27,7 +27,7 @@ hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
 --------------------------------------------------------------------------------
 
 -- | Episode edit template
-template :: Episode.EpisodeModel -> Show.ShowModel -> UserMetadata.Model -> Lucid.Html ()
+template :: Episodes.Model -> Shows.Model -> UserMetadata.Model -> Lucid.Html ()
 template episode s userMeta = do
   let episodeId = episode.id
   -- Form Header

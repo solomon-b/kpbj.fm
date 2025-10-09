@@ -21,7 +21,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Episode qualified as Episode
+import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
@@ -172,7 +172,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
       -- Fetch the episode to verify ownership
-      episodeResult <- execQuerySpan (Episode.getEpisodeById (Episode.EpisodeId episodeId))
+      episodeResult <- execQuerySpan (Episodes.getEpisodeById (Episodes.Id episodeId))
       case episodeResult of
         Left _err -> do
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
@@ -188,7 +188,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
                     Just "" -> Nothing
                     Just numStr -> case Text.Read.decimal numStr of
                       Left _ -> Nothing
-                      Right (num, _) -> Just (Episode.EpisodeNumber num)
+                      Right (num, _) -> Just (Episodes.EpisodeNumber num)
 
                   newSeasonNumber = case eefSeasonNumber editForm of
                     Nothing -> episode.seasonNumber
@@ -203,7 +203,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
                     Just desc -> Just desc
 
                   updateData =
-                    Episode.EpisodeUpdate
+                    Episodes.Update
                       { euId = episode.id,
                         euTitle = eefTitle editForm,
                         euDescription = newDescription,
@@ -212,7 +212,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
                       }
 
               -- Update the episode
-              updateResult <- execQuerySpan (Episode.updateEpisode updateData)
+              updateResult <- execQuerySpan (Episodes.updateEpisode updateData)
               case updateResult of
                 Left _err -> do
                   Log.logInfo "Failed to update episode" episodeId

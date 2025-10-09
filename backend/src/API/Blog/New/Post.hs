@@ -22,8 +22,8 @@ import Data.Text qualified as Text
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.BlogPosts qualified as Blog
-import Effects.Database.Tables.BlogTags qualified as BlogTag
+import Effects.Database.Tables.BlogPosts qualified as BlogPosts
+import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
@@ -69,23 +69,23 @@ type Route =
 --------------------------------------------------------------------------------
 
 -- | Success template after blog creation
-successTemplate :: Blog.BlogPostModel -> Lucid.Html ()
+successTemplate :: BlogPosts.Model -> Lucid.Html ()
 successTemplate post = do
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Blog Post Created Successfully!"
     Lucid.p_ [Lucid.class_ "mb-6"] $ do
       "Your post \""
-      Lucid.strong_ $ Lucid.toHtml (Blog.bpmTitle post)
+      Lucid.strong_ $ Lucid.toHtml (BlogPosts.bpmTitle post)
       "\" has been "
-      case Blog.bpmStatus post of
+      case BlogPosts.bpmStatus post of
         Published -> "published and is now live."
         Draft -> "saved as a draft."
         Archived -> "archived."
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogPostGetUrl (Blog.bpmSlug post)}|],
-          hxGet_ [i|/#{blogPostGetUrl (Blog.bpmSlug post)}|],
+        [ Lucid.href_ [i|/#{blogPostGetUrl (BlogPosts.bpmSlug post)}|],
+          hxGet_ [i|/#{blogPostGetUrl (BlogPosts.bpmSlug post)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
@@ -212,7 +212,7 @@ parseTags tagText =
 --------------------------------------------------------------------------------
 
 -- | Validate and convert form data to blog post insert data
-validateNewBlogPost :: NewBlogPostForm -> User.Id -> Either Text Blog.BlogPostInsert
+validateNewBlogPost :: NewBlogPostForm -> User.Id -> Either Text BlogPosts.Insert
 validateNewBlogPost form authorId = do
   when (Text.null (nbpfTitle form)) (Left "Title is required")
   when (Text.null (nbpfContent form)) (Left "Content is required")
@@ -221,14 +221,14 @@ validateNewBlogPost form authorId = do
       slug = mkSlug (nbpfTitle form)
 
   Right $
-    Blog.BlogPostInsert
-      { Blog.bpiTitle = nbpfTitle form,
-        Blog.bpiSlug = slug,
-        Blog.bpiContent = nbpfContent form,
-        Blog.bpiExcerpt = nbpfExcerpt form,
-        Blog.bpiAuthorId = authorId,
-        Blog.bpiCategory = nbpfCategory form,
-        Blog.bpiStatus = status
+    BlogPosts.Insert
+      { BlogPosts.bpiTitle = nbpfTitle form,
+        BlogPosts.bpiSlug = slug,
+        BlogPosts.bpiContent = nbpfContent form,
+        BlogPosts.bpiExcerpt = nbpfExcerpt form,
+        BlogPosts.bpiAuthorId = authorId,
+        BlogPosts.bpiCategory = nbpfCategory form,
+        BlogPosts.bpiStatus = status
       }
 
 -- | Generate URL-friendly slug from title text
@@ -258,7 +258,7 @@ createPostTags ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  Blog.BlogPostId ->
+  BlogPosts.Id ->
   NewBlogPostForm ->
   m ()
 createPostTags postId form = do
@@ -277,20 +277,20 @@ createOrAssociateTag ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  Blog.BlogPostId ->
+  BlogPosts.Id ->
   Text ->
   m ()
 createOrAssociateTag postId tagName =
-  execQuerySpan (BlogTag.getTagByName tagName) >>= \case
+  execQuerySpan (BlogTags.getTagByName tagName) >>= \case
     Right (Just existingTag) -> do
       -- If tag exists, associate it
-      void $ execQuerySpan (Blog.addTagToPost postId (BlogTag.btmId existingTag))
+      void $ execQuerySpan (BlogPosts.addTagToPost postId (BlogTags.btmId existingTag))
     _ -> do
       -- otherwise, create new tag and associate it
-      tagInsertResult <- execQuerySpan (BlogTag.insertTag (BlogTag.BlogTagInsert tagName))
+      tagInsertResult <- execQuerySpan (BlogTags.insertTag (BlogTags.Insert tagName))
       case tagInsertResult of
         Right newTagId -> do
-          void $ execQuerySpan (Blog.addTagToPost postId newTagId)
+          void $ execQuerySpan (BlogPosts.addTagToPost postId newTagId)
         Left dbError -> do
           Log.logInfo ("Database error creating tag: " <> Text.pack (show dbError)) ()
           pure ()
@@ -308,19 +308,19 @@ handlePostCreation ::
   ) =>
   Bool ->
   UserMetadata.Model ->
-  Blog.BlogPostInsert ->
+  BlogPosts.Insert ->
   NewBlogPostForm ->
   m (Lucid.Html ())
 handlePostCreation isHtmxRequest userMetadata blogPostData form = do
-  execQuerySpan (Blog.insertBlogPost blogPostData) >>= \case
+  execQuerySpan (BlogPosts.insertBlogPost blogPostData) >>= \case
     Left dbError -> do
       Log.logInfo ("Database error creating blog post: " <> Text.pack (show dbError)) ()
       renderWithUserAuth isHtmxRequest userMetadata (errorTemplate "Database error occurred. Please try again.")
     Right postId -> do
-      execQuerySpan (Blog.getBlogPostById postId) >>= \case
+      execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
         Right (Just createdPost) -> do
           createPostTags postId form
-          Log.logInfo ("Successfully created blog post: " <> Blog.bpmTitle createdPost) ()
+          Log.logInfo ("Successfully created blog post: " <> BlogPosts.bpmTitle createdPost) ()
           renderWithUserAuth isHtmxRequest userMetadata (successTemplate createdPost)
         _ -> do
           Log.logInfo "Created blog post but failed to retrieve it" ()

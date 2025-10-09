@@ -12,7 +12,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (MonthOfYear, UTCTime, Year)
-import Effects.Database.Tables.EventTags (EventTagId, EventTagModel)
+import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.Generics
@@ -26,40 +26,40 @@ import Servant qualified
 --------------------------------------------------------------------------------
 -- Event Status Type
 
-data EventStatus = Draft | Published
+data Status = Draft | Published
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
 
-instance Display EventStatus where
+instance Display Status where
   displayBuilder Draft = "draft"
   displayBuilder Published = "published"
 
-instance DecodeValue EventStatus where
-  decodeValue = Decoders.enum decodeEventStatus
+instance DecodeValue Status where
+  decodeValue = Decoders.enum decodeStatus
 
-decodeEventStatus :: Text -> Maybe EventStatus
-decodeEventStatus = \case
+decodeStatus :: Text -> Maybe Status
+decodeStatus = \case
   "draft" -> Just Draft
   "published" -> Just Published
   _ -> Nothing
 
-instance EncodeValue EventStatus where
+instance EncodeValue Status where
   encodeValue = Encoders.enum $ \case
     Draft -> "draft"
     Published -> "published"
 
-instance Servant.FromHttpApiData EventStatus where
+instance Servant.FromHttpApiData Status where
   parseUrlPiece "draft" = Right Draft
   parseUrlPiece "published" = Right Published
-  parseUrlPiece invalid = Left $ "Invalid EventStatus: " <> invalid
+  parseUrlPiece invalid = Left $ "Invalid Status: " <> invalid
 
-instance Servant.ToHttpApiData EventStatus where
+instance Servant.ToHttpApiData Status where
   toUrlPiece = display
 
 --------------------------------------------------------------------------------
--- Event Models
+-- Database Model
 
-newtype EventId = EventId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -77,8 +77,8 @@ newtype EventId = EventId Int64
     )
 
 -- | Database Model for the @events@ table
-data EventModel = EventModel
-  { emId :: EventId,
+data Model = Model
+  { emId :: Id,
     emTitle :: Text,
     emSlug :: Text,
     emDescription :: Text,
@@ -86,18 +86,18 @@ data EventModel = EventModel
     emEndsAt :: UTCTime,
     emLocationName :: Text,
     emLocationAddress :: Text,
-    emStatus :: EventStatus,
+    emStatus :: Status,
     emAuthorId :: User.Id,
     emCreatedAt :: UTCTime,
     emUpdatedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance EventModel)
+  deriving (Display) via (RecordInstance Model)
 
 -- | Event with author information
 data EventWithAuthor = EventWithAuthor
-  { ewaEvent :: EventModel,
+  { ewaEvent :: Model,
     ewaAuthor :: UserMetadata.Model
   }
   deriving stock (Show, Generic, Eq)
@@ -105,25 +105,22 @@ data EventWithAuthor = EventWithAuthor
 
 -- | Event with tags
 data EventWithTags = EventWithTags
-  { ewtEvent :: EventModel,
-    ewtTags :: [EventTagModel]
+  { ewtEvent :: Model,
+    ewtTags :: [EventTags.Model]
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventWithTags)
 
 -- | Event with complete information (author + tags)
 data EventComplete = EventComplete
-  { ecEvent :: EventModel,
+  { ecEvent :: Model,
     ecAuthor :: UserMetadata.Model,
-    ecTags :: [EventTagModel]
+    ecTags :: [EventTags.Model]
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventComplete)
 
---------------------------------------------------------------------------------
--- Insert Types
-
-data EventInsert = EventInsert
+data Insert = Insert
   { eiTitle :: Text,
     eiSlug :: Text,
     eiDescription :: Text,
@@ -131,18 +128,18 @@ data EventInsert = EventInsert
     eiEndsAt :: UTCTime,
     eiLocationName :: Text,
     eiLocationAddress :: Text,
-    eiStatus :: EventStatus,
+    eiStatus :: Status,
     eiAuthorId :: User.Id
   }
   deriving stock (Generic, Show, Eq)
-  deriving (EncodeRow) via EventInsert
-  deriving (Display) via (RecordInstance EventInsert)
+  deriving (EncodeRow) via Insert
+  deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get published events, optionally filtered by tag
-getPublishedEvents :: Maybe Text -> Int64 -> Int64 -> Hasql.Statement () [EventModel]
+getPublishedEvents :: Maybe Text -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getPublishedEvents maybeTagName limit offset =
   interp
     False
@@ -158,7 +155,7 @@ getPublishedEvents maybeTagName limit offset =
   |]
 
 -- | Get event by slug
-getEventBySlug :: Text -> Hasql.Statement () (Maybe EventModel)
+getEventBySlug :: Text -> Hasql.Statement () (Maybe Model)
 getEventBySlug slug =
   interp
     False
@@ -169,7 +166,7 @@ getEventBySlug slug =
   |]
 
 -- | Get event by ID
-getEventById :: EventId -> Hasql.Statement () (Maybe EventModel)
+getEventById :: Id -> Hasql.Statement () (Maybe Model)
 getEventById eventId =
   interp
     False
@@ -180,7 +177,7 @@ getEventById eventId =
   |]
 
 -- | Get events by author
-getEventsByAuthor :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [EventModel]
+getEventsByAuthor :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getEventsByAuthor authorId limit offset =
   interp
     False
@@ -193,8 +190,8 @@ getEventsByAuthor authorId limit offset =
   |]
 
 -- | Insert a new event
-insertEvent :: EventInsert -> Hasql.Statement () EventId
-insertEvent EventInsert {..} =
+insertEvent :: Insert -> Hasql.Statement () Id
+insertEvent Insert {..} =
   getOneRow
     <$> interp
       False
@@ -205,8 +202,8 @@ insertEvent EventInsert {..} =
   |]
 
 -- | Update an event
-updateEvent :: EventId -> EventInsert -> Hasql.Statement () (Maybe EventId)
-updateEvent eventId EventInsert {..} =
+updateEvent :: Id -> Insert -> Hasql.Statement () (Maybe Id)
+updateEvent eventId Insert {..} =
   interp
     False
     [sql|
@@ -219,7 +216,7 @@ updateEvent eventId EventInsert {..} =
   |]
 
 -- | Delete an event
-deleteEvent :: EventId -> Hasql.Statement () (Maybe EventId)
+deleteEvent :: Id -> Hasql.Statement () (Maybe Id)
 deleteEvent eventId =
   interp
     False
@@ -230,7 +227,7 @@ deleteEvent eventId =
   |]
 
 -- | Get events for a specific month and year, optionally filtered by tag
-getEventsForMonth :: Maybe Text -> Year -> MonthOfYear -> Hasql.Statement () [EventModel]
+getEventsForMonth :: Maybe Text -> Year -> MonthOfYear -> Hasql.Statement () [Model]
 getEventsForMonth maybeTagName year month =
   interp
     False
@@ -247,7 +244,7 @@ getEventsForMonth maybeTagName year month =
   |]
 
 -- | Get events for a specific week (ISO week number), optionally filtered by tag
-getEventsForWeek :: Maybe Text -> Year -> Int -> Hasql.Statement () [EventModel]
+getEventsForWeek :: Maybe Text -> Year -> Int -> Hasql.Statement () [Model]
 getEventsForWeek maybeTagName year weekNum =
   interp
     False
@@ -267,7 +264,7 @@ getEventsForWeek maybeTagName year weekNum =
 -- Junction Table Queries (event_tag_assignments)
 
 -- | Get tags for a specific event
-getEventTags :: EventId -> Hasql.Statement () [EventTagModel]
+getEventTags :: Id -> Hasql.Statement () [EventTags.Model]
 getEventTags eventId =
   interp
     False
@@ -280,7 +277,7 @@ getEventTags eventId =
   |]
 
 -- | Assign a tag to an event
-assignTagToEvent :: EventId -> EventTagId -> Hasql.Statement () ()
+assignTagToEvent :: Id -> EventTags.Id -> Hasql.Statement () ()
 assignTagToEvent eventId tagId =
   interp
     False
@@ -291,7 +288,7 @@ assignTagToEvent eventId tagId =
   |]
 
 -- | Remove a tag from an event
-removeTagFromEvent :: EventId -> EventTagId -> Hasql.Statement () ()
+removeTagFromEvent :: Id -> EventTags.Id -> Hasql.Statement () ()
 removeTagFromEvent eventId tagId =
   interp
     False

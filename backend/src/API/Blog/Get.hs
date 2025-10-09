@@ -17,8 +17,8 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.BlogPosts qualified as Blog
-import Effects.Database.Tables.BlogTags qualified as BlogTag
+import Effects.Database.Tables.BlogPosts qualified as BlogPosts
+import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
@@ -99,8 +99,8 @@ handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
         _ -> pure Nothing
 
   -- Get sidebar data
-  tagsResult <- execQuerySpan BlogTag.getTagsWithCounts
-  categoriesResult <- execQuerySpan BlogTag.getCategoriesWithCounts
+  tagsResult <- execQuerySpan BlogTags.getTagsWithCounts
+  categoriesResult <- execQuerySpan BlogTags.getCategoriesWithCounts
 
   let tagsWithCounts = fromRight [] tagsResult
       categoriesWithCounts = fromRight [] categoriesResult
@@ -108,17 +108,17 @@ handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
   -- Get blog posts based on filters (category or tag)
   blogPostsResult <- case (maybeCategory, maybeTag) of
     (Just category, _) ->
-      execQuerySpan (Blog.getBlogPostsByCategory category limit offset)
+      execQuerySpan (BlogPosts.getBlogPostsByCategory category limit offset)
     (_, Just tagName) ->
-      execQuerySpan (BlogTag.getTagByName tagName) >>= \case
+      execQuerySpan (BlogTags.getTagByName tagName) >>= \case
         Left err ->
           pure (Left err)
         Right Nothing ->
           pure (Right [])
         Right (Just tag) ->
-          execQuerySpan (Blog.getPostsByTag (BlogTag.btmId tag) limit offset)
+          execQuerySpan (BlogPosts.getPostsByTag (BlogTags.btmId tag) limit offset)
     (Nothing, Nothing) ->
-      execQuerySpan (Blog.getPublishedBlogPosts limit offset)
+      execQuerySpan (BlogPosts.getPublishedBlogPosts limit offset)
   case blogPostsResult of
     Left _err -> do
       Log.logInfo "Failed to fetch blog posts from database" ()

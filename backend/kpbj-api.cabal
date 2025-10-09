@@ -156,7 +156,6 @@ library
     Component.Frame
     Domain.Types.PostStatus
     Domain.Types.Cookie
-    Domain.Types.Episode
     Domain.Types.FileStorage
     Domain.Types.FileUpload
     Domain.Types.Genre
@@ -166,12 +165,12 @@ library
     Domain.Types.Search
     Effects.Database.Tables.BlogPosts
     Effects.Database.Tables.BlogTags
-    Effects.Database.Tables.Episode
+    Effects.Database.Tables.Episodes
     Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
     Effects.Database.Tables.EventTags
     Effects.Database.Tables.HostDetails
-    Effects.Database.Tables.Show
+    Effects.Database.Tables.Shows
     Effects.Database.Tables.ShowBlogPosts
     Effects.Database.Tables.ShowBlogTags
     Effects.Database.Tables.ShowHost

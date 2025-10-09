@@ -16,7 +16,7 @@ import Data.Has (Has)
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -70,7 +70,7 @@ handler _tracer cookie = do
           Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You must be logged in to upload episodes."
           Lucid.a_ [Lucid.href_ "/user/login", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Login"
     Just (user, userMetadata) -> do
-      showsResult <- execQuerySpan (Show.getShowsForUser user.mId)
+      showsResult <- execQuerySpan (Shows.getShowsForUser user.mId)
       case showsResult of
         Left _err -> do
           Log.logInfo "Failed to fetch user's shows" ()
@@ -84,7 +84,7 @@ handler _tracer cookie = do
           upcomingDates <- case userShows of
             [] -> pure []
             (primaryShow : _) -> do
-              datesResult <- execQuerySpan (Show.getUpcomingShowDates primaryShow.id 4)
+              datesResult <- execQuerySpan (Shows.getUpcomingShowDates primaryShow.id 4)
               case datesResult of
                 Left _err -> do
                   Log.logInfo "Failed to fetch upcoming show dates" primaryShow.id

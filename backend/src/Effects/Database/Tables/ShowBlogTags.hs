@@ -16,9 +16,9 @@ import OrphanInstances.UTCTime ()
 import Servant qualified
 
 --------------------------------------------------------------------------------
--- ID Types
+-- Database Model
 
-newtype ShowBlogTagId = ShowBlogTagId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -35,31 +35,25 @@ newtype ShowBlogTagId = ShowBlogTagId Int64
       EncodeValue
     )
 
---------------------------------------------------------------------------------
--- Database Models
-
-data ShowBlogTagModel = ShowBlogTagModel
-  { sbtmId :: ShowBlogTagId,
+data Model = Model
+  { sbtmId :: Id,
     sbtmName :: Text,
     sbtmCreatedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance ShowBlogTagModel)
+  deriving (Display) via (RecordInstance Model)
 
---------------------------------------------------------------------------------
--- Insert Types
-
-newtype ShowBlogTagInsert = ShowBlogTagInsert {sbtiName :: Text}
+newtype Insert = Insert {sbtiName :: Text}
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
-  deriving (Display) via (RecordInstance ShowBlogTagInsert)
+  deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get all show blog tags
-getAllShowBlogTags :: Hasql.Statement () [ShowBlogTagModel]
+getAllShowBlogTags :: Hasql.Statement () [Model]
 getAllShowBlogTags =
   interp
     False
@@ -70,7 +64,7 @@ getAllShowBlogTags =
   |]
 
 -- | Get show blog tag by name
-getShowBlogTagByName :: Text -> Hasql.Statement () (Maybe ShowBlogTagModel)
+getShowBlogTagByName :: Text -> Hasql.Statement () (Maybe Model)
 getShowBlogTagByName tagName =
   interp
     False
@@ -81,8 +75,8 @@ getShowBlogTagByName tagName =
   |]
 
 -- | Insert a new show blog tag
-insertShowBlogTag :: ShowBlogTagInsert -> Hasql.Statement () ShowBlogTagId
-insertShowBlogTag ShowBlogTagInsert {..} =
+insertShowBlogTag :: Insert -> Hasql.Statement () Id
+insertShowBlogTag Insert {..} =
   getOneRow
     <$> interp
       False

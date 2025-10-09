@@ -9,13 +9,13 @@ where
 import {-# SOURCE #-} API (episodeEditGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
-import Effects.Database.Tables.Episode qualified as Episode
+import Effects.Database.Tables.Episodes qualified as Episodes
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 -- | Render individual episode card
-renderEpisodeCard :: Episode.EpisodeModel -> Lucid.Html ()
+renderEpisodeCard :: Episodes.Model -> Lucid.Html ()
 renderEpisodeCard episode = do
   Lucid.div_ [Lucid.class_ "border border-gray-300 p-4"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-start mb-2"] $ do

@@ -11,7 +11,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, displayBuilder)
 import Data.Time (Day, DayOfWeek, UTCTime)
-import {-# SOURCE #-} Effects.Database.Tables.Show (ShowId)
+import {-# SOURCE #-} Effects.Database.Tables.Shows qualified as Shows
 import GHC.Generics
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
@@ -19,9 +19,9 @@ import OrphanInstances.UTCTime ()
 import Servant qualified
 
 --------------------------------------------------------------------------------
--- Show Schedule Model
+-- Database Model
 
-newtype ShowScheduleId = ShowScheduleId Int64
+newtype Id = Id Int64
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
   deriving newtype
@@ -38,9 +38,9 @@ newtype ShowScheduleId = ShowScheduleId Int64
       EncodeValue
     )
 
-data ShowScheduleModel = ShowScheduleModel
-  { id :: ShowScheduleId,
-    showId :: ShowId,
+data Model = Model
+  { id :: Id,
+    showId :: Id,
     dayOfWeek :: Int64,
     startTime :: Text,
     endTime :: Text,
@@ -53,11 +53,11 @@ data ShowScheduleModel = ShowScheduleModel
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
 
-instance Display ShowScheduleModel where
+instance Display Model where
   displayBuilder _ = "ShowScheduleModel"
 
-data ShowScheduleInsert = ShowScheduleInsert
-  { ssiShowId :: ShowId,
+data Insert = Insert
+  { ssiId :: Id,
     ssiDayOfWeek :: Int64,
     ssiStartTime :: Text,
     ssiEndTime :: Text,
@@ -71,7 +71,7 @@ data ShowScheduleInsert = ShowScheduleInsert
 
 -- | Data type to represent an upcoming show date (with proper DayOfWeek type)
 data UpcomingShowDate = UpcomingShowDate
-  { usdShowId :: ShowId,
+  { usdId :: Shows.Id,
     usdShowDate :: Day,
     usdDayOfWeek :: DayOfWeek,
     usdStartTime :: UTCTime,
@@ -84,10 +84,10 @@ instance Display UpcomingShowDate where
   displayBuilder _ = "UpcomingShowDate"
 
 -- | Convert from database row to public type
-fromUpcomingShowDateRow :: (ShowId, Day, Int64, UTCTime, UTCTime) -> UpcomingShowDate
+fromUpcomingShowDateRow :: (Shows.Id, Day, Int64, UTCTime, UTCTime) -> UpcomingShowDate
 fromUpcomingShowDateRow (showId, showDate, dayOfWeek, startTime, endTime) =
   UpcomingShowDate
-    { usdShowId = showId,
+    { usdId = showId,
       usdShowDate = showDate,
       usdDayOfWeek = toEnum (fromIntegral dayOfWeek),
       usdStartTime = startTime,
@@ -98,7 +98,7 @@ fromUpcomingShowDateRow (showId, showDate, dayOfWeek, startTime, endTime) =
 -- Database Queries
 
 -- | Get schedules for a show
-getSchedulesForShow :: ShowId -> Hasql.Statement () [ShowScheduleModel]
+getSchedulesForShow :: Shows.Id -> Hasql.Statement () [Model]
 getSchedulesForShow showId =
   interp
     False
@@ -111,7 +111,7 @@ getSchedulesForShow showId =
   |]
 
 -- | Get current weekly schedule (all active shows) - just schedules
-getCurrentWeeklySchedule :: Hasql.Statement () [ShowScheduleModel]
+getCurrentWeeklySchedule :: Hasql.Statement () [Model]
 getCurrentWeeklySchedule =
   interp
     False
@@ -125,25 +125,25 @@ getCurrentWeeklySchedule =
   |]
 
 -- | Insert a new show schedule
-insertShowSchedule :: ShowScheduleInsert -> Hasql.Statement () ShowScheduleId
-insertShowSchedule ShowScheduleInsert {..} =
+insertShowSchedule :: Insert -> Hasql.Statement () Id
+insertShowSchedule Insert {..} =
   getOneRow
     <$> interp
       False
       [sql|
     INSERT INTO show_schedules(show_id, day_of_week, start_time, end_time, timezone, is_active, effective_from, effective_until, created_at)
-    VALUES (#{ssiShowId}, #{ssiDayOfWeek}, #{ssiStartTime}, #{ssiEndTime}, #{ssiTimezone}, #{ssiIsActive}, #{ssiEffectiveFrom}, #{ssiEffectiveUntil}, NOW())
+    VALUES (#{ssiId}, #{ssiDayOfWeek}, #{ssiStartTime}, #{ssiEndTime}, #{ssiTimezone}, #{ssiIsActive}, #{ssiEffectiveFrom}, #{ssiEffectiveUntil}, NOW())
     RETURNING id
   |]
 
 -- | Update show schedule
-updateShowSchedule :: ShowScheduleId -> ShowScheduleInsert -> Hasql.Statement () (Maybe ShowScheduleId)
-updateShowSchedule scheduleId ShowScheduleInsert {..} =
+updateShowSchedule :: Id -> Insert -> Hasql.Statement () (Maybe Id)
+updateShowSchedule scheduleId Insert {..} =
   interp
     False
     [sql|
     UPDATE show_schedules
-    SET show_id = #{ssiShowId}, day_of_week = #{ssiDayOfWeek}, start_time = #{ssiStartTime},
+    SET show_id = #{ssiId}, day_of_week = #{ssiDayOfWeek}, start_time = #{ssiStartTime},
         end_time = #{ssiEndTime}, timezone = #{ssiTimezone}, is_active = #{ssiIsActive},
         effective_from = #{ssiEffectiveFrom}, effective_until = #{ssiEffectiveUntil}
     WHERE id = #{scheduleId}
@@ -151,7 +151,7 @@ updateShowSchedule scheduleId ShowScheduleInsert {..} =
   |]
 
 -- | Deactivate show schedule
-deleteShowSchedule :: ShowScheduleId -> Hasql.Statement () (Maybe ShowScheduleId)
+deleteShowSchedule :: Id -> Hasql.Statement () (Maybe Id)
 deleteShowSchedule scheduleId =
   interp
     False
@@ -164,7 +164,7 @@ deleteShowSchedule scheduleId =
 
 -- | Get the next N upcoming scheduled dates for a specific show
 -- Starting from today's date, calculates the next occurrences of the show based on its schedule
-getUpcomingShowDates :: ShowId -> Int64 -> Hasql.Statement () [UpcomingShowDate]
+getUpcomingShowDates :: Shows.Id -> Int64 -> Hasql.Statement () [UpcomingShowDate]
 getUpcomingShowDates showId limit =
   fmap fromUpcomingShowDateRow
     <$> interp

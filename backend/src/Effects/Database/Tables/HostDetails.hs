@@ -13,15 +13,33 @@ import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
-import Hasql.Interpolate (DecodeRow, interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue, EncodeValue, interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.UTCTime ()
+import Servant qualified
 
 --------------------------------------------------------------------------------
--- Host Details Model
+-- Database Model
 
-data HostDetailsModel = HostDetailsModel
-  { id :: Int64,
+newtype Id = Id Int64
+  deriving stock (Generic)
+  deriving anyclass (DecodeRow)
+  deriving newtype
+    ( Show,
+      Eq,
+      Ord,
+      Num,
+      Servant.FromHttpApiData,
+      Servant.ToHttpApiData,
+      ToJSON,
+      FromJSON,
+      Display,
+      DecodeValue,
+      EncodeValue
+    )
+
+data Model = Model
+  { id :: Id,
     userId :: User.Id,
     bio :: Maybe Text,
     websiteUrl :: Maybe Text,
@@ -33,14 +51,14 @@ data HostDetailsModel = HostDetailsModel
     updatedAt :: UTCTime
   }
   deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance HostDetailsModel)
+  deriving (Display) via (RecordInstance Model)
   deriving anyclass (DecodeRow, FromJSON, ToJSON)
 
 --------------------------------------------------------------------------------
 -- Database Queries
 
 -- | Get host details for a user
-getHostDetailsByUserId :: User.Id -> Hasql.Statement () (Maybe HostDetailsModel)
+getHostDetailsByUserId :: User.Id -> Hasql.Statement () (Maybe Model)
 getHostDetailsByUserId userId =
   interp
     False

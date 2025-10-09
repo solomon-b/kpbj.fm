@@ -14,9 +14,9 @@ import Data.Has (Has)
 import Data.Text (Text)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Episode qualified as Episode
-import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
@@ -80,19 +80,19 @@ handler _tracer cookie hxRequest = do
         Log.logInfo "Authorized user accessing host dashboard" userMetadata.mDisplayName
 
         -- Fetch user's shows
-        userShows <- fromRightM (\_ -> pure []) $ execQuerySpan (Show.getShowsForUser (User.mId user))
+        userShows <- fromRightM (\_ -> pure []) $ execQuerySpan (Shows.getShowsForUser (User.mId user))
 
         -- Fetch recent episodes for user's shows
         recentEpisodes <- case userShows of
           [] -> pure []
           (primaryShow : _) -> do
-            episodesResult <- execQuerySpan (Episode.getEpisodesByShowId primaryShow.id)
+            episodesResult <- execQuerySpan (Episodes.getEpisodesById primaryShow.id)
             case episodesResult of
               Left _err -> pure []
               Right episodes -> pure episodes
 
         -- Fetch recent blog posts by this user
-        blogPostsResult <- execQuerySpan (ShowBlog.getShowBlogPostsByAuthor (User.mId user) 10 0)
+        blogPostsResult <- execQuerySpan (ShowBlogPosts.getShowBlogPostsByAuthor (User.mId user) 10 0)
         blogPosts <- case blogPostsResult of
           Left _err -> pure []
           Right posts -> pure posts

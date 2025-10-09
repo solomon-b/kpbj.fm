@@ -12,16 +12,16 @@ import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeCard)
 import API.Host.Dashboard.Get.Templates.Schedule (renderScheduleSection)
 import API.Host.Dashboard.Get.Templates.Stats (renderStatsSection)
 import Data.String.Interpolate (i)
-import Effects.Database.Tables.Episode qualified as Episode
-import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 -- | Host Dashboard template
-template :: UserMetadata.Model -> [Show.ShowModel] -> [Episode.EpisodeModel] -> [ShowBlog.ShowBlogPostModel] -> Lucid.Html ()
+template :: UserMetadata.Model -> [Shows.Model] -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
 template userMeta userShows recentEpisodes blogPosts = do
   -- Dashboard Header
   Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do

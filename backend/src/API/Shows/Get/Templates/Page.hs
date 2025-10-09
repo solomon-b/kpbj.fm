@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module API.Shows.Get.Templates.Page
   ( template,
     renderFilters,
@@ -14,11 +12,11 @@ import Data.Text.Display (display)
 import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
-import Effects.Database.Tables.Show qualified as Show
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 
 -- | Main shows template
-template :: [Show.ShowModel] -> PageNumber -> Bool -> Maybe Genre -> Maybe Show.ShowStatus -> Maybe Search -> Lucid.Html ()
+template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
 template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
   -- Shows Header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center w-full"] $ do
@@ -42,7 +40,7 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
         renderPagination currentPage hasMore
 
 -- | Render show filters
-renderFilters :: Maybe Genre -> Maybe Show.ShowStatus -> Maybe Search -> Lucid.Html ()
+renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
 renderFilters maybeGenre maybeStatus maybeSearch = do
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8 w-full"] $ do
     Lucid.h2_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Filter Shows"
@@ -94,8 +92,8 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
             ]
             $ do
               Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeStatus]) "All Shows"
-              Lucid.option_ ([Lucid.value_ "active"] <> [Lucid.selected_ "selected" | maybeStatus == Just Show.Active]) "Active"
-              Lucid.option_ ([Lucid.value_ "hiatus"] <> [Lucid.selected_ "selected" | maybeStatus == Just Show.Inactive]) "Inactive"
+              Lucid.option_ ([Lucid.value_ "active"] <> [Lucid.selected_ "selected" | maybeStatus == Just Shows.Active]) "Active"
+              Lucid.option_ ([Lucid.value_ "hiatus"] <> [Lucid.selected_ "selected" | maybeStatus == Just Shows.Inactive]) "Inactive"
 
         -- Filter button
         Lucid.div_ [Lucid.class_ "flex items-end"] $ do

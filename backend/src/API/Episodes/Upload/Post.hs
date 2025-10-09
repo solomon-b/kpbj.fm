@@ -22,9 +22,9 @@ import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.Episode qualified as EpisodeDB
-import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrackDB
-import Effects.Database.Tables.Show qualified as ShowDB
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTracks
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload qualified as FileUpload
 import Effects.Observability qualified as Observability
@@ -81,7 +81,7 @@ data TrackInfo = TrackInfo
 
 data EpisodeUploadForm = EpisodeUploadForm
   { -- Show and scheduling
-    eufShowId :: Text,
+    eufId :: Text,
     eufScheduledDate :: Maybe Text,
     eufEpisodeType :: Text,
     -- Episode metadata
@@ -132,7 +132,7 @@ processEpisodeUpload ::
   User.Model ->
   EpisodeUploadForm ->
   [FileData Mem] -> -- Audio and image files
-  m (Either Text EpisodeDB.EpisodeId)
+  m (Either Text Episodes.Id)
 processEpisodeUpload user form fileInfos = do
   _currentTime <- liftIO getCurrentTime
 
@@ -141,7 +141,7 @@ processEpisodeUpload user form fileInfos = do
     Left err -> pure $ Left err
     Right episodeData -> do
       -- Verify user is host of the show
-      isHostResult <- execQuerySpan (ShowDB.isUserHostOfShow (User.mId user) (ShowDB.ShowId episodeData.showId))
+      isHostResult <- execQuerySpan (Shows.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
       case isHostResult of
         Left _err -> pure $ Left "Database error checking host permissions"
@@ -157,25 +157,25 @@ processEpisodeUpload user form fileInfos = do
                 Right (audioPath, artworkPath) -> do
                   -- Create episode insert
                   let episodeInsert =
-                        EpisodeDB.EpisodeInsert
-                          { EpisodeDB.eiShowId = ShowDB.ShowId episodeData.showId,
-                            EpisodeDB.eiTitle = episodeData.title,
-                            EpisodeDB.eiSlug = generateEpisodeSlug episodeData.title,
-                            EpisodeDB.eiDescription = episodeData.description,
-                            EpisodeDB.eiEpisodeNumber = episodeData.episodeNumber,
-                            EpisodeDB.eiSeasonNumber = fromMaybe 1 episodeData.seasonNumber,
-                            EpisodeDB.eiAudioFilePath = audioPath,
-                            EpisodeDB.eiAudioFileSize = Nothing, -- TODO: Get from upload
-                            EpisodeDB.eiAudioMimeType = Nothing, -- TODO: Get from upload
-                            EpisodeDB.eiDurationSeconds = Nothing, -- TODO: Calculate from file
-                            EpisodeDB.eiArtworkUrl = artworkPath,
-                            EpisodeDB.eiScheduledAt = episodeData.scheduledAt,
-                            EpisodeDB.eiStatus = episodeData.status,
-                            EpisodeDB.eiCreatedBy = User.mId user
+                        Episodes.Insert
+                          { Episodes.eiId = Shows.Id episodeData.showId,
+                            Episodes.eiTitle = episodeData.title,
+                            Episodes.eiSlug = generateEpisodeSlug episodeData.title,
+                            Episodes.eiDescription = episodeData.description,
+                            Episodes.eiEpisodeNumber = episodeData.episodeNumber,
+                            Episodes.eiSeasonNumber = fromMaybe 1 episodeData.seasonNumber,
+                            Episodes.eiAudioFilePath = audioPath,
+                            Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
+                            Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
+                            Episodes.eiDurationSeconds = Nothing, -- TODO: Calculate from file
+                            Episodes.eiArtworkUrl = artworkPath,
+                            Episodes.eiScheduledAt = episodeData.scheduledAt,
+                            Episodes.eiStatus = episodeData.status,
+                            Episodes.eiCreatedBy = User.mId user
                           }
 
                   -- Insert episode
-                  episodeResult <- execQuerySpan (EpisodeDB.insertEpisode episodeInsert)
+                  episodeResult <- execQuerySpan (Episodes.insertEpisode episodeInsert)
 
                   case episodeResult of
                     Left err -> do
@@ -190,7 +190,7 @@ processEpisodeUpload user form fileInfos = do
 parseFormData :: EpisodeUploadForm -> Either Text ParsedEpisodeData
 parseFormData form = do
   -- Parse show ID
-  showId <- case readMaybe (Text.unpack (eufShowId form)) of
+  showId <- case readMaybe (Text.unpack (eufId form)) of
     Nothing -> Left "Invalid show ID"
     Just sid -> Right sid
 
@@ -206,7 +206,7 @@ parseFormData form = do
     Nothing -> Right Nothing
     Just numStr -> case readMaybe (Text.unpack numStr) of
       Nothing -> Left "Invalid episode number"
-      Just num -> Right (Just (EpisodeDB.EpisodeNumber num))
+      Just num -> Right (Just (Episodes.EpisodeNumber num))
 
   -- Parse season number
   seasonNumber <- case eufSeasonNumber form of
@@ -217,8 +217,8 @@ parseFormData form = do
 
   -- Determine episode status from action
   status <- case eufAction form of
-    "draft" -> Right EpisodeDB.Draft
-    "publish" -> Right EpisodeDB.Published
+    "draft" -> Right Episodes.Draft
+    "publish" -> Right Episodes.Published
     _ -> Left "Invalid publish action"
 
   -- Parse tracks JSON
@@ -246,10 +246,10 @@ data ParsedEpisodeData = ParsedEpisodeData
     showSlug :: Text,
     title :: Text,
     description :: Maybe Text,
-    episodeNumber :: Maybe EpisodeDB.EpisodeNumber,
+    episodeNumber :: Maybe Episodes.EpisodeNumber,
     seasonNumber :: Maybe Int64,
     scheduledAt :: Maybe UTCTime,
-    status :: EpisodeDB.EpisodeStatus,
+    status :: Episodes.Status,
     tracks :: [TrackInfo]
   }
   deriving stock (Show, Eq)
@@ -308,9 +308,9 @@ insertTracks ::
     Has HSQL.Pool.Pool env,
     Has Tracer env
   ) =>
-  EpisodeDB.EpisodeId ->
+  Episodes.Id ->
   [TrackInfo] ->
-  m (Either Text [EpisodeTrackDB.EpisodeTrackId])
+  m (Either Text [EpisodeTracks.Id])
 insertTracks episodeId tracks = do
   results <- mapM (insertTrack episodeId) (zip [1 ..] tracks)
   let (errors, trackIds) = partitionEithers results
@@ -330,24 +330,24 @@ insertTracks episodeId tracks = do
         Has HSQL.Pool.Pool env,
         Has Tracer env
       ) =>
-      EpisodeDB.EpisodeId ->
+      Episodes.Id ->
       (Int64, TrackInfo) ->
-      m (Either Text EpisodeTrackDB.EpisodeTrackId)
+      m (Either Text EpisodeTracks.Id)
     insertTrack epId (trackNum, track) = do
       let trackInsert =
-            EpisodeTrackDB.EpisodeTrackInsert
-              { EpisodeTrackDB.etiEpisodeId = epId,
-                EpisodeTrackDB.etiTrackNumber = trackNum,
-                EpisodeTrackDB.etiTitle = tiTitle track,
-                EpisodeTrackDB.etiArtist = tiArtist track,
-                EpisodeTrackDB.etiAlbum = tiAlbum track,
-                EpisodeTrackDB.etiYear = tiYear track,
-                EpisodeTrackDB.etiDuration = tiDuration track,
-                EpisodeTrackDB.etiLabel = tiLabel track,
-                EpisodeTrackDB.etiIsExclusivePremiere = tiIsExclusive track
+            EpisodeTracks.Insert
+              { EpisodeTracks.etiEpisodeId = epId,
+                EpisodeTracks.etiTrackNumber = trackNum,
+                EpisodeTracks.etiTitle = tiTitle track,
+                EpisodeTracks.etiArtist = tiArtist track,
+                EpisodeTracks.etiAlbum = tiAlbum track,
+                EpisodeTracks.etiYear = tiYear track,
+                EpisodeTracks.etiDuration = tiDuration track,
+                EpisodeTracks.etiLabel = tiLabel track,
+                EpisodeTracks.etiIsExclusivePremiere = tiIsExclusive track
               }
 
-      result <- execQuerySpan (EpisodeDB.insertEpisodeTrack trackInsert)
+      result <- execQuerySpan (Episodes.insertEpisodeTrack trackInsert)
       case result of
         Left err -> pure $ Left $ "Failed to insert track: " <> Text.pack (show err)
         Right trackId -> pure $ Right trackId
@@ -371,7 +371,7 @@ isImageFile fileData =
    in any (`Text.isSuffixOf` name) [".jpg", ".jpeg", ".png", ".webp", ".gif"]
 
 -- | Success template
-successTemplate :: EpisodeDB.EpisodeId -> Lucid.Html ()
+successTemplate :: Episodes.Id -> Lucid.Html ()
 successTemplate episodeId = do
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-600"] "Episode Uploaded Successfully!"

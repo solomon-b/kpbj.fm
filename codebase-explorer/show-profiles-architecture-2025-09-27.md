@@ -1,6 +1,6 @@
 # Show Profiles Architecture Analysis
 
-*Analysis Date: 2025-09-27*  
+*Analysis Date: 2025-09-27*
 *Target: KPBJ.fm Community Radio Show Management System*
 
 ## Architecture Overview
@@ -88,7 +88,7 @@ data BlogPostInsert = BlogPostInsert
   deriving stock (Generic, Show, Eq)
   deriving (EncodeRow) via BlogPostInsert
 
-insertBlogPost :: BlogPostInsert -> Hasql.Statement () BlogPostId
+insertBlogPost :: BlogPostInsert -> Hasql.Statement () Id
 insertBlogPost BlogPostInsert {..} =
   case bpiStatus of
     Published -> getOneRow <$> interp False [sql|
@@ -113,7 +113,7 @@ data UserRole = User | Host | Staff | Admin
 
 isHostOrHigher :: UserRole -> Bool
 isHostOrHigher Host = True
-isHostOrHigher Staff = True  
+isHostOrHigher Staff = True
 isHostOrHigher Admin = True
 isHostOrHigher _ = False
 
@@ -147,7 +147,7 @@ Reusable UI components with user-aware rendering:
 ```haskell
 -- From Component.Frame
 template :: Maybe UserInfo -> Lucid.Html () -> Lucid.Html ()
-template mUser main = 
+template mUser main =
   Lucid.doctypehtml_ $ do
     -- Navigation varies based on authentication state
     case mUser of
@@ -168,12 +168,12 @@ loadContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.H
 newtype Id = Id Int64
 data Model = Model
   { mId :: Id,
-    mEmail :: EmailAddress, 
+    mEmail :: EmailAddress,
     mPassword :: PasswordHash Argon2,
     mCreatedAt :: UTCTime,
     mUpdatedAt :: UTCTime }
 
--- From Effects.Database.Tables.UserMetadata  
+-- From Effects.Database.Tables.UserMetadata
 data UserRole = User | Host | Staff | Admin
 data Model = Model
   { mId :: Id,
@@ -188,7 +188,7 @@ data Model = Model
 ```haskell
 -- Database Model
 data BlogPostModel = BlogPostModel
-  { bpmId :: BlogPostId,
+  { bpmId :: Id,
     bpmTitle :: Text,
     bpmSlug :: Text,
     bpmContent :: Text,
@@ -200,9 +200,9 @@ data BlogPostModel = BlogPostModel
     bpmCreatedAt :: UTCTime,
     bpmUpdatedAt :: UTCTime }
 
--- API Domain Type  
+-- API Domain Type
 data BlogPostDomain = BlogPostDomain
-  { bpdId :: BlogPostId, ... } -- Same fields as Model
+  { bpdId :: Id, ... } -- Same fields as Model
   deriving anyclass (FromJSON, ToJSON)
 
 -- Insert Type
@@ -270,7 +270,7 @@ instance FromForm NewBlogPostForm where
 - Episode archive with search/filter
 
 **Episode Data** (excluding social features):
-- Episode title, description, air date, duration  
+- Episode title, description, air date, duration
 - Audio player integration
 - Track listing with timestamps
 - Episode-specific artwork
@@ -412,7 +412,7 @@ CREATE TABLE episode_tracks (
 **File Upload Routes**:
 ```haskell
 -- POST /upload/audio - Audio file upload endpoint
--- POST /upload/image - Image upload endpoint  
+-- POST /upload/image - Image upload endpoint
 -- GET /files/:path - Serve uploaded files
 ```
 
@@ -420,27 +420,27 @@ CREATE TABLE episode_tracks (
 
 ```haskell
 -- Show Management
-data ShowStatus = Active | Inactive | Archived
+data Status = Active | Inactive | Archived
 data HostRole = Host | CoHost
 
-data ShowModel = ShowModel
-  { smId :: ShowId,
+data Model = Model
+  { smId :: Id,
     smTitle :: Text,
     smSlug :: Text,
     smDescription :: Text,
     smGenre :: Text,
     smImageUrl :: Maybe Text,
     smTags :: [Text],
-    smStatus :: ShowStatus,
+    smStatus :: Status,
     smCreatedAt :: UTCTime,
     smUpdatedAt :: UTCTime }
 
--- Episode Management  
-data EpisodeStatus = Draft | Published | Archived
+-- Episode Management
+data Status = Draft | Published | Archived
 
 data EpisodeModel = EpisodeModel
-  { emId :: EpisodeId,
-    emShowId :: ShowId,
+  { emId :: Id,
+    emId :: Id,
     emTitle :: Text,
     emSlug :: Text,
     emDescription :: Text,
@@ -448,7 +448,7 @@ data EpisodeModel = EpisodeModel
     emImageUrl :: Maybe Text,
     emDurationSeconds :: Maybe Int,
     emFileSizeBytes :: Maybe Int64,
-    emStatus :: EpisodeStatus,
+    emStatus :: Status,
     emEpisodeNumber :: Maybe Int,
     emAiredAt :: Maybe UTCTime,
     emTags :: [Text],
@@ -458,7 +458,7 @@ data EpisodeModel = EpisodeModel
 -- Track Listings
 data TrackModel = TrackModel
   { tmId :: TrackId,
-    tmEpisodeId :: EpisodeId,
+    tmId :: Id,
     tmTrackNumber :: Int,
     tmTitle :: Text,
     tmArtist :: Text,
@@ -499,7 +499,7 @@ uploadAudioHandler ::
   m (Lucid.Html ())
 uploadAudioHandler _tracer cookie multipartData = do
   Auth.userLoginState cookie >>= \case
-    Auth.IsNotLoggedIn -> 
+    Auth.IsNotLoggedIn ->
       loadContentOnly loginRequiredTemplate
     Auth.IsLoggedIn user -> do
       -- Validate file type and size
@@ -513,7 +513,7 @@ uploadAudioHandler _tracer cookie multipartData = do
 
 **Show Management**:
 - **View Shows/Episodes**: All users (public)
-- **Create Shows**: Staff+ only  
+- **Create Shows**: Staff+ only
 - **Edit Shows**: Host+ for assigned shows, Staff+ for all shows
 - **Delete Shows**: Staff+ only
 - **Manage Schedule**: Staff+ only

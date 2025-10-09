@@ -1,7 +1,7 @@
 # KPBJ Events System Architecture Analysis
 
-**Analysis Date:** September 27, 2025  
-**Focus:** Understanding current events system to plan WeekView integration  
+**Analysis Date:** September 27, 2025
+**Focus:** Understanding current events system to plan WeekView integration
 
 ## Architecture Overview
 
@@ -11,7 +11,7 @@ The KPBJ events system is built using a clean layered architecture with strong t
 
 1. **API Handler Layer** (`API/Events/Get.hs`):
    - Handles HTTP requests with query parameters for filtering and view switching
-   - Manages HTMX vs. full page rendering logic  
+   - Manages HTMX vs. full page rendering logic
    - Orchestrates database queries and template rendering
    - Provides type-safe route link generation
 
@@ -37,7 +37,7 @@ The KPBJ events system is built using a clean layered architecture with strong t
 HTTP Request → Servant Route → Events.Get.handler
     ↓
 Database Query (tag filter + view type) → Events Table
-    ↓  
+    ↓
 Template Rendering (List/Month/Week) → Lucid HTML
     ↓
 HTMX Response OR Full Page (with Frame.template)
@@ -75,7 +75,7 @@ API/
 
 **Function Naming:**
 - URL generators: `eventsGetUrl`, `eventGetUrl` (top-level URI functions)
-- Link functions: `eventsGetLink`, `eventGetLink` (in API.hs)  
+- Link functions: `eventsGetLink`, `eventGetLink` (in API.hs)
 - Handlers: `handler` (main entry point per module)
 - Templates: `renderListTemplate`, `renderMonthTemplate`, `renderListContent`
 
@@ -155,7 +155,7 @@ data PageView = ListView | MonthView Year MonthOfYear | WeekView
 **EventModel** (`Effects/Database/Tables/Events.hs:96-112`):
 ```haskell
 data EventModel = EventModel
-  { emId :: EventId,
+  { emId :: Id,
     emTitle :: Text,
     emSlug :: Text,
     emDescription :: Text,
@@ -163,7 +163,7 @@ data EventModel = EventModel
     emEndsAt :: UTCTime,
     emLocationName :: Text,
     emLocationAddress :: Text,
-    emStatus :: EventStatus,
+    emStatus :: Status,
     emAuthorId :: User.Id,
     emCreatedAt :: UTCTime,
     emUpdatedAt :: UTCTime
@@ -196,7 +196,7 @@ handler ::
   ) =>
   Tracer ->
   Maybe Text ->         -- Tag Query Param
-  Maybe PageView ->     -- Page View Query Param  
+  Maybe PageView ->     -- Page View Query Param
   Maybe Text ->         -- Cookie
   Maybe HxRequest ->    -- @hx-request@ header
   m (Lucid.Html ())
@@ -227,15 +227,15 @@ type Route =
 
 **Database Schema** (from migration `20250922213552_create_events_tables.sql`):
 - `events` table: Core event data with timestamptz fields
-- `event_tags` table: Tag definitions  
+- `event_tags` table: Tag definitions
 - `event_tag_assignments` table: Many-to-many relationship
 - Indexes on status, starts_at, slug, author_id for performance
 
 ### Important Constants and Enums
 
-**EventStatus** (`Effects/Database/Tables/Events.hs:28-34`):
+**Status** (`Effects/Database/Tables/Events.hs:28-34`):
 ```haskell
-data EventStatus = Draft | Published
+data Status = Draft | Published
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
 ```
 
@@ -256,7 +256,7 @@ instance Servant.FromHttpApiData HxRequest where
 
 **Template Structure:**
 - `header` function renders controls and filters
-- `renderListContent` displays event cards in chronological order  
+- `renderListContent` displays event cards in chronological order
 - Each event card includes image placeholder, metadata, description preview
 - HTMX links for progressive navigation to individual events
 
@@ -305,7 +305,7 @@ instance Servant.FromHttpApiData HxRequest where
 1. **Extend PageView Parsing** (`Domain/Types/PageView.hs:20-34`):
    ```haskell
    -- Current WeekView parsing needs week parameters
-   ["week", yearText, weekText] -> 
+   ["week", yearText, weekText] ->
      let (year, week) = (read @Year $ Text.unpack yearText, read @Int $ Text.unpack weekText)
       in Right $ WeekView year week
    ```
@@ -324,14 +324,14 @@ instance Servant.FromHttpApiData HxRequest where
 
 4. **Add renderWeekTemplate Function**:
    ```haskell
-   renderWeekTemplate :: Year -> Int -> Maybe Text -> [Events.EventTagWithCount] -> 
+   renderWeekTemplate :: Year -> Int -> Maybe Text -> [Events.EventTagWithCount] ->
                         Either err [Events.EventModel] -> m (Lucid.Html ())
    ```
 
 5. **Update Handler Dispatch** (`API/Events/Get.hs:397-404`):
    ```haskell
    case view of
-     MonthView year month -> renderMonthTemplate...  
+     MonthView year month -> renderMonthTemplate...
      WeekView year week -> renderWeekTemplate...
      _ -> renderListTemplate...
    ```
@@ -360,7 +360,7 @@ instance Servant.FromHttpApiData HxRequest where
 ---
 
 **WeekView Wireframe Reference:** The wireframes show a week view at `wireframes/events.html:399-447` with:
-- Week date range header "WEEK OF APRIL 6 - 12, 2024"  
+- Week date range header "WEEK OF APRIL 6 - 12, 2024"
 - 7-column responsive grid (stacks on mobile)
 - Each day shows date and list of events with times
 - "No events" state for empty days

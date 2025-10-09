@@ -17,10 +17,13 @@ import API.Show.Get.Templates.Sidebar (renderHostBio, renderRecentBlogPosts, ren
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Effects.Database.Tables.Episode qualified as Episode
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
-import Effects.Database.Tables.Show qualified as Show
-import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlog
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.HostDetails qualified as HostDetails
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -64,7 +67,7 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Show.ShowModel -> [Episode.EpisodeModel] -> Maybe [EpisodeTrack.EpisodeTrackModel] -> [Show.ShowHostWithUser] -> [Show.ShowScheduleModel] -> Maybe Show.HostDetailsModel -> [ShowBlog.ShowBlogPostModel] -> Lucid.Html ()
+template :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Maybe HostDetails.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
 template showModel episodes latestEpisodeTracks hosts schedules mHostDetails blogPosts = do
   -- Breadcrumb
   renderBreadcrumb showModel

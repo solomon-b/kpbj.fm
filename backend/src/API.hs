@@ -47,8 +47,8 @@ import Domain.Types.PageView (PageView)
 import Domain.Types.Search (Search)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Tables.Episode (EpisodeId)
-import Effects.Database.Tables.Show (ShowStatus)
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool qualified as HSQL.Pool
 import Log (MonadLog)
 import OpenTelemetry.Trace (Tracer)
@@ -219,7 +219,7 @@ eventGetLink :: Text -> Links.Link
 eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.Route)
 
 -- | Route: GET /shows
-showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe ShowStatus -> Maybe Search -> Links.Link
+showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link
 showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
 
 -- | Route: GET /shows/:slug
@@ -235,7 +235,7 @@ episodeUploadPostLink :: Links.Link
 episodeUploadPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Post.Route)
 
 -- | Route: GET /episodes/:id/edit
-episodeEditGetLink :: EpisodeId -> Links.Link
+episodeEditGetLink :: Episodes.Id -> Links.Link
 episodeEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
 
 -- | Route: POST /episodes/:id/edit
