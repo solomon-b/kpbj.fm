@@ -10,7 +10,6 @@ where
 
 import {-# SOURCE #-} API (hostDashboardGetLink)
 import Data.String.Interpolate (i)
-import Data.Text.Display (display)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -67,26 +66,6 @@ template episode s userMeta = do
               Lucid.value_ episode.title,
               Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
               Lucid.placeholder_ "e.g. Industrial Depths #087"
-            ]
-
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Episode Number"
-          Lucid.input_
-            [ Lucid.type_ "number",
-              Lucid.name_ "episode_number",
-              Lucid.value_ (display episode.episodeNumber),
-              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-              Lucid.placeholder_ "87"
-            ]
-
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Season Number"
-          Lucid.input_
-            [ Lucid.type_ "number",
-              Lucid.name_ "season_number",
-              Lucid.value_ (display episode.seasonNumber),
-              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-              Lucid.placeholder_ "1"
             ]
 
         Lucid.div_ $ do

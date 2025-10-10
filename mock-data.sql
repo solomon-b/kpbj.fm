@@ -512,13 +512,12 @@ INSERT INTO show_schedules (show_id, day_of_week, start_time, end_time) VALUES
 
 -- Generate episodes for the past 2 weeks based on show schedules
 -- Each show gets 2 episodes (one per week for 2 weeks)
-INSERT INTO episodes (show_id, title, slug, description, episode_number, status, scheduled_at, published_at, created_by)
+INSERT INTO episodes (show_id, title, slug, description, status, scheduled_at, published_at, created_by)
 SELECT
     s.id as show_id,
     s.title || ' - Episode ' || (row_number() OVER (PARTITION BY s.id ORDER BY generate_series DESC))::text as title,
     lower(regexp_replace(s.title, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || to_char(generate_series, 'YYYY-MM-DD') as slug,
     'A great episode of ' || s.title || ' from ' || to_char(generate_series, 'FMMonth DD, YYYY') as description,
-    (row_number() OVER (PARTITION BY s.id ORDER BY generate_series DESC))::int as episode_number,
     'published' as status,
     generate_series + ss.start_time::time as scheduled_at,
     generate_series + ss.start_time::time as published_at,
