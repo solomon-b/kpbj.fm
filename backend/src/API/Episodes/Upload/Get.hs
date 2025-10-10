@@ -5,14 +5,16 @@ module API.Episodes.Upload.Get where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodeUploadGetLink)
+import API.Episodes.Upload.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
 import API.Episodes.Upload.Get.Templates.Form (episodeUploadForm)
 import App.Common (getUserInfo)
-import Component.Frame (loadFrame, loadFrameWithUser)
+import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -42,6 +44,7 @@ type Route =
     ( "episodes"
         :> "upload"
         :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" Text
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
@@ -59,26 +62,25 @@ handler ::
   ) =>
   Tracer ->
   Maybe Cookie ->
+  Maybe Text ->
   m (Lucid.Html ())
-handler _tracer cookie = do
+handler _tracer cookie hxRequest = do
+  let isHtmxRequest = checkHtmxRequest hxRequest
+
   getUserInfo cookie $ \case
     Nothing -> do
       -- Redirect to login
-      loadFrame $ do
-        Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-          Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Authentication Required"
-          Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You must be logged in to upload episodes."
-          Lucid.a_ [Lucid.href_ "/user/login", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Login"
+      if isHtmxRequest
+        then loadContentOnly notLoggedInTemplate
+        else loadFrame notLoggedInTemplate
     Just (user, userMetadata) -> do
       showsResult <- execQuerySpan (Shows.getShowsForUser user.mId)
       case showsResult of
         Left _err -> do
           Log.logInfo "Failed to fetch user's shows" ()
-          loadFrame $ do
-            Lucid.div_ [Lucid.class_ "bg-white border-2 border-red-600 p-8 text-center"] $ do
-              Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 text-red-600"] "Error"
-              Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "Failed to load your shows."
-              Lucid.a_ [Lucid.href_ "/host/dashboard", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Back to Dashboard"
+          if isHtmxRequest
+            then loadContentOnly showLoadErrorTemplate
+            else loadFrame showLoadErrorTemplate
         Right userShows -> do
           -- Get upcoming dates for the user's first show (primary show)
           upcomingDates <- case userShows of
@@ -91,4 +93,11 @@ handler _tracer cookie = do
                   pure []
                 Right dates -> pure dates
 
-          loadFrameWithUser userMetadata (episodeUploadForm userShows upcomingDates)
+          if isHtmxRequest
+            then loadContentOnly $ episodeUploadForm userShows upcomingDates
+            else loadFrameWithUser userMetadata $ episodeUploadForm userShows upcomingDates
+
+checkHtmxRequest :: Maybe Text -> Bool
+checkHtmxRequest = \case
+  Just "true" -> True
+  _ -> False
