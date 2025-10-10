@@ -91,7 +91,6 @@ data Model = Model
     slug :: Text,
     description :: Maybe Text,
     episodeNumber :: Maybe EpisodeNumber,
-    seasonNumber :: Int64,
     audioFilePath :: Maybe Text,
     audioFileSize :: Maybe Int64,
     audioMimeType :: Maybe Text,
@@ -131,7 +130,6 @@ data Insert = Insert
     eiSlug :: Text,
     eiDescription :: Maybe Text,
     eiEpisodeNumber :: Maybe EpisodeNumber,
-    eiSeasonNumber :: Int64,
     eiAudioFilePath :: Maybe Text,
     eiAudioFileSize :: Maybe Int64,
     eiAudioMimeType :: Maybe Text,
@@ -149,9 +147,7 @@ data Insert = Insert
 data Update = Update
   { euId :: Id,
     euTitle :: Text,
-    euDescription :: Maybe Text,
-    euEpisodeNumber :: Maybe EpisodeNumber,
-    euSeasonNumber :: Int64
+    euDescription :: Maybe Text
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
@@ -166,7 +162,7 @@ getPublishedEpisodesForShow showId limit offset =
   interp
     False
     [sql|
-    SELECT id, show_id, title, slug, description, episode_number, season_number,
+    SELECT id, show_id, title, slug, description, episode_number,
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
@@ -181,7 +177,7 @@ getEpisodesById showId =
   interp
     False
     [sql|
-    SELECT id, show_id, title, slug, description, episode_number, season_number,
+    SELECT id, show_id, title, slug, description, episode_number,
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
@@ -195,7 +191,7 @@ getEpisodeBySlug showSlug episodeSlug =
   interp
     False
     [sql|
-    SELECT e.id, e.show_id, e.title, e.slug, e.description, e.episode_number, e.season_number,
+    SELECT e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
            e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
            e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by, e.created_at, e.updated_at
     FROM episodes e
@@ -209,7 +205,7 @@ getEpisodeById episodeId =
   interp
     False
     [sql|
-    SELECT id, show_id, title, slug, description, episode_number, season_number,
+    SELECT id, show_id, title, slug, description, episode_number,
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
@@ -222,7 +218,7 @@ getEpisodesByUser userId limit offset =
   interp
     False
     [sql|
-    SELECT id, show_id, title, slug, description, episode_number, season_number,
+    SELECT id, show_id, title, slug, description, episode_number,
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
@@ -237,7 +233,7 @@ getRecentPublishedEpisodes limit offset =
   interp
     False
     [sql|
-    SELECT id, show_id, title, slug, description, episode_number, season_number,
+    SELECT id, show_id, title, slug, description, episode_number,
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
@@ -255,10 +251,10 @@ insertEpisode Insert {..} =
         <$> interp
           False
           [sql|
-        INSERT INTO episodes(show_id, title, slug, description, episode_number, season_number,
+        INSERT INTO episodes(show_id, title, slug, description,
                             audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
                             artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at)
-        VALUES (#{eiId}, #{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiEpisodeNumber}, #{eiSeasonNumber},
+        VALUES (#{eiId}, #{eiTitle}, #{eiSlug}, #{eiDescription},
                 #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
                 #{eiArtworkUrl}, #{eiScheduledAt}, NOW(), #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
         RETURNING id
@@ -268,10 +264,10 @@ insertEpisode Insert {..} =
         <$> interp
           False
           [sql|
-        INSERT INTO episodes(show_id, title, slug, description, episode_number, season_number,
+        INSERT INTO episodes(show_id, title, slug, description,
                             audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
                             artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at)
-        VALUES (#{eiId}, #{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiEpisodeNumber}, #{eiSeasonNumber},
+        VALUES (#{eiId}, #{eiTitle}, #{eiSlug}, #{eiDescription},
                 #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
                 #{eiArtworkUrl}, #{eiScheduledAt}, NULL, #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
         RETURNING id
@@ -285,7 +281,6 @@ updateEpisode Update {..} =
     [sql|
     UPDATE episodes
     SET title = #{euTitle}, description = #{euDescription},
-        episode_number = #{euEpisodeNumber}, season_number = #{euSeasonNumber},
         updated_at = NOW()
     WHERE id = #{euId}
     RETURNING id
@@ -365,12 +360,12 @@ deleteAllTracksForEpisode episodeId =
   |]
 
 -- | Get next episode number for a show
-getNextEpisodeNumber :: Shows.Id -> Int64 -> Hasql.Statement () (Maybe EpisodeNumber)
-getNextEpisodeNumber showId seasonNumber =
+getNextEpisodeNumber :: Shows.Id -> Hasql.Statement () (Maybe EpisodeNumber)
+getNextEpisodeNumber showId =
   interp
     True
     [sql|
     SELECT COALESCE(MAX(episode_number), 0) + 1
     FROM episodes
-    WHERE show_id = #{showId} AND season_number = #{seasonNumber}
+    WHERE show_id = #{showId}
   |]

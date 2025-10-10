@@ -16,7 +16,6 @@ import Data.Has (Has)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Text.Read qualified as Text.Read
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
@@ -62,8 +61,6 @@ type Route =
 -- | Form data for episode editing
 data EpisodeEditForm = EpisodeEditForm
   { eefTitle :: Text,
-    eefEpisodeNumber :: Maybe Text,
-    eefSeasonNumber :: Maybe Text,
     eefDescription :: Maybe Text
   }
   deriving (Show)
@@ -71,14 +68,10 @@ data EpisodeEditForm = EpisodeEditForm
 instance FromForm EpisodeEditForm where
   fromForm form = do
     title <- Form.parseUnique "title" form
-    episodeNumber <- Form.parseMaybe "episode_number" form
-    seasonNumber <- Form.parseMaybe "season_number" form
     description <- Form.parseMaybe "description" form
     pure
       EpisodeEditForm
         { eefTitle = title,
-          eefEpisodeNumber = episodeNumber,
-          eefSeasonNumber = seasonNumber,
           eefDescription = description
         }
 
@@ -183,21 +176,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
           if episode.createdBy == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then do
               -- Parse form data
-              let newEpisodeNumber = case eefEpisodeNumber editForm of
-                    Nothing -> Nothing
-                    Just "" -> Nothing
-                    Just numStr -> case Text.Read.decimal numStr of
-                      Left _ -> Nothing
-                      Right (num, _) -> Just (Episodes.EpisodeNumber num)
-
-                  newSeasonNumber = case eefSeasonNumber editForm of
-                    Nothing -> episode.seasonNumber
-                    Just "" -> episode.seasonNumber
-                    Just numStr -> case Text.Read.decimal numStr of
-                      Left _ -> episode.seasonNumber
-                      Right (num, _) -> num
-
-                  newDescription = case eefDescription editForm of
+              let newDescription = case eefDescription editForm of
                     Nothing -> episode.description
                     Just "" -> Nothing
                     Just desc -> Just desc
@@ -206,9 +185,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
                     Episodes.Update
                       { euId = episode.id,
                         euTitle = eefTitle editForm,
-                        euDescription = newDescription,
-                        euEpisodeNumber = newEpisodeNumber,
-                        euSeasonNumber = newSeasonNumber
+                        euDescription = newDescription
                       }
 
               -- Update the episode

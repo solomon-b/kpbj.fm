@@ -13,7 +13,6 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -89,7 +88,6 @@ data EpisodeUploadForm = EpisodeUploadForm
     eufDescription :: Text,
     eufTags :: Maybe Text,
     eufEpisodeNumber :: Maybe Text,
-    eufSeasonNumber :: Maybe Text,
     -- Publishing action
     eufAction :: Text, -- "draft" or "publish"
     -- Track data (JSON encoded)
@@ -107,7 +105,6 @@ instance FromMultipart Mem EpisodeUploadForm where
       <*> lookupInput "description" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) Just (lookupInput "episode_number" multipartData))
-      <*> pure (either (const Nothing) Just (lookupInput "season_number" multipartData))
       <*> lookupInput "action" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tracks_json" multipartData))
 
@@ -163,7 +160,6 @@ processEpisodeUpload user form fileInfos = do
                             Episodes.eiSlug = generateEpisodeSlug episodeData.title,
                             Episodes.eiDescription = episodeData.description,
                             Episodes.eiEpisodeNumber = episodeData.episodeNumber,
-                            Episodes.eiSeasonNumber = fromMaybe 1 episodeData.seasonNumber,
                             Episodes.eiAudioFilePath = audioPath,
                             Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
                             Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
@@ -208,13 +204,6 @@ parseFormData form = do
       Nothing -> Left "Invalid episode number"
       Just num -> Right (Just (Episodes.EpisodeNumber num))
 
-  -- Parse season number
-  seasonNumber <- case eufSeasonNumber form of
-    Nothing -> Right Nothing
-    Just numStr -> case readMaybe (Text.unpack numStr) of
-      Nothing -> Left "Invalid season number"
-      Just num -> Right (Just num)
-
   -- Determine episode status from action
   status <- case eufAction form of
     "draft" -> Right Episodes.Draft
@@ -235,7 +224,6 @@ parseFormData form = do
         title = eufTitle form,
         description = Just (eufDescription form),
         episodeNumber = episodeNumber,
-        seasonNumber = seasonNumber,
         scheduledAt = scheduledAt,
         status = status,
         tracks = tracks
@@ -247,7 +235,6 @@ data ParsedEpisodeData = ParsedEpisodeData
     title :: Text,
     description :: Maybe Text,
     episodeNumber :: Maybe Episodes.EpisodeNumber,
-    seasonNumber :: Maybe Int64,
     scheduledAt :: Maybe UTCTime,
     status :: Episodes.Status,
     tracks :: [TrackInfo]
