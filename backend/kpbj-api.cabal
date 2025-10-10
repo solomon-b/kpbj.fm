@@ -103,10 +103,12 @@ library
     API.Episodes.Edit.Get.Templates.Form
     API.Episodes.Edit.Post
     API.Episodes.Upload.Get
+    API.Episodes.Upload.Get.Templates.Error
     API.Episodes.Upload.Get.Templates.Fields
     API.Episodes.Upload.Get.Templates.Form
     API.Episodes.Upload.Get.Templates.Scripts
     API.Episodes.Upload.Post
+    API.Episodes.Upload.Post.Templates.Result
     API.Events.Get
     API.Events.Get.Templates.Controls
     API.Events.Get.Templates.Error
