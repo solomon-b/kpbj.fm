@@ -97,42 +97,20 @@ episodeUploadForm userShows upcomingDates = do
                       ]
                       mempty
 
-                  Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-3 gap-6"] $ do
-                    Lucid.div_ $ do
-                      Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Episode Number"
-                      Lucid.input_
-                        [ Lucid.type_ "number",
-                          Lucid.name_ "episode_number",
-                          Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-                          Lucid.placeholder_ "88",
-                          Lucid.min_ "1"
-                        ]
-
-                    Lucid.div_ $ do
-                      Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Season"
-                      Lucid.input_
-                        [ Lucid.type_ "number",
-                          Lucid.name_ "season_number",
-                          Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-                          Lucid.placeholder_ "1",
-                          Lucid.value_ "1",
-                          Lucid.min_ "1"
-                        ]
-
-                    Lucid.div_ $ do
-                      Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
-                      if null upcomingDates
-                        then do
-                          Lucid.div_ [Lucid.class_ "w-full p-3 border-2 border-yellow-400 bg-yellow-50 font-mono text-sm"] $ do
-                            "No upcoming scheduled dates"
-                        else do
-                          Lucid.select_
-                            [ Lucid.name_ "scheduled_date",
-                              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono bg-white"
-                            ]
-                            $ do
-                              Lucid.option_ [Lucid.value_ ""] "-- Select Date --"
-                              mapM_ renderUpcomingDateOption upcomingDates
+                  Lucid.div_ $ do
+                    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+                    if null upcomingDates
+                      then do
+                        Lucid.div_ [Lucid.class_ "w-full p-3 border-2 border-yellow-400 bg-yellow-50 font-mono text-sm"] $ do
+                          "No upcoming scheduled dates"
+                      else do
+                        Lucid.select_
+                          [ Lucid.name_ "scheduled_date",
+                            Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono bg-white"
+                          ]
+                          $ do
+                            Lucid.option_ [Lucid.value_ ""] "-- Select Date --"
+                            mapM_ renderUpcomingDateOption upcomingDates
 
                   Lucid.div_ $ do
                     Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Tags"

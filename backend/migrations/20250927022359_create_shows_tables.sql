@@ -36,9 +36,8 @@ CREATE TABLE episodes (
     title TEXT NOT NULL,
     slug TEXT NOT NULL, -- URL-friendly version, unique per show
     description TEXT, -- Episode description/notes
-    episode_number INTEGER, -- Episode number within the show
-    season_number INTEGER DEFAULT 1, -- Season number (defaults to 1)
-    
+    episode_number INTEGER GENERATED ALWAYS AS IDENTITY, -- Auto-incrementing episode number
+
     -- Audio file information
     audio_file_path TEXT, -- Path to the main audio file
     audio_file_size BIGINT, -- File size in bytes
