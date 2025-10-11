@@ -90,7 +90,7 @@ data Model = Model
     title :: Text,
     slug :: Text,
     description :: Maybe Text,
-    episodeNumber :: Maybe EpisodeNumber,
+    episodeNumber :: EpisodeNumber,
     audioFilePath :: Maybe Text,
     audioFileSize :: Maybe Int64,
     audioMimeType :: Maybe Text,
@@ -129,7 +129,6 @@ data Insert = Insert
     eiTitle :: Text,
     eiSlug :: Text,
     eiDescription :: Maybe Text,
-    eiEpisodeNumber :: Maybe EpisodeNumber,
     eiAudioFilePath :: Maybe Text,
     eiAudioFileSize :: Maybe Int64,
     eiAudioMimeType :: Maybe Text,
@@ -357,15 +356,4 @@ deleteAllTracksForEpisode episodeId =
     [sql|
     DELETE FROM episode_tracks
     WHERE episode_id = #{episodeId}
-  |]
-
--- | Get next episode number for a show
-getNextEpisodeNumber :: Shows.Id -> Hasql.Statement () (Maybe EpisodeNumber)
-getNextEpisodeNumber showId =
-  interp
-    True
-    [sql|
-    SELECT COALESCE(MAX(episode_number), 0) + 1
-    FROM episodes
-    WHERE show_id = #{showId}
   |]

@@ -9,6 +9,7 @@ where
 import {-# SOURCE #-} API (episodeEditGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -22,7 +23,9 @@ renderEpisodeCard episode = do
       Lucid.div_ $ do
         Lucid.h3_ [Lucid.class_ "font-bold"] $ Lucid.toHtml episode.title
         Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $ do
-          Lucid.toHtml (show episode.createdAt)
+          case episode.scheduledAt of
+            Just scheduledAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%B %d, %Y at %l:%M %p" scheduledAt
+            Nothing -> "Not scheduled"
           " • "
           -- TODO: Add duration when available
           "Duration TBD"

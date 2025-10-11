@@ -134,13 +134,13 @@ getCleanFilename filename =
 --------------------------------------------------------------------------------
 -- Upload result builders
 
-buildEpisodeAudioUpload :: StorageConfig -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
-buildEpisodeAudioUpload config showSlug originalName mimeType fileSize time =
-  let cleanName = getCleanFilename originalName
-      extension = getFileExtension mimeType
-      storagePath = episodeAudioPath config showSlug cleanName time
+buildEpisodeAudioUpload :: StorageConfig -> Text -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
+buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSize time =
+  let extension = getFileExtension mimeType
+      baseFilename = showSlug <> "-" <> episodeSlug
+      storagePath = episodeAudioPath config showSlug baseFilename time
       dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename cleanName extension time
+      filename = generateUniqueFilename baseFilename extension time
       url = buildUrlPath AudioBucket EpisodeAudio dateHier showSlug filename
    in UploadResult
         { uploadResultOriginalName = originalName,
@@ -150,13 +150,13 @@ buildEpisodeAudioUpload config showSlug originalName mimeType fileSize time =
           uploadResultFileSize = fileSize
         }
 
-buildEpisodeArtworkUpload :: StorageConfig -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
-buildEpisodeArtworkUpload config showSlug originalName mimeType fileSize time =
-  let cleanName = getCleanFilename originalName
-      extension = getFileExtension mimeType
-      storagePath = episodeArtworkPath config showSlug cleanName time
+buildEpisodeArtworkUpload :: StorageConfig -> Text -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
+buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType fileSize time =
+  let extension = getFileExtension mimeType
+      baseFilename = showSlug <> "-" <> episodeSlug
+      storagePath = episodeArtworkPath config showSlug baseFilename time
       dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename cleanName extension time
+      filename = generateUniqueFilename baseFilename extension time
       url = buildUrlPath ImageBucket EpisodeArtwork dateHier showSlug filename
    in UploadResult
         { uploadResultOriginalName = originalName,
