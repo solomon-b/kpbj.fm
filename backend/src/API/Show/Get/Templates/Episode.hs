@@ -35,9 +35,9 @@ renderLatestEpisode episode tracks = do
       Lucid.div_ [Lucid.class_ "flex-grow"] $ do
         Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ Lucid.toHtml episode.title
         Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-2"] $ do
-          case episode.publishedAt of
-            Just publishedAt -> do
-              let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" publishedAt
+          case episode.scheduledAt of
+            Just scheduledAt -> do
+              let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
               "Aired: " <> Lucid.toHtml dateStr
             Nothing -> "Draft"
 
@@ -128,9 +128,9 @@ renderEpisodeCard episode = do
       Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ Lucid.toHtml episode.title
 
       Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-2"] $ do
-        case episode.publishedAt of
-          Just publishedAt -> do
-            let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" publishedAt
+        case episode.scheduledAt of
+          Just scheduledAt -> do
+            let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
             "Aired: " <> Lucid.toHtml dateStr
           Nothing -> "Draft"
 

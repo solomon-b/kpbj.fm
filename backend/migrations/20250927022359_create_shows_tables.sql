@@ -36,7 +36,7 @@ CREATE TABLE episodes (
     title TEXT NOT NULL,
     slug TEXT NOT NULL, -- URL-friendly version, unique per show
     description TEXT, -- Episode description/notes
-    episode_number INTEGER GENERATED ALWAYS AS IDENTITY, -- Auto-incrementing episode number
+    episode_number INTEGER NOT NULL DEFAULT 1, -- Episode number within the show
 
     -- Audio file information
     audio_file_path TEXT, -- Path to the main audio file
@@ -119,6 +119,28 @@ ALTER TABLE episodes ADD CONSTRAINT unique_episode_slug UNIQUE (show_id, slug);
 ALTER TABLE show_schedules ADD CONSTRAINT check_day_of_week CHECK (day_of_week >= 0 AND day_of_week <= 6);
 -- Note: No time constraint - shows can cross midnight (e.g., 23:00 to 01:00)
 
+-- Create function to auto-increment episode numbers per show
+CREATE OR REPLACE FUNCTION set_episode_number()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- If episode_number is not explicitly set or is default value
+    IF NEW.episode_number = 1 OR NEW.episode_number IS NULL THEN
+        -- Get the next episode number for this show
+        SELECT COALESCE(MAX(episode_number), 0) + 1
+        INTO NEW.episode_number
+        FROM episodes
+        WHERE show_id = NEW.show_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to auto-set episode numbers
+CREATE TRIGGER episode_number_trigger
+    BEFORE INSERT ON episodes
+    FOR EACH ROW
+    EXECUTE FUNCTION set_episode_number();
+
 -- Add comments for documentation
 COMMENT ON TABLE shows IS 'Radio shows - managed by Host+ users';
 COMMENT ON TABLE show_hosts IS 'Show host assignments - many-to-many relationship between shows and users';
@@ -128,4 +150,5 @@ COMMENT ON TABLE show_schedules IS 'Recurring show schedules';
 
 COMMENT ON COLUMN show_hosts.role IS 'Role: host, co-host, guest';
 COMMENT ON COLUMN episodes.status IS 'Status: draft, scheduled, published, archived';
+COMMENT ON COLUMN episodes.episode_number IS 'Auto-incremented per show via trigger';
 COMMENT ON COLUMN show_schedules.day_of_week IS '0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday';
