@@ -47,6 +47,9 @@ episodeUploadForm userShows upcomingDates = do
         Lucid.class_ "space-y-8"
       ]
       $ do
+        -- Hidden fields (always rendered)
+        Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "duration_seconds", Lucid.id_ "duration-seconds", Lucid.value_ ""]
+
         -- Show Selection
         Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
           Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "SELECT SHOW"
