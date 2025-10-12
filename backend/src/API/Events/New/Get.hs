@@ -54,7 +54,7 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie $ \case
+  getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to event creation form" ()
       renderTemplate hxRequest Nothing notAuthorizedTemplate

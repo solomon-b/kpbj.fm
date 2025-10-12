@@ -1,24 +1,25 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module API.Events.Event.Get where
 
 --------------------------------------------------------------------------------
 
 import API.Events.Event.Get.Templates.Page (notFoundTemplate, template)
-import App.Auth qualified as Auth
-import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.Cont (ContT (..), evalContT)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Control.Monad.Trans (MonadTrans (lift))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
+import Data.Functor ((<&>))
 import Data.Has (Has)
 import Data.Text (Text)
+import Domain.Types.Cookie (Cookie)
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -36,25 +37,10 @@ type Route =
     "GET /events/:slug"
     ( "events"
         :> Servant.Capture "slug" Text
-        :> Servant.Header "Cookie" Text
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
-
---------------------------------------------------------------------------------
-
--- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
-renderTemplate isHtmxRequest mUserInfo templateContent =
-  case mUserInfo of
-    Just userInfo ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrameWithUser userInfo templateContent
-    Nothing ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrame templateContent
 
 --------------------------------------------------------------------------------
 
@@ -70,95 +56,29 @@ handler ::
   ) =>
   Tracer ->
   Text ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer slug cookie hxRequest = do
-  let isHtmxRequest = checkHtmxRequest hxRequest
+handler _tracer slug cookie (foldHxReq -> hxRequest) = do
+  mUserInfo <- getUserInfo cookie <&> fmap snd
 
-  evalContT $ do
-    mUserInfo <- ContT $ getUserInfo cookie
-    event <- ContT $ getEvent isHtmxRequest mUserInfo slug
-    author <- ContT $ getAuthor isHtmxRequest mUserInfo slug event
-    lift $ fetchTags isHtmxRequest mUserInfo event author
-
-checkHtmxRequest :: Maybe Text -> Bool
-checkHtmxRequest = \case
-  Just "true" -> True
-  _ -> False
-
-getUserInfo ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
-  Maybe Text ->
-  (Maybe UserMetadata.Model -> m a) ->
-  m a
-getUserInfo cookie k =
-  Auth.userLoginState cookie >>= \case
-    Auth.IsNotLoggedIn ->
-      k Nothing
-    Auth.IsLoggedIn user ->
-      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-        Right (Just userMetadata) ->
-          k $ Just userMetadata
-        _ ->
-          k Nothing
-
-getEvent ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m
-  ) =>
-  Bool ->
-  Maybe UserMetadata.Model ->
-  Text ->
-  (Events.Model -> m (Lucid.Html ())) ->
-  m (Lucid.Html ())
-getEvent isHtmxRequest mUserInfo slug k =
   execQuerySpan (Events.getEventBySlug slug) >>= \case
-    Left _err -> do
-      Log.logInfo "Failed to fetch event from database" slug
-      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+    Left err -> do
+      Log.logInfo "Failed to fetch event from database" (show err)
+      renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right Nothing -> do
       Log.logInfo "Event not found" slug
-      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+      renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just event) ->
-      k event
-
-getAuthor ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m
-  ) =>
-  Bool ->
-  -- | Logged in user:
-  Maybe UserMetadata.Model ->
-  Text ->
-  Events.Model ->
-  -- | Author of the event:
-  (UserMetadata.Model -> m (Lucid.Html ())) ->
-  m (Lucid.Html ())
-getAuthor isHtmxRequest mUserInfo slug event k =
-  execQuerySpan (UserMetadata.getUserMetadata event.emAuthorId) >>= \case
-    Left err -> do
-      Log.logAttention "Failed to fetch event author" (Aeson.object ["id" .= event.emAuthorId, "error" .= show err])
-      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
-    Right Nothing -> do
-      Log.logAttention "Event author not found" (Aeson.object ["id" .= event.emAuthorId])
-      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
-    Right (Just author) ->
-      k author
+      execQuerySpan (UserMetadata.getUserMetadata event.emAuthorId) >>= \case
+        Left err -> do
+          Log.logAttention "Failed to fetch event author" (Aeson.object ["id" .= event.emAuthorId, "error" .= show err])
+          renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
+        Right Nothing -> do
+          Log.logAttention "Event author not found" (Aeson.object ["id" .= event.emAuthorId])
+          renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
+        Right (Just author) ->
+          fetchTags hxRequest mUserInfo event author
 
 fetchTags ::
   ( Log.MonadLog m,
@@ -168,17 +88,17 @@ fetchTags ::
     MonadUnliftIO m,
     MonadCatch m
   ) =>
-  Bool ->
+  HxRequest ->
   Maybe UserMetadata.Model ->
   Events.Model ->
   UserMetadata.Model ->
   m (Lucid.Html ())
-fetchTags isHtmxRequest mUserInfo event author =
+fetchTags hxRequest mUserInfo event author =
   execQuerySpan (Events.getEventTags event.emId) >>= \case
     Left err -> do
       Log.logInfo "Failed to fetch event tags" (Aeson.object ["event" .= event.emId, "error" .= show err])
       let eventTemplate = template event [] author
-      renderTemplate isHtmxRequest mUserInfo eventTemplate
+      renderTemplate hxRequest mUserInfo eventTemplate
     Right eventTagModels -> do
       let eventTemplate = template event eventTagModels author
-      renderTemplate isHtmxRequest mUserInfo eventTemplate
+      renderTemplate hxRequest mUserInfo eventTemplate

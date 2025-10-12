@@ -1,26 +1,28 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module API.Blog.Get where
 
 --------------------------------------------------------------------------------
 
 import API.Blog.Get.Templates.Error (errorTemplate)
 import API.Blog.Get.Templates.Page (template)
-import App.Auth qualified as Auth
-import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
+import Data.Functor ((<&>))
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
-import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -39,30 +41,10 @@ type Route =
         :> Servant.QueryParam "page" Int64
         :> Servant.QueryParam "category" Text
         :> Servant.QueryParam "tag" Text
-        :> Servant.Header "Cookie" Text
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
-
---------------------------------------------------------------------------------
-
--- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
-renderTemplate isHtmxRequest mUserInfo templateContent =
-  case mUserInfo of
-    Just userInfo ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrameWithUser userInfo templateContent
-    Nothing ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrame templateContent
-
-checkHtmxRequest :: Maybe Text -> Bool
-checkHtmxRequest = \case
-  Just "true" -> True
-  _ -> False
 
 --------------------------------------------------------------------------------
 
@@ -80,23 +62,16 @@ handler ::
   Maybe Int64 ->
   Maybe Text ->
   Maybe Text ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
+handler _tracer maybePage maybeCategory maybeTag cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       limit = 10
       offset = (page - 1) * limit
-      isHtmxRequest = checkHtmxRequest hxRequest
 
   -- Get user info once upfront
-  loginState <- Auth.userLoginState cookie
-  mUserInfo <- case loginState of
-    Auth.IsNotLoggedIn -> pure Nothing
-    Auth.IsLoggedIn user -> do
-      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-        Right userMetadata -> pure userMetadata
-        _ -> pure Nothing
+  mUserInfo <- getUserInfo cookie <&> fmap snd
 
   -- Get sidebar data
   tagsResult <- execQuerySpan BlogTags.getTagsWithCounts
@@ -106,7 +81,32 @@ handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
       categoriesWithCounts = fromRight [] categoriesResult
 
   -- Get blog posts based on filters (category or tag)
-  blogPostsResult <- case (maybeCategory, maybeTag) of
+  blogPostsResult <- getBlogPostResults limit offset maybeCategory maybeTag
+
+  case blogPostsResult of
+    Left _err -> do
+      Log.logInfo "Failed to fetch blog posts from database" ()
+      renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load blog posts. Please try again.")
+    Right allPosts -> do
+      let posts = take (fromIntegral limit) allPosts
+          hasMore = length allPosts > fromIntegral limit
+          blogTemplate = template posts page hasMore tagsWithCounts categoriesWithCounts
+      renderTemplate hxRequest mUserInfo blogTemplate
+
+getBlogPostResults ::
+  ( MonadUnliftIO m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has Tracer env
+  ) =>
+  Int64 ->
+  Int64 ->
+  Maybe Text ->
+  Maybe Text ->
+  m (Either HSQL.Pool.UsageError [BlogPosts.Model])
+getBlogPostResults limit offset maybeCategory maybeTag = do
+  case (maybeCategory, maybeTag) of
     (Just category, _) ->
       execQuerySpan (BlogPosts.getBlogPostsByCategory category limit offset)
     (_, Just tagName) ->
@@ -119,12 +119,3 @@ handler _tracer maybePage maybeCategory maybeTag cookie hxRequest = do
           execQuerySpan (BlogPosts.getPostsByTag (BlogTags.btmId tag) limit offset)
     (Nothing, Nothing) ->
       execQuerySpan (BlogPosts.getPublishedBlogPosts limit offset)
-  case blogPostsResult of
-    Left _err -> do
-      Log.logInfo "Failed to fetch blog posts from database" ()
-      renderTemplate isHtmxRequest mUserInfo (errorTemplate "Failed to load blog posts. Please try again.")
-    Right allPosts -> do
-      let posts = take (fromIntegral limit) allPosts
-          hasMore = length allPosts > fromIntegral limit
-          blogTemplate = template posts page hasMore tagsWithCounts categoriesWithCounts
-      renderTemplate isHtmxRequest mUserInfo blogTemplate

@@ -4,7 +4,7 @@ module API.Episodes.Upload.Post where
 
 import {-# SOURCE #-} API (episodeUploadPostLink)
 import API.Episodes.Upload.Post.Templates.Result (errorTemplate, successTemplate)
-import App.Auth qualified as Auth
+import App.Common (getUserInfo)
 import Component.Frame (loadFrame)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -18,9 +18,11 @@ import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -51,7 +53,7 @@ type Route =
     "POST /episodes/upload"
     ( "episodes"
         :> "upload"
-        :> Servant.Header "Cookie" Text
+        :> Servant.Header "Cookie" Cookie
         :> MultipartForm Mem EpisodeUploadForm
         :> Servant.Post '[HTML] (Lucid.Html ())
     )
@@ -124,6 +126,40 @@ episodeUploadPostUrl :: Links.URI
 episodeUploadPostUrl = Links.linkURI episodeUploadPostLink
 
 --------------------------------------------------------------------------------
+
+handler ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Tracer ->
+  Maybe Cookie ->
+  EpisodeUploadForm ->
+  m (Lucid.Html ())
+handler _tracer cookie form = do
+  getUserInfo cookie >>= \case
+    Nothing -> do
+      loadFrame $ do
+        Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
+          Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Authentication Required"
+          Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You must be logged in to upload episodes."
+          Lucid.a_ [Lucid.href_ "/user/login", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Login"
+    Just (user, _userInfo) -> do
+      -- Process upload
+      result <- processEpisodeUpload user form
+
+      case result of
+        Left err -> do
+          Log.logInfo "Episode upload failed" err
+          loadFrame $ errorTemplate err
+        Right episodeId -> do
+          Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
+          loadFrame $ successTemplate episodeId
 
 -- | Process episode upload form
 processEpisodeUpload ::
@@ -402,43 +438,3 @@ partitionEithers = foldr (either left right) ([], [])
   where
     left a (ls, rs) = (a : ls, rs)
     right b (ls, rs) = (ls, b : rs)
-
---------------------------------------------------------------------------------
-
-handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  Tracer ->
-  Maybe Text ->
-  EpisodeUploadForm ->
-  m (Lucid.Html ())
-handler _tracer cookie form = do
-  -- Check authentication
-  loginState <- Auth.userLoginState cookie
-
-  case loginState of
-    Auth.IsNotLoggedIn -> do
-      -- Redirect to login
-      loadFrame $ do
-        Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-          Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Authentication Required"
-          Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You must be logged in to upload episodes."
-          Lucid.a_ [Lucid.href_ "/user/login", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Login"
-    Auth.IsLoggedIn user -> do
-      -- Process upload
-      result <- processEpisodeUpload user form
-
-      case result of
-        Left err -> do
-          Log.logInfo "Episode upload failed" err
-          loadFrame $ errorTemplate err
-        Right episodeId -> do
-          Log.logInfo ("Episode uploaded successfully: " <> Text.pack (show episodeId)) ()
-          loadFrame $ successTemplate episodeId

@@ -1,14 +1,14 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module API.Blog.New.Post where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (blogGetLink, blogNewGetLink, blogPostGetLink, userLoginGetLink)
-import App.Auth qualified as Auth
-import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad (unless, void, when)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
@@ -19,6 +19,8 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -60,8 +62,8 @@ type Route =
     "POST /blog/new"
     ( "blog"
         :> "new"
-        :> Servant.Header "Cookie" Text
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.ReqBody '[Servant.FormUrlEncoded] NewBlogPostForm
         :> Servant.Post '[HTML] (Lucid.Html ())
     )
@@ -211,6 +213,38 @@ parseTags tagText =
 
 --------------------------------------------------------------------------------
 
+handler ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Tracer ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
+  NewBlogPostForm ->
+  m (Lucid.Html ())
+handler _tracer cookie (foldHxReq -> hxRequest) form = do
+  getUserInfo cookie >>= \case
+    Nothing ->
+      renderTemplate hxRequest Nothing loginRequiredTemplate
+    Just (_user, userMetadata) ->
+      case UserMetadata.mUserRole userMetadata of
+        role | UserMetadata.isStaffOrHigher role ->
+          case validateNewBlogPost form (UserMetadata.mUserId userMetadata) of
+            Left errorMsg -> do
+              Log.logInfo ("Blog post creation failed: " <> errorMsg) ()
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+            Right blogPostData -> do
+              template <- handlePostCreation blogPostData form
+              renderTemplate hxRequest (Just userMetadata) template
+        _ ->
+          renderTemplate hxRequest Nothing permissionDeniedTemplate
+
 -- | Validate and convert form data to blog post insert data
 validateNewBlogPost :: NewBlogPostForm -> User.Id -> Either Text BlogPosts.Insert
 validateNewBlogPost form authorId = do
@@ -234,18 +268,6 @@ validateNewBlogPost form authorId = do
 -- | Generate URL-friendly slug from title text
 mkSlug :: Text -> Text
 mkSlug title = Text.toLower $ Text.replace " " "-" $ Text.filter (\c -> c `elem` ("-" :: String) || isAsciiLower c || isAsciiUpper c || isDigit c) title
-
--- | Render a template with proper HTMX handling for authenticated users
-renderWithUserAuth ::
-  (Log.MonadLog m, MonadThrow m) =>
-  Bool ->
-  UserMetadata.Model ->
-  Lucid.Html () ->
-  m (Lucid.Html ())
-renderWithUserAuth isHtmxRequest userMetadata template =
-  if isHtmxRequest
-    then loadContentOnly template
-    else loadFrameWithUser userMetadata template
 
 -- | Create tags for a blog post
 createPostTags ::
@@ -306,78 +328,20 @@ handlePostCreation ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  Bool ->
-  UserMetadata.Model ->
   BlogPosts.Insert ->
   NewBlogPostForm ->
   m (Lucid.Html ())
-handlePostCreation isHtmxRequest userMetadata blogPostData form = do
+handlePostCreation blogPostData form = do
   execQuerySpan (BlogPosts.insertBlogPost blogPostData) >>= \case
     Left dbError -> do
       Log.logInfo ("Database error creating blog post: " <> Text.pack (show dbError)) ()
-      renderWithUserAuth isHtmxRequest userMetadata (errorTemplate "Database error occurred. Please try again.")
+      pure (errorTemplate "Database error occurred. Please try again.")
     Right postId -> do
       execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
         Right (Just createdPost) -> do
           createPostTags postId form
           Log.logInfo ("Successfully created blog post: " <> BlogPosts.bpmTitle createdPost) ()
-          renderWithUserAuth isHtmxRequest userMetadata (successTemplate createdPost)
+          pure (successTemplate createdPost)
         _ -> do
           Log.logInfo "Created blog post but failed to retrieve it" ()
-          renderWithUserAuth isHtmxRequest userMetadata (errorTemplate "Post was created but there was an error displaying the confirmation.")
-
-checkHtmxRequest :: Maybe Text -> Bool
-checkHtmxRequest = \case
-  Just "true" -> True
-  _ -> False
-
---------------------------------------------------------------------------------
-
--- | Render a template with proper HTMX handling for anonymous users
-renderWithoutAuth ::
-  (Log.MonadLog m, MonadThrow m) =>
-  Bool ->
-  Lucid.Html () ->
-  m (Lucid.Html ())
-renderWithoutAuth isHtmxRequest template =
-  if isHtmxRequest
-    then loadContentOnly template
-    else loadFrame template
-
-handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  Tracer ->
-  Maybe Text ->
-  Maybe Text ->
-  NewBlogPostForm ->
-  m (Lucid.Html ())
-handler _tracer cookie hxRequest form = do
-  let isHtmxRequest = checkHtmxRequest hxRequest
-
-  Auth.userLoginState cookie >>= \case
-    Auth.IsNotLoggedIn ->
-      renderWithoutAuth isHtmxRequest loginRequiredTemplate
-    Auth.IsLoggedIn user -> do
-      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-        Right (Just userMetadata) ->
-          case UserMetadata.mUserRole userMetadata of
-            role | UserMetadata.isStaffOrHigher role ->
-              case validateNewBlogPost form (UserMetadata.mUserId userMetadata) of
-                Left errorMsg -> do
-                  Log.logInfo ("Blog post creation failed: " <> errorMsg) ()
-                  renderWithUserAuth isHtmxRequest userMetadata (errorTemplate errorMsg)
-                Right blogPostData ->
-                  handlePostCreation isHtmxRequest userMetadata blogPostData form
-            _ ->
-              renderWithoutAuth isHtmxRequest permissionDeniedTemplate
-        _ -> do
-          Log.logInfo "Failed to fetch user metadata for blog creation" ()
-          renderWithoutAuth isHtmxRequest userMetadataErrorTemplate
+          pure (errorTemplate "Post was created but there was an error displaying the confirmation.")
