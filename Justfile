@@ -3,11 +3,12 @@ default:
 
 build:
     rm -rf dist
-    mkdir -p dist/assets/css dist/assets/img dist/assets/text
+    mkdir -p dist/assets/css dist/assets/img dist/assets/text dist/pages
     cp -r assets/img/* dist/assets/img/
     cp -r assets/css/* dist/assets/css/
     cp -r assets/text/* dist/assets/text/
     just build-html
+    just build-pages
     just tailwind-build
 
 build-html:
@@ -24,7 +25,14 @@ build-html:
     done
 
 inject-components src:
-    MAIN_CONTENT="$(cat {{src}})" envsubst < components/page-template.html
+    MAIN_CONTENT="$(cat {{src}})" envsubst '${MAIN_CONTENT}' < components/page-template.html
+
+build-pages:
+    #!/usr/bin/env bash
+    # Copy raw HTML content to dist/pages for Alpine.js to fetch
+    cp src/index.html dist/pages/home.html
+    cp src/about-us/index.html dist/pages/about-us.html
+    cp src/donate/index.html dist/pages/donate.html
 
 dev:
     concurrently --kill-others --names "watch,serve" \

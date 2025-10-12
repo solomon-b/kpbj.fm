@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kpbj.fm</title>
     <link rel="stylesheet" href="/assets/css/output.css">
+    <script src="//unpkg.com/alpinejs" defer></script>
     <script
       src="https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD">
     </script>
   </head>
-  <body class="relative font-body flex flex-col min-h-screen">
+  <body class="relative font-body flex flex-col min-h-screen" x-data="spaApp()">
     <header class="relative z-50">
       <div class="relative flex flex-col justify-center items-center p-6">
         <nav class="text-center">
-            <a href="/">
+            <a href="/" @click.prevent="navigateTo('home')">
               <pre class="font-mono text-sm leading-tight text-gray-800">
 ▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
 █▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
@@ -23,9 +24,9 @@
               </pre>
             </a>
             <div class="text-sm space-x-4">
-                <a href="/donate">DONATE</a>
+                <a href="/donate" @click.prevent="navigateTo('donate')">DONATE</a>
                 <span class="text-gray-500">|</span>
-                <a href="/about-us">ABOUT US</a>
+                <a href="/about-us" @click.prevent="navigateTo('about-us')">ABOUT US</a>
                 <span class="text-gray-500">|</span>
                 <a href="mailto:contact@kpbj.fm">CONTACT</a>
             </div>
@@ -33,7 +34,7 @@
       </div>
     </header>
 
-    $MAIN_CONTENT
+    <div x-html="currentPageContent"></div>
 
     <footer class="relative z-10 bg-transparent p-6 text-center mt-auto text-sm">
       <p>&copy; 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization</p>
@@ -55,6 +56,88 @@
           button.disabled = false;
           button.innerText = 'Subscribe';
         }, 500);
+      }
+
+      function spaApp() {
+        return {
+          currentPage: 'home',
+          currentPageContent: '<main class="text-center py-12"><p>Loading...</p></main>',
+          loading: false,
+
+          pageUrls: {
+            'home': '/pages/home',
+            'about-us': '/pages/about-us',
+            'donate': '/pages/donate'
+          },
+
+          init() {
+            // Get initial page from URL
+            const path = window.location.pathname;
+            if (path === '/' || path === '/index.html') {
+              this.currentPage = 'home';
+            } else if (path.includes('/about-us')) {
+              this.currentPage = 'about-us';
+            } else if (path.includes('/donate')) {
+              this.currentPage = 'donate';
+            }
+
+            this.loadPage(this.currentPage);
+
+            // Handle browser back/forward buttons
+            window.addEventListener('popstate', (event) => {
+              if (event.state && event.state.page) {
+                this.loadPage(event.state.page, false);
+              }
+            });
+
+            // Set initial history state
+            history.replaceState({ page: this.currentPage }, '', this.getUrlForPage(this.currentPage));
+          },
+
+          navigateTo(page) {
+            this.loadPage(page, true);
+          },
+
+          async loadPage(page, pushState = true) {
+            this.loading = true;
+            this.currentPage = page;
+
+            try {
+              // Fetch the HTML content for the page
+              const response = await fetch(this.pageUrls[page]);
+              if (!response.ok) throw new Error('Page not found');
+
+              this.currentPageContent = await response.text();
+
+              // Update browser history
+              if (pushState) {
+                const url = this.getUrlForPage(page);
+                history.pushState({ page: page }, '', url);
+              }
+
+              // Load PayPal script if on donate page
+              if (page === 'donate') {
+                this.$$nextTick(() => {
+                  if (window.paypal) {
+                    paypal.HostedButtons({
+                      hostedButtonId: "YBRDJJA6AGBL6",
+                    }).render("#paypal-container-YBRDJJA6AGBL6");
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('Error loading page:', error);
+              this.currentPageContent = '<main class="text-center py-12"><p>Error loading page content.</p></main>';
+            } finally {
+              this.loading = false;
+            }
+          },
+
+          getUrlForPage(page) {
+            if (page === 'home') return '/';
+            return '/' + page + '/';
+          }
+        };
       }
     </script>
   </body>

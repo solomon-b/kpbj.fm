@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kpbj.fm</title>
     <link rel="stylesheet" href="/assets/css/output.css">
+    <script src="//unpkg.com/alpinejs" defer></script>
     <script
       src="https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD">
     </script>
   </head>
-  <body class="relative font-body flex flex-col min-h-screen">
+  <body class="relative font-body flex flex-col min-h-screen" x-data="spaApp()">
     <header class="relative z-50">
       <div class="relative flex flex-col justify-center items-center p-6">
         <nav class="text-center">
-            <a href="/">
+            <a href="/" @click.prevent="navigateTo('home')">
               <pre class="font-mono text-sm leading-tight text-gray-800">
 ▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.
 █▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪
@@ -23,9 +24,9 @@
               </pre>
             </a>
             <div class="text-sm space-x-4">
-                <a href="/donate">DONATE</a>
+                <a href="/donate" @click.prevent="navigateTo('donate')">DONATE</a>
                 <span class="text-gray-500">|</span>
-                <a href="/about-us">ABOUT US</a>
+                <a href="/about-us" @click.prevent="navigateTo('about-us')">ABOUT US</a>
                 <span class="text-gray-500">|</span>
                 <a href="mailto:contact@kpbj.fm">CONTACT</a>
             </div>
@@ -33,43 +34,7 @@
       </div>
     </header>
 
-    <!-- Hero Section -->
-<main class="relative flex-grow flex flex-col items-center text-center">
-  <a href="https://fccdata.org/?call=kpbj&amp;facid=&amp;city=&amp;state=&amp;ccode=1&amp;country=US">
-    <img src="/assets/img/range.png" />
-  </a>
-
-  <!-- Email Signup Form -->
-  <section class="mt-12  text-center">
-    <h3 class="text-2xl font-bold mb-4">Stay in the Loop</h3>
-
-
-    <!-- Hidden iframe target -->
-    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
-
-    <!-- Form -->
-    <form action="https://docs.google.com/forms/u/0/d/e/1FAIpQLSfeM91iQ_A7ybaa070b8jiznHNRIJ_2JU0F7wJjo7vAvkS3tQ/formResponse"
-          method="POST"
-          target="hidden_iframe"
-          onsubmit="handleSubmit(event)"
-          class="w-full max-w-sm">
-      <div class="flex items-center border-b border-gray-500 py-2">
-        <input type="email"
-               name="entry.936311333"
-               required
-               placeholder="you@example.com"
-               aria-label="Email Address"
-               class="appearance-none bg-transparent border-none w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none" />
-        <button type="submit"
-                id="subscribe-button"
-                class="px-3 py-2 text-xs font-medium text-center inline-flex items-center text-white bg-gray-700 rounded-md hover:bg-gray-800 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800">
-          Subscribe
-        </button>
-      </div>
-      <p id="form-confirmation" class="mt-2 text-green-700" style="display: none;">Thanks for subscribing!</p>
-    </form>
-  </section>
-</main>
+    <div x-html="currentPageContent"></div>
 
     <footer class="relative z-10 bg-transparent p-6 text-center mt-auto text-sm">
       <p>&copy; 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization</p>
@@ -91,6 +56,88 @@
           button.disabled = false;
           button.innerText = 'Subscribe';
         }, 500);
+      }
+
+      function spaApp() {
+        return {
+          currentPage: 'home',
+          currentPageContent: '<main class="text-center py-12"><p>Loading...</p></main>',
+          loading: false,
+
+          pageUrls: {
+            'home': '/pages/home',
+            'about-us': '/pages/about-us',
+            'donate': '/pages/donate'
+          },
+
+          init() {
+            // Get initial page from URL
+            const path = window.location.pathname;
+            if (path === '/' || path === '/index.html') {
+              this.currentPage = 'home';
+            } else if (path.includes('/about-us')) {
+              this.currentPage = 'about-us';
+            } else if (path.includes('/donate')) {
+              this.currentPage = 'donate';
+            }
+
+            this.loadPage(this.currentPage);
+
+            // Handle browser back/forward buttons
+            window.addEventListener('popstate', (event) => {
+              if (event.state && event.state.page) {
+                this.loadPage(event.state.page, false);
+              }
+            });
+
+            // Set initial history state
+            history.replaceState({ page: this.currentPage }, '', this.getUrlForPage(this.currentPage));
+          },
+
+          navigateTo(page) {
+            this.loadPage(page, true);
+          },
+
+          async loadPage(page, pushState = true) {
+            this.loading = true;
+            this.currentPage = page;
+
+            try {
+              // Fetch the HTML content for the page
+              const response = await fetch(this.pageUrls[page]);
+              if (!response.ok) throw new Error('Page not found');
+
+              this.currentPageContent = await response.text();
+
+              // Update browser history
+              if (pushState) {
+                const url = this.getUrlForPage(page);
+                history.pushState({ page: page }, '', url);
+              }
+
+              // Load PayPal script if on donate page
+              if (page === 'donate') {
+                this.$nextTick(() => {
+                  if (window.paypal) {
+                    paypal.HostedButtons({
+                      hostedButtonId: "YBRDJJA6AGBL6",
+                    }).render("#paypal-container-YBRDJJA6AGBL6");
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('Error loading page:', error);
+              this.currentPageContent = '<main class="text-center py-12"><p>Error loading page content.</p></main>';
+            } finally {
+              this.loading = false;
+            }
+          },
+
+          getUrlForPage(page) {
+            if (page === 'home') return '/';
+            return '/' + page + '/';
+          }
+        };
       }
     </script>
   </body>
