@@ -1,21 +1,25 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module API.Blog.Post.Get where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (blogGetLink)
 import API.Blog.Post.Get.Templates.Page (notFoundTemplate, template)
-import App.Auth qualified as Auth
-import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
+import Data.Functor
 import Data.Has (Has)
 import Data.Text (Text)
+import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -43,30 +47,10 @@ type Route =
     "GET /blog/:slug"
     ( "blog"
         :> Servant.Capture "slug" Text
-        :> Servant.Header "Cookie" Text
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
-
---------------------------------------------------------------------------------
-
--- | Render template with proper HTMX handling
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => Bool -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
-renderTemplate isHtmxRequest mUserInfo templateContent =
-  case mUserInfo of
-    Just userInfo ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrameWithUser userInfo templateContent
-    Nothing ->
-      if isHtmxRequest
-        then loadContentOnly templateContent
-        else loadFrame templateContent
-
-checkHtmxRequest :: Maybe Text -> Bool
-checkHtmxRequest = \case
-  Just "true" -> True
-  _ -> False
 
 --------------------------------------------------------------------------------
 
@@ -82,41 +66,29 @@ handler ::
   ) =>
   Tracer ->
   Text ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer slug cookie hxRequest = do
-  let isHtmxRequest = checkHtmxRequest hxRequest
-
-  -- Get user info once upfront
-  loginState <- Auth.userLoginState cookie
-  mUserInfo <- case loginState of
-    Auth.IsNotLoggedIn -> pure Nothing
-    Auth.IsLoggedIn user -> do
-      execQuerySpan (UserMetadata.getUserMetadata (User.mId user)) >>= \case
-        Right userMetadata ->
-          pure userMetadata
-        _ -> pure Nothing
+handler _tracer slug cookie (foldHxReq -> hxRequest) = do
+  mUserInfo <- getUserInfo cookie <&> fmap snd
 
   execQuerySpan (BlogPosts.getBlogPostBySlug slug) >>= \case
     Left _err -> do
       Log.logInfo "Failed to fetch blog post from database" slug
-      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+      renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right Nothing -> do
       Log.logInfo "Blog post not found" slug
-      renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+      renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just blogPost) -> do
       execQuerySpan (UserMetadata.getUserMetadata (BlogPosts.bpmAuthorId blogPost)) >>= \case
         Left _err -> do
           Log.logInfo "Failed to fetch blog post author" (BlogPosts.bpmAuthorId blogPost)
-          renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+          renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
         Right Nothing -> do
           Log.logInfo "Blog post author not found" (BlogPosts.bpmAuthorId blogPost)
-          renderTemplate isHtmxRequest mUserInfo (notFoundTemplate slug)
+          renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
         Right (Just author) -> do
           tagsResult <- execQuerySpan (BlogPosts.getTagsForPost (BlogPosts.bpmId blogPost))
-          let tags = case tagsResult of
-                Left _err -> []
-                Right tagModels -> tagModels
+          let tags = fromRight [] tagsResult
               postTemplate = template blogPost author tags
-          renderTemplate isHtmxRequest mUserInfo postTemplate
+          renderTemplate hxRequest mUserInfo postTemplate

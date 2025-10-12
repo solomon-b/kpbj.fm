@@ -74,10 +74,8 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer slug cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie $ \(fmap snd -> mUserInfo) -> do
-    showResult <- execQuerySpan (Shows.getShowBySlug slug)
-
-    case showResult of
+  getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do
+    execQuerySpan (Shows.getShowBySlug slug) >>= \case
       Left err -> do
         Log.logInfo "Failed to fetch show from database" (Aeson.object ["error" .= show err])
         renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")

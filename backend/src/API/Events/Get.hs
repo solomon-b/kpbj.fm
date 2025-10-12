@@ -173,7 +173,7 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer (normalizeTagFilter -> tagFilter) (fromMaybe ListView -> view) cookie hxRequest = do
-  getUserInfo cookie $ \mUserInfo -> do
+  getUserInfo cookie >>= \mUserInfo -> do
     now <- currentSystemTime
     eventTagsWithCounts <- getAllEventTags
 

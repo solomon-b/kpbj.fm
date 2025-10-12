@@ -68,7 +68,7 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie $ \case
+  getUserInfo cookie >>= \case
     Nothing ->
       renderTemplate hxRequest Nothing loginRequiredTemplate
     Just (_user, userMetadata) -> do
