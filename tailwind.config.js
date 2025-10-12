@@ -5,7 +5,11 @@ module.exports = {
     './assets/js/**/*.js',  // or wherever your JS is
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        body: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
+      },
+    },
   },
   plugins: [],
 }
