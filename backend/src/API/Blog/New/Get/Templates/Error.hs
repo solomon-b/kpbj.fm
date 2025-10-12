@@ -19,7 +19,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing Nothing
+blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing

@@ -44,7 +44,7 @@ import Web.FormUrlEncoded (FromForm (..), parseMaybe, parseUnique)
 
 -- URL helpers
 blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing Nothing
+blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
 blogNewGetUrl :: Links.URI
 blogNewGetUrl = Links.linkURI blogNewGetLink
@@ -178,7 +178,6 @@ userMetadataErrorTemplate =
 data NewBlogPostForm = NewBlogPostForm
   { nbpfTitle :: Text,
     nbpfContent :: Text,
-    nbpfCategory :: Text,
     nbpfExcerpt :: Maybe Text,
     nbpfStatus :: Maybe Text,
     nbpfTags :: [Text]
@@ -189,7 +188,6 @@ instance FromForm NewBlogPostForm where
   fromForm form = do
     title <- parseUnique "title" form
     content <- parseUnique "content" form
-    category <- parseMaybe "category" form
     excerpt <- parseMaybe "excerpt" form
     status <- parseMaybe "status" form
     tags <- parseMaybe "tags" form
@@ -198,7 +196,6 @@ instance FromForm NewBlogPostForm where
       NewBlogPostForm
         { nbpfTitle = title,
           nbpfContent = content,
-          nbpfCategory = fromMaybe "Station News" category,
           nbpfExcerpt = if maybe True Text.null excerpt then Nothing else excerpt,
           nbpfStatus = status,
           nbpfTags = parseTags $ fold tags
@@ -261,7 +258,6 @@ validateNewBlogPost form authorId = do
         BlogPosts.bpiContent = nbpfContent form,
         BlogPosts.bpiExcerpt = nbpfExcerpt form,
         BlogPosts.bpiAuthorId = authorId,
-        BlogPosts.bpiCategory = nbpfCategory form,
         BlogPosts.bpiStatus = status
       }
 

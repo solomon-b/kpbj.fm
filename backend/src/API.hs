@@ -151,7 +151,7 @@ aboutGetLink :: Links.Link
 aboutGetLink = Links.safeLink (Proxy @API) (Proxy @About.Get.Route)
 
 -- | Route: GET /blog
-blogGetLink :: Maybe Int64 -> Maybe Text -> Maybe Text -> Links.Link
+blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
 blogGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Get.Route)
 
 -- | Route: GET /blog/new
