@@ -12,7 +12,7 @@
   </head>
   <body class="relative font-body flex flex-col min-h-screen" x-data="spaApp()">
     <header class="relative z-50">
-      <div class="relative flex flex-col justify-center items-center p-6">
+      <div class="relative flex flex-col justify-center items-center p-3">
         <nav class="text-center">
             <a href="/" @click.prevent="navigateTo('home')">
               <pre class="font-mono text-sm leading-tight text-gray-800">
@@ -34,6 +34,22 @@
       </div>
     </header>
 
+    <!-- Minimal Player Bar -->
+    <div class="px-6 text-center">
+      <div class="inline-flex items-center gap-4 text-sm font-mono">
+        <a href="#" id="playPauseBtn" class="hover:text-gray-600 cursor-pointer">[ PLAY ]</a>
+        <span class="text-gray-500">|</span>
+        <div id="nowPlaying">
+          NOW PLAYING: KPBJ 95.9 FM
+        </div>
+        <span class="text-gray-500">|</span>
+        <div class="flex items-center gap-2">
+          <span>VOL:</span>
+          <input type="range" min="0" max="100" value="80" id="volumeSlider" class="w-20 h-1">
+        </div>
+      </div>
+    </div>
+
     <div x-html="currentPageContent"></div>
 
     <footer class="relative z-10 bg-transparent p-6 text-center mt-auto text-sm">
@@ -41,6 +57,43 @@
     </footer>
 
     <script>
+      // Audio player functionality
+      let audioPlayer = null;
+      let isPlaying = false;
+
+      function initAudioPlayer() {
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+
+        // Initialize audio element
+        audioPlayer = new Audio();
+        audioPlayer.src = 'https://kpbj.hasnoskills.com:8000/radio.mp3';
+        audioPlayer.volume = 0.8;
+
+        playPauseBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (!isPlaying) {
+            audioPlayer.play().then(() => {
+              isPlaying = true;
+              playPauseBtn.textContent = '[ PAUSE ]';
+            }).catch(err => {
+              console.error('Error playing audio:', err);
+            });
+          } else {
+            audioPlayer.pause();
+            isPlaying = false;
+            playPauseBtn.textContent = '[ PLAY ]';
+          }
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+          audioPlayer.volume = e.target.value / 100;
+        });
+      }
+
+      // Initialize audio player when DOM is ready
+      document.addEventListener('DOMContentLoaded', initAudioPlayer);
+
       function handleSubmit(event) {
         const form = event.target;
         const confirmation = form.querySelector('#form-confirmation');
