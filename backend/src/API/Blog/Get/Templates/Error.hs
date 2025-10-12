@@ -28,4 +28,4 @@ errorTemplate errorMsg = do
       "REFRESH"
   where
     blogGetUrl :: Links.URI
-    blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing Nothing
+    blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing

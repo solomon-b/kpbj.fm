@@ -6,7 +6,6 @@ CREATE TABLE blog_posts (
     content TEXT NOT NULL, -- Full article content
     excerpt TEXT, -- Short preview (optional, can be generated)
     author_id BIGINT NOT NULL REFERENCES users(id),
-    category TEXT NOT NULL, -- Station News, Community, Events, Music, etc.
     status TEXT NOT NULL DEFAULT 'draft', -- draft, published, archived
     published_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -29,7 +28,6 @@ CREATE TABLE blog_post_tags (
 
 -- Create indexes for performance
 CREATE INDEX idx_blog_posts_author ON blog_posts(author_id);
-CREATE INDEX idx_blog_posts_category ON blog_posts(category);
 CREATE INDEX idx_blog_posts_status ON blog_posts(status);
 CREATE INDEX idx_blog_posts_published_at ON blog_posts(published_at DESC);
 CREATE INDEX idx_blog_posts_slug ON blog_posts(slug);
@@ -38,5 +36,4 @@ CREATE INDEX idx_blog_posts_slug ON blog_posts(slug);
 -- This will be enforced at the application level, but we add a comment for documentation
 COMMENT ON TABLE blog_posts IS 'Blog posts - only users with Staff or Admin roles can create posts';
 COMMENT ON COLUMN blog_posts.author_id IS 'Must be a user with Staff or Admin role';
-COMMENT ON COLUMN blog_posts.category IS 'Categories: Station News, Community, Events, Music, Host Spotlights, Local Scene';
 COMMENT ON COLUMN blog_posts.status IS 'Status: draft, published, archived';

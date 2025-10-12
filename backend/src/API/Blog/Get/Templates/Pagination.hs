@@ -49,4 +49,4 @@ renderPagination currentPage hasMore = do
         else Lucid.span_ [Lucid.class_ "px-3 py-1 text-gray-400"] "Next ›"
   where
     blogGetPageUrl :: Int64 -> Links.URI
-    blogGetPageUrl page = Links.linkURI $ blogGetLink (Just page) Nothing Nothing
+    blogGetPageUrl page = Links.linkURI $ blogGetLink (Just page) Nothing

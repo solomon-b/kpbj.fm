@@ -28,10 +28,10 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing Nothing
+blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
 blogGetTagUrl :: Text -> Links.URI
-blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing Nothing (Just tag)
+blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
 
 --------------------------------------------------------------------------------
 
@@ -72,11 +72,6 @@ template post author tags = do
   Lucid.article_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 w-full"] $ do
     -- Post Header
     Lucid.header_ [Lucid.class_ "mb-8"] $ do
-      -- Category badge
-      Lucid.div_ [Lucid.class_ "mb-4"] $ do
-        Lucid.span_ [Lucid.class_ "bg-green-200 text-green-800 px-3 py-1 text-sm font-bold"] $
-          Lucid.toHtml (BlogPosts.bpmCategory post)
-
       -- Title
       Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4 leading-tight"] $
         Lucid.toHtml (BlogPosts.bpmTitle post)

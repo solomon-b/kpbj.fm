@@ -35,10 +35,10 @@ import Text.HTML (HTML)
 
 -- URL helpers
 blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing Nothing
+blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
 blogGetTagUrl :: Text -> Links.URI
-blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing Nothing (Just tag)
+blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
 
 --------------------------------------------------------------------------------
 

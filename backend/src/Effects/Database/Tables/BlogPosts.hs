@@ -48,7 +48,6 @@ data Model = Model
     bpmContent :: Text,
     bpmExcerpt :: Maybe Text,
     bpmAuthorId :: User.Id,
-    bpmCategory :: Text,
     bpmStatus :: BlogPostStatus,
     bpmPublishedAt :: Maybe UTCTime,
     bpmCreatedAt :: UTCTime,
@@ -92,7 +91,6 @@ data Insert = Insert
     bpiContent :: Text,
     bpiExcerpt :: Maybe Text,
     bpiAuthorId :: User.Id,
-    bpiCategory :: Text,
     bpiStatus :: BlogPostStatus
   }
   deriving stock (Generic, Show, Eq)
@@ -108,7 +106,7 @@ getPublishedBlogPosts limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, content, excerpt, author_id, category, status, published_at, created_at, updated_at
+    SELECT id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
     FROM blog_posts
     WHERE status = 'published'
     ORDER BY published_at DESC NULLS LAST, created_at DESC
@@ -121,7 +119,7 @@ getBlogPostBySlug slug =
   interp
     False
     [sql|
-    SELECT id, title, slug, content, excerpt, author_id, category, status, published_at, created_at, updated_at
+    SELECT id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
     FROM blog_posts
     WHERE slug = #{slug}
   |]
@@ -132,22 +130,9 @@ getBlogPostById postId =
   interp
     False
     [sql|
-    SELECT id, title, slug, content, excerpt, author_id, category, status, published_at, created_at, updated_at
+    SELECT id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
     FROM blog_posts
     WHERE id = #{postId}
-  |]
-
--- | Get blog posts by category
-getBlogPostsByCategory :: Text -> Int64 -> Int64 -> Hasql.Statement () [Model]
-getBlogPostsByCategory category limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, content, excerpt, author_id, category, status, published_at, created_at, updated_at
-    FROM blog_posts
-    WHERE status = 'published' AND category = #{category}
-    ORDER BY published_at DESC NULLS LAST, created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
   |]
 
 -- | Get blog posts by author
@@ -156,7 +141,7 @@ getBlogPostsByAuthor authorId limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, content, excerpt, author_id, category, status, published_at, created_at, updated_at
+    SELECT id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
     FROM blog_posts
     WHERE author_id = #{authorId}
     ORDER BY created_at DESC
@@ -172,8 +157,8 @@ insertBlogPost Insert {..} =
         <$> interp
           False
           [sql|
-        INSERT INTO blog_posts(title, slug, content, excerpt, author_id, category, status, published_at, created_at, updated_at)
-        VALUES (#{bpiTitle}, #{bpiSlug}, #{bpiContent}, #{bpiExcerpt}, #{bpiAuthorId}, #{bpiCategory}, #{bpiStatus}, NOW(), NOW(), NOW())
+        INSERT INTO blog_posts(title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at)
+        VALUES (#{bpiTitle}, #{bpiSlug}, #{bpiContent}, #{bpiExcerpt}, #{bpiAuthorId}, #{bpiStatus}, NOW(), NOW(), NOW())
         RETURNING id
       |]
     _ ->
@@ -181,8 +166,8 @@ insertBlogPost Insert {..} =
         <$> interp
           False
           [sql|
-        INSERT INTO blog_posts(title, slug, content, excerpt, author_id, category, status, published_at, created_at, updated_at)
-        VALUES (#{bpiTitle}, #{bpiSlug}, #{bpiContent}, #{bpiExcerpt}, #{bpiAuthorId}, #{bpiCategory}, #{bpiStatus}, NULL, NOW(), NOW())
+        INSERT INTO blog_posts(title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at)
+        VALUES (#{bpiTitle}, #{bpiSlug}, #{bpiContent}, #{bpiExcerpt}, #{bpiAuthorId}, #{bpiStatus}, NULL, NOW(), NOW())
         RETURNING id
       |]
 
@@ -194,7 +179,7 @@ updateBlogPost postId Insert {..} =
     [sql|
     UPDATE blog_posts
     SET title = #{bpiTitle}, slug = #{bpiSlug}, content = #{bpiContent}, excerpt = #{bpiExcerpt},
-        category = #{bpiCategory}, status = #{bpiStatus},
+        status = #{bpiStatus},
         published_at = CASE
           WHEN #{bpiStatus}::text = 'published' AND published_at IS NULL THEN NOW()
           WHEN #{bpiStatus}::text != 'published' THEN NULL
@@ -259,7 +244,7 @@ getPostsByTag tagId limit offset =
   interp
     False
     [sql|
-    SELECT bp.id, bp.title, bp.slug, bp.content, bp.excerpt, bp.author_id, bp.category, bp.status, bp.published_at, bp.created_at, bp.updated_at
+    SELECT bp.id, bp.title, bp.slug, bp.content, bp.excerpt, bp.author_id, bp.status, bp.published_at, bp.created_at, bp.updated_at
     FROM blog_posts bp
     JOIN blog_post_tags bpt ON bp.id = bpt.post_id
     WHERE bpt.tag_id = #{tagId} AND bp.status = 'published'

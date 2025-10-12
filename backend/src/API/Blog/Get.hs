@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Blog.Get where
@@ -7,11 +8,11 @@ module API.Blog.Get where
 import API.Blog.Get.Templates.Error (errorTemplate)
 import API.Blog.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
+import Control.Monad (forM)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Either (fromRight)
 import Data.Functor ((<&>))
 import Data.Has (Has)
 import Data.Int (Int64)
@@ -20,11 +21,12 @@ import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
+import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -39,7 +41,6 @@ type Route =
     "GET /blog"
     ( "blog"
         :> Servant.QueryParam "page" Int64
-        :> Servant.QueryParam "category" Text
         :> Servant.QueryParam "tag" Text
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -61,11 +62,10 @@ handler ::
   Tracer ->
   Maybe Int64 ->
   Maybe Text ->
-  Maybe Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybePage maybeCategory maybeTag cookie (foldHxReq -> hxRequest) = do
+handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       limit = 10
       offset = (page - 1) * limit
@@ -73,15 +73,8 @@ handler _tracer maybePage maybeCategory maybeTag cookie (foldHxReq -> hxRequest)
   -- Get user info once upfront
   mUserInfo <- getUserInfo cookie <&> fmap snd
 
-  -- Get sidebar data
-  tagsResult <- execQuerySpan BlogTags.getTagsWithCounts
-  categoriesResult <- execQuerySpan BlogTags.getCategoriesWithCounts
-
-  let tagsWithCounts = fromRight [] tagsResult
-      categoriesWithCounts = fromRight [] categoriesResult
-
-  -- Get blog posts based on filters (category or tag)
-  blogPostsResult <- getBlogPostResults limit offset maybeCategory maybeTag
+  -- Get blog posts based on filters (tag only)
+  blogPostsResult <- getBlogPostResults limit offset maybeTag
 
   case blogPostsResult of
     Left _err -> do
@@ -90,7 +83,7 @@ handler _tracer maybePage maybeCategory maybeTag cookie (foldHxReq -> hxRequest)
     Right allPosts -> do
       let posts = take (fromIntegral limit) allPosts
           hasMore = length allPosts > fromIntegral limit
-          blogTemplate = template posts page hasMore tagsWithCounts categoriesWithCounts
+          blogTemplate = template posts page hasMore
       renderTemplate hxRequest mUserInfo blogTemplate
 
 getBlogPostResults ::
@@ -103,19 +96,51 @@ getBlogPostResults ::
   Int64 ->
   Int64 ->
   Maybe Text ->
-  Maybe Text ->
-  m (Either HSQL.Pool.UsageError [BlogPosts.Model])
-getBlogPostResults limit offset maybeCategory maybeTag = do
-  case (maybeCategory, maybeTag) of
-    (Just category, _) ->
-      execQuerySpan (BlogPosts.getBlogPostsByCategory category limit offset)
-    (_, Just tagName) ->
+  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
+getBlogPostResults limit offset maybeTag = do
+  case maybeTag of
+    Just tagName ->
       execQuerySpan (BlogTags.getTagByName tagName) >>= \case
         Left err ->
           pure (Left err)
         Right Nothing ->
           pure (Right [])
         Right (Just tag) ->
-          execQuerySpan (BlogPosts.getPostsByTag (BlogTags.btmId tag) limit offset)
-    (Nothing, Nothing) ->
-      execQuerySpan (BlogPosts.getPublishedBlogPosts limit offset)
+          getPostsWithTagsFiltered tag limit offset
+    Nothing ->
+      getPostsWithTags limit offset
+
+getPostsWithTags ::
+  ( MonadUnliftIO m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has Tracer env
+  ) =>
+  Int64 ->
+  Int64 ->
+  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
+getPostsWithTags limit offset =
+  execTransactionSpan $ do
+    posts <- HT.statement () $ BlogPosts.getPublishedBlogPosts limit offset
+    forM posts $ \post -> do
+      tags <- HT.statement () $ BlogPosts.getTagsForPost post.bpmId
+      pure (post, tags)
+
+getPostsWithTagsFiltered ::
+  ( MonadUnliftIO m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has Tracer env
+  ) =>
+  BlogTags.Model ->
+  Int64 ->
+  Int64 ->
+  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
+getPostsWithTagsFiltered tag limit offset =
+  execTransactionSpan $ do
+    posts <- HT.statement () $ BlogPosts.getPostsByTag tag.btmId limit offset
+    forM posts $ \post -> do
+      tags <- HT.statement () $ BlogPosts.getTagsForPost post.bpmId
+      pure (post, tags)
