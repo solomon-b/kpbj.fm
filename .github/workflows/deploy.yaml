@@ -1,8 +1,9 @@
 name: nix:deploy
 on:
-  push:
-    branches:
-      # - main
+  workflow_dispatch:  # Manual trigger only
+  # push:
+  #   branches:
+  #     - main
 jobs:
   docker:
     runs-on: ubuntu-latest

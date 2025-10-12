@@ -163,7 +163,7 @@
         "tmp-postgres-src": "tmp-postgres-src"
       },
       "locked": {
-        "lastModified": 1758572999,
+        "lastModified": 1760234368,
         "narHash": "sha256-hBVw30DfwEi7d/7FNisV3dRKIE6aWqO/1ZfKkq1Ozqg=",
         "owner": "solomon-b",
         "repo": "web-server",
