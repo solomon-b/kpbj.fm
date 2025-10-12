@@ -56,15 +56,6 @@ data BlogTagWithCount = BlogTagWithCount
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance BlogTagWithCount)
 
--- | Category with count for queries
-data CategoryWithCount = CategoryWithCount
-  { cwcCategory :: Text,
-    cwcCount :: Int64
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance CategoryWithCount)
-
 --------------------------------------------------------------------------------
 -- Insert Types
 
@@ -123,17 +114,4 @@ getTagsWithCounts =
     GROUP BY bt.id, bt.name, bt.created_at
     HAVING COUNT(bpt.post_id) > 0
     ORDER BY COUNT(bpt.post_id) DESC, bt.name
-  |]
-
--- | Get categories with their post counts
-getCategoriesWithCounts :: Hasql.Statement () [CategoryWithCount]
-getCategoriesWithCounts =
-  interp
-    False
-    [sql|
-    SELECT category, COUNT(*)::bigint as post_count
-    FROM blog_posts
-    WHERE status = 'published'
-    GROUP BY category
-    ORDER BY post_count DESC, category
   |]

@@ -18,7 +18,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing Nothing
+blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
 blogNewPostUrl :: Links.URI
 blogNewPostUrl = Links.linkURI blogNewPostLink
@@ -74,26 +74,15 @@ template userMeta = do
             ]
             ""
 
-        Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-6"] $ do
-          Lucid.div_ $ do
-            Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Category"
-            Lucid.select_ [Lucid.name_ "category", Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono bg-white"] $ do
-              Lucid.option_ [Lucid.value_ "Station News"] "Station News"
-              Lucid.option_ [Lucid.value_ "Community"] "Community"
-              Lucid.option_ [Lucid.value_ "Events"] "Events"
-              Lucid.option_ [Lucid.value_ "Music"] "Music"
-              Lucid.option_ [Lucid.value_ "Host Spotlights"] "Host Spotlights"
-              Lucid.option_ [Lucid.value_ "Local Scene"] "Local Scene"
-
-          Lucid.div_ $ do
-            Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Tags"
-            Lucid.input_
-              [ Lucid.type_ "text",
-                Lucid.name_ "tags",
-                Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-                Lucid.placeholder_ "industrial, ambient, interview, chrome-valley"
-              ]
-            Lucid.div_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Comma separated tags"
+        Lucid.div_ $ do
+          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Tags"
+          Lucid.input_
+            [ Lucid.type_ "text",
+              Lucid.name_ "tags",
+              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+              Lucid.placeholder_ "industrial, ambient, interview, chrome-valley"
+            ]
+          Lucid.div_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Comma separated tags"
 
     -- Publishing Options
     Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do

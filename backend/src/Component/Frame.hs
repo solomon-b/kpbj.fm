@@ -27,7 +27,7 @@ donateGetUrl :: Link.URI
 donateGetUrl = Link.linkURI donateGetLink
 
 blogGetUrl :: Link.URI
-blogGetUrl = Link.linkURI $ blogGetLink Nothing Nothing Nothing
+blogGetUrl = Link.linkURI $ blogGetLink Nothing Nothing
 
 eventsGetUrl :: Link.URI
 eventsGetUrl = Link.linkURI $ eventsGetLink Nothing Nothing
