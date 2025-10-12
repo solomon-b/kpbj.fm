@@ -12,18 +12,20 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Control.Monad.Trans.Maybe
 import Data.Has (Has)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
+import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -67,28 +69,28 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) = do
       Log.logInfo "Unauthorized access to episode edit" ()
       renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (user, userMetadata) -> do
-      execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+      -- NOTE: Experimental use of a 'HT.Transaction' here. We aren't applying
+      -- these globally yet due to difficulty logging the raw sql. However, I
+      -- want a reference in the repo in case we end up needing a transaction
+      -- somewhere.
+      mResult <- execTransactionSpan $ runMaybeT $ do
+        episode <- MaybeT $ HT.statement () (Episodes.getEpisodeById episodeId)
+        showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
+        MaybeT $ pure $ Just (episode, showResult)
+
+      case mResult of
         Left err -> do
           Log.logAttention "getEpisodeById execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
           Log.logInfo_ $ "No episode with ID: '" <> display episodeId <> "'"
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-        Right (Just episode) ->
-          -- Check if user is authorized to edit this episode
+        Right (Just (episode, showResult)) ->
           if episode.createdBy == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then do
-              -- Fetch the show for this episode
-              showResult <- execQuerySpan (Shows.getShowById episode.showId)
-              case showResult of
-                Left _err ->
-                  renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-                Right Nothing ->
-                  renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-                Right (Just s) -> do
-                  Log.logInfo "Authorized user accessing episode edit form" episode.id
-                  let editTemplate = template episode s userMetadata
-                  renderTemplate hxRequest (Just userMetadata) editTemplate
+              Log.logInfo "Authorized user accessing episode edit form" episode.id
+              let editTemplate = template episode showResult userMetadata
+              renderTemplate hxRequest (Just userMetadata) editTemplate
             else do
               Log.logInfo "User tried to edit episode they don't own" episode.id
               renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate

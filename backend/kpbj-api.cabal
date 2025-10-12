@@ -60,6 +60,7 @@ library
                   , hasql
                   , hasql-interpolate
                   , hasql-pool
+                  , hasql-transaction
                   , hs-opentelemetry-sdk
                   , http-api-data
                   , http-conduit
@@ -77,6 +78,7 @@ library
                   , text
                   , text-display
                   , time
+                  , transformers
                   , unliftio-core
                   , validation
                   , wai-extra
