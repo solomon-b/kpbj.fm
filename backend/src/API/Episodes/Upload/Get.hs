@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module API.Episodes.Upload.Get where
 
@@ -7,15 +8,14 @@ module API.Episodes.Upload.Get where
 import {-# SOURCE #-} API (episodeUploadGetLink)
 import API.Episodes.Upload.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
 import API.Episodes.Upload.Get.Templates.Form (episodeUploadForm)
-import App.Common (getUserInfo)
-import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -44,7 +44,7 @@ type Route =
     ( "episodes"
         :> "upload"
         :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" Text
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
@@ -62,26 +62,22 @@ handler ::
   ) =>
   Tracer ->
   Maybe Cookie ->
-  Maybe Text ->
+  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer cookie hxRequest = do
-  let isHtmxRequest = checkHtmxRequest hxRequest
-
-  getUserInfo cookie $ \case
+handler _tracer cookie (foldHxReq -> hxRequest) = do
+  getUserInfo cookie >>= \case
     Nothing -> do
       -- Redirect to login
-      if isHtmxRequest
-        then loadContentOnly notLoggedInTemplate
-        else loadFrame notLoggedInTemplate
+      renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (user, userMetadata) -> do
       showsResult <- execQuerySpan (Shows.getShowsForUser user.mId)
       case showsResult of
         Left _err -> do
           Log.logInfo "Failed to fetch user's shows" ()
-          if isHtmxRequest
-            then loadContentOnly showLoadErrorTemplate
-            else loadFrame showLoadErrorTemplate
+          renderTemplate hxRequest Nothing showLoadErrorTemplate
         Right userShows -> do
+          -- TODO: This is wrong! We need to conditioanly fetch upcoming dates based on what show the user selects!
+          --
           -- Get upcoming dates for the user's first show (primary show)
           upcomingDates <- case userShows of
             [] -> pure []
@@ -93,11 +89,4 @@ handler _tracer cookie hxRequest = do
                   pure []
                 Right dates -> pure dates
 
-          if isHtmxRequest
-            then loadContentOnly $ episodeUploadForm userShows upcomingDates
-            else loadFrameWithUser userMetadata $ episodeUploadForm userShows upcomingDates
-
-checkHtmxRequest :: Maybe Text -> Bool
-checkHtmxRequest = \case
-  Just "true" -> True
-  _ -> False
+          renderTemplate hxRequest (Just userMetadata) $ episodeUploadForm userShows upcomingDates

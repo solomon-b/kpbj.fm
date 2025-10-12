@@ -274,7 +274,7 @@ handler ::
   NewEventForm ->
   m (Lucid.Html ())
 handler _tracer cookie (foldHxReq -> hxRequest) form = do
-  getUserInfo cookie $ \case
+  getUserInfo cookie >>= \case
     Just (user, userMetadata) | UserMetadata.isStaffOrHigher userMetadata.mUserRole ->
       validateForm hxRequest user userMetadata form $ \eventInsert ->
         insertEvent hxRequest userMetadata eventInsert $ \eventId -> do

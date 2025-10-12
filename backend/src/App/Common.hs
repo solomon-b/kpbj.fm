@@ -36,19 +36,18 @@ getUserInfo ::
     MonadUnliftIO m
   ) =>
   Maybe Cookie ->
-  (Maybe (User.Model, UserMetadata.Model) -> m a) ->
-  m a
-getUserInfo (coerce -> cookie) k =
+  m (Maybe (User.Model, UserMetadata.Model))
+getUserInfo (coerce -> cookie) =
   Auth.userLoginState cookie >>= \case
     Auth.IsNotLoggedIn ->
-      k Nothing
+      pure Nothing
     Auth.IsLoggedIn user ->
       execQuerySpan (UserMetadata.getUserMetadata user.mId) >>= \case
         Right userMetadata ->
-          k ((user,) <$> userMetadata)
+          pure ((user,) <$> userMetadata)
         _ -> do
           Log.logAttention "Failed to query user_metadata" (Aeson.object ["user.id" .= user.mId])
-          k Nothing
+          pure Nothing
 
 -- | Render template with proper HTMX handling
 renderTemplate :: (Log.MonadLog m, MonadCatch m) => HxRequest -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())

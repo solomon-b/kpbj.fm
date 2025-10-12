@@ -71,14 +71,12 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
-  getUserInfo cookie $ \(fmap snd -> mUserInfo) -> do
+  getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do
     let limit = 12
         offset = (coerce page - 1) * limit
 
     -- Fetch limit + 1 to check if there are more results
-    showsResult <- getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus
-
-    case showsResult of
+    getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus >>= \case
       Left err -> do
         Log.logInfo "Failed to fetch shows from database" (Aeson.object ["error" .= show err])
         renderTemplate htmxRequest mUserInfo (errorTemplate "Failed to load shows. Please try again.")

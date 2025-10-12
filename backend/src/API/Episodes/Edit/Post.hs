@@ -16,6 +16,7 @@ import Data.Has (Has)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
@@ -159,17 +160,18 @@ handler ::
   EpisodeEditForm ->
   m (Lucid.Html ())
 handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
-  getUserInfo cookie $ \case
+  getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized episode edit attempt" episodeId
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
       -- Fetch the episode to verify ownership
-      episodeResult <- execQuerySpan (Episodes.getEpisodeById (Episodes.Id episodeId))
-      case episodeResult of
-        Left _err -> do
+      execQuerySpan (Episodes.getEpisodeById (Episodes.Id episodeId)) >>= \case
+        Left err -> do
+          Log.logAttention "getEpisodeById execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-        Right Nothing ->
+        Right Nothing -> do
+          Log.logInfo_ $ "No episode with ID: '" <> display episodeId <> "'"
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just episode) ->
           -- Check authorization - user must be episode creator or staff/admin
@@ -189,8 +191,7 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) editForm = do
                       }
 
               -- Update the episode
-              updateResult <- execQuerySpan (Episodes.updateEpisode updateData)
-              case updateResult of
+              execQuerySpan (Episodes.updateEpisode updateData) >>= \case
                 Left _err -> do
                   Log.logInfo "Failed to update episode" episodeId
                   renderTemplate hxRequest (Just userMetadata) errorTemplate
