@@ -48,10 +48,6 @@ renderEventCard event = do
         Lucid.div_
           [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg mb-4"]
           "[EVENT IMAGE]"
-        Lucid.div_ [Lucid.class_ "text-center"] $ do
-          Lucid.div_
-            [Lucid.class_ "bg-gray-200 text-gray-800 px-2 py-1 text-xs font-bold"]
-            "EVENT"
 
       -- Event details
       Lucid.div_ [Lucid.class_ "lg:col-span-3"] $ do
@@ -98,4 +94,4 @@ renderEventCard event = do
               hxPushUrl_ "true",
               Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700"
             ]
-            "VIEW EVENT"
+            "READ MORE"
