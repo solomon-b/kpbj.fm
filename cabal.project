@@ -3,5 +3,5 @@ packages: backend
 source-repository-package
   type: git
   location: https://github.com/solomon-b/web-server
-  tag: 120408a7beff8f24683e652a64011e3c12378826
+  tag: 47af5fdde47b7b20a80bdf47ff751b8e2711fa04
   subdir: web-server-core
