@@ -9,7 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (mediaGetLink)
+import {-# SOURCE #-} API (episodeGetLink, mediaGetLink)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -18,7 +18,7 @@ import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (xBindStyle_, xData_, xOnClick_, xRef_, xText_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindStyle_, xData_, xOnClick_, xRef_, xText_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -26,6 +26,10 @@ import Servant.Links qualified as Links
 -- | Helper function to convert artwork path to full media URL
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
+
+-- | Helper function to get episode detail URL
+episodeGetUrl :: Text.Text -> Text.Text -> Links.URI
+episodeGetUrl showSlug episodeSlug = Links.linkURI $ episodeGetLink showSlug episodeSlug
 
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
@@ -41,7 +45,16 @@ renderLatestEpisode showModel episode tracks = do
           Nothing -> "[EP IMG]"
 
       Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-        Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ Lucid.toHtml episode.title
+        let epUrl = episodeGetUrl showModel.slug episode.slug
+        Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ do
+          Lucid.a_
+            [ Lucid.href_ [i|/#{epUrl}|],
+              hxGet_ [i|/#{epUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "hover:underline"
+            ]
+            $ Lucid.toHtml episode.title
         Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-2"] $ do
           case episode.scheduledAt of
             Just scheduledAt -> do
@@ -77,7 +90,8 @@ renderLatestEpisode showModel episode tracks = do
             episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
         Lucid.div_
           [ Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-4 mb-4",
-            xData_ [i|{
+            xData_
+              [i|{
               playerId: '#{playerId}',
               isPlaying: false,
               audioUrl: '#{audioUrl}',
@@ -124,24 +138,24 @@ renderLatestEpisode showModel episode tracks = do
             }|]
           ]
           $ do
-              Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
-              Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
-                Lucid.button_
-                  [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
-                    xOnClick_ "toggle()",
-                    xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+            Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
+            Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
+              Lucid.button_
+                [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
+                  xOnClick_ "toggle()",
+                  xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+                ]
+                "▶ PLAY"
+              Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded relative"] $ do
+                Lucid.div_
+                  [ Lucid.class_ "bg-gray-800 h-2 rounded absolute top-0 left-0",
+                    Lucid.style_ "",
+                    xBindStyle_ "{ width: progress + '%' }"
                   ]
-                  "▶ PLAY"
-                Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded relative"] $ do
-                  Lucid.div_
-                    [ Lucid.class_ "bg-gray-800 h-2 rounded absolute top-0 left-0",
-                      Lucid.style_ "",
-                      xBindStyle_ "{ width: progress + '%' }"
-                    ]
-                    mempty
-                Lucid.span_ [Lucid.class_ "text-sm font-mono", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
-              Lucid.div_ [Lucid.class_ "text-xs text-gray-600"] $ do
-                "Now Playing"
+                  mempty
+              Lucid.span_ [Lucid.class_ "text-sm font-mono", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
+            Lucid.div_ [Lucid.class_ "text-xs text-gray-600"] $ do
+              "Now Playing"
       Nothing -> mempty
 
     -- Track Listing
@@ -186,7 +200,16 @@ renderEpisodeCard showModel episode = do
 
     -- Episode info
     Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-      Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ Lucid.toHtml episode.title
+      let epUrl = episodeGetUrl showModel.slug episode.slug
+      Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ do
+        Lucid.a_
+          [ Lucid.href_ [i|/#{epUrl}|],
+            hxGet_ [i|/#{epUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            Lucid.class_ "hover:underline"
+          ]
+          $ Lucid.toHtml episode.title
 
       Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-2"] $ do
         case episode.scheduledAt of
@@ -223,7 +246,8 @@ renderEpisodeCard showModel episode = do
               episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
           Lucid.div_
             [ Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-4 mb-4",
-              xData_ [i|{
+              xData_
+                [i|{
                 playerId: '#{playerId}',
                 isPlaying: false,
                 audioUrl: '#{audioUrl}',
@@ -270,20 +294,20 @@ renderEpisodeCard showModel episode = do
               }|]
             ]
             $ do
-                Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
-                Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
-                  Lucid.button_
-                    [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
-                      xOnClick_ "toggle()",
-                      xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+              Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
+              Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
+                Lucid.button_
+                  [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
+                    xOnClick_ "toggle()",
+                    xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+                  ]
+                  "▶ PLAY"
+                Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded relative"] $ do
+                  Lucid.div_
+                    [ Lucid.class_ "bg-gray-800 h-2 rounded absolute top-0 left-0",
+                      Lucid.style_ "",
+                      xBindStyle_ "{ width: progress + '%' }"
                     ]
-                    "▶ PLAY"
-                  Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded relative"] $ do
-                    Lucid.div_
-                      [ Lucid.class_ "bg-gray-800 h-2 rounded absolute top-0 left-0",
-                        Lucid.style_ "",
-                        xBindStyle_ "{ width: progress + '%' }"
-                      ]
-                      mempty
-                  Lucid.span_ [Lucid.class_ "text-sm font-mono", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
+                    mempty
+                Lucid.span_ [Lucid.class_ "text-sm font-mono", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
         Nothing -> mempty
