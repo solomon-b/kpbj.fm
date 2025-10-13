@@ -11,7 +11,6 @@ import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.PageView (PageView)
 import Domain.Types.Search (Search)
-import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows (Status)
 import Servant.Links qualified as Links
 
@@ -42,11 +41,9 @@ showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Status -> Maybe Search 
 showGetLink :: Text -> Links.Link
 showEditGetLink :: Text -> Links.Link
 showEditPostLink :: Text -> Links.Link
-episodeGetLink :: Text -> Text -> Links.Link
-episodeEditGetLink :: Text -> Text -> Links.Link
-episodeEditPostLink :: Text -> Text -> Links.Link
-episodeUploadGetLink :: Links.Link
-episodeUploadPostLink :: Links.Link
-episodesEditGetLink :: Episodes.Id -> Links.Link
-episodesEditPostLink :: Int64 -> Links.Link
+episodesGetLink :: Text -> Text -> Links.Link
+episodesEditPostLink :: Text -> Text -> Links.Link
+episodeUploadGetLink :: Text -> Links.Link
+episodeUploadPostLink :: Text -> Links.Link
+episodesEditGetLink :: Text -> Text -> Links.Link
 hostDashboardGetLink :: Links.Link

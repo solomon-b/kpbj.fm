@@ -9,7 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodeGetLink, mediaGetLink)
+import {-# SOURCE #-} API (episodesGetLink, mediaGetLink)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -28,8 +28,8 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
 -- | Helper function to get episode detail URL
-episodeGetUrl :: Text.Text -> Text.Text -> Links.URI
-episodeGetUrl showSlug episodeSlug = Links.linkURI $ episodeGetLink showSlug episodeSlug
+episodesIdGetUrl :: Text.Text -> Text.Text -> Links.URI
+episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
 
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
@@ -45,7 +45,7 @@ renderLatestEpisode showModel episode tracks = do
           Nothing -> "[EP IMG]"
 
       Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-        let epUrl = episodeGetUrl showModel.slug episode.slug
+        let epUrl = episodesIdGetUrl showModel.slug episode.slug
         Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ do
           Lucid.a_
             [ Lucid.href_ [i|/#{epUrl}|],
@@ -200,7 +200,7 @@ renderEpisodeCard showModel episode = do
 
     -- Episode info
     Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-      let epUrl = episodeGetUrl showModel.slug episode.slug
+      let epUrl = episodesIdGetUrl showModel.slug episode.slug
       Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{epUrl}|],

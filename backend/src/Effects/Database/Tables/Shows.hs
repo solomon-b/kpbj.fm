@@ -261,6 +261,19 @@ updateShow showId Insert {..} =
 --------------------------------------------------------------------------------
 -- Show Host Queries (Junction table queries stay here)
 
+-- | Get show by slug
+getShowForUser :: User.Id -> Hasql.Statement () (Maybe Model)
+getShowForUser userId =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    FROM shows s
+    JOIN show_hosts sh ON s.id = sh.show_id
+    WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
+    LIMIT 1
+  |]
+
 -- | Get shows for a user (active host assignments)
 getShowsForUser :: User.Id -> Hasql.Statement () [Model]
 getShowsForUser userId =
