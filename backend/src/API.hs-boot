@@ -43,8 +43,10 @@ showGetLink :: Text -> Links.Link
 showEditGetLink :: Text -> Links.Link
 showEditPostLink :: Text -> Links.Link
 episodeGetLink :: Text -> Text -> Links.Link
+episodeEditGetLink :: Text -> Text -> Links.Link
+episodeEditPostLink :: Text -> Text -> Links.Link
 episodeUploadGetLink :: Links.Link
 episodeUploadPostLink :: Links.Link
-episodeEditGetLink :: Episodes.Id -> Links.Link
-episodeEditPostLink :: Int64 -> Links.Link
+episodesEditGetLink :: Episodes.Id -> Links.Link
+episodesEditPostLink :: Int64 -> Links.Link
 hostDashboardGetLink :: Links.Link
