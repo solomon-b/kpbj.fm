@@ -16,6 +16,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Has (Has)
 import Data.Int (Int64)
+import Data.List qualified as List
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
@@ -329,7 +330,7 @@ processFileUploads showSlug episodeSlug mScheduledDate mAudioFile mArtworkFile =
               Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
               pure $ Left "Failed to upload audio file"
             Right uploadResult ->
-              pure $ Right $ Just $ uploadResultStoragePath uploadResult
+              pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   -- Process artwork file (optional)
   artworkResult <- case mArtworkFile of
@@ -354,12 +355,12 @@ processFileUploads showSlug episodeSlug mScheduledDate mAudioFile mArtworkFile =
               Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
               pure $ Right Nothing -- Not critical, continue without artwork
             Right uploadResult ->
-              pure $ Right $ Just $ uploadResultStoragePath uploadResult
+              pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   case (audioResult, artworkResult) of
     (Left audioErr, _) -> pure $ Left audioErr
-    (Right audioPath, Left _artworkErr) -> pure $ Right (Text.pack <$> audioPath, Nothing)
-    (Right audioPath, Right artworkPath) -> pure $ Right (Text.pack <$> audioPath, Text.pack <$> artworkPath)
+    (Right audioPath, Left _artworkErr) -> pure $ Right (audioPath, Nothing)
+    (Right audioPath, Right artworkPath) -> pure $ Right (audioPath, artworkPath)
 
 -- | Insert track listings for episode
 insertTracks ::
@@ -414,6 +415,14 @@ insertTracks episodeId tracks = do
       case result of
         Left err -> pure $ Left $ "Failed to insert track: " <> Text.pack (show err)
         Right trackId -> pure $ Right trackId
+
+-- | Strip /tmp/kpbj/ prefix from storage path to get relative path for media serving
+stripStorageRoot :: FilePath -> Text
+stripStorageRoot path =
+  let prefix = "/tmp/kpbj/"
+   in case List.stripPrefix prefix path of
+        Just relativePath -> Text.pack relativePath
+        Nothing -> Text.pack path -- Fallback if prefix not found
 
 -- | Generate URL-friendly slug from episode title
 generateEpisodeSlug :: Text -> Text

@@ -18,6 +18,7 @@ import API.Events.New.Get qualified as Events.New.Get
 import API.Events.New.Post qualified as Events.New.Post
 import API.Get qualified as Root.Get
 import API.Host.Dashboard.Get qualified as Host.Dashboard.Get
+import API.Media.Get qualified as Media.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Show.Get qualified as Show.Get
 import API.Shows.Get qualified as Shows.Get
@@ -66,6 +67,7 @@ runApi = App.runApp @API server ()
 type API =
   Root.Get.Route
     :<|> Static.Get.Route
+    :<|> Media.Get.Route
     :<|> About.Get.Route
     :<|> Blog.Get.Route
     :<|> Blog.New.Get.Route
@@ -110,6 +112,7 @@ server ::
 server env =
   Root.Get.handler
     :<|> Static.Get.handler env
+    :<|> Media.Get.handler
     :<|> About.Get.handler
     :<|> Blog.Get.handler
     :<|> Blog.New.Get.handler
@@ -145,6 +148,10 @@ rootGetLink = Links.safeLink (Proxy @API) (Proxy @Root.Get.Route)
 -- | Route: GET /static
 staticGetLink :: Links.Link
 staticGetLink = Links.safeLink (Proxy @API) (Proxy @Static.Get.Route)
+
+-- | Route: GET /media
+mediaGetLink :: Links.Link
+mediaGetLink = Links.safeLink (Proxy @API) (Proxy @Media.Get.Route)
 
 -- | Route: GET /about
 aboutGetLink :: Links.Link

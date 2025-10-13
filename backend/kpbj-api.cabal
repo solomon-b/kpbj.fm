@@ -133,6 +133,7 @@ library
     API.Host.Dashboard.Get.Templates.Page
     API.Host.Dashboard.Get.Templates.Schedule
     API.Host.Dashboard.Get.Templates.Stats
+    API.Media.Get
     API.PrivacyPolicy.Get
     API.PrivacyPolicy.Get.Templates
     API.Show.Get
