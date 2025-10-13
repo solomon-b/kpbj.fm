@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showsGetLink)
+import {-# SOURCE #-} API (showEditGetLink, showsGetLink)
 import API.Show.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
 import API.Show.Get.Templates.ShowHeader (renderShowHeader)
 import Control.Monad (unless)
@@ -66,8 +66,21 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Maybe HostDetails.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
-template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails _blogPosts = do
+template :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Maybe HostDetails.Model -> [ShowBlogPosts.Model] -> Bool -> Lucid.Html ()
+template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails _blogPosts canEdit = do
+  -- Edit button for authorized users
+  unless (not canEdit) $ do
+    let editUrl = Links.linkURI $ showEditGetLink showModel.slug
+    Lucid.div_ [Lucid.class_ "mb-4 w-full text-right"] $ do
+      Lucid.a_
+        [ Lucid.href_ [i|/#{editUrl}|],
+          hxGet_ [i|/#{editUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          Lucid.class_ "inline-block bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700"
+        ]
+        "✏ EDIT SHOW"
+
   renderShowHeader showModel hosts schedules
 
   -- Content Tabs Navigation

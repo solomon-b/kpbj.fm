@@ -138,6 +138,10 @@ library
     API.Media.Get
     API.PrivacyPolicy.Get
     API.PrivacyPolicy.Get.Templates
+    API.Show.Edit.Get
+    API.Show.Edit.Get.Templates.Error
+    API.Show.Edit.Get.Templates.Form
+    API.Show.Edit.Post
     API.Show.Get
     API.Show.Get.Templates.Episode
     API.Show.Get.Templates.Page

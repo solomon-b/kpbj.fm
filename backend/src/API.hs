@@ -21,6 +21,8 @@ import API.Get qualified as Root.Get
 import API.Host.Dashboard.Get qualified as Host.Dashboard.Get
 import API.Media.Get qualified as Media.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
+import API.Show.Edit.Get qualified as Show.Edit.Get
+import API.Show.Edit.Post qualified as Show.Edit.Post
 import API.Show.Get qualified as Show.Get
 import API.Shows.Get qualified as Shows.Get
 import API.Static.Get qualified as Static.Get
@@ -88,6 +90,8 @@ type API =
     :<|> TermsOfService.Get.Route
     :<|> Shows.Get.Route
     :<|> Show.Get.Route
+    :<|> Show.Edit.Get.Route
+    :<|> Show.Edit.Post.Route
     :<|> Episode.Get.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
@@ -134,6 +138,8 @@ server env =
     :<|> TermsOfService.Get.handler
     :<|> Shows.Get.handler
     :<|> Show.Get.handler
+    :<|> Show.Edit.Get.handler
+    :<|> Show.Edit.Post.handler
     :<|> Episode.Get.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
@@ -235,6 +241,14 @@ showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
 -- | Route: GET /shows/:slug
 showGetLink :: Text -> Links.Link
 showGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Get.Route)
+
+-- | Route: GET /shows/:slug/edit
+showEditGetLink :: Text -> Links.Link
+showEditGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Get.Route)
+
+-- | Route: POST /shows/:slug/edit
+showEditPostLink :: Text -> Links.Link
+showEditPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Post.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/:episode_slug
 episodeGetLink :: Text -> Text -> Links.Link
