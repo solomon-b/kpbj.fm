@@ -88,19 +88,19 @@ template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails _b
         -- Featured/Latest Episode with tracks
         case (episodes, latestEpisodeTracks) of
           (latestEpisode : otherEpisodes, Just tracks) -> do
-            renderLatestEpisode latestEpisode tracks
+            renderLatestEpisode showModel latestEpisode tracks
 
             -- Other Episodes
             unless (null otherEpisodes) $ do
               Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
                 Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
-                mapM_ renderEpisodeCard otherEpisodes
+                mapM_ (renderEpisodeCard showModel) otherEpisodes
           (latestEpisode : otherEpisodes, Nothing) -> do
             -- Fallback if tracks failed to load
-            renderLatestEpisode latestEpisode []
+            renderLatestEpisode showModel latestEpisode []
 
             unless (null otherEpisodes) $ do
               Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
                 Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
-                mapM_ renderEpisodeCard otherEpisodes
+                mapM_ (renderEpisodeCard showModel) otherEpisodes
           _ -> mempty
