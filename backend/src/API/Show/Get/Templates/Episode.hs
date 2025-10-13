@@ -16,7 +16,9 @@ import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
+import Lucid.Extras (xBindStyle_, xData_, xOnClick_, xRef_, xText_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -26,8 +28,8 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
 -- | Render a featured "Latest Episode" section with full details
-renderLatestEpisode :: Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
-renderLatestEpisode episode tracks = do
+renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
+renderLatestEpisode showModel episode tracks = do
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8"] $ do
     Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Latest Episode"
 
@@ -63,30 +65,83 @@ renderLatestEpisode episode tracks = do
     -- Audio player (if audio file path exists)
     case episode.audioFilePath of
       Just audioPath -> do
-        Lucid.div_ [Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-4 mb-4"] $ do
-          Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
-            Lucid.button_
-              [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
-                Lucid.onclick_ [i|playEpisode('/#{mediaGetUrl}/#{audioPath}')|]
-              ]
-              "▶ PLAY"
-            Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded"] $ do
-              Lucid.div_ [Lucid.class_ "bg-gray-800 h-2 rounded w-0"] mempty
-            case episode.durationSeconds of
-              Just duration ->
-                let hours = duration `div` 3600
-                    minutes = (duration `mod` 3600) `div` 60
-                    seconds = duration `mod` 60
-                 in Lucid.span_ [Lucid.class_ "text-sm font-mono"] $
-                      "0:00 / "
-                        <> (if hours > 0 then Lucid.toHtml (show hours) <> ":" else "")
-                        <> Lucid.toHtml (show minutes)
-                        <> ":"
-                        <> (if seconds < 10 then "0" else "")
-                        <> Lucid.toHtml (show seconds)
-              Nothing -> mempty
-          Lucid.div_ [Lucid.class_ "text-xs text-gray-600"] $ do
-            "Now Playing"
+        let showTitle = showModel.title
+            episodeTitle = episode.title
+            episodeNum = episode.episodeNumber
+            episodeId = episode.id
+            audioUrl :: Text.Text
+            audioUrl = [i|/#{mediaGetUrl}/#{audioPath}|]
+            playerId :: Text.Text
+            playerId = [i|episode-#{episodeId}|]
+            episodeMetadata :: Text.Text
+            episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
+        Lucid.div_
+          [ Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-4 mb-4",
+            xData_ [i|{
+              playerId: '#{playerId}',
+              isPlaying: false,
+              audioUrl: '#{audioUrl}',
+              title: '#{episodeMetadata}',
+              currentTime: 0,
+              duration: 0,
+              init() {
+                const audio = this.$refs.audio;
+                audio.addEventListener('loadedmetadata', () => {
+                  this.duration = audio.duration;
+                });
+                audio.addEventListener('timeupdate', () => {
+                  this.currentTime = audio.currentTime;
+                });
+              },
+              toggle() {
+                this.isPlaying ? this.pause() : this.play();
+              },
+              play() {
+                pauseOtherPlayers(this.playerId);
+                const audio = this.$refs.audio;
+                if (!audio.src) audio.src = this.audioUrl;
+                audio.play().then(() => { this.isPlaying = true; });
+              },
+              pause() {
+                const audio = this.$refs.audio;
+                audio.pause();
+                this.isPlaying = false;
+              },
+              formatTime(seconds) {
+                if (!seconds || isNaN(seconds)) return '0:00';
+                const hours = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                if (hours > 0) {
+                  return hours + ':' + (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+                }
+                return mins + ':' + (secs < 10 ? '0' : '') + secs;
+              },
+              get progress() {
+                if (!this.duration) return 0;
+                return (this.currentTime / this.duration) * 100;
+              }
+            }|]
+          ]
+          $ do
+              Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
+              Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
+                Lucid.button_
+                  [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
+                    xOnClick_ "toggle()",
+                    xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+                  ]
+                  "▶ PLAY"
+                Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded relative"] $ do
+                  Lucid.div_
+                    [ Lucid.class_ "bg-gray-800 h-2 rounded absolute top-0 left-0",
+                      Lucid.style_ "",
+                      xBindStyle_ "{ width: progress + '%' }"
+                    ]
+                    mempty
+                Lucid.span_ [Lucid.class_ "text-sm font-mono", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
+              Lucid.div_ [Lucid.class_ "text-xs text-gray-600"] $ do
+                "Now Playing"
       Nothing -> mempty
 
     -- Track Listing
@@ -120,8 +175,8 @@ renderLatestEpisode episode tracks = do
           Nothing -> mempty
 
 -- | Render an episode card (for previous episodes list)
-renderEpisodeCard :: Episodes.Model -> Lucid.Html ()
-renderEpisodeCard episode = do
+renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisodeCard showModel episode = do
   Lucid.div_ [Lucid.class_ "flex gap-4 mb-6"] $ do
     -- Episode thumbnail
     Lucid.div_ [Lucid.class_ "w-24 h-24 bg-gray-300 border border-gray-600 flex items-center justify-center text-xs flex-shrink-0"] $ do
@@ -156,24 +211,79 @@ renderEpisodeCard episode = do
       -- Audio player (if audio file path exists)
       case episode.audioFilePath of
         Just audioPath -> do
-          Lucid.div_ [Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-4 mb-4"] $ do
-            Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
-              Lucid.button_
-                [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
-                  Lucid.onclick_ [i|playEpisode('/#{mediaGetUrl}/#{audioPath}')|]
-                ]
-                "▶ PLAY"
-              Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded"] $ do
-                Lucid.div_ [Lucid.class_ "bg-gray-800 h-2 rounded w-0"] mempty
-              case episode.durationSeconds of
-                Just duration ->
-                  let minutes = duration `div` 60
-                      seconds = duration `mod` 60
-                   in Lucid.span_ [Lucid.class_ "text-sm font-mono"] $
-                        "0:00 / "
-                          <> Lucid.toHtml (show minutes)
-                          <> ":"
-                          <> (if seconds < 10 then "0" else "")
-                          <> Lucid.toHtml (show seconds)
-                Nothing -> mempty
+          let showTitle = showModel.title
+              episodeTitle = episode.title
+              episodeNum = episode.episodeNumber
+              episodeId = episode.id
+              audioUrl :: Text.Text
+              audioUrl = [i|/#{mediaGetUrl}/#{audioPath}|]
+              playerId :: Text.Text
+              playerId = [i|episode-#{episodeId}|]
+              episodeMetadata :: Text.Text
+              episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
+          Lucid.div_
+            [ Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-4 mb-4",
+              xData_ [i|{
+                playerId: '#{playerId}',
+                isPlaying: false,
+                audioUrl: '#{audioUrl}',
+                title: '#{episodeMetadata}',
+                currentTime: 0,
+                duration: 0,
+                init() {
+                  const audio = this.$refs.audio;
+                  audio.addEventListener('loadedmetadata', () => {
+                    this.duration = audio.duration;
+                  });
+                  audio.addEventListener('timeupdate', () => {
+                    this.currentTime = audio.currentTime;
+                  });
+                },
+                toggle() {
+                  this.isPlaying ? this.pause() : this.play();
+                },
+                play() {
+                  pauseOtherPlayers(this.playerId);
+                  const audio = this.$refs.audio;
+                  if (!audio.src) audio.src = this.audioUrl;
+                  audio.play().then(() => { this.isPlaying = true; });
+                },
+                pause() {
+                  const audio = this.$refs.audio;
+                  audio.pause();
+                  this.isPlaying = false;
+                },
+                formatTime(seconds) {
+                  if (!seconds || isNaN(seconds)) return '0:00';
+                  const hours = Math.floor(seconds / 3600);
+                  const mins = Math.floor((seconds % 3600) / 60);
+                  const secs = Math.floor(seconds % 60);
+                  if (hours > 0) {
+                    return hours + ':' + (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+                  }
+                  return mins + ':' + (secs < 10 ? '0' : '') + secs;
+                },
+                get progress() {
+                  if (!this.duration) return 0;
+                  return (this.currentTime / this.duration) * 100;
+                }
+              }|]
+            ]
+            $ do
+                Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
+                Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
+                  Lucid.button_
+                    [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
+                      xOnClick_ "toggle()",
+                      xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+                    ]
+                    "▶ PLAY"
+                  Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded relative"] $ do
+                    Lucid.div_
+                      [ Lucid.class_ "bg-gray-800 h-2 rounded absolute top-0 left-0",
+                        Lucid.style_ "",
+                        xBindStyle_ "{ width: progress + '%' }"
+                      ]
+                      mempty
+                  Lucid.span_ [Lucid.class_ "text-sm font-mono", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
         Nothing -> mempty
