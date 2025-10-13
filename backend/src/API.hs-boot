@@ -19,6 +19,7 @@ import Servant.Links qualified as Links
 
 rootGetLink :: Links.Link
 staticGetLink :: Links.Link
+mediaGetLink :: Links.Link
 aboutGetLink :: Links.Link
 blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
 blogNewGetLink :: Links.Link
