@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
@@ -11,21 +12,65 @@ where
 import {-# SOURCE #-} API (hostDashboardGetLink, showGetLink)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xOnClick_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
--- URL helpers
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
 
-showGetUrl :: Text.Text -> Links.URI
+showGetUrl :: Text -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
+
+--------------------------------------------------------------------------------
+
+alpineState :: Shows.Model -> Text
+alpineState Shows.Model {title, slug, description, genre, status, frequency, durationMinutes, logoUrl, bannerUrl} =
+  [i|{
+  fields: {
+    title: { value: `#{title}`, isValid: true },
+    slug: { value: `#{slug}`, isValid: true },
+    description: { value: `#{description}`, isValid: true },
+    genre: { value: `#{genre}`, isValid: true },
+    status: { value: `#{status}`, isValid: true },
+    frequency: { value: `#{frequency}`, isValid: true },
+    duration: { value: `#{durationMinutes}`, isValid: true },
+    logo: { value: `#{logoUrl}`, isValid: true },
+    banner: { value: `#{bannerUrl}`, isValid: true },
+  },
+  showErrors: false,
+
+  validateAndSubmit(event) {
+    this.showErrors = true;
+
+    // Validate all fields
+    this.fields.title.isValid = this.fields.title.value.trim() !== '';
+    this.fields.slug.isValid = this.fields.slug.value.trim() !== '';
+    this.fields.description.isValid = this.fields.description.value.trim() !== '';
+    this.fields.genre.isValid = this.fields.genre.value.trim() !== '';
+    this.fields.status.isValid = this.fields.status.value.trim() !== '';
+    this.fields.frequency.isValid = this.fields.frequency.value.trim() !== '';
+    this.fields.duration.isValid = this.fields.duration.value.trim() !== '';
+    this.fields.logo.isValid = this.fields.logo.value.trim() !== '';
+    this.fields.banner.isValid = this.fields.banner.value.trim() !== '';
+
+    // Check if all fields are valid including terms
+    const allFieldsValid = Object.values(this.fields).every(field => field.isValid);
+
+    if (!allFieldsValid) {
+      event.preventDefault();
+      return false;
+    }
+
+    return true;
+  }
+}|]
 
 --------------------------------------------------------------------------------
 
@@ -35,6 +80,55 @@ template showModel userMeta isStaff = do
   let showSlug = showModel.slug
       showBackUrl = showGetUrl showSlug
 
+  Lucid.div_ [Lucid.class_ "max-w-2xl mx-auto", xData_ (alpineState showModel)] $ do
+    header userMeta showModel showBackUrl
+
+    -- Edit Show Form
+    Lucid.form_ [Lucid.action_ [i|/shows/#{showSlug}/edit|], Lucid.method_ "post", Lucid.class_ "space-y-8 w-full"] $ do
+      -- Basic Information
+      Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+        Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "BASIC INFORMATION"
+
+        Lucid.div_ [Lucid.class_ "space-y-6"] $ do
+          titleField showModel
+          slugField showModel
+          descriptionField showModel
+          genreField showModel
+
+      -- Schedule & Settings (Staff+ Only)
+      if isStaff
+        then Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+          Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "SCHEDULE & SETTINGS"
+          Lucid.div_ [Lucid.class_ "space-y-6"] $ do
+            statusField showModel
+            frequencyField showModel
+            durationField showModel
+        else do
+          -- Hidden fields to preserve existing values for non-staff
+          Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "status", Lucid.value_ (case showModel.status of Shows.Active -> "active"; Shows.Inactive -> "inactive")]
+          Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "frequency", Lucid.value_ (case showModel.frequency of Shows.Weekly -> "weekly"; Shows.Biweekly -> "biweekly"; Shows.Monthly -> "monthly"; Shows.Occasional -> "occasional"; Shows.OneTime -> "one-time")]
+          Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "duration_minutes", Lucid.value_ (maybe "" (Text.pack . show) showModel.durationMinutes)]
+
+      -- Artwork & Branding
+      Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+        Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "ARTWORK & BRANDING"
+
+        Lucid.div_ [Lucid.class_ "space-y-6"] $ do
+          logoField showModel
+          bannerField showModel
+
+      -- Form Actions
+      Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
+        Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
+          submitButton
+          cancelButton showBackUrl
+
+selectedIf :: Bool -> Lucid.Attributes
+selectedIf True = Lucid.selected_ "selected"
+selectedIf False = mempty
+
+header :: UserMetadata.Model -> Shows.Model -> Links.URI -> Lucid.Html ()
+header userMeta showModel showBackUrl = do
   -- Form Header
   Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
@@ -64,169 +158,169 @@ template showModel userMeta isStaff = do
           ]
           "DASHBOARD"
 
-  -- Edit Show Form
-  Lucid.form_ [Lucid.action_ [i|/shows/#{showSlug}/edit|], Lucid.method_ "post", Lucid.class_ "space-y-8 w-full"] $ do
-    -- Basic Information
-    Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-      Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "BASIC INFORMATION"
+titleField :: Shows.Model -> Lucid.Html ()
+titleField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Show Title *"
+    Lucid.input_
+      [ Lucid.type_ "text",
+        Lucid.name_ "title",
+        Lucid.required_ "true",
+        Lucid.value_ showModel.title,
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+        Lucid.placeholder_ "e.g. Industrial Depths",
+        xModel_ "fields.title.value",
+        xBindClass_ "showErrors && !fields.title.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
 
-      Lucid.div_ [Lucid.class_ "space-y-6"] $ do
-        -- Title
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Show Title *"
-          Lucid.input_
-            [ Lucid.type_ "text",
-              Lucid.name_ "title",
-              Lucid.required_ "true",
-              Lucid.value_ showModel.title,
-              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-              Lucid.placeholder_ "e.g. Industrial Depths"
-            ]
+slugField :: Shows.Model -> Lucid.Html ()
+slugField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] $ do
+      "URL Slug *"
+      Lucid.span_ [Lucid.class_ "text-sm font-normal text-gray-600 ml-2"] "(used in the show's web address)"
+    Lucid.input_
+      [ Lucid.type_ "text",
+        Lucid.name_ "slug",
+        Lucid.required_ "true",
+        Lucid.value_ showModel.slug,
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+        Lucid.placeholder_ "e.g. industrial-depths",
+        Lucid.pattern_ "[a-z0-9-]+",
+        Lucid.title_ "Lowercase letters, numbers, and hyphens only",
+        xModel_ "fields.slug.value",
+        xBindClass_ "showErrors && !fields.slug.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
+    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] $
+      "URL will be: kpbj.fm/shows/" <> Lucid.span_ [Lucid.class_ "font-mono"] (Lucid.toHtml showModel.slug)
 
-        -- Slug
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] $ do
-            "URL Slug *"
-            Lucid.span_ [Lucid.class_ "text-sm font-normal text-gray-600 ml-2"] "(used in the show's web address)"
-          Lucid.input_
-            [ Lucid.type_ "text",
-              Lucid.name_ "slug",
-              Lucid.required_ "true",
-              Lucid.value_ showModel.slug,
-              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-              Lucid.placeholder_ "e.g. industrial-depths",
-              Lucid.pattern_ "[a-z0-9-]+",
-              Lucid.title_ "Lowercase letters, numbers, and hyphens only"
-            ]
-          Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] $
-            "URL will be: kpbj.fm/shows/" <> Lucid.span_ [Lucid.class_ "font-mono"] (Lucid.toHtml showModel.slug)
+descriptionField :: Shows.Model -> Lucid.Html ()
+descriptionField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Description *"
+    Lucid.textarea_
+      [ Lucid.name_ "description",
+        Lucid.required_ "true",
+        Lucid.rows_ "6",
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono leading-relaxed",
+        Lucid.placeholder_ "Describe your show. What kind of music do you play? What's your show's vibe?",
+        xModel_ "fields.description.value",
+        xBindClass_ "showErrors && !fields.description.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
+      (Lucid.toHtml showModel.description)
 
-        -- Description
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Description *"
-          Lucid.textarea_
-            [ Lucid.name_ "description",
-              Lucid.required_ "true",
-              Lucid.rows_ "6",
-              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono leading-relaxed",
-              Lucid.placeholder_ "Describe your show. What kind of music do you play? What's your show's vibe?"
-            ]
-            (Lucid.toHtml showModel.description)
+genreField :: Shows.Model -> Lucid.Html ()
+genreField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Genre"
+    Lucid.input_
+      [ Lucid.type_ "text",
+        Lucid.name_ "genre",
+        Lucid.value_ (fromMaybe "" showModel.genre),
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+        Lucid.placeholder_ "e.g. Techno, Ambient, Experimental, Hip-Hop",
+        xModel_ "fields.genre.value",
+        xBindClass_ "showErrors && !fields.genre.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
+    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Primary genre or style of music"
 
-        -- Genre
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Genre"
-          Lucid.input_
-            [ Lucid.type_ "text",
-              Lucid.name_ "genre",
-              Lucid.value_ (fromMaybe "" showModel.genre),
-              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-              Lucid.placeholder_ "e.g. Techno, Ambient, Experimental, Hip-Hop"
-            ]
-          Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Primary genre or style of music"
+statusField :: Shows.Model -> Lucid.Html ()
+statusField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Show Status *"
+    Lucid.select_
+      [ Lucid.name_ "status",
+        Lucid.required_ "true",
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+        xModel_ "fields.status.value",
+        xBindClass_ "showErrors && !fields.status.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
+      $ do
+        Lucid.option_ [Lucid.value_ "active", selectedIf (showModel.status == Shows.Active)] "Active"
+        Lucid.option_ [Lucid.value_ "inactive", selectedIf (showModel.status == Shows.Inactive)] "Inactive"
+    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Active shows appear on the shows page"
 
-    -- Schedule & Settings (Staff+ Only)
-    if isStaff
-      then Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-        Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "SCHEDULE & SETTINGS"
+frequencyField :: Shows.Model -> Lucid.Html ()
+frequencyField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Broadcast Frequency *"
+    Lucid.select_
+      [ Lucid.name_ "frequency",
+        Lucid.required_ "true",
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+        xModel_ "fields.frequency.value",
+        xBindClass_ "showErrors && !fields.frequency.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
+      $ do
+        Lucid.option_ [Lucid.value_ "weekly", selectedIf (showModel.frequency == Shows.Weekly)] "Weekly"
+        Lucid.option_ [Lucid.value_ "biweekly", selectedIf (showModel.frequency == Shows.Biweekly)] "Biweekly"
+        Lucid.option_ [Lucid.value_ "monthly", selectedIf (showModel.frequency == Shows.Monthly)] "Monthly"
+        Lucid.option_ [Lucid.value_ "occasional", selectedIf (showModel.frequency == Shows.Occasional)] "Occasional"
+        Lucid.option_ [Lucid.value_ "one-time", selectedIf (showModel.frequency == Shows.OneTime)] "One-time"
 
-        Lucid.div_ [Lucid.class_ "space-y-6"] $ do
-          -- Status
-          Lucid.div_ $ do
-            Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Show Status *"
-            Lucid.select_
-              [ Lucid.name_ "status",
-                Lucid.required_ "true",
-                Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono"
-              ]
-              $ do
-                Lucid.option_ [Lucid.value_ "active", selectedIf (showModel.status == Shows.Active)] "Active"
-                Lucid.option_ [Lucid.value_ "inactive", selectedIf (showModel.status == Shows.Inactive)] "Inactive"
-            Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Active shows appear on the shows page"
+durationField :: Shows.Model -> Lucid.Html ()
+durationField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Typical Duration (minutes)"
+    Lucid.input_
+      [ Lucid.type_ "number",
+        Lucid.name_ "duration_minutes",
+        Lucid.value_ (maybe "" (Text.pack . show) showModel.durationMinutes),
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+        Lucid.placeholder_ "e.g. 120",
+        Lucid.min_ "1",
+        Lucid.step_ "1",
+        xModel_ "fields.duration.value",
+        xBindClass_ "showErrors && !fields.duration.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
+    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "How long is a typical episode?"
 
-          -- Frequency
-          Lucid.div_ $ do
-            Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Broadcast Frequency *"
-            Lucid.select_
-              [ Lucid.name_ "frequency",
-                Lucid.required_ "true",
-                Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono"
-              ]
-              $ do
-                Lucid.option_ [Lucid.value_ "weekly", selectedIf (showModel.frequency == Shows.Weekly)] "Weekly"
-                Lucid.option_ [Lucid.value_ "biweekly", selectedIf (showModel.frequency == Shows.Biweekly)] "Biweekly"
-                Lucid.option_ [Lucid.value_ "monthly", selectedIf (showModel.frequency == Shows.Monthly)] "Monthly"
-                Lucid.option_ [Lucid.value_ "occasional", selectedIf (showModel.frequency == Shows.Occasional)] "Occasional"
-                Lucid.option_ [Lucid.value_ "one-time", selectedIf (showModel.frequency == Shows.OneTime)] "One-time"
+logoField :: Shows.Model -> Lucid.Html ()
+logoField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Logo URL"
+    Lucid.input_
+      [ Lucid.type_ "url",
+        Lucid.name_ "logo_url",
+        Lucid.value_ (fromMaybe "" showModel.logoUrl),
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+        Lucid.placeholder_ "https://example.com/logo.png",
+        xModel_ "fields.logo.value",
+        xBindClass_ "showErrors && !fields.logo.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
+    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Square logo image (recommended: 300x300px)"
 
-          -- Duration
-          Lucid.div_ $ do
-            Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Typical Duration (minutes)"
-            Lucid.input_
-              [ Lucid.type_ "number",
-                Lucid.name_ "duration_minutes",
-                Lucid.value_ (maybe "" (Text.pack . show) showModel.durationMinutes),
-                Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-                Lucid.placeholder_ "e.g. 120",
-                Lucid.min_ "1",
-                Lucid.step_ "1"
-              ]
-            Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "How long is a typical episode?"
-      else do
-        -- Hidden fields to preserve existing values for non-staff
-        Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "status", Lucid.value_ (case showModel.status of Shows.Active -> "active"; Shows.Inactive -> "inactive")]
-        Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "frequency", Lucid.value_ (case showModel.frequency of Shows.Weekly -> "weekly"; Shows.Biweekly -> "biweekly"; Shows.Monthly -> "monthly"; Shows.Occasional -> "occasional"; Shows.OneTime -> "one-time")]
-        Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "duration_minutes", Lucid.value_ (maybe "" (Text.pack . show) showModel.durationMinutes)]
+bannerField :: Shows.Model -> Lucid.Html ()
+bannerField showModel =
+  Lucid.div_ $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Banner URL"
+    Lucid.input_
+      [ Lucid.type_ "url",
+        Lucid.name_ "banner_url",
+        Lucid.value_ (fromMaybe "" showModel.bannerUrl),
+        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+        Lucid.placeholder_ "https://example.com/banner.png",
+        xModel_ "fields.banner.value",
+        xBindClass_ "showErrors && !fields.banner.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
+      ]
+    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Wide banner image (recommended: 1200x300px)"
 
-    -- Artwork & Branding
-    Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-      Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "ARTWORK & BRANDING"
+submitButton :: Lucid.Html ()
+submitButton =
+  Lucid.button_
+    [ Lucid.type_ "submit",
+      Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 transition-colors",
+      xOnClick_ "validateAndSubmit($event)"
+    ]
+    "UPDATE SHOW"
 
-      Lucid.div_ [Lucid.class_ "space-y-6"] $ do
-        -- Logo URL
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Logo URL"
-          Lucid.input_
-            [ Lucid.type_ "url",
-              Lucid.name_ "logo_url",
-              Lucid.value_ (fromMaybe "" showModel.logoUrl),
-              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-              Lucid.placeholder_ "https://example.com/logo.png"
-            ]
-          Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Square logo image (recommended: 300x300px)"
-
-        -- Banner URL
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Banner URL"
-          Lucid.input_
-            [ Lucid.type_ "url",
-              Lucid.name_ "banner_url",
-              Lucid.value_ (fromMaybe "" showModel.bannerUrl),
-              Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
-              Lucid.placeholder_ "https://example.com/banner.png"
-            ]
-          Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Wide banner image (recommended: 1200x300px)"
-
-    -- Form Actions
-    Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
-      Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-        Lucid.button_
-          [ Lucid.type_ "submit",
-            Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 transition-colors"
-          ]
-          "UPDATE SHOW"
-        Lucid.a_
-          [ Lucid.href_ [i|/#{showBackUrl}|],
-            hxGet_ [i|/#{showBackUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline inline-block"
-          ]
-          "CANCEL"
-
---------------------------------------------------------------------------------
-
--- Helper to set selected attribute
-selectedIf :: Bool -> Lucid.Attributes
-selectedIf True = Lucid.selected_ "selected"
-selectedIf False = mempty
+cancelButton :: Links.URI -> Lucid.Html ()
+cancelButton showBackUrl =
+  Lucid.a_
+    [ Lucid.href_ [i|/#{showBackUrl}|],
+      hxGet_ [i|/#{showBackUrl}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline inline-block"
+    ]
+    "CANCEL"

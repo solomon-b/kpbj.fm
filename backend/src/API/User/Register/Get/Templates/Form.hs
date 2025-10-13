@@ -1,8 +1,8 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.User.Register.Get.Templates.Form (
-  template,
+module API.User.Register.Get.Templates.Form
+  ( template,
   )
 where
 
@@ -74,62 +74,62 @@ alpineState displayNameValue fullNameValue emailValue =
 --------------------------------------------------------------------------------
 
 template :: Maybe DisplayName -> Maybe FullName -> Maybe EmailAddress -> Maybe Text -> Lucid.Html ()
-template displayName fullName emailAddress _redirectLink =
+template displayName fullName emailAddress _redirectLink = do
   let validationNotice = maybe "" (const alert) emailAddress
       displayNameValue = maybe "" display displayName
       fullNameValue = maybe "" display fullName
       emailValue = maybe "" display emailAddress
-   in Lucid.div_ [Lucid.class_ "max-w-2xl mx-auto", xData_ (alpineState displayNameValue fullNameValue emailValue)] do
-        Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8"] do
-          Lucid.div_ [Lucid.class_ "text-center mb-8"] do
-            Lucid.h3_ [Lucid.class_ "text-2xl font-bold mb-2"] "📝 CREATE ACCOUNT"
-            Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] "Join the KPBJ community and unlock exclusive features"
+  Lucid.div_ [Lucid.class_ "max-w-2xl mx-auto", xData_ (alpineState displayNameValue fullNameValue emailValue)] do
+    Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8"] do
+      Lucid.div_ [Lucid.class_ "text-center mb-8"] do
+        Lucid.h3_ [Lucid.class_ "text-2xl font-bold mb-2"] "📝 CREATE ACCOUNT"
+        Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] "Join the KPBJ community and unlock exclusive features"
 
-          Lucid.form_ [hxPost_ [i|/#{userRegisterPostUrl}|], Lucid.class_ "space-y-6"] do
-            validationNotice
+      Lucid.form_ [hxPost_ [i|/#{userRegisterPostUrl}|], Lucid.class_ "space-y-6"] do
+        validationNotice
 
-            Lucid.div_ [Lucid.class_ "space-y-4"] do
-              Lucid.h3_ [Lucid.class_ "font-bold text-lg border-b border-gray-300 pb-2"] "Personal Information"
-              fullNameField
-              emailField
+        Lucid.div_ [Lucid.class_ "space-y-4"] do
+          Lucid.h3_ [Lucid.class_ "font-bold text-lg border-b border-gray-300 pb-2"] "Personal Information"
+          fullNameField
+          emailField
 
-            Lucid.div_ [Lucid.class_ "space-y-4"] do
-              Lucid.h3_ [Lucid.class_ "font-bold text-lg border-b border-gray-300 pb-2"] "Account Setup"
-              displayNameField
-              Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-4"] do
-                passwordField
-                confirmPasswordField
-              passwordRequirements
+        Lucid.div_ [Lucid.class_ "space-y-4"] do
+          Lucid.h3_ [Lucid.class_ "font-bold text-lg border-b border-gray-300 pb-2"] "Account Setup"
+          displayNameField
+          Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-4"] do
+            passwordField
+            confirmPasswordField
+          passwordRequirements
 
-            Lucid.div_ [Lucid.class_ "space-y-4"] do
-              newsletterCheckbox
-              termsCheckbox
+        Lucid.div_ [Lucid.class_ "space-y-4"] do
+          newsletterCheckbox
+          termsCheckbox
 
-            submitButton
+        submitButton
 
-          Lucid.div_ [Lucid.class_ "mt-8 pt-6 border-t border-gray-300 text-center"] do
-            Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-4"] "Already have an account?"
-            Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block"] "LOGIN"
+      Lucid.div_ [Lucid.class_ "mt-8 pt-6 border-t border-gray-300 text-center"] do
+        Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-4"] "Already have an account?"
+        Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block"] "LOGIN"
 
-        Lucid.div_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6 mt-6"] do
-          Lucid.h3_ [Lucid.class_ "font-bold mb-4"] "🎯 WHAT YOU GET WITH AN ACCOUNT"
-          Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"] do
-            Lucid.div_ [Lucid.class_ "space-y-2"] do
-              Lucid.div_ [Lucid.class_ "font-bold"] "Community Features:"
-              Lucid.div_ "• Comment on blog posts"
-              Lucid.div_ "• Submit event listings"
-              Lucid.div_ "• Connect with other listeners"
-              Lucid.div_ "• Join discussions"
-            Lucid.div_ [Lucid.class_ "space-y-2"] do
-              Lucid.div_ [Lucid.class_ "font-bold"] "Host Opportunities:"
-              Lucid.div_ "• Apply to host your own show"
-              Lucid.div_ "• Access host dashboard"
-              Lucid.div_ "• Upload episode content"
-              Lucid.div_ "• Manage show information"
+    Lucid.div_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6 mt-6"] do
+      Lucid.h3_ [Lucid.class_ "font-bold mb-4"] "🎯 WHAT YOU GET WITH AN ACCOUNT"
+      Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"] do
+        Lucid.div_ [Lucid.class_ "space-y-2"] do
+          Lucid.div_ [Lucid.class_ "font-bold"] "Community Features:"
+          Lucid.div_ "• Comment on blog posts"
+          Lucid.div_ "• Submit event listings"
+          Lucid.div_ "• Connect with other listeners"
+          Lucid.div_ "• Join discussions"
+        Lucid.div_ [Lucid.class_ "space-y-2"] do
+          Lucid.div_ [Lucid.class_ "font-bold"] "Host Opportunities:"
+          Lucid.div_ "• Apply to host your own show"
+          Lucid.div_ "• Access host dashboard"
+          Lucid.div_ "• Upload episode content"
+          Lucid.div_ "• Manage show information"
 
-          Lucid.div_ [Lucid.class_ "mt-4 p-3 bg-blue-50 border border-blue-400 text-sm"] do
-            Lucid.div_ [Lucid.class_ "font-bold text-blue-800 mb-1"] "🎙️ Interested in Hosting?"
-            Lucid.div_ [Lucid.class_ "text-blue-700"] "Create your account first, then contact our staff about hosting opportunities. We're always looking for passionate community members to join our DJ team!"
+      Lucid.div_ [Lucid.class_ "mt-4 p-3 bg-blue-50 border border-blue-400 text-sm"] do
+        Lucid.div_ [Lucid.class_ "font-bold text-blue-800 mb-1"] "🎙️ Interested in Hosting?"
+        Lucid.div_ [Lucid.class_ "text-blue-700"] "Create your account first, then contact our staff about hosting opportunities. We're always looking for passionate community members to join our DJ team!"
 
 displayNameField :: Lucid.Html ()
 displayNameField =
