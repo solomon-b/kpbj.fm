@@ -125,7 +125,8 @@ template showModel episode tracks = do
 
             Lucid.div_
               [ Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-6",
-                xData_ [i|{
+                xData_
+                  [i|{
                   playerId: '#{playerId}',
                   isPlaying: false,
                   audioUrl: '#{audioUrl}',
@@ -175,31 +176,31 @@ template showModel episode tracks = do
                 }|]
               ]
               $ do
-                  Lucid.audio_ [xRef_ "audio", Lucid.preload_ "metadata"] mempty
+                Lucid.audio_ [xRef_ "audio", Lucid.preload_ "metadata"] mempty
 
-                  -- Play/pause button and progress bar
-                  Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-4"] $ do
-                    Lucid.button_
-                      [ Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 text-lg",
-                        xOnClick_ "toggle()",
-                        xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
-                      ]
-                      "▶ PLAY"
+                -- Play/pause button and progress bar
+                Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-4"] $ do
+                  Lucid.button_
+                    [ Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 text-lg",
+                      xOnClick_ "toggle()",
+                      xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+                    ]
+                    "▶ PLAY"
 
-                    Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-                      Lucid.div_ [Lucid.class_ "bg-gray-300 h-3 rounded relative"] $ do
-                        Lucid.div_
-                          [ Lucid.class_ "bg-gray-800 h-3 rounded absolute top-0 left-0",
-                            Lucid.style_ "",
-                            xBindStyle_ "{ width: progress + '%' }"
-                          ]
-                          mempty
+                  Lucid.div_ [Lucid.class_ "flex-grow"] $ do
+                    Lucid.div_ [Lucid.class_ "bg-gray-300 h-3 rounded relative"] $ do
+                      Lucid.div_
+                        [ Lucid.class_ "bg-gray-800 h-3 rounded absolute top-0 left-0",
+                          Lucid.style_ "",
+                          xBindStyle_ "{ width: progress + '%' }"
+                        ]
+                        mempty
 
-                    Lucid.span_
-                      [ Lucid.class_ "text-sm font-mono",
-                        xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"
-                      ]
-                      "0:00 / 0:00"
+                  Lucid.span_
+                    [ Lucid.class_ "text-sm font-mono",
+                      xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"
+                    ]
+                    "0:00 / 0:00"
         Nothing -> mempty
 
       -- Track listing section
