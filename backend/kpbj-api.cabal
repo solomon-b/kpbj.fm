@@ -156,12 +156,12 @@ library
     API.TermsOfService.Get
     API.TermsOfService.Get.Templates
     API.User.Login.Get
-    API.User.Login.Form
+    API.User.Login.Get.Templates.Form
     API.User.Login.Post
     API.User.Logout.Get
     API.User.Logout.Post
     API.User.Register.Get
-    API.User.Register.Form
+    API.User.Register.Get.Templates.Form
     API.User.Register.Post
     App.Common
     Component.Frame
