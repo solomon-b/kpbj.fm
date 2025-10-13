@@ -100,12 +100,8 @@ library
     API.Blog.Post.Get.Templates.Page
     API.Donate.Get
     API.Donate.Get.Templates
-    API.Episode.Edit.Get
-    API.Episode.Edit.Get.Templates.Error
-    API.Episode.Edit.Get.Templates.Form
-    API.Episode.Edit.Post
-    API.Episode.Get
-    API.Episode.Get.Templates.Page
+    API.Episodes.Get
+    API.Episodes.Get.Templates.Page
     API.Episodes.Edit.Get
     API.Episodes.Edit.Get.Templates.Error
     API.Episodes.Edit.Get.Templates.Form

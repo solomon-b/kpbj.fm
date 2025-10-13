@@ -14,6 +14,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
@@ -33,15 +34,17 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-episodeUploadGetUrl :: Links.URI
-episodeUploadGetUrl = Links.linkURI episodeUploadGetLink
+episodeUploadGetUrl :: Text -> Links.URI
+episodeUploadGetUrl showSlug = Links.linkURI $ episodeUploadGetLink showSlug
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "GET /episodes/upload"
-    ( "episodes"
+    "GET /shows/:show_slug/episodes/upload"
+    ( "shows"
+        :> Servant.Capture "show_slug" Text
+        :> "episodes"
         :> "upload"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -61,32 +64,40 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
+  Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer cookie (foldHxReq -> hxRequest) = do
+handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       -- Redirect to login
       renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (user, userMetadata) -> do
-      showsResult <- execQuerySpan (Shows.getShowsForUser user.mId)
-      case showsResult of
+      -- Fetch the specific show by slug
+      showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
+      case showResult of
         Left _err -> do
-          Log.logInfo "Failed to fetch user's shows" ()
-          renderTemplate hxRequest Nothing showLoadErrorTemplate
-        Right userShows -> do
-          -- TODO: This is wrong! We need to conditioanly fetch upcoming dates based on what show the user selects!
-          --
-          -- Get upcoming dates for the user's first show (primary show)
-          upcomingDates <- case userShows of
-            [] -> pure []
-            (primaryShow : _) -> do
-              datesResult <- execQuerySpan (Shows.getUpcomingShowDates primaryShow.id 4)
-              case datesResult of
-                Left _err -> do
-                  Log.logInfo "Failed to fetch upcoming show dates" primaryShow.id
-                  pure []
-                Right dates -> pure dates
+          Log.logInfo "Failed to fetch show" showSlug
+          renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
+        Right Nothing -> do
+          Log.logInfo "Show not found" showSlug
+          renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
+        Right (Just showModel) -> do
+          -- Verify user is host of this show
+          isHostResult <- execQuerySpan (Shows.isUserHostOfShow user.mId showModel.id)
+          case isHostResult of
+            Left _err -> do
+              Log.logInfo "Failed to check host permissions" showSlug
+              renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
+            Right False -> do
+              Log.logInfo "User is not host of show" (user.mId, showSlug)
+              renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
+            Right True -> do
+              -- Get upcoming dates for this show
+              datesResult <- execQuerySpan (Shows.getUpcomingShowDates showModel.id 4)
+              let upcomingDates = case datesResult of
+                    Left _err -> []
+                    Right dates -> dates
 
-          renderTemplate hxRequest (Just userMetadata) $ episodeUploadForm userShows upcomingDates
+              renderTemplate hxRequest (Just userMetadata) $ episodeUploadForm showModel upcomingDates

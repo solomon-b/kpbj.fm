@@ -51,8 +51,10 @@ import Text.Read (readMaybe)
 
 type Route =
   Observability.WithSpan
-    "POST /episodes/upload"
-    ( "episodes"
+    "POST /shows/:show_slug/episodes/upload"
+    ( "shows"
+        :> Servant.Capture "show_slug" Text
+        :> "episodes"
         :> "upload"
         :> Servant.Header "Cookie" Cookie
         :> MultipartForm Mem EpisodeUploadForm
@@ -123,8 +125,8 @@ instance FromMultipart Mem EpisodeUploadForm where
 --------------------------------------------------------------------------------
 -- URL helpers
 
-episodeUploadPostUrl :: Links.URI
-episodeUploadPostUrl = Links.linkURI episodeUploadPostLink
+episodeUploadPostUrl :: Text -> Links.URI
+episodeUploadPostUrl showSlug = Links.linkURI $ episodeUploadPostLink showSlug
 
 --------------------------------------------------------------------------------
 
@@ -139,10 +141,11 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
+  Text ->
   Maybe Cookie ->
   EpisodeUploadForm ->
   m (Lucid.Html ())
-handler _tracer cookie form = do
+handler _tracer showSlug cookie form = do
   getUserInfo cookie >>= \case
     Nothing -> do
       loadFrame $ do
@@ -151,16 +154,36 @@ handler _tracer cookie form = do
           Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You must be logged in to upload episodes."
           Lucid.a_ [Lucid.href_ "/user/login", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Login"
     Just (user, _userInfo) -> do
-      -- Process upload
-      result <- processEpisodeUpload user form
+      -- Verify show exists and user is authorized
+      showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
+      case showResult of
+        Left _err -> do
+          Log.logInfo "Failed to fetch show" showSlug
+          loadFrame $ errorTemplate "Failed to load show information."
+        Right Nothing -> do
+          Log.logInfo "Show not found" showSlug
+          loadFrame $ errorTemplate "Show not found."
+        Right (Just showModel) -> do
+          -- Verify user is host
+          isHostResult <- execQuerySpan (Shows.isUserHostOfShow user.mId showModel.id)
+          case isHostResult of
+            Left _err -> do
+              Log.logInfo "Failed to check host permissions" showSlug
+              loadFrame $ errorTemplate "Failed to verify permissions."
+            Right False -> do
+              Log.logInfo "User is not host of show" (user.mId, showSlug)
+              loadFrame $ errorTemplate "You are not authorized to upload episodes for this show."
+            Right True -> do
+              -- Process upload
+              result <- processEpisodeUpload user form
 
-      case result of
-        Left err -> do
-          Log.logInfo "Episode upload failed" err
-          loadFrame $ errorTemplate err
-        Right episodeId -> do
-          Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
-          loadFrame $ successTemplate episodeId
+              case result of
+                Left err -> do
+                  Log.logInfo "Episode upload failed" err
+                  loadFrame $ errorTemplate err
+                Right episodeId -> do
+                  Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
+                  loadFrame $ successTemplate episodeId
 
 -- | Process episode upload form
 processEpisodeUpload ::
