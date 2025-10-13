@@ -40,6 +40,7 @@ eventsNewPostLink :: Links.Link
 eventGetLink :: Text -> Links.Link
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Status -> Maybe Search -> Links.Link
 showGetLink :: Text -> Links.Link
+episodeGetLink :: Text -> Text -> Links.Link
 episodeUploadGetLink :: Links.Link
 episodeUploadPostLink :: Links.Link
 episodeEditGetLink :: Episodes.Id -> Links.Link
