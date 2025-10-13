@@ -2,7 +2,7 @@ module API.User.Register.Get where
 
 --------------------------------------------------------------------------------
 
-import API.User.Register.Form (template)
+import API.User.Register.Get.Templates.Form (template)
 import Component.Frame (loadContentOnly, loadFrame)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Unlift (MonadUnliftIO)

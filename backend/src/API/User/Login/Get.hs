@@ -2,7 +2,7 @@ module API.User.Login.Get where
 
 --------------------------------------------------------------------------------
 
-import API.User.Login.Form (template)
+import API.User.Login.Get.Templates.Form (template)
 import Component.Frame (loadContentOnly, loadFrame)
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
