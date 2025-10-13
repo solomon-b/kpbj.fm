@@ -69,26 +69,26 @@ handler _tracer cookie (foldHxReq -> hxRequest) = do
           Log.logInfo "Authorized user accessing host dashboard" userMetadata.mDisplayName
 
           -- Fetch user's shows
-          userShows <- fromRightM (\_ -> pure []) $ execQuerySpan (Shows.getShowsForUser (User.mId user))
+          execQuerySpan (Shows.getShowForUser (User.mId user)) >>= \case
+            Left _err -> do
+              let dashboardTemplate = template userMetadata Nothing [] []
+              renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+            Right maybeUserShow -> do
+              case maybeUserShow of
+                Nothing -> do
+                  let dashboardTemplate = template userMetadata Nothing [] []
+                  renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+                Just userShow -> do
+                  recentEpisodes <- fromRightM (\_ -> pure []) $ execQuerySpan (Episodes.getEpisodesById userShow.id)
 
-          -- TODO: This is wrong! We're only showing the user's first show. We shoudl support multi show users.
-          -- Fetch recent episodes for user's shows
-          recentEpisodes <- case userShows of
-            [] -> pure []
-            (primaryShow : _) -> do
-              episodesResult <- execQuerySpan (Episodes.getEpisodesById primaryShow.id)
-              case episodesResult of
-                Left _err -> pure []
-                Right episodes -> pure episodes
+                  -- Fetch recent blog posts by this user
+                  blogPostsResult <- execQuerySpan (ShowBlogPosts.getShowBlogPostsByAuthor (User.mId user) 10 0)
+                  blogPosts <- case blogPostsResult of
+                    Left _err -> pure []
+                    Right posts -> pure posts
 
-          -- Fetch recent blog posts by this user
-          blogPostsResult <- execQuerySpan (ShowBlogPosts.getShowBlogPostsByAuthor (User.mId user) 10 0)
-          blogPosts <- case blogPostsResult of
-            Left _err -> pure []
-            Right posts -> pure posts
-
-          let dashboardTemplate = template userMetadata userShows recentEpisodes blogPosts
-          renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+                  let dashboardTemplate = template userMetadata (Just userShow) recentEpisodes blogPosts
+                  renderTemplate hxRequest (Just userMetadata) dashboardTemplate
         else do
           Log.logInfo "User without Host role tried to access host dashboard" userMetadata.mDisplayName
           renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate

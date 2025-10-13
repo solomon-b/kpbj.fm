@@ -12,8 +12,10 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
+import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
@@ -37,9 +39,11 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /episodes/:id/edit"
-    ( "episodes"
-        :> Servant.Capture "id" Episodes.Id
+    "GET /shows/:show_slug/episodes/:episode_slug/edit"
+    ( "shows"
+        :> Servant.Capture "show_slug" Text
+        :> "episodes"
+        :> Servant.Capture "episode_slug" Text
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -59,11 +63,12 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Episodes.Id ->
+  Text ->
+  Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer episodeId cookie (foldHxReq -> hxRequest) = do
+handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to episode edit" ()
@@ -74,22 +79,24 @@ handler _tracer episodeId cookie (foldHxReq -> hxRequest) = do
       -- want a reference in the repo in case we end up needing a transaction
       -- somewhere.
       mResult <- execTransactionSpan $ runMaybeT $ do
-        episode <- MaybeT $ HT.statement () (Episodes.getEpisodeById episodeId)
+        episode <- MaybeT $ HT.statement () (Episodes.getEpisodeBySlug showSlug episodeSlug)
         showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
-        MaybeT $ pure $ Just (episode, showResult)
+        tracks <- lift $ HT.statement () (Episodes.getTracksForEpisode episode.id)
+        MaybeT $ pure $ Just (episode, showResult, tracks)
 
       case mResult of
         Left err -> do
           Log.logAttention "getEpisodeById execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
-          Log.logInfo_ $ "No episode with ID: '" <> display episodeId <> "'"
+          Log.logInfo_ $ "No episode : '" <> display episodeSlug <> "'"
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-        Right (Just (episode, showResult)) ->
+        Right (Just (episode, showModel, tracks)) ->
           if episode.createdBy == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then do
               Log.logInfo "Authorized user accessing episode edit form" episode.id
-              let editTemplate = template episode showResult userMetadata
+              let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+                  editTemplate = template showModel episode tracks userMetadata isStaff
               renderTemplate hxRequest (Just userMetadata) editTemplate
             else do
               Log.logInfo "User tried to edit episode they don't own" episode.id

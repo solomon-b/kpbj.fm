@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Episode.Get.Templates.Page
+module API.Episodes.Get.Templates.Page
   ( template,
     errorTemplate,
     notFoundTemplate,
@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodeEditGetLink, mediaGetLink, showGetLink)
+import {-# SOURCE #-} API (episodesEditGetLink, mediaGetLink, showGetLink)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -33,7 +33,7 @@ showGetUrl :: Text -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
 episodeEditGetUrl :: Text -> Text -> Links.URI
-episodeEditGetUrl showSlug episodeSlug = Links.linkURI $ episodeEditGetLink showSlug episodeSlug
+episodeEditGetUrl showSlug episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeSlug
 
 --------------------------------------------------------------------------------
 

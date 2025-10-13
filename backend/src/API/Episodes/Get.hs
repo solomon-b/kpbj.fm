@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Episode.Get where
+module API.Episodes.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodeGetLink, showGetLink)
-import API.Episode.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
+import {-# SOURCE #-} API (episodesGetLink, showGetLink)
+import API.Episodes.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -38,8 +38,8 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-episodeGetUrl :: Text -> Text -> Links.URI
-episodeGetUrl showSlug episodeSlug = Links.linkURI $ episodeGetLink showSlug episodeSlug
+episodesIdGetUrl :: Text -> Text -> Links.URI
+episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
 
 showGetUrl :: Text -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug

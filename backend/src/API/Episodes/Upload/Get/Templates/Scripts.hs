@@ -27,9 +27,6 @@ renderValidationScript = do
 function episodeUploadValidator() {
   // Validation rule definitions
   const validators = {
-    show_id: (value) =>
-      !value ? 'Please select a show' : null,
-
     title: (value) => {
       const trimmed = value.trim();
       if (!trimmed) return 'Episode title is required';
@@ -86,7 +83,6 @@ function episodeUploadValidator() {
 
   return {
     fields: {
-      show_id: { value: '', isValid: false, error: '' },
       episode_type: { value: 'pre-recorded', isValid: true, error: '' },
       title: { value: '', isValid: false, error: '' },
       description: { value: '', isValid: false, error: '' },
@@ -106,10 +102,6 @@ function episodeUploadValidator() {
       field.isValid = error === null;
       field.error = error || '';
       return field.isValid;
-    },
-
-    validateShow() {
-      return this.validateField('show_id', () => this.fields.show_id.value);
     },
 
     validateTitle() {
@@ -188,7 +180,6 @@ function episodeUploadValidator() {
 
     validateAllFields() {
       return [
-        this.validateShow(),
         this.validateTitle(),
         this.validateDescription(),
         this.validateAudioFile(),
@@ -198,7 +189,7 @@ function episodeUploadValidator() {
     },
 
     getFirstError() {
-      const fieldOrder = ['show_id', 'title', 'description', 'audio_file', 'artwork_file'];
+      const fieldOrder = ['title', 'description', 'audio_file', 'artwork_file'];
       const invalidField = fieldOrder.find(name => !this.fields[name].isValid);
       return invalidField ? this.fields[invalidField].error : (this.tracksValid ? '' : this.tracksError);
     },
