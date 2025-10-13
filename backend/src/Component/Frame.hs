@@ -64,7 +64,7 @@ musicPlayer =
         Lucid.a_
           [ Lucid.href_ "#",
             Lucid.class_ "hover:text-gray-600 cursor-pointer",
-            xOnClick_ "togglePlay()",
+            xOnClick_ "toggle()",
             xText_ "isPlaying ? '[ PAUSE ]' : '[ PLAY ]'"
           ]
           "[ PLAY ]"
@@ -84,6 +84,7 @@ musicPlayer =
   where
     playerData =
       [i|{
+      playerId: 'navbar-player',
       isPlaying: false,
       volume: 80,
       streamUrl: 'https://kpbj.hasnoskills.com:8000/radio.mp3',
@@ -101,37 +102,43 @@ musicPlayer =
         this.fetchMetadata(); // Initial fetch
       },
 
-      togglePlay() {
-        console.log('Toggle play clicked, isPlaying:', this.isPlaying);
-        this.isPlaying ? this.stop() : this.play();
+      toggle() {
+        this.isPlaying ? this.pause() : this.play();
       },
 
       play() {
-        console.log('Starting audio stream...');
+        console.log('Navbar player: Starting...');
+
+        // Pause all other players
+        pauseOtherPlayers(this.playerId);
+
         const audio = this.$refs.audio;
-        audio.src = this.streamUrl;
+
+        // Load source if needed
+        if (!audio.src || audio.src === '') {
+          audio.src = this.streamUrl;
+        }
+
         audio.volume = this.volume / 100;
 
         audio.play()
           .then(() => {
-            console.log('Audio started successfully');
+            console.log('Navbar player: Playing');
             this.isPlaying = true;
             this.startMetadataPolling();
           })
           .catch((error) => {
-            console.error('Audio play failed:', error);
+            console.error('Navbar player failed:', error);
             this.errorMessage = 'Failed to start stream: ' + error.message;
             setTimeout(() => this.errorMessage = '', 5000);
           });
       },
 
-      stop() {
-        console.log('Stopping audio stream...');
+      pause() {
+        console.log('Navbar player: Pausing');
         const audio = this.$refs.audio;
         audio.pause();
-        audio.src = '';
         this.isPlaying = false;
-        this.stopMetadataPolling();
       },
 
       setVolume(value) {
@@ -208,6 +215,25 @@ musicPlayer =
       }
     }|]
 
+-- | JavaScript function to coordinate multiple independent audio players
+playerScript :: Text
+playerScript =
+  [i|
+    // Global state to track which player is currently active
+    window.currentActivePlayer = null;
+
+    // Pause all other players when a new one starts
+    function pauseOtherPlayers(currentPlayerId) {
+      // Get all Alpine components on the page that have a pause method
+      document.querySelectorAll('[x-data]').forEach(el => {
+        const data = Alpine.$data(el);
+        if (data && data.playerId !== currentPlayerId && data.isPlaying && typeof data.pause === 'function') {
+          data.pause();
+        }
+      });
+    }
+  |]
+
 authWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
 authWidget mUser =
   Lucid.div_ [Lucid.class_ "flex gap-4 items-center text-sm text-gray-600"] $ do
@@ -255,6 +281,7 @@ template mUser main =
       Lucid.script_ [Lucid.src_ "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { theme: { extend: { fontFamily: { mono: ['Courier New', 'monospace'] } } } }" :: Text)
+      Lucid.script_ [] playerScript
     Lucid.body_ [Lucid.class_ "font-mono text-gray-800 min-h-screen flex flex-col"] $ do
       -- Persistent header with navigation
       Lucid.header_ [Lucid.class_ "bg-white p-4"] $ do
