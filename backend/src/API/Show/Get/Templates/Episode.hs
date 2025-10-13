@@ -9,6 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
+import {-# SOURCE #-} API (mediaGetLink)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -16,8 +17,13 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Lucid qualified
+import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
+
+-- | Helper function to convert artwork path to full media URL
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
 
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
@@ -29,7 +35,7 @@ renderLatestEpisode episode tracks = do
     Lucid.div_ [Lucid.class_ "flex gap-4 mb-6"] $ do
       Lucid.div_ [Lucid.class_ "w-24 h-24 bg-gray-300 border border-gray-600 flex items-center justify-center text-xs flex-shrink-0"] $ do
         case episode.artworkUrl of
-          Just artworkUrl -> Lucid.img_ [Lucid.src_ artworkUrl, Lucid.alt_ "Episode artwork", Lucid.class_ "w-full h-full object-cover"]
+          Just artworkUrl -> Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|], Lucid.alt_ "Episode artwork", Lucid.class_ "w-full h-full object-cover"]
           Nothing -> "[EP IMG]"
 
       Lucid.div_ [Lucid.class_ "flex-grow"] $ do
@@ -61,7 +67,7 @@ renderLatestEpisode episode tracks = do
           Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
             Lucid.button_
               [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
-                Lucid.onclick_ [i|playEpisode('#{audioPath}')|]
+                Lucid.onclick_ [i|playEpisode('/#{mediaGetUrl}/#{audioPath}')|]
               ]
               "▶ PLAY"
             Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded"] $ do
@@ -120,7 +126,7 @@ renderEpisodeCard episode = do
     -- Episode thumbnail
     Lucid.div_ [Lucid.class_ "w-24 h-24 bg-gray-300 border border-gray-600 flex items-center justify-center text-xs flex-shrink-0"] $ do
       case episode.artworkUrl of
-        Just artworkUrl -> Lucid.img_ [Lucid.src_ artworkUrl, Lucid.alt_ "Episode artwork", Lucid.class_ "w-full h-full object-cover"]
+        Just artworkUrl -> Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|], Lucid.alt_ "Episode artwork", Lucid.class_ "w-full h-full object-cover"]
         Nothing -> "[EP IMG]"
 
     -- Episode info
@@ -154,7 +160,7 @@ renderEpisodeCard episode = do
             Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
               Lucid.button_
                 [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
-                  Lucid.onclick_ [i|playEpisode('#{audioPath}')|]
+                  Lucid.onclick_ [i|playEpisode('/#{mediaGetUrl}/#{audioPath}')|]
                 ]
                 "▶ PLAY"
               Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded"] $ do
