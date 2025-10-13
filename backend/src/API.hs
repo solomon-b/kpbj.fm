@@ -8,6 +8,7 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Donate.Get qualified as Donate.Get
+import API.Episode.Get qualified as Episode.Get
 import API.Episodes.Edit.Get qualified as Episodes.Edit.Get
 import API.Episodes.Edit.Post qualified as Episodes.Edit.Post
 import API.Episodes.Upload.Get qualified as Episodes.Upload.Get
@@ -87,6 +88,7 @@ type API =
     :<|> TermsOfService.Get.Route
     :<|> Shows.Get.Route
     :<|> Show.Get.Route
+    :<|> Episode.Get.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
     :<|> User.Logout.Get.Route
@@ -132,6 +134,7 @@ server env =
     :<|> TermsOfService.Get.handler
     :<|> Shows.Get.handler
     :<|> Show.Get.handler
+    :<|> Episode.Get.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
     :<|> User.Logout.Get.handler
@@ -232,6 +235,10 @@ showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
 -- | Route: GET /shows/:slug
 showGetLink :: Text -> Links.Link
 showGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Get.Route)
+
+-- | Route: GET /shows/:show_slug/episodes/:episode_slug
+episodeGetLink :: Text -> Text -> Links.Link
+episodeGetLink = Links.safeLink (Proxy @API) (Proxy @Episode.Get.Route)
 
 -- | Route: GET /episodes/upload
 episodeUploadGetLink :: Links.Link
