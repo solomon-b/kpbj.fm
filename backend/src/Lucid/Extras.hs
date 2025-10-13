@@ -53,6 +53,9 @@ xOnChange_ = Lucid.makeAttributes "x-on:change"
 xOnClick_ :: Text -> Lucid.Attributes
 xOnClick_ = Lucid.makeAttributes "x-on:click"
 
+xOnSubmit_ :: Text -> Lucid.Attributes
+xOnSubmit_ = Lucid.makeAttributes "x-on:submit"
+
 xBindClass_ :: Text -> Lucid.Attributes
 xBindClass_ = Lucid.makeAttributes "x-bind:class"
 
