@@ -6,7 +6,7 @@ module API.Host.Dashboard.Get.Templates.Episode
   )
 where
 
-import {-# SOURCE #-} API (episodeEditGetLink)
+import {-# SOURCE #-} API (episodesEditGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -30,7 +30,7 @@ renderEpisodeCard episode = do
           -- TODO: Add duration when available
           "Duration TBD"
       Lucid.div_ [Lucid.class_ "flex gap-2"] $ do
-        let episodeEditUrl = Links.linkURI $ episodeEditGetLink episode.id
+        let episodeEditUrl = Links.linkURI $ episodesEditGetLink episode.id
         Lucid.a_ [Lucid.href_ [i|/#{episodeEditUrl}|], hxGet_ [i|/#{episodeEditUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "bg-gray-600 text-white px-3 py-1 text-xs font-bold hover:bg-gray-700 no-underline"] "EDIT"
         Lucid.button_ [Lucid.class_ "bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700"] "DELETE"
 

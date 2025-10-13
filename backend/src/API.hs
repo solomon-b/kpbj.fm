@@ -8,6 +8,8 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Donate.Get qualified as Donate.Get
+import API.Episode.Edit.Get qualified as Episode.Edit.Get
+import API.Episode.Edit.Post qualified as Episode.Edit.Post
 import API.Episode.Get qualified as Episode.Get
 import API.Episodes.Edit.Get qualified as Episodes.Edit.Get
 import API.Episodes.Edit.Post qualified as Episodes.Edit.Post
@@ -93,6 +95,8 @@ type API =
     :<|> Show.Edit.Get.Route
     :<|> Show.Edit.Post.Route
     :<|> Episode.Get.Route
+    :<|> Episode.Edit.Get.Route
+    :<|> Episode.Edit.Post.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
     :<|> User.Logout.Get.Route
@@ -141,6 +145,8 @@ server env =
     :<|> Show.Edit.Get.handler
     :<|> Show.Edit.Post.handler
     :<|> Episode.Get.handler
+    :<|> Episode.Edit.Get.handler
+    :<|> Episode.Edit.Post.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
     :<|> User.Logout.Get.handler
@@ -254,6 +260,14 @@ showEditPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Post.Route)
 episodeGetLink :: Text -> Text -> Links.Link
 episodeGetLink = Links.safeLink (Proxy @API) (Proxy @Episode.Get.Route)
 
+-- | Route: GET /shows/:show_slug/episodes/:episode_slug/edit
+episodeEditGetLink :: Text -> Text -> Links.Link
+episodeEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episode.Edit.Get.Route)
+
+-- | Route: POST /shows/:show_slug/episodes/:episode_slug/edit
+episodeEditPostLink :: Text -> Text -> Links.Link
+episodeEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episode.Edit.Post.Route)
+
 -- | Route: GET /episodes/upload
 episodeUploadGetLink :: Links.Link
 episodeUploadGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Get.Route)
@@ -262,13 +276,13 @@ episodeUploadGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Get.R
 episodeUploadPostLink :: Links.Link
 episodeUploadPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Post.Route)
 
--- | Route: GET /episodes/:id/edit
-episodeEditGetLink :: Episodes.Id -> Links.Link
-episodeEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
+-- | Route: GET /episodes/:id/edit (old dashboard route)
+episodesEditGetLink :: Episodes.Id -> Links.Link
+episodesEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
 
--- | Route: POST /episodes/:id/edit
-episodeEditPostLink :: Int64 -> Links.Link
-episodeEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Post.Route)
+-- | Route: POST /episodes/:id/edit (old dashboard route)
+episodesEditPostLink :: Int64 -> Links.Link
+episodesEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Post.Route)
 
 -- | Route: GET /host/dashboard
 hostDashboardGetLink :: Links.Link
