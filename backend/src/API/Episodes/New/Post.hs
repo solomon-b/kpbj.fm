@@ -1,9 +1,9 @@
-module API.Episodes.Upload.Post where
+module API.Episodes.New.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodeUploadPostLink)
-import API.Episodes.Upload.Post.Templates.Result (errorTemplate, successTemplate)
+import {-# SOURCE #-} API (episodesNewPostLink)
+import API.Episodes.New.Post.Templates.Result (errorTemplate, successTemplate)
 import App.Common (getUserInfo)
 import Component.Frame (loadFrame)
 import Control.Monad.Catch (MonadCatch)
@@ -51,11 +51,11 @@ import Text.Read (readMaybe)
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_slug/episodes/upload"
+    "POST /shows/:show_slug/episodes/new"
     ( "shows"
         :> Servant.Capture "show_slug" Text
         :> "episodes"
-        :> "upload"
+        :> "new"
         :> Servant.Header "Cookie" Cookie
         :> MultipartForm Mem EpisodeUploadForm
         :> Servant.Post '[HTML] (Lucid.Html ())
@@ -125,8 +125,8 @@ instance FromMultipart Mem EpisodeUploadForm where
 --------------------------------------------------------------------------------
 -- URL helpers
 
-episodeUploadPostUrl :: Text -> Links.URI
-episodeUploadPostUrl showSlug = Links.linkURI $ episodeUploadPostLink showSlug
+episodesNewPostUrl :: Text -> Links.URI
+episodesNewPostUrl showSlug = Links.linkURI $ episodesNewPostLink showSlug
 
 --------------------------------------------------------------------------------
 

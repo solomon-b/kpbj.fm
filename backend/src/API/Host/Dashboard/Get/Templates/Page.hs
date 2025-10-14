@@ -9,7 +9,7 @@ module API.Host.Dashboard.Get.Templates.Page
   )
 where
 
-import {-# SOURCE #-} API (episodeUploadGetLink)
+import {-# SOURCE #-} API (episodesNewGetLink)
 import API.Host.Dashboard.Get.Templates.BlogPost (renderBlogPostCard)
 import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeCard)
 import API.Host.Dashboard.Get.Templates.Schedule (renderScheduleSection)
@@ -58,7 +58,7 @@ template userMeta userShow recentEpisodes blogPosts = do
       -- Only show upload button if user has a show
       case userShow of
         Just showModel -> do
-          let uploadUrl = episodeUploadGetUrl showModel.slug
+          let uploadUrl = episodesNewGetUrl showModel.slug
           Lucid.a_ [Lucid.href_ [i|/#{uploadUrl}|], hxGet_ [i|/#{uploadUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "bg-blue-600 text-white p-4 font-bold hover:bg-blue-700 transition-colors block text-center"] $ do
             "🎵 PREPARE SHOW"
         Nothing -> do
@@ -105,5 +105,5 @@ template userMeta userShow recentEpisodes blogPosts = do
       -- Next Show Schedule
       maybe mempty renderScheduleSection userShow
   where
-    episodeUploadGetUrl :: Text -> Links.URI
-    episodeUploadGetUrl showSlug = Links.linkURI $ episodeUploadGetLink showSlug
+    episodesNewGetUrl :: Text -> Links.URI
+    episodesNewGetUrl showSlug = Links.linkURI $ episodesNewGetLink showSlug

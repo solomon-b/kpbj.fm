@@ -47,7 +47,7 @@ showEditGetLink :: Text -> Links.Link
 showEditPostLink :: Text -> Links.Link
 episodesGetLink :: Text -> Text -> Links.Link
 episodesEditPostLink :: Text -> Text -> Links.Link
-episodeUploadGetLink :: Text -> Links.Link
-episodeUploadPostLink :: Text -> Links.Link
+episodesNewGetLink :: Text -> Links.Link
+episodesNewPostLink :: Text -> Links.Link
 episodesEditGetLink :: Text -> Text -> Links.Link
 hostDashboardGetLink :: Links.Link

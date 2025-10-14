@@ -1,4 +1,4 @@
-module API.Episodes.Upload.Post.Templates.Result
+module API.Episodes.New.Post.Templates.Result
   ( successTemplate,
     errorTemplate,
   )
