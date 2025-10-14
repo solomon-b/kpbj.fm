@@ -111,6 +111,7 @@ library
     API.Episodes.Edit.Get
     API.Episodes.Edit.Get.Templates.Error
     API.Episodes.Edit.Get.Templates.Form
+    API.Episodes.Edit.Get.Templates.Scripts
     API.Episodes.Edit.Post
     API.Episodes.New.Get
     API.Episodes.New.Get.Templates.Error
