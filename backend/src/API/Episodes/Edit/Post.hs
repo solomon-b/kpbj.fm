@@ -66,7 +66,6 @@ type Route =
 -- | Form data for episode editing
 data EpisodeEditForm = EpisodeEditForm
   { eefTitle :: Text,
-    eefSlug :: Text,
     eefDescription :: Maybe Text,
     eefStatus :: Text
   }
@@ -75,14 +74,12 @@ data EpisodeEditForm = EpisodeEditForm
 instance FromForm EpisodeEditForm where
   fromForm form = do
     title <- Form.parseUnique "title" form
-    slug <- Form.parseUnique "slug" form
     description <- Form.parseMaybe "description" form
     status <- Form.parseUnique "status" form
 
     pure
       EpisodeEditForm
         { eefTitle = title,
-          eefSlug = slug,
           eefDescription = emptyToNothing description,
           eefStatus = status
         }
@@ -270,4 +267,4 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
           renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update episode. Please try again.")
         Right (Just _) -> do
           Log.logInfo "Successfully updated episode" episode.id
-          renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug (eefSlug editForm))
+          renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.slug)
