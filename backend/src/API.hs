@@ -3,6 +3,8 @@ module API where
 --------------------------------------------------------------------------------
 
 import API.About.Get qualified as About.Get
+import API.Blog.Edit.Get qualified as Blog.Edit.Get
+import API.Blog.Edit.Post qualified as Blog.Edit.Post
 import API.Blog.Get qualified as Blog.Get
 import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
@@ -75,6 +77,8 @@ type API =
     :<|> Blog.New.Get.Route
     :<|> Blog.New.Post.Route
     :<|> Blog.Post.Get.Route
+    :<|> Blog.Edit.Get.Route
+    :<|> Blog.Edit.Post.Route
     :<|> Donate.Get.Route
     :<|> Episodes.Edit.Get.Route
     :<|> Episodes.Edit.Post.Route
@@ -123,6 +127,8 @@ server env =
     :<|> Blog.New.Get.handler
     :<|> Blog.New.Post.handler
     :<|> Blog.Post.Get.handler
+    :<|> Blog.Edit.Get.handler
+    :<|> Blog.Edit.Post.handler
     :<|> Donate.Get.handler
     :<|> Episodes.Edit.Get.handler
     :<|> Episodes.Edit.Post.handler
@@ -180,6 +186,14 @@ blogNewPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.New.Post.Route)
 -- | Route: GET /blog/:slug
 blogPostGetLink :: Text -> Links.Link
 blogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.Route)
+
+-- | Route: GET /blog/:slug/edit
+blogEditGetLink :: Text -> Links.Link
+blogEditGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Edit.Get.Route)
+
+-- | Route: POST /blog/:slug/edit
+blogEditPostLink :: Text -> Links.Link
+blogEditPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.Edit.Post.Route)
 
 -- | Route: GET /donate
 donateGetLink :: Links.Link

@@ -96,6 +96,12 @@ library
     API.Blog.New.Get.Templates.Error
     API.Blog.New.Get.Templates.Form
     API.Blog.New.Post
+    API.Blog.Edit.Get
+    API.Blog.Edit.Get.Templates.Error
+    API.Blog.Edit.Get.Templates.Form
+    API.Blog.Edit.Post
+    API.Blog.Edit.Post.Templates.Error
+    API.Blog.Edit.Post.Templates.Success
     API.Blog.Post.Get
     API.Blog.Post.Get.Templates.Page
     API.Donate.Get

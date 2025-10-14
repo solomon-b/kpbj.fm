@@ -24,6 +24,8 @@ blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
 blogNewGetLink :: Links.Link
 blogNewPostLink :: Links.Link
 blogPostGetLink :: Text -> Links.Link
+blogEditGetLink :: Text -> Links.Link
+blogEditPostLink :: Text -> Links.Link
 donateGetLink :: Links.Link
 userLoginGetLink :: Maybe Text -> Maybe EmailAddress -> Links.Link
 userLoginPostLink :: Maybe Text -> Links.Link
