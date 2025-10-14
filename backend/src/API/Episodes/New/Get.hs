@@ -1,28 +1,32 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Episodes.Upload.Get where
+module API.Episodes.New.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodeUploadGetLink)
-import API.Episodes.Upload.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
-import API.Episodes.Upload.Get.Templates.Form (episodeUploadForm)
+import {-# SOURCE #-} API (episodesNewGetLink)
+import API.Episodes.New.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
+import API.Episodes.New.Get.Templates.Form (episodeUploadForm)
 import App.Common (getUserInfo, renderTemplate)
+import Control.Monad (guard)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Maybe
 import Data.Has (Has)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
+import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -33,19 +37,18 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
--- URL helpers
-episodeUploadGetUrl :: Text -> Links.URI
-episodeUploadGetUrl showSlug = Links.linkURI $ episodeUploadGetLink showSlug
+episodesNewGetUrl :: Text -> Links.URI
+episodesNewGetUrl showSlug = Links.linkURI $ episodesNewGetLink showSlug
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "GET /shows/:show_slug/episodes/upload"
+    "GET /shows/:show_slug/episodes/new"
     ( "shows"
         :> Servant.Capture "show_slug" Text
         :> "episodes"
-        :> "upload"
+        :> "new"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
@@ -71,33 +74,24 @@ handler ::
 handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
-      -- Redirect to login
+      Log.logInfo "Unauthorized access to episode upload" ()
       renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (user, userMetadata) -> do
-      -- Fetch the specific show by slug
-      showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
-      case showResult of
-        Left _err -> do
-          Log.logInfo "Failed to fetch show" showSlug
+      -- Fetch show, verify host permissions, and get upcoming dates in a transaction
+      mResult <- execTransactionSpan $ runMaybeT $ do
+        showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
+        isHost <- lift $ HT.statement () (Shows.isUserHostOfShow (User.mId user) showModel.id)
+        guard isHost
+        upcomingDates <- lift $ HT.statement () (Shows.getUpcomingShowDates showModel.id 4)
+        MaybeT $ pure $ Just (showModel, upcomingDates)
+
+      case mResult of
+        Left err -> do
+          Log.logAttention "Failed to load episode upload form" (show err)
           renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
         Right Nothing -> do
-          Log.logInfo "Show not found" showSlug
+          Log.logInfo "Show not found or user not authorized" (showSlug, User.mId user)
           renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
-        Right (Just showModel) -> do
-          -- Verify user is host of this show
-          isHostResult <- execQuerySpan (Shows.isUserHostOfShow user.mId showModel.id)
-          case isHostResult of
-            Left _err -> do
-              Log.logInfo "Failed to check host permissions" showSlug
-              renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
-            Right False -> do
-              Log.logInfo "User is not host of show" (user.mId, showSlug)
-              renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
-            Right True -> do
-              -- Get upcoming dates for this show
-              datesResult <- execQuerySpan (Shows.getUpcomingShowDates showModel.id 4)
-              let upcomingDates = case datesResult of
-                    Left _err -> []
-                    Right dates -> dates
-
-              renderTemplate hxRequest (Just userMetadata) $ episodeUploadForm showModel upcomingDates
+        Right (Just (showModel, upcomingDates)) -> do
+          Log.logInfo "Authorized user accessing episode upload form" showModel.id
+          renderTemplate hxRequest (Just userMetadata) $ episodeUploadForm showModel upcomingDates
