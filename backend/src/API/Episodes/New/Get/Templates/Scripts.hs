@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Episodes.Upload.Get.Templates.Scripts
+module API.Episodes.New.Get.Templates.Scripts
   ( renderEpisodeUploadScripts,
   )
 where
@@ -90,7 +90,7 @@ function episodeUploadValidator() {
       artwork_file: { fileName: '', fileSize: 0, isValid: true, error: '' }
     },
     isSubmitting: false,
-    attemptedSubmit: false,
+    showErrors: false,
     showErrorSummary: false,
     tracksValid: true,
     tracksError: '',
@@ -194,8 +194,8 @@ function episodeUploadValidator() {
       return invalidField ? this.fields[invalidField].error : (this.tracksValid ? '' : this.tracksError);
     },
 
-    handleSubmit(event) {
-      this.attemptedSubmit = true;
+    validateAndSubmit(event) {
+      this.showErrors = true;
 
       if (!this.validateAllFields()) {
         event.preventDefault();
@@ -216,7 +216,7 @@ function episodeUploadValidator() {
     },
 
     handleAudioFileChange() {
-      if (this.attemptedSubmit) {
+      if (this.showErrors) {
         this.validateAudioFile();
       } else {
         const file = document.getElementById('main-file')?.files[0];
@@ -228,7 +228,7 @@ function episodeUploadValidator() {
     },
 
     handleArtworkFileChange() {
-      if (this.attemptedSubmit) {
+      if (this.showErrors) {
         this.validateArtworkFile();
       } else {
         const file = document.getElementById('episode-image')?.files[0];
@@ -323,7 +323,7 @@ renderTrackManagementScript = do
     // Trigger Alpine validation if form submission was attempted
     const form = document.querySelector('form[x-data]');
     const alpineData = form?.__x?.$data;
-    if (alpineData?.attemptedSubmit) {
+    if (alpineData?.showErrors) {
       alpineData.validateTracks();
     }
   };

@@ -13,8 +13,8 @@ import API.Donate.Get qualified as Donate.Get
 import API.Episodes.Edit.Get qualified as Episodes.Edit.Get
 import API.Episodes.Edit.Post qualified as Episodes.Edit.Post
 import API.Episodes.Get qualified as Episodes.Get
-import API.Episodes.Upload.Get qualified as Episodes.Upload.Get
-import API.Episodes.Upload.Post qualified as Episodes.Upload.Post
+import API.Episodes.New.Get qualified as Episodes.New.Get
+import API.Episodes.New.Post qualified as Episodes.New.Post
 import API.Events.Edit.Get qualified as Events.Edit.Get
 import API.Events.Edit.Post qualified as Events.Edit.Post
 import API.Events.Event.Get qualified as Events.Event.Get
@@ -84,8 +84,8 @@ type API =
     :<|> Donate.Get.Route
     :<|> Episodes.Edit.Get.Route
     :<|> Episodes.Edit.Post.Route
-    :<|> Episodes.Upload.Get.Route
-    :<|> Episodes.Upload.Post.Route
+    :<|> Episodes.New.Get.Route
+    :<|> Episodes.New.Post.Route
     :<|> Events.Get.Route
     :<|> Events.New.Get.Route
     :<|> Events.New.Post.Route
@@ -136,8 +136,8 @@ server env =
     :<|> Donate.Get.handler
     :<|> Episodes.Edit.Get.handler
     :<|> Episodes.Edit.Post.handler
-    :<|> Episodes.Upload.Get.handler
-    :<|> Episodes.Upload.Post.handler
+    :<|> Episodes.New.Get.handler
+    :<|> Episodes.New.Post.handler
     :<|> Events.Get.handler
     :<|> Events.New.Get.handler
     :<|> Events.New.Post.handler
@@ -285,13 +285,13 @@ episodesGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.Route)
 episodesEditPostLink :: Text -> Text -> Links.Link
 episodesEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Post.Route)
 
--- | Route: GET /shows/:show_slug/episodes/upload
-episodeUploadGetLink :: Text -> Links.Link
-episodeUploadGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Get.Route)
+-- | Route: GET /shows/:show_slug/episodes/new
+episodesNewGetLink :: Text -> Links.Link
+episodesNewGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Get.Route)
 
--- | Route: POST /shows/:show_slug/episodes/upload
-episodeUploadPostLink :: Text -> Links.Link
-episodeUploadPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Upload.Post.Route)
+-- | Route: POST /shows/:show_slug/episodes/new
+episodesNewPostLink :: Text -> Links.Link
+episodesNewPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Post.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/:episode_slug/edit
 episodesEditGetLink :: Text -> Text -> Links.Link
