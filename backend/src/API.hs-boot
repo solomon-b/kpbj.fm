@@ -39,6 +39,8 @@ eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
 eventsNewGetLink :: Links.Link
 eventsNewPostLink :: Links.Link
 eventGetLink :: Text -> Links.Link
+eventEditGetLink :: Text -> Links.Link
+eventEditPostLink :: Text -> Links.Link
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Status -> Maybe Search -> Links.Link
 showGetLink :: Text -> Links.Link
 showEditGetLink :: Text -> Links.Link
