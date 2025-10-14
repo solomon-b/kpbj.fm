@@ -15,6 +15,8 @@ import API.Episodes.Edit.Post qualified as Episodes.Edit.Post
 import API.Episodes.Get qualified as Episodes.Get
 import API.Episodes.Upload.Get qualified as Episodes.Upload.Get
 import API.Episodes.Upload.Post qualified as Episodes.Upload.Post
+import API.Events.Edit.Get qualified as Events.Edit.Get
+import API.Events.Edit.Post qualified as Events.Edit.Post
 import API.Events.Event.Get qualified as Events.Event.Get
 import API.Events.Get qualified as Events.Get
 import API.Events.New.Get qualified as Events.New.Get
@@ -88,6 +90,8 @@ type API =
     :<|> Events.New.Get.Route
     :<|> Events.New.Post.Route
     :<|> Events.Event.Get.Route
+    :<|> Events.Edit.Get.Route
+    :<|> Events.Edit.Post.Route
     :<|> Host.Dashboard.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
@@ -138,6 +142,8 @@ server env =
     :<|> Events.New.Get.handler
     :<|> Events.New.Post.handler
     :<|> Events.Event.Get.handler
+    :<|> Events.Edit.Get.handler
+    :<|> Events.Edit.Post.handler
     :<|> Host.Dashboard.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
@@ -246,6 +252,14 @@ eventsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Post.Route)
 -- | Route: GET /events/:slug
 eventGetLink :: Text -> Links.Link
 eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.Route)
+
+-- | Route: GET /events/:slug/edit
+eventEditGetLink :: Text -> Links.Link
+eventEditGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Get.Route)
+
+-- | Route: POST /events/:slug/edit
+eventEditPostLink :: Text -> Links.Link
+eventEditPostLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Post.Route)
 
 -- | Route: GET /shows
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link

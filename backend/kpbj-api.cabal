@@ -130,6 +130,12 @@ library
     API.Events.New.Get.Templates.Auth
     API.Events.New.Get.Templates.Form
     API.Events.New.Post
+    API.Events.Edit.Get
+    API.Events.Edit.Get.Templates.Error
+    API.Events.Edit.Get.Templates.Form
+    API.Events.Edit.Post
+    API.Events.Edit.Post.Templates.Error
+    API.Events.Edit.Post.Templates.Success
     API.Events.Event.Get
     API.Events.Event.Get.Templates.Page
     API.Get
