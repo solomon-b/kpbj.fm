@@ -39,10 +39,9 @@ episodeEditGetUrl showSlug episodeSlug = Links.linkURI $ episodesEditGetLink sho
 
 template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Bool -> Lucid.Html ()
 template showModel episode tracks canEdit = do
-  let showUrl = showGetUrl showModel.slug
-  Lucid.div_ [Lucid.class_ "max-w-4xl mx-auto px-4 py-8"] $ do
+  Lucid.div_ [Lucid.class_ "max-w-4xl mx-auto px-4 py-8 w-full"] $ do
     -- Edit button for authorized users
-    unless (not canEdit) $ do
+    when canEdit $ do
       let editUrl = episodeEditGetUrl showModel.slug episode.slug
       Lucid.div_ [Lucid.class_ "mb-4 w-full text-right"] $ do
         Lucid.a_
@@ -53,19 +52,6 @@ template showModel episode tracks canEdit = do
             Lucid.class_ "inline-block bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700"
           ]
           "✏ EDIT EPISODE"
-
-    -- Breadcrumb navigation
-    Lucid.div_ [Lucid.class_ "mb-6 text-sm text-gray-600"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showUrl}|],
-          hxGet_ [i|/#{showUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "hover:text-gray-800 font-bold"
-        ]
-        $ Lucid.toHtml showModel.title
-      " / "
-      Lucid.span_ [Lucid.class_ "text-gray-800"] $ Lucid.toHtml episode.title
 
     -- Main episode container
     Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800"] $ do

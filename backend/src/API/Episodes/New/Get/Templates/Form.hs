@@ -31,14 +31,13 @@ episodesNewPostUrl showSlug = Links.linkURI $ episodesNewPostLink showSlug
 
 episodeUploadForm :: Shows.Model -> [ShowSchedule.UpcomingShowDate] -> Lucid.Html ()
 episodeUploadForm showModel upcomingDates = do
-  Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-4xl mx-auto w-full"] $ do
-    formHeader
-    episodeForm showModel upcomingDates
-    renderEpisodeUploadScripts
+  formHeader
+  episodeForm showModel upcomingDates
+  renderEpisodeUploadScripts
 
 formHeader :: Lucid.Html ()
 formHeader = do
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8"] $ do
+  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
       Lucid.div_ $ do
         Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "UPLOAD EPISODE"
@@ -124,7 +123,7 @@ episodeForm showModel upcomingDates = do
     [ Lucid.method_ "post",
       Lucid.action_ [i|/#{episodesNewPostUrl (Shows.slug showModel)}|],
       Lucid.enctype_ "multipart/form-data",
-      Lucid.class_ "space-y-8",
+      Lucid.class_ "space-y-8 w-full",
       xData_ "episodeUploadValidator()",
       xOnSubmit_ "validateAndSubmit($event)",
       makeAttributes "novalidate" ""
