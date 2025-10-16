@@ -93,6 +93,70 @@ uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
       copyFile tempPath storagePath
       pure $ Right uploadResult
 
+-- | Handle show logo upload
+uploadShowLogo ::
+  (MonadIO m) =>
+  Text -> -- Show slug
+  FileInfo FilePath -> -- Uploaded file info
+  m (Either UploadError UploadResult)
+uploadShowLogo showSlug fileInfo = liftIO $ do
+  let originalName = Text.decodeUtf8 $ fileName fileInfo
+      tempPath = fileContent fileInfo
+
+  -- Get file info
+  fileSize <- getFileSize tempPath
+  let mimeType = getMimeTypeFromExtension originalName
+      config = defaultStorageConfig
+
+  time <- getCurrentTime
+
+  -- Validate upload
+  case validateUpload ImageBucket originalName mimeType fileSize of
+    Left err -> pure $ Left err
+    Right () -> do
+      -- Build upload result
+      let uploadResult = buildShowLogoUpload config showSlug originalName mimeType fileSize time
+          storagePath = uploadResultStoragePath uploadResult
+
+      -- Create directory structure
+      createDirectoryIfMissing True (takeDirectory storagePath)
+
+      -- Move file to final location
+      copyFile tempPath storagePath
+      pure $ Right uploadResult
+
+-- | Handle show banner upload
+uploadShowBanner ::
+  (MonadIO m) =>
+  Text -> -- Show slug
+  FileInfo FilePath -> -- Uploaded file info
+  m (Either UploadError UploadResult)
+uploadShowBanner showSlug fileInfo = liftIO $ do
+  let originalName = Text.decodeUtf8 $ fileName fileInfo
+      tempPath = fileContent fileInfo
+
+  -- Get file info
+  fileSize <- getFileSize tempPath
+  let mimeType = getMimeTypeFromExtension originalName
+      config = defaultStorageConfig
+
+  time <- getCurrentTime
+
+  -- Validate upload
+  case validateUpload ImageBucket originalName mimeType fileSize of
+    Left err -> pure $ Left err
+    Right () -> do
+      -- Build upload result
+      let uploadResult = buildShowBannerUpload config showSlug originalName mimeType fileSize time
+          storagePath = uploadResultStoragePath uploadResult
+
+      -- Create directory structure
+      createDirectoryIfMissing True (takeDirectory storagePath)
+
+      -- Move file to final location
+      copyFile tempPath storagePath
+      pure $ Right uploadResult
+
 --------------------------------------------------------------------------------
 -- Helper functions
 

@@ -136,6 +136,13 @@ showLogoPath config showSlug time =
       filename = generateUniqueFilename "logo" "png" time
    in buildStoragePath config ImageBucket ShowLogo dateHier showSlug filename
 
+-- | Build path for show banner
+showBannerPath :: StorageConfig -> Text -> UTCTime -> FilePath
+showBannerPath config showSlug time =
+  let dateHier = dateHierarchyFromTime time
+      filename = generateUniqueFilename "banner" "jpg" time
+   in buildStoragePath config ImageBucket ShowBanner dateHier showSlug filename
+
 -- | Build path for temporary upload
 tempUploadPath :: StorageConfig -> Text -> UTCTime -> FilePath
 tempUploadPath config _originalFilename time =

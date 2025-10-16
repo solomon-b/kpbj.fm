@@ -15,7 +15,8 @@ import Lucid qualified
 -- | JavaScript for episode edit form track management
 scripts :: Lucid.Html ()
 scripts = do
-  Lucid.script_ [i|
+  Lucid.script_
+    [i|
     // Track management for episode edit form
     (function() {
       let trackCount = document.querySelectorAll('.track-item').length;
