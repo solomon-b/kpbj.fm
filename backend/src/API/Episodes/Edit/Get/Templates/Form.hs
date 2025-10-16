@@ -10,10 +10,12 @@ where
 
 import {-# SOURCE #-} API (episodesGetLink, hostDashboardGetLink)
 import API.Episodes.Edit.Get.Templates.Scripts (scripts)
+import Component.Form qualified as Form
+import Component.Form.Builder qualified as Builder
+import Component.Form.Internal (hiddenInput)
 import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -21,7 +23,7 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xOnBlur_, xOnInput_, xOnSubmit_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -34,44 +36,6 @@ episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug
 
 --------------------------------------------------------------------------------
 
-alpineState :: Text.Text -> Text.Text -> Text
-alpineState title description =
-  [i|{
-  fields: {
-    title: { value: `#{title}`, isValid: true },
-    description: { value: `#{description}`, isValid: true }
-  },
-  showErrors: false,
-
-  validateTitle() {
-    const trimmed = this.fields.title.value.trim();
-    this.fields.title.isValid = trimmed.length >= 3 && trimmed.length <= 200;
-  },
-
-  validateDescription() {
-    const trimmed = this.fields.description.value.trim();
-    this.fields.description.isValid = trimmed.length <= 5000;
-  },
-
-  validateAndSubmit(event) {
-    this.showErrors = true;
-
-    this.validateTitle();
-    this.validateDescription();
-
-    const allFieldsValid = Object.values(this.fields).every(field => field.isValid);
-
-    if (!allFieldsValid) {
-      event.preventDefault();
-      return false;
-    }
-
-    return true;
-  }
-}|]
-
---------------------------------------------------------------------------------
-
 -- | Episode edit template
 template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
 template showModel episode tracks userMeta isStaff = do
@@ -81,24 +45,102 @@ template showModel episode tracks userMeta isStaff = do
       titleValue = episode.title
       descriptionValue = fromMaybe "" episode.description
 
-  formHeader showModel episode userMeta episodeBackUrl
-
-  Lucid.div_ [xData_ (alpineState titleValue descriptionValue)] $ do
-    Lucid.form_
-      [ Lucid.action_ [i|/shows/#{showSlug}/episodes/#{episodeSlug}/edit|],
-        Lucid.method_ "post",
-        Lucid.class_ "space-y-8 w-full",
-        xOnSubmit_ "validateAndSubmit($event)"
-      ]
-      $ do
-        basicInformationSection showSlug episodeSlug episode
-        statusSection isStaff episode
-        trackListingSection tracks
-        formActions episodeBackUrl
+  Builder.buildValidatedForm
+    Builder.FormBuilder
+      { Builder.fbAction = [i|/shows/#{showSlug}/episodes/#{episodeSlug}/edit|],
+        Builder.fbMethod = "post",
+        Builder.fbHeader = Just (formHeader showModel episode userMeta episodeBackUrl),
+        Builder.fbFields =
+          [ -- Basic Information Section with validated fields
+            Builder.SectionField
+              { Builder.sfTitle = "BASIC INFORMATION",
+                Builder.sfFields =
+                  [ Builder.ValidatedTextField
+                      { Builder.vfName = "title",
+                        Builder.vfLabel = "Episode Title",
+                        Builder.vfInitialValue = Just titleValue,
+                        Builder.vfPlaceholder = Just "e.g. Deep Dive into Techno",
+                        Builder.vfHint = Just "3-200 characters (URL slug will be auto-generated from title)",
+                        Builder.vfValidation =
+                          Builder.ValidationRules
+                            { Builder.vrMinLength = Just 3,
+                              Builder.vrMaxLength = Just 200,
+                              Builder.vrPattern = Nothing,
+                              Builder.vrRequired = True,
+                              vrCustomValidation = Nothing
+                            }
+                      },
+                    Builder.ValidatedTextareaField
+                      { Builder.vtName = "description",
+                        Builder.vtLabel = "Description",
+                        Builder.vtInitialValue = Just descriptionValue,
+                        Builder.vtRows = 6,
+                        Builder.vtPlaceholder = Just "Describe this episode. What tracks did you play? Any special guests or themes?",
+                        Builder.vtHint = Just "Up to 5000 characters",
+                        Builder.vtValidation =
+                          Builder.ValidationRules
+                            { Builder.vrMinLength = Nothing,
+                              Builder.vrMaxLength = Just 5000,
+                              Builder.vrPattern = Nothing,
+                              Builder.vrRequired = False,
+                              vrCustomValidation = Nothing
+                            }
+                      }
+                  ]
+              },
+            -- Status Section - conditional based on staff role
+            Builder.ConditionalField
+              { Builder.cfCondition = isStaff,
+                Builder.cfTrueFields =
+                  [ Builder.SectionField
+                      { Builder.sfTitle = "STATUS & SCHEDULE",
+                        Builder.sfFields =
+                          [ Builder.ValidatedSelectField
+                              { Builder.vsName = "status",
+                                Builder.vsLabel = "Episode Status",
+                                Builder.vsOptions = statusOptions episode,
+                                Builder.vsHint = Just "Only published episodes appear on the show page",
+                                Builder.vsValidation =
+                                  Builder.ValidationRules
+                                    { Builder.vrMinLength = Nothing,
+                                      Builder.vrMaxLength = Nothing,
+                                      Builder.vrPattern = Nothing,
+                                      Builder.vrRequired = True,
+                                      vrCustomValidation = Nothing
+                                    }
+                              }
+                          ]
+                      }
+                  ],
+                Builder.cfFalseFields =
+                  [ Builder.HiddenField
+                      { Builder.hfName = "status",
+                        Builder.hfValue = display episode.status
+                      }
+                  ]
+              },
+            -- Track Listing Section
+            Builder.PlainField
+              { Builder.pfHtml = trackListingSection tracks
+              }
+          ],
+        Builder.fbAdditionalContent = [formActions episodeBackUrl],
+        Builder.fbStyles = Builder.defaultFormStyles
+      }
 
   scripts
 
 --------------------------------------------------------------------------------
+-- HELPER FUNCTIONS
+--------------------------------------------------------------------------------
+
+statusOptions :: Episodes.Model -> [Builder.SelectOption]
+statusOptions episode =
+  [ Builder.SelectOption "draft" "Draft" (episode.status == Episodes.Draft) Nothing,
+    Builder.SelectOption "scheduled" "Scheduled" (episode.status == Episodes.Scheduled) Nothing,
+    Builder.SelectOption "published" "Published" (episode.status == Episodes.Published) Nothing,
+    Builder.SelectOption "archived" "Archived" (episode.status == Episodes.Archived) Nothing
+  ]
 
 formHeader :: Shows.Model -> Episodes.Model -> UserMetadata.Model -> Links.URI -> Lucid.Html ()
 formHeader showModel episode userMeta episodeBackUrl = do
@@ -133,19 +175,9 @@ formHeader showModel episode userMeta episodeBackUrl = do
           ]
           "DASHBOARD"
 
-basicInformationSection :: Text.Text -> Text.Text -> Episodes.Model -> Lucid.Html ()
-basicInformationSection _showSlug _episodeSlug _episode = do
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "BASIC INFORMATION"
-    Lucid.div_ [Lucid.class_ "space-y-6"] $ do
-      titleField
-      descriptionField
-
-statusSection :: Bool -> Episodes.Model -> Lucid.Html ()
-statusSection isStaff episode = do
-  if isStaff
-    then staffStatusSection episode
-    else nonStaffStatusSection episode
+--------------------------------------------------------------------------------
+-- FORM SECTIONS
+--------------------------------------------------------------------------------
 
 trackListingSection :: [EpisodeTrack.Model] -> Lucid.Html ()
 trackListingSection tracks = do
@@ -176,67 +208,8 @@ formActions episodeBackUrl = do
         "CANCEL"
 
 --------------------------------------------------------------------------------
-
-titleField :: Lucid.Html ()
-titleField = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-2", Lucid.for_ "title"] "Episode Title *"
-    Lucid.input_
-      [ Lucid.type_ "text",
-        Lucid.name_ "title",
-        Lucid.id_ "title",
-        Lucid.required_ "true",
-        xModel_ "fields.title.value",
-        xBindClass_ "showErrors && !fields.title.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'",
-        xOnInput_ "showErrors && validateTitle()",
-        xOnBlur_ "showErrors && validateTitle()",
-        Lucid.placeholder_ "e.g. Deep Dive into Techno"
-      ]
-    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "3-200 characters (URL slug will be auto-generated from title)"
-
-descriptionField :: Lucid.Html ()
-descriptionField = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-2", Lucid.for_ "description"] "Description"
-    Lucid.textarea_
-      [ Lucid.name_ "description",
-        Lucid.id_ "description",
-        Lucid.rows_ "6",
-        xModel_ "fields.description.value",
-        xBindClass_ "showErrors && !fields.description.isValid ? 'w-full p-3 border-2 border-red-500 font-mono leading-relaxed focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono leading-relaxed focus:border-blue-600'",
-        xOnInput_ "showErrors && validateDescription()",
-        xOnBlur_ "showErrors && validateDescription()",
-        Lucid.placeholder_ "Describe this episode. What tracks did you play? Any special guests or themes?"
-      ]
-      mempty
-    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Up to 5000 characters"
-
-staffStatusSection :: Episodes.Model -> Lucid.Html ()
-staffStatusSection episode = do
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "STATUS & SCHEDULE"
-    Lucid.div_ [Lucid.class_ "space-y-6"] $ do
-      statusField episode
-
-nonStaffStatusSection :: Episodes.Model -> Lucid.Html ()
-nonStaffStatusSection episode = do
-  Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "status", Lucid.value_ (display episode.status)]
-
-statusField :: Episodes.Model -> Lucid.Html ()
-statusField episode = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Episode Status *"
-    Lucid.select_
-      [ Lucid.name_ "status",
-        Lucid.required_ "true",
-        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono"
-      ]
-      $ do
-        Lucid.option_ [Lucid.value_ "draft", selectedIf (episode.status == Episodes.Draft)] "Draft"
-        Lucid.option_ [Lucid.value_ "scheduled", selectedIf (episode.status == Episodes.Scheduled)] "Scheduled"
-        Lucid.option_ [Lucid.value_ "published", selectedIf (episode.status == Episodes.Published)] "Published"
-        Lucid.option_ [Lucid.value_ "archived", selectedIf (episode.status == Episodes.Archived)] "Archived"
-    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] "Only published episodes appear on the show page"
+-- TRACK EDITOR COMPONENTS
+--------------------------------------------------------------------------------
 
 addTrackButton :: Lucid.Html ()
 addTrackButton = do
@@ -250,13 +223,12 @@ addTrackButton = do
 
 --------------------------------------------------------------------------------
 -- TRACK EDITOR COMPONENT
---------------------------------------------------------------------------------
 
 renderTrackEditor :: Int -> EpisodeTrack.Model -> Lucid.Html ()
 renderTrackEditor idx track = do
   Lucid.div_ [Lucid.class_ "border-2 border-gray-300 p-4 track-item"] $ do
     trackEditorHeader idx
-    Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ [i|tracks[#{idx}][id]|], Lucid.value_ (display track.id)]
+    hiddenInput [i|tracks[#{idx}][id]|] (display track.id)
     Lucid.div_ [Lucid.class_ "grid grid-cols-2 gap-4"] $ do
       trackNumberField idx track
       trackDurationField idx track
@@ -278,112 +250,99 @@ trackEditorHeader idx = do
       "✕ REMOVE"
 
 trackNumberField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackNumberField idx track = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-1 text-sm"] "Track #"
-    Lucid.input_
-      [ Lucid.type_ "number",
-        Lucid.name_ [i|tracks[#{idx}][track_number]|],
-        Lucid.value_ (display track.trackNumber),
-        Lucid.min_ "1",
-        Lucid.class_ "w-full p-2 border border-gray-400 font-mono text-sm"
-      ]
+trackNumberField idx track =
+  Form.formNumberInput
+    Form.FormNumberInputConfig
+      { Form.fniName = [i|tracks[#{idx}][track_number]|],
+        Form.fniLabel = "Track #",
+        Form.fniValue = Just (fromIntegral track.trackNumber),
+        Form.fniMin = Just 1,
+        Form.fniMax = Nothing,
+        Form.fniHint = Nothing,
+        Form.fniRequired = False
+      }
 
 trackDurationField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackDurationField idx track = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-1 text-sm"] "Duration"
-    Lucid.input_
-      [ Lucid.type_ "text",
-        Lucid.name_ [i|tracks[#{idx}][duration]|],
-        Lucid.value_ (fromMaybe "" track.duration),
-        Lucid.placeholder_ "e.g. 5:42",
-        Lucid.pattern_ "[0-9]+:[0-5][0-9]",
-        Lucid.title_ "Format: MM:SS (e.g. 5:42)",
-        Lucid.class_ "w-full p-2 border border-gray-400 font-mono text-sm"
-      ]
+trackDurationField idx track =
+  Form.formTextInput
+    Form.FormTextInputConfig
+      { Form.ftiName = [i|tracks[#{idx}][duration]|],
+        Form.ftiLabel = "Duration",
+        Form.ftiValue = track.duration,
+        Form.ftiPlaceholder = Just "e.g. 5:42",
+        Form.ftiHint = Nothing,
+        Form.ftiRequired = False
+      }
 
 trackTitleField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
 trackTitleField idx track = do
-  Lucid.div_ [Lucid.class_ "col-span-2"] $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-1 text-sm"] "Title *"
-    Lucid.input_
-      [ Lucid.type_ "text",
-        Lucid.name_ [i|tracks[#{idx}][title]|],
-        Lucid.value_ track.title,
-        Lucid.required_ "true",
-        Lucid.minlength_ "1",
-        Lucid.maxlength_ "200",
-        Lucid.class_ "w-full p-2 border border-gray-400 font-mono text-sm"
-      ]
+  Lucid.div_ [Lucid.class_ "col-span-2"] $
+    Form.formTextInput
+      Form.FormTextInputConfig
+        { Form.ftiName = [i|tracks[#{idx}][title]|],
+          Form.ftiLabel = "Title",
+          Form.ftiValue = Just track.title,
+          Form.ftiPlaceholder = Nothing,
+          Form.ftiHint = Nothing,
+          Form.ftiRequired = True
+        }
 
 trackArtistField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
 trackArtistField idx track = do
-  Lucid.div_ [Lucid.class_ "col-span-2"] $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-1 text-sm"] "Artist *"
-    Lucid.input_
-      [ Lucid.type_ "text",
-        Lucid.name_ [i|tracks[#{idx}][artist]|],
-        Lucid.value_ track.artist,
-        Lucid.required_ "true",
-        Lucid.minlength_ "1",
-        Lucid.maxlength_ "200",
-        Lucid.class_ "w-full p-2 border border-gray-400 font-mono text-sm"
-      ]
+  Lucid.div_ [Lucid.class_ "col-span-2"] $
+    Form.formTextInput
+      Form.FormTextInputConfig
+        { Form.ftiName = [i|tracks[#{idx}][artist]|],
+          Form.ftiLabel = "Artist",
+          Form.ftiValue = Just track.artist,
+          Form.ftiPlaceholder = Nothing,
+          Form.ftiHint = Nothing,
+          Form.ftiRequired = True
+        }
 
 trackAlbumField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackAlbumField idx track = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-1 text-sm"] "Album"
-    Lucid.input_
-      [ Lucid.type_ "text",
-        Lucid.name_ [i|tracks[#{idx}][album]|],
-        Lucid.value_ (fromMaybe "" track.album),
-        Lucid.maxlength_ "200",
-        Lucid.class_ "w-full p-2 border border-gray-400 font-mono text-sm"
-      ]
+trackAlbumField idx track =
+  Form.formTextInput
+    Form.FormTextInputConfig
+      { Form.ftiName = [i|tracks[#{idx}][album]|],
+        Form.ftiLabel = "Album",
+        Form.ftiValue = track.album,
+        Form.ftiPlaceholder = Nothing,
+        Form.ftiHint = Nothing,
+        Form.ftiRequired = False
+      }
 
 trackLabelField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackLabelField idx track = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-1 text-sm"] "Label"
-    Lucid.input_
-      [ Lucid.type_ "text",
-        Lucid.name_ [i|tracks[#{idx}][label]|],
-        Lucid.value_ (fromMaybe "" track.label),
-        Lucid.maxlength_ "200",
-        Lucid.class_ "w-full p-2 border border-gray-400 font-mono text-sm"
-      ]
+trackLabelField idx track =
+  Form.formTextInput
+    Form.FormTextInputConfig
+      { Form.ftiName = [i|tracks[#{idx}][label]|],
+        Form.ftiLabel = "Label",
+        Form.ftiValue = track.label,
+        Form.ftiPlaceholder = Nothing,
+        Form.ftiHint = Nothing,
+        Form.ftiRequired = False
+      }
 
 trackYearField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackYearField idx track = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-1 text-sm"] "Year"
-    Lucid.input_
-      [ Lucid.type_ "number",
-        Lucid.name_ [i|tracks[#{idx}][year]|],
-        Lucid.value_ (maybe "" display track.year),
-        Lucid.min_ "1900",
-        Lucid.max_ "2099",
-        Lucid.class_ "w-full p-2 border border-gray-400 font-mono text-sm"
-      ]
+trackYearField idx track =
+  Form.formNumberInput
+    Form.FormNumberInputConfig
+      { Form.fniName = [i|tracks[#{idx}][year]|],
+        Form.fniLabel = "Year",
+        Form.fniValue = fmap fromIntegral track.year,
+        Form.fniMin = Just 1900,
+        Form.fniMax = Just 2099,
+        Form.fniHint = Nothing,
+        Form.fniRequired = False
+      }
 
 trackPremiereField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackPremiereField idx track = do
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "flex items-center space-x-2"] $ do
-      Lucid.input_
-        [ Lucid.type_ "checkbox",
-          Lucid.name_ [i|tracks[#{idx}][is_exclusive_premiere]|],
-          Lucid.value_ "true",
-          if track.isExclusivePremiere then Lucid.checked_ else mempty,
-          Lucid.class_ "w-4 h-4"
-        ]
-      Lucid.span_ [Lucid.class_ "text-sm font-bold"] "Exclusive Premiere"
-
---------------------------------------------------------------------------------
-
--- Helper to set selected attribute
-selectedIf :: Bool -> Lucid.Attributes
-selectedIf True = Lucid.selected_ "selected"
-selectedIf False = mempty
+trackPremiereField idx track =
+  Form.formCheckbox
+    Form.FormCheckboxConfig
+      { Form.fcName = [i|tracks[#{idx}][is_exclusive_premiere]|],
+        Form.fcValue = "true",
+        Form.fcLabel = "Exclusive Premiere",
+        Form.fcChecked = track.isExclusivePremiere
+      }

@@ -176,6 +176,9 @@ library
     API.User.Register.Get.Templates.Form
     API.User.Register.Post
     App.Common
+    Component.Form
+    Component.Form.Builder
+    Component.Form.Internal
     Component.Frame
     Domain.Types.PostStatus
     Domain.Types.Cookie
