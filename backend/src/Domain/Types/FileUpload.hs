@@ -165,3 +165,33 @@ buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType file
           uploadResultMimeType = mimeType,
           uploadResultFileSize = fileSize
         }
+
+buildShowLogoUpload :: StorageConfig -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
+buildShowLogoUpload config showSlug originalName mimeType fileSize time =
+  let extension = getFileExtension mimeType
+      storagePath = showLogoPath config showSlug time
+      dateHier = dateHierarchyFromTime time
+      filename = generateUniqueFilename "logo" extension time
+      url = buildUrlPath ImageBucket ShowLogo dateHier showSlug filename
+   in UploadResult
+        { uploadResultOriginalName = originalName,
+          uploadResultStoragePath = storagePath,
+          uploadResultUrl = url,
+          uploadResultMimeType = mimeType,
+          uploadResultFileSize = fileSize
+        }
+
+buildShowBannerUpload :: StorageConfig -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
+buildShowBannerUpload config showSlug originalName mimeType fileSize time =
+  let extension = getFileExtension mimeType
+      storagePath = showBannerPath config showSlug time
+      dateHier = dateHierarchyFromTime time
+      filename = generateUniqueFilename "banner" extension time
+      url = buildUrlPath ImageBucket ShowBanner dateHier showSlug filename
+   in UploadResult
+        { uploadResultOriginalName = originalName,
+          uploadResultStoragePath = storagePath,
+          uploadResultUrl = url,
+          uploadResultMimeType = mimeType,
+          uploadResultFileSize = fileSize
+        }

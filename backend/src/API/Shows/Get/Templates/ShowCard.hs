@@ -6,13 +6,16 @@ module API.Shows.Get.Templates.ShowCard
   )
 where
 
-import {-# SOURCE #-} API (showGetLink)
+import {-# SOURCE #-} API (mediaGetLink, showGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
+
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
 
 -- | Render a show card for the list view
 renderShowCard :: Shows.Model -> Lucid.Html ()
@@ -23,9 +26,18 @@ renderShowCard s = do
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
     -- Show Image
     Lucid.div_ [Lucid.class_ "text-center mb-4"] $ do
-      Lucid.div_ [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center mb-4 text-lg"] $
-        case s.logoUrl of
-          Just logoUrl -> Lucid.img_ [Lucid.src_ logoUrl, Lucid.alt_ showTitle, Lucid.class_ "w-full h-full object-cover"]
+      Lucid.a_
+        [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
+          hxGet_ [i|/#{showGetUrl showSlug}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          Lucid.class_ "block"
+        ]
+        $ Lucid.div_ [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center mb-4 text-lg"]
+        $ case s.logoUrl of
+          Just logoUrl -> do
+            let logoAlt = showTitle <> " logo"
+            Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{logoUrl}|], Lucid.alt_ logoAlt, Lucid.class_ "w-full h-full object-cover"]
           Nothing -> "[SHOW IMG]"
 
       -- Show Title and Basic Info
