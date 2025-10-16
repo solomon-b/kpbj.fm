@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module API.Show.Get.Templates.ShowHeader
   ( renderShowHeader,
@@ -7,26 +8,42 @@ where
 
 --------------------------------------------------------------------------------
 
+import {-# SOURCE #-} API (mediaGetLink)
 import Control.Monad (unless)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
+import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
+
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
 
 -- | Render show header with info
 renderShowHeader :: Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Lucid.Html ()
 renderShowHeader showModel hosts schedules = do
+  -- Banner Image (if present)
+  case showModel.bannerUrl of
+    Just bannerUrl -> do
+      let bannerAlt = showModel.title <> " banner"
+      Lucid.div_ [Lucid.class_ "w-full mb-8 border-2 border-gray-800 overflow-hidden"] $ do
+        Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{bannerUrl}|], Lucid.alt_ bannerAlt, Lucid.class_ "w-full h-auto object-cover"]
+    Nothing -> mempty
+
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-4 gap-8"] $ do
-      -- Show Image
+      -- Show Logo
       Lucid.div_ [Lucid.class_ "lg:col-span-1"] $ do
         Lucid.div_ [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg"] $ do
           case showModel.logoUrl of
-            Just logoUrl -> Lucid.img_ [Lucid.src_ logoUrl, Lucid.alt_ showModel.title, Lucid.class_ "w-full h-full object-cover"]
+            Just logoUrl -> do
+              let logoAlt = showModel.title <> " logo"
+              Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{logoUrl}|], Lucid.alt_ logoAlt, Lucid.class_ "w-full h-full object-cover"]
             Nothing -> "[SHOW IMAGE]"
 
       -- Show Info
