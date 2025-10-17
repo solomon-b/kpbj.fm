@@ -6,6 +6,8 @@ module API.Host.Dashboard.Get.Templates.Episode
   )
 where
 
+--------------------------------------------------------------------------------
+
 import {-# SOURCE #-} API (episodesEditGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -15,6 +17,14 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
+import Domain.Types.Slug (Slug)
+
+--------------------------------------------------------------------------------
+
+episodeEditGetUrl :: Slug -> Slug -> Links.URI
+episodeEditGetUrl showSlug episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeSlug
+
+--------------------------------------------------------------------------------
 
 -- | Render individual episode card
 renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
@@ -31,7 +41,7 @@ renderEpisodeCard showModel episode = do
           -- TODO: Add duration when available
           "Duration TBD"
       Lucid.div_ [Lucid.class_ "flex gap-2"] $ do
-        let episodeEditUrl = Links.linkURI $ episodesEditGetLink showModel.slug episode.slug
+        let episodeEditUrl = episodeEditGetUrl showModel.slug episode.slug
         Lucid.a_ [Lucid.href_ [i|/#{episodeEditUrl}|], hxGet_ [i|/#{episodeEditUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "bg-gray-600 text-white px-3 py-1 text-xs font-bold hover:bg-gray-700 no-underline"] "EDIT"
         Lucid.button_ [Lucid.class_ "bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700"] "DELETE"
 
