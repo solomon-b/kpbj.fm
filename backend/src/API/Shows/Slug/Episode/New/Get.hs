@@ -77,12 +77,12 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
       Log.logInfo "Unauthorized access to episode upload" ()
       renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (user, userMetadata) -> do
-      -- Fetch show, verify host permissions, and get upcoming dates in a transaction
+      -- Fetch show, verify host permissions, and get upcoming unscheduled dates in a transaction
       mResult <- execTransactionSpan $ runMaybeT $ do
         showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
         isHost <- lift $ HT.statement () (Shows.isUserHostOfShow (User.mId user) showModel.id)
         guard isHost
-        upcomingDates <- lift $ HT.statement () (Shows.getUpcomingShowDates showModel.id 4)
+        upcomingDates <- lift $ HT.statement () (Shows.getUpcomingUnscheduledShowDates showModel.id 4)
         MaybeT $ pure $ Just (showModel, upcomingDates)
 
       case mResult of

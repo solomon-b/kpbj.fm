@@ -218,3 +218,68 @@ getUpcomingShowDates showId limit =
     ORDER BY show_date
     LIMIT #{limit}
   |]
+
+-- | Get the next N upcoming UNscheduled dates for a specific show
+-- Like getUpcomingShowDates, but filters out dates that already have episodes scheduled
+-- This is used in the episode upload form to prevent double-booking time slots
+getUpcomingUnscheduledShowDates :: Shows.Id -> Int64 -> Hasql.Statement () [UpcomingShowDate]
+getUpcomingUnscheduledShowDates showId limit =
+  fmap fromUpcomingShowDateRow
+    <$> interp
+      False
+      [sql|
+    WITH RECURSIVE upcoming_dates AS (
+      -- Base case: Get all active schedules for this show
+      SELECT
+        ss.show_id,
+        ss.day_of_week,
+        ss.start_time,
+        ss.end_time,
+        ss.timezone,
+        -- Calculate next occurrence of this day of week from today
+        CASE
+          WHEN ss.day_of_week = EXTRACT(DOW FROM CURRENT_DATE) THEN CURRENT_DATE
+          WHEN ss.day_of_week > EXTRACT(DOW FROM CURRENT_DATE) THEN
+            CURRENT_DATE + (ss.day_of_week - EXTRACT(DOW FROM CURRENT_DATE))::INTEGER
+          ELSE
+            CURRENT_DATE + (7 - EXTRACT(DOW FROM CURRENT_DATE) + ss.day_of_week)::INTEGER
+        END as show_date,
+        1 as occurrence_number
+      FROM show_schedules ss
+      WHERE ss.show_id = #{showId}
+        AND ss.is_active = true
+        AND (ss.effective_until IS NULL OR ss.effective_until >= CURRENT_DATE)
+
+      UNION ALL
+
+      -- Recursive case: Generate next week's occurrences
+      SELECT
+        show_id,
+        day_of_week,
+        start_time,
+        end_time,
+        timezone,
+        show_date + 7 as show_date,
+        occurrence_number + 1
+      FROM upcoming_dates
+      WHERE occurrence_number < #{limit} * 4  -- Generate extra to ensure we have enough unscheduled dates
+    ),
+    scheduled_dates AS (
+      SELECT DISTINCT
+        ud.show_id,
+        ud.show_date,
+        ud.day_of_week,
+        (ud.show_date::TEXT || ' ' || ud.start_time)::TIMESTAMP AT TIME ZONE ud.timezone as start_time,
+        (ud.show_date::TEXT || ' ' || ud.end_time)::TIMESTAMP AT TIME ZONE ud.timezone as end_time
+      FROM upcoming_dates ud
+      LEFT JOIN episodes e ON e.show_id = ud.show_id
+        AND e.scheduled_at IS NOT NULL
+        AND e.scheduled_at = (ud.show_date::TEXT || ' ' || ud.start_time)::TIMESTAMP AT TIME ZONE ud.timezone
+      WHERE ud.show_date >= CURRENT_DATE
+        AND e.id IS NULL  -- Only include dates without scheduled episodes
+    )
+    SELECT show_id, show_date, day_of_week, start_time, end_time
+    FROM scheduled_dates
+    ORDER BY show_date
+    LIMIT #{limit}
+  |]

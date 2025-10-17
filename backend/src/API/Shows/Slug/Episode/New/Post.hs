@@ -272,12 +272,14 @@ processEpisodeUpload user form = do
 -- | Parse form data into structured format with show info
 parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Text ParsedEpisodeData
 parseFormDataWithShow (Shows.Id showId) showSlug form = do
-  -- Parse scheduled date
+  -- Parse scheduled timestamp (now receives full UTC timestamp from form)
   scheduledAt <- case eufScheduledDate form of
     Nothing -> Right Nothing
-    Just dateStr -> case parseTimeM True defaultTimeLocale "%Y-%m-%d" (Text.unpack dateStr) of
-      Nothing -> Left "Invalid scheduled date format"
-      Just date -> Right (Just date)
+    Just timestampStr ->
+      -- Try parsing as full UTCTime (format: "YYYY-MM-DD HH:MM:SS.ssssss UTC")
+      case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timestampStr) of
+        Just timestamp -> Right (Just timestamp)
+        Nothing -> Left $ "Invalid scheduled timestamp format: " <> timestampStr
 
   -- Determine episode status from action
   status <- case eufAction form of
