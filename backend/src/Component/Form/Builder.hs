@@ -247,11 +247,6 @@ flattenFields = concatMap flatten
 
 -- | Generate Alpine.js state for validated fields
 -- Takes pre-flattened fields for efficiency
---
--- SAFETY NOTES:
--- - Field names are validated at form construction time (alphanumeric + underscore only)
--- - Initial field values are escaped to prevent breaking JavaScript string literals
--- - This prevents JavaScript injection through malicious field configuration
 generateAlpineState :: [FormField] -> Text
 generateAlpineState allFields =
   let validatedFields = filter isValidated allFields
@@ -267,6 +262,9 @@ generateAlpineState allFields =
   #{validators},
 
   validateAndSubmit(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
     this.showErrors = true;
 
     #{validatorCalls};
@@ -274,8 +272,6 @@ generateAlpineState allFields =
     const allFieldsValid = Object.values(this.fields).every(field => field.isValid);
 
     if (!allFieldsValid) {
-      event.preventDefault();
-
       // Find first invalid field and focus it
       const firstInvalidFieldName = Object.keys(this.fields).find(name => !this.fields[name].isValid);
       if (firstInvalidFieldName) {
@@ -290,6 +286,8 @@ generateAlpineState allFields =
       return false;
     }
 
+    // Validation passed, manually submit the form
+    event.target.submit();
     return true;
   },
 
@@ -334,7 +332,6 @@ capitalizeFieldName (PlainField {}) = ""
 capitalizeFieldName (ConditionalField {}) = ""
 
 -- | Generate field initialization JavaScript
--- SAFETY: Field names are validated separately. Initial values are escaped for safe use in template literals.
 generateFieldInit :: FormField -> Text
 generateFieldInit (ValidatedTextField {vfName = name, vfInitialValue = val}) =
   let v = escapeJsString (fromMaybe "" val)
@@ -355,7 +352,6 @@ generateFieldInit (PlainField {}) = ""
 generateFieldInit (ConditionalField {}) = ""
 
 -- | Generate validator JavaScript functions
--- SAFETY: Field names are validated at form construction time to ensure they are safe JS identifiers
 generateValidator :: FormField -> Text
 generateValidator (ValidatedTextField {vfName = name, vfValidation = rules}) =
   let funcName :: Text = [i|validate#{capitalizeFirst name}|]
@@ -373,6 +369,22 @@ generateValidator (ValidatedTextareaField {vtName = name, vtValidation = rules})
   }|]
 generateValidator (ValidatedFileField {vffName = name, vffMaxSizeMB = maxSize, vffAccept = accept, vffValidation = rules}) =
   let capitalizedName = capitalizeFirst name
+      requiredCheck :: Text =
+        if vrRequired rules
+          then
+            [i|
+    if (!file) {
+      this.fields.#{name}.isValid = false;
+      this.fields.#{name}.error = 'This field is required';
+      return;
+    }|]
+          else
+            [i|
+    if (!file) {
+      this.fields.#{name}.isValid = true;
+      this.fields.#{name}.error = '';
+      return;
+    }|]
       sizeCheck :: Text = case maxSize of
         Nothing -> ""
         Just mb ->
@@ -400,16 +412,6 @@ generateValidator (ValidatedFileField {vffName = name, vffMaxSizeMB = maxSize, v
       this.fields.#{name}.error = 'Invalid file type. Accepted: #{acceptTypes}';
       return;
     }|]
-      requiredCheck :: Text =
-        if vrRequired rules
-          then
-            [i|
-    if (!file) {
-      this.fields.#{name}.isValid = false;
-      this.fields.#{name}.error = 'This field is required';
-      return;
-    }|]
-          else ""
    in [i|validate#{capitalizedName}() {
     const input = document.getElementById('#{name}-input');
     const file = input?.files?.[0];#{requiredCheck}#{sizeCheck}#{acceptCheck}
@@ -467,7 +469,7 @@ generateValidationConditions _ rules =
 -- Form Rendering
 
 -- | Build a form with automatic Alpine.js validation state
--- SAFETY: Validates all field names are safe JavaScript identifiers before rendering
+-- Validates all field names are safe JavaScript identifiers before rendering
 buildValidatedForm :: FormBuilder -> Lucid.Html ()
 buildValidatedForm builder = do
   let allFields = flattenFields (fbFields builder)
@@ -503,13 +505,8 @@ renderFormElement builder allFields = do
         Lucid.method_ (fbMethod builder),
         Lucid.class_ (fsFormClasses styles)
       ]
-        <> if hasFileFields
-          then [Lucid.enctype_ "multipart/form-data"]
-          else
-            []
-              <> if hasValidation
-                then [xOnSubmit_ "validateAndSubmit($event)", makeAttributes "novalidate" ""]
-                else []
+        <> ([Lucid.enctype_ "multipart/form-data" | hasFileFields])
+        <> (if hasValidation then [xOnSubmit_ "validateAndSubmit($event)", makeAttributes "novalidate" ""] else [])
     )
     $ do
       mapM_ (renderField styles) (fbFields builder)
