@@ -6,8 +6,11 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Data.Word (Word8)
 import Domain.Types.Slug (Slug)
 import System.FilePath ((</>))
+import System.Random qualified as Random
+import Text.Printf (printf)
 
 --------------------------------------------------------------------------------
 
@@ -79,8 +82,8 @@ dateHierarchyFromTime time =
 
 -- | Build full storage path
 -- Example: /tmp/kpbj/audio/2024/09/27/episodes/show-slug_episode-123_audio.mp3
-buildStoragePath :: StorageConfig -> BucketType -> ResourceType -> DateHierarchy -> Slug -> Text -> FilePath
-buildStoragePath config bucketType resourceType dateHier showSlug filename =
+buildStoragePath :: StorageConfig -> BucketType -> ResourceType -> DateHierarchy -> Text -> FilePath
+buildStoragePath config bucketType resourceType dateHier filename =
   let rootPath = storageRoot config
       bucketPath = Text.unpack $ storageBucket config
       bucketTypePath' = Text.unpack $ bucketTypePath bucketType
@@ -88,12 +91,12 @@ buildStoragePath config bucketType resourceType dateHier showSlug filename =
       monthPath = Text.unpack $ dateMonth dateHier
       dayPath = Text.unpack $ dateDay dateHier
       resourcePath = Text.unpack $ resourceTypePath resourceType
-      prefixedFilename = Text.unpack $ display showSlug <> "_" <> filename
-   in rootPath </> bucketPath </> bucketTypePath' </> yearPath </> monthPath </> dayPath </> resourcePath </> prefixedFilename
+      filename' = Text.unpack filename
+   in rootPath </> bucketPath </> bucketTypePath' </> yearPath </> monthPath </> dayPath </> resourcePath </> filename'
 
 -- | Build URL path for serving files (without /tmp prefix)
 -- Example: /static/kpbj/audio/2024/09/27/episodes/show-slug_episode-123_audio.mp3
-buildUrlPath :: BucketType -> ResourceType -> DateHierarchy -> Text -> Text -> Text
+buildUrlPath :: BucketType -> ResourceType -> DateHierarchy -> Slug -> Text -> Text
 buildUrlPath bucketType resourceType dateHier showSlug filename =
   let parts =
         [ "static",
@@ -103,51 +106,56 @@ buildUrlPath bucketType resourceType dateHier showSlug filename =
           dateMonth dateHier,
           dateDay dateHier,
           resourceTypePath resourceType,
-          showSlug <> "_" <> filename
+          display showSlug <> "_" <> filename
         ]
    in "/" <> Text.intercalate "/" parts
 
 -- | Generate unique filename with timestamp
-generateUniqueFilename :: Text -> Text -> UTCTime -> Text
-generateUniqueFilename prefix extension time =
-  let timestamp = Text.pack $ formatTime defaultTimeLocale "%Y%m%d_%H%M%S" time
-   in prefix <> "_" <> timestamp <> "." <> extension
+generateUniqueFilename :: Text -> Text -> Random.StdGen -> Text
+generateUniqueFilename prefix extension seed =
+  let hash = randomHash 16 seed
+   in prefix <> "_" <> hash <> "." <> extension
+
+randomHash :: Int -> Random.StdGen -> Text
+randomHash len gen =
+  let (bytes, _) = splitAt len $ Random.randoms gen :: ([Word8], [Word8])
+      hash = concatMap (printf "%02x") bytes
+   in Text.pack hash
 
 --------------------------------------------------------------------------------
-
 -- Common file path builders
 
 -- | Build path for episode audio file
-episodeAudioPath :: StorageConfig -> Slug -> Slug -> UTCTime -> FilePath
-episodeAudioPath config showSlug episodeSlug time =
+episodeAudioPath :: StorageConfig -> Slug -> UTCTime -> Random.StdGen -> FilePath
+episodeAudioPath config episodeSlug time seed =
   let dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename (display episodeSlug) "mp3" time
-   in buildStoragePath config AudioBucket EpisodeAudio dateHier showSlug filename
+      filename = generateUniqueFilename (display episodeSlug) "mp3" seed
+   in buildStoragePath config AudioBucket EpisodeAudio dateHier filename
 
 -- | Build path for episode artwork
-episodeArtworkPath :: StorageConfig -> Slug -> Slug -> UTCTime -> FilePath
-episodeArtworkPath config showSlug episodeSlug time =
+episodeArtworkPath :: StorageConfig -> Slug -> Slug -> UTCTime -> Random.StdGen -> FilePath
+episodeArtworkPath config showSlug episodeSlug time seed =
   let dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename (display episodeSlug) "jpg" time
-   in buildStoragePath config ImageBucket EpisodeArtwork dateHier showSlug filename
+      filename = generateUniqueFilename (display $ showSlug <> episodeSlug) "jpg" seed
+   in buildStoragePath config ImageBucket EpisodeArtwork dateHier filename
 
 -- | Build path for show logo
-showLogoPath :: StorageConfig -> Slug -> UTCTime -> FilePath
-showLogoPath config showSlug time =
+showLogoPath :: StorageConfig -> Slug -> UTCTime -> Random.StdGen -> FilePath
+showLogoPath config showSlug time seed =
   let dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename "logo" "png" time
-   in buildStoragePath config ImageBucket ShowLogo dateHier showSlug filename
+      filename = generateUniqueFilename (display showSlug) "png" seed
+   in buildStoragePath config ImageBucket ShowLogo dateHier filename
 
 -- | Build path for show banner
-showBannerPath :: StorageConfig -> Slug -> UTCTime -> FilePath
-showBannerPath config showSlug time =
+showBannerPath :: StorageConfig -> Slug -> UTCTime -> Random.StdGen -> FilePath
+showBannerPath config showSlug time seed =
   let dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename "banner" "jpg" time
-   in buildStoragePath config ImageBucket ShowBanner dateHier showSlug filename
+      filename = generateUniqueFilename (display showSlug) "jpg" seed
+   in buildStoragePath config ImageBucket ShowBanner dateHier filename
 
 -- | Build path for temporary upload
-tempUploadPath :: StorageConfig -> Text -> UTCTime -> FilePath
-tempUploadPath config _originalFilename time =
+tempUploadPath :: StorageConfig -> Text -> UTCTime -> Random.StdGen -> FilePath
+tempUploadPath config _originalFilename time seed =
   let dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename "temp" "tmp" time
-   in buildStoragePath config TempBucket TempUpload dateHier "temp" filename
+      filename = generateUniqueFilename "temp" "tmp" seed
+   in buildStoragePath config TempBucket TempUpload dateHier filename

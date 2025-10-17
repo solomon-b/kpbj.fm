@@ -70,6 +70,7 @@ library
                   , mtl
                   , network
                   , password
+                  , random
                   , servant
                   , servant-multipart
                   , servant-server

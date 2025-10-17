@@ -6,18 +6,17 @@ import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Domain.Types.FileStorage
 import Domain.Types.Slug (Slug)
 import System.FilePath (takeBaseName)
+import System.Random qualified as Random
 
 --------------------------------------------------------------------------------
 
 data UploadResult = UploadResult
   { uploadResultOriginalName :: Text,
     uploadResultStoragePath :: FilePath,
-    uploadResultUrl :: Text,
     uploadResultMimeType :: Text,
     uploadResultFileSize :: Int64
   }
@@ -41,29 +40,30 @@ isImageFile mimeType = mimeType `elem` allowedImageTypes
 
 allowedAudioTypes :: [Text]
 allowedAudioTypes =
-  [ "audio/mpeg", -- MP3
-    "audio/wav", -- WAV
-    "audio/flac", -- FLAC
-    "audio/aac", -- AAC
-    "audio/ogg", -- OGG
-    "audio/x-m4a" -- M4A
+  [ "audio/mpeg",
+    "audio/wav",
+    "audio/flac",
+    "audio/aac",
+    "audio/ogg",
+    "audio/x-m4a"
   ]
 
 allowedImageTypes :: [Text]
 allowedImageTypes =
-  [ "image/jpeg", -- JPEG
-    "image/jpg", -- JPG
-    "image/png", -- PNG
-    "image/webp", -- WebP
-    "image/gif" -- GIF
+  [ "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif"
   ]
 
--- Maximum file sizes in bytes
+-- | Maximum audio file size in bytes: 500MB
 maxAudioFileSize :: Int64
-maxAudioFileSize = 500 * 1024 * 1024 -- 500MB
+maxAudioFileSize = 500 * 1024 * 1024
 
+-- | Maximum image file size in bytes: 10MB
 maxImageFileSize :: Int64
-maxImageFileSize = 10 * 1024 * 1024 -- 10MB
+maxImageFileSize = 10 * 1024 * 1024
 
 --------------------------------------------------------------------------------
 -- Upload validation
@@ -124,7 +124,7 @@ getFileExtension mimeType = case mimeType of
   "image/gif" -> "gif"
   _ -> "bin" -- Default extension for unknown types
 
--- Extract clean filename without extension for prefixing
+-- | Extract a clean filename without extension for prefixing
 getCleanFilename :: Text -> Text
 getCleanFilename filename =
   let withoutExt = Text.pack $ takeBaseName $ Text.unpack filename
@@ -136,64 +136,40 @@ getCleanFilename filename =
 --------------------------------------------------------------------------------
 -- Upload result builders
 
-buildEpisodeAudioUpload :: StorageConfig -> Slug -> Slug -> Text -> Text -> Int64 -> UTCTime -> UploadResult
-buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSize time =
-  let extension = getFileExtension mimeType
-      baseFilename = showSlug <> episodeSlug
-      storagePath = episodeAudioPath config showSlug baseFilename time
-      dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename (display baseFilename) extension time
-      url = buildUrlPath AudioBucket EpisodeAudio dateHier (display showSlug) filename
+buildEpisodeAudioUpload :: StorageConfig -> Slug -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
+buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSize time seed =
+  let baseFilename = showSlug <> episodeSlug
+      storagePath = episodeAudioPath config baseFilename time seed
    in UploadResult
         { uploadResultOriginalName = originalName,
           uploadResultStoragePath = storagePath,
-          uploadResultUrl = url,
           uploadResultMimeType = mimeType,
           uploadResultFileSize = fileSize
         }
 
-buildEpisodeArtworkUpload :: StorageConfig -> Slug -> Slug -> Text -> Text -> Int64 -> UTCTime -> UploadResult
-buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType fileSize time =
-  let extension = getFileExtension mimeType
-      baseFilename = showSlug <> episodeSlug
-      storagePath = episodeArtworkPath config showSlug baseFilename time
-      dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename (display baseFilename) extension time
-      url = buildUrlPath ImageBucket EpisodeArtwork dateHier (display showSlug) filename
-   in UploadResult
-        { uploadResultOriginalName = originalName,
-          uploadResultStoragePath = storagePath,
-          uploadResultUrl = url,
-          uploadResultMimeType = mimeType,
-          uploadResultFileSize = fileSize
-        }
+buildEpisodeArtworkUpload :: StorageConfig -> Slug -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
+buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType fileSize time seed =
+  UploadResult
+    { uploadResultOriginalName = originalName,
+      uploadResultStoragePath = episodeArtworkPath config showSlug episodeSlug time seed,
+      uploadResultMimeType = mimeType,
+      uploadResultFileSize = fileSize
+    }
 
-buildShowLogoUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> UploadResult
-buildShowLogoUpload config showSlug originalName mimeType fileSize time =
-  let extension = getFileExtension mimeType
-      storagePath = showLogoPath config showSlug time
-      dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename "logo" extension time
-      url = buildUrlPath ImageBucket ShowLogo dateHier (display showSlug) filename
-   in UploadResult
-        { uploadResultOriginalName = originalName,
-          uploadResultStoragePath = storagePath,
-          uploadResultUrl = url,
-          uploadResultMimeType = mimeType,
-          uploadResultFileSize = fileSize
-        }
+buildShowLogoUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
+buildShowLogoUpload config showSlug originalName mimeType fileSize time seed =
+  UploadResult
+    { uploadResultOriginalName = originalName,
+      uploadResultStoragePath = showLogoPath config showSlug time seed,
+      uploadResultMimeType = mimeType,
+      uploadResultFileSize = fileSize
+    }
 
-buildShowBannerUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> UploadResult
-buildShowBannerUpload config showSlug originalName mimeType fileSize time =
-  let extension = getFileExtension mimeType
-      storagePath = showBannerPath config showSlug time
-      dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename "banner" extension time
-      url = buildUrlPath ImageBucket ShowBanner dateHier (display showSlug) filename
-   in UploadResult
-        { uploadResultOriginalName = originalName,
-          uploadResultStoragePath = storagePath,
-          uploadResultUrl = url,
-          uploadResultMimeType = mimeType,
-          uploadResultFileSize = fileSize
-        }
+buildShowBannerUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
+buildShowBannerUpload config showSlug originalName mimeType fileSize time seed =
+  UploadResult
+    { uploadResultOriginalName = originalName,
+      uploadResultStoragePath = showBannerPath config showSlug time seed,
+      uploadResultMimeType = mimeType,
+      uploadResultFileSize = fileSize
+    }
