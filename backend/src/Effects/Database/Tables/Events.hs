@@ -12,6 +12,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (MonthOfYear, UTCTime, Year)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -80,7 +81,7 @@ newtype Id = Id Int64
 data Model = Model
   { emId :: Id,
     emTitle :: Text,
-    emSlug :: Text,
+    emSlug :: Slug,
     emDescription :: Text,
     emStartsAt :: UTCTime,
     emEndsAt :: UTCTime,
@@ -122,7 +123,7 @@ data EventComplete = EventComplete
 
 data Insert = Insert
   { eiTitle :: Text,
-    eiSlug :: Text,
+    eiSlug :: Slug,
     eiDescription :: Text,
     eiStartsAt :: UTCTime,
     eiEndsAt :: UTCTime,
@@ -155,7 +156,7 @@ getPublishedEvents maybeTagName limit offset =
   |]
 
 -- | Get event by slug
-getEventBySlug :: Text -> Hasql.Statement () (Maybe Model)
+getEventBySlug :: Slug -> Hasql.Statement () (Maybe Model)
 getEventBySlug slug =
   interp
     False

@@ -13,9 +13,11 @@ where
 import {-# SOURCE #-} API (showEditGetLink, showsGetLink)
 import API.Show.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
 import API.Show.Get.Templates.ShowHeader (renderShowHeader)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text.Display (display)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.HostDetails qualified as HostDetails
@@ -36,11 +38,11 @@ showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
 --------------------------------------------------------------------------------
 
 -- | Template for show not found
-notFoundTemplate :: Text -> Lucid.Html ()
+notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate slug = do
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Show Not Found"
-    Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] $ "The show '" <> Lucid.toHtml slug <> "' could not be found."
+    Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] $ "The show '" <> Lucid.toHtml (display slug) <> "' could not be found."
     Lucid.a_
       [ Lucid.href_ [i|/#{showsGetUrl}|],
         hxGet_ [i|/#{showsGetUrl}|],
@@ -69,7 +71,7 @@ errorTemplate errorMsg = do
 template :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Maybe HostDetails.Model -> [ShowBlogPosts.Model] -> Bool -> Lucid.Html ()
 template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails _blogPosts canEdit = do
   -- Edit button for authorized users
-  unless (not canEdit) $ do
+  when canEdit $ do
     let editUrl = Links.linkURI $ showEditGetLink showModel.slug
     Lucid.div_ [Lucid.class_ "mb-4 w-full text-right"] $ do
       Lucid.a_

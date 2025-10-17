@@ -16,6 +16,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -134,13 +135,13 @@ template event eventTags author = do
       "← BACK TO EVENTS"
 
 -- | Template for when event is not found
-notFoundTemplate :: Text -> Lucid.Html ()
+notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate slug = do
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
     Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] "Event Not Found"
     Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] $ do
       "The event with slug \""
-      Lucid.code_ [Lucid.class_ "bg-gray-100 px-2 py-1"] $ Lucid.toHtml slug
+      Lucid.code_ [Lucid.class_ "bg-gray-100 px-2 py-1"] $ Lucid.toHtml (display slug)
       "\" could not be found."
     Lucid.a_
       [ Lucid.href_ [i|/#{eventsGetUrl}|],

@@ -8,23 +8,26 @@ module API.Show.Edit.Post where
 
 import {-# SOURCE #-} API (hostDashboardGetLink, showGetLink)
 import App.Common (getUserInfo, renderTemplate)
+import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
-import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Has (Has)
 import Data.List qualified as List
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Text.Read (decimal)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Slug (Slug)
+import Domain.Types.Slug qualified as Slug
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -50,7 +53,7 @@ import Text.HTML (HTML)
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
 
-showGetUrl :: Text -> Links.URI
+showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
 --------------------------------------------------------------------------------
@@ -59,7 +62,7 @@ type Route =
   Observability.WithSpan
     "POST /shows/:slug/edit"
     ( "shows"
-        :> Servant.Capture "slug" Text
+        :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -113,20 +116,6 @@ parseFrequency "occasional" = Just Shows.Occasional
 parseFrequency "one-time" = Just Shows.OneTime
 parseFrequency _ = Nothing
 
--- | Generate URL-friendly slug from title
-generateSlug :: Text -> Text
-generateSlug title =
-  Text.intercalate "-" $
-    Text.words $
-      Text.map replaceChar $
-        Text.toLower $
-          Text.strip title
-  where
-    replaceChar c
-      | isAsciiLower c || isDigit c = c
-      | isAsciiUpper c = c
-      | otherwise = ' '
-
 -- | Convert FileData to temporary file for processing
 convertFileDataToTempFile :: (MonadIO m) => FileData Mem -> m (Either Text FilePath)
 convertFileDataToTempFile fileData = liftIO $ do
@@ -141,7 +130,7 @@ processShowArtworkUploads ::
   ( MonadIO m,
     Log.MonadLog m
   ) =>
-  Text -> -- Show slug
+  Slug -> -- Show slug
   Maybe (FileData Mem) -> -- Logo file
   Maybe (FileData Mem) -> -- Banner file
   m (Either Text (Maybe Text, Maybe Text)) -- (logoPath, bannerPath)
@@ -208,7 +197,7 @@ stripStorageRoot path =
         Nothing -> Text.pack path -- Fallback if prefix not found
 
 -- | Success template after show update
-successTemplate :: Text -> Lucid.Html ()
+successTemplate :: Slug -> Lucid.Html ()
 successTemplate showSlug = do
   let showUrl = showGetUrl showSlug
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
@@ -294,7 +283,7 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   ShowEditForm ->
@@ -311,7 +300,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
           Log.logAttention "getShowBySlug execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
-          Log.logInfo_ $ "No show with slug: '" <> slug <> "'"
+          Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just showModel) -> do
           -- Check authorization - user must be a host of the show or staff+
@@ -368,7 +357,7 @@ updateShow hxRequest _user userMetadata showModel editForm = do
           finalDuration = if isStaff then mDuration else showModel.durationMinutes
 
           -- Generate slug from title
-          generatedSlug = generateSlug (sefTitle editForm)
+          generatedSlug = Slug.mkSlug (sefTitle editForm)
 
       -- Process file uploads
       uploadResults <- processShowArtworkUploads generatedSlug (sefLogoFile editForm) (sefBannerFile editForm)
@@ -379,12 +368,8 @@ updateShow hxRequest _user userMetadata showModel editForm = do
           renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "File upload error: " <> uploadErr)
         Right (mLogoPath, mBannerPath) -> do
           -- Use new uploaded files if provided, otherwise keep existing values
-          let finalLogoUrl = case mLogoPath of
-                Just path -> Just path
-                Nothing -> showModel.logoUrl
-              finalBannerUrl = case mBannerPath of
-                Just path -> Just path
-                Nothing -> showModel.bannerUrl
+          let finalLogoUrl = mLogoPath <|> showModel.logoUrl
+              finalBannerUrl = mBannerPath <|> showModel.bannerUrl
 
               updateData =
                 Shows.Insert

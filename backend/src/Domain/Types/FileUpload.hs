@@ -6,8 +6,10 @@ import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Domain.Types.FileStorage
+import Domain.Types.Slug (Slug)
 import System.FilePath (takeBaseName)
 
 --------------------------------------------------------------------------------
@@ -134,14 +136,14 @@ getCleanFilename filename =
 --------------------------------------------------------------------------------
 -- Upload result builders
 
-buildEpisodeAudioUpload :: StorageConfig -> Text -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
+buildEpisodeAudioUpload :: StorageConfig -> Slug -> Slug -> Text -> Text -> Int64 -> UTCTime -> UploadResult
 buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSize time =
   let extension = getFileExtension mimeType
-      baseFilename = showSlug <> "-" <> episodeSlug
+      baseFilename = showSlug <> episodeSlug
       storagePath = episodeAudioPath config showSlug baseFilename time
       dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename baseFilename extension time
-      url = buildUrlPath AudioBucket EpisodeAudio dateHier showSlug filename
+      filename = generateUniqueFilename (display baseFilename) extension time
+      url = buildUrlPath AudioBucket EpisodeAudio dateHier (display showSlug) filename
    in UploadResult
         { uploadResultOriginalName = originalName,
           uploadResultStoragePath = storagePath,
@@ -150,14 +152,14 @@ buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSi
           uploadResultFileSize = fileSize
         }
 
-buildEpisodeArtworkUpload :: StorageConfig -> Text -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
+buildEpisodeArtworkUpload :: StorageConfig -> Slug -> Slug -> Text -> Text -> Int64 -> UTCTime -> UploadResult
 buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType fileSize time =
   let extension = getFileExtension mimeType
-      baseFilename = showSlug <> "-" <> episodeSlug
+      baseFilename = showSlug <> episodeSlug
       storagePath = episodeArtworkPath config showSlug baseFilename time
       dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename baseFilename extension time
-      url = buildUrlPath ImageBucket EpisodeArtwork dateHier showSlug filename
+      filename = generateUniqueFilename (display baseFilename) extension time
+      url = buildUrlPath ImageBucket EpisodeArtwork dateHier (display showSlug) filename
    in UploadResult
         { uploadResultOriginalName = originalName,
           uploadResultStoragePath = storagePath,
@@ -166,13 +168,13 @@ buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType file
           uploadResultFileSize = fileSize
         }
 
-buildShowLogoUpload :: StorageConfig -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
+buildShowLogoUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> UploadResult
 buildShowLogoUpload config showSlug originalName mimeType fileSize time =
   let extension = getFileExtension mimeType
       storagePath = showLogoPath config showSlug time
       dateHier = dateHierarchyFromTime time
       filename = generateUniqueFilename "logo" extension time
-      url = buildUrlPath ImageBucket ShowLogo dateHier showSlug filename
+      url = buildUrlPath ImageBucket ShowLogo dateHier (display showSlug) filename
    in UploadResult
         { uploadResultOriginalName = originalName,
           uploadResultStoragePath = storagePath,
@@ -181,13 +183,13 @@ buildShowLogoUpload config showSlug originalName mimeType fileSize time =
           uploadResultFileSize = fileSize
         }
 
-buildShowBannerUpload :: StorageConfig -> Text -> Text -> Text -> Int64 -> UTCTime -> UploadResult
+buildShowBannerUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> UploadResult
 buildShowBannerUpload config showSlug originalName mimeType fileSize time =
   let extension = getFileExtension mimeType
       storagePath = showBannerPath config showSlug time
       dateHier = dateHierarchyFromTime time
       filename = generateUniqueFilename "banner" extension time
-      url = buildUrlPath ImageBucket ShowBanner dateHier showSlug filename
+      url = buildUrlPath ImageBucket ShowBanner dateHier (display showSlug) filename
    in UploadResult
         { uploadResultOriginalName = originalName,
           uploadResultStoragePath = storagePath,

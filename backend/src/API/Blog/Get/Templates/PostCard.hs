@@ -7,11 +7,12 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogPostGetLink, blogGetLink)
+import {-# SOURCE #-} API (blogGetLink, blogPostGetLink)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Lucid qualified
@@ -20,7 +21,7 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-blogPostGetUrl :: Text -> Links.URI
+blogPostGetUrl :: Slug -> Links.URI
 blogPostGetUrl slug = Links.linkURI $ blogPostGetLink slug
 
 blogGetTagUrl :: Text -> Links.URI

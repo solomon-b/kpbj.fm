@@ -13,6 +13,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.PostStatus (BlogPostStatus (..))
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -46,7 +47,7 @@ data Model = Model
   { id :: Id,
     showId :: Shows.Id,
     title :: Text,
-    slug :: Text,
+    slug :: Slug,
     content :: Text,
     excerpt :: Maybe Text,
     authorId :: User.Id,
@@ -62,7 +63,7 @@ data Model = Model
 data Insert = Insert
   { sbpiId :: Shows.Id,
     sbpiTitle :: Text,
-    sbpiSlug :: Text,
+    sbpiSlug :: Slug,
     sbpiContent :: Text,
     sbpiExcerpt :: Maybe Text,
     sbpiAuthorId :: User.Id,

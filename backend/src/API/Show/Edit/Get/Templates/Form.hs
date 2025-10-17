@@ -11,9 +11,9 @@ where
 import {-# SOURCE #-} API (hostDashboardGetLink, mediaGetLink, showGetLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -25,7 +25,7 @@ import Servant.Links qualified as Links
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
 
-showGetUrl :: Text -> Links.URI
+showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
 mediaGetUrl :: Links.URI
@@ -39,7 +39,7 @@ template showModel userMeta isStaff = do
   let showSlug = showModel.slug
   buildValidatedForm
     FormBuilder
-      { fbAction = [i|/shows/#{showSlug}/edit|],
+      { fbAction = [i|/shows/#{display showSlug}/edit|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader userMeta showModel),
         fbFields = showEditFormFields showModel isStaff,
@@ -242,7 +242,7 @@ showEditFormFields showModel isStaff =
 --------------------------------------------------------------------------------
 -- Form Submit Actions (rendered inside <form>)
 
-renderSubmitActions :: Text -> Lucid.Html ()
+renderSubmitActions :: Slug -> Lucid.Html ()
 renderSubmitActions showSlug = do
   let showBackUrl = showGetUrl showSlug
   Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do

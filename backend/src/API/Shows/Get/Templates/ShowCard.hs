@@ -6,16 +6,26 @@ module API.Shows.Get.Templates.ShowCard
   )
 where
 
+--------------------------------------------------------------------------------
+
 import {-# SOURCE #-} API (mediaGetLink, showGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
+--------------------------------------------------------------------------------
+
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
+
+showGetUrl :: Slug -> Links.URI
+showGetUrl slug = Links.linkURI $ showGetLink slug
+
+--------------------------------------------------------------------------------
 
 -- | Render a show card for the list view
 renderShowCard :: Shows.Model -> Lucid.Html ()
@@ -78,6 +88,3 @@ renderShowCard s = do
         ]
         "VIEW"
       Lucid.button_ [Lucid.class_ "border border-gray-800 px-3 py-2 text-sm hover:bg-gray-100"] "♡"
-  where
-    showGetUrl :: Text.Text -> Links.URI
-    showGetUrl slug = Links.linkURI $ showGetLink slug

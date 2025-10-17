@@ -17,9 +17,9 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -37,7 +37,7 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
-episodesNewGetUrl :: Text -> Links.URI
+episodesNewGetUrl :: Slug -> Links.URI
 episodesNewGetUrl showSlug = Links.linkURI $ episodesNewGetLink showSlug
 
 --------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ type Route =
   Observability.WithSpan
     "GET /shows/:show_slug/episodes/new"
     ( "shows"
-        :> Servant.Capture "show_slug" Text
+        :> Servant.Capture "show_slug" Slug
         :> "episodes"
         :> "new"
         :> Servant.Header "Cookie" Cookie
@@ -67,7 +67,7 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())

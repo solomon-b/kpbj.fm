@@ -17,6 +17,7 @@ import Data.Has (Has)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -46,7 +47,7 @@ type Route =
   Observability.WithSpan
     "GET /blog/:slug"
     ( "blog"
-        :> Servant.Capture "slug" Text
+        :> Servant.Capture "slug" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
@@ -65,7 +66,7 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())

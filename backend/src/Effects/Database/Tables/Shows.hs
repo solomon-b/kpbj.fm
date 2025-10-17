@@ -14,6 +14,7 @@ import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (UTCTime)
 import Domain.Types.Genre (Genre)
 import Domain.Types.Search (Search)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.HostDetails qualified as HostDetails
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -113,7 +114,7 @@ newtype Id = Id Int64
 data Model = Model
   { id :: Id,
     title :: Text,
-    slug :: Text,
+    slug :: Slug,
     description :: Text,
     genre :: Maybe Text,
     logoUrl :: Maybe Text,
@@ -130,7 +131,7 @@ data Model = Model
 
 data Insert = Insert
   { siTitle :: Text,
-    siSlug :: Text,
+    siSlug :: Slug,
     siDescription :: Text,
     siGenre :: Maybe Text,
     siLogoUrl :: Maybe Text,
@@ -159,7 +160,7 @@ getActiveShows =
   |]
 
 -- | Get show by slug
-getShowBySlug :: Text -> Hasql.Statement () (Maybe Model)
+getShowBySlug :: Slug -> Hasql.Statement () (Maybe Model)
 getShowBySlug slug =
   interp
     False

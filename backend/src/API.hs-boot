@@ -11,6 +11,7 @@ import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.PageView (PageView)
 import Domain.Types.Search (Search)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows (Status)
 import Servant.Links qualified as Links
 
@@ -23,9 +24,9 @@ aboutGetLink :: Links.Link
 blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
 blogNewGetLink :: Links.Link
 blogNewPostLink :: Links.Link
-blogPostGetLink :: Text -> Links.Link
-blogEditGetLink :: Text -> Links.Link
-blogEditPostLink :: Text -> Links.Link
+blogPostGetLink :: Slug -> Links.Link
+blogEditGetLink :: Slug -> Links.Link
+blogEditPostLink :: Slug -> Links.Link
 donateGetLink :: Links.Link
 userLoginGetLink :: Maybe Text -> Maybe EmailAddress -> Links.Link
 userLoginPostLink :: Maybe Text -> Links.Link
@@ -38,16 +39,16 @@ termsOfServiceGetLink :: Links.Link
 eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
 eventsNewGetLink :: Links.Link
 eventsNewPostLink :: Links.Link
-eventGetLink :: Text -> Links.Link
-eventEditGetLink :: Text -> Links.Link
-eventEditPostLink :: Text -> Links.Link
+eventGetLink :: Slug -> Links.Link
+eventEditGetLink :: Slug -> Links.Link
+eventEditPostLink :: Slug -> Links.Link
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Status -> Maybe Search -> Links.Link
-showGetLink :: Text -> Links.Link
-showEditGetLink :: Text -> Links.Link
-showEditPostLink :: Text -> Links.Link
-episodesGetLink :: Text -> Text -> Links.Link
-episodesEditPostLink :: Text -> Text -> Links.Link
-episodesNewGetLink :: Text -> Links.Link
-episodesNewPostLink :: Text -> Links.Link
-episodesEditGetLink :: Text -> Text -> Links.Link
+showGetLink :: Slug -> Links.Link
+showEditGetLink :: Slug -> Links.Link
+showEditPostLink :: Slug -> Links.Link
+episodesGetLink :: Slug -> Slug -> Links.Link
+episodesEditPostLink :: Slug -> Slug -> Links.Link
+episodesNewGetLink :: Slug -> Links.Link
+episodesNewPostLink :: Slug -> Links.Link
+episodesEditGetLink :: Slug -> Slug -> Links.Link
 hostDashboardGetLink :: Links.Link

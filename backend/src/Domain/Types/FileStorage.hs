@@ -4,7 +4,9 @@ module Domain.Types.FileStorage where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Domain.Types.Slug (Slug)
 import System.FilePath ((</>))
 
 --------------------------------------------------------------------------------
@@ -77,7 +79,7 @@ dateHierarchyFromTime time =
 
 -- | Build full storage path
 -- Example: /tmp/kpbj/audio/2024/09/27/episodes/show-slug_episode-123_audio.mp3
-buildStoragePath :: StorageConfig -> BucketType -> ResourceType -> DateHierarchy -> Text -> Text -> FilePath
+buildStoragePath :: StorageConfig -> BucketType -> ResourceType -> DateHierarchy -> Slug -> Text -> FilePath
 buildStoragePath config bucketType resourceType dateHier showSlug filename =
   let rootPath = storageRoot config
       bucketPath = Text.unpack $ storageBucket config
@@ -86,7 +88,7 @@ buildStoragePath config bucketType resourceType dateHier showSlug filename =
       monthPath = Text.unpack $ dateMonth dateHier
       dayPath = Text.unpack $ dateDay dateHier
       resourcePath = Text.unpack $ resourceTypePath resourceType
-      prefixedFilename = Text.unpack $ showSlug <> "_" <> filename
+      prefixedFilename = Text.unpack $ display showSlug <> "_" <> filename
    in rootPath </> bucketPath </> bucketTypePath' </> yearPath </> monthPath </> dayPath </> resourcePath </> prefixedFilename
 
 -- | Build URL path for serving files (without /tmp prefix)
@@ -116,28 +118,28 @@ generateUniqueFilename prefix extension time =
 -- Common file path builders
 
 -- | Build path for episode audio file
-episodeAudioPath :: StorageConfig -> Text -> Text -> UTCTime -> FilePath
+episodeAudioPath :: StorageConfig -> Slug -> Slug -> UTCTime -> FilePath
 episodeAudioPath config showSlug episodeSlug time =
   let dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename episodeSlug "mp3" time
+      filename = generateUniqueFilename (display episodeSlug) "mp3" time
    in buildStoragePath config AudioBucket EpisodeAudio dateHier showSlug filename
 
 -- | Build path for episode artwork
-episodeArtworkPath :: StorageConfig -> Text -> Text -> UTCTime -> FilePath
+episodeArtworkPath :: StorageConfig -> Slug -> Slug -> UTCTime -> FilePath
 episodeArtworkPath config showSlug episodeSlug time =
   let dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename episodeSlug "jpg" time
+      filename = generateUniqueFilename (display episodeSlug) "jpg" time
    in buildStoragePath config ImageBucket EpisodeArtwork dateHier showSlug filename
 
 -- | Build path for show logo
-showLogoPath :: StorageConfig -> Text -> UTCTime -> FilePath
+showLogoPath :: StorageConfig -> Slug -> UTCTime -> FilePath
 showLogoPath config showSlug time =
   let dateHier = dateHierarchyFromTime time
       filename = generateUniqueFilename "logo" "png" time
    in buildStoragePath config ImageBucket ShowLogo dateHier showSlug filename
 
 -- | Build path for show banner
-showBannerPath :: StorageConfig -> Text -> UTCTime -> FilePath
+showBannerPath :: StorageConfig -> Slug -> UTCTime -> FilePath
 showBannerPath config showSlug time =
   let dateHier = dateHierarchyFromTime time
       filename = generateUniqueFilename "banner" "jpg" time

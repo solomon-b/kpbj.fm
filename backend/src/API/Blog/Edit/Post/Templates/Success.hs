@@ -9,7 +9,7 @@ where
 
 import {-# SOURCE #-} API (blogGetLink, blogPostGetLink)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
+import Domain.Types.Slug (Slug)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -19,12 +19,12 @@ import Servant.Links qualified as Links
 blogGetUrl :: Links.URI
 blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
-blogPostGetUrl :: Text -> Links.URI
+blogPostGetUrl :: Slug -> Links.URI
 blogPostGetUrl slug = Links.linkURI $ blogPostGetLink slug
 
 --------------------------------------------------------------------------------
 
-template :: Text -> Lucid.Html ()
+template :: Slug -> Lucid.Html ()
 template postSlug = do
   let postUrl = blogPostGetUrl postSlug
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
