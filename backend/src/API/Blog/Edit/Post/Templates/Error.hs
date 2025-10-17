@@ -23,7 +23,7 @@ blogGetUrl :: Links.URI
 blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
+hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 --------------------------------------------------------------------------------
 

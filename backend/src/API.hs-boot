@@ -51,4 +51,4 @@ episodesEditPostLink :: Slug -> Slug -> Links.Link
 episodesNewGetLink :: Slug -> Links.Link
 episodesNewPostLink :: Slug -> Links.Link
 episodesEditGetLink :: Slug -> Slug -> Links.Link
-hostDashboardGetLink :: Links.Link
+hostDashboardGetLink :: Maybe Slug -> Links.Link

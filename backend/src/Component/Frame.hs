@@ -42,7 +42,7 @@ userLogoutGetUrl :: Link.URI
 userLogoutGetUrl = Link.linkURI userLogoutGetLink
 
 hostDashboardGetUrl :: Link.URI
-hostDashboardGetUrl = Link.linkURI hostDashboardGetLink
+hostDashboardGetUrl = Link.linkURI $ hostDashboardGetLink Nothing
 
 --------------------------------------------------------------------------------
 
