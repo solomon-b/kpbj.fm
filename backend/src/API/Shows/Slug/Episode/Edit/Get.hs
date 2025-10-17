@@ -82,7 +82,8 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
         episode <- MaybeT $ HT.statement () (Episodes.getEpisodeBySlug showSlug episodeSlug)
         showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
         tracks <- lift $ HT.statement () (Episodes.getTracksForEpisode episode.id)
-        MaybeT $ pure $ Just (episode, showResult, tracks)
+        isHost <- lift $ HT.statement () (Shows.isUserHostOfShow user.mId episode.showId)
+        MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
 
       case mResult of
         Left err -> do
@@ -91,8 +92,8 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
         Right Nothing -> do
           Log.logInfo_ $ "No episode : '" <> display episodeSlug <> "'"
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-        Right (Just (episode, showModel, tracks)) ->
-          if episode.createdBy == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+        Right (Just (episode, showModel, tracks, isHost)) ->
+          if episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then do
               Log.logInfo "Authorized user accessing episode edit form" episode.id
               let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
