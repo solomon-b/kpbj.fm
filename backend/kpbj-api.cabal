@@ -149,20 +149,20 @@ library
     API.Media.Get
     API.PrivacyPolicy.Get
     API.PrivacyPolicy.Get.Templates
-    API.Show.Edit.Get
-    API.Show.Edit.Get.Templates.Error
-    API.Show.Edit.Get.Templates.Form
-    API.Show.Edit.Post
-    API.Show.Get
-    API.Show.Get.Templates.Episode
-    API.Show.Get.Templates.Page
-    API.Show.Get.Templates.ShowHeader
-    API.Show.Get.Templates.Sidebar
     API.Shows.Get
     API.Shows.Get.Templates.Error
     API.Shows.Get.Templates.Page
     API.Shows.Get.Templates.Pagination
     API.Shows.Get.Templates.ShowCard
+    API.Shows.Slug.Edit.Get
+    API.Shows.Slug.Edit.Get.Templates.Error
+    API.Shows.Slug.Edit.Get.Templates.Form
+    API.Shows.Slug.Edit.Post
+    API.Shows.Slug.Get
+    API.Shows.Slug.Get.Templates.Episode
+    API.Shows.Slug.Get.Templates.Page
+    API.Shows.Slug.Get.Templates.ShowHeader
+    API.Shows.Slug.Get.Templates.Sidebar
     API.Static.Get
     API.TermsOfService.Get
     API.TermsOfService.Get.Templates
