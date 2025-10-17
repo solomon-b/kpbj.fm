@@ -116,7 +116,6 @@ library
     API.Episodes.New.Get
     API.Episodes.New.Get.Templates.Error
     API.Episodes.New.Get.Templates.Form
-    API.Episodes.New.Get.Templates.Scripts
     API.Episodes.New.Post
     API.Episodes.New.Post.Templates.Result
     API.Events.Get
