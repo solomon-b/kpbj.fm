@@ -14,7 +14,6 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.List (find)
@@ -25,6 +24,8 @@ import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Slug (Slug)
+import Domain.Types.Slug qualified as Slug
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EventTags qualified as EventTags
@@ -52,7 +53,7 @@ eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 eventsNewGetUrl :: Links.URI
 eventsNewGetUrl = Links.linkURI eventsNewGetLink
 
-eventGetUrl :: Text -> Links.URI
+eventGetUrl :: Slug -> Links.URI
 eventGetUrl slug = Links.linkURI $ eventGetLink slug
 
 userLoginGetUrl :: Links.URI
@@ -242,20 +243,6 @@ validateStatus status = case status of
   "published" -> Right Events.Published
   _ -> Left ["Invalid status selected"]
 
--- Generate URL-friendly slug from title
-generateSlug :: Text -> Text
-generateSlug title =
-  Text.intercalate "-" $
-    Text.words $
-      Text.map replaceChar $
-        Text.toLower $
-          Text.strip title
-  where
-    replaceChar c
-      | isAsciiLower c || isDigit c = c
-      | isAsciiUpper c = c
-      | otherwise = ' '
-
 --------------------------------------------------------------------------------
 
 handler ::
@@ -302,7 +289,7 @@ validateForm hxRequest user userMetadata form k =
       Log.logInfo "Event creation failed validation" errors
       renderTemplate hxRequest (Just userMetadata) (errorTemplate errors)
     Right (title, description, startsAt, endsAt, locationName, locationAddress, status) ->
-      let slug = generateSlug title
+      let slug = Slug.mkSlug title
           eventInsert =
             Events.Insert
               { Events.eiTitle = title,

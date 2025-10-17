@@ -29,6 +29,7 @@ import Data.Time.Calendar.WeekDate (fromWeekDate, toWeekDate)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.PageView (PageView (..))
+import Domain.Types.Slug (Slug)
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -49,7 +50,7 @@ import Text.HTML (HTML)
 eventsGetUrl :: Links.URI
 eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 
-eventGetUrl :: Text -> Links.URI
+eventGetUrl :: Slug -> Links.URI
 eventGetUrl slug = Links.linkURI $ eventGetLink slug
 
 eventsGetTypeUrl :: Text -> Links.URI

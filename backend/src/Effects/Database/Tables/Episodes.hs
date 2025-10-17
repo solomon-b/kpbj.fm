@@ -12,6 +12,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (UTCTime)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -88,7 +89,7 @@ data Model = Model
   { id :: Id,
     showId :: Shows.Id,
     title :: Text,
-    slug :: Text,
+    slug :: Slug,
     description :: Maybe Text,
     episodeNumber :: EpisodeNumber,
     audioFilePath :: Maybe Text,
@@ -127,7 +128,7 @@ newtype EpisodeNumber = EpisodeNumber Int64
 data Insert = Insert
   { eiId :: Shows.Id,
     eiTitle :: Text,
-    eiSlug :: Text,
+    eiSlug :: Slug,
     eiDescription :: Maybe Text,
     eiAudioFilePath :: Maybe Text,
     eiAudioFileSize :: Maybe Int64,
@@ -185,7 +186,7 @@ getEpisodesById showId =
   |]
 
 -- | Get episode by show slug and episode slug
-getEpisodeBySlug :: Text -> Text -> Hasql.Statement () (Maybe Model)
+getEpisodeBySlug :: Slug -> Slug -> Hasql.Statement () (Maybe Model)
 getEpisodeBySlug showSlug episodeSlug =
   interp
     False

@@ -11,6 +11,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.PostStatus (BlogPostStatus (..))
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -44,7 +45,7 @@ newtype Id = Id Int64
 data Model = Model
   { bpmId :: Id,
     bpmTitle :: Text,
-    bpmSlug :: Text,
+    bpmSlug :: Slug,
     bpmContent :: Text,
     bpmExcerpt :: Maybe Text,
     bpmAuthorId :: User.Id,
@@ -87,7 +88,7 @@ data BlogPostComplete = BlogPostComplete
 
 data Insert = Insert
   { bpiTitle :: Text,
-    bpiSlug :: Text,
+    bpiSlug :: Slug,
     bpiContent :: Text,
     bpiExcerpt :: Maybe Text,
     bpiAuthorId :: User.Id,
@@ -114,7 +115,7 @@ getPublishedBlogPosts limit offset =
   |]
 
 -- | Get blog post by slug
-getBlogPostBySlug :: Text -> Hasql.Statement () (Maybe Model)
+getBlogPostBySlug :: Slug -> Hasql.Statement () (Maybe Model)
 getBlogPostBySlug slug =
   interp
     False

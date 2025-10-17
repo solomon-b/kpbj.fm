@@ -16,9 +16,10 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has (Has)
-import Data.Text (Text)
+import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -38,10 +39,10 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-episodesIdGetUrl :: Text -> Text -> Links.URI
+episodesIdGetUrl :: Slug -> Slug -> Links.URI
 episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
 
-showGetUrl :: Text -> Links.URI
+showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
 --------------------------------------------------------------------------------
@@ -50,9 +51,9 @@ type Route =
   Observability.WithSpan
     "GET /shows/:show_slug/episodes/:episode_slug"
     ( "shows"
-        :> Servant.Capture "show_slug" Text
+        :> Servant.Capture "show_slug" Slug
         :> "episodes"
-        :> Servant.Capture "episode_slug" Text
+        :> Servant.Capture "episode_slug" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
@@ -71,8 +72,8 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
-  Text ->
+  Slug ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
@@ -84,7 +85,7 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
       Log.logInfo "Failed to fetch episode from database" (Aeson.object ["error" .= show err])
       renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episode. Please try again.")
     Right Nothing -> do
-      Log.logInfo ("Episode not found: " <> showSlug <> "/" <> episodeSlug) ()
+      Log.logInfo ("Episode not found: " <> display showSlug <> "/" <> display episodeSlug) ()
       renderTemplate hxRequest mUserInfo (notFoundTemplate showSlug episodeSlug)
     Right (Just episode) -> do
       -- Fetch the show
@@ -98,7 +99,7 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
           Log.logInfo "Failed to fetch show from database" (Aeson.object ["error" .= show err])
           renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show data. Please try again.")
         Right Nothing -> do
-          Log.logInfo ("Show not found for episode: " <> showSlug) ()
+          Log.logInfo ("Show not found for episode: " <> display showSlug) ()
           renderTemplate hxRequest mUserInfo (errorTemplate "Show not found for this episode.")
         Right (Just showModel) -> do
           -- Check if current user can edit this episode

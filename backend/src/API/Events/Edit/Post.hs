@@ -15,7 +15,6 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
-import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
@@ -26,6 +25,8 @@ import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Slug (Slug)
+import Domain.Types.Slug qualified as Slug
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.EventTags qualified as EventTags
@@ -50,7 +51,7 @@ type Route =
   Observability.WithSpan
     "POST /events/:slug/edit"
     ( "events"
-        :> Servant.Capture "slug" Text
+        :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -114,10 +115,6 @@ parseStatus _ = Nothing
 parseDateTime :: Text -> Maybe UTCTime
 parseDateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" . Text.unpack
 
--- | Generate URL-friendly slug from title text
-mkSlug :: Text -> Text
-mkSlug title = Text.toLower $ Text.replace " " "-" $ Text.filter (\c -> c `elem` ("-" :: String) || isAsciiLower c || isAsciiUpper c || isDigit c) title
-
 --------------------------------------------------------------------------------
 
 handler ::
@@ -131,7 +128,7 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   EventEditForm ->
@@ -188,7 +185,7 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
       Log.logInfo "Invalid ends_at datetime in event edit form" (eefEndsAt editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid end date/time format.")
     (Just parsedStatus, Just parsedStartsAt, Just parsedEndsAt) -> do
-      let newSlug = mkSlug (eefTitle editForm)
+      let newSlug = Slug.mkSlug (eefTitle editForm)
           updateData =
             Events.Insert
               { Events.eiTitle = eefTitle editForm,

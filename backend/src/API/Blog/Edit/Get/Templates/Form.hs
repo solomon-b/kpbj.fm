@@ -14,6 +14,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.PostStatus (BlogPostStatus (..))
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -27,7 +28,7 @@ import Servant.Links qualified as Links
 blogGetUrl :: Links.URI
 blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
-blogPostGetUrl :: Text -> Links.URI
+blogPostGetUrl :: Slug -> Links.URI
 blogPostGetUrl slug = Links.linkURI $ blogPostGetLink slug
 
 --------------------------------------------------------------------------------

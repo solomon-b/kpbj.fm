@@ -14,6 +14,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (Day, DayOfWeek (..), UTCTime)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
@@ -21,7 +22,7 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-episodesNewPostUrl :: Text -> Links.URI
+episodesNewPostUrl :: Slug -> Links.URI
 episodesNewPostUrl showSlug = Links.linkURI $ episodesNewPostLink showSlug
 
 --------------------------------------------------------------------------------

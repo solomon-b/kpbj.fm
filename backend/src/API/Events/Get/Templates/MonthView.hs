@@ -17,6 +17,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (MonthOfYear, Year)
 import Domain.Types.PageView (PageView (..))
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
@@ -37,7 +38,7 @@ data CalendarDay = CalendarDay
 --------------------------------------------------------------------------------
 
 -- URL helpers
-eventGetUrl :: Text -> Links.URI
+eventGetUrl :: Slug -> Links.URI
 eventGetUrl slug = Links.linkURI $ eventGetLink slug
 
 eventsGetMonthUrl :: Year -> MonthOfYear -> Maybe Text -> Links.URI

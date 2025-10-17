@@ -19,6 +19,7 @@ import Data.Text qualified as Text
 import Data.Time (UTCTime, Year)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.PageView (PageView (..))
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
@@ -38,7 +39,7 @@ data WeekDay = WeekDay
 --------------------------------------------------------------------------------
 
 -- URL helpers
-eventGetUrl :: Text -> Links.URI
+eventGetUrl :: Slug -> Links.URI
 eventGetUrl slug = Links.linkURI $ eventGetLink slug
 
 eventsGetWeekUrl :: Year -> Int -> Maybe Text -> Links.URI

@@ -15,6 +15,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -28,7 +29,7 @@ import Servant.Links qualified as Links
 eventsGetUrl :: Links.URI
 eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 
-eventGetUrl :: Text -> Links.URI
+eventGetUrl :: Slug -> Links.URI
 eventGetUrl slug = Links.linkURI $ eventGetLink slug
 
 --------------------------------------------------------------------------------

@@ -15,7 +15,6 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
-import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
@@ -25,6 +24,8 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..))
+import Domain.Types.Slug (Slug)
+import Domain.Types.Slug qualified as Slug
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -49,7 +50,7 @@ type Route =
   Observability.WithSpan
     "POST /blog/:slug/edit"
     ( "blog"
-        :> Servant.Capture "slug" Text
+        :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -105,10 +106,6 @@ parseStatus "draft" = Just Draft
 parseStatus "archived" = Just Archived
 parseStatus _ = Nothing
 
--- | Generate URL-friendly slug from title text
-mkSlug :: Text -> Text
-mkSlug title = Text.toLower $ Text.replace " " "-" $ Text.filter (\c -> c `elem` ("-" :: String) || isAsciiLower c || isAsciiUpper c || isDigit c) title
-
 --------------------------------------------------------------------------------
 
 handler ::
@@ -122,7 +119,7 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   BlogEditForm ->
@@ -172,7 +169,7 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
       Log.logInfo "Invalid status in blog edit form" (befStatus editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid blog post status value.")
     Just parsedStatus -> do
-      let newSlug = mkSlug (befTitle editForm)
+      let newSlug = Slug.mkSlug (befTitle editForm)
           updateData =
             BlogPosts.Insert
               { BlogPosts.bpiTitle = befTitle editForm,

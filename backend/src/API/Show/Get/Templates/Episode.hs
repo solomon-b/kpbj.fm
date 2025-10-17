@@ -14,6 +14,7 @@ import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -28,7 +29,7 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
 -- | Helper function to get episode detail URL
-episodesIdGetUrl :: Text.Text -> Text.Text -> Links.URI
+episodesIdGetUrl :: Slug -> Slug -> Links.URI
 episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
 
 -- | Render a featured "Latest Episode" section with full details
