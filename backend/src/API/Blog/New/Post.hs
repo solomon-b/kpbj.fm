@@ -12,7 +12,6 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
@@ -22,6 +21,8 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
+import Domain.Types.Slug (Slug)
+import Domain.Types.Slug qualified as Slug
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -49,7 +50,7 @@ blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 blogNewGetUrl :: Links.URI
 blogNewGetUrl = Links.linkURI blogNewGetLink
 
-blogPostGetUrl :: Text -> Links.URI
+blogPostGetUrl :: Slug -> Links.URI
 blogPostGetUrl slug = Links.linkURI $ blogPostGetLink slug
 
 userLoginGetUrl :: Links.URI
@@ -249,7 +250,7 @@ validateNewBlogPost form authorId = do
   when (Text.null (nbpfContent form)) (Left "Content is required")
 
   let status = fromMaybe Published $ decodeBlogPost =<< nbpfStatus form
-      slug = mkSlug (nbpfTitle form)
+      slug = Slug.mkSlug (nbpfTitle form)
 
   Right $
     BlogPosts.Insert
@@ -260,10 +261,6 @@ validateNewBlogPost form authorId = do
         BlogPosts.bpiAuthorId = authorId,
         BlogPosts.bpiStatus = status
       }
-
--- | Generate URL-friendly slug from title text
-mkSlug :: Text -> Text
-mkSlug title = Text.toLower $ Text.replace " " "-" $ Text.filter (\c -> c `elem` ("-" :: String) || isAsciiLower c || isAsciiUpper c || isDigit c) title
 
 -- | Create tags for a blog post
 createPostTags ::

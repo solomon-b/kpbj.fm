@@ -16,8 +16,8 @@ import Component.Form.Internal (hiddenInput)
 import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
-import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -31,7 +31,7 @@ import Servant.Links qualified as Links
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
 
-episodesIdGetUrl :: Text.Text -> Text.Text -> Links.URI
+episodesIdGetUrl :: Slug -> Slug -> Links.URI
 episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
 
 --------------------------------------------------------------------------------
@@ -186,7 +186,7 @@ trackListingSection tracks = do
     Lucid.div_ [Lucid.id_ "tracks-container", Lucid.class_ "space-y-4"] $ do
       if null tracks
         then Lucid.p_ [Lucid.class_ "text-gray-600 italic"] "No tracks added yet."
-        else forM_ (zip [(0 :: Int) ..] tracks) $ \(idx, track) -> renderTrackEditor idx track
+        else forM_ (zip [(0 :: Int) ..] tracks) $ uncurry renderTrackEditor
     addTrackButton
 
 formActions :: Links.URI -> Lucid.Html ()

@@ -14,9 +14,10 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
 import Data.Has (Has)
-import Data.Text (Text)
+import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -38,7 +39,7 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-showGetUrl :: Text -> Links.URI
+showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
 showsGetUrl :: Links.URI
@@ -50,7 +51,7 @@ type Route =
   Observability.WithSpan
     "GET /shows/:slug"
     ( "shows"
-        :> Servant.Capture "slug" Text
+        :> Servant.Capture "slug" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
@@ -69,7 +70,7 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
@@ -82,7 +83,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
       Log.logInfo "Failed to fetch show from database" (show err)
       renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")
     Right Nothing -> do
-      Log.logInfo ("Show not found: " <> slug) ()
+      Log.logInfo ("Show not found: " <> display slug) ()
       renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just showModel) -> do
       episodesResult <- execQuerySpan (Episodes.getEpisodesById showModel.id)

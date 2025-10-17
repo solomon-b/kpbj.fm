@@ -12,6 +12,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.FileStorage
 import Domain.Types.FileUpload
+import Domain.Types.Slug (Slug)
 import Network.Wai.Parse (FileInfo (..))
 import System.Directory (copyFile, createDirectoryIfMissing, removeFile)
 import System.FilePath (takeDirectory)
@@ -22,8 +23,8 @@ import System.IO.Temp (withSystemTempFile)
 -- | Handle file upload with proper validation and storage
 uploadEpisodeAudio ::
   (MonadIO m) =>
-  Text -> -- Show slug
-  Text -> -- Episode slug
+  Slug -> -- Show slug
+  Slug -> -- Episode slug
   Maybe UTCTime -> -- Scheduled date (or Nothing to use current time)
   FileInfo FilePath -> -- Uploaded file info
   m (Either UploadError UploadResult)
@@ -37,9 +38,7 @@ uploadEpisodeAudio showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
       config = defaultStorageConfig
 
   -- Use scheduled date if available, otherwise current time
-  time <- case mScheduledDate of
-    Just scheduledDate -> pure scheduledDate
-    Nothing -> getCurrentTime
+  time <- maybe getCurrentTime pure mScheduledDate
 
   -- Validate upload
   case validateUpload AudioBucket originalName mimeType fileSize of
@@ -59,8 +58,8 @@ uploadEpisodeAudio showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
 -- | Handle episode artwork upload
 uploadEpisodeArtwork ::
   (MonadIO m) =>
-  Text -> -- Show slug
-  Text -> -- Episode slug
+  Slug -> -- Show slug
+  Slug -> -- Episode slug
   Maybe UTCTime -> -- Scheduled date (or Nothing to use current time)
   FileInfo FilePath -> -- Uploaded file info
   m (Either UploadError UploadResult)
@@ -74,9 +73,7 @@ uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
       config = defaultStorageConfig
 
   -- Use scheduled date if available, otherwise current time
-  time <- case mScheduledDate of
-    Just scheduledDate -> pure scheduledDate
-    Nothing -> getCurrentTime
+  time <- maybe getCurrentTime pure mScheduledDate
 
   -- Validate upload
   case validateUpload ImageBucket originalName mimeType fileSize of
@@ -96,7 +93,7 @@ uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
 -- | Handle show logo upload
 uploadShowLogo ::
   (MonadIO m) =>
-  Text -> -- Show slug
+  Slug ->
   FileInfo FilePath -> -- Uploaded file info
   m (Either UploadError UploadResult)
 uploadShowLogo showSlug fileInfo = liftIO $ do
@@ -128,7 +125,7 @@ uploadShowLogo showSlug fileInfo = liftIO $ do
 -- | Handle show banner upload
 uploadShowBanner ::
   (MonadIO m) =>
-  Text -> -- Show slug
+  Slug ->
   FileInfo FilePath -> -- Uploaded file info
   m (Either UploadError UploadResult)
 uploadShowBanner showSlug fileInfo = liftIO $ do
@@ -195,8 +192,8 @@ withTempUpload content action = liftIO $
 -- Kept for backwards compatibility but not used in current upload flow
 processMultipleUploads ::
   (MonadIO m) =>
-  Text -> -- Show slug
-  Text -> -- Episode slug
+  Slug -> -- Show slug
+  Slug -> -- Episode slug
   Maybe UTCTime -> -- Scheduled date
   [FileInfo FilePath] -> -- List of files
   m [Either UploadError UploadResult]

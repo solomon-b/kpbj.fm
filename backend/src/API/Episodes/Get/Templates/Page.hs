@@ -15,7 +15,9 @@ import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -29,10 +31,10 @@ import Servant.Links qualified as Links
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
-showGetUrl :: Text -> Links.URI
+showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
-episodeEditGetUrl :: Text -> Text -> Links.URI
+episodeEditGetUrl :: Slug -> Slug -> Links.URI
 episodeEditGetUrl showSlug episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeSlug
 
 --------------------------------------------------------------------------------
@@ -271,14 +273,14 @@ errorTemplate errorMsg = do
         ]
         "Back to Shows"
 
-notFoundTemplate :: Text -> Text -> Lucid.Html ()
+notFoundTemplate :: Slug -> Slug -> Lucid.Html ()
 notFoundTemplate showSlug episodeSlug = do
   let showUrl = showGetUrl showSlug
   Lucid.div_ [Lucid.class_ "max-w-2xl mx-auto px-4 py-12"] $ do
     Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
       Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-4"] "Episode Not Found"
       Lucid.p_ [Lucid.class_ "text-gray-700 mb-6"] $
-        "We couldn't find the episode \"" <> Lucid.toHtml episodeSlug <> "\" for show \"" <> Lucid.toHtml showSlug <> "\"."
+        "We couldn't find the episode \"" <> Lucid.toHtml (display episodeSlug) <> "\" for show \"" <> Lucid.toHtml (display showSlug) <> "\"."
       Lucid.a_
         [ Lucid.href_ [i|/#{showUrl}|],
           hxGet_ [i|/#{showUrl}|],

@@ -53,6 +53,7 @@ import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.PageView (PageView)
 import Domain.Types.Search (Search)
+import Domain.Types.Slug (Slug)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -190,15 +191,15 @@ blogNewPostLink :: Links.Link
 blogNewPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.New.Post.Route)
 
 -- | Route: GET /blog/:slug
-blogPostGetLink :: Text -> Links.Link
+blogPostGetLink :: Slug -> Links.Link
 blogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.Route)
 
 -- | Route: GET /blog/:slug/edit
-blogEditGetLink :: Text -> Links.Link
+blogEditGetLink :: Slug -> Links.Link
 blogEditGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Edit.Get.Route)
 
 -- | Route: POST /blog/:slug/edit
-blogEditPostLink :: Text -> Links.Link
+blogEditPostLink :: Slug -> Links.Link
 blogEditPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.Edit.Post.Route)
 
 -- | Route: GET /donate
@@ -250,15 +251,15 @@ eventsNewPostLink :: Links.Link
 eventsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Post.Route)
 
 -- | Route: GET /events/:slug
-eventGetLink :: Text -> Links.Link
+eventGetLink :: Slug -> Links.Link
 eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.Route)
 
 -- | Route: GET /events/:slug/edit
-eventEditGetLink :: Text -> Links.Link
+eventEditGetLink :: Slug -> Links.Link
 eventEditGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Get.Route)
 
 -- | Route: POST /events/:slug/edit
-eventEditPostLink :: Text -> Links.Link
+eventEditPostLink :: Slug -> Links.Link
 eventEditPostLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Post.Route)
 
 -- | Route: GET /shows
@@ -266,35 +267,35 @@ showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe S
 showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
 
 -- | Route: GET /shows/:slug
-showGetLink :: Text -> Links.Link
+showGetLink :: Slug -> Links.Link
 showGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Get.Route)
 
 -- | Route: GET /shows/:slug/edit
-showEditGetLink :: Text -> Links.Link
+showEditGetLink :: Slug -> Links.Link
 showEditGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Get.Route)
 
 -- | Route: POST /shows/:slug/edit
-showEditPostLink :: Text -> Links.Link
+showEditPostLink :: Slug -> Links.Link
 showEditPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Post.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/:episode_slug
-episodesGetLink :: Text -> Text -> Links.Link
+episodesGetLink :: Slug -> Slug -> Links.Link
 episodesGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.Route)
 
 -- | Route: POST /shows/:show_slug/episodes/:episode_slug/edit
-episodesEditPostLink :: Text -> Text -> Links.Link
+episodesEditPostLink :: Slug -> Slug -> Links.Link
 episodesEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Post.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/new
-episodesNewGetLink :: Text -> Links.Link
+episodesNewGetLink :: Slug -> Links.Link
 episodesNewGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Get.Route)
 
 -- | Route: POST /shows/:show_slug/episodes/new
-episodesNewPostLink :: Text -> Links.Link
+episodesNewPostLink :: Slug -> Links.Link
 episodesNewPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Post.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/:episode_slug/edit
-episodesEditGetLink :: Text -> Text -> Links.Link
+episodesEditGetLink :: Slug -> Slug -> Links.Link
 episodesEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
 
 -- | Route: GET /host/dashboard

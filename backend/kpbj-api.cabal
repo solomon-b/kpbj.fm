@@ -189,6 +189,7 @@ library
     Domain.Types.PageNumber
     Domain.Types.PageView
     Domain.Types.Search
+    Domain.Types.Slug
     Effects.Database.Tables.BlogPosts
     Effects.Database.Tables.BlogTags
     Effects.Database.Tables.Episodes

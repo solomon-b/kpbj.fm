@@ -15,7 +15,7 @@ import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeCard)
 import API.Host.Dashboard.Get.Templates.Schedule (renderScheduleSection)
 import API.Host.Dashboard.Get.Templates.Stats (renderStatsSection)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
@@ -105,5 +105,5 @@ template userMeta userShow recentEpisodes blogPosts = do
       -- Next Show Schedule
       maybe mempty renderScheduleSection userShow
   where
-    episodesNewGetUrl :: Text -> Links.URI
+    episodesNewGetUrl :: Slug -> Links.URI
     episodesNewGetUrl showSlug = Links.linkURI $ episodesNewGetLink showSlug

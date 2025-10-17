@@ -17,6 +17,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -128,13 +129,13 @@ template post author tags = do
       "← BACK TO BLOG"
 
 -- | Template for when blog post is not found
-notFoundTemplate :: Text -> Lucid.Html ()
+notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate slug = do
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
     Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] "Blog Post Not Found"
     Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] $ do
       "The blog post with slug \""
-      Lucid.code_ [Lucid.class_ "bg-gray-100 px-2 py-1"] $ Lucid.toHtml slug
+      Lucid.code_ [Lucid.class_ "bg-gray-100 px-2 py-1"] $ Lucid.toHtml $ display slug
       "\" could not be found."
     Lucid.a_
       [ Lucid.href_ [i|/#{blogGetUrl}|],

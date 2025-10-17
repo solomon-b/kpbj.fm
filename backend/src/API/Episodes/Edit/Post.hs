@@ -15,11 +15,14 @@ import Control.Monad.Reader (MonadReader)
 import Data.Either (partitionEithers)
 import Data.Has (Has)
 import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -47,7 +50,7 @@ import Web.FormUrlEncoded qualified as Form
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
 
-episodesIdGetUrl :: Text -> Text -> Links.URI
+episodesIdGetUrl :: Slug -> Slug -> Links.URI
 episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
 
 --------------------------------------------------------------------------------
@@ -56,9 +59,9 @@ type Route =
   Observability.WithSpan
     "POST /shows/:show_slug/episodes/:episode_slug/edit"
     ( "shows"
-        :> Servant.Capture "show_slug" Text
+        :> Servant.Capture "show_slug" Slug
         :> "episodes"
-        :> Servant.Capture "episode_slug" Text
+        :> Servant.Capture "episode_slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -149,7 +152,7 @@ parseTracksFromForm form = parseTracksFromIndex 0
       pure
         TrackInfo
           { tiId = trackId >>= (fmap EpisodeTrack.Id . readMaybe . Text.unpack),
-            tiTrackNumber = maybe 1 id (readMaybe $ Text.unpack trackNumber),
+            tiTrackNumber = fromMaybe 1 (readMaybe $ Text.unpack trackNumber),
             tiTitle = title,
             tiArtist = artist,
             tiAlbum = emptyToNothing album,
@@ -172,7 +175,7 @@ parseStatus "archived" = Just Episodes.Archived
 parseStatus _ = Nothing
 
 -- | Success template after episode update
-successTemplate :: Text -> Text -> Lucid.Html ()
+successTemplate :: Slug -> Slug -> Lucid.Html ()
 successTemplate showSlug episodeSlug = do
   let epUrl = episodesIdGetUrl showSlug episodeSlug
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
@@ -258,8 +261,8 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
-  Text ->
+  Slug ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   EpisodeEditForm ->
@@ -276,7 +279,7 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) editForm = 
           Log.logAttention "getEpisodeBySlug execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
-          Log.logInfo_ $ "No episode with slugs: '" <> showSlug <> "' / '" <> episodeSlug <> "'"
+          Log.logInfo_ $ "No episode with slugs: '" <> display showSlug <> "' / '" <> display episodeSlug <> "'"
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just episode) -> do
           -- Fetch show info

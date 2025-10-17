@@ -13,9 +13,10 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Data.Text (Text)
+import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -36,7 +37,7 @@ type Route =
   Observability.WithSpan
     "GET /shows/:slug/edit"
     ( "shows"
-        :> Servant.Capture "slug" Text
+        :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -56,7 +57,7 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
@@ -71,7 +72,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
           Log.logAttention "getShowBySlug execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
-          Log.logInfo_ $ "No show with slug: '" <> slug <> "'"
+          Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just showModel) -> do
           -- Check if user is a host of this show or is staff+

@@ -25,6 +25,8 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
+import Domain.Types.Slug (Slug)
+import Domain.Types.Slug qualified as Slug
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTracks
@@ -53,7 +55,7 @@ type Route =
   Observability.WithSpan
     "POST /shows/:show_slug/episodes/new"
     ( "shows"
-        :> Servant.Capture "show_slug" Text
+        :> Servant.Capture "show_slug" Slug
         :> "episodes"
         :> "new"
         :> Servant.Header "Cookie" Cookie
@@ -125,7 +127,7 @@ instance FromMultipart Mem EpisodeUploadForm where
 --------------------------------------------------------------------------------
 -- URL helpers
 
-episodesNewPostUrl :: Text -> Links.URI
+episodesNewPostUrl :: Slug -> Links.URI
 episodesNewPostUrl showSlug = Links.linkURI $ episodesNewPostLink showSlug
 
 --------------------------------------------------------------------------------
@@ -141,7 +143,7 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Text ->
+  Slug ->
   Maybe Cookie ->
   EpisodeUploadForm ->
   m (Lucid.Html ())
@@ -218,7 +220,7 @@ processEpisodeUpload user form = do
         Right Nothing -> pure $ Left "Show not found"
         Right (Just showModel) -> do
           -- Parse remaining form data
-          case parseFormDataWithShow (Shows.id showModel) (Shows.slug showModel) form of
+          case parseFormDataWithShow showModel.id showModel.slug form of
             Left err -> pure $ Left err
             Right episodeData -> do
               -- Verify user is host of the show
@@ -231,7 +233,7 @@ processEpisodeUpload user form = do
                     then pure $ Left "You are not authorized to create episodes for this show"
                     else do
                       -- Generate episode slug for filename
-                      let episodeSlug = generateEpisodeSlug episodeData.title
+                      let episodeSlug = Slug.mkSlug episodeData.title
                       -- Handle file uploads (pass scheduled date for file organization)
                       uploadResults <- processFileUploads episodeData.showSlug episodeSlug episodeData.scheduledAt (eufAudioFile form) (eufArtworkFile form)
 
@@ -243,7 +245,7 @@ processEpisodeUpload user form = do
                                 Episodes.Insert
                                   { Episodes.eiId = Shows.Id episodeData.showId,
                                     Episodes.eiTitle = episodeData.title,
-                                    Episodes.eiSlug = generateEpisodeSlug episodeData.title,
+                                    Episodes.eiSlug = Slug.mkSlug episodeData.title,
                                     Episodes.eiDescription = episodeData.description,
                                     Episodes.eiAudioFilePath = audioPath,
                                     Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
@@ -268,7 +270,7 @@ processEpisodeUpload user form = do
                               pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
-parseFormDataWithShow :: Shows.Id -> Text -> EpisodeUploadForm -> Either Text ParsedEpisodeData
+parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Text ParsedEpisodeData
 parseFormDataWithShow (Shows.Id showId) showSlug form = do
   -- Parse scheduled date
   scheduledAt <- case eufScheduledDate form of
@@ -310,7 +312,7 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
 
 data ParsedEpisodeData = ParsedEpisodeData
   { showId :: Int64,
-    showSlug :: Text,
+    showSlug :: Slug,
     title :: Text,
     description :: Maybe Text,
     scheduledAt :: Maybe UTCTime,
@@ -325,8 +327,8 @@ processFileUploads ::
   ( MonadIO m,
     Log.MonadLog m
   ) =>
-  Text -> -- Show slug
-  Text -> -- Episode slug (for filename)
+  Slug -> -- Show slug
+  Slug -> -- Episode slug (for filename)
   Maybe UTCTime -> -- Scheduled date (for file organization)
   Maybe (FileData Mem) -> -- Audio file
   Maybe (FileData Mem) -> -- Artwork file
@@ -446,13 +448,6 @@ stripStorageRoot path =
    in case List.stripPrefix prefix path of
         Just relativePath -> Text.pack relativePath
         Nothing -> Text.pack path -- Fallback if prefix not found
-
--- | Generate URL-friendly slug from episode title
-generateEpisodeSlug :: Text -> Text
-generateEpisodeSlug title =
-  Text.toLower $
-    Text.map (\c -> if c `elem` (" -_" :: String) then '-' else c) $
-      Text.filter (\c -> c `elem` ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_" :: String)) title
 
 -- | File type helpers
 isAudioFile :: FileData Mem -> Bool

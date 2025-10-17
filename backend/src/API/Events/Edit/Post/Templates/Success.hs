@@ -9,7 +9,7 @@ where
 
 import {-# SOURCE #-} API (eventGetLink, eventsGetLink)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
+import Domain.Types.Slug (Slug)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -19,12 +19,12 @@ import Servant.Links qualified as Links
 eventsGetUrl :: Links.URI
 eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 
-eventGetUrl :: Text -> Links.URI
+eventGetUrl :: Slug -> Links.URI
 eventGetUrl slug = Links.linkURI $ eventGetLink slug
 
 --------------------------------------------------------------------------------
 
-template :: Text -> Lucid.Html ()
+template :: Slug -> Lucid.Html ()
 template eventSlug = do
   let eventUrl = eventGetUrl eventSlug
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
