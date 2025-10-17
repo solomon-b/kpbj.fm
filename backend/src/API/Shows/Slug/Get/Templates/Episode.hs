@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Show.Get.Templates.Episode
+module API.Shows.Slug.Get.Templates.Episode
   ( renderLatestEpisode,
     renderEpisodeCard,
   )

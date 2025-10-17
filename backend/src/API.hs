@@ -25,10 +25,10 @@ import API.Get qualified as Root.Get
 import API.Host.Dashboard.Get qualified as Host.Dashboard.Get
 import API.Media.Get qualified as Media.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
-import API.Show.Edit.Get qualified as Show.Edit.Get
-import API.Show.Edit.Post qualified as Show.Edit.Post
-import API.Show.Get qualified as Show.Get
 import API.Shows.Get qualified as Shows.Get
+import API.Shows.Slug.Edit.Get qualified as Show.Edit.Get
+import API.Shows.Slug.Edit.Post qualified as Show.Edit.Post
+import API.Shows.Slug.Get qualified as Show.Get
 import API.Static.Get qualified as Static.Get
 import API.TermsOfService.Get qualified as TermsOfService.Get
 import API.User.Login.Get qualified as User.Login.Get

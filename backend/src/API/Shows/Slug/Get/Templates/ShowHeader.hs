@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Show.Get.Templates.ShowHeader
+module API.Shows.Slug.Get.Templates.ShowHeader
   ( renderShowHeader,
   )
 where
