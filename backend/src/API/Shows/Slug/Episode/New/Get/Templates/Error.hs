@@ -1,4 +1,4 @@
-module API.Episodes.New.Get.Templates.Error
+module API.Shows.Slug.Episode.New.Get.Templates.Error
   ( notLoggedInTemplate,
     showLoadErrorTemplate,
   )

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Episodes.Get.Templates.Page
+module API.Shows.Slug.Episode.Get.Templates.Page
   ( template,
     errorTemplate,
     notFoundTemplate,

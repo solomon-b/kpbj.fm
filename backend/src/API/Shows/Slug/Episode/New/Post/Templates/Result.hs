@@ -1,4 +1,4 @@
-module API.Episodes.New.Post.Templates.Result
+module API.Shows.Slug.Episode.New.Post.Templates.Result
   ( successTemplate,
     errorTemplate,
   )

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Episodes.Edit.Get.Templates.Form
+module API.Shows.Slug.Episode.Edit.Get.Templates.Form
   ( template,
   )
 where
@@ -9,7 +9,7 @@ where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodesGetLink, hostDashboardGetLink)
-import API.Episodes.Edit.Get.Templates.Scripts (scripts)
+import API.Shows.Slug.Episode.Edit.Get.Templates.Scripts (scripts)
 import Component.Form qualified as Form
 import Component.Form.Builder qualified as Builder
 import Component.Form.Internal (hiddenInput)

@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Episodes.Edit.Get.Templates.Error
+module API.Shows.Slug.Episode.Edit.Get.Templates.Error
   ( notAuthorizedTemplate,
     notLoggedInTemplate,
     notFoundTemplate,

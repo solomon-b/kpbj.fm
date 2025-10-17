@@ -1,9 +1,9 @@
-module API.Episodes.New.Post where
+module API.Shows.Slug.Episode.New.Post where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodesNewPostLink)
-import API.Episodes.New.Post.Templates.Result (errorTemplate, successTemplate)
+import API.Shows.Slug.Episode.New.Post.Templates.Result (errorTemplate, successTemplate)
 import App.Common (getUserInfo)
 import Component.Frame (loadFrame)
 import Control.Monad.Catch (MonadCatch)

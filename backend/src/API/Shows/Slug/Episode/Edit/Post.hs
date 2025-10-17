@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Episodes.Edit.Post where
+module API.Shows.Slug.Episode.Edit.Post where
 
 --------------------------------------------------------------------------------
 

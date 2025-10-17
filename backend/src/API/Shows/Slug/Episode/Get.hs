@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Episodes.Get where
+module API.Shows.Slug.Episode.Get where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodesGetLink, showGetLink)
-import API.Episodes.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
+import API.Shows.Slug.Episode.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
