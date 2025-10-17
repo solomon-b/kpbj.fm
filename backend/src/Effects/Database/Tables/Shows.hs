@@ -341,6 +341,10 @@ isUserHostOfShow = ShowHost.isUserHostOfShow
 getUpcomingShowDates :: Id -> Int64 -> Hasql.Statement () [ShowSchedule.UpcomingShowDate]
 getUpcomingShowDates = ShowSchedule.getUpcomingShowDates
 
+-- | Re-export getUpcomingUnscheduledShowDates from ShowSchedule
+getUpcomingUnscheduledShowDates :: Id -> Int64 -> Hasql.Statement () [ShowSchedule.UpcomingShowDate]
+getUpcomingUnscheduledShowDates = ShowSchedule.getUpcomingUnscheduledShowDates
+
 -- | Re-export getShowHostsWithUsers from ShowHost
 getShowHostsWithUsers :: Id -> Hasql.Statement () [ShowHost.ShowHostWithUser]
 getShowHostsWithUsers = ShowHost.getShowHostsWithUsers

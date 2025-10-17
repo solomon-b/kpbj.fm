@@ -197,7 +197,7 @@ episodeFormFields showModel upcomingDates =
 renderUpcomingDateOption :: ShowSchedule.UpcomingShowDate -> SelectOption
 renderUpcomingDateOption (ShowSchedule.UpcomingShowDate {usdShowDate = showDate, usdDayOfWeek = dow, usdStartTime = startTime, usdEndTime = endTime}) =
   SelectOption
-    { soValue = Text.pack $ Prelude.show showDate,
+    { soValue = Text.pack $ Prelude.show startTime, -- Send full UTC timestamp (show start time)
       soLabel = formatUpcomingDate dow showDate startTime endTime,
       soSelected = False,
       soDescription = Nothing
