@@ -519,8 +519,9 @@ SELECT
     lower(regexp_replace(s.title, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || to_char(generate_series, 'YYYY-MM-DD') as slug,
     'A great episode of ' || s.title || ' from ' || to_char(generate_series, 'FMMonth DD, YYYY') as description,
     'published' as status,
-    generate_series + ss.start_time::time as scheduled_at,
-    generate_series + ss.start_time::time as published_at,
+    -- interpret date + time in show's timezone, then convert to UTC
+    (generate_series::date::text || ' ' || ss.start_time)::timestamp AT TIME ZONE ss.timezone as scheduled_at,
+    (generate_series::date::text || ' ' || ss.start_time)::timestamp AT TIME ZONE ss.timezone as published_at,
     u.id as created_by
 FROM shows s
 JOIN show_schedules ss ON ss.show_id = s.id
