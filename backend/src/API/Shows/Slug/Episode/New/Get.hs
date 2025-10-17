@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Episodes.New.Get where
+module API.Shows.Slug.Episode.New.Get where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodesNewGetLink)
-import API.Episodes.New.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
-import API.Episodes.New.Get.Templates.Form (episodeUploadForm)
+import API.Shows.Slug.Episode.New.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
+import API.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad (guard)
 import Control.Monad.Catch (MonadCatch)

@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Episodes.New.Get.Templates.Form
+module API.Shows.Slug.Episode.New.Get.Templates.Form
   ( episodeUploadForm,
   )
 where
