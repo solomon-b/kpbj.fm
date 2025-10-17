@@ -23,7 +23,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
+hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug

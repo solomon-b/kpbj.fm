@@ -19,7 +19,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
+hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
