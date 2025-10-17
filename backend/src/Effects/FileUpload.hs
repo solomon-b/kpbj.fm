@@ -17,6 +17,7 @@ import Network.Wai.Parse (FileInfo (..))
 import System.Directory (copyFile, createDirectoryIfMissing, removeFile)
 import System.FilePath (takeDirectory)
 import System.IO.Temp (withSystemTempFile)
+import System.Random qualified as Random
 
 --------------------------------------------------------------------------------
 
@@ -39,13 +40,15 @@ uploadEpisodeAudio showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
 
   -- Use scheduled date if available, otherwise current time
   time <- maybe getCurrentTime pure mScheduledDate
+  seed <- Random.getStdGen
 
   -- Validate upload
   case validateUpload AudioBucket originalName mimeType fileSize of
-    Left err -> pure $ Left err
+    Left err ->
+      pure $ Left err
     Right () -> do
       -- Build upload result
-      let uploadResult = buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSize time
+      let uploadResult = buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSize time seed
           storagePath = uploadResultStoragePath uploadResult
 
       -- Create directory structure
@@ -74,13 +77,15 @@ uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
 
   -- Use scheduled date if available, otherwise current time
   time <- maybe getCurrentTime pure mScheduledDate
+  seed <- Random.getStdGen
 
   -- Validate upload
   case validateUpload ImageBucket originalName mimeType fileSize of
-    Left err -> pure $ Left err
+    Left err ->
+      pure $ Left err
     Right () -> do
       -- Build upload result
-      let uploadResult = buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType fileSize time
+      let uploadResult = buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType fileSize time seed
           storagePath = uploadResultStoragePath uploadResult
 
       -- Create directory structure
@@ -106,13 +111,15 @@ uploadShowLogo showSlug fileInfo = liftIO $ do
       config = defaultStorageConfig
 
   time <- getCurrentTime
+  seed <- Random.getStdGen
 
   -- Validate upload
   case validateUpload ImageBucket originalName mimeType fileSize of
-    Left err -> pure $ Left err
+    Left err ->
+      pure $ Left err
     Right () -> do
       -- Build upload result
-      let uploadResult = buildShowLogoUpload config showSlug originalName mimeType fileSize time
+      let uploadResult = buildShowLogoUpload config showSlug originalName mimeType fileSize time seed
           storagePath = uploadResultStoragePath uploadResult
 
       -- Create directory structure
@@ -138,13 +145,14 @@ uploadShowBanner showSlug fileInfo = liftIO $ do
       config = defaultStorageConfig
 
   time <- getCurrentTime
+  seed <- Random.getStdGen
 
   -- Validate upload
   case validateUpload ImageBucket originalName mimeType fileSize of
     Left err -> pure $ Left err
     Right () -> do
       -- Build upload result
-      let uploadResult = buildShowBannerUpload config showSlug originalName mimeType fileSize time
+      let uploadResult = buildShowBannerUpload config showSlug originalName mimeType fileSize time seed
           storagePath = uploadResultStoragePath uploadResult
 
       -- Create directory structure
@@ -220,11 +228,3 @@ cleanupTempFiles :: (MonadIO m) => [FilePath] -> m ()
 cleanupTempFiles paths =
   liftIO $
     mapM_ removeFile paths
-
--- | Clean up old uploaded files (for maintenance)
-cleanupOldUploads :: (MonadIO m) => Int -> m () -- Days to keep
-cleanupOldUploads _daysToKeep = liftIO $ do
-  -- TODO: Implement cleanup of old files in /tmp/kpbj
-  -- This would scan for files older than X days and remove them
-  -- Left as TODO for now since it requires more complex file system operations
-  pure ()
