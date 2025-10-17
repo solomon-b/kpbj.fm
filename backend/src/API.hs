@@ -10,11 +10,6 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Donate.Get qualified as Donate.Get
-import API.Episodes.Edit.Get qualified as Episodes.Edit.Get
-import API.Episodes.Edit.Post qualified as Episodes.Edit.Post
-import API.Episodes.Get qualified as Episodes.Get
-import API.Episodes.New.Get qualified as Episodes.New.Get
-import API.Episodes.New.Post qualified as Episodes.New.Post
 import API.Events.Edit.Get qualified as Events.Edit.Get
 import API.Events.Edit.Post qualified as Events.Edit.Post
 import API.Events.Event.Get qualified as Events.Event.Get
@@ -28,6 +23,11 @@ import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Shows.Get qualified as Shows.Get
 import API.Shows.Slug.Edit.Get qualified as Show.Edit.Get
 import API.Shows.Slug.Edit.Post qualified as Show.Edit.Post
+import API.Shows.Slug.Episode.Edit.Get qualified as Episodes.Edit.Get
+import API.Shows.Slug.Episode.Edit.Post qualified as Episodes.Edit.Post
+import API.Shows.Slug.Episode.Get qualified as Episodes.Get
+import API.Shows.Slug.Episode.New.Get qualified as Episodes.New.Get
+import API.Shows.Slug.Episode.New.Post qualified as Episodes.New.Post
 import API.Shows.Slug.Get qualified as Show.Get
 import API.Static.Get qualified as Static.Get
 import API.TermsOfService.Get qualified as TermsOfService.Get

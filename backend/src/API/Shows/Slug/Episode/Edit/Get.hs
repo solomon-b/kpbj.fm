@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Episodes.Edit.Get where
+module API.Shows.Slug.Episode.Edit.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Episodes.Edit.Get.Templates.Error (notAuthorizedTemplate, notFoundTemplate, notLoggedInTemplate)
-import API.Episodes.Edit.Get.Templates.Form (template)
+import API.Shows.Slug.Episode.Edit.Get.Templates.Error (notAuthorizedTemplate, notFoundTemplate, notLoggedInTemplate)
+import API.Shows.Slug.Episode.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)

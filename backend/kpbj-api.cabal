@@ -106,18 +106,6 @@ library
     API.Blog.Post.Get.Templates.Page
     API.Donate.Get
     API.Donate.Get.Templates
-    API.Episodes.Get
-    API.Episodes.Get.Templates.Page
-    API.Episodes.Edit.Get
-    API.Episodes.Edit.Get.Templates.Error
-    API.Episodes.Edit.Get.Templates.Form
-    API.Episodes.Edit.Get.Templates.Scripts
-    API.Episodes.Edit.Post
-    API.Episodes.New.Get
-    API.Episodes.New.Get.Templates.Error
-    API.Episodes.New.Get.Templates.Form
-    API.Episodes.New.Post
-    API.Episodes.New.Post.Templates.Result
     API.Events.Get
     API.Events.Get.Templates.Controls
     API.Events.Get.Templates.Error
@@ -158,6 +146,18 @@ library
     API.Shows.Slug.Edit.Get.Templates.Error
     API.Shows.Slug.Edit.Get.Templates.Form
     API.Shows.Slug.Edit.Post
+    API.Shows.Slug.Episode.Get
+    API.Shows.Slug.Episode.Get.Templates.Page
+    API.Shows.Slug.Episode.Edit.Get
+    API.Shows.Slug.Episode.Edit.Get.Templates.Error
+    API.Shows.Slug.Episode.Edit.Get.Templates.Form
+    API.Shows.Slug.Episode.Edit.Get.Templates.Scripts
+    API.Shows.Slug.Episode.Edit.Post
+    API.Shows.Slug.Episode.New.Get
+    API.Shows.Slug.Episode.New.Get.Templates.Error
+    API.Shows.Slug.Episode.New.Get.Templates.Form
+    API.Shows.Slug.Episode.New.Post
+    API.Shows.Slug.Episode.New.Post.Templates.Result
     API.Shows.Slug.Get
     API.Shows.Slug.Get.Templates.Episode
     API.Shows.Slug.Get.Templates.Page

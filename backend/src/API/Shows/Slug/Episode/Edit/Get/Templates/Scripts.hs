@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Episodes.Edit.Get.Templates.Scripts
+module API.Shows.Slug.Episode.Edit.Get.Templates.Scripts
   ( scripts,
   )
 where
