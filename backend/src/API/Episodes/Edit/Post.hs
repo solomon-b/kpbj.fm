@@ -12,13 +12,17 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (partitionEithers)
 import Data.Has (Has)
+import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -33,7 +37,8 @@ import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
 import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm)
+import Text.Read (readMaybe)
+import Web.FormUrlEncoded (Form, FromForm)
 import Web.FormUrlEncoded qualified as Form
 
 --------------------------------------------------------------------------------
@@ -67,7 +72,22 @@ type Route =
 data EpisodeEditForm = EpisodeEditForm
   { eefTitle :: Text,
     eefDescription :: Maybe Text,
-    eefStatus :: Text
+    eefStatus :: Text,
+    eefTracks :: [TrackInfo]
+  }
+  deriving (Show)
+
+-- | Track data from form submission (includes ID for existing tracks)
+data TrackInfo = TrackInfo
+  { tiId :: Maybe EpisodeTrack.Id, -- Existing track ID (Nothing for new tracks)
+    tiTrackNumber :: Int64,
+    tiTitle :: Text,
+    tiArtist :: Text,
+    tiAlbum :: Maybe Text,
+    tiYear :: Maybe Int64,
+    tiDuration :: Maybe Text,
+    tiLabel :: Maybe Text,
+    tiIsExclusive :: Bool
   }
   deriving (Show)
 
@@ -76,17 +96,72 @@ instance FromForm EpisodeEditForm where
     title <- Form.parseUnique "title" form
     description <- Form.parseMaybe "description" form
     status <- Form.parseUnique "status" form
+    tracks <- parseTracksFromForm form
 
     pure
       EpisodeEditForm
         { eefTitle = title,
           eefDescription = emptyToNothing description,
-          eefStatus = status
+          eefStatus = status,
+          eefTracks = tracks
         }
     where
       emptyToNothing :: Maybe Text -> Maybe Text
       emptyToNothing (Just "") = Nothing
       emptyToNothing x = x
+
+-- | Parse track data from form fields like tracks[0][title], tracks[0][artist], etc.
+-- We try to parse tracks by checking indices starting from 0 until we can't find a title field
+parseTracksFromForm :: Form -> Either Text [TrackInfo]
+parseTracksFromForm form = parseTracksFromIndex 0
+  where
+    parseTracksFromIndex :: Int -> Either Text [TrackInfo]
+    parseTracksFromIndex idx = do
+      let prefix = "tracks[" <> Text.pack (show idx) <> "]"
+          titleKey = prefix <> "[title]"
+
+      -- Try to parse title for this index - if it doesn't exist, we're done
+      case (Form.parseUnique titleKey form :: Either Text Text) of
+        Left _ -> Right [] -- No more tracks
+        Right _ -> do
+          -- Parse this track
+          track <- parseTrack form idx
+          -- Parse remaining tracks
+          remainingTracks <- parseTracksFromIndex (idx + 1)
+          Right (track : remainingTracks)
+
+    parseTrack :: Form -> Int -> Either Text TrackInfo
+    parseTrack f idx = do
+      let prefix = "tracks[" <> Text.pack (show idx) <> "]"
+          getField field = Form.parseUnique (prefix <> "[" <> field <> "]") f
+          getFieldMaybe field = Right $ either (const Nothing) Just (getField field)
+
+      trackId <- getFieldMaybe "id"
+      trackNumber <- getField "track_number"
+      title <- getField "title"
+      artist <- getField "artist"
+      album <- getFieldMaybe "album"
+      year <- getFieldMaybe "year"
+      duration <- getFieldMaybe "duration"
+      label <- getFieldMaybe "label"
+      isPremiere <- Right $ either (const False) (const True) (getField "is_exclusive_premiere")
+
+      pure
+        TrackInfo
+          { tiId = trackId >>= (fmap EpisodeTrack.Id . readMaybe . Text.unpack),
+            tiTrackNumber = maybe 1 id (readMaybe $ Text.unpack trackNumber),
+            tiTitle = title,
+            tiArtist = artist,
+            tiAlbum = emptyToNothing album,
+            tiYear = year >>= readMaybe . Text.unpack,
+            tiDuration = emptyToNothing duration,
+            tiLabel = emptyToNothing label,
+            tiIsExclusive = isPremiere
+          }
+
+    emptyToNothing :: Maybe Text -> Maybe Text
+    emptyToNothing (Just "") = Nothing
+    emptyToNothing x = x
 
 -- | Parse episode status from text
 parseStatus :: Text -> Maybe Episodes.Status
@@ -232,7 +307,8 @@ updateEpisode ::
     MonadReader env m,
     Has Tracer env,
     MonadUnliftIO m,
-    MonadCatch m
+    MonadCatch m,
+    Has HSQL.Pool.Pool env
   ) =>
   HxRequest ->
   User.Model ->
@@ -266,5 +342,87 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
           Log.logInfo "Episode update returned Nothing" episode.id
           renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update episode. Please try again.")
         Right (Just _) -> do
-          Log.logInfo "Successfully updated episode" episode.id
-          renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.slug)
+          -- Update tracks
+          updateTracksResult <- updateTracks episode.id (eefTracks editForm)
+          case updateTracksResult of
+            Left trackErr -> do
+              Log.logInfo "Failed to update tracks" (episode.id, trackErr)
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but track update failed: " <> trackErr)
+            Right _ -> do
+              Log.logInfo "Successfully updated episode and tracks" episode.id
+              renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.slug)
+
+--------------------------------------------------------------------------------
+-- Track Update Logic
+
+-- | Update tracks for an episode
+-- Strategy: For each track in the form:
+--   - If it has an ID, update the existing track
+--   - If it has no ID, insert a new track
+-- Note: Removed tracks are handled by the frontend (they won't be in the form submission)
+updateTracks ::
+  ( MonadIO m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env
+  ) =>
+  Episodes.Id ->
+  [TrackInfo] ->
+  m (Either Text [EpisodeTrack.Id])
+updateTracks episodeId tracks = do
+  results <- mapM (processTrack episodeId) tracks
+  let (errors, trackIds) = partitionEithers results
+  if null errors
+    then pure $ Right trackIds
+    else do
+      Log.logInfo "Some tracks failed to process" errors
+      pure $ Left "Failed to process some tracks"
+
+-- | Process a single track (update existing or insert new)
+processTrack ::
+  ( MonadIO m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env
+  ) =>
+  Episodes.Id ->
+  TrackInfo ->
+  m (Either Text EpisodeTrack.Id)
+processTrack episodeId track = do
+  let trackInsert =
+        EpisodeTrack.Insert
+          { EpisodeTrack.etiEpisodeId = episodeId,
+            EpisodeTrack.etiTrackNumber = tiTrackNumber track,
+            EpisodeTrack.etiTitle = tiTitle track,
+            EpisodeTrack.etiArtist = tiArtist track,
+            EpisodeTrack.etiAlbum = tiAlbum track,
+            EpisodeTrack.etiYear = tiYear track,
+            EpisodeTrack.etiDuration = tiDuration track,
+            EpisodeTrack.etiLabel = tiLabel track,
+            EpisodeTrack.etiIsExclusivePremiere = tiIsExclusive track
+          }
+
+  case tiId track of
+    -- Update existing track
+    Just trackId -> do
+      execQuerySpan (Episodes.updateEpisodeTrack trackId trackInsert) >>= \case
+        Left err -> do
+          Log.logInfo "Failed to update track" (trackId, show err)
+          pure $ Left "Failed to update track"
+        Right Nothing -> do
+          Log.logInfo "Track update returned Nothing" trackId
+          pure $ Left "Track not found"
+        Right (Just updatedId) -> pure $ Right updatedId
+    -- Insert new track
+    Nothing -> do
+      execQuerySpan (Episodes.insertEpisodeTrack trackInsert) >>= \case
+        Left err -> do
+          Log.logInfo "Failed to insert track" (show err)
+          pure $ Left "Failed to insert track"
+        Right trackId -> pure $ Right trackId
