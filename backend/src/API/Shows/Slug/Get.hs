@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Show.Get where
+module API.Shows.Slug.Get where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (showGetLink, showsGetLink)
-import API.Show.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
+import API.Shows.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Show.Get.Templates.Page
+module API.Shows.Slug.Get.Templates.Page
   ( template,
     notFoundTemplate,
     errorTemplate,
@@ -11,8 +11,8 @@ where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (showEditGetLink, showsGetLink)
-import API.Show.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
-import API.Show.Get.Templates.ShowHeader (renderShowHeader)
+import API.Shows.Slug.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
+import API.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)

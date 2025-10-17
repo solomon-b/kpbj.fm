@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module API.Show.Get.Templates.Sidebar
+module API.Shows.Slug.Get.Templates.Sidebar
   ( renderHostBio,
     renderShowStats,
     renderRecentBlogPosts,

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Show.Edit.Get.Templates.Form
+module API.Shows.Slug.Edit.Get.Templates.Form
   ( template,
   )
 where
