@@ -21,7 +21,7 @@ eventsGetUrl :: Links.URI
 eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
+hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 --------------------------------------------------------------------------------
 

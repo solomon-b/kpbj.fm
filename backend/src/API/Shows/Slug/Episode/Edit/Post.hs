@@ -48,7 +48,7 @@ import Web.FormUrlEncoded qualified as Form
 
 -- URL helpers
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
+hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 episodesIdGetUrl :: Slug -> Slug -> Links.URI
 episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug

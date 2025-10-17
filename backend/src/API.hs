@@ -299,5 +299,5 @@ episodesEditGetLink :: Slug -> Slug -> Links.Link
 episodesEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
 
 -- | Route: GET /host/dashboard
-hostDashboardGetLink :: Links.Link
+hostDashboardGetLink :: Maybe Slug -> Links.Link
 hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Host.Dashboard.Get.Route)
