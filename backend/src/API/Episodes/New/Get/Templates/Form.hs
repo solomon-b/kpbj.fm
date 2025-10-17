@@ -172,7 +172,8 @@ episodeFormFields showModel upcomingDates =
                 vffMaxSizeMB = Just 500,
                 vffValidation = emptyValidation {vrRequired = True},
                 vffButtonText = "📁 CHOOSE AUDIO FILE",
-                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block"
+                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block",
+                vffCurrentValue = Nothing -- New episode, no current file
               },
             ValidatedFileField
               { vffName = "artwork_file",
@@ -182,7 +183,8 @@ episodeFormFields showModel upcomingDates =
                 vffMaxSizeMB = Just 5,
                 vffValidation = emptyValidation, -- Optional
                 vffButtonText = "🖼️ CHOOSE IMAGE",
-                vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block"
+                vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
+                vffCurrentValue = Nothing -- New episode, no current file
               }
           ]
       }
