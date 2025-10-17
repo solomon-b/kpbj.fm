@@ -179,6 +179,7 @@ library
     Component.Form
     Component.Form.Builder
     Component.Form.Internal
+    Component.Form.JSArrow
     Component.Frame
     Domain.Types.PostStatus
     Domain.Types.Cookie
