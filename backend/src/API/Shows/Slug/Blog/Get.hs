@@ -26,6 +26,7 @@ import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.User qualified as User
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -97,6 +98,12 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
       Log.logInfo ("Show not found: " <> display slug) ()
       renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just showModel) -> do
+      -- Check if user is a host of this show
+      isHost <- case userInfoResult of
+        Nothing -> pure False
+        Just (user, _userMetadata) ->
+          fromRight False <$> execQuerySpan (Shows.isUserHostOfShow (User.mId user) showModel.id)
+
       -- Fetch blog posts (with optional tag filter)
       blogPostsResult <- case maybeTag of
         Nothing ->
@@ -126,7 +133,7 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
       case (blogPostsResult, tagsResult, totalPostsResult) of
         (Right posts, Right tags, Right totalPosts) -> do
           let totalPages = (totalPosts + postsPerPage - 1) `div` postsPerPage
-          let pageTemplate = template showModel posts tags maybeTag page totalPages
+          let pageTemplate = template showModel posts tags maybeTag page totalPages isHost
           renderTemplate hxRequest mUserInfo pageTemplate
         _ -> do
           -- If queries fail, show with empty data
@@ -134,5 +141,5 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
           let tags = fromRight [] tagsResult
           let totalPosts = fromRight 0 totalPostsResult
           let totalPages = (totalPosts + postsPerPage - 1) `div` postsPerPage
-          let pageTemplate = template showModel posts tags maybeTag page totalPages
+          let pageTemplate = template showModel posts tags maybeTag page totalPages isHost
           renderTemplate hxRequest mUserInfo pageTemplate

@@ -27,8 +27,8 @@ showBlogGetUrl slug page tag = Links.linkURI $ showBlogGetLink slug page tag
 
 --------------------------------------------------------------------------------
 
-template :: Shows.Model -> [ShowBlogPosts.Model] -> [ShowBlogTags.Model] -> Maybe Text -> Int64 -> Int64 -> Lucid.Html ()
-template showModel posts tags maybeTag currentPage totalPages = do
+template :: Shows.Model -> [ShowBlogPosts.Model] -> [ShowBlogTags.Model] -> Maybe Text -> Int64 -> Int64 -> Bool -> Lucid.Html ()
+template showModel posts tags maybeTag currentPage totalPages isHost = do
   Lucid.div_ [Lucid.class_ "max-w-7xl mx-auto px-4 py-12"] $ do
     -- Header
     Lucid.div_ [Lucid.class_ "mb-8"] $ do
@@ -86,7 +86,7 @@ template showModel posts tags maybeTag currentPage totalPages = do
       else do
         Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8"] $ do
           forM_ posts $ \post -> do
-            renderPostCard showModel post
+            renderPostCard showModel post isHost
 
         -- Pagination
         when (totalPages > 1) $ do

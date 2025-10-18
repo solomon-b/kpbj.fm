@@ -21,7 +21,12 @@ import API.Host.Dashboard.Get qualified as Host.Dashboard.Get
 import API.Media.Get qualified as Media.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Shows.Get qualified as Shows.Get
+import API.Shows.Slug.Blog.Delete qualified as Show.Blog.Delete
+import API.Shows.Slug.Blog.Edit.Get qualified as Show.Blog.Edit.Get
+import API.Shows.Slug.Blog.Edit.Post qualified as Show.Blog.Edit.Post
 import API.Shows.Slug.Blog.Get qualified as Show.Blog.Get
+import API.Shows.Slug.Blog.New.Get qualified as Show.Blog.New.Get
+import API.Shows.Slug.Blog.New.Post qualified as Show.Blog.New.Post
 import API.Shows.Slug.Blog.Post.Get qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Edit.Get qualified as Show.Edit.Get
 import API.Shows.Slug.Edit.Post qualified as Show.Edit.Post
@@ -102,7 +107,12 @@ type API =
     :<|> Shows.Get.Route
     :<|> Show.Get.Route
     :<|> Show.Blog.Get.Route
+    :<|> Show.Blog.New.Get.Route
+    :<|> Show.Blog.New.Post.Route
     :<|> Show.Blog.Post.Get.Route
+    :<|> Show.Blog.Edit.Get.Route
+    :<|> Show.Blog.Edit.Post.Route
+    :<|> Show.Blog.Delete.Route
     :<|> Show.Edit.Get.Route
     :<|> Show.Edit.Post.Route
     :<|> Episodes.Get.Route
@@ -157,7 +167,12 @@ server env =
     :<|> Shows.Get.handler
     :<|> Show.Get.handler
     :<|> Show.Blog.Get.handler
+    :<|> Show.Blog.New.Get.handler
+    :<|> Show.Blog.New.Post.handler
     :<|> Show.Blog.Post.Get.handler
+    :<|> Show.Blog.Edit.Get.handler
+    :<|> Show.Blog.Edit.Post.handler
+    :<|> Show.Blog.Delete.handler
     :<|> Show.Edit.Get.handler
     :<|> Show.Edit.Post.handler
     :<|> Episodes.Get.handler
@@ -286,6 +301,26 @@ showBlogGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Get.Route)
 -- | Route: GET /shows/:slug/blog/:postSlug
 showBlogPostGetLink :: Slug -> Slug -> Links.Link
 showBlogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Post.Get.Route)
+
+-- | Route: GET /shows/:slug/blog/new
+showBlogNewGetLink :: Slug -> Links.Link
+showBlogNewGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.New.Get.Route)
+
+-- | Route: POST /shows/:slug/blog/new
+showBlogNewPostLink :: Slug -> Links.Link
+showBlogNewPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.New.Post.Route)
+
+-- | Route: GET /shows/:slug/blog/:postSlug/edit
+showBlogEditGetLink :: Slug -> Slug -> Links.Link
+showBlogEditGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Edit.Get.Route)
+
+-- | Route: POST /shows/:slug/blog/:postSlug/edit
+showBlogEditPostLink :: Slug -> Slug -> Links.Link
+showBlogEditPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Edit.Post.Route)
+
+-- | Route: DELETE /shows/:slug/blog/:postSlug
+showBlogDeleteLink :: Slug -> Slug -> Links.Link
+showBlogDeleteLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Delete.Route)
 
 -- | Route: GET /shows/:slug/edit
 showEditGetLink :: Slug -> Links.Link
