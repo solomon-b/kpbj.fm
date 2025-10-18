@@ -21,6 +21,8 @@ import API.Host.Dashboard.Get qualified as Host.Dashboard.Get
 import API.Media.Get qualified as Media.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Shows.Get qualified as Shows.Get
+import API.Shows.Slug.Blog.Get qualified as Show.Blog.Get
+import API.Shows.Slug.Blog.Post.Get qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Edit.Get qualified as Show.Edit.Get
 import API.Shows.Slug.Edit.Post qualified as Show.Edit.Post
 import API.Shows.Slug.Episode.Delete qualified as Episodes.Delete
@@ -99,6 +101,8 @@ type API =
     :<|> TermsOfService.Get.Route
     :<|> Shows.Get.Route
     :<|> Show.Get.Route
+    :<|> Show.Blog.Get.Route
+    :<|> Show.Blog.Post.Get.Route
     :<|> Show.Edit.Get.Route
     :<|> Show.Edit.Post.Route
     :<|> Episodes.Get.Route
@@ -152,6 +156,8 @@ server env =
     :<|> TermsOfService.Get.handler
     :<|> Shows.Get.handler
     :<|> Show.Get.handler
+    :<|> Show.Blog.Get.handler
+    :<|> Show.Blog.Post.Get.handler
     :<|> Show.Edit.Get.handler
     :<|> Show.Edit.Post.handler
     :<|> Episodes.Get.handler
@@ -272,6 +278,14 @@ showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
 -- | Route: GET /shows/:slug
 showGetLink :: Slug -> Links.Link
 showGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Get.Route)
+
+-- | Route: GET /shows/:slug/blog
+showBlogGetLink :: Slug -> Maybe Int64 -> Maybe Text -> Links.Link
+showBlogGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Get.Route)
+
+-- | Route: GET /shows/:slug/blog/:postSlug
+showBlogPostGetLink :: Slug -> Slug -> Links.Link
+showBlogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Post.Get.Route)
 
 -- | Route: GET /shows/:slug/edit
 showEditGetLink :: Slug -> Links.Link

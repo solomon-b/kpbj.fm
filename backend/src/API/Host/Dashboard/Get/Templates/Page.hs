@@ -241,8 +241,8 @@ renderRecentEpisodesSection selectedShow recentEpisodes =
               wrapperClass = "overflow-x-auto",
               tableClass = "w-full"
             }
-          $ mapM_ (maybe (const mempty) renderEpisodeTableRow selectedShow) $
-            take 10 recentEpisodes
+          $ mapM_ (maybe (const mempty) renderEpisodeTableRow selectedShow)
+          $ take 10 recentEpisodes
 
 -- | Recent blog posts section (for tab content)
 renderRecentBlogPostsSection :: [ShowBlogPosts.Model] -> Lucid.Html ()
@@ -276,5 +276,5 @@ renderRecentBlogPostsSection blogPosts =
               wrapperClass = "overflow-x-auto",
               tableClass = "w-full"
             }
-          $ mapM_ renderBlogPostTableRow $
-            take 10 blogPosts
+          $ mapM_ renderBlogPostTableRow
+          $ take 10 blogPosts
