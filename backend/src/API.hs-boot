@@ -21,6 +21,7 @@ rootGetLink :: Links.Link
 staticGetLink :: Links.Link
 mediaGetLink :: Links.Link
 aboutGetLink :: Links.Link
+archiveGetLink :: Maybe Text -> Maybe Text -> Maybe Int -> Maybe Int64 -> Links.Link
 blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
 blogNewGetLink :: Links.Link
 blogNewPostLink :: Links.Link

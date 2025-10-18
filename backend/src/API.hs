@@ -3,6 +3,7 @@ module API where
 --------------------------------------------------------------------------------
 
 import API.About.Get qualified as About.Get
+import API.Archive.Get qualified as Archive.Get
 import API.Blog.Edit.Get qualified as Blog.Edit.Get
 import API.Blog.Edit.Post qualified as Blog.Edit.Post
 import API.Blog.Get qualified as Blog.Get
@@ -84,6 +85,7 @@ type API =
     :<|> Static.Get.Route
     :<|> Media.Get.Route
     :<|> About.Get.Route
+    :<|> Archive.Get.Route
     :<|> Blog.Get.Route
     :<|> Blog.New.Get.Route
     :<|> Blog.New.Post.Route
@@ -144,6 +146,7 @@ server env =
     :<|> Static.Get.handler env
     :<|> Media.Get.handler
     :<|> About.Get.handler
+    :<|> Archive.Get.handler
     :<|> Blog.Get.handler
     :<|> Blog.New.Get.handler
     :<|> Blog.New.Post.handler
@@ -201,6 +204,10 @@ mediaGetLink = Links.safeLink (Proxy @API) (Proxy @Media.Get.Route)
 -- | Route: GET /about
 aboutGetLink :: Links.Link
 aboutGetLink = Links.safeLink (Proxy @API) (Proxy @About.Get.Route)
+
+-- | Route: GET /archive
+archiveGetLink :: Maybe Text -> Maybe Text -> Maybe Int -> Maybe Int64 -> Links.Link
+archiveGetLink = Links.safeLink (Proxy @API) (Proxy @Archive.Get.Route)
 
 -- | Route: GET /blog
 blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
