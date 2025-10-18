@@ -8,33 +8,46 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogEditGetLink)
+import {-# SOURCE #-} API (showBlogEditGetLink, showBlogPostGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-blogEditGetUrl :: Slug -> Links.URI
-blogEditGetUrl slug = Links.linkURI $ blogEditGetLink slug
+showBlogPostGetUrl :: Slug -> Slug -> Links.URI
+showBlogPostGetUrl showSlug postSlug = Links.linkURI $ showBlogPostGetLink showSlug postSlug
+
+showBlogEditGetUrl :: Slug -> Slug -> Links.URI
+showBlogEditGetUrl showSlug postSlug = Links.linkURI $ showBlogEditGetLink showSlug postSlug
 
 --------------------------------------------------------------------------------
 
 -- | Render individual blog post as table row
-renderBlogPostTableRow :: ShowBlogPosts.Model -> Lucid.Html ()
-renderBlogPostTableRow post = do
+renderBlogPostTableRow :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
+renderBlogPostTableRow showModel post = do
   let postId = post.id
       postRowId = [i|blog-post-row-#{postId}|]
   Lucid.tr_ [Lucid.class_ "border-b border-gray-300 hover:bg-gray-50", Lucid.id_ postRowId] $ do
     -- Title
     Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do
-      Lucid.div_ [Lucid.class_ "font-bold text-gray-900"] $ Lucid.toHtml post.title
+      let postUrl = showBlogPostGetUrl showModel.slug post.slug
+      Lucid.div_ [Lucid.class_ "font-bold text-gray-900"]
+        $ Lucid.a_
+          [ Lucid.href_ [i|/#{postUrl}|],
+            hxGet_ [i|/#{postUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            Lucid.class_ "hover:underline text-blue-600"
+          ]
+        $ Lucid.toHtml post.title
       case post.excerpt of
         Just excerpt ->
           Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mt-1"] $ do
@@ -57,7 +70,7 @@ renderBlogPostTableRow post = do
 
     -- Actions
     Lucid.td_ [Lucid.class_ "px-4 py-3 text-right"] $ do
-      let editUrl = blogEditGetUrl post.slug
+      let editUrl = showBlogEditGetUrl showModel.slug post.slug
       Lucid.div_ [Lucid.class_ "flex gap-2 justify-end"] $
         Lucid.a_
           [ Lucid.href_ [i|/#{editUrl}|],
