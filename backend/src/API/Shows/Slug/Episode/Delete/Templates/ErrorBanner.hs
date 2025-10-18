@@ -39,7 +39,7 @@ renderErrorBanner errorMsg = do
   Lucid.div_
     [ Lucid.id_ "error-banner-container",
       LucidBase.makeAttributes "hx-swap-oob" "true",
-          Lucid.class_ "w-full"
+      Lucid.class_ "w-full"
     ]
     $ do
       Lucid.div_

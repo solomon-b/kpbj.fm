@@ -133,8 +133,6 @@ library
     API.Host.Dashboard.Get.Templates.BlogPost
     API.Host.Dashboard.Get.Templates.Episode
     API.Host.Dashboard.Get.Templates.Page
-    API.Host.Dashboard.Get.Templates.Schedule
-    API.Host.Dashboard.Get.Templates.Stats
     API.Media.Get
     API.PrivacyPolicy.Get
     API.PrivacyPolicy.Get.Templates
@@ -183,6 +181,7 @@ library
     Component.Form.Internal
     Component.Form.JSArrow
     Component.Frame
+    Component.Table
     Domain.Types.PostStatus
     Domain.Types.Cookie
     Domain.Types.FileStorage
