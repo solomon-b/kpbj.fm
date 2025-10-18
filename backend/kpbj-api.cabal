@@ -88,6 +88,11 @@ library
     API
     API.About.Get
     API.About.Get.Templates
+    API.Archive.Get
+    API.Archive.Get.Templates.EpisodeCard
+    API.Archive.Get.Templates.Error
+    API.Archive.Get.Templates.Page
+    API.Archive.Get.Templates.SearchFilters
     API.Blog.Get
     API.Blog.Get.Templates.Error
     API.Blog.Get.Templates.Page
