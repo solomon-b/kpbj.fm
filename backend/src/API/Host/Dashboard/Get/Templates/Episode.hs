@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Host.Dashboard.Get.Templates.Episode
-  ( renderEpisodeCard,
+  ( renderEpisodeTableRow,
   )
 where
 
@@ -30,44 +30,54 @@ episodeDeleteUrl showSlug episodeSlug = Links.linkURI $ episodesDeleteLink showS
 
 --------------------------------------------------------------------------------
 
--- | Render individual episode card
-renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
-renderEpisodeCard showModel episode = do
+-- | Render individual episode as table row
+renderEpisodeTableRow :: Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisodeTableRow showModel episode = do
   let episodeId = episode.id
-      episodeCardId = [i|episode-card-#{episodeId}|]
-  Lucid.div_ [Lucid.class_ "border border-gray-300 p-4", Lucid.id_ episodeCardId] $ do
-    Lucid.div_ [Lucid.class_ "flex justify-between items-start mb-2"] $ do
-      Lucid.div_ $ do
-        Lucid.h3_ [Lucid.class_ "font-bold"] $ Lucid.toHtml episode.title
-        Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $ do
-          case episode.scheduledAt of
-            Just scheduledAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%B %d, %Y at %l:%M %p" scheduledAt
-            Nothing -> "Not scheduled"
-          " • "
-          -- TODO: Add duration when available
-          "Duration TBD"
-      Lucid.div_ [Lucid.class_ "flex gap-2"] $ do
-        let episodeEditUrl = episodeEditGetUrl showModel.slug episode.slug
-            episodeDelUrl = episodeDeleteUrl showModel.slug episode.slug
-        Lucid.a_ [Lucid.href_ [i|/#{episodeEditUrl}|], hxGet_ [i|/#{episodeEditUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "bg-gray-600 text-white px-3 py-1 text-xs font-bold hover:bg-gray-700 no-underline"] "EDIT"
+      episodeRowId = [i|episode-row-#{episodeId}|]
+  Lucid.tr_ [Lucid.class_ "border-b border-gray-300 hover:bg-gray-50", Lucid.id_ episodeRowId] $ do
+    -- Episode number
+    Lucid.td_ [Lucid.class_ "px-4 py-3 font-bold text-gray-800"] $
+      Lucid.toHtml $ "#" <> Text.pack (show episode.episodeNumber)
+
+    -- Title
+    Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do
+      Lucid.div_ [Lucid.class_ "font-bold text-gray-900"] $ Lucid.toHtml episode.title
+      case episode.description of
+        Nothing -> mempty
+        Just desc ->
+          Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mt-1"] $ do
+            Lucid.toHtml $ Text.take 100 desc
+            if Text.length desc > 100 then "..." else ""
+
+    -- Scheduled date
+    Lucid.td_ [Lucid.class_ "px-4 py-3 text-sm"] $ do
+      case episode.scheduledAt of
+        Just scheduledAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" scheduledAt
+        Nothing -> Lucid.span_ [Lucid.class_ "text-gray-500 italic"] "Not scheduled"
+
+    -- Status
+    Lucid.td_ [Lucid.class_ "px-4 py-3 text-sm"] $ do
+      Lucid.span_ [Lucid.class_ "inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold"] "PUBLISHED"
+
+    -- Actions
+    Lucid.td_ [Lucid.class_ "px-4 py-3 text-right"] $ do
+      let episodeEditUrl = episodeEditGetUrl showModel.slug episode.slug
+          episodeDelUrl = episodeDeleteUrl showModel.slug episode.slug
+      Lucid.div_ [Lucid.class_ "flex gap-2 justify-end"] $ do
+        Lucid.a_
+          [ Lucid.href_ [i|/#{episodeEditUrl}|],
+            hxGet_ [i|/#{episodeEditUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            Lucid.class_ "bg-blue-600 text-white px-3 py-1 text-xs font-bold hover:bg-blue-700 no-underline"
+          ]
+          "EDIT"
         Lucid.button_
           [ hxDelete_ [i|/#{episodeDelUrl}|],
-            hxTarget_ ("#" <> episodeCardId),
+            hxTarget_ ("#" <> episodeRowId),
             hxSwap_ "outerHTML",
             LucidBase.makeAttributes "hx-confirm" "Are you sure you want to archive this episode? It will no longer appear in your dashboard or public show page.",
             Lucid.class_ "bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700"
           ]
           "ARCHIVE"
-
-    Lucid.p_ [Lucid.class_ "text-sm text-gray-700 mb-3"] $ do
-      case episode.description of
-        Nothing -> "No description available"
-        Just desc -> do
-          Lucid.toHtml $ Text.take 150 desc
-          if Text.length desc > 150 then "..." else ""
-
-    Lucid.div_ [Lucid.class_ "flex justify-between items-center text-xs text-gray-500"] $ do
-      Lucid.div_ $ do
-        "Status: "
-        Lucid.span_ [Lucid.class_ "text-green-600 font-bold"] "Published"
-      Lucid.div_ "👀 - views • 🎧 - downloads" -- TODO: Add real stats

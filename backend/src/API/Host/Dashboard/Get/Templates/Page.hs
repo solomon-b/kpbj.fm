@@ -6,28 +6,32 @@ module API.Host.Dashboard.Get.Templates.Page
   )
 where
 
-import {-# SOURCE #-} API (episodesNewGetLink)
-import API.Host.Dashboard.Get.Templates.BlogPost (renderBlogPostCard)
-import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeCard)
-import API.Host.Dashboard.Get.Templates.Schedule (renderScheduleSection)
-import API.Host.Dashboard.Get.Templates.Stats (renderStatsSection)
+import {-# SOURCE #-} API (blogNewGetLink, episodesNewGetLink, showEditGetLink, showGetLink)
+import API.Host.Dashboard.Get.Templates.BlogPost (renderBlogPostTableRow)
+import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
+import Data.Int (Int64)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xModel_, xOnChange_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xOnChange_, xOnClick_, xShow_)
 import Servant.Links qualified as Links
 
 -- | Host Dashboard template
-template :: UserMetadata.Model -> [Shows.Model] -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
-template userMeta allShows selectedShow recentEpisodes blogPosts = do
+template :: UserMetadata.Model -> [Shows.Model] -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.Model] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
+template userMeta allShows selectedShow recentEpisodes blogPosts schedules nextShow = do
   -- Error banner container (empty by default, populated by HTMX out-of-band swaps)
   Lucid.div_ [Lucid.id_ "error-banner-container"] ""
   renderShowSelector allShows selectedShow
-  renderDashboardContent userMeta selectedShow recentEpisodes blogPosts
+  renderDashboardContent userMeta selectedShow recentEpisodes blogPosts schedules nextShow
 
 -- | Show selector dropdown (only rendered when user has multiple shows)
 renderShowSelector :: [Shows.Model] -> Maybe Shows.Model -> Lucid.Html ()
@@ -63,145 +67,214 @@ renderShowOption selectedShow showModel = do
     else Lucid.option_ [Lucid.value_ (display showSlug)] (Lucid.toHtml showTitle)
 
 -- | Render the main dashboard content
-renderDashboardContent :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
-renderDashboardContent userMeta selectedShow recentEpisodes blogPosts = do
-  renderDashboardHeader userMeta selectedShow
-  renderQuickActions selectedShow
-  renderDashboardGrid selectedShow recentEpisodes blogPosts
+renderDashboardContent :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.Model] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
+renderDashboardContent userMeta selectedShow recentEpisodes blogPosts schedules nextShow = do
+  renderDashboardHeader userMeta selectedShow recentEpisodes blogPosts schedules nextShow
+  renderContentTabs selectedShow recentEpisodes blogPosts
 
--- | Dashboard header with show info
-renderDashboardHeader :: UserMetadata.Model -> Maybe Shows.Model -> Lucid.Html ()
-renderDashboardHeader userMeta selectedShow =
+-- | Dashboard header with show info, stats, and schedule
+renderDashboardHeader :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.Model] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
+renderDashboardHeader userMeta selectedShow recentEpisodes blogPosts schedules nextShow =
   Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
-      renderHeaderInfo userMeta selectedShow
-      renderShowIcon
+      renderHeaderInfo userMeta selectedShow schedules nextShow recentEpisodes blogPosts
+      renderShowIcon selectedShow
 
--- | Header info (title, show, host, schedule, genre)
-renderHeaderInfo :: UserMetadata.Model -> Maybe Shows.Model -> Lucid.Html ()
-renderHeaderInfo userMeta selectedShow =
+-- | Header info (title, show, host, schedule, stats)
+renderHeaderInfo :: UserMetadata.Model -> Maybe Shows.Model -> [ShowSchedule.Model] -> Maybe ShowSchedule.UpcomingShowDate -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
+renderHeaderInfo userMeta selectedShow schedules nextShow recentEpisodes blogPosts =
   Lucid.div_ $ do
     Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "HOST DASHBOARD"
-    Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
+    Lucid.div_ [Lucid.class_ "text-gray-300 text-sm mb-1"] $ do
       Lucid.strong_ "Show: "
       maybe mempty (Lucid.toHtml . (.title)) selectedShow
       " • "
       Lucid.strong_ "Host: "
       Lucid.toHtml userMeta.mDisplayName
-    Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
+    Lucid.div_ [Lucid.class_ "text-gray-300 text-sm mb-2"] $ do
       Lucid.strong_ "Schedule: "
-      Lucid.span_ "TBD" -- TODO: Add schedule info
-      " • "
-      Lucid.strong_ "Genre: "
-      maybe "TBD" (maybe mempty Lucid.toHtml . (.genre)) selectedShow
+      renderScheduleInfo schedules
+      case nextShow of
+        Just upcoming -> do
+          " • "
+          Lucid.strong_ "Next Show: "
+          Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" (ShowSchedule.usdShowDate upcoming)
+        Nothing -> mempty
+    -- Stats row
+    Lucid.div_ [Lucid.class_ "flex gap-6 text-sm mt-2"] $ do
+      Lucid.div_ $ do
+        Lucid.strong_ [Lucid.class_ "text-gray-400"] "Episodes: "
+        Lucid.span_ [Lucid.class_ "text-white"] $ Lucid.toHtml $ show $ length recentEpisodes
+      Lucid.div_ $ do
+        Lucid.strong_ [Lucid.class_ "text-gray-400"] "Blog Posts: "
+        Lucid.span_ [Lucid.class_ "text-white"] $ Lucid.toHtml $ show $ length blogPosts
+      Lucid.div_ $ do
+        Lucid.strong_ [Lucid.class_ "text-gray-400"] "Total Downloads: "
+        Lucid.span_ [Lucid.class_ "text-white"] "TBD"
 
--- | Show icon and public page link
-renderShowIcon :: Lucid.Html ()
-renderShowIcon =
+-- | Format schedule info from schedule models
+renderScheduleInfo :: [ShowSchedule.Model] -> Lucid.Html ()
+renderScheduleInfo [] = "Not scheduled"
+renderScheduleInfo (firstSchedule : rest) =
+  let allSchedules = firstSchedule : rest
+      dayNames = map (dayOfWeekName . ShowSchedule.dayOfWeek) allSchedules
+      dayText = Text.intercalate ", " dayNames
+      timeRange = ShowSchedule.startTime firstSchedule <> " - " <> ShowSchedule.endTime firstSchedule
+   in Lucid.toHtml $ dayText <> " • " <> timeRange
+
+-- | Convert day of week number to name
+dayOfWeekName :: Int64 -> Text
+dayOfWeekName 0 = "Sun"
+dayOfWeekName 1 = "Mon"
+dayOfWeekName 2 = "Tue"
+dayOfWeekName 3 = "Wed"
+dayOfWeekName 4 = "Thu"
+dayOfWeekName 5 = "Fri"
+dayOfWeekName 6 = "Sat"
+dayOfWeekName _ = "?"
+
+-- | Show icon with public page link and edit button
+renderShowIcon :: Maybe Shows.Model -> Lucid.Html ()
+renderShowIcon selectedShow =
   Lucid.div_ [Lucid.class_ "text-center"] $ do
     Lucid.div_ [Lucid.class_ "w-16 h-16 bg-gray-300 mx-auto mb-2 flex items-center justify-center border-2 border-gray-600"] $
       Lucid.span_ [Lucid.class_ "text-2xl"] "🎵"
-    -- TODO: Add link to show profile page when ready
-    Lucid.span_ [Lucid.class_ "text-blue-300 text-sm"] "VIEW PUBLIC PAGE"
+    case selectedShow of
+      Just showModel -> do
+        let showUrl = Links.linkURI $ showGetLink showModel.slug
+            editUrl = Links.linkURI $ showEditGetLink showModel.slug
+        Lucid.div_ [Lucid.class_ "flex flex-col gap-2"] $ do
+          Lucid.a_
+            [ Lucid.href_ [i|/#{showUrl}|],
+              hxGet_ [i|/#{showUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            ]
+            "VIEW PUBLIC PAGE"
+          Lucid.a_
+            [ Lucid.href_ [i|/#{editUrl}|],
+              hxGet_ [i|/#{editUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "bg-purple-600 text-white px-4 py-2 text-xs font-bold hover:bg-purple-700 no-underline inline-block"
+            ]
+            "✏️ EDIT SHOW"
+      Nothing ->
+        Lucid.span_ [Lucid.class_ "text-gray-400 text-sm"] "No show selected"
 
--- | Quick action buttons
-renderQuickActions :: Maybe Shows.Model -> Lucid.Html ()
-renderQuickActions selectedShow =
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8 w-full"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "QUICK ACTIONS"
-    Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-3 gap-4"] $ do
-      renderPrepareShowButton selectedShow
-      renderNewBlogPostButton
-      renderEditProfileButton
-
--- | Prepare Show button (disabled if no show selected)
-renderPrepareShowButton :: Maybe Shows.Model -> Lucid.Html ()
-renderPrepareShowButton selectedShow =
-  case selectedShow of
-    Just showModel -> do
-      let uploadUrl = Links.linkURI $ episodesNewGetLink showModel.slug
-      Lucid.a_
-        [ Lucid.href_ [i|/#{uploadUrl}|],
-          hxGet_ [i|/#{uploadUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-blue-600 text-white p-4 font-bold hover:bg-blue-700 transition-colors block text-center"
-        ]
-        "🎵 PREPARE SHOW"
-    Nothing ->
-      Lucid.div_
-        [Lucid.class_ "bg-gray-400 text-white p-4 font-bold text-center opacity-50 cursor-not-allowed"]
-        "🎵 PREPARE SHOW (No show assigned)"
-
--- | New Blog Post button
-renderNewBlogPostButton :: Lucid.Html ()
-renderNewBlogPostButton =
-  Lucid.a_
-    [ Lucid.href_ "#new-blog-post",
-      Lucid.class_ "bg-green-600 text-white p-4 font-bold hover:bg-green-700 transition-colors block text-center"
+-- | Tabbed content section with Episodes and Blog tabs
+renderContentTabs :: Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
+renderContentTabs selectedShow recentEpisodes blogPosts = do
+  Lucid.div_
+    [ xData_
+        [i|{
+        activeTab: localStorage.getItem('dashboardTab') || 'episodes',
+        switchTab(tab) {
+          this.activeTab = tab;
+          localStorage.setItem('dashboardTab', tab);
+        }
+      }|],
+      Lucid.class_ "w-full"
     ]
-    "📝 NEW BLOG POST"
+    $ do
+      -- Tab bar
+      Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 mb-0"] $ do
+        Lucid.div_ [Lucid.class_ "flex border-b-2 border-gray-800"] $ do
+          -- Episodes tab
+          Lucid.button_
+            [ xOnClick_ "switchTab('episodes')",
+              xBindClass_ "activeTab === 'episodes' ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 hover:bg-gray-100'",
+              Lucid.class_ "flex-1 px-6 py-3 font-bold text-center transition-colors"
+            ]
+            "EPISODES"
+          -- Blog tab
+          Lucid.button_
+            [ xOnClick_ "switchTab('blog')",
+              xBindClass_ "activeTab === 'blog' ? 'bg-gray-800 text-white' : 'bg-white text-gray-800 hover:bg-gray-100'",
+              Lucid.class_ "flex-1 px-6 py-3 font-bold text-center transition-colors"
+            ]
+            "BLOG"
 
--- | Edit Profile button
-renderEditProfileButton :: Lucid.Html ()
-renderEditProfileButton =
-  Lucid.a_
-    [ Lucid.href_ "#edit-profile",
-      Lucid.class_ "bg-purple-600 text-white p-4 font-bold hover:bg-purple-700 transition-colors block text-center"
-    ]
-    "✏️ EDIT PROFILE"
+      -- Episodes content
+      Lucid.div_ [xShow_ "activeTab === 'episodes'"] $
+        renderRecentEpisodesSection selectedShow recentEpisodes
 
--- | Main dashboard grid with episodes, blog posts, and sidebar
-renderDashboardGrid :: Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
-renderDashboardGrid selectedShow recentEpisodes blogPosts =
-  Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 w-full"] $ do
-    renderMainContent selectedShow recentEpisodes blogPosts
-    renderSidebar selectedShow recentEpisodes blogPosts
+      -- Blog content
+      Lucid.div_ [xShow_ "activeTab === 'blog'"] $
+        renderRecentBlogPostsSection blogPosts
 
--- | Main content area (episodes and blog posts)
-renderMainContent :: Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
-renderMainContent selectedShow recentEpisodes blogPosts =
-  Lucid.div_ [Lucid.class_ "lg:col-span-2"] $ do
-    renderRecentEpisodesSection selectedShow recentEpisodes
-    renderRecentBlogPostsSection blogPosts
-
--- | Recent episodes section
+-- | Recent episodes section (for tab content)
 renderRecentEpisodesSection :: Maybe Shows.Model -> [Episodes.Model] -> Lucid.Html ()
 renderRecentEpisodesSection selectedShow recentEpisodes =
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "RECENT EPISODES"
+  Lucid.section_ [Lucid.class_ "bg-white border-2 border-t-0 border-gray-800 p-6 mb-8"] $ do
+    Lucid.div_ [Lucid.class_ "flex justify-between items-center mb-4"] $ do
+      Lucid.h2_ [Lucid.class_ "text-xl font-bold"] "RECENT EPISODES"
+      case selectedShow of
+        Just showModel -> do
+          let uploadUrl = Links.linkURI $ episodesNewGetLink showModel.slug
+          Lucid.a_
+            [ Lucid.href_ [i|/#{uploadUrl}|],
+              hxGet_ [i|/#{uploadUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "bg-blue-600 text-white px-4 py-2 text-sm font-bold hover:bg-blue-700"
+            ]
+            "🎵 PREPARE SHOW"
+        Nothing ->
+          Lucid.span_ [Lucid.class_ "bg-gray-400 text-white px-4 py-2 text-sm font-bold opacity-50 cursor-not-allowed"] "🎵 PREPARE SHOW"
     case recentEpisodes of
       [] ->
         Lucid.div_ [Lucid.class_ "text-gray-600 text-center p-8"] $ do
           Lucid.p_ "No episodes uploaded yet."
           Lucid.p_ [Lucid.class_ "text-sm mt-2"] "Use 'PREPARE SHOW' to upload your first episode."
       _ ->
-        Lucid.div_ [Lucid.class_ "space-y-4"] $
-          mapM_ (maybe (const mempty) renderEpisodeCard selectedShow) $
-            take 3 recentEpisodes
+        renderTable
+          TableConfig
+            { headers =
+                [ ColumnHeader "#" AlignLeft,
+                  ColumnHeader "TITLE" AlignLeft,
+                  ColumnHeader "SCHEDULED" AlignLeft,
+                  ColumnHeader "STATUS" AlignLeft,
+                  ColumnHeader "ACTIONS" AlignRight
+                ],
+              wrapperClass = "overflow-x-auto",
+              tableClass = "w-full"
+            }
+          $ mapM_ (maybe (const mempty) renderEpisodeTableRow selectedShow) $
+            take 10 recentEpisodes
 
--- | Recent blog posts section
+-- | Recent blog posts section (for tab content)
 renderRecentBlogPostsSection :: [ShowBlogPosts.Model] -> Lucid.Html ()
 renderRecentBlogPostsSection blogPosts =
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+  Lucid.section_ [Lucid.class_ "bg-white border-2 border-t-0 border-gray-800 p-6 mb-8"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-center mb-4"] $ do
       Lucid.h2_ [Lucid.class_ "text-xl font-bold"] "RECENT BLOG POSTS"
-      Lucid.button_
-        [Lucid.class_ "bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700"]
-        "NEW POST"
+      let newBlogUrl = Links.linkURI blogNewGetLink
+      Lucid.a_
+        [ Lucid.href_ [i|/#{newBlogUrl}|],
+          hxGet_ [i|/#{newBlogUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          Lucid.class_ "bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700 no-underline"
+        ]
+        "📝 NEW POST"
     case blogPosts of
       [] ->
         Lucid.div_ [Lucid.class_ "text-gray-600 text-center p-8"] $ do
           Lucid.p_ "No blog posts published yet."
           Lucid.p_ [Lucid.class_ "text-sm mt-2"] "Share your thoughts with your audience!"
       _ ->
-        Lucid.div_ [Lucid.class_ "space-y-4"] $
-          mapM_ renderBlogPostCard $
-            take 3 blogPosts
-
--- | Sidebar with stats and schedule
-renderSidebar :: Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
-renderSidebar selectedShow recentEpisodes blogPosts =
-  Lucid.div_ [Lucid.class_ "space-y-6"] $ do
-    renderStatsSection recentEpisodes blogPosts
-    maybe mempty renderScheduleSection selectedShow
+        renderTable
+          TableConfig
+            { headers =
+                [ ColumnHeader "TITLE" AlignLeft,
+                  ColumnHeader "PUBLISHED" AlignLeft,
+                  ColumnHeader "STATUS" AlignLeft,
+                  ColumnHeader "ACTIONS" AlignRight
+                ],
+              wrapperClass = "overflow-x-auto",
+              tableClass = "w-full"
+            }
+          $ mapM_ renderBlogPostTableRow $
+            take 10 blogPosts
