@@ -242,6 +242,119 @@ getRecentPublishedEpisodes limit offset =
     LIMIT #{limit} OFFSET #{offset}
   |]
 
+-- | Data type for episode archive results with show information
+-- This flattens Model fields + show info for easier decoding
+data EpisodeWithShow = EpisodeWithShow
+  { ewsId :: Id,
+    ewsShowId :: Shows.Id,
+    ewsTitle :: Text,
+    ewsSlug :: Slug,
+    ewsDescription :: Maybe Text,
+    ewsEpisodeNumber :: EpisodeNumber,
+    ewsAudioFilePath :: Maybe Text,
+    ewsAudioFileSize :: Maybe Int64,
+    ewsAudioMimeType :: Maybe Text,
+    ewsDurationSeconds :: Maybe Int64,
+    ewsArtworkUrl :: Maybe Text,
+    ewsScheduledAt :: Maybe UTCTime,
+    ewsPublishedAt :: Maybe UTCTime,
+    ewsStatus :: Status,
+    ewsCreatedBy :: User.Id,
+    ewsCreatedAt :: UTCTime,
+    ewsUpdatedAt :: UTCTime,
+    ewsShowTitle :: Text,
+    ewsShowSlug :: Slug,
+    ewsShowGenre :: Maybe Text,
+    ewsHostDisplayName :: Text
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (DecodeRow)
+  deriving (Display) via (RecordInstance EpisodeWithShow)
+
+-- | Get published episodes with show details and filters for archive page
+-- Returns episodes with show information, filtered by optional search, show_id, genre, and date range
+getPublishedEpisodesWithFilters ::
+  Maybe Text ->
+  Maybe Text ->
+  Maybe UTCTime ->
+  Maybe UTCTime ->
+  Text ->
+  Int64 ->
+  Int64 ->
+  Hasql.Statement () [EpisodeWithShow]
+getPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo sortBy limit offset =
+  case sortBy of
+    "longest" ->
+      interp
+        False
+        [sql|
+    SELECT
+      e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
+      e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
+      e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
+      e.created_at, e.updated_at,
+      s.title, s.slug, s.genre,
+      COALESCE(um.display_name, u.email)
+    FROM episodes e
+    JOIN shows s ON e.show_id = s.id
+    JOIN show_hosts sh ON s.id = sh.show_id AND sh.is_primary = true AND sh.left_at IS NULL
+    JOIN users u ON sh.user_id = u.id
+    LEFT JOIN user_metadata um ON u.id = um.user_id
+    WHERE e.status = 'published'
+      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
+      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
+      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
+    ORDER BY e.duration_seconds DESC NULLS LAST, e.published_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+    _ ->
+      interp
+        False
+        [sql|
+    SELECT
+      e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
+      e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
+      e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
+      e.created_at, e.updated_at,
+      s.title, s.slug, s.genre,
+      COALESCE(um.display_name, u.email)
+    FROM episodes e
+    JOIN shows s ON e.show_id = s.id
+    JOIN show_hosts sh ON s.id = sh.show_id AND sh.is_primary = true AND sh.left_at IS NULL
+    JOIN users u ON sh.user_id = u.id
+    LEFT JOIN user_metadata um ON u.id = um.user_id
+    WHERE e.status = 'published'
+      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
+      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
+      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
+    ORDER BY e.published_at DESC NULLS LAST, e.created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Count published episodes with filters for pagination
+countPublishedEpisodesWithFilters ::
+  Maybe Text ->
+  Maybe Text ->
+  Maybe UTCTime ->
+  Maybe UTCTime ->
+  Hasql.Statement () Int64
+countPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo =
+  maybe 0 getOneColumn
+    <$> interp
+      False
+      [sql|
+    SELECT COUNT(*)
+    FROM episodes e
+    JOIN shows s ON e.show_id = s.id
+    WHERE e.status = 'published'
+      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
+      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
+      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
+  |]
+
 -- | Insert a new episode
 insertEpisode :: Insert -> Hasql.Statement () Id
 insertEpisode Insert {..} =

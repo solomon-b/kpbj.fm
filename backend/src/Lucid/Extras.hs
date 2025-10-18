@@ -133,3 +133,7 @@ hxOnAfterRequest_ = Lucid.makeAttributesRaw "hx-on:afterRequest"
 
 hxFollowDirects_ :: Lucid.Attributes
 hxFollowDirects_ = Lucid.makeAttributesRaw "hx-follow-redirects" "true"
+
+-- | HTMX out-of-band swap
+hxSwapOob_ :: Text -> Lucid.Attributes
+hxSwapOob_ = Lucid.makeAttributes "hx-swap-oob"
