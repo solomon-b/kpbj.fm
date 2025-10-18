@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesDeleteLink, episodesEditGetLink)
+import {-# SOURCE #-} API (episodesDeleteLink, episodesEditGetLink, episodesGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -21,6 +21,9 @@ import Lucid.Extras (hxDelete_, hxGet_, hxPushUrl_, hxSwap_, hxTarget_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
+
+episodeGetUrl :: Slug -> Slug -> Links.URI
+episodeGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
 
 episodeEditGetUrl :: Slug -> Slug -> Links.URI
 episodeEditGetUrl showSlug episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeSlug
@@ -43,7 +46,16 @@ renderEpisodeTableRow showModel episode = do
 
     -- Title
     Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do
-      Lucid.div_ [Lucid.class_ "font-bold text-gray-900"] $ Lucid.toHtml episode.title
+      let episodeUrl = episodeGetUrl showModel.slug episode.slug
+      Lucid.div_ [Lucid.class_ "font-bold text-gray-900"]
+        $ Lucid.a_
+          [ Lucid.href_ [i|/#{episodeUrl}|],
+            hxGet_ [i|/#{episodeUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            Lucid.class_ "hover:underline text-blue-600"
+          ]
+        $ Lucid.toHtml episode.title
       case episode.description of
         Nothing -> mempty
         Just desc ->
