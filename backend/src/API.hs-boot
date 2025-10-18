@@ -46,6 +46,11 @@ showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Status -> Maybe Search 
 showGetLink :: Slug -> Links.Link
 showBlogGetLink :: Slug -> Maybe Int64 -> Maybe Text -> Links.Link
 showBlogPostGetLink :: Slug -> Slug -> Links.Link
+showBlogNewGetLink :: Slug -> Links.Link
+showBlogNewPostLink :: Slug -> Links.Link
+showBlogEditGetLink :: Slug -> Slug -> Links.Link
+showBlogEditPostLink :: Slug -> Slug -> Links.Link
+showBlogDeleteLink :: Slug -> Slug -> Links.Link
 showEditGetLink :: Slug -> Links.Link
 showEditPostLink :: Slug -> Links.Link
 episodesGetLink :: Slug -> Slug -> Links.Link

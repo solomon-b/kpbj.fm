@@ -122,6 +122,9 @@ hxSelect_ = Lucid.makeAttributes "hx-select"
 hxTrigger_ :: Text -> Lucid.Attributes
 hxTrigger_ = Lucid.makeAttributes "hx-trigger"
 
+hxConfirm_ :: Text -> Lucid.Attributes
+hxConfirm_ = Lucid.makeAttributes "hx-confirm"
+
 hxOn_ :: Text -> Lucid.Attributes
 hxOn_ = Lucid.makeAttributesRaw "hx-on"
 
