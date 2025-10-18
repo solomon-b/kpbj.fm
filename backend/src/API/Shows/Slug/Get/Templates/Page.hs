@@ -163,7 +163,7 @@ renderBlogContent showModel blogPosts = do
         Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] "This show hasn't published any blog posts yet. Check back soon!"
     else do
       Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"] $ do
-        mapM_ (renderPostCard showModel) blogPosts
+        mapM_ (\post -> renderPostCard showModel post False) blogPosts
 
       -- View all link
       let blogUrl = Links.linkURI $ showBlogGetLink (Shows.slug showModel) Nothing Nothing

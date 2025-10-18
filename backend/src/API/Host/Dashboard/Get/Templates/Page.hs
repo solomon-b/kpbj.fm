@@ -6,7 +6,7 @@ module API.Host.Dashboard.Get.Templates.Page
   )
 where
 
-import {-# SOURCE #-} API (blogNewGetLink, episodesNewGetLink, showEditGetLink, showGetLink)
+import {-# SOURCE #-} API (blogNewGetLink, episodesNewGetLink, showBlogNewGetLink, showEditGetLink, showGetLink)
 import API.Host.Dashboard.Get.Templates.BlogPost (renderBlogPostTableRow)
 import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
@@ -202,7 +202,7 @@ renderContentTabs selectedShow recentEpisodes blogPosts = do
 
       -- Blog content
       Lucid.div_ [xShow_ "activeTab === 'blog'"] $
-        renderRecentBlogPostsSection blogPosts
+        renderRecentBlogPostsSection selectedShow blogPosts
 
 -- | Recent episodes section (for tab content)
 renderRecentEpisodesSection :: Maybe Shows.Model -> [Episodes.Model] -> Lucid.Html ()
@@ -245,20 +245,32 @@ renderRecentEpisodesSection selectedShow recentEpisodes =
           $ take 10 recentEpisodes
 
 -- | Recent blog posts section (for tab content)
-renderRecentBlogPostsSection :: [ShowBlogPosts.Model] -> Lucid.Html ()
-renderRecentBlogPostsSection blogPosts =
+renderRecentBlogPostsSection :: Maybe Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
+renderRecentBlogPostsSection selectedShow blogPosts =
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-t-0 border-gray-800 p-6 mb-8"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-center mb-4"] $ do
       Lucid.h2_ [Lucid.class_ "text-xl font-bold"] "RECENT BLOG POSTS"
-      let newBlogUrl = Links.linkURI blogNewGetLink
-      Lucid.a_
-        [ Lucid.href_ [i|/#{newBlogUrl}|],
-          hxGet_ [i|/#{newBlogUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700 no-underline"
-        ]
-        "📝 NEW POST"
+      case selectedShow of
+        Just showModel -> do
+          let newBlogUrl = Links.linkURI $ showBlogNewGetLink showModel.slug
+          Lucid.a_
+            [ Lucid.href_ [i|/#{newBlogUrl}|],
+              hxGet_ [i|/#{newBlogUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700 no-underline"
+            ]
+            "📝 NEW POST"
+        Nothing ->
+          let newBlogUrl = Links.linkURI blogNewGetLink
+           in Lucid.a_
+                [ Lucid.href_ [i|/#{newBlogUrl}|],
+                  hxGet_ [i|/#{newBlogUrl}|],
+                  hxTarget_ "#main-content",
+                  hxPushUrl_ "true",
+                  Lucid.class_ "bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700 no-underline"
+                ]
+                "📝 NEW POST"
     case blogPosts of
       [] ->
         Lucid.div_ [Lucid.class_ "text-gray-600 text-center p-8"] $ do
