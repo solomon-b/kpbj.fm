@@ -145,6 +145,7 @@ library
     API.Shows.Get.Templates.Error
     API.Shows.Get.Templates.Page
     API.Shows.Get.Templates.Pagination
+    API.Shows.Get.Templates.ScheduleView
     API.Shows.Get.Templates.ShowCard
     API.Shows.Slug.Edit.Get
     API.Shows.Slug.Edit.Get.Templates.Error
