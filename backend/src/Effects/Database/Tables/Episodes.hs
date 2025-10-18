@@ -19,7 +19,7 @@ import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneRow (..), RowsAffected, interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneColumn (..), OneRow (..), RowsAffected, interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.UTCTime ()
 import Servant qualified
@@ -171,7 +171,7 @@ getPublishedEpisodesForShow showId limit offset =
     LIMIT #{limit} OFFSET #{offset}
   |]
 
--- | Get all episodes for a show (any status)
+-- | Get all non-archived episodes for a show
 getEpisodesById :: Shows.Id -> Hasql.Statement () [Model]
 getEpisodesById showId =
   interp
@@ -181,7 +181,7 @@ getEpisodesById showId =
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
-    WHERE show_id = #{showId}
+    WHERE show_id = #{showId} AND status != 'archived'
     ORDER BY published_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
   |]
 
@@ -212,7 +212,7 @@ getEpisodeById episodeId =
     WHERE id = #{episodeId}
   |]
 
--- | Get episodes by user (episodes they created)
+-- | Get non-archived episodes by user (episodes they created)
 getEpisodesByUser :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
 getEpisodesByUser userId limit offset =
   interp
@@ -222,7 +222,7 @@ getEpisodesByUser userId limit offset =
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
-    WHERE created_by = #{userId}
+    WHERE created_by = #{userId} AND status != 'archived'
     ORDER BY created_at DESC
     LIMIT #{limit} OFFSET #{offset}
   |]
@@ -286,7 +286,37 @@ updateEpisode Update {..} =
     RETURNING id
   |]
 
--- | Delete an episode
+-- | Archive an episode (soft delete by setting status to archived)
+archiveEpisode :: Id -> Hasql.Statement () (Maybe Id)
+archiveEpisode episodeId =
+  interp
+    False
+    [sql|
+    UPDATE episodes
+    SET status = 'archived', updated_at = NOW()
+    WHERE id = #{episodeId}
+    RETURNING id
+  |]
+
+-- | Check if a user is a current host of the show for a given episode
+-- Returns True if the user is a current host, False otherwise
+isUserHostOfEpisodeShow :: User.Id -> Id -> Hasql.Statement () Bool
+isUserHostOfEpisodeShow userId episodeId =
+  let query =
+        interp
+          True
+          [sql|
+        SELECT EXISTS (
+          SELECT 1 FROM show_hosts sh
+          JOIN episodes e ON sh.show_id = e.show_id
+          WHERE e.id = #{episodeId}
+            AND sh.user_id = #{userId}
+            AND sh.left_at IS NULL
+        )
+      |]
+   in maybe False getOneColumn <$> query
+
+-- | Hard delete an episode (use with caution - prefer archiveEpisode for soft delete)
 deleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
 deleteEpisode episodeId =
   interp

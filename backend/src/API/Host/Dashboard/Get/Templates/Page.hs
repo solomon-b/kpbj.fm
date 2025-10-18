@@ -24,6 +24,8 @@ import Servant.Links qualified as Links
 -- | Host Dashboard template
 template :: UserMetadata.Model -> [Shows.Model] -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
 template userMeta allShows selectedShow recentEpisodes blogPosts = do
+  -- Error banner container (empty by default, populated by HTMX out-of-band swaps)
+  Lucid.div_ [Lucid.id_ "error-banner-container"] ""
   renderShowSelector allShows selectedShow
   renderDashboardContent userMeta selectedShow recentEpisodes blogPosts
 
@@ -127,7 +129,8 @@ renderPrepareShowButton selectedShow =
         ]
         "🎵 PREPARE SHOW"
     Nothing ->
-      Lucid.div_ [Lucid.class_ "bg-gray-400 text-white p-4 font-bold text-center opacity-50 cursor-not-allowed"]
+      Lucid.div_
+        [Lucid.class_ "bg-gray-400 text-white p-4 font-bold text-center opacity-50 cursor-not-allowed"]
         "🎵 PREPARE SHOW (No show assigned)"
 
 -- | New Blog Post button
@@ -174,7 +177,8 @@ renderRecentEpisodesSection selectedShow recentEpisodes =
           Lucid.p_ [Lucid.class_ "text-sm mt-2"] "Use 'PREPARE SHOW' to upload your first episode."
       _ ->
         Lucid.div_ [Lucid.class_ "space-y-4"] $
-          mapM_ (maybe (const mempty) renderEpisodeCard selectedShow) $ take 3 recentEpisodes
+          mapM_ (maybe (const mempty) renderEpisodeCard selectedShow) $
+            take 3 recentEpisodes
 
 -- | Recent blog posts section
 renderRecentBlogPostsSection :: [ShowBlogPosts.Model] -> Lucid.Html ()
@@ -182,7 +186,8 @@ renderRecentBlogPostsSection blogPosts =
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-center mb-4"] $ do
       Lucid.h2_ [Lucid.class_ "text-xl font-bold"] "RECENT BLOG POSTS"
-      Lucid.button_ [Lucid.class_ "bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700"]
+      Lucid.button_
+        [Lucid.class_ "bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700"]
         "NEW POST"
     case blogPosts of
       [] ->
@@ -191,7 +196,8 @@ renderRecentBlogPostsSection blogPosts =
           Lucid.p_ [Lucid.class_ "text-sm mt-2"] "Share your thoughts with your audience!"
       _ ->
         Lucid.div_ [Lucid.class_ "space-y-4"] $
-          mapM_ renderBlogPostCard $ take 3 blogPosts
+          mapM_ renderBlogPostCard $
+            take 3 blogPosts
 
 -- | Sidebar with stats and schedule
 renderSidebar :: Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
