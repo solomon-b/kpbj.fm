@@ -206,6 +206,75 @@ canUserEditShowBlogPost userId postId =
       |]
    in maybe False getOneColumn <$> query
 
+-- | Get published blog posts for a show by show slug
+getPublishedShowBlogPostsBySlug :: Text -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getPublishedShowBlogPostsBySlug showSlug limit offset =
+  interp
+    False
+    [sql|
+    SELECT sbp.id, sbp.show_id, sbp.title, sbp.slug, sbp.content, sbp.excerpt, sbp.author_id, sbp.status, sbp.published_at, sbp.created_at, sbp.updated_at
+    FROM show_blog_posts sbp
+    JOIN shows s ON sbp.show_id = s.id
+    WHERE s.slug = #{showSlug} AND sbp.status = 'published'
+    ORDER BY sbp.published_at DESC NULLS LAST, sbp.created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Get published blog posts for a show filtered by tag
+getPublishedShowBlogPostsByShowAndTag :: Shows.Id -> ShowBlogTags.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getPublishedShowBlogPostsByShowAndTag showId tagId limit offset =
+  interp
+    False
+    [sql|
+    SELECT sbp.id, sbp.show_id, sbp.title, sbp.slug, sbp.content, sbp.excerpt, sbp.author_id, sbp.status, sbp.published_at, sbp.created_at, sbp.updated_at
+    FROM show_blog_posts sbp
+    JOIN show_blog_post_tags sbpt ON sbp.id = sbpt.post_id
+    WHERE sbp.show_id = #{showId} AND sbpt.tag_id = #{tagId} AND sbp.status = 'published'
+    ORDER BY sbp.published_at DESC NULLS LAST, sbp.created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Count published blog posts for a show
+countPublishedShowBlogPosts :: Shows.Id -> Hasql.Statement () Int64
+countPublishedShowBlogPosts showId =
+  let query =
+        interp
+          False
+          [sql|
+        SELECT COUNT(*)::bigint
+        FROM show_blog_posts
+        WHERE show_id = #{showId} AND status = 'published'
+      |]
+   in maybe 0 getOneColumn <$> query
+
+-- | Count published blog posts for a show filtered by tag
+countPublishedShowBlogPostsByTag :: Shows.Id -> ShowBlogTags.Id -> Hasql.Statement () Int64
+countPublishedShowBlogPostsByTag showId tagId =
+  let query =
+        interp
+          False
+          [sql|
+        SELECT COUNT(*)::bigint
+        FROM show_blog_posts sbp
+        JOIN show_blog_post_tags sbpt ON sbp.id = sbpt.post_id
+        WHERE sbp.show_id = #{showId} AND sbpt.tag_id = #{tagId} AND sbp.status = 'published'
+      |]
+   in maybe 0 getOneColumn <$> query
+
+-- | Get all tags used by a show's blog posts
+getTagsForShow :: Shows.Id -> Hasql.Statement () [ShowBlogTags.Model]
+getTagsForShow showId =
+  interp
+    False
+    [sql|
+    SELECT DISTINCT sbt.id, sbt.name, sbt.created_at
+    FROM show_blog_tags sbt
+    JOIN show_blog_post_tags sbpt ON sbt.id = sbpt.tag_id
+    JOIN show_blog_posts sbp ON sbpt.post_id = sbp.id
+    WHERE sbp.show_id = #{showId} AND sbp.status = 'published'
+    ORDER BY sbt.name
+  |]
+
 --------------------------------------------------------------------------------
 -- Junction Table Queries (show_blog_post_tags)
 
