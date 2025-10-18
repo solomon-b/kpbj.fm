@@ -149,6 +149,8 @@ library
     API.Shows.Slug.Edit.Post
     API.Shows.Slug.Episode.Get
     API.Shows.Slug.Episode.Get.Templates.Page
+    API.Shows.Slug.Episode.Delete
+    API.Shows.Slug.Episode.Delete.Templates.ErrorBanner
     API.Shows.Slug.Episode.Edit.Get
     API.Shows.Slug.Episode.Edit.Get.Templates.Error
     API.Shows.Slug.Episode.Edit.Get.Templates.Form
