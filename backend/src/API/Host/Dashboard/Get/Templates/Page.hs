@@ -277,16 +277,19 @@ renderRecentBlogPostsSection selectedShow blogPosts =
           Lucid.p_ "No blog posts published yet."
           Lucid.p_ [Lucid.class_ "text-sm mt-2"] "Share your thoughts with your audience!"
       _ ->
-        renderTable
-          TableConfig
-            { headers =
-                [ ColumnHeader "TITLE" AlignLeft,
-                  ColumnHeader "PUBLISHED" AlignLeft,
-                  ColumnHeader "STATUS" AlignLeft,
-                  ColumnHeader "ACTIONS" AlignRight
-                ],
-              wrapperClass = "overflow-x-auto",
-              tableClass = "w-full"
-            }
-          $ mapM_ renderBlogPostTableRow
-          $ take 10 blogPosts
+        case selectedShow of
+          Nothing -> mempty -- Should not happen
+          Just showModel ->
+            renderTable
+              TableConfig
+                { headers =
+                    [ ColumnHeader "TITLE" AlignLeft,
+                      ColumnHeader "PUBLISHED" AlignLeft,
+                      ColumnHeader "STATUS" AlignLeft,
+                      ColumnHeader "ACTIONS" AlignRight
+                    ],
+                  wrapperClass = "overflow-x-auto",
+                  tableClass = "w-full"
+                }
+              $ mapM_ (renderBlogPostTableRow showModel)
+              $ take 10 blogPosts
