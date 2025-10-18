@@ -38,7 +38,8 @@ renderEpisodeTableRow showModel episode = do
   Lucid.tr_ [Lucid.class_ "border-b border-gray-300 hover:bg-gray-50", Lucid.id_ episodeRowId] $ do
     -- Episode number
     Lucid.td_ [Lucid.class_ "px-4 py-3 font-bold text-gray-800"] $
-      Lucid.toHtml $ "#" <> Text.pack (show episode.episodeNumber)
+      Lucid.toHtml $
+        "#" <> Text.pack (show episode.episodeNumber)
 
     -- Title
     Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do

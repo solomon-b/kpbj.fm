@@ -10,7 +10,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showEditGetLink, showsGetLink)
+import {-# SOURCE #-} API (showBlogGetLink, showEditGetLink, showsGetLink)
+import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
 import API.Shows.Slug.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
 import API.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
 import Control.Monad (unless, when)
@@ -26,7 +27,7 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Extras
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -69,7 +70,7 @@ errorTemplate errorMsg = do
 
 -- | Main show page template
 template :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Maybe HostDetails.Model -> [ShowBlogPosts.Model] -> Bool -> Lucid.Html ()
-template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails _blogPosts canEdit = do
+template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails blogPosts canEdit = do
   -- Edit button for authorized users
   when canEdit $ do
     let editUrl = Links.linkURI $ showEditGetLink showModel.slug
@@ -85,37 +86,93 @@ template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails _b
 
   renderShowHeader showModel hosts schedules
 
-  -- Content Tabs Navigation
-  Lucid.div_ [Lucid.class_ "mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "border-b-2 border-gray-800"] $ do
-      Lucid.nav_ [Lucid.class_ "flex gap-8"] $ do
-        Lucid.button_ [Lucid.class_ "py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5"] "Episodes"
-        Lucid.button_ [Lucid.class_ "py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800"] "Blog"
+  -- Tabbed Content with Alpine.js
+  Lucid.div_
+    [ xData_
+        [i|{
+        activeTab: localStorage.getItem('showPageTab') || 'episodes',
+        switchTab(tab) {
+          this.activeTab = tab;
+          localStorage.setItem('showPageTab', tab);
+        }
+      }|],
+      Lucid.class_ "w-full"
+    ]
+    $ do
+      -- Content Tabs Navigation
+      Lucid.div_ [Lucid.class_ "mb-8 w-full"] $ do
+        Lucid.div_ [Lucid.class_ "border-b-2 border-gray-800"] $ do
+          Lucid.nav_ [Lucid.class_ "flex gap-8"] $ do
+            Lucid.button_
+              [ xOnClick_ "switchTab('episodes')",
+                xBindClass_ "activeTab === 'episodes' ? 'py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5' : 'py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800'",
+                Lucid.type_ "button"
+              ]
+              "Episodes"
+            Lucid.button_
+              [ xOnClick_ "switchTab('blog')",
+                xBindClass_ "activeTab === 'blog' ? 'py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5' : 'py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800'",
+                Lucid.type_ "button"
+              ]
+              "Blog"
 
-  -- Main Content Grid
-  Lucid.section_ [Lucid.class_ "w-full"] $ do
-    if null episodes
-      then do
-        Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-          Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "No Episodes Yet"
-          Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] "This show hasn't published any episodes yet. Check back soon!"
-      else do
-        -- Featured/Latest Episode with tracks
-        case (episodes, latestEpisodeTracks) of
-          (latestEpisode : otherEpisodes, Just tracks) -> do
-            renderLatestEpisode showModel latestEpisode tracks
+      -- Episodes Tab Content
+      Lucid.section_ [Lucid.class_ "w-full", xShow_ "activeTab === 'episodes'"] $ do
+        renderEpisodesContent showModel episodes latestEpisodeTracks
 
-            -- Other Episodes
-            unless (null otherEpisodes) $ do
-              Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-                Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
-                mapM_ (renderEpisodeCard showModel) otherEpisodes
-          (latestEpisode : otherEpisodes, Nothing) -> do
-            -- Fallback if tracks failed to load
-            renderLatestEpisode showModel latestEpisode []
+      -- Blog Tab Content
+      Lucid.section_ [Lucid.class_ "w-full", xShow_ "activeTab === 'blog'"] $ do
+        renderBlogContent showModel blogPosts
 
-            unless (null otherEpisodes) $ do
-              Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-                Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
-                mapM_ (renderEpisodeCard showModel) otherEpisodes
-          _ -> mempty
+-- Helper function to render episodes content
+renderEpisodesContent :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> Lucid.Html ()
+renderEpisodesContent showModel episodes latestEpisodeTracks = do
+  if null episodes
+    then do
+      Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
+        Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "No Episodes Yet"
+        Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] "This show hasn't published any episodes yet. Check back soon!"
+    else do
+      -- Featured/Latest Episode with tracks
+      case (episodes, latestEpisodeTracks) of
+        (latestEpisode : otherEpisodes, Just tracks) -> do
+          renderLatestEpisode showModel latestEpisode tracks
+
+          -- Other Episodes
+          unless (null otherEpisodes) $ do
+            Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+              Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
+              mapM_ (renderEpisodeCard showModel) otherEpisodes
+        (latestEpisode : otherEpisodes, Nothing) -> do
+          -- Fallback if tracks failed to load
+          renderLatestEpisode showModel latestEpisode []
+
+          unless (null otherEpisodes) $ do
+            Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+              Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
+              mapM_ (renderEpisodeCard showModel) otherEpisodes
+        _ -> mempty
+
+-- Helper function to render blog content
+renderBlogContent :: Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
+renderBlogContent showModel blogPosts = do
+  if null blogPosts
+    then do
+      Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
+        Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "No Blog Posts Yet"
+        Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] "This show hasn't published any blog posts yet. Check back soon!"
+    else do
+      Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"] $ do
+        mapM_ (renderPostCard showModel) blogPosts
+
+      -- View all link
+      let blogUrl = Links.linkURI $ showBlogGetLink (Shows.slug showModel) Nothing Nothing
+      Lucid.div_ [Lucid.class_ "mt-8 text-center"] $ do
+        Lucid.a_
+          [ Lucid.href_ [i|/#{blogUrl}|],
+            hxGet_ [i|/#{blogUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            Lucid.class_ "inline-block bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
+          ]
+          "View All Blog Posts"

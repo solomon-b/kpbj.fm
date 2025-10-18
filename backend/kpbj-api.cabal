@@ -164,6 +164,11 @@ library
     API.Shows.Slug.Get.Templates.Page
     API.Shows.Slug.Get.Templates.ShowHeader
     API.Shows.Slug.Get.Templates.Sidebar
+    API.Shows.Slug.Blog.Get
+    API.Shows.Slug.Blog.Get.Templates.Page
+    API.Shows.Slug.Blog.Get.Templates.PostCard
+    API.Shows.Slug.Blog.Post.Get
+    API.Shows.Slug.Blog.Post.Get.Templates.Page
     API.Static.Get
     API.TermsOfService.Get
     API.TermsOfService.Get.Templates
