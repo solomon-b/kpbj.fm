@@ -90,8 +90,8 @@ musicPlayer =
       playerId: 'navbar-player',
       isPlaying: false,
       volume: 80,
-      streamUrl: 'https://kpbj.hasnoskills.com:8000/radio.mp3',
-      metadataUrl: 'https://kpbj.hasnoskills.com:8000/status-json.xsl',
+      streamUrl: 'https://kpbj.hasnoskills.com/listen/kpbj_test_station/radio.mp3',
+      metadataUrl: 'https://kpbj.hasnoskills.com/listen/kpbj_test_station/status-json.xsl',
 
       // Metadata
       currentShow: '',
