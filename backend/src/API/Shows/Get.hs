@@ -8,7 +8,7 @@ import API.Shows.Get.Templates.Error (errorTemplate)
 import API.Shows.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
@@ -18,6 +18,8 @@ import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
+import Data.Time (getCurrentTime, utctDay)
+import Data.Time.Calendar.WeekDate (toWeekDate)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Genre (Genre)
 import Domain.Types.HxRequest (HxRequest (..))
@@ -25,6 +27,7 @@ import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -75,15 +78,29 @@ handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce
     let limit = 12
         offset = (coerce page - 1) * limit
 
+    -- Get current day of week (1 = Monday, 7 = Sunday)
+    now <- liftIO getCurrentTime
+    let today = utctDay now
+        (_, _, dayOfWeek) = toWeekDate today
+        currentDayOfWeek = fromIntegral dayOfWeek :: Int64
+
+    -- Fetch weekly schedule
+    scheduleResult <- execQuerySpan ShowSchedule.getWeeklyScheduleWithDetails
+
     -- Fetch limit + 1 to check if there are more results
-    getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus >>= \case
-      Left err -> do
+    showsResult <- getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus
+
+    case (scheduleResult, showsResult) of
+      (Left err, _) -> do
+        Log.logInfo "Failed to fetch schedule from database" (Aeson.object ["error" .= show err])
+        renderTemplate htmxRequest mUserInfo (errorTemplate "Failed to load schedule. Please try again.")
+      (_, Left err) -> do
         Log.logInfo "Failed to fetch shows from database" (Aeson.object ["error" .= show err])
         renderTemplate htmxRequest mUserInfo (errorTemplate "Failed to load shows. Please try again.")
-      Right allShows -> do
+      (Right scheduledShows, Right allShows) -> do
         let someShows = take (fromIntegral limit) allShows
             hasMore = length allShows > fromIntegral limit
-            showsTemplate = template someShows page hasMore maybeGenre maybeStatus maybeSearch
+            showsTemplate = template someShows scheduledShows currentDayOfWeek page hasMore maybeGenre maybeStatus maybeSearch
         renderTemplate htmxRequest mUserInfo showsTemplate
 
 getShows ::

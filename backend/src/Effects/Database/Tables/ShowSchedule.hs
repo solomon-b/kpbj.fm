@@ -11,6 +11,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, displayBuilder)
 import Data.Time (Day, DayOfWeek, UTCTime)
+import Domain.Types.Slug (Slug)
 import {-# SOURCE #-} Effects.Database.Tables.Shows qualified as Shows
 import GHC.Generics
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneRow (..), interp, sql)
@@ -94,6 +95,22 @@ fromUpcomingShowDateRow (showId, showDate, dayOfWeek, startTime, endTime) =
       usdEndTime = endTime
     }
 
+-- | Data type to represent a scheduled show with full details
+data ScheduledShowWithDetails = ScheduledShowWithDetails
+  { sswdShowId :: Shows.Id,
+    sswdShowTitle :: Text,
+    sswdShowSlug :: Slug,
+    sswdDayOfWeek :: Int64,
+    sswdStartTime :: Text,
+    sswdEndTime :: Text,
+    sswdHostName :: Text
+  }
+  deriving stock (Show, Generic, Eq)
+  deriving anyclass (DecodeRow, FromJSON, ToJSON)
+
+instance Display ScheduledShowWithDetails where
+  displayBuilder _ = "ScheduledShowWithDetails"
+
 --------------------------------------------------------------------------------
 -- Database Queries
 
@@ -119,6 +136,30 @@ getCurrentWeeklySchedule =
     SELECT ss.id, ss.show_id, ss.day_of_week, ss.start_time, ss.end_time, ss.timezone, ss.is_active, ss.effective_from, ss.effective_until, ss.created_at
     FROM show_schedules ss
     JOIN shows s ON s.id = ss.show_id
+    WHERE s.status = 'active' AND ss.is_active = true
+      AND (ss.effective_until IS NULL OR ss.effective_until >= CURRENT_DATE)
+    ORDER BY ss.day_of_week, ss.start_time
+  |]
+
+-- | Get weekly schedule with show details and primary host
+getWeeklyScheduleWithDetails :: Hasql.Statement () [ScheduledShowWithDetails]
+getWeeklyScheduleWithDetails =
+  interp
+    False
+    [sql|
+    SELECT
+      s.id,
+      s.title,
+      s.slug,
+      ss.day_of_week,
+      ss.start_time,
+      ss.end_time,
+      COALESCE(um.display_name, u.email) as host_name
+    FROM show_schedules ss
+    JOIN shows s ON s.id = ss.show_id
+    LEFT JOIN show_hosts sh ON sh.show_id = s.id AND sh.is_primary = true AND sh.left_at IS NULL
+    LEFT JOIN users u ON u.id = sh.user_id
+    LEFT JOIN user_metadata um ON um.user_id = u.id
     WHERE s.status = 'active' AND ss.is_active = true
       AND (ss.effective_until IS NULL OR ss.effective_until >= CURRENT_DATE)
     ORDER BY ss.day_of_week, ss.start_time
