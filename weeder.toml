@@ -5,7 +5,10 @@
 roots = [
   '''^Main\.main$''',
   '''^Paths_.*$''',
-  '''^Lucid.Extras$''',
+]
+
+root-modules = [
+  '''^Lucid\.Extras$'''
 ]
 
 type-class-roots = true
