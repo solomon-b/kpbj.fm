@@ -1,0 +1,8 @@
+# Weeder Configuration
+# https://github.com/ocharles/weeder
+
+# Root modules that should be considered entry points
+roots = [
+  "Main.main",
+  "^Paths_kpbj-api.*"
+]
