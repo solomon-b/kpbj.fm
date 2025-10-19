@@ -3,6 +3,9 @@
 
 # Root modules that should be considered entry points
 roots = [
-  "Main.main",
-  "^Paths_kpbj-api.*"
+  '''^Main\.main$''',
+  '''^Paths_.*$''',
+  '''^Lucid.Extras$''',
 ]
+
+type-class-roots = true
