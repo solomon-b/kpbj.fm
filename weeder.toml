@@ -8,7 +8,11 @@ roots = [
 ]
 
 root-modules = [
-  '''^Lucid\.Extras$'''
+  # TODO: This root shouldn't be needed but the `roots` section isn't working:
+  '''^API$''',
+  '''^Component.Form.JSArrow''',
+  '''^Lucid\.Extras$''',
+  '''^Utils$''',
 ]
 
 type-class-roots = true

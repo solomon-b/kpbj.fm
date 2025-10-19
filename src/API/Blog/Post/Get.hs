@@ -4,7 +4,6 @@ module API.Blog.Post.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink)
 import API.Blog.Post.Get.Templates.Page (notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
@@ -14,7 +13,6 @@ import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
 import Data.Functor
 import Data.Has (Has)
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -29,17 +27,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
-import Servant.Links qualified as Links
 import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- URL helpers
-blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
-
-blogGetTagUrl :: Text -> Links.URI
-blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
 
 --------------------------------------------------------------------------------
 

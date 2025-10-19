@@ -94,22 +94,6 @@ buildStoragePath config bucketType resourceType dateHier filename =
       filename' = Text.unpack filename
    in rootPath </> bucketPath </> bucketTypePath' </> yearPath </> monthPath </> dayPath </> resourcePath </> filename'
 
--- | Build URL path for serving files (without /tmp prefix)
--- Example: /static/kpbj/audio/2024/09/27/episodes/show-slug_episode-123_audio.mp3
-buildUrlPath :: BucketType -> ResourceType -> DateHierarchy -> Slug -> Text -> Text
-buildUrlPath bucketType resourceType dateHier showSlug filename =
-  let parts =
-        [ "static",
-          "kpbj",
-          bucketTypePath bucketType,
-          dateYear dateHier,
-          dateMonth dateHier,
-          dateDay dateHier,
-          resourceTypePath resourceType,
-          display showSlug <> "_" <> filename
-        ]
-   in "/" <> Text.intercalate "/" parts
-
 -- | Generate unique filename with timestamp
 generateUniqueFilename :: Text -> Text -> Random.StdGen -> Text
 generateUniqueFilename prefix extension seed =
@@ -152,10 +136,3 @@ showBannerPath config showSlug time seed =
   let dateHier = dateHierarchyFromTime time
       filename = generateUniqueFilename (display showSlug) "jpg" seed
    in buildStoragePath config ImageBucket ShowBanner dateHier filename
-
--- | Build path for temporary upload
-tempUploadPath :: StorageConfig -> Text -> UTCTime -> Random.StdGen -> FilePath
-tempUploadPath config _originalFilename time seed =
-  let dateHier = dateHierarchyFromTime time
-      filename = generateUniqueFilename "temp" "tmp" seed
-   in buildStoragePath config TempBucket TempUpload dateHier filename

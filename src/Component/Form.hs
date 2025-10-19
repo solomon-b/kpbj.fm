@@ -1,13 +1,8 @@
 module Component.Form
   ( -- * Styled Form Fields
     formTextInput,
-    formTextInputValidated,
-    formTextarea,
-    formTextareaValidated,
-    formSelect,
     formNumberInput,
     formCheckbox,
-    formFileInput,
 
     -- * Special Fields
     hiddenInput,
@@ -116,112 +111,6 @@ formTextInput config = do
       Nothing -> mempty
       Just h -> Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] (Lucid.toHtml h)
 
--- | Text input field with Alpine.js validation and consistent styling
--- Usage: formTextInputValidated FormTextInputConfig{..}
-formTextInputValidated :: FormTextInputConfig -> Lucid.Html ()
-formTextInputValidated config = do
-  let FormTextInputConfig {ftiName = name, ftiLabel = label, ftiValue = value, ftiPlaceholder = placeholder, ftiHint = hint, ftiRequired = required} = config
-  Lucid.div_ $ do
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "block font-bold mb-2"]
-      (Lucid.toHtml $ if required then label <> " *" else label)
-    -- Standard input with Alpine validation styling
-    textInputWithValidation
-      name -- fieldName (for Alpine binding)
-      name -- name
-      (Just name) -- id
-      value -- value
-      placeholder -- placeholder
-      required -- required
-      Nothing -- minLength
-      Nothing -- maxLength
-      Nothing -- pattern
-      Nothing -- title
-      "w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600" -- classes (normal state)
-      "w-full p-3 border-2 border-red-500 font-mono focus:border-red-600" -- error classes (invalid state)
-      False -- disabled
-      -- Optional hint text with standard styling
-    case hint of
-      Nothing -> mempty
-      Just h -> Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] (Lucid.toHtml h)
-
--- | Standard textarea field with consistent styling (no Alpine validation)
--- Usage: formTextarea FormTextareaConfig{..}
-formTextarea :: FormTextareaConfig -> Lucid.Html ()
-formTextarea config = do
-  let FormTextareaConfig {ftaName = name, ftaLabel = label, ftaValue = value, ftaRows = rows, ftaPlaceholder = placeholder, ftaHint = hint, ftaRequired = required} = config
-  Lucid.div_ $ do
-    -- Standard label styling (automatically add " *" if required)
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "block font-bold mb-2"]
-      (Lucid.toHtml $ if required then label <> " *" else label)
-    -- Standard textarea styling
-    textarea
-      name
-      (Just name) -- id
-      value -- value
-      placeholder -- placeholder
-      required -- required
-      rows -- rows
-      Nothing -- maxLength
-      "w-full p-3 border-2 border-gray-400 font-mono leading-relaxed focus:border-blue-600" -- classes
-      False -- disabled
-      -- Optional hint text
-    case hint of
-      Nothing -> mempty
-      Just h -> Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] (Lucid.toHtml h)
-
--- | Textarea field with Alpine.js validation and consistent styling
--- Usage: formTextareaValidated FormTextareaConfig{..}
-formTextareaValidated :: FormTextareaConfig -> Lucid.Html ()
-formTextareaValidated config = do
-  let FormTextareaConfig {ftaName = name, ftaLabel = label, ftaValue = value, ftaRows = rows, ftaPlaceholder = placeholder, ftaHint = hint, ftaRequired = required} = config
-  Lucid.div_ $ do
-    -- Standard label styling (automatically add " *" if required)
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "block font-bold mb-2"]
-      (Lucid.toHtml $ if required then label <> " *" else label)
-    -- Standard textarea with Alpine validation styling
-    textareaWithValidation
-      name -- fieldName (for Alpine binding)
-      name -- name
-      (Just name) -- id
-      value -- value
-      placeholder -- placeholder
-      required -- required
-      rows -- rows
-      Nothing -- maxLength
-      "w-full p-3 border-2 border-gray-400 font-mono leading-relaxed focus:border-blue-600" -- classes (normal state)
-      "w-full p-3 border-2 border-red-500 font-mono leading-relaxed focus:border-red-600" -- error classes (invalid state)
-      False -- disabled
-      -- Optional hint text
-    case hint of
-      Nothing -> mempty
-      Just h -> Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] (Lucid.toHtml h)
-
--- | Standard select dropdown with consistent styling
--- Usage: formSelect FormSelectConfig{..}
-formSelect :: FormSelectConfig -> Lucid.Html ()
-formSelect config = do
-  let FormSelectConfig {fsName = name, fsLabel = label, fsOptions = options, fsHint = hint, fsRequired = required} = config
-  Lucid.div_ $ do
-    -- Standard label styling (automatically add " *" if required)
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "block font-bold mb-2"]
-      (Lucid.toHtml $ if required then label <> " *" else label)
-    -- Standard select styling
-    select
-      name
-      (Just name) -- id
-      required -- required
-      "w-full p-3 border-2 border-gray-400 font-mono" -- classes
-      options -- options
-      False -- disabled
-      -- Optional hint text
-    case hint of
-      Nothing -> mempty
-      Just h -> Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] (Lucid.toHtml h)
-
 -- | Standard number input field with consistent styling
 -- Usage: formNumberInput FormNumberInputConfig{..}
 formNumberInput :: FormNumberInputConfig -> Lucid.Html ()
@@ -265,26 +154,3 @@ formCheckbox config = do
         False -- disabled
         -- Checkbox label
       Lucid.span_ [Lucid.class_ "text-sm font-bold"] (Lucid.toHtml label)
-
--- | Standard file input field with consistent styling
--- Usage: formFileInput FormFileInputConfig{..}
-formFileInput :: FormFileInputConfig -> Lucid.Html ()
-formFileInput config = do
-  let FormFileInputConfig {ffiName = name, ffiLabel = label, ffiAccept = accept, ffiHint = hint, ffiRequired = required} = config
-  Lucid.div_ $ do
-    -- Standard label styling (automatically add " *" if required)
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "block font-bold mb-2"]
-      (Lucid.toHtml $ if required then label <> " *" else label)
-    -- Standard file input styling
-    fileInput
-      name
-      (Just name) -- id
-      accept -- accept
-      required -- required
-      "w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600" -- classes
-      Nothing -- onChange
-      -- Optional hint text
-    case hint of
-      Nothing -> mempty
-      Just h -> Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] (Lucid.toHtml h)

@@ -15,10 +15,5 @@ instance Servant.FromHttpApiData HxRequest where
     "true" -> Right IsHxRequest
     _ -> Right IsNotHxRequest
 
-checkHxRequest :: HxRequest -> Bool
-checkHxRequest = \case
-  IsHxRequest -> True
-  IsNotHxRequest -> False
-
 foldHxReq :: Maybe HxRequest -> HxRequest
 foldHxReq = fromMaybe IsNotHxRequest

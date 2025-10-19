@@ -4,12 +4,10 @@ module Component.Form.Internal
   ( -- * Low-level form field builders
     textInput,
     textInputWithValidation,
-    textarea,
     textareaWithValidation,
     select,
     numberInput,
     checkbox,
-    fileInput,
     hiddenInput,
 
     -- * Types
@@ -29,7 +27,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (Display, display)
 import Lucid qualified
 import Lucid.Base (Attributes)
-import Lucid.Extras (xBindClass_, xModel_, xOnBlur_, xOnChange_, xOnInput_)
+import Lucid.Extras (xBindClass_, xModel_, xOnBlur_, xOnInput_)
 
 --------------------------------------------------------------------------------
 -- Attribute Helpers
@@ -142,41 +140,6 @@ textInputWithValidation fieldName name mId mValue mPlaceholder required mMinLen 
 
 --------------------------------------------------------------------------------
 -- Textarea fields
-
--- | Simple textarea without Alpine.js validation
-textarea ::
-  -- | name
-  Text ->
-  -- | id
-  Maybe Text ->
-  -- | value
-  Maybe Text ->
-  -- | placeholder
-  Maybe Text ->
-  -- | required
-  Bool ->
-  -- | rows
-  Int ->
-  -- | maxLength
-  Maybe Int ->
-  -- | classes
-  Text ->
-  -- | disabled
-  Bool ->
-  Lucid.Html ()
-textarea name mId mValue mPlaceholder required rows mMaxLen classes disabled =
-  Lucid.textarea_
-    ( [ Lucid.name_ name,
-        Lucid.rows_ (display rows),
-        Lucid.class_ classes
-      ]
-        <> optionalAttr Lucid.id_ mId
-        <> optionalAttr Lucid.placeholder_ mPlaceholder
-        <> boolAttr (Lucid.required_ "") required
-        <> optionalAttrWith Lucid.maxlength_ mMaxLen
-        <> boolAttr (Lucid.disabled_ "") disabled
-    )
-    (maybe mempty Lucid.toHtml mValue)
 
 -- | Textarea with Alpine.js validation binding
 textareaWithValidation ::
@@ -340,35 +303,6 @@ checkbox name mId value checked classes disabled =
       <> optionalAttr Lucid.id_ mId
       <> boolAttr Lucid.checked_ checked
       <> boolAttr (Lucid.disabled_ "") disabled
-
---------------------------------------------------------------------------------
--- File input fields
-
--- | Simple file input
-fileInput ::
-  -- | name
-  Text ->
-  -- | id
-  Maybe Text ->
-  -- | accept
-  Maybe Text ->
-  -- | required
-  Bool ->
-  -- | classes
-  Text ->
-  -- | onChange
-  Maybe Text ->
-  Lucid.Html ()
-fileInput name mId mAccept required classes mOnChange =
-  Lucid.input_ $
-    [ Lucid.type_ "file",
-      Lucid.name_ name,
-      Lucid.class_ classes
-    ]
-      <> optionalAttr Lucid.id_ mId
-      <> optionalAttr Lucid.accept_ mAccept
-      <> boolAttr (Lucid.required_ "") required
-      <> optionalAttr xOnChange_ mOnChange
 
 --------------------------------------------------------------------------------
 -- Helpers

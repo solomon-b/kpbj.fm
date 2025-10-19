@@ -5,7 +5,6 @@ module API.Shows.Slug.Episode.New.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesNewGetLink)
 import API.Shows.Slug.Episode.New.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
 import API.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
 import App.Common (getUserInfo, renderTemplate)
@@ -32,13 +31,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
-import Servant.Links qualified as Links
 import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-episodesNewGetUrl :: Slug -> Links.URI
-episodesNewGetUrl showSlug = Links.linkURI $ episodesNewGetLink showSlug
 
 --------------------------------------------------------------------------------
 

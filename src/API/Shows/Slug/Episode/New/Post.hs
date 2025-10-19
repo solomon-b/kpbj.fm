@@ -2,7 +2,6 @@ module API.Shows.Slug.Episode.New.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesNewPostLink)
 import API.Shows.Slug.Episode.New.Post.Templates.Result (errorTemplate, successTemplate)
 import App.Common (getUserInfo)
 import Component.Frame (loadFrame)
@@ -44,10 +43,10 @@ import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.OneRow ()
 import Servant ((:>))
 import Servant qualified
-import Servant.Links qualified as Links
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileCType, fdFileName, fdPayload, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 import Text.Read (readMaybe)
+import Utils (partitionEithers)
 
 --------------------------------------------------------------------------------
 
@@ -123,12 +122,6 @@ instance FromMultipart Mem EpisodeUploadForm where
       <*> pure (either (const Nothing) Just (lookupInput "tracks_json" multipartData))
       <*> pure (either (const Nothing) Just (lookupFile "audio_file" multipartData))
       <*> pure (either (const Nothing) Just (lookupFile "artwork_file" multipartData))
-
---------------------------------------------------------------------------------
--- URL helpers
-
-episodesNewPostUrl :: Slug -> Links.URI
-episodesNewPostUrl showSlug = Links.linkURI $ episodesNewPostLink showSlug
 
 --------------------------------------------------------------------------------
 
@@ -450,20 +443,3 @@ stripStorageRoot path =
    in case List.stripPrefix prefix path of
         Just relativePath -> Text.pack relativePath
         Nothing -> Text.pack path -- Fallback if prefix not found
-
--- | File type helpers
-isAudioFile :: FileData Mem -> Bool
-isAudioFile fileData =
-  let name = Text.toLower $ fdFileName fileData
-   in any (`Text.isSuffixOf` name) [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"]
-
-isImageFile :: FileData Mem -> Bool
-isImageFile fileData =
-  let name = Text.toLower $ fdFileName fileData
-   in any (`Text.isSuffixOf` name) [".jpg", ".jpeg", ".png", ".webp", ".gif"]
-
-partitionEithers :: [Either a b] -> ([a], [b])
-partitionEithers = foldr (either left right) ([], [])
-  where
-    left a (ls, rs) = (a : ls, rs)
-    right b (ls, rs) = (ls, b : rs)
