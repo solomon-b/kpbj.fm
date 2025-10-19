@@ -28,9 +28,16 @@
 
               hasql-transaction = pkgs.haskell.lib.dontCheck hfinal.hasql-transaction_1_2_0_1;
 
-              kpbj-api = hfinal.callCabal2nix "kpbj-api" ./backend { };
+              kpbj-api = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-api" ./. { });
 
               text-builder = pkgs.haskell.lib.dontCheck hfinal.text-builder_1_0_0_3;
+
+              # Use tmp-postgres from master to match cabal.project pin
+              tmp-postgres = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "tmp-postgres" (pkgs.fetchgit {
+                url = "https://github.com/jfischoff/tmp-postgres.git";
+                rev = "refs/heads/master";
+                sha256 = "sha256-dE1OQN7I4Lxy6RBdLCvm75Z9D/Hu+9G4ejV2pEtvL1A=";
+              }) { });
 
               web-server-core = web-server-core.packages.${system}.web-server-core;
             };

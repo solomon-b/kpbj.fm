@@ -134,11 +134,11 @@ weeder:
 
 # Generate RSA key for JWK
 gen-keys:
-  mkdir -p backend/keys
-  openssl genrsa -out backend/keys/private.pem 4096
-  openssl rsa -in backend/keys/private.pem -out backend/keys/public.pem -pubout
-  openssl req -key backend/keys/private.pem -new -x509 -days 3650 -subj "/C=FI/ST=Helsinki/O=Rule of Tech/OU=Information unit/CN=ruleoftech.com" -out backend/keys/cert.pem
-  openssl pkcs12 -export -inkey backend/keys/private.pem -in backend/keys/cert.pem -out backend/keys/keys.pfx -name "kpbj-backend"
+  mkdir -p keys
+  openssl genrsa -out keys/private.pem 4096
+  openssl rsa -in keys/private.pem -out keys/public.pem -pubout
+  openssl req -key keys/private.pem -new -x509 -days 3650 -subj "/C=FI/ST=Helsinki/O=Rule of Tech/OU=Information unit/CN=ruleoftech.com" -out keys/cert.pem
+  openssl pkcs12 -export -inkey keys/private.pem -in keys/cert.pem -out keys/keys.pfx -name "kpbj-backend"
 
 #-------------------------------------------------------------------------------
 ## Database
@@ -149,15 +149,15 @@ psql-dev:
 
 # Create a new SQL migration.
 migrations-add MIGRATION:
-  sqlx migrate add {{MIGRATION}} --source backend/migrations
+  sqlx migrate add {{MIGRATION}} --source migrations
 
 # Run SQL migrations.
 migrations-run:
-  sqlx migrate run --source backend/migrations
+  sqlx migrate run --source migrations
 
 # Reset PG Database.
 migrations-reset:
-  sqlx database reset --source backend/migrations
+  sqlx database reset --source migrations
 
 # List all SQL migrations.
 migrations-list:

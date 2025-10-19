@@ -15,5 +15,5 @@ type Route = "static" :> Servant.Raw
 handler :: (MonadReader env m, Has Environment env) => Environment -> Servant.ServerT Servant.Raw m
 handler = \case
   -- TODO: Safe Links here?
-  Production -> Servant.serveDirectoryWebApp "/backend/static"
-  Development -> Servant.serveDirectoryWebApp "./backend/static"
+  Production -> Servant.serveDirectoryWebApp "/static"
+  Development -> Servant.serveDirectoryWebApp "./static"

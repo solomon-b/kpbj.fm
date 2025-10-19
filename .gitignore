@@ -2,6 +2,6 @@
 /.envrc.local
 /dist-newstyle/
 /result
-/backend/keys/
+/keys/
 /secrets.env
-/backend/TAGS
+/TAGS

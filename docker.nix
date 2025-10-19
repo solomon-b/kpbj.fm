@@ -7,7 +7,7 @@ pkgs.dockerTools.buildImage {
   # https://discourse.nixos.org/t/copy-files-into-a-docker-container-using-copytoroot/21144/5
   copyToRoot = pkgs.buildEnv {
     name = "image-root";
-    pathsToLink = [ "/bin" "/backend/static" "/backend/migrations" ];
+    pathsToLink = [ "/bin" "/static" "/migrations" ];
     paths = [ pkgs.sqlx-cli (pkgs.haskell.lib.justStaticExecutables kpbj-api) ./. ];
   };
 
