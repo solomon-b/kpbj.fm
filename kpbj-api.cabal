@@ -169,7 +169,6 @@ library
     API.Shows.Slug.Get.Templates.Episode
     API.Shows.Slug.Get.Templates.Page
     API.Shows.Slug.Get.Templates.ShowHeader
-    API.Shows.Slug.Get.Templates.Sidebar
     API.Shows.Slug.Blog.Delete
     API.Shows.Slug.Blog.Edit.Get
     API.Shows.Slug.Blog.Edit.Get.Templates.Page

@@ -3,7 +3,6 @@ module Effects.FileUpload where
 --------------------------------------------------------------------------------
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.ByteString (hPut)
 import Data.ByteString qualified as BS
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -14,9 +13,8 @@ import Domain.Types.FileStorage
 import Domain.Types.FileUpload
 import Domain.Types.Slug (Slug)
 import Network.Wai.Parse (FileInfo (..))
-import System.Directory (copyFile, createDirectoryIfMissing, removeFile)
+import System.Directory (copyFile, createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
-import System.IO.Temp (withSystemTempFile)
 import System.Random qualified as Random
 
 --------------------------------------------------------------------------------
@@ -187,44 +185,3 @@ getMimeTypeFromExtension filename =
         "webp" -> "image/webp"
         "gif" -> "image/gif"
         _ -> "application/octet-stream"
-
--- | Create a temporary file for processing uploads
-withTempUpload :: (MonadIO m) => BS.ByteString -> (FilePath -> IO a) -> m a
-withTempUpload content action = liftIO $
-  withSystemTempFile "kpbj-upload" $ \tempPath tempHandle -> do
-    hPut tempHandle content
-    action tempPath
-
--- | Process multiple file uploads (for batch operations)
--- Note: This function is deprecated in favor of explicit processFileUploads
--- Kept for backwards compatibility but not used in current upload flow
-processMultipleUploads ::
-  (MonadIO m) =>
-  Slug -> -- Show slug
-  Slug -> -- Episode slug
-  Maybe UTCTime -> -- Scheduled date
-  [FileInfo FilePath] -> -- List of files
-  m [Either UploadError UploadResult]
-processMultipleUploads showSlug episodeSlug mScheduledDate files = do
-  mapM processFile files
-  where
-    processFile fileInfo = do
-      let originalName = Text.decodeUtf8 $ fileName fileInfo
-          mimeType = getMimeTypeFromExtension originalName
-
-      -- Route to appropriate handler based on file type
-      if isAudioFile mimeType
-        then uploadEpisodeAudio showSlug episodeSlug mScheduledDate fileInfo
-        else
-          if isImageFile mimeType
-            then uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileInfo
-            else pure $ Left $ UnsupportedFileType $ "Unsupported file type: " <> mimeType
-
---------------------------------------------------------------------------------
--- Cleanup functions
-
--- | Clean up temporary files after processing
-cleanupTempFiles :: (MonadIO m) => [FilePath] -> m ()
-cleanupTempFiles paths =
-  liftIO $
-    mapM_ removeFile paths

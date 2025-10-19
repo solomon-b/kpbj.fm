@@ -2,14 +2,12 @@ module Domain.Types.FileUpload where
 
 --------------------------------------------------------------------------------
 
-import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Domain.Types.FileStorage
 import Domain.Types.Slug (Slug)
-import System.FilePath (takeBaseName)
 import System.Random qualified as Random
 
 --------------------------------------------------------------------------------
@@ -105,33 +103,6 @@ validateFileSize bucketType fileSize = case bucketType of
       then Right ()
       else Left $ FileTooLarge fileSize maxImageFileSize
   _ -> Right () -- Other buckets have no size limit
-
---------------------------------------------------------------------------------
--- File extension mapping
-
-getFileExtension :: Text -> Text
-getFileExtension mimeType = case mimeType of
-  "audio/mpeg" -> "mp3"
-  "audio/wav" -> "wav"
-  "audio/flac" -> "flac"
-  "audio/aac" -> "aac"
-  "audio/ogg" -> "ogg"
-  "audio/x-m4a" -> "m4a"
-  "image/jpeg" -> "jpg"
-  "image/jpg" -> "jpg"
-  "image/png" -> "png"
-  "image/webp" -> "webp"
-  "image/gif" -> "gif"
-  _ -> "bin" -- Default extension for unknown types
-
--- | Extract a clean filename without extension for prefixing
-getCleanFilename :: Text -> Text
-getCleanFilename filename =
-  let withoutExt = Text.pack $ takeBaseName $ Text.unpack filename
-      cleaned = Text.filter (\c -> c /= ' ' && c /= '-' && isAlphaNumeric c) withoutExt
-   in if Text.null cleaned then "file" else cleaned
-  where
-    isAlphaNumeric c = isAsciiLower c || isAsciiUpper c || isDigit c
 
 --------------------------------------------------------------------------------
 -- Upload result builders

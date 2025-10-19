@@ -5,7 +5,6 @@ module API.Shows.Slug.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showGetLink, showsGetLink)
 import API.Shows.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
@@ -33,17 +32,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
-import Servant.Links qualified as Links
 import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- URL helpers
-showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug
-
-showsGetUrl :: Links.URI
-showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
 
 --------------------------------------------------------------------------------
 

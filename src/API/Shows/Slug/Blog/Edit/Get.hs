@@ -5,7 +5,6 @@ module API.Shows.Slug.Blog.Edit.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogEditGetLink)
 import API.Shows.Slug.Blog.Edit.Get.Templates.Page (editBlogPostForm, errorTemplate, notLoggedInTemplate, permissionDeniedTemplate)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
@@ -32,13 +31,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
-import Servant.Links qualified as Links
 import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-showBlogEditGetUrl :: Slug -> Slug -> Links.URI
-showBlogEditGetUrl showSlug postSlug = Links.linkURI $ showBlogEditGetLink showSlug postSlug
 
 --------------------------------------------------------------------------------
 
