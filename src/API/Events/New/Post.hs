@@ -5,7 +5,7 @@ module API.Events.New.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventGetLink, eventsGetLink, eventsNewGetLink, userLoginGetLink)
+import {-# SOURCE #-} API (eventGetLink, eventsGetLink, eventsNewGetLink)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch)
@@ -55,9 +55,6 @@ eventsNewGetUrl = Links.linkURI eventsNewGetLink
 
 eventGetUrl :: Slug -> Links.URI
 eventGetUrl slug = Links.linkURI $ eventGetLink slug
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
 --------------------------------------------------------------------------------
 

@@ -48,12 +48,6 @@ type Route =
 
 --------------------------------------------------------------------------------
 
--- | Archive URL helper
-archiveGetUrl :: Text
-archiveGetUrl = "/archive"
-
---------------------------------------------------------------------------------
-
 handler ::
   ( Has Tracer env,
     Log.MonadLog m,

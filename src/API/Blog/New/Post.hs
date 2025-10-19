@@ -166,13 +166,6 @@ permissionDeniedTemplate =
       ]
       "BACK TO BLOG"
 
--- | Template for general user metadata error
-userMetadataErrorTemplate :: Lucid.Html ()
-userMetadataErrorTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Error"
-    Lucid.p_ "Unable to load user information."
-
 --------------------------------------------------------------------------------
 
 -- | Form data for creating a new blog post

@@ -4,7 +4,6 @@ module API.Events.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventGetLink, eventsGetLink)
 import API.Events.Get.Templates.Error (errorTemplate)
 import API.Events.Get.Templates.List (renderListContent)
 import API.Events.Get.Templates.MonthView (CalendarDay (..), renderMonthContent)
@@ -20,7 +19,6 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has (Has)
-import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (MonthOfYear, UTCTime (..), Year, addDays, fromGregorian, toGregorian, utctDay)
@@ -29,7 +27,6 @@ import Data.Time.Calendar.WeekDate (fromWeekDate, toWeekDate)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.PageView (PageView (..))
-import Domain.Types.Slug (Slug)
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -42,27 +39,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
-import Servant.Links qualified as Links
 import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-eventsGetUrl :: Links.URI
-eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
-
-eventGetUrl :: Slug -> Links.URI
-eventGetUrl slug = Links.linkURI $ eventGetLink slug
-
-eventsGetTypeUrl :: Text -> Links.URI
-eventsGetTypeUrl eventType = Links.linkURI $ eventsGetLink (Just eventType) Nothing
-
-eventsGetMonthUrl :: Year -> MonthOfYear -> Maybe Text -> Links.URI
-eventsGetMonthUrl year month maybeTag =
-  Links.linkURI $ eventsGetLink maybeTag (Just $ MonthView year month)
-
-eventsGetWeekUrl :: Year -> Int -> Maybe Text -> Links.URI
-eventsGetWeekUrl year weekNum maybeTag =
-  Links.linkURI $ eventsGetLink maybeTag (Just $ WeekView year weekNum)
 
 --------------------------------------------------------------------------------
 
@@ -206,11 +183,6 @@ handler _tracer (normalizeTagFilter -> tagFilter) (fromMaybe ListView -> view) c
 utcTimeToYearMonth :: UTCTime -> (Year, MonthOfYear)
 utcTimeToYearMonth = (\(y, m, _) -> (y, m)) . toGregorian . utctDay
 
-utcTimeToYearWeek :: UTCTime -> (Year, Int)
-utcTimeToYearWeek utc =
-  let (year, weekNum, _) = toWeekDate (utctDay utc)
-   in (year, weekNum)
-
 weekStartDate :: Year -> Int -> UTCTime
 weekStartDate year weekNum =
   let monday = fromWeekDate year weekNum 1
@@ -249,32 +221,6 @@ getAllEventTags ::
 getAllEventTags = do
   tags <- execQuerySpan EventTags.getEventTagsWithCounts
   pure $ fromRight [] tags
-
-renderTemplate ::
-  ( MonadCatch m,
-    MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env
-  ) =>
-  UTCTime ->
-  Int64 ->
-  Int64 ->
-  Maybe Text ->
-  [EventTags.EventTagWithCount] ->
-  Maybe PageView ->
-  m (Lucid.Html ())
-renderTemplate now limit offset tagFilter eventTagsWithCounts = \case
-  Just (MonthView year month) -> do
-    monthEvents <- execQuerySpan (Events.getEventsForMonth tagFilter year month)
-    renderMonthTemplate now year month tagFilter eventTagsWithCounts monthEvents
-  Just (WeekView year weekNum) -> do
-    weekEvents <- execQuerySpan (Events.getEventsForWeek tagFilter year weekNum)
-    renderWeekTemplate now year weekNum tagFilter eventTagsWithCounts weekEvents
-  _ -> do
-    events <- execQuerySpan (Events.getPublishedEvents tagFilter limit offset)
-    renderListTemplate now (utcTimeToYearMonth now) tagFilter eventTagsWithCounts events
 
 renderListTemplate ::
   ( Log.MonadLog m,

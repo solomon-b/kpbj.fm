@@ -4,7 +4,6 @@ module API.Blog.New.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink, blogNewPostLink, userLoginGetLink)
 import API.Blog.New.Get.Templates.Error (loginRequiredTemplate, permissionDeniedTemplate)
 import API.Blog.New.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
@@ -24,20 +23,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
-import Servant.Links qualified as Links
 import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- URL helpers
-blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
-
-blogNewPostUrl :: Links.URI
-blogNewPostUrl = Links.linkURI blogNewPostLink
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
 --------------------------------------------------------------------------------
 
