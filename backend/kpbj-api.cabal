@@ -229,3 +229,68 @@ library
   hs-source-dirs: src
   default-language: Haskell2010
   ghc-options:    -Wall -threaded -Werror -Wno-missed-extra-shared-lib
+
+--------------------------------------------------------------------------------
+
+test-suite kpbj-api-test
+    import:           common-extensions
+    default-language: Haskell2010
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    ghc-options:      -Wall -threaded -rtsopts -with-rtsopts=-N -O0
+    build-depends:    base >=4.19.2.0
+                    , kpbj-api
+                    , web-server-core
+                    , bytestring
+                    , containers
+                    , exceptions
+                    , data-has
+                    , hasql
+                    , hasql-interpolate
+                    , hasql-pool
+                    , hasql-transaction
+                    , hedgehog
+                    , hs-opentelemetry-api
+                    , hs-opentelemetry-sdk
+                    , hspec
+                    , hspec-api
+                    , hspec-core
+                    , hspec-discover
+                    , hspec-expectations
+                    , hspec-hedgehog
+                    , HUnit
+                    , iproute
+                    , log-base
+                    , mtl
+                    , password
+                    , postgres-options
+                    , string-interpolate
+                    , text
+                    , time
+                    , tmp-postgres
+                    , typed-process
+                    , unliftio-core
+                    , uuid
+    other-modules:
+       Effects.Database.Tables.BlogPostsSpec
+       Effects.Database.Tables.EpisodesSpec
+       Effects.Database.Tables.EventsSpec
+       Effects.Database.Tables.ShowsSpec
+       Effects.Database.Tables.UserMetadataSpec
+       Test.Database.Expectation
+       Test.Database.Monad
+       Test.Database.Property
+       Test.Database.Property.Assert
+       Test.Database.Setup
+       Test.Gen.DomainTypes
+       Test.Gen.EmailAddress
+       Test.Gen.Password
+       Test.Gen.Tables.BlogPosts
+       Test.Gen.Tables.Episodes
+       Test.Gen.Tables.Events
+       Test.Gen.Tables.Shows
+       Test.Gen.Tables.User
+       Test.Gen.Tables.UserMetadata
+       Test.Gen.Text
+       Test.Gen.Time
