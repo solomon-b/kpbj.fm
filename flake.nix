@@ -41,9 +41,10 @@
             buildInputs = [
               pkgs.cabal-install
               pkgs.flyctl
-              pkgs.haskellPackages.ghc
-              pkgs.haskellPackages.haskell-language-server
-              pkgs.haskellPackages.hlint
+              hsPkgs.ghc
+              hsPkgs.haskell-language-server
+              hsPkgs.hlint
+              hsPkgs.weeder
               pkgs.just
               pkgs.nixpkgs-fmt
               pkgs.ormolu

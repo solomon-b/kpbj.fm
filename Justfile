@@ -123,6 +123,11 @@ lint-hs-changed:
   	hlint {{CHANGED_HS_FILES}}; \
   fi
 
+# Detect dead code using weeder.
+weeder:
+  @echo running weeder
+  @weeder
+
 #-------------------------------------------------------------------------------
 ## Key Gen
 # https://ruleoftech.com/2020/generating-jwt-and-jwk-for-information-exchange-between-services
