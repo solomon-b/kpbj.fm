@@ -10,18 +10,15 @@ import {-# SOURCE #-} API (hostDashboardGetLink, showGetLink)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BSL
 import Data.Has (Has)
 import Data.List qualified as List
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Data.Text.Encoding qualified as Text
 import Data.Text.Read (decimal)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
@@ -39,12 +36,11 @@ import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
-import Network.Wai.Parse (FileInfo (..))
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileCType, fdFileName, fdPayload, fromMultipart, lookupFile, lookupInput)
+import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -91,8 +87,8 @@ instance FromMultipart Mem ShowEditForm where
       <$> lookupInput "title" multipartData
       <*> lookupInput "description" multipartData
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "genre" multipartData))
-      <*> pure (either (const Nothing) Just (lookupFile "logo_file" multipartData))
-      <*> pure (either (const Nothing) Just (lookupFile "banner_file" multipartData))
+      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
+      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData
       <*> lookupInput "frequency" multipartData
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "duration_minutes" multipartData))
@@ -100,6 +96,13 @@ instance FromMultipart Mem ShowEditForm where
       emptyToNothing :: Maybe Text -> Maybe Text
       emptyToNothing (Just "") = Nothing
       emptyToNothing x = x
+
+      -- \| Convert empty filename FileData to Nothing
+      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
+      fileDataToNothing (Just fileData)
+        | Text.null (fdFileName fileData) = Nothing
+        | otherwise = Just fileData
+      fileDataToNothing Nothing = Nothing
 
 -- | Parse show status from text
 parseStatus :: Text -> Maybe Shows.Status
@@ -116,72 +119,41 @@ parseFrequency "occasional" = Just Shows.Occasional
 parseFrequency "one-time" = Just Shows.OneTime
 parseFrequency _ = Nothing
 
--- | Convert FileData to temporary file for processing
-convertFileDataToTempFile :: (MonadIO m) => FileData Mem -> m (Either Text FilePath)
-convertFileDataToTempFile fileData = liftIO $ do
-  let content = BSL.toStrict $ fdPayload fileData
-      tempName = "/tmp/kpbj-upload-" <> Text.unpack (fdFileName fileData)
-  -- Write directly to temp file
-  BS.writeFile tempName content
-  pure $ Right tempName
-
 -- | Process logo/banner file uploads
 processShowArtworkUploads ::
   ( MonadIO m,
     Log.MonadLog m
   ) =>
-  Slug -> -- Show slug
-  Maybe (FileData Mem) -> -- Logo file
-  Maybe (FileData Mem) -> -- Banner file
+  Slug ->
+  -- | Logo file
+  Maybe (FileData Mem) ->
+  -- | Banner file
+  Maybe (FileData Mem) ->
   m (Either Text (Maybe Text, Maybe Text)) -- (logoPath, bannerPath)
 processShowArtworkUploads showSlug mLogoFile mBannerFile = do
   -- Process logo file (optional)
   logoResult <- case mLogoFile of
-    Nothing -> pure $ Right Nothing
+    Nothing ->
+      pure $ Right Nothing
     Just logoFile -> do
-      -- Convert FileData to temp file
-      tempFileResult <- convertFileDataToTempFile logoFile
-      case tempFileResult of
-        Left err -> pure $ Left err
-        Right tempPath -> do
-          let fileInfo =
-                FileInfo
-                  { fileName = Text.encodeUtf8 $ fdFileName logoFile,
-                    fileContent = tempPath,
-                    fileContentType = Text.encodeUtf8 $ fdFileCType logoFile
-                  }
-          result <- FileUpload.uploadShowLogo showSlug fileInfo
-          case result of
-            Left err -> do
-              Log.logInfo "Failed to upload logo file" (Text.pack $ show err)
-              pure $ Right Nothing -- Not critical, continue without logo
-            Right uploadResult ->
-              pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+      FileUpload.uploadShowLogo showSlug logoFile >>= \case
+        Left err -> do
+          Log.logInfo "Failed to upload logo file" (Text.pack $ show err)
+          pure $ Left $ Text.pack $ show err
+        Right uploadResult ->
+          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   -- Process banner file (optional)
   bannerResult <- case mBannerFile of
-    Nothing -> pure $ Right Nothing
+    Nothing ->
+      pure $ Right Nothing
     Just bannerFile -> do
-      -- Convert FileData to temp file
-      tempFileResult <- convertFileDataToTempFile bannerFile
-      case tempFileResult of
+      FileUpload.uploadShowBanner showSlug bannerFile >>= \case
         Left err -> do
-          Log.logInfo "Failed to upload banner file" err
-          pure $ Right Nothing -- Not critical, continue without banner
-        Right tempPath -> do
-          let fileInfo =
-                FileInfo
-                  { fileName = Text.encodeUtf8 $ fdFileName bannerFile,
-                    fileContent = tempPath,
-                    fileContentType = Text.encodeUtf8 $ fdFileCType bannerFile
-                  }
-          result <- FileUpload.uploadShowBanner showSlug fileInfo
-          case result of
-            Left err -> do
-              Log.logInfo "Failed to upload banner file" (Text.pack $ show err)
-              pure $ Right Nothing -- Not critical, continue without banner
-            Right uploadResult ->
-              pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          Log.logInfo "Failed to upload banner file" (Text.pack $ show err)
+          pure $ Left $ Text.pack $ show err -- File validation failed, reject entire operation
+        Right uploadResult ->
+          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   case (logoResult, bannerResult) of
     (Left logoErr, _) -> pure $ Left logoErr

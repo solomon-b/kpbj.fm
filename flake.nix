@@ -54,6 +54,7 @@
               hsPkgs.haskell-language-server
               hsPkgs.hlint
               hsPkgs.weeder
+              pkgs.file
               pkgs.just
               pkgs.nixpkgs-fmt
               pkgs.ormolu
