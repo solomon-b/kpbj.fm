@@ -7,7 +7,6 @@ module API.Events.New.Post where
 
 import {-# SOURCE #-} API (eventGetLink, eventsGetLink, eventsNewGetLink)
 import App.Common (getUserInfo, renderTemplate)
-import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -26,6 +25,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EventTags qualified as EventTags
@@ -148,11 +148,11 @@ notAuthorizedTemplate = do
 
 --------------------------------------------------------------------------------
 
--- | Parse comma-separated tags
+-- | Parse and sanitize comma-separated tags
 parseTags :: Text -> [Text]
 parseTags tagText =
   filter (not . Text.null) $
-    map Text.strip $
+    map (Sanitize.sanitizePlainText . Text.strip) $
       Text.splitOn "," tagText
 
 -- Form data structure
@@ -183,21 +183,35 @@ instance FromForm NewEventForm where
 --------------------------------------------------------------------------------
 
 -- Validation functions
-validateEventForm :: NewEventForm -> Either [Text] (Text, Text, UTCTime, UTCTime, Text, Text, Events.Status)
+validateEventForm :: NewEventForm -> Either Sanitize.ContentValidationError (Text, Text, UTCTime, UTCTime, Text, Text, Events.Status)
 validateEventForm form = do
-  title <- validateTitle form.nefTitle
-  description <- validateDescription form.nefDescription
-  startsAt <- validateDateTime "Start date/time" form.nefStartsAt
-  endsAt <- validateDateTime "End date/time" form.nefEndsAt
-  locationName <- validateLocationName form.nefLocationName
-  locationAddress <- validateLocationAddress form.nefLocationAddress
-  status <- validateStatus form.nefStatus
+  -- Sanitize and validate inputs
+  let sanitizedTitle = Sanitize.sanitizeTitle form.nefTitle
+      sanitizedDescription = Sanitize.sanitizeUserContent form.nefDescription
+      sanitizedLocationName = Sanitize.sanitizePlainText form.nefLocationName
+      sanitizedLocationAddress = Sanitize.sanitizeDescription form.nefLocationAddress
+
+  -- Validate content lengths and requirements
+  validTitle <- Sanitize.validateContentLength 200 sanitizedTitle
+  validDescription <- Sanitize.validateContentLength 5000 sanitizedDescription
+  validLocationName <- Sanitize.validateContentLength 100 sanitizedLocationName
+  validLocationAddress <- Sanitize.validateContentLength 500 sanitizedLocationAddress
+
+  -- Parse dates and status using existing validation functions
+  startsAt <- case validateDateTime "Start date/time" form.nefStartsAt of
+    Left errors -> Left $ Sanitize.ContentInvalid $ Text.intercalate ", " errors
+    Right dt -> Right dt
+  endsAt <- case validateDateTime "End date/time" form.nefEndsAt of
+    Left errors -> Left $ Sanitize.ContentInvalid $ Text.intercalate ", " errors
+    Right dt -> Right dt
+  status <- case validateStatus form.nefStatus of
+    Left errors -> Left $ Sanitize.ContentInvalid $ Text.intercalate ", " errors
+    Right s -> Right s
 
   -- Validate that end time is after start time
-  when (endsAt <= startsAt) $
-    Left ["End time must be after start time"]
-
-  pure (title, description, startsAt, endsAt, locationName, locationAddress, status)
+  if endsAt <= startsAt
+    then Left $ Sanitize.ContentInvalid "End time must be after start time"
+    else Right (validTitle, validDescription, startsAt, endsAt, validLocationName, validLocationAddress, status)
 
 validateTitle :: Text -> Either [Text] Text
 validateTitle title
@@ -282,9 +296,10 @@ validateForm ::
   m (Lucid.Html ())
 validateForm hxRequest user userMetadata form k =
   case validateEventForm form of
-    Left errors -> do
-      Log.logInfo "Event creation failed validation" errors
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate errors)
+    Left validationError -> do
+      let errorMsg = Sanitize.displayContentValidationError validationError
+      Log.logInfo "Event creation failed validation" errorMsg
+      renderTemplate hxRequest (Just userMetadata) (errorTemplate [errorMsg])
     Right (title, description, startsAt, endsAt, locationName, locationAddress, status) ->
       let slug = Slug.mkSlug title
           eventInsert =

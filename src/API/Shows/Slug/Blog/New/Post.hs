@@ -7,7 +7,7 @@ module API.Shows.Slug.Blog.New.Post where
 
 import {-# SOURCE #-} API (showBlogGetLink, showBlogNewGetLink, showBlogPostGetLink, showGetLink, userLoginGetLink)
 import App.Common (getUserInfo, renderTemplate)
-import Control.Monad (guard, unless, void, when)
+import Control.Monad (guard, unless, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -25,6 +25,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -204,11 +205,11 @@ instance FromForm NewShowBlogPostForm where
           nsbpfTags = parseTags $ fold tags
         }
 
--- | Parse comma-separated tags
+-- | Parse comma-separated tags with sanitization
 parseTags :: Text -> [Text]
 parseTags tagText =
   filter (not . Text.null) $
-    map Text.strip $
+    map (Sanitize.sanitizePlainText . Text.strip) $
       Text.splitOn "," tagText
 
 --------------------------------------------------------------------------------
@@ -250,7 +251,8 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
           renderTemplate hxRequest (Just userMetadata) $ permissionDeniedTemplate showSlug
         Right (Just showModel) -> do
           case validateNewShowBlogPost form showModel.id (UserMetadata.mUserId userMetadata) of
-            Left errorMsg -> do
+            Left validationError -> do
+              let errorMsg = Sanitize.displayContentValidationError validationError
               Log.logInfo ("Show blog post creation failed: " <> errorMsg) ()
               renderTemplate hxRequest (Just userMetadata) (errorTemplate showSlug errorMsg)
             Right blogPostData -> do
@@ -258,21 +260,27 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
               renderTemplate hxRequest (Just userMetadata) template
 
 -- | Validate and convert form data to blog post insert data
-validateNewShowBlogPost :: NewShowBlogPostForm -> Shows.Id -> User.Id -> Either Text ShowBlogPosts.Insert
+validateNewShowBlogPost :: NewShowBlogPostForm -> Shows.Id -> User.Id -> Either Sanitize.ContentValidationError ShowBlogPosts.Insert
 validateNewShowBlogPost form showId authorId = do
-  when (Text.null (nsbpfTitle form)) (Left "Title is required")
-  when (Text.null (nsbpfContent form)) (Left "Content is required")
-
   let status = fromMaybe Published $ decodeBlogPost =<< nsbpfStatus form
       slug = Slug.mkSlug (nsbpfTitle form)
+
+      -- Sanitize user input to prevent XSS attacks
+      sanitizedTitle = Sanitize.sanitizeTitle (nsbpfTitle form)
+      sanitizedContent = Sanitize.sanitizeUserContent (nsbpfContent form)
+      sanitizedExcerpt = Sanitize.sanitizeDescription <$> nsbpfExcerpt form
+
+  -- Validate sanitized content lengths
+  validTitle <- Sanitize.validateContentLength 200 sanitizedTitle
+  validContent <- Sanitize.validateContentLength 50000 sanitizedContent
 
   Right $
     ShowBlogPosts.Insert
       { ShowBlogPosts.sbpiId = showId,
-        ShowBlogPosts.sbpiTitle = nsbpfTitle form,
+        ShowBlogPosts.sbpiTitle = validTitle,
         ShowBlogPosts.sbpiSlug = slug,
-        ShowBlogPosts.sbpiContent = nsbpfContent form,
-        ShowBlogPosts.sbpiExcerpt = nsbpfExcerpt form,
+        ShowBlogPosts.sbpiContent = validContent,
+        ShowBlogPosts.sbpiExcerpt = sanitizedExcerpt,
         ShowBlogPosts.sbpiAuthorId = authorId,
         ShowBlogPosts.sbpiStatus = status
       }

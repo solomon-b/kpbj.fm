@@ -85,6 +85,7 @@ library
                   , validation
                   , wai-extra
                   , web-server-core
+                  , xss-sanitize
   exposed-modules:
     API
     API.About.Get
@@ -223,6 +224,7 @@ library
     Effects.Database.Tables.ShowHost
     Effects.Database.Tables.ShowSchedule
     Effects.Database.Tables.UserMetadata
+    Effects.ContentSanitization
     Effects.FileUpload
     Effects.MimeTypeValidation
     Lucid.Extras
@@ -274,6 +276,7 @@ test-suite kpbj-api-test
                     , unliftio-core
                     , uuid
     other-modules:
+       Effects.ContentSanitizationSpec
        Effects.Database.Tables.BlogPostsSpec
        Effects.Database.Tables.EpisodesSpec
        Effects.Database.Tables.EventsSpec

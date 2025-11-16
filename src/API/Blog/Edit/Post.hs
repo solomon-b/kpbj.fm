@@ -26,6 +26,7 @@ import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -92,11 +93,11 @@ instance FromForm BlogEditForm where
       emptyToNothing (Just "") = Nothing
       emptyToNothing x = x
 
--- | Parse comma-separated tags
+-- | Parse comma-separated tags with sanitization
 parseTags :: Text -> [Text]
 parseTags tagText =
   filter (not . Text.null) $
-    map Text.strip $
+    map (Sanitize.sanitizePlainText . Text.strip) $
       Text.splitOn "," tagText
 
 -- | Parse blog post status from text
@@ -169,33 +170,47 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
       Log.logInfo "Invalid status in blog edit form" (befStatus editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid blog post status value.")
     Just parsedStatus -> do
-      let newSlug = Slug.mkSlug (befTitle editForm)
-          updateData =
-            BlogPosts.Insert
-              { BlogPosts.bpiTitle = befTitle editForm,
-                BlogPosts.bpiSlug = newSlug,
-                BlogPosts.bpiContent = befContent editForm,
-                BlogPosts.bpiExcerpt = befExcerpt editForm,
-                BlogPosts.bpiAuthorId = blogPost.bpmAuthorId,
-                BlogPosts.bpiStatus = parsedStatus
-              }
+      -- Sanitize user input to prevent XSS attacks
+      let sanitizedTitle = Sanitize.sanitizeTitle (befTitle editForm)
+          sanitizedContent = Sanitize.sanitizeUserContent (befContent editForm)
+          sanitizedExcerpt = Sanitize.sanitizeDescription <$> befExcerpt editForm
+          newSlug = Slug.mkSlug sanitizedTitle
 
-      mUpdateResult <- execTransactionSpan $ runMaybeT $ do
-        _ <- MaybeT $ HT.statement () (BlogPosts.updateBlogPost blogPost.bpmId updateData)
-        lift $ traverse_ (\tag -> HT.statement () (BlogPosts.removeTagFromPost blogPost.bpmId tag.btmId)) oldTags
-        lift $ updatePostTags blogPost.bpmId editForm
-        MaybeT $ pure $ Just ()
+      -- Validate content lengths
+      case (Sanitize.validateContentLength 200 sanitizedTitle, Sanitize.validateContentLength 50000 sanitizedContent) of
+        (Left titleError, _) -> do
+          let errorMsg = Sanitize.displayContentValidationError titleError
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+        (_, Left contentError) -> do
+          let errorMsg = Sanitize.displayContentValidationError contentError
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+        (Right validTitle, Right validContent) -> do
+          let updateData =
+                BlogPosts.Insert
+                  { BlogPosts.bpiTitle = validTitle,
+                    BlogPosts.bpiSlug = newSlug,
+                    BlogPosts.bpiContent = validContent,
+                    BlogPosts.bpiExcerpt = sanitizedExcerpt,
+                    BlogPosts.bpiAuthorId = blogPost.bpmAuthorId,
+                    BlogPosts.bpiStatus = parsedStatus
+                  }
 
-      case mUpdateResult of
-        Left err -> do
-          Log.logInfo "Failed to update blog post" (blogPost.bpmId, show err)
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
-        Right Nothing -> do
-          Log.logInfo "Blog post update returned Nothing" blogPost.bpmId
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update blog post. Please try again.")
-        Right (Just _) -> do
-          Log.logInfo "Successfully updated blog post" blogPost.bpmId
-          renderTemplate hxRequest (Just userMetadata) (template newSlug)
+          mUpdateResult <- execTransactionSpan $ runMaybeT $ do
+            _ <- MaybeT $ HT.statement () (BlogPosts.updateBlogPost blogPost.bpmId updateData)
+            lift $ traverse_ (\tag -> HT.statement () (BlogPosts.removeTagFromPost blogPost.bpmId tag.btmId)) oldTags
+            lift $ updatePostTags blogPost.bpmId editForm
+            MaybeT $ pure $ Just ()
+
+          case mUpdateResult of
+            Left err -> do
+              Log.logInfo "Failed to update blog post" (blogPost.bpmId, show err)
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+            Right Nothing -> do
+              Log.logInfo "Blog post update returned Nothing" blogPost.bpmId
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update blog post. Please try again.")
+            Right (Just _) -> do
+              Log.logInfo "Successfully updated blog post" blogPost.bpmId
+              renderTemplate hxRequest (Just userMetadata) (template newSlug)
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::

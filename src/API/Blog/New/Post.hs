@@ -7,11 +7,13 @@ module API.Blog.New.Post where
 
 import {-# SOURCE #-} API (blogGetLink, blogNewGetLink, blogPostGetLink, userLoginGetLink)
 import App.Common (getUserInfo, renderTemplate)
-import Control.Monad (unless, void, when)
+import Control.Monad (unless, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Aeson ((.=))
+import Data.Aeson qualified as Aeson
 import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
@@ -23,6 +25,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -224,11 +227,13 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
     Nothing ->
       renderTemplate hxRequest Nothing loginRequiredTemplate
     Just (_user, userMetadata) ->
-      case UserMetadata.mUserRole userMetadata of
+      case userMetadata.mUserRole of
         role | UserMetadata.isStaffOrHigher role ->
-          case validateNewBlogPost form (UserMetadata.mUserId userMetadata) of
-            Left errorMsg -> do
-              Log.logInfo ("Blog post creation failed: " <> errorMsg) ()
+          case validateNewBlogPost form userMetadata.mUserId of
+            Left validationError -> do
+              let errorMsg = Sanitize.displayContentValidationError validationError
+              Log.logInfo "Blog post creation failed" (Aeson.object ["message" .= errorMsg])
+
               renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
             Right blogPostData -> do
               template <- handlePostCreation blogPostData form
@@ -237,20 +242,26 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
           renderTemplate hxRequest Nothing permissionDeniedTemplate
 
 -- | Validate and convert form data to blog post insert data
-validateNewBlogPost :: NewBlogPostForm -> User.Id -> Either Text BlogPosts.Insert
+validateNewBlogPost :: NewBlogPostForm -> User.Id -> Either Sanitize.ContentValidationError BlogPosts.Insert
 validateNewBlogPost form authorId = do
-  when (Text.null (nbpfTitle form)) (Left "Title is required")
-  when (Text.null (nbpfContent form)) (Left "Content is required")
-
   let status = fromMaybe Published $ decodeBlogPost =<< nbpfStatus form
       slug = Slug.mkSlug (nbpfTitle form)
 
+      -- Sanitize user input to prevent XSS attacks
+      sanitizedTitle = Sanitize.sanitizeTitle (nbpfTitle form)
+      sanitizedContent = Sanitize.sanitizeUserContent (nbpfContent form)
+      sanitizedExcerpt = Sanitize.sanitizeDescription <$> nbpfExcerpt form
+
+  -- Validate sanitized content lengths
+  validTitle <- Sanitize.validateContentLength 200 sanitizedTitle
+  validContent <- Sanitize.validateContentLength 50000 sanitizedContent
+
   Right $
     BlogPosts.Insert
-      { BlogPosts.bpiTitle = nbpfTitle form,
+      { BlogPosts.bpiTitle = validTitle,
         BlogPosts.bpiSlug = slug,
-        BlogPosts.bpiContent = nbpfContent form,
-        BlogPosts.bpiExcerpt = nbpfExcerpt form,
+        BlogPosts.bpiContent = validContent,
+        BlogPosts.bpiExcerpt = sanitizedExcerpt,
         BlogPosts.bpiAuthorId = authorId,
         BlogPosts.bpiStatus = status
       }
@@ -300,8 +311,7 @@ createOrAssociateTag postId tagName =
         Right newTagId -> do
           void $ execQuerySpan (BlogPosts.addTagToPost postId newTagId)
         Left dbError -> do
-          Log.logInfo ("Database error creating tag: " <> Text.pack (show dbError)) ()
-          pure ()
+          Log.logInfo "Database error creating tag" (Aeson.object ["error" .= Text.pack (show dbError)])
 
 -- | Handle blog post creation after validation passes
 handlePostCreation ::
@@ -320,14 +330,14 @@ handlePostCreation ::
 handlePostCreation blogPostData form = do
   execQuerySpan (BlogPosts.insertBlogPost blogPostData) >>= \case
     Left dbError -> do
-      Log.logInfo ("Database error creating blog post: " <> Text.pack (show dbError)) ()
+      Log.logInfo "Database error creating blog post" (Aeson.object ["error" .= Text.pack (show dbError)])
       pure (errorTemplate "Database error occurred. Please try again.")
     Right postId -> do
       execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
         Right (Just createdPost) -> do
           createPostTags postId form
-          Log.logInfo ("Successfully created blog post: " <> BlogPosts.bpmTitle createdPost) ()
+          Log.logInfo "Successfully created blog post" (Aeson.object ["error" .= BlogPosts.bpmTitle createdPost])
           pure (successTemplate createdPost)
         _ -> do
-          Log.logInfo "Created blog post but failed to retrieve it" ()
+          Log.logInfo_ "Created blog post but failed to retrieve it"
           pure (errorTemplate "Post was created but there was an error displaying the confirmation.")
