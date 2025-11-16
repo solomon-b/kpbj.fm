@@ -276,12 +276,17 @@ test-suite kpbj-api-test
                     , unliftio-core
                     , uuid
     other-modules:
+       Domain.Types.FileUploadSpec
+       Domain.Types.SlugSpec
        Effects.ContentSanitizationSpec
        Effects.Database.Tables.BlogPostsSpec
        Effects.Database.Tables.EpisodesSpec
        Effects.Database.Tables.EventsSpec
+       Effects.Database.Tables.ShowHostSpec
        Effects.Database.Tables.ShowsSpec
        Effects.Database.Tables.UserMetadataSpec
+       Effects.Database.Tables.UserRoleSpec
+       Effects.MimeTypeValidationSpec
        Test.Database.Expectation
        Test.Database.Monad
        Test.Database.Property
@@ -294,6 +299,7 @@ test-suite kpbj-api-test
        Test.Gen.Tables.Episodes
        Test.Gen.Tables.Events
        Test.Gen.Tables.Shows
+       Test.Gen.Tables.ShowHost
        Test.Gen.Tables.User
        Test.Gen.Tables.UserMetadata
        Test.Gen.Text
