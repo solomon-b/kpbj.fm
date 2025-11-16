@@ -1,187 +1,235 @@
-module Effects.FileUpload where
+module Effects.FileUpload
+  ( -- * File upload functions
+    uploadEpisodeAudio,
+    uploadEpisodeArtwork,
+    uploadShowLogo,
+    uploadShowBanner,
+  )
+where
 
 --------------------------------------------------------------------------------
 
+import Control.Monad.Except (ExceptT (..), liftEither, runExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BSL
 import Data.Int (Int64)
-import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.FileStorage
 import Domain.Types.FileUpload
 import Domain.Types.Slug (Slug)
-import Network.Wai.Parse (FileInfo (..))
+import Effects.MimeTypeValidation qualified as MimeValidation
+import Log qualified
+import Servant.Multipart (FileData, Mem, fdFileCType, fdFileName, fdPayload)
 import System.Directory (copyFile, createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
 import System.Random qualified as Random
 
 --------------------------------------------------------------------------------
 
--- | Handle file upload with proper validation and storage
+-- | Upload an audio file for an episode.
+--
+-- Validates the file using both browser-provided MIME type and magic byte detection,
+-- then stores it in the episode audio directory organized by show and date.
+--
+-- Audio files are required for episodes and validation failures will cause the upload to fail.
 uploadEpisodeAudio ::
-  (MonadIO m) =>
-  Slug -> -- Show slug
-  Slug -> -- Episode slug
-  Maybe UTCTime -> -- Scheduled date (or Nothing to use current time)
-  FileInfo FilePath -> -- Uploaded file info
+  (MonadIO m, Log.MonadLog m) =>
+  -- | Show slug for directory organization
+  Slug ->
+  -- | Episode slug for filename generation
+  Slug ->
+  -- | Scheduled date (Nothing uses current time)
+  Maybe UTCTime ->
+  -- | Uploaded audio file data
+  FileData Mem ->
   m (Either UploadError UploadResult)
-uploadEpisodeAudio showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
-  let originalName = Text.decodeUtf8 $ fileName fileInfo
-      tempPath = fileContent fileInfo
+uploadEpisodeAudio showSlug episodeSlug mScheduledDate fileData = runExceptT $ do
+  -- Convert to temp file and process
+  tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  -- Get file info
-  fileSize <- getFileSize tempPath
-  let mimeType = getMimeTypeFromExtension originalName
-      config = defaultStorageConfig
+  let originalName = fdFileName fileData
+      browserMimeType = fdFileCType fileData
 
-  -- Use scheduled date if available, otherwise current time
-  time <- maybe getCurrentTime pure mScheduledDate
-  seed <- Random.getStdGen
+  -- Get file info and setup
+  fileSize <- liftIO $ getFileSize tempPath
+  let config = defaultStorageConfig
+  time <- liftIO $ maybe getCurrentTime pure mScheduledDate
+  seed <- liftIO Random.getStdGen
 
-  -- Validate upload
-  case validateUpload AudioBucket originalName mimeType fileSize of
-    Left err ->
-      pure $ Left err
-    Right () -> do
-      -- Build upload result
-      let uploadResult = buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSize time seed
-          storagePath = uploadResultStoragePath uploadResult
+  -- Validate with browser-provided MIME type and file size
+  liftEither $ validateUpload AudioBucket originalName browserMimeType fileSize
 
-      -- Create directory structure
-      createDirectoryIfMissing True (takeDirectory storagePath)
+  -- Validate actual file content against magic bytes
+  actualMimeType <- ExceptT $ do
+    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateAudioFile tempPath browserMimeType
 
-      -- Move file to final location
-      copyFile tempPath storagePath
-      pure $ Right uploadResult
+  -- Build upload result and move file
+  let uploadResult = buildEpisodeAudioUpload config showSlug episodeSlug originalName actualMimeType fileSize time seed
+      storagePath = uploadResultStoragePath uploadResult
 
--- | Handle episode artwork upload
+  liftIO $ do
+    createDirectoryIfMissing True (takeDirectory storagePath)
+    copyFile tempPath storagePath
+
+  pure uploadResult
+
+-- | Upload artwork for an episode.
+--
+-- Validates the image file using both browser-provided MIME type and magic byte detection,
+-- then stores it in the episode artwork directory organized by show and date.
+--
+-- Artwork files are optional for episodes but when provided must pass validation.
 uploadEpisodeArtwork ::
-  (MonadIO m) =>
-  Slug -> -- Show slug
-  Slug -> -- Episode slug
-  Maybe UTCTime -> -- Scheduled date (or Nothing to use current time)
-  FileInfo FilePath -> -- Uploaded file info
+  (MonadIO m, Log.MonadLog m) =>
+  -- | Show slug for directory organization
+  Slug ->
+  -- | Episode slug for filename generation
+  Slug ->
+  -- | Scheduled date (Nothing uses current time)
+  Maybe UTCTime ->
+  -- | Uploaded artwork file data
+  FileData Mem ->
   m (Either UploadError UploadResult)
-uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileInfo = liftIO $ do
-  let originalName = Text.decodeUtf8 $ fileName fileInfo
-      tempPath = fileContent fileInfo
+uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileData = runExceptT $ do
+  -- Convert to temp file and process
+  tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  -- Get file info
-  fileSize <- getFileSize tempPath
-  let mimeType = getMimeTypeFromExtension originalName
-      config = defaultStorageConfig
+  let originalName = fdFileName fileData
+      browserMimeType = fdFileCType fileData
 
-  -- Use scheduled date if available, otherwise current time
-  time <- maybe getCurrentTime pure mScheduledDate
-  seed <- Random.getStdGen
+  -- Get file info and setup
+  fileSize <- liftIO $ getFileSize tempPath
+  let config = defaultStorageConfig
+  time <- liftIO $ maybe getCurrentTime pure mScheduledDate
+  seed <- liftIO Random.getStdGen
 
-  -- Validate upload
-  case validateUpload ImageBucket originalName mimeType fileSize of
-    Left err ->
-      pure $ Left err
-    Right () -> do
-      -- Build upload result
-      let uploadResult = buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType fileSize time seed
-          storagePath = uploadResultStoragePath uploadResult
+  -- Validate with browser-provided MIME type and file size
+  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-      -- Create directory structure
-      createDirectoryIfMissing True (takeDirectory storagePath)
+  -- Validate actual file content against magic bytes
+  actualMimeType <- ExceptT $ do
+    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-      -- Move file to final location
-      copyFile tempPath storagePath
-      pure $ Right uploadResult
+  -- Build upload result and move file
+  let uploadResult = buildEpisodeArtworkUpload config showSlug episodeSlug originalName actualMimeType fileSize time seed
+      storagePath = uploadResultStoragePath uploadResult
 
--- | Handle show logo upload
+  liftIO $ do
+    createDirectoryIfMissing True (takeDirectory storagePath)
+    copyFile tempPath storagePath
+
+  pure uploadResult
+
+-- | Upload a logo image for a show.
+--
+-- Validates the image file using both browser-provided MIME type and magic byte detection,
+-- then stores it in the show assets directory.
+--
+-- Logo files are optional for shows but when provided must pass validation.
 uploadShowLogo ::
-  (MonadIO m) =>
+  (MonadIO m, Log.MonadLog m) =>
+  -- | Show slug for directory organization
   Slug ->
-  FileInfo FilePath -> -- Uploaded file info
+  -- | Uploaded logo file data
+  FileData Mem ->
   m (Either UploadError UploadResult)
-uploadShowLogo showSlug fileInfo = liftIO $ do
-  let originalName = Text.decodeUtf8 $ fileName fileInfo
-      tempPath = fileContent fileInfo
+uploadShowLogo showSlug fileData = runExceptT $ do
+  -- Convert to temp file and process
+  tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  -- Get file info
-  fileSize <- getFileSize tempPath
-  let mimeType = getMimeTypeFromExtension originalName
-      config = defaultStorageConfig
+  let originalName = fdFileName fileData
+      browserMimeType = fdFileCType fileData
 
-  time <- getCurrentTime
-  seed <- Random.getStdGen
+  -- Get file info and setup
+  fileSize <- liftIO $ getFileSize tempPath
+  let config = defaultStorageConfig
+  time <- liftIO getCurrentTime
+  seed <- liftIO Random.getStdGen
 
-  -- Validate upload
-  case validateUpload ImageBucket originalName mimeType fileSize of
-    Left err ->
-      pure $ Left err
-    Right () -> do
-      -- Build upload result
-      let uploadResult = buildShowLogoUpload config showSlug originalName mimeType fileSize time seed
-          storagePath = uploadResultStoragePath uploadResult
+  -- Validate with browser-provided MIME type and file size
+  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-      -- Create directory structure
-      createDirectoryIfMissing True (takeDirectory storagePath)
+  -- Validate actual file content against magic bytes
+  actualMimeType <- ExceptT $ do
+    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-      -- Move file to final location
-      copyFile tempPath storagePath
-      pure $ Right uploadResult
+  -- Build upload result and move file
+  let uploadResult = buildShowLogoUpload config showSlug originalName actualMimeType fileSize time seed
+      storagePath = uploadResultStoragePath uploadResult
 
--- | Handle show banner upload
+  liftIO $ do
+    createDirectoryIfMissing True (takeDirectory storagePath)
+    copyFile tempPath storagePath
+
+  pure uploadResult
+
+-- | Upload a banner image for a show.
+--
+-- Validates the image file using both browser-provided MIME type and magic byte detection,
+-- then stores it in the show assets directory.
+--
+-- Banner files are optional for shows but when provided must pass validation.
 uploadShowBanner ::
-  (MonadIO m) =>
+  (MonadIO m, Log.MonadLog m) =>
+  -- | Show slug for directory organization
   Slug ->
-  FileInfo FilePath -> -- Uploaded file info
+  -- | Uploaded banner file data
+  FileData Mem ->
   m (Either UploadError UploadResult)
-uploadShowBanner showSlug fileInfo = liftIO $ do
-  let originalName = Text.decodeUtf8 $ fileName fileInfo
-      tempPath = fileContent fileInfo
+uploadShowBanner showSlug fileData = runExceptT $ do
+  -- Convert to temp file and process
+  tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  -- Get file info
-  fileSize <- getFileSize tempPath
-  let mimeType = getMimeTypeFromExtension originalName
-      config = defaultStorageConfig
+  let originalName = fdFileName fileData
+      browserMimeType = fdFileCType fileData
 
-  time <- getCurrentTime
-  seed <- Random.getStdGen
+  -- Get file info and setup
+  fileSize <- liftIO $ getFileSize tempPath
+  let config = defaultStorageConfig
+  time <- liftIO getCurrentTime
+  seed <- liftIO Random.getStdGen
 
-  -- Validate upload
-  case validateUpload ImageBucket originalName mimeType fileSize of
-    Left err -> pure $ Left err
-    Right () -> do
-      -- Build upload result
-      let uploadResult = buildShowBannerUpload config showSlug originalName mimeType fileSize time seed
-          storagePath = uploadResultStoragePath uploadResult
+  -- Validate with browser-provided MIME type and file size
+  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-      -- Create directory structure
-      createDirectoryIfMissing True (takeDirectory storagePath)
+  -- Validate actual file content against magic bytes
+  actualMimeType <- ExceptT $ do
+    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-      -- Move file to final location
-      copyFile tempPath storagePath
-      pure $ Right uploadResult
+  -- Build upload result and move file
+  let uploadResult = buildShowBannerUpload config showSlug originalName actualMimeType fileSize time seed
+      storagePath = uploadResultStoragePath uploadResult
+
+  liftIO $ do
+    createDirectoryIfMissing True (takeDirectory storagePath)
+    copyFile tempPath storagePath
+
+  pure uploadResult
 
 --------------------------------------------------------------------------------
 -- Helper functions
 
+-- | Convert uploaded file data to a temporary file on disk.
+--
+-- Takes the in-memory file data from a multipart form upload and writes it
+-- to a temporary file that can be processed by validation and storage functions.
+--
+-- The temporary file is created in @\/tmp\/@ with a prefix to avoid conflicts.
+convertFileDataToTempFile :: (MonadIO m) => FileData Mem -> m (Either UploadError FilePath)
+convertFileDataToTempFile fileData = liftIO $ do
+  let content = BSL.toStrict $ fdPayload fileData
+      tempName = "/tmp/kpbj-upload-" <> Text.unpack (fdFileName fileData)
+  -- Write directly to temp file
+  BS.writeFile tempName content
+  pure $ Right tempName
+
+-- | Get the size of a file in bytes.
+--
+-- Reads the entire file into memory to determine its size.
+-- For large files, this could be memory-intensive.
 getFileSize :: FilePath -> IO Int64
 getFileSize path = do
   content <- BS.readFile path
   pure $ fromIntegral $ BS.length content
-
--- | Get MIME type from file extension (simple mapping)
-getMimeTypeFromExtension :: Text -> Text
-getMimeTypeFromExtension filename =
-  let ext = Text.toLower $ Text.takeWhileEnd (/= '.') filename
-   in case ext of
-        "mp3" -> "audio/mpeg"
-        "wav" -> "audio/wav"
-        "flac" -> "audio/flac"
-        "aac" -> "audio/aac"
-        "ogg" -> "audio/ogg"
-        "m4a" -> "audio/x-m4a"
-        "jpg" -> "image/jpeg"
-        "jpeg" -> "image/jpeg"
-        "png" -> "image/png"
-        "webp" -> "image/webp"
-        "gif" -> "image/gif"
-        _ -> "application/octet-stream"

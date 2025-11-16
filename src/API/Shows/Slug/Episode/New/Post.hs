@@ -11,8 +11,6 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
-import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BSL
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.List qualified as List
@@ -38,12 +36,11 @@ import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
-import Network.Wai.Parse (FileInfo (..), fileName)
 import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.OneRow ()
 import Servant ((:>))
 import Servant qualified
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileCType, fdFileName, fdPayload, fromMultipart, lookupFile, lookupInput)
+import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 import Text.Read (readMaybe)
 import Utils (partitionEithers)
@@ -63,17 +60,6 @@ type Route =
     )
 
 --------------------------------------------------------------------------------
--- FileData to FileInfo conversion
-
--- | Convert FileData to temporary file for processing
-convertFileDataToTempFile :: (MonadIO m) => FileData Mem -> m (Either Text FilePath)
-convertFileDataToTempFile fileData = liftIO $ do
-  let content = BSL.toStrict $ fdPayload fileData
-      tempName = "/tmp/kpbj-upload-" <> Text.unpack (fdFileName fileData)
-  -- Write directly to temp file
-  BS.writeFile tempName content
-  pure $ Right tempName
-
 -- Form Data Types
 
 data TrackInfo = TrackInfo
@@ -120,8 +106,15 @@ instance FromMultipart Mem EpisodeUploadForm where
       <*> pure (either (const Nothing) Just (lookupInput "duration_seconds" multipartData))
       <*> lookupInput "action" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tracks_json" multipartData))
-      <*> pure (either (const Nothing) Just (lookupFile "audio_file" multipartData))
-      <*> pure (either (const Nothing) Just (lookupFile "artwork_file" multipartData))
+      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "audio_file" multipartData))
+      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "artwork_file" multipartData))
+    where
+      -- \| Convert empty filename FileData to Nothing
+      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
+      fileDataToNothing (Just fileData)
+        | Text.null (fdFileName fileData) = Nothing
+        | otherwise = Just fileData
+      fileDataToNothing Nothing = Nothing
 
 --------------------------------------------------------------------------------
 
@@ -322,60 +315,42 @@ processFileUploads ::
   ( MonadIO m,
     Log.MonadLog m
   ) =>
-  Slug -> -- Show slug
-  Slug -> -- Episode slug (for filename)
-  Maybe UTCTime -> -- Scheduled date (for file organization)
-  Maybe (FileData Mem) -> -- Audio file
-  Maybe (FileData Mem) -> -- Artwork file
-  m (Either Text (Maybe Text, Maybe Text)) -- (audioPath, artworkPath)
+  -- | Show slug
+  Slug ->
+  -- | Episode slug (for filename)
+  Slug ->
+  -- | Scheduled date (for file organization)
+  Maybe UTCTime ->
+  -- | Audio file
+  Maybe (FileData Mem) ->
+  -- | Artwork file
+  Maybe (FileData Mem) ->
+  -- | (audioPath, artworkPath)
+  m (Either Text (Maybe Text, Maybe Text))
 processFileUploads showSlug episodeSlug mScheduledDate mAudioFile mArtworkFile = do
   -- Process main audio file (required)
   audioResult <- case mAudioFile of
-    Nothing -> pure $ Right Nothing
+    Nothing -> pure $ Left "Audio file is required for episodes"
     Just audioFile -> do
-      -- Convert FileData to temp file
-      tempFileResult <- convertFileDataToTempFile audioFile
-      case tempFileResult of
-        Left err -> pure $ Left err
-        Right tempPath -> do
-          let fileInfo =
-                FileInfo
-                  { fileName = Text.encodeUtf8 $ fdFileName audioFile,
-                    fileContent = tempPath,
-                    fileContentType = Text.encodeUtf8 $ fdFileCType audioFile
-                  }
-          result <- FileUpload.uploadEpisodeAudio showSlug episodeSlug mScheduledDate fileInfo
-          case result of
-            Left err -> do
-              Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
-              pure $ Left "Failed to upload audio file"
-            Right uploadResult ->
-              pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+      result <- FileUpload.uploadEpisodeAudio showSlug episodeSlug mScheduledDate audioFile
+      case result of
+        Left err -> do
+          Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
+          pure $ Left "Failed to upload audio file"
+        Right uploadResult ->
+          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   -- Process artwork file (optional)
   artworkResult <- case mArtworkFile of
     Nothing -> pure $ Right Nothing
     Just artworkFile -> do
-      -- Convert FileData to temp file
-      tempFileResult <- convertFileDataToTempFile artworkFile
-      case tempFileResult of
+      result <- FileUpload.uploadEpisodeArtwork showSlug episodeSlug mScheduledDate artworkFile
+      case result of
         Left err -> do
-          Log.logInfo "Failed to upload artwork file" err
-          pure $ Right Nothing -- Not critical, continue without artwork
-        Right tempPath -> do
-          let fileInfo =
-                FileInfo
-                  { fileName = Text.encodeUtf8 $ fdFileName artworkFile,
-                    fileContent = tempPath,
-                    fileContentType = Text.encodeUtf8 $ fdFileCType artworkFile
-                  }
-          result <- FileUpload.uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileInfo
-          case result of
-            Left err -> do
-              Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
-              pure $ Right Nothing -- Not critical, continue without artwork
-            Right uploadResult ->
-              pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
+          pure $ Left $ Text.pack $ show err -- Invalid file provided, reject entire operation
+        Right uploadResult ->
+          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   case (audioResult, artworkResult) of
     (Left audioErr, _) -> pure $ Left audioErr

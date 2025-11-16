@@ -67,6 +67,7 @@ library
                   , http-types
                   , log-base
                   , lucid2
+                  , magic
                   , mtl
                   , network
                   , password
@@ -223,6 +224,7 @@ library
     Effects.Database.Tables.ShowSchedule
     Effects.Database.Tables.UserMetadata
     Effects.FileUpload
+    Effects.MimeTypeValidation
     Lucid.Extras
     Utils
   hs-source-dirs: src
