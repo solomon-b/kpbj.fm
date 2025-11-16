@@ -36,6 +36,12 @@ instance Semigroup Slug where
 mkSlug :: Text -> Slug
 mkSlug title =
   Slug $
-    Text.toLower $
-      Text.replace " " "-" $
-        Text.filter (\c -> c `elem` ("-" :: String) || isAsciiLower c || isAsciiUpper c || isDigit c) title
+    collapseHyphens $
+      Text.toLower $
+        Text.filter (\c -> c `elem` ("-" :: String) || isAsciiLower c || isAsciiUpper c || isDigit c) $
+          Text.replace " " "-" title
+  where
+    -- Replace multiple consecutive hyphens with a single hyphen
+    collapseHyphens text
+      | Text.isInfixOf "--" text = collapseHyphens (Text.replace "--" "-" text)
+      | otherwise = text
