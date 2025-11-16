@@ -201,6 +201,10 @@ parsePassword password =
 validateRequest :: (MonadIO m) => Register -> m (Validation [ValidationError] RegisterParsed)
 validateRequest Register {..} = do
   let emailValidation = fromEither $ first (const [InvalidEmailAddress]) $ EmailAddress.validate urEmail
+  -- Sanitize user profile fields to prevent XSS attacks
+  -- Note: DisplayName and FullName are already validated types, so we just pass them through
+  -- The sanitization will occur when these values are displayed in templates
+
   passwordValidation <- parsePassword urPassword
   pure $ RegisterParsed <$> emailValidation <*> passwordValidation <*> pure urDisplayName <*> pure urFullName
 

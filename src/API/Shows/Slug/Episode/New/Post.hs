@@ -24,6 +24,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTracks
@@ -207,7 +208,7 @@ processEpisodeUpload user form = do
         Right (Just showModel) -> do
           -- Parse remaining form data
           case parseFormDataWithShow showModel.id showModel.slug form of
-            Left err -> pure $ Left err
+            Left validationError -> pure $ Left $ Sanitize.displayContentValidationError validationError
             Right episodeData -> do
               -- Verify user is host of the show
               isHostResult <- execQuerySpan (Shows.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
@@ -256,7 +257,7 @@ processEpisodeUpload user form = do
                               pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
-parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Text ParsedEpisodeData
+parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Sanitize.ContentValidationError ParsedEpisodeData
 parseFormDataWithShow (Shows.Id showId) showSlug form = do
   -- Parse scheduled timestamp (now receives full UTC timestamp from form)
   scheduledAt <- case eufScheduledDate form of
@@ -265,20 +266,28 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
       -- Try parsing as full UTCTime (format: "YYYY-MM-DD HH:MM:SS.ssssss UTC")
       case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timestampStr) of
         Just timestamp -> Right (Just timestamp)
-        Nothing -> Left $ "Invalid scheduled timestamp format: " <> timestampStr
+        Nothing -> Left $ Sanitize.ContentInvalid $ "Invalid scheduled timestamp format: " <> timestampStr
 
   -- Determine episode status from action
   status <- case eufAction form of
     "draft" -> Right Episodes.Draft
     "publish" -> Right Episodes.Published
-    _ -> Left "Invalid publish action"
+    _ -> Left $ Sanitize.ContentInvalid "Invalid publish action"
 
-  -- Parse tracks JSON
+  -- Sanitize and validate episode metadata
+  let sanitizedTitle = Sanitize.sanitizeTitle (eufTitle form)
+      sanitizedDescription = Sanitize.sanitizeUserContent (eufDescription form)
+
+  -- Validate content lengths
+  validTitle <- Sanitize.validateContentLength 200 sanitizedTitle
+  validDescription <- Sanitize.validateContentLength 10000 sanitizedDescription
+
+  -- Parse and sanitize tracks JSON
   tracks <- case eufTracksJson form of
     Nothing -> Right []
     Just tracksJson -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 tracksJson) of
-      Left err -> Left ("Invalid tracks JSON: " <> Text.pack err)
-      Right trackList -> Right trackList
+      Left err -> Left $ Sanitize.ContentInvalid $ "Invalid tracks JSON: " <> Text.pack err
+      Right trackList -> Right $ sanitizeTrackList trackList
 
   -- Parse duration seconds (with debugging)
   let durationSeconds = case eufDurationSeconds form of
@@ -290,13 +299,28 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
     ParsedEpisodeData
       { showId = showId,
         showSlug = showSlug,
-        title = eufTitle form,
-        description = Just (eufDescription form),
+        title = validTitle,
+        description = Just validDescription,
         scheduledAt = scheduledAt,
         status = status,
         tracks = tracks,
         durationSeconds = durationSeconds
       }
+
+-- | Sanitize track list by sanitizing all text fields
+sanitizeTrackList :: [TrackInfo] -> [TrackInfo]
+sanitizeTrackList = map sanitizeTrack
+  where
+    sanitizeTrack track =
+      TrackInfo
+        { tiTitle = Sanitize.sanitizePlainText (tiTitle track),
+          tiArtist = Sanitize.sanitizePlainText (tiArtist track),
+          tiAlbum = Sanitize.sanitizePlainText <$> tiAlbum track,
+          tiYear = tiYear track, -- Keep numeric values as-is
+          tiDuration = Sanitize.sanitizePlainText <$> tiDuration track,
+          tiLabel = Sanitize.sanitizePlainText <$> tiLabel track,
+          tiIsExclusive = tiIsExclusive track -- Keep boolean as-is
+        }
 
 data ParsedEpisodeData = ParsedEpisodeData
   { showId :: Int64,

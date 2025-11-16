@@ -23,6 +23,7 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
+import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -327,33 +328,45 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
       Log.logInfo "Invalid status in episode edit form" (eefStatus editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid episode status value.")
     Just _parsedStatus -> do
-      -- Update episode metadata (basic update, doesn't change audio/artwork)
-      -- Note: Status changes could be handled here if needed
-      let updateData =
-            Episodes.Update
-              { euId = episode.id,
-                euTitle = eefTitle editForm,
-                euDescription = eefDescription editForm
-              }
+      -- Sanitize user input to prevent XSS attacks
+      let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
+          sanitizedDescription = maybe "" Sanitize.sanitizeUserContent (eefDescription editForm)
 
-      -- Update the episode
-      execQuerySpan (Episodes.updateEpisode updateData) >>= \case
-        Left err -> do
-          Log.logInfo "Failed to update episode" (episode.id, show err)
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
-        Right Nothing -> do
-          Log.logInfo "Episode update returned Nothing" episode.id
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update episode. Please try again.")
-        Right (Just _) -> do
-          -- Update tracks
-          updateTracksResult <- updateTracks episode.id (eefTracks editForm)
-          case updateTracksResult of
-            Left trackErr -> do
-              Log.logInfo "Failed to update tracks" (episode.id, trackErr)
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but track update failed: " <> trackErr)
-            Right _ -> do
-              Log.logInfo "Successfully updated episode and tracks" episode.id
-              renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.slug)
+      -- Validate content lengths
+      case (Sanitize.validateContentLength 200 sanitizedTitle, Sanitize.validateContentLength 10000 sanitizedDescription) of
+        (Left titleError, _) -> do
+          let errorMsg = Sanitize.displayContentValidationError titleError
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+        (_, Left descError) -> do
+          let errorMsg = Sanitize.displayContentValidationError descError
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+        (Right validTitle, Right validDescription) -> do
+          -- Update episode metadata (basic update, doesn't change audio/artwork)
+          let updateData =
+                Episodes.Update
+                  { euId = episode.id,
+                    euTitle = validTitle,
+                    euDescription = Just validDescription
+                  }
+
+          -- Update the episode
+          execQuerySpan (Episodes.updateEpisode updateData) >>= \case
+            Left err -> do
+              Log.logInfo "Failed to update episode" (episode.id, show err)
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+            Right Nothing -> do
+              Log.logInfo "Episode update returned Nothing" episode.id
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update episode. Please try again.")
+            Right (Just _) -> do
+              -- Update tracks
+              updateTracksResult <- updateTracks episode.id (eefTracks editForm)
+              case updateTracksResult of
+                Left trackErr -> do
+                  Log.logInfo "Failed to update tracks" (episode.id, trackErr)
+                  renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but track update failed: " <> trackErr)
+                Right _ -> do
+                  Log.logInfo "Successfully updated episode and tracks" episode.id
+                  renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.slug)
 
 --------------------------------------------------------------------------------
 -- Track Update Logic

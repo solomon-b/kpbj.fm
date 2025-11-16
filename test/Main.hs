@@ -3,6 +3,7 @@ module Main where
 --------------------------------------------------------------------------------
 
 import Data.Maybe (fromMaybe)
+import Effects.ContentSanitizationSpec qualified as ContentSanitization
 import Effects.Database.Tables.BlogPostsSpec qualified as BlogPosts
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
 import Effects.Database.Tables.EventsSpec qualified as Events
@@ -28,6 +29,9 @@ main = do
           TR.defaultConfig
             { configConcurrentJobs = Just maxResources
             }
+
+  -- Content sanitization tests don't need database so run them first
+  hspecWith cfg ContentSanitization.spec
 
   withTmpPG $ hspecWith cfg $ parallel $ do
     -- DB Models - Core Tables

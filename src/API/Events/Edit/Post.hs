@@ -27,6 +27,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.EventTags qualified as EventTags
@@ -102,7 +103,7 @@ instance FromForm EventEditForm where
 parseTags :: Text -> [Text]
 parseTags tagText =
   filter (not . Text.null) $
-    map Text.strip $
+    map (Sanitize.sanitizePlainText . Text.strip) $
       Text.splitOn "," tagText
 
 -- | Parse event status from text
@@ -185,40 +186,65 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
       Log.logInfo "Invalid ends_at datetime in event edit form" (eefEndsAt editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid end date/time format.")
     (Just parsedStatus, Just parsedStartsAt, Just parsedEndsAt) -> do
-      let newSlug = Slug.mkSlug (eefTitle editForm)
-          updateData =
-            Events.Insert
-              { Events.eiTitle = eefTitle editForm,
-                Events.eiSlug = newSlug,
-                Events.eiDescription = eefDescription editForm,
-                Events.eiStartsAt = parsedStartsAt,
-                Events.eiEndsAt = parsedEndsAt,
-                Events.eiLocationName = eefLocationName editForm,
-                Events.eiLocationAddress = eefLocationAddress editForm,
-                Events.eiStatus = parsedStatus,
-                Events.eiAuthorId = event.emAuthorId
-              }
+      -- Sanitize user input to prevent XSS attacks
+      let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
+          sanitizedDescription = Sanitize.sanitizeUserContent (eefDescription editForm)
+          sanitizedLocationName = Sanitize.sanitizePlainText (eefLocationName editForm)
+          sanitizedLocationAddress = Sanitize.sanitizeDescription (eefLocationAddress editForm)
 
-      -- Update the event and tags in a transaction
-      mUpdateResult <- execTransactionSpan $ runMaybeT $ do
-        -- Update event
-        _ <- MaybeT $ HT.statement () (Events.updateEvent event.emId updateData)
-        -- Remove old tags
-        lift $ traverse_ (\tag -> HT.statement () (Events.removeTagFromEvent event.emId tag.etmId)) oldTags
-        -- Add new tags
-        lift $ updateEventTags event.emId editForm
-        MaybeT $ pure $ Just ()
+      -- Validate content lengths
+      case ( Sanitize.validateContentLength 200 sanitizedTitle,
+             Sanitize.validateContentLength 5000 sanitizedDescription,
+             Sanitize.validateContentLength 100 sanitizedLocationName,
+             Sanitize.validateContentLength 500 sanitizedLocationAddress
+           ) of
+        (Left titleError, _, _, _) -> do
+          let errorMsg = Sanitize.displayContentValidationError titleError
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+        (_, Left descError, _, _) -> do
+          let errorMsg = Sanitize.displayContentValidationError descError
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+        (_, _, Left nameError, _) -> do
+          let errorMsg = Sanitize.displayContentValidationError nameError
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+        (_, _, _, Left addrError) -> do
+          let errorMsg = Sanitize.displayContentValidationError addrError
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+        (Right validTitle, Right validDescription, Right validLocationName, Right validLocationAddress) -> do
+          let newSlug = Slug.mkSlug validTitle
+              updateData =
+                Events.Insert
+                  { Events.eiTitle = validTitle,
+                    Events.eiSlug = newSlug,
+                    Events.eiDescription = validDescription,
+                    Events.eiStartsAt = parsedStartsAt,
+                    Events.eiEndsAt = parsedEndsAt,
+                    Events.eiLocationName = validLocationName,
+                    Events.eiLocationAddress = validLocationAddress,
+                    Events.eiStatus = parsedStatus,
+                    Events.eiAuthorId = event.emAuthorId
+                  }
 
-      case mUpdateResult of
-        Left err -> do
-          Log.logInfo "Failed to update event" (event.emId, show err)
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
-        Right Nothing -> do
-          Log.logInfo "Event update returned Nothing" event.emId
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update event. Please try again.")
-        Right (Just _) -> do
-          Log.logInfo "Successfully updated event" event.emId
-          renderTemplate hxRequest (Just userMetadata) (template newSlug)
+          -- Update the event and tags in a transaction
+          mUpdateResult <- execTransactionSpan $ runMaybeT $ do
+            -- Update event
+            _ <- MaybeT $ HT.statement () (Events.updateEvent event.emId updateData)
+            -- Remove old tags
+            lift $ traverse_ (\tag -> HT.statement () (Events.removeTagFromEvent event.emId tag.etmId)) oldTags
+            -- Add new tags
+            lift $ updateEventTags event.emId editForm
+            MaybeT $ pure $ Just ()
+
+          case mUpdateResult of
+            Left err -> do
+              Log.logInfo "Failed to update event" (event.emId, show err)
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+            Right Nothing -> do
+              Log.logInfo "Event update returned Nothing" event.emId
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update event. Please try again.")
+            Right (Just _) -> do
+              Log.logInfo "Successfully updated event" event.emId
+              renderTemplate hxRequest (Just userMetadata) (template newSlug)
 
 -- | Update tags for an event (add new ones)
 updateEventTags ::

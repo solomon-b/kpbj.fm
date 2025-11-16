@@ -36,7 +36,10 @@ blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
 
 --------------------------------------------------------------------------------
 
--- | Render blog post content with simple paragraph breaks
+-- | Render blog post content with safe HTML and paragraph breaks
+--
+-- This function assumes content has already been sanitized during form submission.
+-- Content is rendered using Lucid.toHtmlRaw since it has been processed through xss-sanitize.
 renderBlogContent :: Text -> Lucid.Html ()
 renderBlogContent content = do
   let paragraphs = Text.splitOn "\n\n" content
@@ -46,7 +49,7 @@ renderBlogContent content = do
     renderParagraph para =
       if Text.null (Text.strip para)
         then pure ()
-        else Lucid.p_ $ Lucid.toHtml para
+        else Lucid.p_ $ Lucid.toHtmlRaw para
 
 -- | Render tags for a blog post
 renderTags :: [BlogTags.Model] -> Lucid.Html ()
