@@ -29,6 +29,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTracks
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload qualified as FileUpload
@@ -154,7 +155,7 @@ handler _tracer showSlug cookie form = do
           loadFrame $ errorTemplate "Show not found."
         Right (Just showModel) -> do
           -- Verify user is host
-          isHostResult <- execQuerySpan (Shows.isUserHostOfShow user.mId showModel.id)
+          isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
           case isHostResult of
             Left _err -> do
               Log.logInfo "Failed to check host permissions" showSlug
@@ -211,7 +212,7 @@ processEpisodeUpload user form = do
             Left validationError -> pure $ Left $ Sanitize.displayContentValidationError validationError
             Right episodeData -> do
               -- Verify user is host of the show
-              isHostResult <- execQuerySpan (Shows.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
+              isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
               case isHostResult of
                 Left _err -> pure $ Left "Database error checking host permissions"

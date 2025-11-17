@@ -10,9 +10,8 @@ import {-# SOURCE #-} API (blogNewGetLink, episodesNewGetLink, showBlogNewGetLin
 import API.Host.Dashboard.Get.Templates.BlogPost (renderBlogPostTableRow)
 import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
-import Data.Int (Int64)
+import Data.Maybe (mapMaybe)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -23,10 +22,12 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xOnChange_, xOnClick_, xShow_)
+import OrphanInstances.DayOfWeek (dayOfWeekToText)
+import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links
 
 -- | Host Dashboard template
-template :: UserMetadata.Model -> [Shows.Model] -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.Model] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
+template :: UserMetadata.Model -> [Shows.Model] -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.ScheduleTemplate] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
 template userMeta allShows selectedShow recentEpisodes blogPosts schedules nextShow = do
   -- Error banner container (empty by default, populated by HTMX out-of-band swaps)
   Lucid.div_ [Lucid.id_ "error-banner-container"] ""
@@ -67,13 +68,13 @@ renderShowOption selectedShow showModel = do
     else Lucid.option_ [Lucid.value_ (display showSlug)] (Lucid.toHtml showTitle)
 
 -- | Render the main dashboard content
-renderDashboardContent :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.Model] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
+renderDashboardContent :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.ScheduleTemplate] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
 renderDashboardContent userMeta selectedShow recentEpisodes blogPosts schedules nextShow = do
   renderDashboardHeader userMeta selectedShow recentEpisodes blogPosts schedules nextShow
   renderContentTabs selectedShow recentEpisodes blogPosts
 
 -- | Dashboard header with show info, stats, and schedule
-renderDashboardHeader :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.Model] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
+renderDashboardHeader :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.ScheduleTemplate] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
 renderDashboardHeader userMeta selectedShow recentEpisodes blogPosts schedules nextShow =
   Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
@@ -81,7 +82,7 @@ renderDashboardHeader userMeta selectedShow recentEpisodes blogPosts schedules n
       renderShowIcon selectedShow
 
 -- | Header info (title, show, host, schedule, stats)
-renderHeaderInfo :: UserMetadata.Model -> Maybe Shows.Model -> [ShowSchedule.Model] -> Maybe ShowSchedule.UpcomingShowDate -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
+renderHeaderInfo :: UserMetadata.Model -> Maybe Shows.Model -> [ShowSchedule.ScheduleTemplate] -> Maybe ShowSchedule.UpcomingShowDate -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
 renderHeaderInfo userMeta selectedShow schedules nextShow recentEpisodes blogPosts =
   Lucid.div_ $ do
     Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "HOST DASHBOARD"
@@ -113,25 +114,14 @@ renderHeaderInfo userMeta selectedShow schedules nextShow recentEpisodes blogPos
         Lucid.span_ [Lucid.class_ "text-white"] "TBD"
 
 -- | Format schedule info from schedule models
-renderScheduleInfo :: [ShowSchedule.Model] -> Lucid.Html ()
+renderScheduleInfo :: [ShowSchedule.ScheduleTemplate] -> Lucid.Html ()
 renderScheduleInfo [] = "Not scheduled"
 renderScheduleInfo (firstSchedule : rest) =
   let allSchedules = firstSchedule : rest
-      dayNames = map (dayOfWeekName . ShowSchedule.dayOfWeek) allSchedules
-      dayText = Text.intercalate ", " dayNames
-      timeRange = ShowSchedule.startTime firstSchedule <> " - " <> ShowSchedule.endTime firstSchedule
+      dayNames = mapMaybe (fmap dayOfWeekToText . (.dayOfWeek)) allSchedules
+      dayText = if null dayNames then "One-time show" else Text.intercalate ", " dayNames
+      timeRange = formatTimeOfDay firstSchedule.startTime <> " - " <> formatTimeOfDay firstSchedule.endTime
    in Lucid.toHtml $ dayText <> " • " <> timeRange
-
--- | Convert day of week number to name
-dayOfWeekName :: Int64 -> Text
-dayOfWeekName 0 = "Sun"
-dayOfWeekName 1 = "Mon"
-dayOfWeekName 2 = "Tue"
-dayOfWeekName 3 = "Wed"
-dayOfWeekName 4 = "Thu"
-dayOfWeekName 5 = "Fri"
-dayOfWeekName 6 = "Sat"
-dayOfWeekName _ = "?"
 
 -- | Show icon with public page link and edit button
 renderShowIcon :: Maybe Shows.Model -> Lucid.Html ()

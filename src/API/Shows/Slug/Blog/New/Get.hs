@@ -20,6 +20,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Observability qualified as Observability
@@ -72,7 +73,7 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
       -- Fetch show and verify host permissions in a transaction
       mResult <- execTransactionSpan $ runMaybeT $ do
         showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
-        isHost <- lift $ HT.statement () (Shows.isUserHostOfShow (User.mId user) showModel.id)
+        isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
         guard isHost
         MaybeT $ pure $ Just showModel
 

@@ -22,6 +22,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -99,7 +100,7 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
               if UserMetadata.isStaffOrHigher userMeta.mUserRole || episode.createdBy == user.mId
                 then pure True
                 else do
-                  isHostResult <- execQuerySpan (Shows.isUserHostOfShow user.mId showModel.id)
+                  isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
                   pure $ fromRight False isHostResult
 
           let tracks = case tracksResult of

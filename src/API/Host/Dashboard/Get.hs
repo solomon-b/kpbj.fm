@@ -100,11 +100,11 @@ handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
           renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
 
 -- | Fetch all dashboard data in a single read-only transaction
-fetchDashboardData :: Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model], [ShowSchedule.Model], Maybe ShowSchedule.UpcomingShowDate)
+fetchDashboardData :: Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model], [ShowSchedule.ScheduleTemplate], Maybe ShowSchedule.UpcomingShowDate)
 fetchDashboardData showModel = do
   episodes <- Txn.statement () (Episodes.getEpisodesById showModel.id)
   blogPosts <- Txn.statement () (ShowBlogPosts.getPublishedShowBlogPosts showModel.id 10 0)
-  schedules <- Txn.statement () (ShowSchedule.getSchedulesForShow showModel.id)
+  schedules <- Txn.statement () (ShowSchedule.getScheduleTemplatesForShow showModel.id)
   upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showModel.id 1)
   let nextShow = listToMaybe upcomingShows
   pure (episodes, blogPosts, schedules, nextShow)

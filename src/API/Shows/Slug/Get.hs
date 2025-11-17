@@ -20,8 +20,10 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.HostDetails qualified as HostDetails
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -76,8 +78,8 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
       renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just showModel) -> do
       episodesResult <- execQuerySpan (Episodes.getEpisodesById showModel.id)
-      hostsResult <- execQuerySpan (Shows.getShowHostsWithUsers showModel.id)
-      schedulesResult <- execQuerySpan (Shows.getShowSchedules showModel.id)
+      hostsResult <- execQuerySpan (ShowHost.getShowHostsWithUsers showModel.id)
+      schedulesResult <- execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id)
 
       -- Check if current user can edit this show
       canEdit <- case userInfoResult of
@@ -87,7 +89,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
           if UserMetadata.isStaffOrHigher userMeta.mUserRole
             then pure True
             else do
-              isHostResult <- execQuerySpan (Shows.isUserHostOfShow user.mId showModel.id)
+              isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
               pure $ fromRight False isHostResult
 
       -- Fetch tracks for the latest episode if episodes exist
@@ -102,7 +104,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
       -- Fetch host details for the primary host
       mHostDetails <- case hostsResult of
         Right (ShowHost.ShowHostWithUser {userId = uid} : _) -> do
-          hostDetailsResult <- execQuerySpan (Shows.getHostDetails uid)
+          hostDetailsResult <- execQuerySpan (HostDetails.getHostDetailsByUserId uid)
           pure $ case hostDetailsResult of
             Right details -> details
             Left _ -> Nothing

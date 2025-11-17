@@ -16,8 +16,6 @@ import Domain.Types.Genre (Genre)
 import Domain.Types.Search (Search)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.HostDetails qualified as HostDetails
-import Effects.Database.Tables.ShowHost qualified as ShowHost
-import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
@@ -28,7 +26,7 @@ import OrphanInstances.UTCTime ()
 import Servant qualified
 
 --------------------------------------------------------------------------------
--- Show Status and Frequency Types
+-- Show Status Type
 
 data Status = Active | Inactive
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
@@ -60,37 +58,6 @@ instance EncodeValue Status where
     Active -> "active"
     Inactive -> "inactive"
 
-data ShowFrequency = Weekly | Biweekly | Monthly | Occasional | OneTime
-  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
-  deriving anyclass (FromJSON, ToJSON)
-
-instance Display ShowFrequency where
-  displayBuilder Weekly = "weekly"
-  displayBuilder Biweekly = "biweekly"
-  displayBuilder Monthly = "monthly"
-  displayBuilder Occasional = "occasional"
-  displayBuilder OneTime = "one-time"
-
-instance DecodeValue ShowFrequency where
-  decodeValue = Decoders.enum decodeShowFrequency
-
-decodeShowFrequency :: Text -> Maybe ShowFrequency
-decodeShowFrequency = \case
-  "weekly" -> Just Weekly
-  "biweekly" -> Just Biweekly
-  "monthly" -> Just Monthly
-  "occasional" -> Just Occasional
-  "one-time" -> Just OneTime
-  _ -> Nothing
-
-instance EncodeValue ShowFrequency where
-  encodeValue = Encoders.enum $ \case
-    Weekly -> "weekly"
-    Biweekly -> "biweekly"
-    Monthly -> "monthly"
-    Occasional -> "occasional"
-    OneTime -> "one-time"
-
 --------------------------------------------------------------------------------
 -- Database Models
 
@@ -120,7 +87,6 @@ data Model = Model
     logoUrl :: Maybe Text,
     bannerUrl :: Maybe Text,
     status :: Status,
-    frequency :: ShowFrequency,
     durationMinutes :: Maybe Int64,
     createdAt :: UTCTime,
     updatedAt :: UTCTime
@@ -137,7 +103,6 @@ data Insert = Insert
     siLogoUrl :: Maybe Text,
     siBannerUrl :: Maybe Text,
     siStatus :: Status,
-    siFrequency :: ShowFrequency,
     siDurationMinutes :: Maybe Int64
   }
   deriving stock (Generic, Show, Eq)
@@ -153,7 +118,7 @@ getActiveShows =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows
     WHERE status = 'active'
     ORDER BY title
@@ -165,7 +130,7 @@ getShowBySlug slug =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows
     WHERE slug = #{slug}
   |]
@@ -176,7 +141,7 @@ getShowById showId =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows
     WHERE id = #{showId}
   |]
@@ -187,7 +152,7 @@ getShowsByStatus status limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows
     WHERE status = #{status}
     ORDER BY title
@@ -200,7 +165,7 @@ getAllShows limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows
     ORDER BY title
     LIMIT #{limit} OFFSET #{offset}
@@ -212,7 +177,7 @@ getShowsByGenre genre limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows
     WHERE genre = #{display genre}
     ORDER BY title
@@ -225,7 +190,7 @@ getShowsByGenreAndStatus genre status limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows
     WHERE genre = #{genre} AND status = #{status}
     ORDER BY title
@@ -239,8 +204,8 @@ insertShow Insert {..} =
     <$> interp
       False
       [sql|
-    INSERT INTO shows(title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at)
-    VALUES (#{siTitle}, #{siSlug}, #{siDescription}, #{siGenre}, #{siLogoUrl}, #{siBannerUrl}, #{siStatus}, #{siFrequency}, #{siDurationMinutes}, NOW(), NOW())
+    INSERT INTO shows(title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at)
+    VALUES (#{siTitle}, #{siSlug}, #{siDescription}, #{siGenre}, #{siLogoUrl}, #{siBannerUrl}, #{siStatus}, #{siDurationMinutes}, NOW(), NOW())
     RETURNING id
   |]
 
@@ -253,7 +218,7 @@ updateShow showId Insert {..} =
     UPDATE shows
     SET title = #{siTitle}, slug = #{siSlug}, description = #{siDescription},
         genre = #{siGenre}, logo_url = #{siLogoUrl}, banner_url = #{siBannerUrl},
-        status = #{siStatus}, frequency = #{siFrequency}, duration_minutes = #{siDurationMinutes},
+        status = #{siStatus}, duration_minutes = #{siDurationMinutes},
         updated_at = NOW()
     WHERE id = #{showId}
     RETURNING id
@@ -268,7 +233,7 @@ getShowForUser userId =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows s
     JOIN show_hosts sh ON s.id = sh.show_id
     WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
@@ -281,7 +246,7 @@ getShowsForUser userId =
   interp
     False
     [sql|
-    SELECT s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url, s.status, s.frequency, s.duration_minutes, s.created_at, s.updated_at
+    SELECT s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url, s.status, s.duration_minutes, s.created_at, s.updated_at
     FROM shows s
     JOIN show_hosts sh ON s.id = sh.show_id
     WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
@@ -294,7 +259,7 @@ searchShows searchTerm limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, frequency, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
     FROM shows
     WHERE (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern} OR genre ILIKE #{searchPattern})
     ORDER BY
@@ -321,30 +286,3 @@ getHostsForShow showId =
     WHERE sh.show_id = #{showId} AND sh.left_at IS NULL
     ORDER BY sh.is_primary DESC, sh.joined_at ASC
   |]
-
---------------------------------------------------------------------------------
--- Backward compatibility aliases
-
--- | Alias for getSchedulesForShow (backward compatibility)
-getShowSchedules :: Id -> Hasql.Statement () [ShowSchedule.Model]
-getShowSchedules = ShowSchedule.getSchedulesForShow
-
--- | Alias for getHostDetailsByUserId (backward compatibility)
-getHostDetails :: User.Id -> Hasql.Statement () (Maybe HostDetails.Model)
-getHostDetails = HostDetails.getHostDetailsByUserId
-
--- | Re-export isUserHostOfShow from ShowHost
-isUserHostOfShow :: User.Id -> Id -> Hasql.Statement () Bool
-isUserHostOfShow = ShowHost.isUserHostOfShow
-
--- | Re-export getUpcomingShowDates from ShowSchedule
-getUpcomingShowDates :: Id -> Int64 -> Hasql.Statement () [ShowSchedule.UpcomingShowDate]
-getUpcomingShowDates = ShowSchedule.getUpcomingShowDates
-
--- | Re-export getUpcomingUnscheduledShowDates from ShowSchedule
-getUpcomingUnscheduledShowDates :: Id -> Int64 -> Hasql.Statement () [ShowSchedule.UpcomingShowDate]
-getUpcomingUnscheduledShowDates = ShowSchedule.getUpcomingUnscheduledShowDates
-
--- | Re-export getShowHostsWithUsers from ShowHost
-getShowHostsWithUsers :: Id -> Hasql.Statement () [ShowHost.ShowHostWithUser]
-getShowHostsWithUsers = ShowHost.getShowHostsWithUsers

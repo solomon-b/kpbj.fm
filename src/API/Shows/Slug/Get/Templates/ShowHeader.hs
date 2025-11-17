@@ -13,10 +13,12 @@ import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (DayOfWeek (..))
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
+import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -25,7 +27,7 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
 -- | Render show header with info
-renderShowHeader :: Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Lucid.Html ()
+renderShowHeader :: Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> Lucid.Html ()
 renderShowHeader showModel hosts schedules = do
   -- Banner Image (if present)
   case showModel.bannerUrl of
@@ -67,18 +69,20 @@ renderShowHeader showModel hosts schedules = do
             Lucid.span_ [Lucid.class_ "font-bold"] "Schedule: "
             case schedules of
               [] -> "TBD"
-              (ShowSchedule.Model {dayOfWeek = dow, startTime = st, endTime = et} : _) -> do
-                let dayName :: Text
-                    dayName = case dow of
-                      0 -> "Sunday"
-                      1 -> "Monday"
-                      2 -> "Tuesday"
-                      3 -> "Wednesday"
-                      4 -> "Thursday"
-                      5 -> "Friday"
-                      6 -> "Saturday"
-                      _ -> "Unknown"
-                Lucid.toHtml $ dayName <> "s " <> st <> " - " <> et
+              (ShowSchedule.ScheduleTemplate {dayOfWeek = mDow, startTime = st, endTime = et} : _) -> do
+                case mDow of
+                  Nothing -> "One-time show"
+                  Just dow -> do
+                    let dayName :: Text
+                        dayName = case dow of
+                          Sunday -> "Sunday"
+                          Monday -> "Monday"
+                          Tuesday -> "Tuesday"
+                          Wednesday -> "Wednesday"
+                          Thursday -> "Thursday"
+                          Friday -> "Friday"
+                          Saturday -> "Saturday"
+                    Lucid.toHtml $ dayName <> "s " <> formatTimeOfDay st <> " - " <> formatTimeOfDay et
             " • "
             case showModel.genre of
               Just genre -> Lucid.span_ [Lucid.class_ "font-bold"] "Genre: " <> Lucid.toHtml genre

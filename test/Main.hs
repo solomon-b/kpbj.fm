@@ -10,6 +10,7 @@ import Effects.Database.Tables.BlogPostsSpec qualified as BlogPosts
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
 import Effects.Database.Tables.EventsSpec qualified as Events
 import Effects.Database.Tables.ShowHostSpec qualified as ShowHost
+import Effects.Database.Tables.ShowScheduleSpec qualified as ShowSchedule
 import Effects.Database.Tables.ShowsSpec qualified as Shows
 import Effects.Database.Tables.UserMetadataSpec qualified as UserMetadata
 import Effects.Database.Tables.UserRoleSpec qualified as UserRole
@@ -52,3 +53,4 @@ main = do
     BlogPosts.spec
     Events.spec
     ShowHost.spec
+    ShowSchedule.spec

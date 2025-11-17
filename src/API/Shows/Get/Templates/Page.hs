@@ -9,9 +9,9 @@ import API.Shows.Get.Templates.Pagination (renderPagination)
 import API.Shows.Get.Templates.ScheduleView (renderScheduleView)
 import API.Shows.Get.Templates.ShowCard (renderShowCard)
 import Control.Monad (unless)
-import Data.Int (Int64)
 import Data.Maybe (isNothing)
 import Data.Text.Display (display)
+import Data.Time (DayOfWeek)
 import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
@@ -20,7 +20,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 
 -- | Main shows template
-template :: [Shows.Model] -> [ShowSchedule.ScheduledShowWithDetails] -> Int64 -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
+template :: [Shows.Model] -> [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
 template allShows scheduledShows currentDayOfWeek currentPage hasMore maybeGenre maybeStatus maybeSearch = do
   -- Shows Header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center w-full"] $ do

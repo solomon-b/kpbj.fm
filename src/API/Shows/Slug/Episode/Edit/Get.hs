@@ -22,6 +22,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -82,7 +83,7 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
         episode <- MaybeT $ HT.statement () (Episodes.getEpisodeBySlug showSlug episodeSlug)
         showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
         tracks <- lift $ HT.statement () (Episodes.getTracksForEpisode episode.id)
-        isHost <- lift $ HT.statement () (Shows.isUserHostOfShow user.mId episode.showId)
+        isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
         MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
 
       case mResult of

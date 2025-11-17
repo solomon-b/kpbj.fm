@@ -27,6 +27,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -76,7 +77,6 @@ data ShowEditForm = ShowEditForm
     sefLogoFile :: Maybe (FileData Mem),
     sefBannerFile :: Maybe (FileData Mem),
     sefStatus :: Text,
-    sefFrequency :: Text,
     sefDurationMinutes :: Maybe Text
   }
   deriving (Show)
@@ -90,7 +90,6 @@ instance FromMultipart Mem ShowEditForm where
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData
-      <*> lookupInput "frequency" multipartData
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "duration_minutes" multipartData))
     where
       emptyToNothing :: Maybe Text -> Maybe Text
@@ -109,15 +108,6 @@ parseStatus :: Text -> Maybe Shows.Status
 parseStatus "active" = Just Shows.Active
 parseStatus "inactive" = Just Shows.Inactive
 parseStatus _ = Nothing
-
--- | Parse show frequency from text
-parseFrequency :: Text -> Maybe Shows.ShowFrequency
-parseFrequency "weekly" = Just Shows.Weekly
-parseFrequency "biweekly" = Just Shows.Biweekly
-parseFrequency "monthly" = Just Shows.Monthly
-parseFrequency "occasional" = Just Shows.Occasional
-parseFrequency "one-time" = Just Shows.OneTime
-parseFrequency _ = Nothing
 
 -- | Process logo/banner file uploads
 processShowArtworkUploads ::
@@ -276,7 +266,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just showModel) -> do
           -- Check authorization - user must be a host of the show or staff+
-          execQuerySpan (Shows.isUserHostOfShow user.mId showModel.id) >>= \case
+          execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id) >>= \case
             Left err -> do
               Log.logAttention "isUserHostOfShow execution error" (show err)
               renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
@@ -307,14 +297,11 @@ updateShow hxRequest _user userMetadata showModel editForm = do
   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
 
   -- Parse and validate form data
-  case (parseStatus (sefStatus editForm), parseFrequency (sefFrequency editForm)) of
-    (Nothing, _) -> do
+  case parseStatus (sefStatus editForm) of
+    Nothing -> do
       Log.logInfo "Invalid status in show edit form" (sefStatus editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid show status value.")
-    (_, Nothing) -> do
-      Log.logInfo "Invalid frequency in show edit form" (sefFrequency editForm)
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid frequency value.")
-    (Just parsedStatus, Just parsedFrequency) -> do
+    Just parsedStatus -> do
       -- Parse duration if provided
       let mDuration = case sefDurationMinutes editForm of
             Nothing -> Nothing
@@ -325,7 +312,6 @@ updateShow hxRequest _user userMetadata showModel editForm = do
 
           -- If not staff, preserve original schedule/settings values
           finalStatus = if isStaff then parsedStatus else showModel.status
-          finalFrequency = if isStaff then parsedFrequency else showModel.frequency
           finalDuration = if isStaff then mDuration else showModel.durationMinutes
 
           -- Generate slug from title
@@ -352,7 +338,6 @@ updateShow hxRequest _user userMetadata showModel editForm = do
                     siLogoUrl = finalLogoUrl,
                     siBannerUrl = finalBannerUrl,
                     siStatus = finalStatus,
-                    siFrequency = finalFrequency,
                     siDurationMinutes = finalDuration
                   }
 
