@@ -21,6 +21,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Observability qualified as Observability
@@ -77,7 +78,7 @@ handler _tracer showSlug postSlug cookie (foldHxReq -> hxRequest) = do
         post <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostBySlug (display showSlug) (display postSlug))
         showModel <- MaybeT $ HT.statement () (Shows.getShowById post.showId)
         tags <- lift $ HT.statement () (ShowBlogPosts.getTagsForShowBlogPost post.id)
-        isHost <- lift $ HT.statement () (Shows.isUserHostOfShow (User.mId user) post.showId)
+        isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) post.showId)
         MaybeT $ pure $ Just (post, showModel, tags, isHost)
 
       case mResult of

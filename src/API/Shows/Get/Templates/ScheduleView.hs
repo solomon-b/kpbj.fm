@@ -9,15 +9,18 @@ module API.Shows.Get.Templates.ScheduleView
 where
 
 import {-# SOURCE #-} API (showGetLink)
-import Data.Int (Int64)
+import Control.Monad (unless)
+import Data.Char (isDigit)
 import Data.List (sortBy)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (DayOfWeek (..), TimeOfDay (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links
 
 -- | Create URL for show page
@@ -25,7 +28,7 @@ showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
 -- | Main schedule view template
-renderScheduleView :: [ShowSchedule.ScheduledShowWithDetails] -> Int64 -> Lucid.Html ()
+renderScheduleView :: [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> Lucid.Html ()
 renderScheduleView scheduledShows currentDayOfWeek = do
   -- Week Navigation
   renderWeekNavigation
@@ -54,54 +57,54 @@ renderWeekNavigation = do
         "NEXT WEEK →"
 
 -- | Render desktop schedule grid
-renderDesktopSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> Int64 -> Lucid.Html ()
+renderDesktopSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> Lucid.Html ()
 renderDesktopSchedule scheduledShows currentDayOfWeek = do
   Lucid.div_ [Lucid.class_ "hidden lg:block"] $ do
     Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800"] $ do
       -- Schedule Header
       Lucid.div_ [Lucid.class_ "grid grid-cols-8 border-b-2 border-gray-800"] $ do
         Lucid.div_ [Lucid.class_ "p-4 font-bold text-center border-r border-gray-300"] "TIME"
-        renderDayHeader 1 currentDayOfWeek "MON"
-        renderDayHeader 2 currentDayOfWeek "TUE"
-        renderDayHeader 3 currentDayOfWeek "WED"
-        renderDayHeader 4 currentDayOfWeek "THU"
-        renderDayHeader 5 currentDayOfWeek "FRI"
-        renderDayHeader 6 currentDayOfWeek "SAT"
-        renderDayHeader 7 currentDayOfWeek "SUN"
+        renderDayHeader Monday currentDayOfWeek "MON"
+        renderDayHeader Tuesday currentDayOfWeek "TUE"
+        renderDayHeader Wednesday currentDayOfWeek "WED"
+        renderDayHeader Thursday currentDayOfWeek "THU"
+        renderDayHeader Friday currentDayOfWeek "FRI"
+        renderDayHeader Saturday currentDayOfWeek "SAT"
+        renderDayHeader Sunday currentDayOfWeek "SUN"
 
       -- Schedule Rows - group shows by time slots
       let timeSlots = ["6AM", "9AM", "12PM", "3PM", "6PM", "9PM"]
       mapM_ (renderTimeSlotRow scheduledShows currentDayOfWeek) timeSlots
 
 -- | Render day header with conditional highlighting
-renderDayHeader :: Int64 -> Int64 -> Text -> Lucid.Html ()
+renderDayHeader :: DayOfWeek -> DayOfWeek -> Text -> Lucid.Html ()
 renderDayHeader day currentDay dayName = do
   let isCurrentDay = day == currentDay
       baseClasses = "p-4 font-bold text-center"
       bgClass = if isCurrentDay then " bg-gray-800 text-white" else ""
-      borderClass = if day == 7 then "" else " border-r border-gray-300"
+      borderClass = if day == Sunday then "" else " border-r border-gray-300"
       classes = baseClasses <> bgClass <> borderClass
   Lucid.div_ [Lucid.class_ classes] $ Lucid.toHtml dayName
 
 -- | Render a single time slot row
-renderTimeSlotRow :: [ShowSchedule.ScheduledShowWithDetails] -> Int64 -> Text -> Lucid.Html ()
+renderTimeSlotRow :: [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> Text -> Lucid.Html ()
 renderTimeSlotRow scheduledShows currentDayOfWeek timeSlot = do
   Lucid.div_ [Lucid.class_ "grid grid-cols-8 border-b border-gray-300"] $ do
     -- Time label
     Lucid.div_ [Lucid.class_ "p-3 text-center border-r border-gray-300 bg-gray-50 font-bold"] $
       Lucid.toHtml timeSlot
 
-    -- Each day of the week (1 = Monday, 7 = Sunday in PostgreSQL)
-    mapM_ (renderDayCell scheduledShows currentDayOfWeek timeSlot) [1 .. 7]
+    -- Each day of the week
+    mapM_ (renderDayCell scheduledShows currentDayOfWeek timeSlot) [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
 
 -- | Render a single day cell for a time slot
-renderDayCell :: [ShowSchedule.ScheduledShowWithDetails] -> Int64 -> Text -> Int64 -> Lucid.Html ()
+renderDayCell :: [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> Text -> DayOfWeek -> Lucid.Html ()
 renderDayCell scheduledShows currentDayOfWeek timeSlot dayOfWeek = do
   let showsForSlot = filter (\s -> ShowSchedule.sswdDayOfWeek s == dayOfWeek && matchesTimeSlot (ShowSchedule.sswdStartTime s) timeSlot) scheduledShows
       isCurrentDay = dayOfWeek == currentDayOfWeek
       baseClasses = "p-3 text-center"
       bgClass = if isCurrentDay then " bg-gray-200" else ""
-      borderClass = if dayOfWeek == 7 then "" else " border-r border-gray-300"
+      borderClass = if dayOfWeek == Sunday then "" else " border-r border-gray-300"
       classes = baseClasses <> bgClass <> borderClass
 
   Lucid.div_ [Lucid.class_ classes] $ do
@@ -123,25 +126,16 @@ renderDayCell scheduledShows currentDayOfWeek timeSlot dayOfWeek = do
             Lucid.toHtml (ShowSchedule.sswdHostName show')
 
 -- | Check if a start time matches a time slot
-matchesTimeSlot :: Text -> Text -> Bool
-matchesTimeSlot startTime slot =
-  case (parseHour startTime, parseSlot slot) of
-    (Just hour, Just slotHour) -> hour >= slotHour && hour < slotHour + 3
+matchesTimeSlot :: TimeOfDay -> Text -> Bool
+matchesTimeSlot (TimeOfDay hour _ _) slot =
+  case parseSlot slot of
+    Just slotHour -> hour >= slotHour && hour < slotHour + 3
     _ -> False
-
--- | Parse hour from time string like "06:00:00" or "18:00:00"
-parseHour :: Text -> Maybe Int
-parseHour time =
-  case Text.splitOn ":" time of
-    (h : _) -> case reads (Text.unpack h) of
-      [(hour, "")] -> Just hour
-      _ -> Nothing
-    _ -> Nothing
 
 -- | Parse slot label like "6AM" or "3PM" to hour (0-23)
 parseSlot :: Text -> Maybe Int
 parseSlot slot =
-  let numPart = Text.takeWhile (\c -> c >= '0' && c <= '9') slot
+  let numPart = Text.takeWhile isDigit slot
       isPM = Text.isSuffixOf "PM" slot
    in case reads (Text.unpack numPart) of
         [(hour, "")] ->
@@ -149,22 +143,22 @@ parseSlot slot =
         _ -> Nothing
 
 -- | Render mobile schedule (day by day)
-renderMobileSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> Int64 -> Lucid.Html ()
+renderMobileSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> Lucid.Html ()
 renderMobileSchedule scheduledShows currentDayOfWeek = do
   Lucid.div_ [Lucid.class_ "lg:hidden space-y-4"] $ do
     -- Group shows by day
-    let daysOfWeek = [(1, "MONDAY"), (2, "TUESDAY"), (3, "WEDNESDAY"), (4, "THURSDAY"), (5, "FRIDAY"), (6, "SATURDAY"), (7, "SUNDAY")]
+    let daysOfWeek = [(Monday, "MONDAY"), (Tuesday, "TUESDAY"), (Wednesday, "WEDNESDAY"), (Thursday, "THURSDAY"), (Friday, "FRIDAY"), (Saturday, "SATURDAY"), (Sunday, "SUNDAY")]
     mapM_ (renderMobileDay scheduledShows currentDayOfWeek) daysOfWeek
 
     Lucid.div_ [Lucid.class_ "text-center"] $ do
       Lucid.p_ [Lucid.class_ "text-gray-600 italic"] "Showing current week's schedule"
 
 -- | Render a single day for mobile view
-renderMobileDay :: [ShowSchedule.ScheduledShowWithDetails] -> Int64 -> (Int64, Text) -> Lucid.Html ()
-renderMobileDay scheduledShows currentDayOfWeek (dayNum, dayName) = do
-  let showsForDay = filter (\s -> ShowSchedule.sswdDayOfWeek s == dayNum) scheduledShows
+renderMobileDay :: [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> (DayOfWeek, Text) -> Lucid.Html ()
+renderMobileDay scheduledShows currentDayOfWeek (dayOfWeek, dayName) = do
+  let showsForDay = filter (\s -> ShowSchedule.sswdDayOfWeek s == dayOfWeek) scheduledShows
       sortedShows = sortBy (\a b -> compare (ShowSchedule.sswdStartTime a) (ShowSchedule.sswdStartTime b)) showsForDay
-      isCurrentDay = dayNum == currentDayOfWeek
+      isCurrentDay = dayOfWeek == currentDayOfWeek
       headerClass = if isCurrentDay then "font-bold mb-3 text-center bg-gray-800 text-white py-2 border border-gray-800" else "font-bold mb-3 text-center bg-gray-100 py-2 border border-gray-300"
       dayLabel = if isCurrentDay then dayName <> " - TODAY" else dayName
 
@@ -179,6 +173,7 @@ renderMobileDay scheduledShows currentDayOfWeek (dayNum, dayName) = do
 renderMobileShowItem :: ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
 renderMobileShowItem show' = do
   let showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
+      startTimeText = formatTimeOfDay (ShowSchedule.sswdStartTime show')
   Lucid.div_ [Lucid.class_ "flex justify-between items-center p-3 border border-gray-300"] $ do
     Lucid.div_ $ do
       Lucid.div_ [Lucid.class_ "font-bold"] $ do
@@ -189,15 +184,6 @@ renderMobileShowItem show' = do
             hxPushUrl_ "true",
             Lucid.class_ "hover:underline"
           ]
-          $ Lucid.toHtml
-            ( ShowSchedule.sswdStartTime show'
-                <> " - "
-                <> ShowSchedule.sswdShowTitle show'
-            )
+          $ Lucid.toHtml (startTimeText <> " - " <> ShowSchedule.sswdShowTitle show')
       Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $
         Lucid.toHtml (ShowSchedule.sswdHostName show')
-
--- | Helper to check if list is not empty
-unless :: Bool -> Lucid.Html () -> Lucid.Html ()
-unless False action = action
-unless True _ = pure ()

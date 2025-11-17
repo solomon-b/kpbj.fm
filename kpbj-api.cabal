@@ -83,6 +83,7 @@ library
                   , transformers
                   , unliftio-core
                   , validation
+                  , vector
                   , wai-extra
                   , web-server-core
                   , xss-sanitize
@@ -228,6 +229,8 @@ library
     Effects.FileUpload
     Effects.MimeTypeValidation
     Lucid.Extras
+    OrphanInstances.DayOfWeek
+    OrphanInstances.TimeOfDay
     Utils
   hs-source-dirs: src
   default-language: Haskell2010
@@ -275,6 +278,7 @@ test-suite kpbj-api-test
                     , typed-process
                     , unliftio-core
                     , uuid
+                    , vector
     other-modules:
        Domain.Types.FileUploadSpec
        Domain.Types.SlugSpec
@@ -283,6 +287,7 @@ test-suite kpbj-api-test
        Effects.Database.Tables.EpisodesSpec
        Effects.Database.Tables.EventsSpec
        Effects.Database.Tables.ShowHostSpec
+       Effects.Database.Tables.ShowScheduleSpec
        Effects.Database.Tables.ShowsSpec
        Effects.Database.Tables.UserMetadataSpec
        Effects.Database.Tables.UserRoleSpec
@@ -300,6 +305,7 @@ test-suite kpbj-api-test
        Test.Gen.Tables.Events
        Test.Gen.Tables.Shows
        Test.Gen.Tables.ShowHost
+       Test.Gen.Tables.ShowSchedule
        Test.Gen.Tables.User
        Test.Gen.Tables.UserMetadata
        Test.Gen.Text

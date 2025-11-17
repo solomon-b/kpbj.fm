@@ -19,6 +19,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Observability qualified as Observability
@@ -160,7 +161,7 @@ checkIfHost ::
   Shows.Id ->
   m Bool
 checkIfHost user showId = do
-  result <- execQuerySpan (Shows.isUserHostOfShow user.mId showId)
+  result <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showId)
   case result of
     Left _ -> pure False
     Right authorized -> pure authorized

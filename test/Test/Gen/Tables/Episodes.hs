@@ -2,7 +2,6 @@ module Test.Gen.Tables.Episodes where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.IO.Class (MonadIO (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -18,9 +17,9 @@ import Test.Gen.Time (genUTCTime)
 genEpisodeStatus :: (MonadGen m) => m Episodes.Status
 genEpisodeStatus = Gen.enumBounded
 
-episodeInsertGen :: (MonadIO m, MonadGen m) => Shows.Id -> User.Id -> m Episodes.Insert
+episodeInsertGen :: (MonadGen m) => Shows.Id -> User.Id -> m Episodes.Insert
 episodeInsertGen showId userId = do
-  eiId <- pure showId
+  let eiId = showId
   eiTitle <- genText
   eiSlug <- genSlug
   eiDescription <- Gen.maybe genText
@@ -31,5 +30,5 @@ episodeInsertGen showId userId = do
   eiArtworkUrl <- Gen.maybe genUrl
   eiScheduledAt <- Gen.maybe genUTCTime
   eiStatus <- genEpisodeStatus
-  eiCreatedBy <- pure userId
+  let eiCreatedBy = userId
   pure Episodes.Insert {..}

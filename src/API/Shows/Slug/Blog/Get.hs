@@ -24,6 +24,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Observability qualified as Observability
@@ -91,7 +92,7 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
       isHost <- case userInfoResult of
         Nothing -> pure False
         Just (user, _userMetadata) ->
-          fromRight False <$> execQuerySpan (Shows.isUserHostOfShow (User.mId user) showModel.id)
+          fromRight False <$> execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
 
       -- Fetch blog posts (with optional tag filter)
       blogPostsResult <- case maybeTag of
