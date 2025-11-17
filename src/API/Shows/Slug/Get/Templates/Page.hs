@@ -69,7 +69,7 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.Model] -> Maybe HostDetails.Model -> [ShowBlogPosts.Model] -> Bool -> Lucid.Html ()
+template :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> Maybe HostDetails.Model -> [ShowBlogPosts.Model] -> Bool -> Lucid.Html ()
 template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails blogPosts canEdit = do
   -- Edit button for authorized users
   when canEdit $ do

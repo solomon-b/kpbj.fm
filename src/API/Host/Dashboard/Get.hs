@@ -8,12 +8,13 @@ import API.Host.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedIn
 import API.Host.Dashboard.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.List (find)
 import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Time (Day, getCurrentTime, utctDay)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -86,8 +87,9 @@ handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
               renderTemplate hxRequest (Just userMetadata) dashboardTemplate
             Right userShows@(firstShow : _) -> do
               let showToFetch = findShow firstShow userShows maybeShowSlug
+              today <- utctDay <$> liftIO getCurrentTime
 
-              execTransactionSpan (fetchDashboardData showToFetch) >>= \case
+              execTransactionSpan (fetchDashboardData today showToFetch) >>= \case
                 Left _err -> do
                   -- Failed to fetch data, render empty dashboard
                   let dashboardTemplate = template userMetadata userShows (Just showToFetch) [] [] [] Nothing
@@ -100,12 +102,12 @@ handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
           renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
 
 -- | Fetch all dashboard data in a single read-only transaction
-fetchDashboardData :: Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model], [ShowSchedule.Model], Maybe ShowSchedule.UpcomingShowDate)
-fetchDashboardData showModel = do
+fetchDashboardData :: Day -> Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model], [ShowSchedule.ScheduleTemplate], Maybe ShowSchedule.UpcomingShowDate)
+fetchDashboardData today showModel = do
   episodes <- Txn.statement () (Episodes.getEpisodesById showModel.id)
   blogPosts <- Txn.statement () (ShowBlogPosts.getPublishedShowBlogPosts showModel.id 10 0)
-  schedules <- Txn.statement () (ShowSchedule.getSchedulesForShow showModel.id)
-  upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showModel.id 1)
+  schedules <- Txn.statement () (ShowSchedule.getScheduleTemplatesForShow showModel.id)
+  upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showModel.id today 1)
   let nextShow = listToMaybe upcomingShows
   pure (episodes, blogPosts, schedules, nextShow)
 

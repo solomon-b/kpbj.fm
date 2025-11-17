@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), displayBuilder)
 import Data.Time (UTCTime)
 import Domain.Types.DisplayName (DisplayName)
-import {-# SOURCE #-} Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders

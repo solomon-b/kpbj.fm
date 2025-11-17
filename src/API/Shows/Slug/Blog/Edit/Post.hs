@@ -30,6 +30,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -214,7 +215,7 @@ handler _tracer showSlug postSlug cookie (foldHxReq -> hxRequest) editForm = do
         blogPost <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostBySlug (display showSlug) (display postSlug))
         showModel <- MaybeT $ HT.statement () (Shows.getShowById blogPost.showId)
         oldTags <- lift $ HT.statement () (ShowBlogPosts.getTagsForShowBlogPost blogPost.id)
-        isHost <- lift $ HT.statement () (Shows.isUserHostOfShow (User.mId user) blogPost.showId)
+        isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) blogPost.showId)
         MaybeT $ pure $ Just (blogPost, showModel, oldTags, isHost)
 
       case mResult of

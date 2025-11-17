@@ -19,6 +19,7 @@ import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -76,7 +77,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just showModel) -> do
           -- Check if user is a host of this show or is staff+
-          execQuerySpan (Shows.isUserHostOfShow user.mId showModel.id) >>= \case
+          execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id) >>= \case
             Left err -> do
               Log.logAttention "isUserHostOfShow execution error" (show err)
               renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate

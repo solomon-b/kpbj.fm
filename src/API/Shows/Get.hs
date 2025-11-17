@@ -14,11 +14,12 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Coerce (coerce)
+import Data.Either (isLeft, rights)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
-import Data.Time (getCurrentTime, utctDay)
+import Data.Time (addDays, getCurrentTime, utctDay)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Genre (Genre)
@@ -34,6 +35,7 @@ import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
+import OrphanInstances.DayOfWeek (fromDayOfWeek, toDayOfWeek)
 import Servant ((:>))
 import Servant qualified
 import Text.HTML (HTML)
@@ -78,26 +80,35 @@ handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce
     let limit = 12
         offset = (coerce page - 1) * limit
 
-    -- Get current day of week (1 = Monday, 7 = Sunday)
+    -- Get current day of week and calculate week start (Monday)
     now <- liftIO getCurrentTime
     let today = utctDay now
-        (_, _, dayOfWeek) = toWeekDate today
-        currentDayOfWeek = fromIntegral dayOfWeek :: Int64
+        (_, _, currentDayOfWeek) = toDayOfWeek <$> toWeekDate today
+        -- Calculate days to subtract to get to Monday (start of week)
+        daysFromMonday = fromDayOfWeek currentDayOfWeek
+        weekStart = addDays (negate daysFromMonday) today
 
-    -- Fetch weekly schedule
-    scheduleResult <- execQuerySpan ShowSchedule.getWeeklyScheduleWithDetails
+        -- Generate all 7 days of the week
+        weekDays = [addDays i weekStart | i <- [0 .. 6]]
+
+    -- Fetch schedule for each day of the week
+    scheduleResults <- mapM (execQuerySpan . ShowSchedule.getScheduledShowsForDate) weekDays
 
     -- Fetch limit + 1 to check if there are more results
     showsResult <- getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus
 
-    case (scheduleResult, showsResult) of
-      (Left err, _) -> do
-        Log.logInfo "Failed to fetch schedule from database" (Aeson.object ["error" .= show err])
+    -- Flatten schedule results
+    let scheduledShows = concat (rights scheduleResults)
+        hasScheduleError = any isLeft scheduleResults
+
+    case (hasScheduleError, showsResult) of
+      (True, _) -> do
+        Log.logInfo_ "Failed to fetch schedule from database"
         renderTemplate htmxRequest mUserInfo (errorTemplate "Failed to load schedule. Please try again.")
       (_, Left err) -> do
         Log.logInfo "Failed to fetch shows from database" (Aeson.object ["error" .= show err])
         renderTemplate htmxRequest mUserInfo (errorTemplate "Failed to load shows. Please try again.")
-      (Right scheduledShows, Right allShows) -> do
+      (False, Right allShows) -> do
         let someShows = take (fromIntegral limit) allShows
             hasMore = length allShows > fromIntegral limit
             showsTemplate = template someShows scheduledShows currentDayOfWeek page hasMore maybeGenre maybeStatus maybeSearch

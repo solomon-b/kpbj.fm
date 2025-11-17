@@ -155,19 +155,6 @@ showEditFormFields showModel isStaff =
                         vsHint = Just "Active shows appear on the shows page",
                         vsValidation = emptyValidation {vrRequired = True}
                       },
-                    ValidatedSelectField
-                      { vsName = "frequency",
-                        vsLabel = "Broadcast Frequency",
-                        vsOptions =
-                          [ SelectOption "weekly" "Weekly" (showModel.frequency == Shows.Weekly) Nothing,
-                            SelectOption "biweekly" "Biweekly" (showModel.frequency == Shows.Biweekly) Nothing,
-                            SelectOption "monthly" "Monthly" (showModel.frequency == Shows.Monthly) Nothing,
-                            SelectOption "occasional" "Occasional" (showModel.frequency == Shows.Occasional) Nothing,
-                            SelectOption "one-time" "One-time" (showModel.frequency == Shows.OneTime) Nothing
-                          ],
-                        vsHint = Nothing,
-                        vsValidation = emptyValidation {vrRequired = True}
-                      },
                     ValidatedTextField
                       { vfName = "duration_minutes",
                         vfLabel = "Typical Duration (minutes)",
@@ -193,15 +180,6 @@ showEditFormFields showModel isStaff =
                 hfValue = case showModel.status of
                   Shows.Active -> "active"
                   Shows.Inactive -> "inactive"
-              },
-            HiddenField
-              { hfName = "frequency",
-                hfValue = case showModel.frequency of
-                  Shows.Weekly -> "weekly"
-                  Shows.Biweekly -> "biweekly"
-                  Shows.Monthly -> "monthly"
-                  Shows.Occasional -> "occasional"
-                  Shows.OneTime -> "one-time"
               },
             HiddenField
               { hfName = "duration_minutes",

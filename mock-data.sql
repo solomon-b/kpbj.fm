@@ -3,7 +3,7 @@
 -- Password for all users: "password"
 
 -- First, clear existing data
-TRUNCATE TABLE show_schedules, show_hosts, episode_tracks, episodes, shows, event_tag_assignments, event_tags, events, blog_post_tags, blog_tags, blog_posts RESTART IDENTITY CASCADE;
+TRUNCATE TABLE schedule_template_validity, schedule_templates, show_hosts, episode_tracks, episodes, shows, event_tag_assignments, event_tags, events, blog_post_tags, blog_tags, blog_posts RESTART IDENTITY CASCADE;
 
 -- Create admin user (password: "password")
 INSERT INTO users (email, password) VALUES
@@ -17,112 +17,112 @@ FROM users u WHERE u.email = 'admin@kpbj.fm';
 
 -- Insert 84 diverse radio shows (mix of 1hr and 2hr shows = 168 hours total)
 -- Format: title, slug, description, genre, duration (60 or 120 minutes)
-INSERT INTO shows (title, slug, description, genre, status, frequency, duration_minutes) VALUES
+INSERT INTO shows (title, slug, description, genre, status, duration_minutes) VALUES
 -- SUNDAY (24 hours = 12 shows of 2hrs each)
-('Sunday Morning Jazz', 'sunday-morning-jazz', 'Start your Sunday with smooth jazz classics', 'Jazz', 'active', 'weekly', 120),
-('Gospel Hour', 'gospel-hour', 'Uplifting gospel music and spirituals', 'Gospel', 'active', 'weekly', 120),
-('World Music Passport', 'world-music-passport', 'Global sounds from every continent', 'World', 'active', 'weekly', 120),
-('Classical Sundays', 'classical-sundays', 'Timeless classical compositions', 'Classical', 'active', 'weekly', 120),
-('Indie Mixtape', 'indie-mixtape', 'Fresh independent music discoveries', 'Indie', 'active', 'weekly', 120),
-('Soul Kitchen', 'soul-kitchen', 'Classic soul, R&B, and funk', 'Soul/R&B', 'active', 'weekly', 120),
-('Acoustic Sessions', 'acoustic-sessions', 'Stripped-down acoustic performances', 'Folk', 'active', 'weekly', 120),
-('Electronic Sunday', 'electronic-sunday', 'Electronic beats to end your weekend', 'Electronic', 'active', 'weekly', 120),
-('Reggae Vibes', 'reggae-vibes', 'Roots reggae and dancehall', 'Reggae', 'active', 'weekly', 120),
-('Blues After Dark', 'blues-after-dark', 'Late night blues classics', 'Blues', 'active', 'weekly', 120),
-('Experimental Sounds', 'experimental-sounds', 'Avant-garde and boundary-pushing music', 'Experimental', 'active', 'weekly', 120),
-('Midnight Ambient', 'midnight-ambient', 'Atmospheric soundscapes for late night', 'Ambient', 'active', 'weekly', 120),
+('Sunday Morning Jazz', 'sunday-morning-jazz', 'Start your Sunday with smooth jazz classics', 'Jazz', 'active', 120),
+('Gospel Hour', 'gospel-hour', 'Uplifting gospel music and spirituals', 'Gospel', 'active', 120),
+('World Music Passport', 'world-music-passport', 'Global sounds from every continent', 'World', 'active', 120),
+('Classical Sundays', 'classical-sundays', 'Timeless classical compositions', 'Classical', 'active', 120),
+('Indie Mixtape', 'indie-mixtape', 'Fresh independent music discoveries', 'Indie', 'active', 120),
+('Soul Kitchen', 'soul-kitchen', 'Classic soul, R&B, and funk', 'Soul/R&B', 'active', 120),
+('Acoustic Sessions', 'acoustic-sessions', 'Stripped-down acoustic performances', 'Folk', 'active', 120),
+('Electronic Sunday', 'electronic-sunday', 'Electronic beats to end your weekend', 'Electronic', 'active', 120),
+('Reggae Vibes', 'reggae-vibes', 'Roots reggae and dancehall', 'Reggae', 'active', 120),
+('Blues After Dark', 'blues-after-dark', 'Late night blues classics', 'Blues', 'active', 120),
+('Experimental Sounds', 'experimental-sounds', 'Avant-garde and boundary-pushing music', 'Experimental', 'active', 120),
+('Midnight Ambient', 'midnight-ambient', 'Atmospheric soundscapes for late night', 'Ambient', 'active', 120),
 
 -- MONDAY (24 hours = mix of 1hr and 2hr shows)
-('Monday Morning Wake Up', 'monday-morning-wake-up', 'Energetic music to start your week', 'Pop', 'active', 'weekly', 120),
-('Coffee & Classics', 'coffee-and-classics', 'Classical music for your morning routine', 'Classical', 'active', 'weekly', 120),
-('Folk Tales', 'folk-tales', 'Folk music and storytelling', 'Folk', 'active', 'weekly', 120),
-('Midday Mix', 'midday-mix', 'Eclectic midday music mix', 'Variety', 'active', 'weekly', 120),
-('Latin Grooves', 'latin-grooves', 'Salsa, cumbia, and Latin rhythms', 'Latin', 'active', 'weekly', 120),
-('Rock Solid', 'rock-solid', 'Classic rock anthems', 'Rock', 'active', 'weekly', 120),
-('Drive Time', 'drive-time', 'Perfect soundtrack for your commute', 'Eclectic', 'active', 'weekly', 120),
-('Hip-Hop Fundamentals', 'hip-hop-fundamentals', 'Essential hip-hop tracks', 'Hip-Hop', 'active', 'weekly', 120),
-('Jazz Lounge', 'jazz-lounge', 'Sophisticated evening jazz', 'Jazz', 'active', 'weekly', 120),
-('Punk Power Hour', 'punk-power-hour', 'High-energy punk rock', 'Punk', 'active', 'weekly', 60),
-('Metal Madness', 'metal-madness', 'Heavy metal and hard rock', 'Metal', 'active', 'weekly', 120),
-('Late Night Chill', 'late-night-chill', 'Downtempo beats for night owls', 'Downtempo', 'active', 'weekly', 120),
-('Graveyard Shift', 'graveyard-shift', 'Music for the wee hours', 'Eclectic', 'active', 'weekly', 60),
+('Monday Morning Wake Up', 'monday-morning-wake-up', 'Energetic music to start your week', 'Pop', 'active', 120),
+('Coffee & Classics', 'coffee-and-classics', 'Classical music for your morning routine', 'Classical', 'active', 120),
+('Folk Tales', 'folk-tales', 'Folk music and storytelling', 'Folk', 'active', 120),
+('Midday Mix', 'midday-mix', 'Eclectic midday music mix', 'Variety', 'active', 120),
+('Latin Grooves', 'latin-grooves', 'Salsa, cumbia, and Latin rhythms', 'Latin', 'active', 120),
+('Rock Solid', 'rock-solid', 'Classic rock anthems', 'Rock', 'active', 120),
+('Drive Time', 'drive-time', 'Perfect soundtrack for your commute', 'Eclectic', 'active', 120),
+('Hip-Hop Fundamentals', 'hip-hop-fundamentals', 'Essential hip-hop tracks', 'Hip-Hop', 'active', 120),
+('Jazz Lounge', 'jazz-lounge', 'Sophisticated evening jazz', 'Jazz', 'active', 120),
+('Punk Power Hour', 'punk-power-hour', 'High-energy punk rock', 'Punk', 'active', 60),
+('Metal Madness', 'metal-madness', 'Heavy metal and hard rock', 'Metal', 'active', 120),
+('Late Night Chill', 'late-night-chill', 'Downtempo beats for night owls', 'Downtempo', 'active', 120),
+('Graveyard Shift', 'graveyard-shift', 'Music for the wee hours', 'Eclectic', 'active', 60),
 
 -- TUESDAY (24 hours)
-('Tuesday Sunrise', 'tuesday-sunrise', 'Gentle morning sounds', 'Acoustic', 'active', 'weekly', 120),
-('Morning Brew', 'morning-brew', 'Coffee-fueled eclectic mix', 'Eclectic', 'active', 'weekly', 120),
-('Singer-Songwriter Showcase', 'singer-songwriter-showcase', 'Spotlighting lyrical storytellers', 'Folk', 'active', 'weekly', 120),
-('World Beat', 'world-beat', 'Percussion and rhythm from around the globe', 'World', 'active', 'weekly', 120),
-('Indie Rock Hour', 'indie-rock-hour', 'Independent rock discoveries', 'Indie Rock', 'active', 'weekly', 60),
-('Soul Stirrers', 'soul-stirrers', 'Deep soul and classic R&B', 'Soul/R&B', 'active', 'weekly', 60),
-('Alternative Nation', 'alternative-nation', 'Alternative rock past and present', 'Alternative', 'active', 'weekly', 120),
-('Electronic Evolution', 'electronic-evolution', 'The progression of electronic music', 'Electronic', 'active', 'weekly', 120),
-('Country Roads', 'country-roads', 'Traditional and modern country', 'Country', 'active', 'weekly', 120),
-('Funk Sessions', 'funk-sessions', 'Get down with classic funk', 'Funk', 'active', 'weekly', 120),
-('Jazz Standards', 'jazz-standards', 'Timeless jazz classics', 'Jazz', 'active', 'weekly', 120),
-('Noise & Space', 'noise-and-space', 'Experimental and noise music', 'Experimental', 'active', 'weekly', 60),
-('Deep Night Mix', 'deep-night-mix', 'Music for the deep night hours', 'Ambient', 'active', 'weekly', 120),
+('Tuesday Sunrise', 'tuesday-sunrise', 'Gentle morning sounds', 'Acoustic', 'active', 120),
+('Morning Brew', 'morning-brew', 'Coffee-fueled eclectic mix', 'Eclectic', 'active', 120),
+('Singer-Songwriter Showcase', 'singer-songwriter-showcase', 'Spotlighting lyrical storytellers', 'Folk', 'active', 120),
+('World Beat', 'world-beat', 'Percussion and rhythm from around the globe', 'World', 'active', 120),
+('Indie Rock Hour', 'indie-rock-hour', 'Independent rock discoveries', 'Indie Rock', 'active', 60),
+('Soul Stirrers', 'soul-stirrers', 'Deep soul and classic R&B', 'Soul/R&B', 'active', 60),
+('Alternative Nation', 'alternative-nation', 'Alternative rock past and present', 'Alternative', 'active', 120),
+('Electronic Evolution', 'electronic-evolution', 'The progression of electronic music', 'Electronic', 'active', 120),
+('Country Roads', 'country-roads', 'Traditional and modern country', 'Country', 'active', 120),
+('Funk Sessions', 'funk-sessions', 'Get down with classic funk', 'Funk', 'active', 120),
+('Jazz Standards', 'jazz-standards', 'Timeless jazz classics', 'Jazz', 'active', 120),
+('Noise & Space', 'noise-and-space', 'Experimental and noise music', 'Experimental', 'active', 60),
+('Deep Night Mix', 'deep-night-mix', 'Music for the deep night hours', 'Ambient', 'active', 120),
 
 -- WEDNESDAY (24 hours)
-('Midweek Morning', 'midweek-morning', 'Hump day starts here', 'Pop/Rock', 'active', 'weekly', 120),
-('Classical Interlude', 'classical-interlude', 'Classical music break', 'Classical', 'active', 'weekly', 120),
-('Folk Underground', 'folk-underground', 'Deep folk and Americana', 'Folk', 'active', 'weekly', 120),
-('Lunch Hour Favorites', 'lunch-hour-favorites', 'Midday music you love', 'Variety', 'active', 'weekly', 120),
-('Afrobeat Express', 'afrobeat-express', 'West African grooves', 'Afrobeat', 'active', 'weekly', 120),
-('Psychedelic Journey', 'psychedelic-journey', 'Mind-expanding psych rock', 'Psychedelic', 'active', 'weekly', 120),
-('Hip-Hop Heritage', 'hip-hop-heritage', 'Golden age to modern hip-hop', 'Hip-Hop', 'active', 'weekly', 120),
-('Dub Vibrations', 'dub-vibrations', 'Dub, roots, and bass', 'Dub/Reggae', 'active', 'weekly', 120),
-('Shoegaze & Dream Pop', 'shoegaze-and-dream-pop', 'Ethereal guitar soundscapes', 'Shoegaze', 'active', 'weekly', 120),
-('Jazz Fusion', 'jazz-fusion', 'Where jazz meets rock and funk', 'Jazz Fusion', 'active', 'weekly', 120),
-('Post-Rock Horizons', 'post-rock-horizons', 'Instrumental post-rock epics', 'Post-Rock', 'active', 'weekly', 60),
-('Industrial Underground', 'industrial-underground', 'Industrial and EBM', 'Industrial', 'active', 'weekly', 60),
-('Night Drones', 'night-drones', 'Drone and dark ambient', 'Ambient', 'active', 'weekly', 120),
+('Midweek Morning', 'midweek-morning', 'Hump day starts here', 'Pop/Rock', 'active', 120),
+('Classical Interlude', 'classical-interlude', 'Classical music break', 'Classical', 'active', 120),
+('Folk Underground', 'folk-underground', 'Deep folk and Americana', 'Folk', 'active', 120),
+('Lunch Hour Favorites', 'lunch-hour-favorites', 'Midday music you love', 'Variety', 'active', 120),
+('Afrobeat Express', 'afrobeat-express', 'West African grooves', 'Afrobeat', 'active', 120),
+('Psychedelic Journey', 'psychedelic-journey', 'Mind-expanding psych rock', 'Psychedelic', 'active', 120),
+('Hip-Hop Heritage', 'hip-hop-heritage', 'Golden age to modern hip-hop', 'Hip-Hop', 'active', 120),
+('Dub Vibrations', 'dub-vibrations', 'Dub, roots, and bass', 'Dub/Reggae', 'active', 120),
+('Shoegaze & Dream Pop', 'shoegaze-and-dream-pop', 'Ethereal guitar soundscapes', 'Shoegaze', 'active', 120),
+('Jazz Fusion', 'jazz-fusion', 'Where jazz meets rock and funk', 'Jazz Fusion', 'active', 120),
+('Post-Rock Horizons', 'post-rock-horizons', 'Instrumental post-rock epics', 'Post-Rock', 'active', 60),
+('Industrial Underground', 'industrial-underground', 'Industrial and EBM', 'Industrial', 'active', 60),
+('Night Drones', 'night-drones', 'Drone and dark ambient', 'Ambient', 'active', 120),
 
 -- THURSDAY (24 hours)
-('Thursday Wake-Up Call', 'thursday-wake-up-call', 'Almost Friday energy', 'Rock/Pop', 'active', 'weekly', 120),
-('Baroque & Beyond', 'baroque-and-beyond', 'Early classical music', 'Classical', 'active', 'weekly', 120),
-('Bluegrass & Old Time', 'bluegrass-and-old-time', 'Traditional Americana', 'Bluegrass', 'active', 'weekly', 120),
-('Tropical Sounds', 'tropical-sounds', 'Caribbean and island music', 'Caribbean', 'active', 'weekly', 120),
-('Garage Rock Revival', 'garage-rock-revival', 'Raw, energetic rock & roll', 'Garage Rock', 'active', 'weekly', 120),
-('New Wave Nostalgia', 'new-wave-nostalgia', '80s new wave classics', 'New Wave', 'active', 'weekly', 120),
-('Techno Territory', 'techno-territory', 'Pure techno beats', 'Techno', 'active', 'weekly', 120),
-('Ska & Rocksteady', 'ska-and-rocksteady', 'Upbeat ska grooves', 'Ska', 'active', 'weekly', 120),
-('R&B Slow Jams', 'r-and-b-slow-jams', 'Smooth R&B ballads', 'R&B', 'active', 'weekly', 120),
-('Hardcore Punk', 'hardcore-punk', 'Fast and furious hardcore', 'Hardcore', 'active', 'weekly', 60),
-('Doom & Stoner', 'doom-and-stoner', 'Heavy, slow, and loud', 'Doom Metal', 'active', 'weekly', 60),
-('Witch House', 'witch-house', 'Dark electronic atmospheres', 'Witch House', 'active', 'weekly', 60),
-('Late Night Jazz', 'late-night-jazz', 'Sophisticated late night jazz', 'Jazz', 'active', 'weekly', 120),
-('Minimal Techno', 'minimal-techno', 'Stripped-down electronic beats', 'Minimal', 'active', 'weekly', 120),
+('Thursday Wake-Up Call', 'thursday-wake-up-call', 'Almost Friday energy', 'Rock/Pop', 'active', 120),
+('Baroque & Beyond', 'baroque-and-beyond', 'Early classical music', 'Classical', 'active', 120),
+('Bluegrass & Old Time', 'bluegrass-and-old-time', 'Traditional Americana', 'Bluegrass', 'active', 120),
+('Tropical Sounds', 'tropical-sounds', 'Caribbean and island music', 'Caribbean', 'active', 120),
+('Garage Rock Revival', 'garage-rock-revival', 'Raw, energetic rock & roll', 'Garage Rock', 'active', 120),
+('New Wave Nostalgia', 'new-wave-nostalgia', '80s new wave classics', 'New Wave', 'active', 120),
+('Techno Territory', 'techno-territory', 'Pure techno beats', 'Techno', 'active', 120),
+('Ska & Rocksteady', 'ska-and-rocksteady', 'Upbeat ska grooves', 'Ska', 'active', 120),
+('R&B Slow Jams', 'r-and-b-slow-jams', 'Smooth R&B ballads', 'R&B', 'active', 120),
+('Hardcore Punk', 'hardcore-punk', 'Fast and furious hardcore', 'Hardcore', 'active', 60),
+('Doom & Stoner', 'doom-and-stoner', 'Heavy, slow, and loud', 'Doom Metal', 'active', 60),
+('Witch House', 'witch-house', 'Dark electronic atmospheres', 'Witch House', 'active', 60),
+('Late Night Jazz', 'late-night-jazz', 'Sophisticated late night jazz', 'Jazz', 'active', 120),
+('Minimal Techno', 'minimal-techno', 'Stripped-down electronic beats', 'Minimal', 'active', 120),
 
 -- FRIDAY (24 hours)
-('Friday Morning Groove', 'friday-morning-groove', 'Get ready for the weekend', 'Soul/Funk', 'active', 'weekly', 120),
-('Chamber Music', 'chamber-music', 'Small ensemble classical', 'Classical', 'active', 'weekly', 120),
-('Desert Rock', 'desert-rock', 'Stoner and desert rock', 'Stoner Rock', 'active', 'weekly', 120),
-('Cumbia & Chicha', 'cumbia-and-chicha', 'Latin American grooves', 'Cumbia', 'active', 'weekly', 120),
-('Post-Punk Power', 'post-punk-power', 'Dark and danceable post-punk', 'Post-Punk', 'active', 'weekly', 120),
-('House Music All Night', 'house-music-all-night', 'Classic house beats', 'House', 'active', 'weekly', 120),
-('Weekend Warm-Up', 'weekend-warm-up', 'Eclectic pre-weekend mix', 'Variety', 'active', 'weekly', 120),
-('Trap & Bass', 'trap-and-bass', 'Modern trap and bass music', 'Trap', 'active', 'weekly', 120),
-('Disco Fever', 'disco-fever', 'Classic disco grooves', 'Disco', 'active', 'weekly', 120),
-('Emo Night', 'emo-night', 'Emotional hardcore and emo', 'Emo', 'active', 'weekly', 60),
-('Black Metal', 'black-metal', 'Atmospheric black metal', 'Black Metal', 'active', 'weekly', 60),
-('Vaporwave Dreams', 'vaporwave-dreams', 'Surreal electronic nostalgia', 'Vaporwave', 'active', 'weekly', 60),
-('Midnight Madness', 'midnight-madness', 'Late night party mix', 'Eclectic', 'active', 'weekly', 120),
-('Deep House', 'deep-house', 'Soulful deep house music', 'Deep House', 'active', 'weekly', 120),
+('Friday Morning Groove', 'friday-morning-groove', 'Get ready for the weekend', 'Soul/Funk', 'active', 120),
+('Chamber Music', 'chamber-music', 'Small ensemble classical', 'Classical', 'active', 120),
+('Desert Rock', 'desert-rock', 'Stoner and desert rock', 'Stoner Rock', 'active', 120),
+('Cumbia & Chicha', 'cumbia-and-chicha', 'Latin American grooves', 'Cumbia', 'active', 120),
+('Post-Punk Power', 'post-punk-power', 'Dark and danceable post-punk', 'Post-Punk', 'active', 120),
+('House Music All Night', 'house-music-all-night', 'Classic house beats', 'House', 'active', 120),
+('Weekend Warm-Up', 'weekend-warm-up', 'Eclectic pre-weekend mix', 'Variety', 'active', 120),
+('Trap & Bass', 'trap-and-bass', 'Modern trap and bass music', 'Trap', 'active', 120),
+('Disco Fever', 'disco-fever', 'Classic disco grooves', 'Disco', 'active', 120),
+('Emo Night', 'emo-night', 'Emotional hardcore and emo', 'Emo', 'active', 60),
+('Black Metal', 'black-metal', 'Atmospheric black metal', 'Black Metal', 'active', 60),
+('Vaporwave Dreams', 'vaporwave-dreams', 'Surreal electronic nostalgia', 'Vaporwave', 'active', 60),
+('Midnight Madness', 'midnight-madness', 'Late night party mix', 'Eclectic', 'active', 120),
+('Deep House', 'deep-house', 'Soulful deep house music', 'Deep House', 'active', 120),
 
 -- SATURDAY (24 hours)
-('Saturday Morning Cartoons', 'saturday-morning-cartoons', 'Fun music to start your weekend', 'Pop', 'active', 'weekly', 120),
-('Opera Hour', 'opera-hour', 'Grand opera performances', 'Opera', 'active', 'weekly', 120),
-('Surf Rock', 'surf-rock', 'Reverb-drenched guitar instrumentals', 'Surf Rock', 'active', 'weekly', 120),
-('Global Bass', 'global-bass', 'Bass music from around the world', 'Global Bass', 'active', 'weekly', 120),
-('Britpop & Beyond', 'britpop-and-beyond', '90s British rock revival', 'Britpop', 'active', 'weekly', 120),
-('Drum & Bass', 'drum-and-bass', 'High-energy jungle and D&B', 'Drum & Bass', 'active', 'weekly', 120),
-('Saturday Dance Party', 'saturday-dance-party', 'Dance floor favorites', 'Dance', 'active', 'weekly', 120),
-('Lo-Fi Hip-Hop', 'lo-fi-hip-hop', 'Chill beats to relax to', 'Lo-Fi', 'active', 'weekly', 120),
-('Motown & Stax', 'motown-and-stax', 'Classic soul labels', 'Soul', 'active', 'weekly', 120),
-('Thrash Metal', 'thrash-metal', 'Speed and aggression', 'Thrash Metal', 'active', 'weekly', 60),
-('Synthwave Night', 'synthwave-night', 'Retro-futuristic synth music', 'Synthwave', 'active', 'weekly', 120),
-('Ambient Soundscapes', 'ambient-soundscapes', 'Peaceful ambient textures', 'Ambient', 'active', 'weekly', 120),
-('Late Night Beats', 'late-night-beats', 'Chill beats for late night', 'Beats', 'active', 'weekly', 60);
+('Saturday Morning Cartoons', 'saturday-morning-cartoons', 'Fun music to start your weekend', 'Pop', 'active', 120),
+('Opera Hour', 'opera-hour', 'Grand opera performances', 'Opera', 'active', 120),
+('Surf Rock', 'surf-rock', 'Reverb-drenched guitar instrumentals', 'Surf Rock', 'active', 120),
+('Global Bass', 'global-bass', 'Bass music from around the world', 'Global Bass', 'active', 120),
+('Britpop & Beyond', 'britpop-and-beyond', '90s British rock revival', 'Britpop', 'active', 120),
+('Drum & Bass', 'drum-and-bass', 'High-energy jungle and D&B', 'Drum & Bass', 'active', 120),
+('Saturday Dance Party', 'saturday-dance-party', 'Dance floor favorites', 'Dance', 'active', 120),
+('Lo-Fi Hip-Hop', 'lo-fi-hip-hop', 'Chill beats to relax to', 'Lo-Fi', 'active', 120),
+('Motown & Stax', 'motown-and-stax', 'Classic soul labels', 'Soul', 'active', 120),
+('Thrash Metal', 'thrash-metal', 'Speed and aggression', 'Thrash Metal', 'active', 60),
+('Synthwave Night', 'synthwave-night', 'Retro-futuristic synth music', 'Synthwave', 'active', 120),
+('Ambient Soundscapes', 'ambient-soundscapes', 'Peaceful ambient textures', 'Ambient', 'active', 120),
+('Late Night Beats', 'late-night-beats', 'Chill beats for late night', 'Beats', 'active', 60);
 
 -- Create host users (one per show)
 INSERT INTO users (email, password)
@@ -409,114 +409,121 @@ SELECT
 FROM users u
 JOIN shows s ON u.email = 'host-' || s.slug || '@kpbj.fm';
 
--- Create show schedules: each show airs once per week at a specific time
+-- Create schedule templates: each show airs once per week at a specific time
 -- Distribute shows across the week to fill 24/7
-INSERT INTO show_schedules (show_id, day_of_week, start_time, end_time) VALUES
--- SUNDAY (0)
-((SELECT id FROM shows WHERE slug = 'sunday-morning-jazz'), 0, '00:00', '02:00'),
-((SELECT id FROM shows WHERE slug = 'gospel-hour'), 0, '02:00', '04:00'),
-((SELECT id FROM shows WHERE slug = 'world-music-passport'), 0, '04:00', '06:00'),
-((SELECT id FROM shows WHERE slug = 'classical-sundays'), 0, '06:00', '08:00'),
-((SELECT id FROM shows WHERE slug = 'indie-mixtape'), 0, '08:00', '10:00'),
-((SELECT id FROM shows WHERE slug = 'soul-kitchen'), 0, '10:00', '12:00'),
-((SELECT id FROM shows WHERE slug = 'acoustic-sessions'), 0, '12:00', '14:00'),
-((SELECT id FROM shows WHERE slug = 'electronic-sunday'), 0, '14:00', '16:00'),
-((SELECT id FROM shows WHERE slug = 'reggae-vibes'), 0, '16:00', '18:00'),
-((SELECT id FROM shows WHERE slug = 'blues-after-dark'), 0, '18:00', '20:00'),
-((SELECT id FROM shows WHERE slug = 'experimental-sounds'), 0, '20:00', '22:00'),
-((SELECT id FROM shows WHERE slug = 'midnight-ambient'), 0, '22:00', '24:00'),
+-- All shows are weekly (weeks_of_month = [1,2,3,4,5]) and use Pacific timezone
+INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time, end_time, timezone) VALUES
+-- SUNDAY
+((SELECT id FROM shows WHERE slug = 'sunday-morning-jazz'), 'sunday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'gospel-hour'), 'sunday', ARRAY[1,2,3,4,5], '02:00', '04:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'world-music-passport'), 'sunday', ARRAY[1,2,3,4,5], '04:00', '06:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'classical-sundays'), 'sunday', ARRAY[1,2,3,4,5], '06:00', '08:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'indie-mixtape'), 'sunday', ARRAY[1,2,3,4,5], '08:00', '10:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'soul-kitchen'), 'sunday', ARRAY[1,2,3,4,5], '10:00', '12:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'acoustic-sessions'), 'sunday', ARRAY[1,2,3,4,5], '12:00', '14:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'electronic-sunday'), 'sunday', ARRAY[1,2,3,4,5], '14:00', '16:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'reggae-vibes'), 'sunday', ARRAY[1,2,3,4,5], '16:00', '18:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'blues-after-dark'), 'sunday', ARRAY[1,2,3,4,5], '18:00', '20:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'experimental-sounds'), 'sunday', ARRAY[1,2,3,4,5], '20:00', '22:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'midnight-ambient'), 'sunday', ARRAY[1,2,3,4,5], '22:00', '24:00', 'America/Los_Angeles'),
 
--- MONDAY (1)
-((SELECT id FROM shows WHERE slug = 'monday-morning-wake-up'), 1, '00:00', '02:00'),
-((SELECT id FROM shows WHERE slug = 'coffee-and-classics'), 1, '02:00', '04:00'),
-((SELECT id FROM shows WHERE slug = 'folk-tales'), 1, '04:00', '06:00'),
-((SELECT id FROM shows WHERE slug = 'midday-mix'), 1, '06:00', '08:00'),
-((SELECT id FROM shows WHERE slug = 'latin-grooves'), 1, '08:00', '10:00'),
-((SELECT id FROM shows WHERE slug = 'rock-solid'), 1, '10:00', '12:00'),
-((SELECT id FROM shows WHERE slug = 'drive-time'), 1, '12:00', '14:00'),
-((SELECT id FROM shows WHERE slug = 'hip-hop-fundamentals'), 1, '14:00', '16:00'),
-((SELECT id FROM shows WHERE slug = 'jazz-lounge'), 1, '16:00', '18:00'),
-((SELECT id FROM shows WHERE slug = 'punk-power-hour'), 1, '18:00', '19:00'),
-((SELECT id FROM shows WHERE slug = 'metal-madness'), 1, '19:00', '21:00'),
-((SELECT id FROM shows WHERE slug = 'late-night-chill'), 1, '21:00', '23:00'),
-((SELECT id FROM shows WHERE slug = 'graveyard-shift'), 1, '23:00', '24:00'),
+-- MONDAY
+((SELECT id FROM shows WHERE slug = 'monday-morning-wake-up'), 'monday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'coffee-and-classics'), 'monday', ARRAY[1,2,3,4,5], '02:00', '04:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'folk-tales'), 'monday', ARRAY[1,2,3,4,5], '04:00', '06:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'midday-mix'), 'monday', ARRAY[1,2,3,4,5], '06:00', '08:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'latin-grooves'), 'monday', ARRAY[1,2,3,4,5], '08:00', '10:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'rock-solid'), 'monday', ARRAY[1,2,3,4,5], '10:00', '12:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'drive-time'), 'monday', ARRAY[1,2,3,4,5], '12:00', '14:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'hip-hop-fundamentals'), 'monday', ARRAY[1,2,3,4,5], '14:00', '16:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'jazz-lounge'), 'monday', ARRAY[1,2,3,4,5], '16:00', '18:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'punk-power-hour'), 'monday', ARRAY[1,2,3,4,5], '18:00', '19:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'metal-madness'), 'monday', ARRAY[1,2,3,4,5], '19:00', '21:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'late-night-chill'), 'monday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'graveyard-shift'), 'monday', ARRAY[1,2,3,4,5], '23:00', '24:00', 'America/Los_Angeles'),
 
--- TUESDAY (2)
-((SELECT id FROM shows WHERE slug = 'tuesday-sunrise'), 2, '00:00', '02:00'),
-((SELECT id FROM shows WHERE slug = 'morning-brew'), 2, '02:00', '04:00'),
-((SELECT id FROM shows WHERE slug = 'singer-songwriter-showcase'), 2, '04:00', '06:00'),
-((SELECT id FROM shows WHERE slug = 'world-beat'), 2, '06:00', '08:00'),
-((SELECT id FROM shows WHERE slug = 'indie-rock-hour'), 2, '08:00', '09:00'),
-((SELECT id FROM shows WHERE slug = 'soul-stirrers'), 2, '09:00', '10:00'),
-((SELECT id FROM shows WHERE slug = 'alternative-nation'), 2, '10:00', '12:00'),
-((SELECT id FROM shows WHERE slug = 'electronic-evolution'), 2, '12:00', '14:00'),
-((SELECT id FROM shows WHERE slug = 'country-roads'), 2, '14:00', '16:00'),
-((SELECT id FROM shows WHERE slug = 'funk-sessions'), 2, '16:00', '18:00'),
-((SELECT id FROM shows WHERE slug = 'jazz-standards'), 2, '18:00', '20:00'),
-((SELECT id FROM shows WHERE slug = 'noise-and-space'), 2, '20:00', '21:00'),
-((SELECT id FROM shows WHERE slug = 'deep-night-mix'), 2, '21:00', '23:00'),
+-- TUESDAY
+((SELECT id FROM shows WHERE slug = 'tuesday-sunrise'), 'tuesday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'morning-brew'), 'tuesday', ARRAY[1,2,3,4,5], '02:00', '04:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'singer-songwriter-showcase'), 'tuesday', ARRAY[1,2,3,4,5], '04:00', '06:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'world-beat'), 'tuesday', ARRAY[1,2,3,4,5], '06:00', '08:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'indie-rock-hour'), 'tuesday', ARRAY[1,2,3,4,5], '08:00', '09:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'soul-stirrers'), 'tuesday', ARRAY[1,2,3,4,5], '09:00', '10:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'alternative-nation'), 'tuesday', ARRAY[1,2,3,4,5], '10:00', '12:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'electronic-evolution'), 'tuesday', ARRAY[1,2,3,4,5], '12:00', '14:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'country-roads'), 'tuesday', ARRAY[1,2,3,4,5], '14:00', '16:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'funk-sessions'), 'tuesday', ARRAY[1,2,3,4,5], '16:00', '18:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'jazz-standards'), 'tuesday', ARRAY[1,2,3,4,5], '18:00', '20:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'noise-and-space'), 'tuesday', ARRAY[1,2,3,4,5], '20:00', '21:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'deep-night-mix'), 'tuesday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
 
--- WEDNESDAY (3)
-((SELECT id FROM shows WHERE slug = 'midweek-morning'), 3, '00:00', '02:00'),
-((SELECT id FROM shows WHERE slug = 'classical-interlude'), 3, '02:00', '04:00'),
-((SELECT id FROM shows WHERE slug = 'folk-underground'), 3, '04:00', '06:00'),
-((SELECT id FROM shows WHERE slug = 'lunch-hour-favorites'), 3, '06:00', '08:00'),
-((SELECT id FROM shows WHERE slug = 'afrobeat-express'), 3, '08:00', '10:00'),
-((SELECT id FROM shows WHERE slug = 'psychedelic-journey'), 3, '10:00', '12:00'),
-((SELECT id FROM shows WHERE slug = 'hip-hop-heritage'), 3, '12:00', '14:00'),
-((SELECT id FROM shows WHERE slug = 'dub-vibrations'), 3, '14:00', '16:00'),
-((SELECT id FROM shows WHERE slug = 'shoegaze-and-dream-pop'), 3, '16:00', '18:00'),
-((SELECT id FROM shows WHERE slug = 'jazz-fusion'), 3, '18:00', '20:00'),
-((SELECT id FROM shows WHERE slug = 'post-rock-horizons'), 3, '20:00', '21:00'),
-((SELECT id FROM shows WHERE slug = 'industrial-underground'), 3, '21:00', '22:00'),
-((SELECT id FROM shows WHERE slug = 'night-drones'), 3, '22:00', '24:00'),
+-- WEDNESDAY
+((SELECT id FROM shows WHERE slug = 'midweek-morning'), 'wednesday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'classical-interlude'), 'wednesday', ARRAY[1,2,3,4,5], '02:00', '04:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'folk-underground'), 'wednesday', ARRAY[1,2,3,4,5], '04:00', '06:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'lunch-hour-favorites'), 'wednesday', ARRAY[1,2,3,4,5], '06:00', '08:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'afrobeat-express'), 'wednesday', ARRAY[1,2,3,4,5], '08:00', '10:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'psychedelic-journey'), 'wednesday', ARRAY[1,2,3,4,5], '10:00', '12:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'hip-hop-heritage'), 'wednesday', ARRAY[1,2,3,4,5], '12:00', '14:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'dub-vibrations'), 'wednesday', ARRAY[1,2,3,4,5], '14:00', '16:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'shoegaze-and-dream-pop'), 'wednesday', ARRAY[1,2,3,4,5], '16:00', '18:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'jazz-fusion'), 'wednesday', ARRAY[1,2,3,4,5], '18:00', '20:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'post-rock-horizons'), 'wednesday', ARRAY[1,2,3,4,5], '20:00', '21:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'industrial-underground'), 'wednesday', ARRAY[1,2,3,4,5], '21:00', '22:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'night-drones'), 'wednesday', ARRAY[1,2,3,4,5], '22:00', '24:00', 'America/Los_Angeles'),
 
--- THURSDAY (4)
-((SELECT id FROM shows WHERE slug = 'thursday-wake-up-call'), 4, '00:00', '02:00'),
-((SELECT id FROM shows WHERE slug = 'baroque-and-beyond'), 4, '02:00', '04:00'),
-((SELECT id FROM shows WHERE slug = 'bluegrass-and-old-time'), 4, '04:00', '06:00'),
-((SELECT id FROM shows WHERE slug = 'tropical-sounds'), 4, '06:00', '08:00'),
-((SELECT id FROM shows WHERE slug = 'garage-rock-revival'), 4, '08:00', '10:00'),
-((SELECT id FROM shows WHERE slug = 'new-wave-nostalgia'), 4, '10:00', '12:00'),
-((SELECT id FROM shows WHERE slug = 'techno-territory'), 4, '12:00', '14:00'),
-((SELECT id FROM shows WHERE slug = 'ska-and-rocksteady'), 4, '14:00', '16:00'),
-((SELECT id FROM shows WHERE slug = 'r-and-b-slow-jams'), 4, '16:00', '18:00'),
-((SELECT id FROM shows WHERE slug = 'hardcore-punk'), 4, '18:00', '19:00'),
-((SELECT id FROM shows WHERE slug = 'doom-and-stoner'), 4, '19:00', '20:00'),
-((SELECT id FROM shows WHERE slug = 'witch-house'), 4, '20:00', '21:00'),
-((SELECT id FROM shows WHERE slug = 'late-night-jazz'), 4, '21:00', '23:00'),
-((SELECT id FROM shows WHERE slug = 'minimal-techno'), 4, '23:00', '24:00'),
+-- THURSDAY
+((SELECT id FROM shows WHERE slug = 'thursday-wake-up-call'), 'thursday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'baroque-and-beyond'), 'thursday', ARRAY[1,2,3,4,5], '02:00', '04:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'bluegrass-and-old-time'), 'thursday', ARRAY[1,2,3,4,5], '04:00', '06:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'tropical-sounds'), 'thursday', ARRAY[1,2,3,4,5], '06:00', '08:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'garage-rock-revival'), 'thursday', ARRAY[1,2,3,4,5], '08:00', '10:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'new-wave-nostalgia'), 'thursday', ARRAY[1,2,3,4,5], '10:00', '12:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'techno-territory'), 'thursday', ARRAY[1,2,3,4,5], '12:00', '14:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'ska-and-rocksteady'), 'thursday', ARRAY[1,2,3,4,5], '14:00', '16:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'r-and-b-slow-jams'), 'thursday', ARRAY[1,2,3,4,5], '16:00', '18:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'hardcore-punk'), 'thursday', ARRAY[1,2,3,4,5], '18:00', '19:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'doom-and-stoner'), 'thursday', ARRAY[1,2,3,4,5], '19:00', '20:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'witch-house'), 'thursday', ARRAY[1,2,3,4,5], '20:00', '21:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'late-night-jazz'), 'thursday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'minimal-techno'), 'thursday', ARRAY[1,2,3,4,5], '23:00', '24:00', 'America/Los_Angeles'),
 
--- FRIDAY (5)
-((SELECT id FROM shows WHERE slug = 'friday-morning-groove'), 5, '00:00', '02:00'),
-((SELECT id FROM shows WHERE slug = 'chamber-music'), 5, '02:00', '04:00'),
-((SELECT id FROM shows WHERE slug = 'desert-rock'), 5, '04:00', '06:00'),
-((SELECT id FROM shows WHERE slug = 'cumbia-and-chicha'), 5, '06:00', '08:00'),
-((SELECT id FROM shows WHERE slug = 'post-punk-power'), 5, '08:00', '10:00'),
-((SELECT id FROM shows WHERE slug = 'house-music-all-night'), 5, '10:00', '12:00'),
-((SELECT id FROM shows WHERE slug = 'weekend-warm-up'), 5, '12:00', '14:00'),
-((SELECT id FROM shows WHERE slug = 'trap-and-bass'), 5, '14:00', '16:00'),
-((SELECT id FROM shows WHERE slug = 'disco-fever'), 5, '16:00', '18:00'),
-((SELECT id FROM shows WHERE slug = 'emo-night'), 5, '18:00', '19:00'),
-((SELECT id FROM shows WHERE slug = 'black-metal'), 5, '19:00', '20:00'),
-((SELECT id FROM shows WHERE slug = 'vaporwave-dreams'), 5, '20:00', '21:00'),
-((SELECT id FROM shows WHERE slug = 'midnight-madness'), 5, '21:00', '23:00'),
-((SELECT id FROM shows WHERE slug = 'deep-house'), 5, '23:00', '24:00'),
+-- FRIDAY
+((SELECT id FROM shows WHERE slug = 'friday-morning-groove'), 'friday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'chamber-music'), 'friday', ARRAY[1,2,3,4,5], '02:00', '04:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'desert-rock'), 'friday', ARRAY[1,2,3,4,5], '04:00', '06:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'cumbia-and-chicha'), 'friday', ARRAY[1,2,3,4,5], '06:00', '08:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'post-punk-power'), 'friday', ARRAY[1,2,3,4,5], '08:00', '10:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'house-music-all-night'), 'friday', ARRAY[1,2,3,4,5], '10:00', '12:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'weekend-warm-up'), 'friday', ARRAY[1,2,3,4,5], '12:00', '14:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'trap-and-bass'), 'friday', ARRAY[1,2,3,4,5], '14:00', '16:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'disco-fever'), 'friday', ARRAY[1,2,3,4,5], '16:00', '18:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'emo-night'), 'friday', ARRAY[1,2,3,4,5], '18:00', '19:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'black-metal'), 'friday', ARRAY[1,2,3,4,5], '19:00', '20:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'vaporwave-dreams'), 'friday', ARRAY[1,2,3,4,5], '20:00', '21:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'midnight-madness'), 'friday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'deep-house'), 'friday', ARRAY[1,2,3,4,5], '23:00', '24:00', 'America/Los_Angeles'),
 
--- SATURDAY (6)
-((SELECT id FROM shows WHERE slug = 'saturday-morning-cartoons'), 6, '00:00', '02:00'),
-((SELECT id FROM shows WHERE slug = 'opera-hour'), 6, '02:00', '04:00'),
-((SELECT id FROM shows WHERE slug = 'surf-rock'), 6, '04:00', '06:00'),
-((SELECT id FROM shows WHERE slug = 'global-bass'), 6, '06:00', '08:00'),
-((SELECT id FROM shows WHERE slug = 'britpop-and-beyond'), 6, '08:00', '10:00'),
-((SELECT id FROM shows WHERE slug = 'drum-and-bass'), 6, '10:00', '12:00'),
-((SELECT id FROM shows WHERE slug = 'saturday-dance-party'), 6, '12:00', '14:00'),
-((SELECT id FROM shows WHERE slug = 'lo-fi-hip-hop'), 6, '14:00', '16:00'),
-((SELECT id FROM shows WHERE slug = 'motown-and-stax'), 6, '16:00', '18:00'),
-((SELECT id FROM shows WHERE slug = 'thrash-metal'), 6, '18:00', '19:00'),
-((SELECT id FROM shows WHERE slug = 'synthwave-night'), 6, '19:00', '21:00'),
-((SELECT id FROM shows WHERE slug = 'ambient-soundscapes'), 6, '21:00', '23:00'),
-((SELECT id FROM shows WHERE slug = 'late-night-beats'), 6, '23:00', '24:00');
+-- SATURDAY
+((SELECT id FROM shows WHERE slug = 'saturday-morning-cartoons'), 'saturday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'opera-hour'), 'saturday', ARRAY[1,2,3,4,5], '02:00', '04:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'surf-rock'), 'saturday', ARRAY[1,2,3,4,5], '04:00', '06:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'global-bass'), 'saturday', ARRAY[1,2,3,4,5], '06:00', '08:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'britpop-and-beyond'), 'saturday', ARRAY[1,2,3,4,5], '08:00', '10:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'drum-and-bass'), 'saturday', ARRAY[1,2,3,4,5], '10:00', '12:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'saturday-dance-party'), 'saturday', ARRAY[1,2,3,4,5], '12:00', '14:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'lo-fi-hip-hop'), 'saturday', ARRAY[1,2,3,4,5], '14:00', '16:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'motown-and-stax'), 'saturday', ARRAY[1,2,3,4,5], '16:00', '18:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'thrash-metal'), 'saturday', ARRAY[1,2,3,4,5], '18:00', '19:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'synthwave-night'), 'saturday', ARRAY[1,2,3,4,5], '19:00', '21:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'ambient-soundscapes'), 'saturday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'late-night-beats'), 'saturday', ARRAY[1,2,3,4,5], '23:00', '24:00', 'America/Los_Angeles');
+
+-- Create validity periods for all schedule templates
+-- All templates are effective from 30 days ago and currently active (effective_until = NULL)
+INSERT INTO schedule_template_validity (template_id, effective_from, effective_until)
+SELECT id, CURRENT_DATE - INTERVAL '30 days', NULL
+FROM schedule_templates;
 
 -- Generate episodes for the past 2 weeks based on show schedules
 -- Each show gets 2 episodes (one per week for 2 weeks)
@@ -528,11 +535,12 @@ SELECT
     'A great episode of ' || s.title || ' from ' || to_char(generate_series, 'FMMonth DD, YYYY') as description,
     'published' as status,
     -- interpret date + time in show's timezone, then convert to UTC
-    (generate_series::date::text || ' ' || ss.start_time)::timestamp AT TIME ZONE ss.timezone as scheduled_at,
-    (generate_series::date::text || ' ' || ss.start_time)::timestamp AT TIME ZONE ss.timezone as published_at,
+    (generate_series::date::text || ' ' || st.start_time)::timestamp AT TIME ZONE st.timezone as scheduled_at,
+    (generate_series::date::text || ' ' || st.start_time)::timestamp AT TIME ZONE st.timezone as published_at,
     u.id as created_by
 FROM shows s
-JOIN show_schedules ss ON ss.show_id = s.id
+JOIN schedule_templates st ON st.show_id = s.id
+JOIN schedule_template_validity stv ON stv.template_id = st.id
 JOIN users u ON u.email = 'host-' || s.slug || '@kpbj.fm'
 CROSS JOIN LATERAL (
     -- Generate dates for the past 2 weeks for this show's day of week
@@ -542,8 +550,19 @@ CROSS JOIN LATERAL (
         CURRENT_DATE - INTERVAL '1 day',
         INTERVAL '1 day'
     ) AS generate_series
-    WHERE EXTRACT(DOW FROM generate_series) = ss.day_of_week
+    WHERE EXTRACT(DOW FROM generate_series)::INTEGER =
+        CASE st.day_of_week::TEXT
+            WHEN 'sunday' THEN 0
+            WHEN 'monday' THEN 1
+            WHEN 'tuesday' THEN 2
+            WHEN 'wednesday' THEN 3
+            WHEN 'thursday' THEN 4
+            WHEN 'friday' THEN 5
+            WHEN 'saturday' THEN 6
+        END
 ) dates
+WHERE stv.effective_from <= CURRENT_DATE - INTERVAL '14 days'
+  AND (stv.effective_until IS NULL OR stv.effective_until > CURRENT_DATE - INTERVAL '1 day')
 ORDER BY s.id, generate_series DESC;
 
 -- Create staff user (password: "password")
@@ -1050,9 +1069,9 @@ SELECT
 FROM host_details
 UNION ALL
 SELECT
-    'Schedule Entries' as metric,
+    'Schedule Templates' as metric,
     COUNT(*) as count
-FROM show_schedules
+FROM schedule_templates
 UNION ALL
 SELECT
     'Episodes' as metric,
