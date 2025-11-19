@@ -112,12 +112,12 @@ lint-shell-changed:
   fi
 
 # Lint Haskell source code using hlint.
-lint-hs:
+hlint:
   @echo running hlint
   @hlint {{HS_FILES}}
 
 # Lint Haskell source code using hlint (changed files only).
-lint-hs-changed:
+hlint-changed:
   @echo running hlint
   @if [ -n "{{CHANGED_HS_FILES}}" ]; then \
   	hlint {{CHANGED_HS_FILES}}; \
