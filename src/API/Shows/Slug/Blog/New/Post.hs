@@ -239,8 +239,10 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
       -- Fetch show and verify host permissions in a transaction
       mResult <- execTransactionSpan $ runMaybeT $ do
         showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
-        isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
-        guard isHost
+        -- Admins can create blog posts for any show, hosts need explicit assignment
+        unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do
+          isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
+          guard isHost
         pure showModel
 
       case mResult of

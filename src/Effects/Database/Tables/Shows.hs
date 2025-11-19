@@ -253,6 +253,18 @@ getShowsForUser userId =
     ORDER BY s.title
   |]
 
+-- | Get all active shows (for admin dashboard)
+getAllActiveShows :: Hasql.Statement () [Model]
+getAllActiveShows =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    FROM shows
+    WHERE status = 'active'
+    ORDER BY title
+  |]
+
 -- | Search shows by text query with pagination
 searchShows :: Search -> Int64 -> Int64 -> Hasql.Statement () [Model]
 searchShows searchTerm limit offset =

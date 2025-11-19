@@ -12,6 +12,7 @@ import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
 import Data.Maybe (mapMaybe)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -31,23 +32,26 @@ template :: UserMetadata.Model -> [Shows.Model] -> Maybe Shows.Model -> [Episode
 template userMeta allShows selectedShow recentEpisodes blogPosts schedules nextShow = do
   -- Error banner container (empty by default, populated by HTMX out-of-band swaps)
   Lucid.div_ [Lucid.id_ "error-banner-container"] ""
-  renderShowSelector allShows selectedShow
+  renderShowSelector userMeta allShows selectedShow
   renderDashboardContent userMeta selectedShow recentEpisodes blogPosts schedules nextShow
 
 -- | Show selector dropdown (only rendered when user has multiple shows)
-renderShowSelector :: [Shows.Model] -> Maybe Shows.Model -> Lucid.Html ()
-renderShowSelector allShows selectedShow =
+renderShowSelector :: UserMetadata.Model -> [Shows.Model] -> Maybe Shows.Model -> Lucid.Html ()
+renderShowSelector userMeta allShows selectedShow =
   case allShows of
     [] -> mempty
     [_] -> mempty -- Single show, no need for selector
     _ -> do
       let selectedSlug = maybe "" (display . Shows.slug) selectedShow
+          isAdmin = UserMetadata.isAdmin userMeta.mUserRole
+          selectorLabel :: Text
+          selectorLabel = if isAdmin then "View Show:" else "Select Show:"
       Lucid.section_
         [ Lucid.class_ "bg-gray-100 border-2 border-gray-800 p-4 mb-6 w-full",
           xData_ [i|{ selectedShow: '#{selectedSlug}' }|]
         ]
         $ do
-          Lucid.label_ [Lucid.for_ "show-selector", Lucid.class_ "block font-bold mb-2"] "Select Show:"
+          Lucid.label_ [Lucid.for_ "show-selector", Lucid.class_ "block font-bold mb-2"] $ Lucid.toHtml selectorLabel
           Lucid.select_
             [ Lucid.id_ "show-selector",
               Lucid.name_ "show",
@@ -85,29 +89,42 @@ renderDashboardHeader userMeta selectedShow recentEpisodes blogPosts schedules n
 renderHeaderInfo :: UserMetadata.Model -> Maybe Shows.Model -> [ShowSchedule.ScheduleTemplate] -> Maybe ShowSchedule.UpcomingShowDate -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
 renderHeaderInfo userMeta selectedShow schedules nextShow recentEpisodes blogPosts =
   Lucid.div_ $ do
+    let isAdmin = UserMetadata.isAdmin userMeta.mUserRole
     Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "HOST DASHBOARD"
     Lucid.div_ [Lucid.class_ "text-gray-300 text-sm mb-1"] $ do
-      Lucid.strong_ "Show: "
-      maybe mempty (Lucid.toHtml . (.title)) selectedShow
-      " • "
-      Lucid.strong_ "Host: "
-      Lucid.toHtml userMeta.mDisplayName
-    Lucid.div_ [Lucid.class_ "text-gray-300 text-sm mb-2"] $ do
-      Lucid.strong_ "Schedule: "
-      renderScheduleInfo schedules
-      case nextShow of
-        Just upcoming -> do
+      if isAdmin
+        then do
+          Lucid.strong_ "Viewing: "
+          maybe "All Shows" (Lucid.toHtml . (.title)) selectedShow
+        else do
+          Lucid.strong_ "Show: "
+          maybe mempty (Lucid.toHtml . (.title)) selectedShow
           " • "
-          Lucid.strong_ "Next Show: "
-          Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" (ShowSchedule.usdShowDate upcoming)
-        Nothing -> mempty
+          Lucid.strong_ "Host: "
+          Lucid.toHtml userMeta.mDisplayName
+    -- Only show schedule info for non-admins (hosts)
+    if not isAdmin
+      then Lucid.div_ [Lucid.class_ "text-gray-300 text-sm mb-2"] $ do
+        Lucid.strong_ "Schedule: "
+        renderScheduleInfo schedules
+        case nextShow of
+          Just upcoming -> do
+            " • "
+            Lucid.strong_ "Next Show: "
+            Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" (ShowSchedule.usdShowDate upcoming)
+          Nothing -> mempty
+      else mempty
     -- Stats row
+    let episodeLabel :: Text
+        episodeLabel = if isAdmin then "Episodes (this show): " else "Episodes: "
+        blogLabel :: Text
+        blogLabel = if isAdmin then "Blog Posts (this show): " else "Blog Posts: "
     Lucid.div_ [Lucid.class_ "flex gap-6 text-sm mt-2"] $ do
       Lucid.div_ $ do
-        Lucid.strong_ [Lucid.class_ "text-gray-400"] "Episodes: "
+        Lucid.strong_ [Lucid.class_ "text-gray-400"] $ Lucid.toHtml episodeLabel
         Lucid.span_ [Lucid.class_ "text-white"] $ Lucid.toHtml $ show $ length recentEpisodes
       Lucid.div_ $ do
-        Lucid.strong_ [Lucid.class_ "text-gray-400"] "Blog Posts: "
+        Lucid.strong_ [Lucid.class_ "text-gray-400"] $ Lucid.toHtml blogLabel
         Lucid.span_ [Lucid.class_ "text-white"] $ Lucid.toHtml $ show $ length blogPosts
       Lucid.div_ $ do
         Lucid.strong_ [Lucid.class_ "text-gray-400"] "Total Downloads: "
