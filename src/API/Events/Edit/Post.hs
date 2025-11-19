@@ -20,7 +20,6 @@ import Data.Has (Has)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
@@ -29,7 +28,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
@@ -50,8 +49,9 @@ import Web.FormUrlEncoded qualified as Form
 
 type Route =
   Observability.WithSpan
-    "POST /events/:slug/edit"
+    "POST /events/:id/:slug/edit"
     ( "events"
+        :> Servant.Capture "id" Events.Id
         :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
@@ -129,28 +129,29 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
+  Events.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   EventEditForm ->
   m (Lucid.Html ())
-handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
-      Log.logInfo "Unauthorized event edit attempt" slug
+      Log.logInfo "Unauthorized event edit attempt" eventId
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
-        event <- MaybeT $ HT.statement () (Events.getEventBySlug slug)
+        event <- MaybeT $ HT.statement () (Events.getEventById eventId)
         oldTags <- lift $ HT.statement () (Events.getEventTags event.emId)
         MaybeT $ pure $ Just (event, oldTags)
 
       case mResult of
         Left err -> do
-          Log.logAttention "getEventBySlug execution error" (show err)
+          Log.logAttention "getEventById execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
-          Log.logInfo_ $ "No event with slug: '" <> display slug <> "'"
+          Log.logInfo "No event found with id" eventId
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just (event, oldTags)) ->
           if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
@@ -244,7 +245,12 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
               renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update event. Please try again.")
             Right (Just _) -> do
               Log.logInfo "Successfully updated event" event.emId
-              renderTemplate hxRequest (Just userMetadata) (template newSlug)
+              -- Fetch the updated event to get the new slug
+              execQuerySpan (Events.getEventById event.emId) >>= \case
+                Right (Just updatedEvent) ->
+                  renderTemplate hxRequest (Just userMetadata) (template updatedEvent)
+                _ ->
+                  renderTemplate hxRequest (Just userMetadata) (errorTemplate "Event updated but failed to retrieve. Please refresh.")
 
 -- | Update tags for an event (add new ones)
 updateEventTags ::

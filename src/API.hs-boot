@@ -15,6 +15,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Servant.Links qualified as Links
@@ -46,9 +47,11 @@ termsOfServiceGetLink :: Links.Link
 eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
 eventsNewGetLink :: Links.Link
 eventsNewPostLink :: Links.Link
-eventGetLink :: Slug -> Links.Link
-eventEditGetLink :: Slug -> Links.Link
-eventEditPostLink :: Slug -> Links.Link
+eventGetLink :: Events.Id -> Slug -> Links.Link
+eventGetLinkById :: Events.Id -> Links.Link
+eventEditGetLink :: Events.Id -> Slug -> Links.Link
+eventEditPostLink :: Events.Id -> Slug -> Links.Link
+eventDeleteLink :: Events.Id -> Slug -> Links.Link
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link
 showsScheduleGetLink :: Maybe WeekOffset -> Links.Link
 showGetLink :: Slug -> Links.Link

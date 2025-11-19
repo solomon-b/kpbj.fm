@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Events.Edit.Get where
@@ -8,6 +9,7 @@ module API.Events.Edit.Get where
 import API.Events.Edit.Get.Templates.Error (notAuthorizedTemplate, notFoundTemplate, notLoggedInTemplate)
 import API.Events.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -15,10 +17,12 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
+import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Domain.Types.Slug (Slug)
+import Domain.Types.Slug (Slug, matchSlug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Events qualified as Events
@@ -38,13 +42,14 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /events/:slug/edit"
+    "GET /events/:id/:slug/edit"
     ( "events"
+        :> Servant.Capture "id" Events.Id
         :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
+        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------
@@ -60,34 +65,51 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
+  Events.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
-handler _tracer slug cookie (foldHxReq -> hxRequest) = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer eventId urlSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to event edit" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
+      html <- renderTemplate hxRequest Nothing notLoggedInTemplate
+      pure $ Servant.noHeader html
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
-        event <- MaybeT $ HT.statement () (Events.getEventBySlug slug)
+        event <- MaybeT $ HT.statement () (Events.getEventById eventId)
         tags <- lift $ HT.statement () (Events.getEventTags event.emId)
         MaybeT $ pure $ Just (event, tags)
 
       case mResult of
         Left err -> do
-          Log.logAttention "getEventBySlug execution error" (show err)
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          Log.logAttention "getEventById execution error" (show err)
+          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          pure $ Servant.noHeader html
         Right Nothing -> do
-          Log.logInfo_ $ "No event with slug: '" <> display slug <> "'"
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-        Right (Just (event, tags)) ->
-          if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-            then do
-              Log.logInfo "Authorized user accessing event edit form" event.emId
-              let editTemplate = template event tags userMetadata
-              renderTemplate hxRequest (Just userMetadata) editTemplate
+          Log.logInfo "No event found with id" eventId
+          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          pure $ Servant.noHeader html
+        Right (Just (event, tags)) -> do
+          let canonicalSlug = event.emSlug
+              eventIdText = display eventId
+              slugText = display canonicalSlug
+              canonicalUrl = [i|/events/#{eventIdText}/#{slugText}/edit|]
+
+          if matchSlug canonicalSlug (Just urlSlug)
+            then
+              if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+                then do
+                  Log.logInfo "Authorized user accessing event edit form" event.emId
+                  let editTemplate = template event tags userMetadata
+                  html <- renderTemplate hxRequest (Just userMetadata) editTemplate
+                  pure $ Servant.noHeader html
+                else do
+                  Log.logInfo "User tried to edit event they don't own" event.emId
+                  html <- renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+                  pure $ Servant.noHeader html
             else do
-              Log.logInfo "User tried to edit event they don't own" event.emId
-              renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+              Log.logInfo "Redirecting to canonical event edit URL" canonicalUrl
+              html <- renderTemplate hxRequest (Just userMetadata) (redirectTemplate canonicalUrl)
+              pure $ Servant.addHeader canonicalUrl html

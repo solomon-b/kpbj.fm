@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventGetLink, eventsGetLink)
+import {-# SOURCE #-} API (eventEditPostLink, eventGetLink, eventsGetLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -29,8 +29,11 @@ import Servant.Links qualified as Links
 eventsGetUrl :: Links.URI
 eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 
-eventGetUrl :: Slug -> Links.URI
-eventGetUrl slug = Links.linkURI $ eventGetLink slug
+eventGetUrl :: Events.Id -> Slug -> Links.URI
+eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
+
+eventEditPostUrl :: Events.Id -> Slug -> Links.URI
+eventEditPostUrl eventId slug = Links.linkURI $ eventEditPostLink eventId slug
 
 --------------------------------------------------------------------------------
 
@@ -43,13 +46,15 @@ formatDateTimeLocal = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M"
 -- | Event edit template using FormBuilder
 template :: Events.Model -> [EventTags.Model] -> UserMetadata.Model -> Lucid.Html ()
 template event tags userMeta = do
-  let eventSlug = event.emSlug
-      eventBackUrl = eventGetUrl eventSlug
+  let eventId = event.emId
+      eventSlug = event.emSlug
+      eventBackUrl = eventGetUrl eventId eventSlug
+      eventEditUrl = eventEditPostUrl eventId eventSlug
       tagsText = Text.intercalate ", " $ map (\t -> t.etmName) tags
 
   buildValidatedForm
     FormBuilder
-      { fbAction = [i|/events/#{eventSlug}/edit|],
+      { fbAction = [i|/#{eventEditUrl}|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader event userMeta eventBackUrl),
         fbFields = eventEditFormFields event tagsText,

@@ -133,6 +133,7 @@ library
     API.Events.Edit.Post
     API.Events.Edit.Post.Templates.Error
     API.Events.Edit.Post.Templates.Success
+    API.Events.Delete
     API.Events.Event.Get
     API.Events.Event.Get.Templates.Page
     API.Get
