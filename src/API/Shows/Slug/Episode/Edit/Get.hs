@@ -83,7 +83,11 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
         episode <- MaybeT $ HT.statement () (Episodes.getEpisodeBySlug showSlug episodeSlug)
         showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
         tracks <- lift $ HT.statement () (Episodes.getTracksForEpisode episode.id)
-        isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
+        -- Admins don't need explicit host check since they have access to all shows
+        isHost <-
+          if UserMetadata.isAdmin userMetadata.mUserRole
+            then pure True
+            else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
         MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
 
       case mResult of

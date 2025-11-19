@@ -89,6 +89,19 @@ getPublishedShowBlogPosts showId limit offset =
     LIMIT #{limit} OFFSET #{offset}
   |]
 
+-- | Get all recent published show blog posts across all shows (for admin dashboard)
+getAllRecentShowBlogPosts :: Int64 -> Hasql.Statement () [Model]
+getAllRecentShowBlogPosts limit =
+  interp
+    False
+    [sql|
+    SELECT id, show_id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
+    FROM show_blog_posts
+    WHERE status = 'published'
+    ORDER BY published_at DESC NULLS LAST, created_at DESC
+    LIMIT #{limit}
+  |]
+
 -- | Get show blog post by show slug and post slug
 getShowBlogPostBySlug :: Text -> Text -> Hasql.Statement () (Maybe Model)
 getShowBlogPostBySlug showSlug postSlug =

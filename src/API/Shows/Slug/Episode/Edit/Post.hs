@@ -294,17 +294,21 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) editForm = 
               renderTemplate hxRequest (Just userMetadata) notFoundTemplate
             Right (Just showModel) -> do
               -- Check authorization - user must be creator, host, or staff+
-              execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id) >>= \case
-                Left err -> do
-                  Log.logAttention "isUserHostOfShow execution error" (show err)
-                  renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
-                Right True -> updateEpisode hxRequest user userMetadata episode showModel editForm
-                Right False ->
-                  if UserMetadata.isStaffOrHigher userMetadata.mUserRole || episode.createdBy == user.mId
-                    then updateEpisode hxRequest user userMetadata episode showModel editForm
-                    else do
-                      Log.logInfo "User attempted to edit episode they don't own" episode.id
+              -- Admins don't need explicit host check since they have access to all shows
+              if UserMetadata.isAdmin userMetadata.mUserRole
+                then updateEpisode hxRequest user userMetadata episode showModel editForm
+                else
+                  execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id) >>= \case
+                    Left err -> do
+                      Log.logAttention "isUserHostOfShow execution error" (show err)
                       renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+                    Right True -> updateEpisode hxRequest user userMetadata episode showModel editForm
+                    Right False ->
+                      if UserMetadata.isStaffOrHigher userMetadata.mUserRole || episode.createdBy == user.mId
+                        then updateEpisode hxRequest user userMetadata episode showModel editForm
+                        else do
+                          Log.logInfo "User attempted to edit episode they don't own" episode.id
+                          renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
 
 updateEpisode ::
   ( MonadDB m,

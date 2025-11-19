@@ -215,7 +215,11 @@ handler _tracer showSlug postSlug cookie (foldHxReq -> hxRequest) editForm = do
         blogPost <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostBySlug (display showSlug) (display postSlug))
         showModel <- MaybeT $ HT.statement () (Shows.getShowById blogPost.showId)
         oldTags <- lift $ HT.statement () (ShowBlogPosts.getTagsForShowBlogPost blogPost.id)
-        isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) blogPost.showId)
+        -- Admins don't need explicit host check since they have access to all shows
+        isHost <-
+          if UserMetadata.isAdmin userMetadata.mUserRole
+            then pure True
+            else lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) blogPost.showId)
         MaybeT $ pure $ Just (blogPost, showModel, oldTags, isHost)
 
       case mResult of
