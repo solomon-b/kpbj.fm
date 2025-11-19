@@ -23,8 +23,8 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 -- URL helpers
-eventGetUrl :: Slug -> Links.URI
-eventGetUrl slug = Links.linkURI $ eventGetLink slug
+eventGetUrl :: Events.Id -> Slug -> Links.URI
+eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
 
 --------------------------------------------------------------------------------
 
@@ -55,8 +55,8 @@ renderEventCard event = do
         -- Title
         Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-3"] $ do
           Lucid.a_
-            [ Lucid.href_ [i|/#{eventGetUrl (Events.emSlug event)}|],
-              hxGet_ [i|/#{eventGetUrl (Events.emSlug event)}|],
+            [ Lucid.href_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
+              hxGet_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
               Lucid.class_ "hover:underline"
@@ -89,8 +89,8 @@ renderEventCard event = do
         -- View Event button
         Lucid.div_ [Lucid.class_ "flex items-center gap-4"] $ do
           Lucid.a_
-            [ Lucid.href_ [i|/#{eventGetUrl (Events.emSlug event)}|],
-              hxGet_ [i|/#{eventGetUrl (Events.emSlug event)}|],
+            [ Lucid.href_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
+              hxGet_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
               Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700"

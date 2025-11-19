@@ -38,8 +38,8 @@ data CalendarDay = CalendarDay
 --------------------------------------------------------------------------------
 
 -- URL helpers
-eventGetUrl :: Slug -> Links.URI
-eventGetUrl slug = Links.linkURI $ eventGetLink slug
+eventGetUrl :: Events.Id -> Slug -> Links.URI
+eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
 
 eventsGetMonthUrl :: Year -> MonthOfYear -> Maybe Text -> Links.URI
 eventsGetMonthUrl year month maybeTag =
@@ -124,8 +124,8 @@ renderCalendarDay day = do
     renderEventInDay event =
       Lucid.div_ [Lucid.class_ "text-xs truncate mt-1"]
         $ Lucid.a_
-          [ Lucid.href_ [i|/#{eventGetUrl (Events.emSlug event)}|],
-            hxGet_ [i|/#{eventGetUrl (Events.emSlug event)}|],
+          [ Lucid.href_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
+            hxGet_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ "hover:underline"

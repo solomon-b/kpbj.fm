@@ -39,8 +39,8 @@ data WeekDay = WeekDay
 --------------------------------------------------------------------------------
 
 -- URL helpers
-eventGetUrl :: Slug -> Links.URI
-eventGetUrl slug = Links.linkURI $ eventGetLink slug
+eventGetUrl :: Events.Id -> Slug -> Links.URI
+eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
 
 eventsGetWeekUrl :: Year -> Int -> Maybe Text -> Links.URI
 eventsGetWeekUrl year weekNum maybeTag =
@@ -116,8 +116,8 @@ renderWeekEvent event = do
         formatTime defaultTimeLocale "%l %p" (Events.emStartsAt event)
     Lucid.div_ [Lucid.class_ "truncate"]
       $ Lucid.a_
-        [ Lucid.href_ [i|/#{eventGetUrl (Events.emSlug event)}|],
-          hxGet_ [i|/#{eventGetUrl (Events.emSlug event)}|],
+        [ Lucid.href_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
+          hxGet_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "hover:underline"
