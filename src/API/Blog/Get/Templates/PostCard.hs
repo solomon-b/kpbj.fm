@@ -21,8 +21,8 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-blogPostGetUrl :: Slug -> Links.URI
-blogPostGetUrl slug = Links.linkURI $ blogPostGetLink slug
+blogPostGetUrl :: BlogPosts.Id -> Slug -> Links.URI
+blogPostGetUrl postId slug = Links.linkURI $ blogPostGetLink postId slug
 
 blogGetTagUrl :: Text -> Links.URI
 blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
@@ -36,8 +36,8 @@ renderBlogPostCard (post, tags) = do
     -- Title
     Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-3"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogPostGetUrl (BlogPosts.bpmSlug post)}|],
-          hxGet_ [i|/#{blogPostGetUrl (BlogPosts.bpmSlug post)}|],
+        [ Lucid.href_ [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|],
+          hxGet_ [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "hover:underline"
@@ -68,8 +68,8 @@ renderBlogPostCard (post, tags) = do
       Lucid.div_ [Lucid.class_ "flex items-center gap-4 text-sm text-gray-600"] $ do
         renderTags tags
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogPostGetUrl (BlogPosts.bpmSlug post)}|],
-          hxGet_ [i|/#{blogPostGetUrl (BlogPosts.bpmSlug post)}|],
+        [ Lucid.href_ [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|],
+          hxGet_ [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-800 text-white px-4 py-2 font-bold hover:bg-gray-700"

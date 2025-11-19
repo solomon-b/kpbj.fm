@@ -4,6 +4,7 @@ module API where
 
 import API.About.Get qualified as About.Get
 import API.Archive.Get qualified as Archive.Get
+import API.Blog.Delete qualified as Blog.Delete
 import API.Blog.Edit.Get qualified as Blog.Edit.Get
 import API.Blog.Edit.Post qualified as Blog.Edit.Post
 import API.Blog.Get qualified as Blog.Get
@@ -67,6 +68,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
+import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool qualified as HSQL.Pool
 import Log (MonadLog)
@@ -91,9 +93,11 @@ type API =
     :<|> Blog.Get.Route
     :<|> Blog.New.Get.Route
     :<|> Blog.New.Post.Route
-    :<|> Blog.Post.Get.Route
+    :<|> Blog.Post.Get.RouteWithSlug
+    :<|> Blog.Post.Get.RouteWithoutSlug
     :<|> Blog.Edit.Get.Route
     :<|> Blog.Edit.Post.Route
+    :<|> Blog.Delete.Route
     :<|> Donate.Get.Route
     :<|> Episodes.Edit.Get.Route
     :<|> Episodes.Edit.Post.Route
@@ -153,9 +157,11 @@ server env =
     :<|> Blog.Get.handler
     :<|> Blog.New.Get.handler
     :<|> Blog.New.Post.handler
-    :<|> Blog.Post.Get.handler
+    :<|> Blog.Post.Get.handlerWithSlug
+    :<|> Blog.Post.Get.handlerWithoutSlug
     :<|> Blog.Edit.Get.handler
     :<|> Blog.Edit.Post.handler
+    :<|> Blog.Delete.handler
     :<|> Donate.Get.handler
     :<|> Episodes.Edit.Get.handler
     :<|> Episodes.Edit.Post.handler
@@ -225,17 +231,25 @@ blogNewGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.New.Get.Route)
 blogNewPostLink :: Links.Link
 blogNewPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.New.Post.Route)
 
--- | Route: GET /blog/:slug
-blogPostGetLink :: Slug -> Links.Link
-blogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.Route)
+-- | Route: GET /blog/:id/:slug
+blogPostGetLink :: BlogPosts.Id -> Slug -> Links.Link
+blogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.RouteWithSlug)
 
--- | Route: GET /blog/:slug/edit
-blogEditGetLink :: Slug -> Links.Link
+-- | Route: GET /blog/:id (without slug, redirects to canonical)
+blogPostGetLinkById :: BlogPosts.Id -> Links.Link
+blogPostGetLinkById = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.RouteWithoutSlug)
+
+-- | Route: GET /blog/:id/:slug/edit
+blogEditGetLink :: BlogPosts.Id -> Slug -> Links.Link
 blogEditGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Edit.Get.Route)
 
--- | Route: POST /blog/:slug/edit
-blogEditPostLink :: Slug -> Links.Link
+-- | Route: POST /blog/:id/:slug/edit
+blogEditPostLink :: BlogPosts.Id -> Slug -> Links.Link
 blogEditPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.Edit.Post.Route)
+
+-- | Route: DELETE /blog/:post_id/:post_slug
+blogDeleteLink :: BlogPosts.Id -> Slug -> Links.Link
+blogDeleteLink = Links.safeLink (Proxy @API) (Proxy @Blog.Delete.Route)
 
 -- | Route: GET /donate
 donateGetLink :: Links.Link

@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink, blogPostGetLink)
+import {-# SOURCE #-} API (blogEditPostLink, blogGetLink, blogPostGetLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -28,21 +28,26 @@ import Servant.Links qualified as Links
 blogGetUrl :: Links.URI
 blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
-blogPostGetUrl :: Slug -> Links.URI
-blogPostGetUrl slug = Links.linkURI $ blogPostGetLink slug
+blogPostGetUrl :: BlogPosts.Id -> Slug -> Links.URI
+blogPostGetUrl postId slug = Links.linkURI $ blogPostGetLink postId slug
+
+blogEditPostUrl :: BlogPosts.Id -> Slug -> Links.URI
+blogEditPostUrl postId slug = Links.linkURI $ blogEditPostLink postId slug
 
 --------------------------------------------------------------------------------
 
 -- | Blog post edit template using FormBuilder
 template :: BlogPosts.Model -> [BlogTags.Model] -> UserMetadata.Model -> Lucid.Html ()
 template blogPost tags userMeta = do
-  let postSlug = blogPost.bpmSlug
-      postBackUrl = blogPostGetUrl postSlug
+  let postId = blogPost.bpmId
+      postSlug = blogPost.bpmSlug
+      postBackUrl = blogPostGetUrl postId postSlug
+      postEditUrl = blogEditPostUrl postId postSlug
       tagsText = Text.intercalate ", " $ map (\t -> t.btmName) tags
 
   buildValidatedForm
     FormBuilder
-      { fbAction = [i|/blog/#{postSlug}/edit|],
+      { fbAction = [i|/#{postEditUrl}|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader blogPost userMeta postBackUrl),
         fbFields = blogEditFormFields blogPost tagsText,
