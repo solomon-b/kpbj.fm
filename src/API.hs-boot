@@ -13,6 +13,7 @@ import Domain.Types.PageView (PageView)
 import Domain.Types.Search (Search)
 import Domain.Types.Slug (Slug)
 import Domain.Types.WeekOffset (WeekOffset)
+import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.Shows (Status)
 import Servant.Links qualified as Links
 
@@ -26,9 +27,11 @@ archiveGetLink :: Maybe Text -> Maybe Text -> Maybe Int -> Maybe Int64 -> Links.
 blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
 blogNewGetLink :: Links.Link
 blogNewPostLink :: Links.Link
-blogPostGetLink :: Slug -> Links.Link
-blogEditGetLink :: Slug -> Links.Link
-blogEditPostLink :: Slug -> Links.Link
+blogPostGetLink :: BlogPosts.Id -> Slug -> Links.Link
+blogPostGetLinkById :: BlogPosts.Id -> Links.Link
+blogEditGetLink :: BlogPosts.Id -> Slug -> Links.Link
+blogEditPostLink :: BlogPosts.Id -> Slug -> Links.Link
+blogDeleteLink :: BlogPosts.Id -> Slug -> Links.Link
 donateGetLink :: Links.Link
 userLoginGetLink :: Maybe Text -> Maybe EmailAddress -> Links.Link
 userLoginPostLink :: Maybe Text -> Links.Link

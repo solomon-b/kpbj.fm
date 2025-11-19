@@ -53,8 +53,8 @@ blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 blogNewGetUrl :: Links.URI
 blogNewGetUrl = Links.linkURI blogNewGetLink
 
-blogPostGetUrl :: Slug -> Links.URI
-blogPostGetUrl slug = Links.linkURI $ blogPostGetLink slug
+blogPostGetUrl :: BlogPosts.Id -> Slug -> Links.URI
+blogPostGetUrl postId slug = Links.linkURI $ blogPostGetLink postId slug
 
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
@@ -90,8 +90,8 @@ successTemplate post = do
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogPostGetUrl (BlogPosts.bpmSlug post)}|],
-          hxGet_ [i|/#{blogPostGetUrl (BlogPosts.bpmSlug post)}|],
+        [ Lucid.href_ [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|],
+          hxGet_ [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"

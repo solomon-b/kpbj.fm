@@ -20,7 +20,6 @@ import Data.Has (Has)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..))
@@ -49,8 +48,9 @@ import Web.FormUrlEncoded qualified as Form
 
 type Route =
   Observability.WithSpan
-    "POST /blog/:slug/edit"
+    "POST /blog/:id/:slug/edit"
     ( "blog"
+        :> Servant.Capture "id" BlogPosts.Id
         :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
@@ -120,28 +120,29 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
+  BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   BlogEditForm ->
   m (Lucid.Html ())
-handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer blogPostId _slug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
-      Log.logInfo "Unauthorized blog edit attempt" slug
+      Log.logInfo "Unauthorized blog edit attempt" blogPostId
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
-        blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostBySlug slug)
+        blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
         oldTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
         MaybeT $ pure $ Just (blogPost, oldTags)
 
       case mResult of
         Left err -> do
-          Log.logAttention "getBlogPostBySlug execution error" (show err)
+          Log.logAttention "getBlogPostById execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
-          Log.logInfo_ $ "No blog post with slug: '" <> display slug <> "'"
+          Log.logInfo "No blog post found with id" blogPostId
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just (blogPost, oldTags)) ->
           if blogPost.bpmAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
@@ -210,7 +211,7 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
               renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update blog post. Please try again.")
             Right (Just _) -> do
               Log.logInfo "Successfully updated blog post" blogPost.bpmId
-              renderTemplate hxRequest (Just userMetadata) (template newSlug)
+              renderTemplate hxRequest (Just userMetadata) (template blogPost.bpmId newSlug)
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::

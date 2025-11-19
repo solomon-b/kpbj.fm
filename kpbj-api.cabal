@@ -111,6 +111,7 @@ library
     API.Blog.Edit.Post
     API.Blog.Edit.Post.Templates.Error
     API.Blog.Edit.Post.Templates.Success
+    API.Blog.Delete
     API.Blog.Post.Get
     API.Blog.Post.Get.Templates.Page
     API.Donate.Get
@@ -203,6 +204,7 @@ library
     Component.Form.Internal
     Component.Form.JSArrow
     Component.Frame
+    Component.Redirect
     Component.Table
     Domain.Types.PostStatus
     Domain.Types.Cookie
