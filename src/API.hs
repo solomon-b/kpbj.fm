@@ -12,6 +12,7 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Donate.Get qualified as Donate.Get
+import API.Events.Delete qualified as Events.Delete
 import API.Events.Edit.Get qualified as Events.Edit.Get
 import API.Events.Edit.Post qualified as Events.Edit.Post
 import API.Events.Event.Get qualified as Events.Event.Get
@@ -70,6 +71,7 @@ import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool qualified as HSQL.Pool
@@ -108,9 +110,11 @@ type API =
     :<|> Events.Get.Route
     :<|> Events.New.Get.Route
     :<|> Events.New.Post.Route
-    :<|> Events.Event.Get.Route
+    :<|> Events.Event.Get.RouteWithSlug
+    :<|> Events.Event.Get.RouteWithoutSlug
     :<|> Events.Edit.Get.Route
     :<|> Events.Edit.Post.Route
+    :<|> Events.Delete.Route
     :<|> Host.Dashboard.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
@@ -174,9 +178,11 @@ server env =
     :<|> Events.Get.handler
     :<|> Events.New.Get.handler
     :<|> Events.New.Post.handler
-    :<|> Events.Event.Get.handler
+    :<|> Events.Event.Get.handlerWithSlug
+    :<|> Events.Event.Get.handlerWithoutSlug
     :<|> Events.Edit.Get.handler
     :<|> Events.Edit.Post.handler
+    :<|> Events.Delete.handler
     :<|> Host.Dashboard.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
@@ -305,17 +311,25 @@ eventsNewGetLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Get.Route)
 eventsNewPostLink :: Links.Link
 eventsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Post.Route)
 
--- | Route: GET /events/:slug
-eventGetLink :: Slug -> Links.Link
-eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.Route)
+-- | Route: GET /events/:id/:slug
+eventGetLink :: Events.Id -> Slug -> Links.Link
+eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.RouteWithSlug)
 
--- | Route: GET /events/:slug/edit
-eventEditGetLink :: Slug -> Links.Link
+-- | Route: GET /events/:id (without slug, redirects to canonical)
+eventGetLinkById :: Events.Id -> Links.Link
+eventGetLinkById = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.RouteWithoutSlug)
+
+-- | Route: GET /events/:id/:slug/edit
+eventEditGetLink :: Events.Id -> Slug -> Links.Link
 eventEditGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Get.Route)
 
--- | Route: POST /events/:slug/edit
-eventEditPostLink :: Slug -> Links.Link
+-- | Route: POST /events/:id/:slug/edit
+eventEditPostLink :: Events.Id -> Slug -> Links.Link
 eventEditPostLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Post.Route)
+
+-- | Route: DELETE /events/:event_id/:event_slug
+eventDeleteLink :: Events.Id -> Slug -> Links.Link
+eventDeleteLink = Links.safeLink (Proxy @API) (Proxy @Events.Delete.Route)
 
 -- | Route: GET /shows
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link

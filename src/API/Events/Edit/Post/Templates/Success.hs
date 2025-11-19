@@ -10,6 +10,7 @@ where
 import {-# SOURCE #-} API (eventGetLink, eventsGetLink)
 import Data.String.Interpolate (i)
 import Domain.Types.Slug (Slug)
+import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -19,14 +20,14 @@ import Servant.Links qualified as Links
 eventsGetUrl :: Links.URI
 eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 
-eventGetUrl :: Slug -> Links.URI
-eventGetUrl slug = Links.linkURI $ eventGetLink slug
+eventGetUrl :: Events.Id -> Slug -> Links.URI
+eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
 
 --------------------------------------------------------------------------------
 
-template :: Slug -> Lucid.Html ()
-template eventSlug = do
-  let eventUrl = eventGetUrl eventSlug
+template :: Events.Model -> Lucid.Html ()
+template event = do
+  let eventUrl = eventGetUrl (Events.emId event) (Events.emSlug event)
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Event Updated Successfully!"
     Lucid.p_ [Lucid.class_ "mb-6"] "Your event has been updated and saved."
