@@ -96,7 +96,7 @@ sanitizeTitle title =
     -- Remove HTML tags properly using regex-like replacement
     stripAllHTML text =
       let -- Simple state machine to remove everything between < and >
-          go [] acc inTag = if inTag then acc else acc
+          go [] acc _ = acc
           go (c : cs) acc inTag
             | c == '<' = go cs acc True
             | c == '>' = go cs acc False

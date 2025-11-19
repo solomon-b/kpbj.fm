@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module Domain.Types.SlugSpec (spec) where
 
 --------------------------------------------------------------------------------

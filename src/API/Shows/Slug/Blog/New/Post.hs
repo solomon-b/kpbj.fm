@@ -241,7 +241,7 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
         showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
         isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
         guard isHost
-        MaybeT $ pure $ Just showModel
+        pure showModel
 
       case mResult of
         Left err -> do

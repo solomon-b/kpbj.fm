@@ -267,7 +267,7 @@ updateBlogPost hxRequest userMetadata showModel blogPost oldTags editForm = do
 
       mUpdateResult <- execTransactionSpan $ runMaybeT $ do
         _ <- MaybeT $ HT.statement () (ShowBlogPosts.updateShowBlogPost blogPost.id updateData)
-        lift $ traverse_ (\tag -> HT.statement () (ShowBlogPosts.removeTagFromShowBlogPost blogPost.id (ShowBlogTags.sbtmId tag))) oldTags
+        lift $ traverse_ (HT.statement () . ShowBlogPosts.removeTagFromShowBlogPost blogPost.id . ShowBlogTags.sbtmId) oldTags
         lift $ updatePostTags blogPost.id editForm
         MaybeT $ pure $ Just ()
 

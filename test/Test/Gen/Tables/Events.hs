@@ -25,5 +25,5 @@ eventInsertGen userId = do
   eiLocationName <- genText
   eiLocationAddress <- genText
   eiStatus <- genEventStatus
-  eiAuthorId <- pure userId
+  let eiAuthorId = userId
   pure Events.Insert {..}
