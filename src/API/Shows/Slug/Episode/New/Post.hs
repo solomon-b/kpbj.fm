@@ -32,6 +32,7 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
@@ -143,7 +144,7 @@ handler _tracer showSlug cookie form = do
           Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Authentication Required"
           Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You must be logged in to upload episodes."
           Lucid.a_ [Lucid.href_ "/user/login", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Login"
-    Just (user, _userInfo) -> do
+    Just (user, userMetadata) -> do
       -- Verify show exists and user is authorized
       showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
       case showResult of
@@ -154,9 +155,12 @@ handler _tracer showSlug cookie form = do
           Log.logInfo "Show not found" showSlug
           loadFrame $ errorTemplate "Show not found."
         Right (Just showModel) -> do
-          -- Verify user is host
-          isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
-          case isHostResult of
+          -- Verify user is host (admins can upload to any show)
+          isAuthorized <-
+            if UserMetadata.isAdmin userMetadata.mUserRole
+              then pure (Right True) -- Admins always authorized
+              else execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
+          case isAuthorized of
             Left _err -> do
               Log.logInfo "Failed to check host permissions" showSlug
               loadFrame $ errorTemplate "Failed to verify permissions."
@@ -165,7 +169,7 @@ handler _tracer showSlug cookie form = do
               loadFrame $ errorTemplate "You are not authorized to upload episodes for this show."
             Right True -> do
               -- Process upload
-              result <- processEpisodeUpload user form
+              result <- processEpisodeUpload userMetadata user form
 
               case result of
                 Left err -> do
@@ -185,10 +189,11 @@ processEpisodeUpload ::
     Has HSQL.Pool.Pool env,
     Has Tracer env
   ) =>
+  UserMetadata.Model ->
   User.Model ->
   EpisodeUploadForm ->
   m (Either Text Episodes.Id)
-processEpisodeUpload user form = do
+processEpisodeUpload userMetadata user form = do
   _currentTime <- liftIO getCurrentTime
 
   -- Debug logging for duration
@@ -211,10 +216,13 @@ processEpisodeUpload user form = do
           case parseFormDataWithShow showModel.id showModel.slug form of
             Left validationError -> pure $ Left $ Sanitize.displayContentValidationError validationError
             Right episodeData -> do
-              -- Verify user is host of the show
-              isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
+              -- Verify user is host of the show (admins can upload to any show)
+              isAuthorized <-
+                if UserMetadata.isAdmin userMetadata.mUserRole
+                  then pure (Right True) -- Admins always authorized
+                  else execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
-              case isHostResult of
+              case isAuthorized of
                 Left _err -> pure $ Left "Database error checking host permissions"
                 Right isHost ->
                   if not isHost

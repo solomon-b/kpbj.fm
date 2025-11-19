@@ -22,6 +22,7 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -76,7 +77,7 @@ handler _tracer showSlug postSlug cookie = do
         Nothing -> do
           Log.logInfo_ "No user session"
           pure $ renderSimpleErrorBanner "You must be logged in to delete blog posts."
-        Just (user, _userMeta) -> do
+        Just (user, userMetadata) -> do
           execQuerySpan (ShowBlogPosts.getShowBlogPostBySlug (display showSlug) (display postSlug)) >>= \case
             Left err -> do
               Log.logInfo "Delete failed: Failed to fetch blog post" (Aeson.object ["error" .= show err])
@@ -87,7 +88,7 @@ handler _tracer showSlug postSlug cookie = do
             Right (Just blogPost) -> do
               -- Check authorization: must be host of the show or author
               let isAuthor = blogPost.authorId == user.mId
-              isHost <- checkIfHost user showModel.id
+              isHost <- checkIfHost userMetadata user showModel.id
 
               if isAuthor || isHost
                 then deleteBlogPost showSlug postSlug blogPost
@@ -157,11 +158,16 @@ checkIfHost ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  UserMetadata.Model ->
   User.Model ->
   Shows.Id ->
   m Bool
-checkIfHost user showId = do
-  result <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showId)
-  case result of
-    Left _ -> pure False
-    Right authorized -> pure authorized
+checkIfHost userMetadata user showId = do
+  -- Admins don't need explicit host check since they have access to all shows
+  if UserMetadata.isAdmin userMetadata.mUserRole
+    then pure True
+    else do
+      result <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showId)
+      case result of
+        Left _ -> pure False
+        Right authorized -> pure authorized

@@ -76,32 +76,57 @@ handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
         then do
           Log.logInfo "Authorized user accessing host dashboard" userMetadata.mDisplayName
 
-          -- Fetch all user's shows
-          execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
-            Left _err -> do
-              let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
-              renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-            Right [] -> do
-              -- No shows assigned
-              let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
-              renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-            Right userShows@(firstShow : _) -> do
-              let showToFetch = findShow firstShow userShows maybeShowSlug
-              today <- utctDay <$> liftIO getCurrentTime
-
-              execTransactionSpan (fetchDashboardData today showToFetch) >>= \case
+          -- Admins see all shows, hosts see their assigned shows
+          if UserMetadata.isAdmin userMetadata.mUserRole
+            then do
+              -- Admin view: all active shows
+              execQuerySpan Shows.getAllActiveShows >>= \case
                 Left _err -> do
-                  -- Failed to fetch data, render empty dashboard
-                  let dashboardTemplate = template userMetadata userShows (Just showToFetch) [] [] [] Nothing
+                  let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
                   renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-                Right (episodes, blogPosts, schedules, nextShow) -> do
-                  let dashboardTemplate = template userMetadata userShows (Just showToFetch) episodes blogPosts schedules nextShow
+                Right [] -> do
+                  -- No shows in system
+                  let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
                   renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+                Right allShows@(firstShow : _) -> do
+                  let showToFetch = findShow firstShow allShows maybeShowSlug
+
+                  execTransactionSpan (fetchDashboardDataForAdmin showToFetch) >>= \case
+                    Left _err -> do
+                      -- Failed to fetch data, render empty dashboard
+                      let dashboardTemplate = template userMetadata allShows (Just showToFetch) [] [] [] Nothing
+                      renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+                    Right (episodes, blogPosts) -> do
+                      -- Admin dashboard doesn't show schedules (too complex for multi-show view)
+                      let dashboardTemplate = template userMetadata allShows (Just showToFetch) episodes blogPosts [] Nothing
+                      renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+            else do
+              -- Host view: only assigned shows
+              execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
+                Left _err -> do
+                  let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
+                  renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+                Right [] -> do
+                  -- No shows assigned
+                  let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
+                  renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+                Right userShows@(firstShow : _) -> do
+                  let showToFetch = findShow firstShow userShows maybeShowSlug
+                  today <- utctDay <$> liftIO getCurrentTime
+
+                  execTransactionSpan (fetchDashboardData today showToFetch) >>= \case
+                    Left _err -> do
+                      -- Failed to fetch data, render empty dashboard
+                      let dashboardTemplate = template userMetadata userShows (Just showToFetch) [] [] [] Nothing
+                      renderTemplate hxRequest (Just userMetadata) dashboardTemplate
+                    Right (episodes, blogPosts, schedules, nextShow) -> do
+                      let dashboardTemplate = template userMetadata userShows (Just showToFetch) episodes blogPosts schedules nextShow
+                      renderTemplate hxRequest (Just userMetadata) dashboardTemplate
         else do
           Log.logInfo "User without Host role tried to access host dashboard" userMetadata.mDisplayName
           renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
 
--- | Fetch all dashboard data in a single read-only transaction
+-- | Fetch all dashboard data in a single read-only transaction (for hosts)
 fetchDashboardData :: Day -> Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model], [ShowSchedule.ScheduleTemplate], Maybe ShowSchedule.UpcomingShowDate)
 fetchDashboardData today showModel = do
   episodes <- Txn.statement () (Episodes.getEpisodesById showModel.id)
@@ -110,6 +135,14 @@ fetchDashboardData today showModel = do
   upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showModel.id today 1)
   let nextShow = listToMaybe upcomingShows
   pure (episodes, blogPosts, schedules, nextShow)
+
+-- | Fetch dashboard data for admin (all shows data, no per-show schedules)
+fetchDashboardDataForAdmin :: Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model])
+fetchDashboardDataForAdmin showModel = do
+  -- For the selected show, get its episodes and blog posts
+  episodes <- Txn.statement () (Episodes.getEpisodesById showModel.id)
+  blogPosts <- Txn.statement () (ShowBlogPosts.getPublishedShowBlogPosts showModel.id 10 0)
+  pure (episodes, blogPosts)
 
 -- | Select show based on 'Slug' query parameter or default to first show
 findShow :: Shows.Model -> [Shows.Model] -> Maybe Slug -> Shows.Model

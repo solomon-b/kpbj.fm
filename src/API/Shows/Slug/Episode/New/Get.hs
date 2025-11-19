@@ -8,7 +8,7 @@ module API.Shows.Slug.Episode.New.Get where
 import API.Shows.Slug.Episode.New.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
 import API.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
 import App.Common (getUserInfo, renderTemplate)
-import Control.Monad (guard)
+import Control.Monad (guard, unless)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -25,6 +25,7 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
@@ -75,8 +76,10 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
       -- Fetch show, verify host permissions, and get upcoming unscheduled dates in a transaction
       mResult <- execTransactionSpan $ runMaybeT $ do
         showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
-        isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
-        guard isHost
+        -- Admins can create episodes for any show, hosts need explicit assignment
+        unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do
+          isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
+          guard isHost
         upcomingDates <- lift $ HT.statement () (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id 4)
         MaybeT $ pure $ Just (showModel, upcomingDates)
 
