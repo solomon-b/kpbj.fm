@@ -10,7 +10,6 @@ where
 
 import {-# SOURCE #-} API (showGetLink, showsScheduleGetLink)
 import Control.Monad (unless)
-import Data.Char (isDigit)
 import Data.List (sortBy)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -83,13 +82,13 @@ renderWeekNavigation (WeekOffset weekOffset) weekStart = do
           endStr = Text.pack $ formatTime defaultTimeLocale "%b %-d, %Y" end
        in startStr <> " - " <> endStr
 
--- | Render desktop schedule grid
+-- | Render desktop schedule grid (Google Calendar style with spanning shows)
 renderDesktopSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
 renderDesktopSchedule scheduledShows currentDayOfWeek currentTimeOfDay = do
-  Lucid.div_ [Lucid.class_ "hidden lg:block"] $ do
-    Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800"] $ do
-      -- Schedule Header
-      Lucid.div_ [Lucid.class_ "grid grid-cols-8 border-b-2 border-gray-800"] $ do
+  Lucid.div_ [Lucid.class_ "hidden lg:block overflow-x-auto"] $ do
+    Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 min-w-[800px]"] $ do
+      -- Schedule Header (fixed row outside the grid)
+      Lucid.div_ [Lucid.class_ "grid grid-cols-8 border-b-2 border-gray-800 sticky top-0 bg-white z-10"] $ do
         Lucid.div_ [Lucid.class_ "p-4 font-bold text-center border-r border-gray-300"] "TIME"
         renderDayHeader Monday currentDayOfWeek "MON"
         renderDayHeader Tuesday currentDayOfWeek "TUE"
@@ -99,9 +98,17 @@ renderDesktopSchedule scheduledShows currentDayOfWeek currentTimeOfDay = do
         renderDayHeader Saturday currentDayOfWeek "SAT"
         renderDayHeader Sunday currentDayOfWeek "SUN"
 
-      -- Schedule Rows - group shows by time slots
-      let timeSlots = ["6AM", "9AM", "12PM", "3PM", "6PM", "9PM"]
-      mapM_ (renderTimeSlotRow scheduledShows currentDayOfWeek currentTimeOfDay) timeSlots
+      -- Main calendar grid: 8 columns (time + 7 days) x 24 rows (hours)
+      -- Using CSS grid with explicit row placement for spanning shows
+      Lucid.div_ [Lucid.class_ "grid grid-cols-8 relative", Lucid.style_ "grid-template-rows: repeat(24, minmax(60px, auto));"] $ do
+        -- Render time labels in first column
+        mapM_ renderTimeLabel [0 .. 23]
+
+        -- Render day columns with background
+        mapM_ (renderDayColumn currentDayOfWeek) [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+
+        -- Render shows as absolutely positioned elements that span rows
+        mapM_ (renderCalendarShow currentDayOfWeek currentTimeOfDay) scheduledShows
 
 -- | Render day header with conditional highlighting
 renderDayHeader :: DayOfWeek -> Maybe DayOfWeek -> Text -> Lucid.Html ()
@@ -113,71 +120,98 @@ renderDayHeader day currentDay dayName = do
       classes = baseClasses <> bgClass <> borderClass
   Lucid.div_ [Lucid.class_ classes] $ Lucid.toHtml dayName
 
--- | Render a single time slot row
-renderTimeSlotRow :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Text -> Lucid.Html ()
-renderTimeSlotRow scheduledShows currentDayOfWeek currentTimeOfDay timeSlot = do
-  Lucid.div_ [Lucid.class_ "grid grid-cols-8 border-b border-gray-300"] $ do
-    -- Time label
-    Lucid.div_ [Lucid.class_ "p-3 text-center border-r border-gray-300 bg-gray-50 font-bold"] $
-      Lucid.toHtml timeSlot
+-- | Render time label for a specific hour
+renderTimeLabel :: Int -> Lucid.Html ()
+renderTimeLabel hour = do
+  let timeText = formatHour hour
+      rowStyle = [i|grid-row: #{hour + 1}; grid-column: 1;|]
+  Lucid.div_
+    [ Lucid.class_ "p-2 text-xs text-center border-r border-b border-gray-300 bg-gray-50 font-bold flex items-start justify-center",
+      Lucid.style_ rowStyle
+    ]
+    $ Lucid.toHtml timeText
 
-    -- Each day of the week
-    mapM_ (renderDayCell scheduledShows currentDayOfWeek currentTimeOfDay timeSlot) [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+-- | Format hour (0-23) as "12AM", "1AM", etc.
+formatHour :: Int -> Text
+formatHour hour
+  | hour == 0 = "12AM"
+  | hour < 12 = Text.pack (show hour) <> "AM"
+  | hour == 12 = "12PM"
+  | otherwise = Text.pack (show (hour - 12)) <> "PM"
 
--- | Render a single day cell for a time slot
-renderDayCell :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Text -> DayOfWeek -> Lucid.Html ()
-renderDayCell scheduledShows currentDayOfWeek currentTimeOfDay timeSlot dayOfWeek = do
-  let showsForSlot = filter (\s -> ShowSchedule.sswdDayOfWeek s == dayOfWeek && matchesTimeSlot (ShowSchedule.sswdStartTime s) timeSlot) scheduledShows
-      isCurrentDay = Just dayOfWeek == currentDayOfWeek
-      -- Check if any show in this slot is currently airing
-      isLiveShow = case (currentDayOfWeek, currentTimeOfDay, showsForSlot) of
-        (Just currentDay, Just currentTime, show' : _) ->
-          currentDay == dayOfWeek
+-- | Render a day column background (all 24 rows)
+renderDayColumn :: Maybe DayOfWeek -> DayOfWeek -> Lucid.Html ()
+renderDayColumn currentDayOfWeek day = do
+  let isCurrentDay = Just day == currentDayOfWeek
+      dayCol = dayToColumn day
+      bgClass :: Text
+      bgClass = if isCurrentDay then "bg-gray-50" else "bg-white"
+      borderClass :: Text
+      borderClass = if day == Sunday then "border-b" else "border-r border-b"
+      columnStyle = [i|grid-row: 1 / 25; grid-column: #{dayCol};|]
+  Lucid.div_
+    [ Lucid.class_ [i|#{bgClass} #{borderClass} border-gray-300|],
+      Lucid.style_ columnStyle
+    ]
+    mempty
+
+-- | Convert day of week to grid column number (2-8)
+dayToColumn :: DayOfWeek -> Int
+dayToColumn Monday = 2
+dayToColumn Tuesday = 3
+dayToColumn Wednesday = 4
+dayToColumn Thursday = 5
+dayToColumn Friday = 6
+dayToColumn Saturday = 7
+dayToColumn Sunday = 8
+
+-- | Render a show as a calendar block that spans rows
+renderCalendarShow :: Maybe DayOfWeek -> Maybe TimeOfDay -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
+renderCalendarShow currentDayOfWeek currentTimeOfDay show' = do
+  let TimeOfDay startHour _ _ = ShowSchedule.sswdStartTime show'
+      TimeOfDay endHour endMin _ = ShowSchedule.sswdEndTime show'
+      -- Calculate grid row positions (1-indexed, add 1 for header)
+      startRow = startHour + 1
+      endRow = endHour + 1 + (if endMin > 0 then 1 else 0) -- Round up if minutes
+      dayCol = dayToColumn (ShowSchedule.sswdDayOfWeek show')
+      showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
+      -- Check if this show is currently live
+      isLive = case (currentDayOfWeek, currentTimeOfDay) of
+        (Just currentDay, Just currentTime) ->
+          currentDay == ShowSchedule.sswdDayOfWeek show'
             && currentTime >= ShowSchedule.sswdStartTime show'
             && currentTime < ShowSchedule.sswdEndTime show'
         _ -> False
-      baseClasses = "p-3 text-center"
-      bgClass = if isCurrentDay then " bg-gray-100" else ""
-      borderClass = if dayOfWeek == Sunday then "" else " border-r border-gray-300"
-      classes = baseClasses <> bgClass <> borderClass
+      -- Styling
+      gridStyle = [i|grid-row: #{startRow} / #{endRow}; grid-column: #{dayCol};|]
+      bgClass :: Text
+      bgClass = "bg-white hover:bg-gray-50"
+      borderClass :: Text
+      borderClass = if isLive then "border-2 border-gray-800" else "border border-gray-400"
 
-  Lucid.div_ [Lucid.class_ classes] $ do
-    case showsForSlot of
-      [] -> Lucid.toHtml ("" :: Text)
-      (show' : _) -> do
-        let showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
-        Lucid.div_ [Lucid.class_ "text-xs"] $ do
-          if isLiveShow
-            then Lucid.div_ [Lucid.class_ "font-bold uppercase text-[10px] mb-1 text-gray-800 animate-pulse"] "● ON AIR ●"
-            else mempty
-          Lucid.div_ [Lucid.class_ "font-bold"] $ do
-            Lucid.a_
-              [ Lucid.href_ [i|/#{showUrl}|],
-                hxGet_ [i|/#{showUrl}|],
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                Lucid.class_ "hover:underline"
-              ]
-              $ Lucid.toHtml (ShowSchedule.sswdShowTitle show')
-          Lucid.div_ [Lucid.class_ "text-gray-600"] $
-            Lucid.toHtml (ShowSchedule.sswdHostName show')
-
--- | Check if a start time matches a time slot
-matchesTimeSlot :: TimeOfDay -> Text -> Bool
-matchesTimeSlot (TimeOfDay hour _ _) slot =
-  case parseSlot slot of
-    Just slotHour -> hour >= slotHour && hour < slotHour + 3
-    _ -> False
-
--- | Parse slot label like "6AM" or "3PM" to hour (0-23)
-parseSlot :: Text -> Maybe Int
-parseSlot slot =
-  let numPart = Text.takeWhile isDigit slot
-      isPM = Text.isSuffixOf "PM" slot
-   in case reads (Text.unpack numPart) of
-        [(hour, "")] ->
-          Just $ if isPM && hour /= 12 then hour + 12 else if not isPM && hour == 12 then 0 else hour
-        _ -> Nothing
+  Lucid.a_
+    [ Lucid.href_ [i|/#{showUrl}|],
+      hxGet_ [i|/#{showUrl}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      Lucid.class_ [i|#{bgClass} #{borderClass} p-2 m-1 rounded overflow-hidden block cursor-pointer|],
+      Lucid.style_ gridStyle
+    ]
+    $ do
+      -- Live indicator
+      if isLive
+        then Lucid.div_ [Lucid.class_ "text-[10px] font-bold mb-1 text-gray-800 animate-pulse text-center"] "● ON AIR ●"
+        else mempty
+      -- Show title
+      Lucid.div_ [Lucid.class_ "text-xs font-bold mb-1"] $
+        Lucid.toHtml (ShowSchedule.sswdShowTitle show')
+      -- Host name
+      Lucid.div_ [Lucid.class_ "text-[10px] text-gray-600"] $
+        Lucid.toHtml (ShowSchedule.sswdHostName show')
+      -- Time range
+      Lucid.div_ [Lucid.class_ "text-[10px] text-gray-500 mt-1"] $
+        Lucid.toHtml $
+          formatTimeOfDay (ShowSchedule.sswdStartTime show') <> " - " <> formatTimeOfDay (ShowSchedule.sswdEndTime show')
 
 -- | Render mobile schedule (day by day)
 renderMobileSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
