@@ -10,6 +10,7 @@ where
 import {-# SOURCE #-} API (blogGetLink, blogPostGetLink)
 import Data.String.Interpolate (i)
 import Domain.Types.Slug (Slug)
+import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -19,14 +20,14 @@ import Servant.Links qualified as Links
 blogGetUrl :: Links.URI
 blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
-blogPostGetUrl :: Slug -> Links.URI
-blogPostGetUrl slug = Links.linkURI $ blogPostGetLink slug
+blogPostGetUrl :: BlogPosts.Id -> Slug -> Links.URI
+blogPostGetUrl postId slug = Links.linkURI $ blogPostGetLink postId slug
 
 --------------------------------------------------------------------------------
 
-template :: Slug -> Lucid.Html ()
-template postSlug = do
-  let postUrl = blogPostGetUrl postSlug
+template :: BlogPosts.Id -> Slug -> Lucid.Html ()
+template postId postSlug = do
+  let postUrl = blogPostGetUrl postId postSlug
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Blog Post Updated Successfully!"
     Lucid.p_ [Lucid.class_ "mb-6"] "Your blog post has been updated and saved."
