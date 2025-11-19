@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (aboutGetLink, archiveGetLink, blogGetLink, donateGetLink, eventsGetLink, hostDashboardGetLink, rootGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
+import {-# SOURCE #-} API (aboutGetLink, archiveGetLink, blogGetLink, donateGetLink, eventsGetLink, hostDashboardGetLink, rootGetLink, showsScheduleGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -46,6 +46,9 @@ userLogoutGetUrl = Link.linkURI userLogoutGetLink
 
 hostDashboardGetUrl :: Link.URI
 hostDashboardGetUrl = Link.linkURI $ hostDashboardGetLink Nothing
+
+showsScheduleGetUrl :: Link.URI
+showsScheduleGetUrl = Link.linkURI $ showsScheduleGetLink Nothing
 
 --------------------------------------------------------------------------------
 
@@ -265,7 +268,7 @@ navigation =
   Lucid.nav_ [Lucid.class_ "flex gap-8 items-center flex-wrap"] $ do
     Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Donate"
     -- Lucid.a_ [Lucid.id_ "nav-list", Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Listen"
-    Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ "/shows", hxGet_ "/shows", hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Shows"
+    Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsScheduleGetUrl}|], hxGet_ [i|/#{showsScheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Shows"
     Lucid.a_ [Lucid.id_ "nav-archive", Lucid.href_ [i|/#{archiveGetUrl}|], hxGet_ [i|/#{archiveGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Archive"
     Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Blog"
     Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Events"
