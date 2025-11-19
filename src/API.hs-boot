@@ -44,6 +44,7 @@ eventGetLink :: Slug -> Links.Link
 eventEditGetLink :: Slug -> Links.Link
 eventEditPostLink :: Slug -> Links.Link
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Status -> Maybe Search -> Links.Link
+showsScheduleGetLink :: Links.Link
 showGetLink :: Slug -> Links.Link
 showBlogGetLink :: Slug -> Maybe Int64 -> Maybe Text -> Links.Link
 showBlogPostGetLink :: Slug -> Slug -> Links.Link

@@ -22,6 +22,7 @@ import API.Host.Dashboard.Get qualified as Host.Dashboard.Get
 import API.Media.Get qualified as Media.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Shows.Get qualified as Shows.Get
+import API.Shows.Schedule.Get qualified as Shows.Schedule.Get
 import API.Shows.Slug.Blog.Delete qualified as Show.Blog.Delete
 import API.Shows.Slug.Blog.Edit.Get qualified as Show.Blog.Edit.Get
 import API.Shows.Slug.Blog.Edit.Post qualified as Show.Blog.Edit.Post
@@ -107,6 +108,7 @@ type API =
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
     :<|> Shows.Get.Route
+    :<|> Shows.Schedule.Get.Route
     :<|> Show.Get.Route
     :<|> Show.Blog.Get.Route
     :<|> Show.Blog.New.Get.Route
@@ -168,6 +170,7 @@ server env =
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
     :<|> Shows.Get.handler
+    :<|> Shows.Schedule.Get.handler
     :<|> Show.Get.handler
     :<|> Show.Blog.Get.handler
     :<|> Show.Blog.New.Get.handler
@@ -296,6 +299,10 @@ eventEditPostLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Post.Route)
 -- | Route: GET /shows
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link
 showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
+
+-- | Route: GET /shows/schedule
+showsScheduleGetLink :: Links.Link
+showsScheduleGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Schedule.Get.Route)
 
 -- | Route: GET /shows/:slug
 showGetLink :: Slug -> Links.Link

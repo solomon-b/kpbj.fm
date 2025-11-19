@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module API.Shows.Get.Templates.Page
   ( template,
     renderFilters,
@@ -5,88 +7,74 @@ module API.Shows.Get.Templates.Page
   )
 where
 
+import {-# SOURCE #-} API (showsGetLink, showsScheduleGetLink)
 import API.Shows.Get.Templates.Pagination (renderPagination)
-import API.Shows.Get.Templates.ScheduleView (renderScheduleView)
 import API.Shows.Get.Templates.ShowCard (renderShowCard)
 import Control.Monad (unless)
 import Data.Maybe (isNothing)
+import Data.String.Interpolate (i)
 import Data.Text.Display (display)
-import Data.Time (DayOfWeek)
 import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
-import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Servant.Links qualified as Links
 
--- | Main shows template
-template :: [Shows.Model] -> [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
-template allShows scheduledShows currentDayOfWeek currentPage hasMore maybeGenre maybeStatus maybeSearch = do
+-- | Main shows list template
+template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
+template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
   -- Shows Header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center w-full"] $ do
-    Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] "SHOWS & SCHEDULE"
-    Lucid.p_ [Lucid.class_ "text-lg text-gray-600 mb-6"] "Discover KPBJ's diverse lineup of community radio shows"
+    Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] "ALL SHOWS"
+    Lucid.p_ [Lucid.class_ "text-lg text-gray-600 mb-6"] "Browse KPBJ's diverse lineup of community radio shows"
 
   -- Content Navigation Tabs
   renderTabs
 
-  -- Schedule View (default visible)
-  Lucid.section_ [Lucid.id_ "schedule-view", Lucid.class_ "mb-8 w-full"] $ do
-    renderScheduleView scheduledShows currentDayOfWeek
+  -- Show Filters
+  renderFilters maybeGenre maybeStatus maybeSearch
 
-  -- All Shows View (hidden by default)
-  Lucid.section_ [Lucid.id_ "shows-view", Lucid.class_ "hidden w-full"] $ do
-    -- Show Filters
-    renderFilters maybeGenre maybeStatus maybeSearch
+  -- Shows Grid
+  if null allShows
+    then Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
+      Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "No Shows Found"
+      Lucid.p_ [Lucid.class_ "text-gray-600"] "Check back soon for new shows!"
+    else do
+      Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 w-full"] $ do
+        mapM_ renderShowCard allShows
 
-    -- Shows Grid
-    if null allShows
-      then Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-        Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "No Shows Found"
-        Lucid.p_ [Lucid.class_ "text-gray-600"] "Check back soon for new shows!"
-      else do
-        Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"] $ do
-          mapM_ renderShowCard allShows
-
-        -- Pagination
-        unless (null allShows) $
-          renderPagination currentPage hasMore
+      -- Pagination
+      unless (null allShows) $
+        renderPagination currentPage hasMore
 
 -- | Render tabs for switching between views
 renderTabs :: Lucid.Html ()
-renderTabs = do
-  Lucid.div_ [Lucid.class_ "mb-8 w-full border-b-2 border-gray-800"] $ do
-    Lucid.nav_ [Lucid.class_ "flex gap-8"] $ do
-      Lucid.button_
-        [ Lucid.id_ "tab-schedule",
-          Lucid.class_ "py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5"
-        ]
-        "Schedule"
-      Lucid.button_
-        [ Lucid.id_ "tab-shows",
-          Lucid.class_ "py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800"
-        ]
-        "All Shows"
+renderTabs =
+  let showsScheduleUrl = Links.linkURI showsScheduleGetLink
+      showsListUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
+   in Lucid.div_ [Lucid.class_ "mb-8 w-full border-b-2 border-gray-800"] $ do
+        Lucid.nav_ [Lucid.class_ "flex gap-8"] $ do
+          -- Schedule tab (inactive)
+          Lucid.a_
+            [ Lucid.href_ [i|/#{showsScheduleUrl}|],
+              hxGet_ [i|/#{showsScheduleUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800"
+            ]
+            "Schedule"
 
-  -- Tab switching JavaScript
-  Lucid.script_ $
-    "document.getElementById('tab-schedule').addEventListener('click', function() {\n"
-      <> "  document.getElementById('schedule-view').classList.remove('hidden');\n"
-      <> "  document.getElementById('shows-view').classList.add('hidden');\n"
-      <> "  this.classList.add('border-b-2', 'border-gray-800', 'bg-white', '-mb-0.5');\n"
-      <> "  this.classList.remove('text-gray-600');\n"
-      <> "  document.getElementById('tab-shows').classList.remove('border-b-2', 'border-gray-800', 'bg-white', '-mb-0.5');\n"
-      <> "  document.getElementById('tab-shows').classList.add('text-gray-600');\n"
-      <> "});\n"
-      <> "\n"
-      <> "document.getElementById('tab-shows').addEventListener('click', function() {\n"
-      <> "  document.getElementById('shows-view').classList.remove('hidden');\n"
-      <> "  document.getElementById('schedule-view').classList.add('hidden');\n"
-      <> "  this.classList.add('border-b-2', 'border-gray-800', 'bg-white', '-mb-0.5');\n"
-      <> "  this.classList.remove('text-gray-600');\n"
-      <> "  document.getElementById('tab-schedule').classList.remove('border-b-2', 'border-gray-800', 'bg-white', '-mb-0.5');\n"
-      <> "  document.getElementById('tab-schedule').classList.add('text-gray-600');\n"
-      <> "});\n"
+          -- All Shows tab (active)
+          Lucid.a_
+            [ Lucid.href_ [i|/#{showsListUrl}|],
+              hxGet_ [i|/#{showsListUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5"
+            ]
+            "All Shows"
 
 -- | Render show filters
 renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()

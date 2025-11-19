@@ -9,7 +9,6 @@ import Data.Time (addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
 import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.LocalTime (TimeOfDay (..))
-import Data.Vector qualified as Vector
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.ShowSchedule qualified as UUT
 import Effects.Database.Tables.Shows qualified as Shows
@@ -24,7 +23,6 @@ import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertRight)
 import Test.Gen.Tables.ShowSchedule
-import Test.Gen.Tables.ShowSchedule (allWeeksOfMonth)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Hedgehog (hedgehog)
@@ -615,7 +613,6 @@ prop_oneTimeShowNotInRecurring cfg = do
     let activeShow = showInsert {Shows.siStatus = Shows.Active}
     (startTime, endTime) <- forAllT genTimeRange
     timezone <- forAllT genTimezone
-    specificDate <- forAllT genFutureDay
 
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
