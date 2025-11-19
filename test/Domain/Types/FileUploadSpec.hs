@@ -103,7 +103,7 @@ spec = describe "Domain.Types.FileUpload" $ do
 
         -- File too large
         validateUpload AudioBucket "episode1.mp3" "audio/mpeg" (maxAudioFileSize + 1)
-          `shouldSatisfy` \result -> case result of
+          `shouldSatisfy` \case
             Left (FileTooLarge _ _) -> True
             _ -> False
 

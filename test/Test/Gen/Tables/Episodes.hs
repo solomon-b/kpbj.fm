@@ -20,7 +20,7 @@ genEpisodeStatus = Gen.enumBounded
 
 episodeInsertGen :: (MonadIO m, MonadGen m) => Shows.Id -> User.Id -> m Episodes.Insert
 episodeInsertGen showId userId = do
-  eiId <- pure showId
+  let eiId = showId
   eiTitle <- genText
   eiSlug <- genSlug
   eiDescription <- Gen.maybe genText
@@ -31,5 +31,5 @@ episodeInsertGen showId userId = do
   eiArtworkUrl <- Gen.maybe genUrl
   eiScheduledAt <- Gen.maybe genUTCTime
   eiStatus <- genEpisodeStatus
-  eiCreatedBy <- pure userId
+  let eiCreatedBy = userId
   pure Episodes.Insert {..}

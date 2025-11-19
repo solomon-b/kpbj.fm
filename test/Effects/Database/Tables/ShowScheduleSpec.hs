@@ -691,8 +691,7 @@ prop_timezoneConversion cfg = do
         let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
         void $ TRX.statement () (UUT.insertValidity validityInsert)
 
-        upcomingDates <- TRX.statement () (UUT.getUpcomingShowDates showId 1)
-        pure upcomingDates
+        TRX.statement () (UUT.getUpcomingShowDates showId 1)
 
       assert $ do
         upcomingDates <- assertRight result

@@ -8,6 +8,7 @@ import {-# SOURCE #-} API (showBlogGetLink)
 import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
 import Control.Monad (forM_, unless, when)
 import Data.Int (Int64)
+import Data.Maybe (isNothing)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -57,7 +58,7 @@ template showModel posts tags maybeTag currentPage totalPages isHost = do
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
               Lucid.class_ $
-                if maybeTag == Nothing
+                if isNothing maybeTag
                   then "px-4 py-2 bg-gray-800 text-white border-2 border-gray-800 font-bold"
                   else "px-4 py-2 bg-white text-gray-800 border-2 border-gray-800 hover:bg-gray-100 font-bold"
             ]

@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module API.Events.Get.Templates.Page
   ( header,
   )
