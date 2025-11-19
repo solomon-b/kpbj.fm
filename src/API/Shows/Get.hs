@@ -8,19 +8,16 @@ import API.Shows.Get.Templates.Error (errorTemplate)
 import API.Shows.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Coerce (coerce)
-import Data.Either (isLeft, rights)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
-import Data.Time (addDays, getCurrentTime, utctDay)
-import Data.Time.Calendar.WeekDate (toWeekDate)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Genre (Genre)
 import Domain.Types.HxRequest (HxRequest (..))
@@ -28,14 +25,12 @@ import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import OrphanInstances.DayOfWeek (fromDayOfWeek, toDayOfWeek)
 import Servant ((:>))
 import Servant qualified
 import Text.HTML (HTML)
@@ -80,38 +75,15 @@ handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce
     let limit = 12
         offset = (coerce page - 1) * limit
 
-    -- Get current day of week and calculate week start (Monday)
-    now <- liftIO getCurrentTime
-    let today = utctDay now
-        (_, _, currentDayOfWeek) = toDayOfWeek <$> toWeekDate today
-        -- Calculate days to subtract to get to Monday (start of week)
-        daysFromMonday = fromDayOfWeek currentDayOfWeek
-        weekStart = addDays (negate daysFromMonday) today
-
-        -- Generate all 7 days of the week
-        weekDays = [addDays i weekStart | i <- [0 .. 6]]
-
-    -- Fetch schedule for each day of the week
-    scheduleResults <- mapM (execQuerySpan . ShowSchedule.getScheduledShowsForDate) weekDays
-
     -- Fetch limit + 1 to check if there are more results
-    showsResult <- getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus
-
-    -- Flatten schedule results
-    let scheduledShows = concat (rights scheduleResults)
-        hasScheduleError = any isLeft scheduleResults
-
-    case (hasScheduleError, showsResult) of
-      (True, _) -> do
-        Log.logInfo_ "Failed to fetch schedule from database"
-        renderTemplate htmxRequest mUserInfo (errorTemplate "Failed to load schedule. Please try again.")
-      (_, Left err) -> do
+    getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus >>= \case
+      Left err -> do
         Log.logInfo "Failed to fetch shows from database" (Aeson.object ["error" .= show err])
         renderTemplate htmxRequest mUserInfo (errorTemplate "Failed to load shows. Please try again.")
-      (False, Right allShows) -> do
+      Right allShows -> do
         let someShows = take (fromIntegral limit) allShows
             hasMore = length allShows > fromIntegral limit
-            showsTemplate = template someShows scheduledShows currentDayOfWeek page hasMore maybeGenre maybeStatus maybeSearch
+            showsTemplate = template someShows page hasMore maybeGenre maybeStatus maybeSearch
         renderTemplate htmxRequest mUserInfo showsTemplate
 
 getShows ::

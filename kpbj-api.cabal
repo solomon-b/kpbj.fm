@@ -150,6 +150,8 @@ library
     API.Shows.Get.Templates.Pagination
     API.Shows.Get.Templates.ScheduleView
     API.Shows.Get.Templates.ShowCard
+    API.Shows.Schedule.Get
+    API.Shows.Schedule.Get.Templates.Page
     API.Shows.Slug.Edit.Get
     API.Shows.Slug.Edit.Get.Templates.Error
     API.Shows.Slug.Edit.Get.Templates.Form
