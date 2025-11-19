@@ -12,8 +12,9 @@ import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Data.Time (Day, DayOfWeek (..), UTCTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.LocalTime (hoursToTimeZone, utcToLocalTime)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -205,14 +206,18 @@ renderUpcomingDateOption (ShowSchedule.UpcomingShowDate {usdShowDate = showDate,
   where
     formatUpcomingDate :: DayOfWeek -> Day -> UTCTime -> UTCTime -> Text
     formatUpcomingDate d sd st et =
-      dayOfWeekName d
-        <> ", "
-        <> Text.pack (Prelude.show sd)
-        <> " ("
-        <> display st
-        <> " - "
-        <> display et
-        <> ")"
+      let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
+          startTimePacific = utcToLocalTime pacificTz st
+          endTimePacific = utcToLocalTime pacificTz et
+          formatTimeOfDay = Text.pack . formatTime defaultTimeLocale "%l:%M %p"
+       in dayOfWeekName d
+            <> ", "
+            <> Text.pack (Prelude.show sd)
+            <> " ("
+            <> formatTimeOfDay startTimePacific
+            <> " - "
+            <> formatTimeOfDay endTimePacific
+            <> " PT)"
 
     dayOfWeekName :: DayOfWeek -> Text
     dayOfWeekName Sunday = "Sunday"
