@@ -8,7 +8,8 @@ import {-# SOURCE #-} API (showsGetLink, showsScheduleGetLink)
 import API.Shows.Get.Templates.ScheduleView (renderScheduleView)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Time (DayOfWeek)
+import Data.Time (Day, DayOfWeek, TimeOfDay)
+import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -17,8 +18,8 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 -- | Schedule page template
-template :: [ShowSchedule.ScheduledShowWithDetails] -> DayOfWeek -> Maybe Text -> Lucid.Html ()
-template scheduledShows currentDayOfWeek maybeError = do
+template :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> WeekOffset -> Day -> Maybe Text -> Lucid.Html ()
+template scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart maybeError = do
   -- Header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center w-full"] $ do
     Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] "SHOW SCHEDULE"
@@ -34,7 +35,7 @@ template scheduledShows currentDayOfWeek maybeError = do
     Nothing -> do
       -- Schedule View
       Lucid.section_ [Lucid.class_ "mb-8 w-full"] $ do
-        renderScheduleView scheduledShows currentDayOfWeek
+        renderScheduleView scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart
 
 -- | Render navigation tabs
 renderTabs :: Lucid.Html ()
@@ -62,7 +63,7 @@ renderTabs = do
         "All Shows"
   where
     showsScheduleGetUrl :: Links.URI
-    showsScheduleGetUrl = Links.linkURI showsScheduleGetLink
+    showsScheduleGetUrl = Links.linkURI $ showsScheduleGetLink Nothing
 
     showsGetUrl :: Links.URI
     showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing

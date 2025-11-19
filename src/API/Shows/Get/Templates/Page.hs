@@ -52,7 +52,7 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
 -- | Render tabs for switching between views
 renderTabs :: Lucid.Html ()
 renderTabs =
-  let showsScheduleUrl = Links.linkURI showsScheduleGetLink
+  let showsScheduleUrl = Links.linkURI $ showsScheduleGetLink Nothing
       showsListUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
    in Lucid.div_ [Lucid.class_ "mb-8 w-full border-b-2 border-gray-800"] $ do
         Lucid.nav_ [Lucid.class_ "flex gap-8"] $ do

@@ -64,6 +64,7 @@ import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.PageView (PageView)
 import Domain.Types.Search (Search)
 import Domain.Types.Slug (Slug)
+import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -301,7 +302,7 @@ showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe S
 showsGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Get.Route)
 
 -- | Route: GET /shows/schedule
-showsScheduleGetLink :: Links.Link
+showsScheduleGetLink :: Maybe WeekOffset -> Links.Link
 showsScheduleGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Schedule.Get.Route)
 
 -- | Route: GET /shows/:slug
