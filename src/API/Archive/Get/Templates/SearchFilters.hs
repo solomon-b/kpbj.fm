@@ -4,7 +4,7 @@ module API.Archive.Get.Templates.SearchFilters (renderSearchFilters) where
 
 import Control.Monad (when)
 import Data.Int (Int64)
-import Data.Maybe (isNothing)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Lucid qualified
@@ -36,13 +36,13 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
                 Lucid.name_ "q",
                 Lucid.placeholder_ "Search episodes, shows, hosts...",
                 Lucid.class_ "flex-grow border-2 border-gray-600 px-3 py-2 bg-white font-mono",
-                Lucid.value_ (maybe "" id mSearch)
+                Lucid.value_ (fromMaybe "" mSearch)
               ]
             -- Hidden inputs to preserve other filters
-            when (mGenre /= Nothing) $ do
-              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "genre", Lucid.value_ (maybe "" id mGenre)]
-            when (mYear /= Nothing) $ do
-              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "year", Lucid.value_ (Text.pack $ show $ maybe 0 id mYear)]
+            when (isJust mGenre) $ do
+              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "genre", Lucid.value_ (fromMaybe "" mGenre)]
+            when (isJust mYear) $ do
+              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "year", Lucid.value_ (Text.pack $ show $ fromMaybe 0 mYear)]
             Lucid.button_
               [ Lucid.type_ "submit",
                 Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700"
@@ -59,10 +59,10 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
           ]
           $ do
             -- Hidden inputs to preserve other filters
-            when (mSearch /= Nothing) $ do
-              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "q", Lucid.value_ (maybe "" id mSearch)]
-            when (mYear /= Nothing) $ do
-              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "year", Lucid.value_ (Text.pack $ show $ maybe 0 id mYear)]
+            when (isJust mSearch) $ do
+              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "q", Lucid.value_ (fromMaybe "" mSearch)]
+            when (isJust mYear) $ do
+              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "year", Lucid.value_ (Text.pack $ show $ fromMaybe 0 mYear)]
             Lucid.select_
               [ Lucid.name_ "genre",
                 Lucid.class_ "w-full border-2 border-gray-600 px-3 py-2 bg-white font-mono text-sm",
@@ -89,10 +89,10 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
           ]
           $ do
             -- Hidden inputs to preserve other filters
-            when (mSearch /= Nothing) $ do
-              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "q", Lucid.value_ (maybe "" id mSearch)]
-            when (mGenre /= Nothing) $ do
-              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "genre", Lucid.value_ (maybe "" id mGenre)]
+            when (isJust mSearch) $ do
+              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "q", Lucid.value_ (fromMaybe "" mSearch)]
+            when (isJust mGenre) $ do
+              Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "genre", Lucid.value_ (fromMaybe "" mGenre)]
             Lucid.select_
               [ Lucid.name_ "year",
                 Lucid.class_ "w-full border-2 border-gray-600 px-3 py-2 bg-white font-mono text-sm",

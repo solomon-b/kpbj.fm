@@ -21,6 +21,6 @@ blogPostInsertGen userId = do
   bpiSlug <- genSlug
   bpiContent <- genText
   bpiExcerpt <- Gen.maybe genText
-  bpiAuthorId <- pure userId
+  let bpiAuthorId = userId
   bpiStatus <- genBlogPostStatus
   pure BlogPosts.Insert {..}

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module Test.Gen.Tables.ShowHost where
 
 --------------------------------------------------------------------------------
@@ -18,5 +16,4 @@ hostRoleGen = Gen.enumBounded
 showHostInsertGen :: Shows.Id -> User.Id -> Hedgehog.Gen ShowHost.Insert
 showHostInsertGen showId userId = do
   role <- hostRoleGen
-  isPrimary <- Gen.bool
-  pure $ ShowHost.Insert showId userId role isPrimary
+  ShowHost.Insert showId userId role <$> Gen.bool
