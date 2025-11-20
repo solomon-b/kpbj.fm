@@ -64,8 +64,8 @@ renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
 renderEpisodeCard showModel episode = do
   let episodeId = episode.id
       episodeCardId = [i|episode-card-#{episodeId}|]
-      episodeEditUrl = Links.linkURI $ episodesEditGetLink showModel.slug episode.slug
-      episodeDelUrl = Links.linkURI $ episodesDeleteLink showModel.slug episode.slug
+      episodeEditUrl = Links.linkURI $ episodesEditGetLink showModel.id episode.id episode.slug
+      episodeDelUrl = Links.linkURI $ episodesDeleteLink showModel.id showModel.slug episode.id episode.slug
   Lucid.div_ [Lucid.class_ "border border-gray-300 p-4", Lucid.id_ episodeCardId] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-start mb-2"] $ do
       Lucid.div_ $ do

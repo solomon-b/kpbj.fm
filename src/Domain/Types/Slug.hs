@@ -1,4 +1,9 @@
-module Domain.Types.Slug where
+module Domain.Types.Slug
+  ( Slug (..),
+    mkSlug,
+    matchSlug,
+  )
+where
 
 --------------------------------------------------------------------------------
 
@@ -45,3 +50,7 @@ mkSlug title =
     collapseHyphens text
       | Text.isInfixOf "--" text = collapseHyphens (Text.replace "--" "-" text)
       | otherwise = text
+
+matchSlug :: Slug -> Maybe Slug -> Bool
+matchSlug _ Nothing = False
+matchSlug canonicalSlug (Just urlSlug) = canonicalSlug == urlSlug

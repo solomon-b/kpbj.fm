@@ -52,18 +52,19 @@ import Web.FormUrlEncoded qualified as Form
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
-episodesIdGetUrl :: Slug -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
+episodesIdGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
+episodesIdGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink showId episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_slug/episodes/:episode_slug/edit"
+    "POST /shows/:show_id/episodes/:episode_id/:slug/edit"
     ( "shows"
-        :> Servant.Capture "show_slug" Slug
+        :> Servant.Capture "show_id" Shows.Id
         :> "episodes"
-        :> Servant.Capture "episode_slug" Slug
+        :> Servant.Capture "episode_id" Episodes.Id
+        :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -177,9 +178,9 @@ parseStatus "archived" = Just Episodes.Archived
 parseStatus _ = Nothing
 
 -- | Success template after episode update
-successTemplate :: Slug -> Slug -> Lucid.Html ()
-successTemplate showSlug episodeSlug = do
-  let epUrl = episodesIdGetUrl showSlug episodeSlug
+successTemplate :: Shows.Id -> Episodes.Id -> Slug -> Lucid.Html ()
+successTemplate showId episodeId episodeSlug = do
+  let epUrl = episodesIdGetUrl showId episodeId episodeSlug
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Episode Updated Successfully!"
     Lucid.p_ [Lucid.class_ "mb-6"] "Your episode has been updated and saved."
@@ -263,25 +264,26 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Slug ->
+  Shows.Id ->
+  Episodes.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   EpisodeEditForm ->
   m (Lucid.Html ())
-handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer _showId episodeId _urlSlug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
-      Log.logInfo "Unauthorized episode edit attempt" (showSlug, episodeSlug)
+      Log.logInfo "Unauthorized episode edit attempt" episodeId
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
       -- Fetch the episode to verify it exists and check authorization
-      execQuerySpan (Episodes.getEpisodeBySlug showSlug episodeSlug) >>= \case
+      execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
         Left err -> do
-          Log.logAttention "getEpisodeBySlug execution error" (show err)
+          Log.logAttention "getEpisodeById execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
-          Log.logInfo_ $ "No episode with slugs: '" <> display showSlug <> "' / '" <> display episodeSlug <> "'"
+          Log.logInfo_ $ "No episode with ID: '" <> display episodeId <> "'"
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just episode) -> do
           -- Fetch show info
@@ -371,7 +373,7 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                   renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but track update failed: " <> trackErr)
                 Right _ -> do
                   Log.logInfo "Successfully updated episode and tracks" episode.id
-                  renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.slug)
+                  renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.id episode.id episode.slug)
 
 --------------------------------------------------------------------------------
 -- Track Update Logic

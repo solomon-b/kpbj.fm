@@ -14,7 +14,9 @@ import Domain.Types.Search (Search)
 import Domain.Types.Slug (Slug)
 import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
-import Effects.Database.Tables.Shows (Status)
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.Shows qualified as Shows
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -47,7 +49,7 @@ eventsNewPostLink :: Links.Link
 eventGetLink :: Slug -> Links.Link
 eventEditGetLink :: Slug -> Links.Link
 eventEditPostLink :: Slug -> Links.Link
-showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Status -> Maybe Search -> Links.Link
+showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link
 showsScheduleGetLink :: Maybe WeekOffset -> Links.Link
 showGetLink :: Slug -> Links.Link
 showBlogGetLink :: Slug -> Maybe Int64 -> Maybe Text -> Links.Link
@@ -59,10 +61,11 @@ showBlogEditPostLink :: Slug -> Slug -> Links.Link
 showBlogDeleteLink :: Slug -> Slug -> Links.Link
 showEditGetLink :: Slug -> Links.Link
 showEditPostLink :: Slug -> Links.Link
-episodesGetLink :: Slug -> Slug -> Links.Link
-episodesEditPostLink :: Slug -> Slug -> Links.Link
+episodesGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
+episodesGetLinkById :: Shows.Id -> Episodes.Id -> Links.Link
+episodesEditPostLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
 episodesNewGetLink :: Slug -> Links.Link
 episodesNewPostLink :: Slug -> Links.Link
-episodesEditGetLink :: Slug -> Slug -> Links.Link
-episodesDeleteLink :: Slug -> Slug -> Links.Link
+episodesEditGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
+episodesDeleteLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
 hostDashboardGetLink :: Maybe Slug -> Links.Link

@@ -69,6 +69,8 @@ import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool qualified as HSQL.Pool
 import Log (MonadLog)
@@ -124,7 +126,8 @@ type API =
     :<|> Show.Blog.Delete.Route
     :<|> Show.Edit.Get.Route
     :<|> Show.Edit.Post.Route
-    :<|> Episodes.Get.Route
+    :<|> Episodes.Get.RouteWithSlug
+    :<|> Episodes.Get.RouteWithoutSlug
     :<|> Episodes.Delete.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
@@ -188,7 +191,8 @@ server env =
     :<|> Show.Blog.Delete.handler
     :<|> Show.Edit.Get.handler
     :<|> Show.Edit.Post.handler
-    :<|> Episodes.Get.handler
+    :<|> Episodes.Get.handlerWithSlug
+    :<|> Episodes.Get.handlerWithoutSlug
     :<|> Episodes.Delete.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
@@ -359,12 +363,16 @@ showEditGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Get.Route)
 showEditPostLink :: Slug -> Links.Link
 showEditPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Post.Route)
 
--- | Route: GET /shows/:show_slug/episodes/:episode_slug
-episodesGetLink :: Slug -> Slug -> Links.Link
-episodesGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.Route)
+-- | Route: GET /shows/:show_id/episodes/:episode_id/:slug
+episodesGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
+episodesGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.RouteWithSlug)
 
--- | Route: POST /shows/:show_slug/episodes/:episode_slug/edit
-episodesEditPostLink :: Slug -> Slug -> Links.Link
+-- | Route: GET /shows/:show_id/episodes/:episode_id (without slug, redirects to canonical)
+episodesGetLinkById :: Shows.Id -> Episodes.Id -> Links.Link
+episodesGetLinkById = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.RouteWithoutSlug)
+
+-- | Route: POST /shows/:show_id/episodes/:episode_id/:slug/edit
+episodesEditPostLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
 episodesEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Post.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/new
@@ -375,12 +383,12 @@ episodesNewGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Get.Route)
 episodesNewPostLink :: Slug -> Links.Link
 episodesNewPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Post.Route)
 
--- | Route: GET /shows/:show_slug/episodes/:episode_slug/edit
-episodesEditGetLink :: Slug -> Slug -> Links.Link
+-- | Route: GET /shows/:show_id/episodes/:episode_id/:slug/edit
+episodesEditGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
 episodesEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
 
--- | Route: DELETE /shows/:show_slug/episodes/:episode_slug
-episodesDeleteLink :: Slug -> Slug -> Links.Link
+-- | Route: DELETE /shows/:show_id/:show_slug/episodes/:episode_id/:episode_slug
+episodesDeleteLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDeleteLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Delete.Route)
 
 -- | Route: GET /host/dashboard

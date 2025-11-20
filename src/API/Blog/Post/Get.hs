@@ -20,7 +20,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Domain.Types.Slug (Slug, mkSlug)
+import Domain.Types.Slug (Slug, matchSlug, mkSlug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -177,7 +177,3 @@ renderRedirect hxRequest mUserInfo canonicalUrl = do
   Log.logInfo "Redirecting to canonical blog post URL" canonicalUrl
   html <- renderTemplate hxRequest mUserInfo (redirectTemplate canonicalUrl)
   pure $ Servant.addHeader canonicalUrl html
-
-matchSlug :: Slug -> Maybe Slug -> Bool
-matchSlug _ Nothing = False
-matchSlug canonicalSlug (Just urlSlug) = canonicalSlug == urlSlug

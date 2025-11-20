@@ -31,8 +31,8 @@ import Servant.Links qualified as Links
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
-episodesIdGetUrl :: Slug -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
+episodesIdGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
+episodesIdGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink showId episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
@@ -41,7 +41,7 @@ template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadat
 template showModel episode tracks userMeta isStaff = do
   let showSlug = showModel.slug
       episodeSlug = episode.slug
-      episodeBackUrl = episodesIdGetUrl showSlug episodeSlug
+      episodeBackUrl = episodesIdGetUrl showModel.id episode.id episodeSlug
       titleValue = episode.title
       descriptionValue = fromMaybe "" episode.description
 

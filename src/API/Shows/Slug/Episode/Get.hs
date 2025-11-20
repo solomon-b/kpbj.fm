@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Shows.Slug.Episode.Get where
@@ -7,6 +8,7 @@ module API.Shows.Slug.Episode.Get where
 
 import API.Shows.Slug.Episode.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -14,11 +16,14 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
+import Data.Functor ((<&>))
 import Data.Has (Has)
+import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Domain.Types.Slug (Slug)
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Slug (Slug, matchSlug, mkSlug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -37,20 +42,75 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
-type Route =
+-- | Route for episode with show ID, episode ID and slug (canonical URL)
+type RouteWithSlug =
   Observability.WithSpan
-    "GET /shows/:show_slug/episodes/:episode_slug"
+    "GET /shows/:show_id/episodes/:episode_id/:slug"
     ( "shows"
-        :> Servant.Capture "show_slug" Slug
+        :> Servant.Capture "show_id" Shows.Id
         :> "episodes"
-        :> Servant.Capture "episode_slug" Slug
+        :> Servant.Capture "episode_id" Episodes.Id
+        :> Servant.Capture "slug" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
+        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    )
+
+-- | Route for episode with show ID and episode ID only (redirects to canonical)
+type RouteWithoutSlug =
+  Observability.WithSpan
+    "GET /shows/:show_id/episodes/:episode_id"
+    ( "shows"
+        :> Servant.Capture "show_id" Shows.Id
+        :> "episodes"
+        :> Servant.Capture "episode_id" Episodes.Id
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
+        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------
 
+-- | Handler for episode with show ID, episode ID, and slug
+handlerWithSlug ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Tracer ->
+  Shows.Id ->
+  Episodes.Id ->
+  Slug ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handlerWithSlug tracer showId episodeId slug = handler tracer showId episodeId (Just slug)
+
+-- | Handler for episode with show ID and episode ID only (always redirects)
+handlerWithoutSlug ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Tracer ->
+  Shows.Id ->
+  Episodes.Id ->
+  Maybe Cookie ->
+  Maybe HxRequest ->
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handlerWithoutSlug tracer showId episodeId = handler tracer showId episodeId Nothing
+
+-- | Shared handler for both routes
 handler ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -62,49 +122,98 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Slug ->
-  Slug ->
+  Shows.Id ->
+  Episodes.Id ->
+  Maybe Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
-handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
-  userInfoResult <- getUserInfo cookie
-  let mUserInfo = fmap snd userInfoResult
-  execQuerySpan (Episodes.getEpisodeBySlug showSlug episodeSlug) >>= \case
-    Left err -> do
-      Log.logInfo "Failed to fetch episode from database" (Aeson.object ["error" .= show err])
-      renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episode. Please try again.")
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer showId episodeId mUrlSlug cookie (foldHxReq -> hxRequest) = do
+  mUserInfo <- getUserInfo cookie <&> fmap snd
+
+  execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+    Left _err -> do
+      Log.logInfo "Failed to fetch episode from database" episodeId
+      html <- renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episode. Please try again.")
+      pure $ Servant.noHeader html
     Right Nothing -> do
-      Log.logInfo ("Episode not found: " <> display showSlug <> "/" <> display episodeSlug) ()
-      renderTemplate hxRequest mUserInfo (notFoundTemplate showSlug episodeSlug)
+      Log.logInfo "Episode not found" episodeId
+      html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (mkSlug "unknown") (mkSlug "unknown"))
+      pure $ Servant.noHeader html
     Right (Just episode) -> do
-      -- Fetch the show
-      showResult <- execQuerySpan (Shows.getShowById episode.showId)
+      -- Verify episode belongs to the show
+      if episode.showId /= showId
+        then do
+          Log.logInfo "Episode does not belong to show" (showId, episodeId)
+          html <- renderTemplate hxRequest mUserInfo (errorTemplate "Episode not found in this show.")
+          pure $ Servant.noHeader html
+        else do
+          let canonicalSlug = episode.slug
+              showIdText = display showId
+              episodeIdText = display episodeId
+              slugText = display canonicalSlug
+              canonicalUrl = [i|/shows/#{showIdText}/episodes/#{episodeIdText}/#{slugText}|]
 
-      -- Fetch tracks for the episode
-      tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episode.id)
+          if matchSlug canonicalSlug mUrlSlug
+            then renderEpisode hxRequest mUserInfo cookie episode
+            else renderRedirect hxRequest mUserInfo canonicalUrl
 
-      case showResult of
-        Left err -> do
-          Log.logInfo "Failed to fetch show from database" (Aeson.object ["error" .= show err])
-          renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show data. Please try again.")
-        Right Nothing -> do
-          Log.logInfo ("Show not found for episode: " <> display showSlug) ()
-          renderTemplate hxRequest mUserInfo (errorTemplate "Show not found for this episode.")
-        Right (Just showModel) -> do
-          -- Check if current user can edit this episode
-          canEdit <- case userInfoResult of
-            Nothing -> pure False
-            Just (user, userMeta) -> do
-              -- User must be creator, host of the show, OR staff+
-              if UserMetadata.isStaffOrHigher userMeta.mUserRole || episode.createdBy == user.mId
-                then pure True
-                else do
-                  isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
-                  pure $ fromRight False isHostResult
+renderEpisode ::
+  ( Has Tracer env,
+    MonadReader env m,
+    Log.MonadLog m,
+    MonadDB m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  HxRequest ->
+  Maybe UserMetadata.Model ->
+  Maybe Cookie ->
+  Episodes.Model ->
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+renderEpisode hxRequest mUserInfo cookie episode = do
+  userInfoResult <- getUserInfo cookie
+  showResult <- execQuerySpan (Shows.getShowById episode.showId)
+  tracks <- fromRight [] <$> execQuerySpan (Episodes.getTracksForEpisode episode.id)
 
-          let tracks = case tracksResult of
-                Right ts -> ts
-                Left _ -> []
-              episodeTemplate = template showModel episode tracks canEdit
-          renderTemplate hxRequest mUserInfo episodeTemplate
+  case showResult of
+    Left err -> do
+      Log.logInfo "Failed to fetch show from database" (Aeson.object ["showId" .= episode.showId, "error" .= show err])
+      html <- renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show data. Please try again.")
+      pure $ Servant.noHeader html
+    Right Nothing -> do
+      Log.logInfo "Show not found for episode" (Aeson.object ["showId" .= episode.showId])
+      html <- renderTemplate hxRequest mUserInfo (errorTemplate "Show not found for this episode.")
+      pure $ Servant.noHeader html
+    Right (Just showModel) -> do
+      canEdit <- case userInfoResult of
+        Nothing ->
+          pure False
+        Just (user, userMeta) -> do
+          if UserMetadata.isAdmin userMeta.mUserRole || episode.createdBy == user.mId
+            then pure True
+            else do
+              isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
+              pure $ fromRight False isHostResult
+
+      let episodeTemplate = template showModel episode tracks canEdit
+      html <- renderTemplate hxRequest mUserInfo episodeTemplate
+
+      pure $ Servant.noHeader html
+
+renderRedirect ::
+  ( MonadCatch m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  HxRequest ->
+  Maybe UserMetadata.Model ->
+  Text ->
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+renderRedirect hxRequest mUserInfo canonicalUrl = do
+  Log.logInfo "Redirecting to canonical episode URL" canonicalUrl
+  html <- renderTemplate hxRequest mUserInfo (redirectTemplate canonicalUrl)
+  pure $ Servant.addHeader canonicalUrl html
