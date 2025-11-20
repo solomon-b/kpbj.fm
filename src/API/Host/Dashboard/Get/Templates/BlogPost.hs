@@ -22,11 +22,11 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-showBlogPostGetUrl :: Slug -> Slug -> Links.URI
-showBlogPostGetUrl showSlug postSlug = Links.linkURI $ showBlogPostGetLink showSlug postSlug
+showBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
+showBlogPostGetUrl showId postId postSlug = Links.linkURI $ showBlogPostGetLink showId postId postSlug
 
-showBlogEditGetUrl :: Slug -> Slug -> Links.URI
-showBlogEditGetUrl showSlug postSlug = Links.linkURI $ showBlogEditGetLink showSlug postSlug
+showBlogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
+showBlogEditGetUrl showId postId postSlug = Links.linkURI $ showBlogEditGetLink showId postId postSlug
 
 --------------------------------------------------------------------------------
 
@@ -38,7 +38,7 @@ renderBlogPostTableRow showModel post = do
   Lucid.tr_ [Lucid.class_ "border-b border-gray-300 hover:bg-gray-50", Lucid.id_ postRowId] $ do
     -- Title
     Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do
-      let postUrl = showBlogPostGetUrl showModel.slug post.slug
+      let postUrl = showBlogPostGetUrl showModel.id post.id post.slug
       Lucid.div_ [Lucid.class_ "font-bold text-gray-900"]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{postUrl}|],
@@ -70,7 +70,7 @@ renderBlogPostTableRow showModel post = do
 
     -- Actions
     Lucid.td_ [Lucid.class_ "px-4 py-3 text-right"] $ do
-      let editUrl = showBlogEditGetUrl showModel.slug post.slug
+      let editUrl = showBlogEditGetUrl showModel.id post.id post.slug
       Lucid.div_ [Lucid.class_ "flex gap-2 justify-end"] $
         Lucid.a_
           [ Lucid.href_ [i|/#{editUrl}|],

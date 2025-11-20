@@ -53,12 +53,13 @@ showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe S
 showsScheduleGetLink :: Maybe WeekOffset -> Links.Link
 showGetLink :: Slug -> Links.Link
 showBlogGetLink :: Slug -> Maybe Int64 -> Maybe Text -> Links.Link
-showBlogPostGetLink :: Slug -> Slug -> Links.Link
+showBlogPostGetLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
+showBlogPostGetLinkById :: Shows.Id -> ShowBlogPosts.Id -> Links.Link
 showBlogNewGetLink :: Slug -> Links.Link
 showBlogNewPostLink :: Slug -> Links.Link
-showBlogEditGetLink :: Slug -> Slug -> Links.Link
-showBlogEditPostLink :: Slug -> Slug -> Links.Link
-showBlogDeleteLink :: Slug -> Slug -> Links.Link
+showBlogEditGetLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
+showBlogEditPostLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
+showBlogDeleteLink :: Shows.Id -> Slug -> ShowBlogPosts.Id -> Slug -> Links.Link
 showEditGetLink :: Slug -> Links.Link
 showEditPostLink :: Slug -> Links.Link
 episodesGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
