@@ -34,8 +34,8 @@ mediaGetUrl = Links.linkURI mediaGetLink
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
-episodeEditGetUrl :: Slug -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeSlug
+episodeEditGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
+episodeEditGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showId episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
@@ -44,7 +44,7 @@ template showModel episode tracks canEdit = do
   Lucid.div_ [Lucid.class_ "max-w-4xl mx-auto px-4 py-8 w-full"] $ do
     -- Edit button for authorized users
     when canEdit $ do
-      let editUrl = episodeEditGetUrl showModel.slug episode.slug
+      let editUrl = episodeEditGetUrl showModel.id episode.id episode.slug
       Lucid.div_ [Lucid.class_ "mb-4 w-full text-right"] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{editUrl}|],

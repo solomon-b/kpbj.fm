@@ -29,8 +29,8 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
 -- | Helper function to get episode detail URL
-episodesIdGetUrl :: Slug -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
+episodesIdGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
+episodesIdGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink showId episodeId episodeSlug
 
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
@@ -46,7 +46,7 @@ renderLatestEpisode showModel episode tracks = do
           Nothing -> "[EP IMG]"
 
       Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-        let epUrl = episodesIdGetUrl showModel.slug episode.slug
+        let epUrl = episodesIdGetUrl showModel.id episode.id episode.slug
         Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ do
           Lucid.a_
             [ Lucid.href_ [i|/#{epUrl}|],
@@ -201,7 +201,7 @@ renderEpisodeCard showModel episode = do
 
     -- Episode info
     Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-      let epUrl = episodesIdGetUrl showModel.slug episode.slug
+      let epUrl = episodesIdGetUrl showModel.id episode.id episode.slug
       Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-2"] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{epUrl}|],

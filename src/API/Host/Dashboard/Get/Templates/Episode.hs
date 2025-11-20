@@ -22,14 +22,14 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-episodeGetUrl :: Slug -> Slug -> Links.URI
-episodeGetUrl showSlug episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeSlug
+episodeGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
+episodeGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink showId episodeId episodeSlug
 
-episodeEditGetUrl :: Slug -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeSlug
+episodeEditGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
+episodeEditGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showId episodeId episodeSlug
 
-episodeDeleteUrl :: Slug -> Slug -> Links.URI
-episodeDeleteUrl showSlug episodeSlug = Links.linkURI $ episodesDeleteLink showSlug episodeSlug
+episodeDeleteUrl :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.URI
+episodeDeleteUrl showId showSlug episodeId episodeSlug = Links.linkURI $ episodesDeleteLink showId showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
@@ -46,7 +46,7 @@ renderEpisodeTableRow showModel episode = do
 
     -- Title
     Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do
-      let episodeUrl = episodeGetUrl showModel.slug episode.slug
+      let episodeUrl = episodeGetUrl showModel.id episode.id episode.slug
       Lucid.div_ [Lucid.class_ "font-bold text-gray-900"]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{episodeUrl}|],
@@ -75,8 +75,8 @@ renderEpisodeTableRow showModel episode = do
 
     -- Actions
     Lucid.td_ [Lucid.class_ "px-4 py-3 text-right"] $ do
-      let episodeEditUrl = episodeEditGetUrl showModel.slug episode.slug
-          episodeDelUrl = episodeDeleteUrl showModel.slug episode.slug
+      let episodeEditUrl = episodeEditGetUrl showModel.id episode.id episode.slug
+          episodeDelUrl = episodeDeleteUrl showModel.id showModel.slug episode.id episode.slug
       Lucid.div_ [Lucid.class_ "flex gap-2 justify-end"] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{episodeEditUrl}|],

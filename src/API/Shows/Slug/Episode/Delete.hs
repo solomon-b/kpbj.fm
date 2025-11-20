@@ -36,10 +36,12 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "DELETE /shows/:show_slug/episodes/:episode_slug"
+    "DELETE /shows/:show_id/:show_slug/episodes/:episode_id/:episode_slug"
     ( "shows"
+        :> Servant.Capture "show_id" Shows.Id
         :> Servant.Capture "show_slug" Slug
         :> "episodes"
+        :> Servant.Capture "episode_id" Episodes.Id
         :> Servant.Capture "episode_slug" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Delete '[HTML] (Lucid.Html ())
@@ -58,19 +60,21 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
+  Shows.Id ->
   Slug ->
+  Episodes.Id ->
   Slug ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer showSlug episodeSlug cookie = do
-  -- First, fetch the show
-  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+handler _tracer showId _showSlug episodeId _episodeSlug cookie = do
+  -- Fetch the show by ID
+  execQuerySpan (Shows.getShowById showId) >>= \case
     Left err -> do
       Log.logInfo "Archive failed: Failed to fetch show" (Aeson.object ["error" .= show err])
       -- Can't render card without show, return just error banner
       pure $ renderSimpleErrorBanner "Database error. Please try again or contact support."
     Right Nothing -> do
-      Log.logInfo "Archive failed: Show not found" (Aeson.object ["showSlug" .= showSlug])
+      Log.logInfo "Archive failed: Show not found" (Aeson.object ["showId" .= showId])
       pure $ renderSimpleErrorBanner "Show not found."
     Right (Just showModel) -> do
       getUserInfo cookie >>= \case
@@ -79,12 +83,12 @@ handler _tracer showSlug episodeSlug cookie = do
           -- Can't render card without episode, return simple error
           pure $ renderSimpleErrorBanner "You must be logged in to archive episodes."
         Just (user, userMeta) -> do
-          execQuerySpan (Episodes.getEpisodeBySlug showSlug episodeSlug) >>= \case
+          execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
             Left err -> do
               Log.logInfo "Archive failed: Failed to fetch episode" (Aeson.object ["error" .= show err])
               pure $ renderSimpleErrorBanner "Database error. Please try again or contact support."
             Right Nothing -> do
-              Log.logInfo "Archive failed: Episode not found" (Aeson.object ["showSlug" .= showSlug, "episodeSlug" .= episodeSlug])
+              Log.logInfo "Archive failed: Episode not found" (Aeson.object ["episodeId" .= episodeId])
               pure $ renderSimpleErrorBanner "Episode not found."
             Right (Just episode) -> do
               -- Check authorization: staff, creator, or host
@@ -94,7 +98,7 @@ handler _tracer showSlug episodeSlug cookie = do
               isHost <- if isStaff || isCreator then pure True else checkIfHost user episode
 
               if isStaff || isCreator || isHost
-                then archiveEpisode showSlug episodeSlug showModel episode
+                then archiveEpisode showModel episode
                 else do
                   Log.logInfo "Archive failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
                   pure $ renderErrorBannerWithCard showModel episode "You don't have permission to archive this episode."
@@ -134,12 +138,10 @@ archiveEpisode ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  Slug ->
-  Slug ->
   Shows.Model ->
   Episodes.Model ->
   m (Lucid.Html ())
-archiveEpisode showSlug episodeSlug showModel episode = do
+archiveEpisode showModel episode = do
   execQuerySpan (Episodes.archiveEpisode episode.id) >>= \case
     Left err -> do
       Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
@@ -148,7 +150,7 @@ archiveEpisode showSlug episodeSlug showModel episode = do
       Log.logInfo "Archive failed: Episode not found during archive" (Aeson.object ["episodeId" .= episode.id])
       pure $ renderErrorBannerWithCard showModel episode "Episode not found during archive operation."
     Right (Just _) -> do
-      Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id, "showSlug" .= showSlug, "episodeSlug" .= episodeSlug])
+      Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
       pure emptyResponse
 
 checkIfHost ::
