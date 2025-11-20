@@ -36,6 +36,7 @@ data ResourceType
   | EpisodeArtwork
   | ShowLogo
   | ShowBanner
+  | BlogHeroImage
   | TempUpload
   deriving (Show, Eq)
 
@@ -69,6 +70,7 @@ resourceTypePath = \case
   EpisodeArtwork -> "artwork"
   ShowLogo -> "logos"
   ShowBanner -> "banners"
+  BlogHeroImage -> "blog-heroes"
   TempUpload -> "uploads"
 
 -- | Create date hierarchy from UTCTime
@@ -136,3 +138,10 @@ showBannerPath config showSlug time seed =
   let dateHier = dateHierarchyFromTime time
       filename = generateUniqueFilename (display showSlug) "jpg" seed
    in buildStoragePath config ImageBucket ShowBanner dateHier filename
+
+-- | Build path for blog post hero image
+blogHeroImagePath :: StorageConfig -> Slug -> UTCTime -> Random.StdGen -> FilePath
+blogHeroImagePath config postSlug time seed =
+  let dateHier = dateHierarchyFromTime time
+      filename = generateUniqueFilename (display postSlug) "jpg" seed
+   in buildStoragePath config ImageBucket BlogHeroImage dateHier filename

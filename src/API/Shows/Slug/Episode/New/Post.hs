@@ -13,7 +13,6 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.List qualified as List
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
@@ -33,6 +32,7 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
 import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
@@ -443,11 +443,3 @@ insertTracks episodeId tracks = do
       case result of
         Left err -> pure $ Left $ "Failed to insert track: " <> Text.pack (show err)
         Right trackId -> pure $ Right trackId
-
--- | Strip /tmp/kpbj/ prefix from storage path to get relative path for media serving
-stripStorageRoot :: FilePath -> Text
-stripStorageRoot path =
-  let prefix = "/tmp/kpbj/"
-   in case List.stripPrefix prefix path of
-        Just relativePath -> Text.pack relativePath
-        Nothing -> Text.pack path -- Fallback if prefix not found

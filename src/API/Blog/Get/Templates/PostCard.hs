@@ -7,7 +7,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink, blogPostGetLink)
+import {-# SOURCE #-} API (blogGetLink, blogPostGetLink, mediaGetLink)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -27,12 +27,32 @@ blogPostGetUrl postId slug = Links.linkURI $ blogPostGetLink postId slug
 blogGetTagUrl :: Text -> Links.URI
 blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
 
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
+
 --------------------------------------------------------------------------------
 
 -- | Render a blog post card for the list view
 renderBlogPostCard :: (BlogPosts.Model, [BlogTags.Model]) -> Lucid.Html ()
 renderBlogPostCard (post, tags) = do
   Lucid.article_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-6"] $ do
+    -- Hero Image (if present) - shown as thumbnail in listing
+    case BlogPosts.bpmHeroImageUrl post of
+      Just heroImageUrl -> do
+        Lucid.div_ [Lucid.class_ "mb-4"] $ do
+          Lucid.a_
+            [ Lucid.href_ [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|],
+              hxGet_ [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true"
+            ]
+            $ Lucid.img_
+              [ Lucid.src_ [i|/#{mediaGetUrl}/#{heroImageUrl}|],
+                Lucid.alt_ $ BlogPosts.bpmTitle post,
+                Lucid.class_ "w-full h-48 object-cover border-2 border-gray-300"
+              ]
+      Nothing -> pure ()
+
     -- Title
     Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-3"] $ do
       Lucid.a_

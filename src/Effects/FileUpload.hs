@@ -4,6 +4,10 @@ module Effects.FileUpload
     uploadEpisodeArtwork,
     uploadShowLogo,
     uploadShowBanner,
+    uploadBlogHeroImage,
+
+    -- * Helper functions
+    stripStorageRoot,
   )
 where
 
@@ -14,6 +18,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Int (Int64)
+import Data.List qualified as List
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.FileStorage
@@ -208,6 +214,49 @@ uploadShowBanner showSlug fileData = runExceptT $ do
 
   pure uploadResult
 
+-- | Upload a hero image for a blog post.
+--
+-- Validates the image file using both browser-provided MIME type and magic byte detection,
+-- then stores it in the blog hero images directory.
+--
+-- Hero images are optional for blog posts but when provided must pass validation.
+uploadBlogHeroImage ::
+  (MonadIO m, Log.MonadLog m) =>
+  -- | Post slug for directory organization
+  Slug ->
+  -- | Uploaded hero image file data
+  FileData Mem ->
+  m (Either UploadError UploadResult)
+uploadBlogHeroImage postSlug fileData = runExceptT $ do
+  -- Convert to temp file and process
+  tempPath <- ExceptT $ convertFileDataToTempFile fileData
+
+  let originalName = fdFileName fileData
+      browserMimeType = fdFileCType fileData
+
+  -- Get file info and setup
+  fileSize <- liftIO $ getFileSize tempPath
+  let config = defaultStorageConfig
+  time <- liftIO getCurrentTime
+  seed <- liftIO Random.getStdGen
+
+  -- Validate with browser-provided MIME type and file size
+  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+
+  -- Validate actual file content against magic bytes
+  actualMimeType <- ExceptT $ do
+    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+
+  -- Build upload result and move file
+  let uploadResult = buildBlogHeroImageUpload config postSlug originalName actualMimeType fileSize time seed
+      storagePath = uploadResultStoragePath uploadResult
+
+  liftIO $ do
+    createDirectoryIfMissing True (takeDirectory storagePath)
+    copyFile tempPath storagePath
+
+  pure uploadResult
+
 --------------------------------------------------------------------------------
 -- Helper functions
 
@@ -233,3 +282,16 @@ getFileSize :: FilePath -> IO Int64
 getFileSize path = do
   content <- BS.readFile path
   pure $ fromIntegral $ BS.length content
+
+-- | Strip storage root from file path to get relative path.
+--
+-- Converts absolute paths like @\/tmp\/kpbj\/images\/...@ to relative paths like @images\/...@
+-- This is needed because the static file server already serves from @\/tmp\/kpbj\/@
+--
+-- If the path doesn't start with the prefix, returns the original path unchanged.
+stripStorageRoot :: FilePath -> Text
+stripStorageRoot path =
+  let prefix = "/tmp/kpbj/"
+   in case List.stripPrefix prefix path of
+        Just relativePath -> Text.pack relativePath
+        Nothing -> Text.pack path
