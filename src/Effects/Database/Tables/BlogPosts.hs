@@ -48,6 +48,7 @@ data Model = Model
     bpmSlug :: Slug,
     bpmContent :: Text,
     bpmExcerpt :: Maybe Text,
+    bpmHeroImageUrl :: Maybe Text,
     bpmAuthorId :: User.Id,
     bpmStatus :: BlogPostStatus,
     bpmPublishedAt :: Maybe UTCTime,
@@ -91,6 +92,7 @@ data Insert = Insert
     bpiSlug :: Slug,
     bpiContent :: Text,
     bpiExcerpt :: Maybe Text,
+    bpiHeroImageUrl :: Maybe Text,
     bpiAuthorId :: User.Id,
     bpiStatus :: BlogPostStatus
   }
@@ -107,7 +109,7 @@ getPublishedBlogPosts limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
+    SELECT id, title, slug, content, excerpt, hero_image_url, author_id, status, published_at, created_at, updated_at
     FROM blog_posts
     WHERE status = 'published'
     ORDER BY published_at DESC NULLS LAST, created_at DESC
@@ -120,7 +122,7 @@ getBlogPostBySlug slug =
   interp
     False
     [sql|
-    SELECT id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
+    SELECT id, title, slug, content, excerpt, hero_image_url, author_id, status, published_at, created_at, updated_at
     FROM blog_posts
     WHERE slug = #{slug}
   |]
@@ -131,7 +133,7 @@ getBlogPostById postId =
   interp
     False
     [sql|
-    SELECT id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
+    SELECT id, title, slug, content, excerpt, hero_image_url, author_id, status, published_at, created_at, updated_at
     FROM blog_posts
     WHERE id = #{postId}
   |]
@@ -142,7 +144,7 @@ getBlogPostsByAuthor authorId limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
+    SELECT id, title, slug, content, excerpt, hero_image_url, author_id, status, published_at, created_at, updated_at
     FROM blog_posts
     WHERE author_id = #{authorId}
     ORDER BY created_at DESC
@@ -158,8 +160,8 @@ insertBlogPost Insert {..} =
         <$> interp
           False
           [sql|
-        INSERT INTO blog_posts(title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at)
-        VALUES (#{bpiTitle}, #{bpiSlug}, #{bpiContent}, #{bpiExcerpt}, #{bpiAuthorId}, #{bpiStatus}, NOW(), NOW(), NOW())
+        INSERT INTO blog_posts(title, slug, content, excerpt, hero_image_url, author_id, status, published_at, created_at, updated_at)
+        VALUES (#{bpiTitle}, #{bpiSlug}, #{bpiContent}, #{bpiExcerpt}, #{bpiHeroImageUrl}, #{bpiAuthorId}, #{bpiStatus}, NOW(), NOW(), NOW())
         RETURNING id
       |]
     _ ->
@@ -167,8 +169,8 @@ insertBlogPost Insert {..} =
         <$> interp
           False
           [sql|
-        INSERT INTO blog_posts(title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at)
-        VALUES (#{bpiTitle}, #{bpiSlug}, #{bpiContent}, #{bpiExcerpt}, #{bpiAuthorId}, #{bpiStatus}, NULL, NOW(), NOW())
+        INSERT INTO blog_posts(title, slug, content, excerpt, hero_image_url, author_id, status, published_at, created_at, updated_at)
+        VALUES (#{bpiTitle}, #{bpiSlug}, #{bpiContent}, #{bpiExcerpt}, #{bpiHeroImageUrl}, #{bpiAuthorId}, #{bpiStatus}, NULL, NOW(), NOW())
         RETURNING id
       |]
 
@@ -180,7 +182,7 @@ updateBlogPost postId Insert {..} =
     [sql|
     UPDATE blog_posts
     SET title = #{bpiTitle}, slug = #{bpiSlug}, content = #{bpiContent}, excerpt = #{bpiExcerpt},
-        status = #{bpiStatus},
+        hero_image_url = #{bpiHeroImageUrl}, status = #{bpiStatus},
         published_at = CASE
           WHEN #{bpiStatus}::text = 'published' AND published_at IS NULL THEN NOW()
           WHEN #{bpiStatus}::text != 'published' THEN NULL
@@ -245,7 +247,7 @@ getPostsByTag tagId limit offset =
   interp
     False
     [sql|
-    SELECT bp.id, bp.title, bp.slug, bp.content, bp.excerpt, bp.author_id, bp.status, bp.published_at, bp.created_at, bp.updated_at
+    SELECT bp.id, bp.title, bp.slug, bp.content, bp.excerpt, bp.hero_image_url, bp.author_id, bp.status, bp.published_at, bp.created_at, bp.updated_at
     FROM blog_posts bp
     JOIN blog_post_tags bpt ON bp.id = bpt.post_id
     WHERE bpt.tag_id = #{tagId} AND bp.status = 'published'

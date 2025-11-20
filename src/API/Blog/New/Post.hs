@@ -21,6 +21,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug (Slug)
@@ -32,6 +33,7 @@ import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -41,6 +43,7 @@ import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
+import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..), parseMaybe, parseUnique)
 
@@ -68,7 +71,7 @@ type Route =
         :> "new"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] NewBlogPostForm
+        :> MultipartForm Mem NewBlogPostForm
         :> Servant.Post '[HTML] (Lucid.Html ())
     )
 
@@ -177,9 +180,27 @@ data NewBlogPostForm = NewBlogPostForm
     nbpfContent :: Text,
     nbpfExcerpt :: Maybe Text,
     nbpfStatus :: Maybe Text,
-    nbpfTags :: [Text]
+    nbpfTags :: [Text],
+    nbpfHeroImage :: Maybe (FileData Mem)
   }
   deriving (Show, Eq)
+
+instance FromMultipart Mem NewBlogPostForm where
+  fromMultipart multipartData =
+    NewBlogPostForm
+      <$> lookupInput "title" multipartData
+      <*> lookupInput "content" multipartData
+      <*> pure (either (const Nothing) Just (lookupInput "excerpt" multipartData))
+      <*> pure (either (const Nothing) Just (lookupInput "status" multipartData))
+      <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
+      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "hero_image" multipartData))
+    where
+      -- \| Convert empty filename FileData to Nothing
+      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
+      fileDataToNothing (Just fileData)
+        | Text.null (fdFileName fileData) = Nothing
+        | otherwise = Just fileData
+      fileDataToNothing Nothing = Nothing
 
 instance FromForm NewBlogPostForm where
   fromForm form = do
@@ -195,7 +216,8 @@ instance FromForm NewBlogPostForm where
           nbpfContent = content,
           nbpfExcerpt = if maybe True Text.null excerpt then Nothing else excerpt,
           nbpfStatus = status,
-          nbpfTags = parseTags $ fold tags
+          nbpfTags = parseTags $ fold tags,
+          nbpfHeroImage = Nothing
         }
 
 -- | Parse comma-separated tags
@@ -228,8 +250,22 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
       renderTemplate hxRequest Nothing loginRequiredTemplate
     Just (_user, userMetadata) ->
       case userMetadata.mUserRole of
-        role | UserMetadata.isStaffOrHigher role ->
-          case validateNewBlogPost form userMetadata.mUserId of
+        role | UserMetadata.isStaffOrHigher role -> do
+          -- Process hero image upload if present
+          heroImagePath <- case nbpfHeroImage form of
+            Nothing -> pure Nothing
+            Just heroImageFile -> do
+              let slug = Slug.mkSlug (nbpfTitle form)
+              uploadResult <- uploadBlogHeroImage slug heroImageFile
+              case uploadResult of
+                Left uploadError -> do
+                  Log.logInfo "Hero image upload failed" (Aeson.object ["error" .= Text.pack (show uploadError)])
+                  pure Nothing
+                Right result -> do
+                  Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" .= uploadResultStoragePath result])
+                  pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+
+          case validateNewBlogPost form userMetadata.mUserId heroImagePath of
             Left validationError -> do
               let errorMsg = Sanitize.displayContentValidationError validationError
               Log.logInfo "Blog post creation failed" (Aeson.object ["message" .= errorMsg])
@@ -242,8 +278,8 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
           renderTemplate hxRequest Nothing permissionDeniedTemplate
 
 -- | Validate and convert form data to blog post insert data
-validateNewBlogPost :: NewBlogPostForm -> User.Id -> Either Sanitize.ContentValidationError BlogPosts.Insert
-validateNewBlogPost form authorId = do
+validateNewBlogPost :: NewBlogPostForm -> User.Id -> Maybe Text -> Either Sanitize.ContentValidationError BlogPosts.Insert
+validateNewBlogPost form authorId heroImagePath = do
   let status = fromMaybe Published $ decodeBlogPost =<< nbpfStatus form
       slug = Slug.mkSlug (nbpfTitle form)
 
@@ -262,6 +298,7 @@ validateNewBlogPost form authorId = do
         BlogPosts.bpiSlug = slug,
         BlogPosts.bpiContent = validContent,
         BlogPosts.bpiExcerpt = sanitizedExcerpt,
+        BlogPosts.bpiHeroImageUrl = heroImagePath,
         BlogPosts.bpiAuthorId = authorId,
         BlogPosts.bpiStatus = status
       }

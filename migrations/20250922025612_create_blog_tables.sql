@@ -5,6 +5,7 @@ CREATE TABLE blog_posts (
     slug TEXT NOT NULL UNIQUE, -- URL-friendly version of title
     content TEXT NOT NULL, -- Full article content
     excerpt TEXT, -- Short preview (optional, can be generated)
+    hero_image_url TEXT, -- Hero/banner image displayed at top of post (optional)
     author_id BIGINT NOT NULL REFERENCES users(id),
     status TEXT NOT NULL DEFAULT 'draft', -- draft, published, archived
     published_at TIMESTAMPTZ,

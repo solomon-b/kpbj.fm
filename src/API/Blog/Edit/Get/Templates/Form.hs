@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogEditPostLink, blogGetLink, blogPostGetLink)
+import {-# SOURCE #-} API (blogEditPostLink, blogGetLink, blogPostGetLink, mediaGetLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -33,6 +33,9 @@ blogPostGetUrl postId slug = Links.linkURI $ blogPostGetLink postId slug
 
 blogEditPostUrl :: BlogPosts.Id -> Slug -> Links.URI
 blogEditPostUrl postId slug = Links.linkURI $ blogEditPostLink postId slug
+
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
 
 --------------------------------------------------------------------------------
 
@@ -127,6 +130,19 @@ blogEditFormFields blogPost tagsText =
                       vrRequired = True,
                       vrCustomValidation = Nothing
                     }
+              },
+            ValidatedFileField
+              { vffName = "hero_image",
+                vffLabel = "Hero Image",
+                vffAccept = Just "image/*",
+                vffHint = Just "Banner image displayed at top of post. Recommended: 1200x630px or larger. Leave empty to keep current image.",
+                vffMaxSizeMB = Just 10,
+                vffValidation = emptyValidation {vrRequired = False},
+                vffButtonText = "Choose New Image",
+                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700",
+                vffCurrentValue = case blogPost.bpmHeroImageUrl of
+                  Just imageUrl -> Just [i|/#{mediaGetUrl}/#{imageUrl}|]
+                  Nothing -> Nothing
               },
             ValidatedTextField
               { vfName = "tags",

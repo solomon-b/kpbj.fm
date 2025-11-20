@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink)
+import {-# SOURCE #-} API (blogGetLink, mediaGetLink)
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -33,6 +33,9 @@ blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 
 blogGetTagUrl :: Text -> Links.URI
 blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
+
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
 
 --------------------------------------------------------------------------------
 
@@ -79,6 +82,17 @@ template post author tags = do
       -- Title
       Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4 leading-tight"] $
         Lucid.toHtml (BlogPosts.bpmTitle post)
+
+      -- Hero Image (if present)
+      case BlogPosts.bpmHeroImageUrl post of
+        Just heroImageUrl -> do
+          Lucid.div_ [Lucid.class_ "mb-6"] $ do
+            Lucid.img_
+              [ Lucid.src_ [i|/#{mediaGetUrl}/#{heroImageUrl}|],
+                Lucid.alt_ $ BlogPosts.bpmTitle post,
+                Lucid.class_ "w-full h-auto border-2 border-gray-300"
+              ]
+        Nothing -> pure ()
 
       -- Metadata
       Lucid.div_ [Lucid.class_ "flex items-center gap-6 text-sm text-gray-600 mb-6"] $ do

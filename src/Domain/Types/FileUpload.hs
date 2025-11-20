@@ -144,3 +144,12 @@ buildShowBannerUpload config showSlug originalName mimeType fileSize time seed =
       uploadResultMimeType = mimeType,
       uploadResultFileSize = fileSize
     }
+
+buildBlogHeroImageUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
+buildBlogHeroImageUpload config postSlug originalName mimeType fileSize time seed =
+  UploadResult
+    { uploadResultOriginalName = originalName,
+      uploadResultStoragePath = blogHeroImagePath config postSlug time seed,
+      uploadResultMimeType = mimeType,
+      uploadResultFileSize = fileSize
+    }

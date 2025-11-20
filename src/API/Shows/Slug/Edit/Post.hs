@@ -14,7 +14,6 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Data.List qualified as List
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -31,6 +30,7 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -149,14 +149,6 @@ processShowArtworkUploads showSlug mLogoFile mBannerFile = do
     (Left logoErr, _) -> pure $ Left logoErr
     (Right logoPath, Left _bannerErr) -> pure $ Right (logoPath, Nothing)
     (Right logoPath, Right bannerPath) -> pure $ Right (logoPath, bannerPath)
-
--- | Strip /tmp/kpbj/ prefix from storage path to get relative path for media serving
-stripStorageRoot :: FilePath -> Text
-stripStorageRoot path =
-  let prefix = "/tmp/kpbj/"
-   in case List.stripPrefix prefix path of
-        Just relativePath -> Text.pack relativePath
-        Nothing -> Text.pack path -- Fallback if prefix not found
 
 -- | Success template after show update
 successTemplate :: Slug -> Lucid.Html ()
