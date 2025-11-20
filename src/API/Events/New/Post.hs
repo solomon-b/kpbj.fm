@@ -13,7 +13,7 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Foldable (traverse_)
+import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
 import Data.List (find)
 import Data.String.Interpolate (i)
@@ -22,6 +22,7 @@ import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -32,6 +33,7 @@ import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.FileUpload (stripStorageRoot, uploadEventPosterImage)
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -41,8 +43,8 @@ import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
+import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm (..), parseUnique)
 
 --------------------------------------------------------------------------------
 
@@ -65,7 +67,7 @@ type Route =
         :> "new"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] NewEventForm
+        :> MultipartForm Mem NewEventForm
         :> Servant.Post '[HTML] (Lucid.Html ())
     )
 
@@ -164,21 +166,29 @@ data NewEventForm = NewEventForm
     nefEndsAt :: Text,
     nefLocationName :: Text,
     nefLocationAddress :: Text,
-    nefStatus :: Text
+    nefStatus :: Text,
+    nefPosterImage :: Maybe (FileData Mem)
   }
-  deriving (Show, Eq)
+  deriving (Show)
 
-instance FromForm NewEventForm where
-  fromForm f =
+instance FromMultipart Mem NewEventForm where
+  fromMultipart multipartData =
     NewEventForm
-      <$> parseUnique "title" f
-      <*> parseUnique "tags" f
-      <*> parseUnique "description" f
-      <*> parseUnique "starts_at" f
-      <*> parseUnique "ends_at" f
-      <*> parseUnique "location_name" f
-      <*> parseUnique "location_address" f
-      <*> parseUnique "status" f
+      <$> lookupInput "title" multipartData
+      <*> pure (fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
+      <*> lookupInput "description" multipartData
+      <*> lookupInput "starts_at" multipartData
+      <*> lookupInput "ends_at" multipartData
+      <*> lookupInput "location_name" multipartData
+      <*> lookupInput "location_address" multipartData
+      <*> lookupInput "status" multipartData
+      <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
+    where
+      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
+      fileDataToNothing (Just fileData)
+        | Text.null (fdFileName fileData) = Nothing
+        | otherwise = Just fileData
+      fileDataToNothing Nothing = Nothing
 
 --------------------------------------------------------------------------------
 
@@ -273,8 +283,22 @@ handler ::
   m (Lucid.Html ())
 handler _tracer cookie (foldHxReq -> hxRequest) form = do
   getUserInfo cookie >>= \case
-    Just (user, userMetadata) | UserMetadata.isStaffOrHigher userMetadata.mUserRole ->
-      validateForm hxRequest user userMetadata form $ \eventInsert ->
+    Just (user, userMetadata) | UserMetadata.isStaffOrHigher userMetadata.mUserRole -> do
+      -- Upload poster image if provided
+      posterImagePath <- case nefPosterImage form of
+        Nothing -> pure Nothing
+        Just posterImageFile -> do
+          let slug = Slug.mkSlug (nefTitle form)
+          uploadResult <- uploadEventPosterImage slug posterImageFile
+          case uploadResult of
+            Left uploadError -> do
+              Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
+              pure Nothing
+            Right result -> do
+              Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
+              pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+
+      validateForm hxRequest user userMetadata posterImagePath form $ \eventInsert ->
         insertEvent hxRequest userMetadata eventInsert $ \eventId -> do
           Log.logInfo "Event created successfully" eventId
           traverse_ (addTag eventId) (parseTags (nefTags form))
@@ -291,10 +315,11 @@ validateForm ::
   HxRequest ->
   User.Model ->
   UserMetadata.Model ->
+  Maybe Text ->
   NewEventForm ->
   (Events.Insert -> m (Lucid.Html ())) ->
   m (Lucid.Html ())
-validateForm hxRequest user userMetadata form k =
+validateForm hxRequest user userMetadata posterImagePath form k =
   case validateEventForm form of
     Left validationError -> do
       let errorMsg = Sanitize.displayContentValidationError validationError
@@ -312,7 +337,8 @@ validateForm hxRequest user userMetadata form k =
                 Events.eiLocationName = locationName,
                 Events.eiLocationAddress = locationAddress,
                 Events.eiStatus = status,
-                Events.eiAuthorId = user.mId
+                Events.eiAuthorId = user.mId,
+                Events.eiPosterImageUrl = posterImagePath
               }
        in k eventInsert
 

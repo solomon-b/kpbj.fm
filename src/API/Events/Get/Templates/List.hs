@@ -9,7 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventGetLink)
+import {-# SOURCE #-} API (eventGetLink, mediaGetLink)
 import Data.Foldable (traverse_)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -25,6 +25,9 @@ import Servant.Links qualified as Links
 -- URL helpers
 eventGetUrl :: Events.Id -> Slug -> Links.URI
 eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
+
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
 
 --------------------------------------------------------------------------------
 
@@ -44,11 +47,19 @@ renderEventCard :: Events.Model -> Lucid.Html ()
 renderEventCard event = do
   Lucid.article_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-6"] $ do
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-4 gap-6"] $ do
-      -- Event image placeholder and type badge
+      -- Event poster image
       Lucid.div_ [Lucid.class_ "lg:col-span-1"] $ do
-        Lucid.div_
-          [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg mb-4"]
-          "[EVENT IMAGE]"
+        case event.emPosterImageUrl of
+          Just posterUrl ->
+            Lucid.img_
+              [ Lucid.src_ [i|/#{mediaGetUrl}/#{posterUrl}|],
+                Lucid.alt_ (event.emTitle <> " poster"),
+                Lucid.class_ "w-full aspect-square object-cover border-2 border-gray-600 mb-4"
+              ]
+          Nothing ->
+            Lucid.div_
+              [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg mb-4"]
+              "[NO POSTER]"
 
       -- Event details
       Lucid.div_ [Lucid.class_ "lg:col-span-3"] $ do

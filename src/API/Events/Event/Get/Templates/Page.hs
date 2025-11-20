@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventsGetLink)
+import {-# SOURCE #-} API (eventsGetLink, mediaGetLink)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -32,6 +32,9 @@ eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 
 eventsGetTagUrl :: Text -> Links.URI
 eventsGetTagUrl tagName = Links.linkURI $ eventsGetLink (Just tagName) Nothing
+
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
 
 --------------------------------------------------------------------------------
 
@@ -65,11 +68,19 @@ template event eventTags author = do
   -- Event Header Section
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8"] $ do
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-4 gap-8"] $ do
-      -- Event Image
+      -- Event Poster Image
       Lucid.div_ [Lucid.class_ "lg:col-span-1"] $ do
-        Lucid.div_
-          [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg"]
-          "[CONCERT POSTER]"
+        case event.emPosterImageUrl of
+          Just posterUrl ->
+            Lucid.img_
+              [ Lucid.src_ [i|/#{mediaGetUrl}/#{posterUrl}|],
+                Lucid.alt_ (event.emTitle <> " poster"),
+                Lucid.class_ "w-full aspect-square object-cover border-2 border-gray-600"
+              ]
+          Nothing ->
+            Lucid.div_
+              [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg"]
+              "[NO POSTER IMAGE]"
 
       -- Event Header Info
       Lucid.div_ [Lucid.class_ "lg:col-span-3 flex flex-col"] $ do

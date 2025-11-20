@@ -15,6 +15,7 @@ CREATE TABLE events (
     -- Basic publishing
     status TEXT NOT NULL DEFAULT 'draft', -- draft, published
     author_id BIGINT NOT NULL REFERENCES users(id),
+    poster_image_url TEXT,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -42,3 +43,4 @@ CREATE INDEX idx_events_author ON events(author_id);
 COMMENT ON TABLE events IS 'Community events table';
 COMMENT ON TABLE event_tags IS 'Tags for categorizing events';
 COMMENT ON TABLE event_tag_assignments IS 'Many-to-many relationship between events and tags';
+COMMENT ON COLUMN events.poster_image_url IS 'Relative path to the event poster image, stored under /static/media/';
