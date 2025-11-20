@@ -100,6 +100,17 @@ blogFormFields =
                       vrCustomValidation = Nothing
                     }
               },
+            ValidatedFileField
+              { vffName = "hero_image",
+                vffLabel = "Hero Image (Optional)",
+                vffAccept = Just "image/*",
+                vffHint = Just "Banner image displayed at top of post. Recommended: 1200x630px or larger",
+                vffMaxSizeMB = Just 10,
+                vffValidation = emptyValidation {vrRequired = False},
+                vffButtonText = "Choose Image",
+                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700",
+                vffCurrentValue = Nothing
+              },
             ValidatedTextField
               { vfName = "tags",
                 vfLabel = "Tags",

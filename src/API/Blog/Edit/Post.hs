@@ -15,12 +15,14 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
-import Data.Foldable (traverse_)
+import Data.Aeson qualified as Aeson
+import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
@@ -32,6 +34,7 @@ import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
@@ -40,6 +43,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..))
 import Web.FormUrlEncoded qualified as Form
@@ -55,7 +59,7 @@ type Route =
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] BlogEditForm
+        :> MultipartForm Mem BlogEditForm
         :> Servant.Post '[HTML] (Lucid.Html ())
     )
 
@@ -67,9 +71,32 @@ data BlogEditForm = BlogEditForm
     befContent :: Text,
     befExcerpt :: Maybe Text,
     befStatus :: Text,
-    befTags :: [Text]
+    befTags :: [Text],
+    befHeroImage :: Maybe (FileData Mem)
   }
   deriving (Show)
+
+instance FromMultipart Mem BlogEditForm where
+  fromMultipart multipartData =
+    BlogEditForm
+      <$> lookupInput "title" multipartData
+      <*> lookupInput "content" multipartData
+      <*> pure (emptyToNothing $ either (const Nothing) Just (lookupInput "excerpt" multipartData))
+      <*> lookupInput "status" multipartData
+      <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
+      <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "hero_image" multipartData))
+    where
+      -- \| Convert empty text to Nothing
+      emptyToNothing :: Maybe Text -> Maybe Text
+      emptyToNothing (Just "") = Nothing
+      emptyToNothing x = x
+
+      -- \| Convert empty filename FileData to Nothing
+      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
+      fileDataToNothing (Just fileData)
+        | Text.null (fdFileName fileData) = Nothing
+        | otherwise = Just fileData
+      fileDataToNothing Nothing = Nothing
 
 instance FromForm BlogEditForm where
   fromForm :: Form.Form -> Either Text BlogEditForm
@@ -86,7 +113,8 @@ instance FromForm BlogEditForm where
           befContent = content,
           befExcerpt = emptyToNothing excerpt,
           befStatus = status,
-          befTags = parseTags $ fromMaybe "" tags
+          befTags = parseTags $ fromMaybe "" tags,
+          befHeroImage = Nothing
         }
     where
       emptyToNothing :: Maybe Text -> Maybe Text
@@ -157,7 +185,8 @@ updateBlogPost ::
     MonadReader env m,
     Has Tracer env,
     MonadUnliftIO m,
-    MonadCatch m
+    MonadCatch m,
+    MonadIO m
   ) =>
   HxRequest ->
   UserMetadata.Model ->
@@ -171,6 +200,20 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
       Log.logInfo "Invalid status in blog edit form" (befStatus editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid blog post status value.")
     Just parsedStatus -> do
+      -- Process hero image upload if present
+      heroImagePath <- case befHeroImage editForm of
+        Nothing -> pure blogPost.bpmHeroImageUrl -- Keep existing image
+        Just heroImageFile -> do
+          let slug = Slug.mkSlug (befTitle editForm)
+          uploadResult <- uploadBlogHeroImage slug heroImageFile
+          case uploadResult of
+            Left uploadError -> do
+              Log.logInfo "Hero image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
+              pure blogPost.bpmHeroImageUrl -- Keep existing image on error
+            Right result -> do
+              Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
+              pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+
       -- Sanitize user input to prevent XSS attacks
       let sanitizedTitle = Sanitize.sanitizeTitle (befTitle editForm)
           sanitizedContent = Sanitize.sanitizeUserContent (befContent editForm)
@@ -192,6 +235,7 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
                     BlogPosts.bpiSlug = newSlug,
                     BlogPosts.bpiContent = validContent,
                     BlogPosts.bpiExcerpt = sanitizedExcerpt,
+                    BlogPosts.bpiHeroImageUrl = heroImagePath,
                     BlogPosts.bpiAuthorId = blogPost.bpmAuthorId,
                     BlogPosts.bpiStatus = parsedStatus
                   }
