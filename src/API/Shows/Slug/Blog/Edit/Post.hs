@@ -20,7 +20,6 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..))
@@ -51,11 +50,11 @@ import Web.FormUrlEncoded qualified as Form
 --------------------------------------------------------------------------------
 
 -- URL helpers
-showBlogPostGetUrl :: Slug -> Slug -> Links.URI
-showBlogPostGetUrl showSlug postSlug = Links.linkURI $ showBlogPostGetLink showSlug postSlug
+showBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
+showBlogPostGetUrl showId postId = Links.linkURI . showBlogPostGetLink showId postId
 
-showBlogEditGetUrl :: Slug -> Slug -> Links.URI
-showBlogEditGetUrl showSlug postSlug = Links.linkURI $ showBlogEditGetLink showSlug postSlug
+showBlogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
+showBlogEditGetUrl showId postId slug = Links.linkURI $ showBlogEditGetLink showId postId slug
 
 showGetUrl :: Slug -> Links.URI
 showGetUrl showSlug = Links.linkURI $ showGetLink showSlug
@@ -64,11 +63,12 @@ showGetUrl showSlug = Links.linkURI $ showGetLink showSlug
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_slug/blog/:post_slug/edit"
+    "POST /shows/:show_id/blog/:post_id/:slug/edit"
     ( "shows"
-        :> Servant.Capture "show_slug" Slug
+        :> Servant.Capture "show_id" Shows.Id
         :> "blog"
-        :> Servant.Capture "post_slug" Slug
+        :> Servant.Capture "post_id" ShowBlogPosts.Id
+        :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -79,24 +79,24 @@ type Route =
 --------------------------------------------------------------------------------
 
 -- | Success template after blog update
-successTemplate :: Slug -> Slug -> Lucid.Html ()
-successTemplate showSlug newPostSlug = do
+successTemplate :: Shows.Model -> ShowBlogPosts.Model -> Slug -> Lucid.Html ()
+successTemplate showModel blogPost newPostSlug = do
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Blog Post Updated Successfully!"
     Lucid.p_ [Lucid.class_ "mb-6"] "Your blog post has been updated."
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogPostGetUrl showSlug newPostSlug}|],
-          hxGet_ [i|/#{showBlogPostGetUrl showSlug newPostSlug}|],
+        [ Lucid.href_ [i|/#{showBlogPostGetUrl (Shows.id showModel) (ShowBlogPosts.id blogPost) newPostSlug}|],
+          hxGet_ [i|/#{showBlogPostGetUrl (Shows.id showModel) (ShowBlogPosts.id blogPost) newPostSlug}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
         ]
         "VIEW POST"
       Lucid.a_
-        [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
-          hxGet_ [i|/#{showGetUrl showSlug}|],
+        [ Lucid.href_ [i|/#{showGetUrl (Shows.slug showModel)}|],
+          hxGet_ [i|/#{showGetUrl (Shows.slug showModel)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
@@ -104,16 +104,16 @@ successTemplate showSlug newPostSlug = do
         "BACK TO SHOW"
 
 -- | Error template
-errorTemplate :: Slug -> Slug -> Text -> Lucid.Html ()
-errorTemplate showSlug postSlug errorMsg = do
+errorTemplate :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Text -> Lucid.Html ()
+errorTemplate showId postId postSlug errorMsg = do
   Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "❌ Error Updating Blog Post"
     Lucid.p_ [Lucid.class_ "mb-6 text-red-700"] $ Lucid.toHtml errorMsg
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogEditGetUrl showSlug postSlug}|],
-          hxGet_ [i|/#{showBlogEditGetUrl showSlug postSlug}|],
+        [ Lucid.href_ [i|/#{showBlogEditGetUrl showId postId postSlug}|],
+          hxGet_ [i|/#{showBlogEditGetUrl showId postId postSlug}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
@@ -199,20 +199,21 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Slug ->
+  Shows.Id ->
+  ShowBlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   ShowBlogEditForm ->
   m (Lucid.Html ())
-handler _tracer showSlug postSlug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer showId postId _slug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
-      Log.logInfo "Unauthorized blog edit attempt" (showSlug, postSlug)
+      Log.logInfo "Unauthorized blog edit attempt" (showId, postId)
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
-        blogPost <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostBySlug (display showSlug) (display postSlug))
+        blogPost <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)
         showModel <- MaybeT $ HT.statement () (Shows.getShowById blogPost.showId)
         oldTags <- lift $ HT.statement () (ShowBlogPosts.getTagsForShowBlogPost blogPost.id)
         -- Admins don't need explicit host check since they have access to all shows
@@ -224,10 +225,10 @@ handler _tracer showSlug postSlug cookie (foldHxReq -> hxRequest) editForm = do
 
       case mResult of
         Left err -> do
-          Log.logAttention "getShowBlogPostBySlug execution error" (show err)
+          Log.logAttention "getShowBlogPostById execution error" (show err)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
-          Log.logInfo "No blog post found" (showSlug, postSlug)
+          Log.logInfo "No blog post found" (showId, postId)
           renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just (blogPost, showModel, oldTags, isHost)) ->
           if blogPost.authorId == User.mId user || isHost
@@ -255,7 +256,7 @@ updateBlogPost hxRequest userMetadata showModel blogPost oldTags editForm = do
   case parseStatus (sbefStatus editForm) of
     Nothing -> do
       Log.logInfo "Invalid status in blog edit form" (sbefStatus editForm)
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.slug showModel) (ShowBlogPosts.slug blogPost) "Invalid blog post status value.")
+      renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.id showModel) (ShowBlogPosts.id blogPost) (ShowBlogPosts.slug blogPost) "Invalid blog post status value.")
     Just parsedStatus -> do
       let newSlug = Slug.mkSlug (sbefTitle editForm)
           updateData =
@@ -278,13 +279,13 @@ updateBlogPost hxRequest userMetadata showModel blogPost oldTags editForm = do
       case mUpdateResult of
         Left err -> do
           Log.logInfo "Failed to update show blog post" (blogPost.id, show err)
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.slug showModel) (ShowBlogPosts.slug blogPost) "Database error occurred. Please try again.")
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.id showModel) (ShowBlogPosts.id blogPost) (ShowBlogPosts.slug blogPost) "Database error occurred. Please try again.")
         Right Nothing -> do
           Log.logInfo "Blog post update returned Nothing" blogPost.id
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.slug showModel) (ShowBlogPosts.slug blogPost) "Failed to update blog post. Please try again.")
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.id showModel) (ShowBlogPosts.id blogPost) (ShowBlogPosts.slug blogPost) "Failed to update blog post. Please try again.")
         Right (Just _) -> do
           Log.logInfo "Successfully updated show blog post" blogPost.id
-          renderTemplate hxRequest (Just userMetadata) (successTemplate (Shows.slug showModel) newSlug)
+          renderTemplate hxRequest (Just userMetadata) (successTemplate showModel blogPost newSlug)
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::

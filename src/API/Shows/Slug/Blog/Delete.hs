@@ -13,7 +13,6 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
 import Data.Text (Text)
-import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
@@ -37,10 +36,12 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "DELETE /shows/:show_slug/blog/:post_slug"
+    "DELETE /shows/:show_id/:show_slug/blog/:post_id/:post_slug"
     ( "shows"
+        :> Servant.Capture "show_id" Shows.Id
         :> Servant.Capture "show_slug" Slug
         :> "blog"
+        :> Servant.Capture "post_id" ShowBlogPosts.Id
         :> Servant.Capture "post_slug" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Delete '[HTML] (Lucid.Html ())
@@ -59,18 +60,20 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
+  Shows.Id ->
   Slug ->
+  ShowBlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer showSlug postSlug cookie = do
-  -- First, fetch the show
-  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+handler _tracer showId _showSlug postId _postSlug cookie = do
+  -- Fetch the show by ID
+  execQuerySpan (Shows.getShowById showId) >>= \case
     Left err -> do
       Log.logInfo "Delete failed: Failed to fetch show" (Aeson.object ["error" .= show err])
       pure $ renderSimpleErrorBanner "Database error. Please try again or contact support."
     Right Nothing -> do
-      Log.logInfo "Delete failed: Show not found" (Aeson.object ["showSlug" .= showSlug])
+      Log.logInfo "Delete failed: Show not found" (Aeson.object ["showId" .= showId])
       pure $ renderSimpleErrorBanner "Show not found."
     Right (Just showModel) -> do
       getUserInfo cookie >>= \case
@@ -78,12 +81,12 @@ handler _tracer showSlug postSlug cookie = do
           Log.logInfo_ "No user session"
           pure $ renderSimpleErrorBanner "You must be logged in to delete blog posts."
         Just (user, userMetadata) -> do
-          execQuerySpan (ShowBlogPosts.getShowBlogPostBySlug (display showSlug) (display postSlug)) >>= \case
+          execQuerySpan (ShowBlogPosts.getShowBlogPostById postId) >>= \case
             Left err -> do
               Log.logInfo "Delete failed: Failed to fetch blog post" (Aeson.object ["error" .= show err])
               pure $ renderSimpleErrorBanner "Database error. Please try again or contact support."
             Right Nothing -> do
-              Log.logInfo "Delete failed: Blog post not found" (Aeson.object ["showSlug" .= showSlug, "postSlug" .= postSlug])
+              Log.logInfo "Delete failed: Blog post not found" (Aeson.object ["postId" .= postId])
               pure $ renderSimpleErrorBanner "Blog post not found."
             Right (Just blogPost) -> do
               -- Check authorization: must be host of the show or author
@@ -91,7 +94,7 @@ handler _tracer showSlug postSlug cookie = do
               isHost <- checkIfHost userMetadata user showModel.id
 
               if isAuthor || isHost
-                then deleteBlogPost showSlug postSlug blogPost
+                then deleteBlogPost blogPost
                 else do
                   Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "postId" .= blogPost.id])
                   pure $ renderSimpleErrorBanner "You don't have permission to delete this blog post."
@@ -131,11 +134,9 @@ deleteBlogPost ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  Slug ->
-  Slug ->
   ShowBlogPosts.Model ->
   m (Lucid.Html ())
-deleteBlogPost showSlug postSlug blogPost = do
+deleteBlogPost blogPost = do
   execQuerySpan (ShowBlogPosts.deleteShowBlogPost blogPost.id) >>= \case
     Left err -> do
       Log.logInfo "Delete failed: Database error" (Aeson.object ["error" .= show err, "postId" .= blogPost.id])
@@ -144,7 +145,7 @@ deleteBlogPost showSlug postSlug blogPost = do
       Log.logInfo "Delete failed: Blog post not found during delete" (Aeson.object ["postId" .= blogPost.id])
       pure $ renderSimpleErrorBanner "Blog post not found during delete operation."
     Right (Just _) -> do
-      Log.logInfo "Blog post deleted successfully" (Aeson.object ["postId" .= blogPost.id, "showSlug" .= showSlug, "postSlug" .= postSlug])
+      Log.logInfo "Blog post deleted successfully" (Aeson.object ["postId" .= blogPost.id])
       -- Return empty response so the post card gets removed
       pure $ Lucid.toHtmlRaw ("" :: Text)
 

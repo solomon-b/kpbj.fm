@@ -29,10 +29,10 @@ showBlogGetUrl :: Shows.Model -> Links.URI
 showBlogGetUrl showModel = Links.linkURI $ showBlogGetLink (Shows.slug showModel) Nothing Nothing
 
 showBlogPostGetUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
-showBlogPostGetUrl showModel post = Links.linkURI $ showBlogPostGetLink (Shows.slug showModel) (ShowBlogPosts.slug post)
+showBlogPostGetUrl showModel post = Links.linkURI $ showBlogPostGetLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
 showBlogEditPostUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
-showBlogEditPostUrl showModel post = Links.linkURI $ showBlogEditPostLink (Shows.slug showModel) (ShowBlogPosts.slug post)
+showBlogEditPostUrl showModel post = Links.linkURI $ showBlogEditPostLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
 --------------------------------------------------------------------------------
 
