@@ -26,4 +26,5 @@ eventInsertGen userId = do
   eiLocationAddress <- genText
   eiStatus <- genEventStatus
   let eiAuthorId = userId
+      eiPosterImageUrl = Nothing
   pure Events.Insert {..}

@@ -89,6 +89,7 @@ data Model = Model
     emLocationAddress :: Text,
     emStatus :: Status,
     emAuthorId :: User.Id,
+    emPosterImageUrl :: Maybe Text,
     emCreatedAt :: UTCTime,
     emUpdatedAt :: UTCTime
   }
@@ -130,7 +131,8 @@ data Insert = Insert
     eiLocationName :: Text,
     eiLocationAddress :: Text,
     eiStatus :: Status,
-    eiAuthorId :: User.Id
+    eiAuthorId :: User.Id,
+    eiPosterImageUrl :: Maybe Text
   }
   deriving stock (Generic, Show, Eq)
   deriving (EncodeRow) via Insert
@@ -145,7 +147,7 @@ getPublishedEvents maybeTagName limit offset =
   interp
     False
     [sql|
-    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.created_at, e.updated_at
+    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.poster_image_url, e.created_at, e.updated_at
     FROM events e
     LEFT JOIN event_tag_assignments eta ON e.id = eta.event_id
     LEFT JOIN event_tags et ON eta.tag_id = et.id
@@ -161,7 +163,7 @@ getEventBySlug slug =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, created_at, updated_at
+    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
     FROM events
     WHERE slug = #{slug}
   |]
@@ -172,7 +174,7 @@ getEventById eventId =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, created_at, updated_at
+    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
     FROM events
     WHERE id = #{eventId}
   |]
@@ -183,7 +185,7 @@ getEventsByAuthor authorId limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, created_at, updated_at
+    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
     FROM events
     WHERE author_id = #{authorId}
     ORDER BY starts_at DESC
@@ -197,8 +199,8 @@ insertEvent Insert {..} =
     <$> interp
       False
       [sql|
-    INSERT INTO events(title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, created_at, updated_at)
-    VALUES (#{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiStartsAt}, #{eiEndsAt}, #{eiLocationName}, #{eiLocationAddress}, #{eiStatus}, #{eiAuthorId}, NOW(), NOW())
+    INSERT INTO events(title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at)
+    VALUES (#{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiStartsAt}, #{eiEndsAt}, #{eiLocationName}, #{eiLocationAddress}, #{eiStatus}, #{eiAuthorId}, #{eiPosterImageUrl}, NOW(), NOW())
     RETURNING id
   |]
 
@@ -211,7 +213,7 @@ updateEvent eventId Insert {..} =
     UPDATE events
     SET title = #{eiTitle}, slug = #{eiSlug}, description = #{eiDescription},
         starts_at = #{eiStartsAt}, ends_at = #{eiEndsAt}, location_name = #{eiLocationName}, location_address = #{eiLocationAddress},
-        status = #{eiStatus}, updated_at = NOW()
+        status = #{eiStatus}, poster_image_url = #{eiPosterImageUrl}, updated_at = NOW()
     WHERE id = #{eventId}
     RETURNING id
   |]
@@ -233,7 +235,7 @@ getEventsForMonth maybeTagName year month =
   interp
     False
     [sql|
-    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.created_at, e.updated_at
+    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.poster_image_url, e.created_at, e.updated_at
     FROM events e
     LEFT JOIN event_tag_assignments eta ON e.id = eta.event_id
     LEFT JOIN event_tags et ON eta.tag_id = et.id
@@ -250,7 +252,7 @@ getEventsForWeek maybeTagName year weekNum =
   interp
     False
     [sql|
-    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.created_at, e.updated_at
+    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.poster_image_url, e.created_at, e.updated_at
     FROM events e
     LEFT JOIN event_tag_assignments eta ON e.id = eta.event_id
     LEFT JOIN event_tags et ON eta.tag_id = et.id

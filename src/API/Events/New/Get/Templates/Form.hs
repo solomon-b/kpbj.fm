@@ -114,6 +114,17 @@ eventFormFields =
                       vrRequired = True,
                       vrCustomValidation = Nothing
                     }
+              },
+            ValidatedFileField
+              { vffName = "poster_image",
+                vffLabel = "Event Poster Image",
+                vffAccept = Just "image/*",
+                vffHint = Just "Optional poster image for the event. Recommended: 1200x630px or larger.",
+                vffMaxSizeMB = Just 10,
+                vffValidation = emptyValidation {vrRequired = False},
+                vffButtonText = "Choose Poster Image",
+                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700",
+                vffCurrentValue = Nothing
               }
           ]
       },

@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventEditPostLink, eventGetLink, eventsGetLink)
+import {-# SOURCE #-} API (eventEditPostLink, eventGetLink, eventsGetLink, mediaGetLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -34,6 +34,9 @@ eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
 
 eventEditPostUrl :: Events.Id -> Slug -> Links.URI
 eventEditPostUrl eventId slug = Links.linkURI $ eventEditPostLink eventId slug
+
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI mediaGetLink
 
 --------------------------------------------------------------------------------
 
@@ -141,6 +144,19 @@ eventEditFormFields event tagsText =
                       vrMaxLength = Just 5000,
                       vrRequired = True
                     }
+              },
+            ValidatedFileField
+              { vffName = "poster_image",
+                vffLabel = "Event Poster Image",
+                vffAccept = Just "image/*",
+                vffHint = Just "Optional poster image for the event. Recommended: 1200x630px or larger. Leave empty to keep current image.",
+                vffMaxSizeMB = Just 10,
+                vffValidation = emptyValidation {vrRequired = False},
+                vffButtonText = "Choose New Poster Image",
+                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700",
+                vffCurrentValue = case event.emPosterImageUrl of
+                  Just imageUrl -> Just [i|/#{mediaGetUrl}/#{imageUrl}|]
+                  Nothing -> Nothing
               }
           ]
       },
