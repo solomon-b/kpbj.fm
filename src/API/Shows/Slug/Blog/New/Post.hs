@@ -59,8 +59,8 @@ showBlogGetUrl showSlug = Links.linkURI $ showBlogGetLink showSlug Nothing Nothi
 showBlogNewGetUrl :: Slug -> Links.URI
 showBlogNewGetUrl showSlug = Links.linkURI $ showBlogNewGetLink showSlug
 
-showBlogPostGetUrl :: Slug -> Slug -> Links.URI
-showBlogPostGetUrl showSlug postSlug = Links.linkURI $ showBlogPostGetLink showSlug postSlug
+showBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
+showBlogPostGetUrl showId postId postSlug = Links.linkURI $ showBlogPostGetLink showId postId postSlug
 
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
@@ -83,8 +83,8 @@ type Route =
 --------------------------------------------------------------------------------
 
 -- | Success template after blog creation
-successTemplate :: Slug -> ShowBlogPosts.Model -> Lucid.Html ()
-successTemplate showSlug post = do
+successTemplate :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
+successTemplate showModel post = do
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Blog Post Created Successfully!"
     Lucid.p_ [Lucid.class_ "mb-6"] $ do
@@ -98,24 +98,24 @@ successTemplate showSlug post = do
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogPostGetUrl showSlug (ShowBlogPosts.slug post)}|],
-          hxGet_ [i|/#{showBlogPostGetUrl showSlug (ShowBlogPosts.slug post)}|],
+        [ Lucid.href_ [i|/#{showBlogPostGetUrl (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)}|],
+          hxGet_ [i|/#{showBlogPostGetUrl (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
         ]
         "VIEW POST"
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogGetUrl showSlug}|],
-          hxGet_ [i|/#{showBlogGetUrl showSlug}|],
+        [ Lucid.href_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
+          hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
         ]
         "BACK TO BLOG"
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogNewGetUrl showSlug}|],
-          hxGet_ [i|/#{showBlogNewGetUrl showSlug}|],
+        [ Lucid.href_ [i|/#{showBlogNewGetUrl (Shows.slug showModel)}|],
+          hxGet_ [i|/#{showBlogNewGetUrl (Shows.slug showModel)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700"
@@ -259,7 +259,7 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
               Log.logInfo ("Show blog post creation failed: " <> errorMsg) ()
               renderTemplate hxRequest (Just userMetadata) (errorTemplate showSlug errorMsg)
             Right blogPostData -> do
-              template <- handlePostCreation blogPostData form showSlug
+              template <- handlePostCreation blogPostData form showModel
               renderTemplate hxRequest (Just userMetadata) template
 
 -- | Validate and convert form data to blog post insert data
@@ -349,19 +349,19 @@ handlePostCreation ::
   ) =>
   ShowBlogPosts.Insert ->
   NewShowBlogPostForm ->
-  Slug ->
+  Shows.Model ->
   m (Lucid.Html ())
-handlePostCreation blogPostData form showSlug = do
+handlePostCreation blogPostData form showModel = do
   execQuerySpan (ShowBlogPosts.insertShowBlogPost blogPostData) >>= \case
     Left dbError -> do
       Log.logInfo ("Database error creating show blog post: " <> Text.pack (show dbError)) ()
-      pure (errorTemplate showSlug "Database error occurred. Please try again.")
+      pure (errorTemplate (Shows.slug showModel) "Database error occurred. Please try again.")
     Right postId -> do
       execQuerySpan (ShowBlogPosts.getShowBlogPostById postId) >>= \case
         Right (Just createdPost) -> do
           createPostTags postId form
           Log.logInfo ("Successfully created show blog post: " <> ShowBlogPosts.title createdPost) ()
-          pure (successTemplate showSlug createdPost)
+          pure (successTemplate showModel createdPost)
         _ -> do
           Log.logInfo "Created blog post but failed to retrieve it" ()
-          pure (errorTemplate showSlug "Post was created but there was an error displaying the confirmation.")
+          pure (errorTemplate (Shows.slug showModel) "Post was created but there was an error displaying the confirmation.")

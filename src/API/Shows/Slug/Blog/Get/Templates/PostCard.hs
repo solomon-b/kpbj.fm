@@ -19,15 +19,15 @@ import Servant.Links qualified as Links
 -- URL helpers
 showBlogPostGetUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
 showBlogPostGetUrl showModel post =
-  Links.linkURI $ showBlogPostGetLink (Shows.slug showModel) (ShowBlogPosts.slug post)
+  Links.linkURI $ showBlogPostGetLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
 showBlogEditGetUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
 showBlogEditGetUrl showModel post =
-  Links.linkURI $ showBlogEditGetLink (Shows.slug showModel) (ShowBlogPosts.slug post)
+  Links.linkURI $ showBlogEditGetLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
 showBlogDeleteUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
 showBlogDeleteUrl showModel post =
-  Links.linkURI $ showBlogDeleteLink (Shows.slug showModel) (ShowBlogPosts.slug post)
+  Links.linkURI $ showBlogDeleteLink (Shows.id showModel) (Shows.slug showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
 --------------------------------------------------------------------------------
 
