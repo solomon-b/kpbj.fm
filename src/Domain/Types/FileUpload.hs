@@ -153,3 +153,12 @@ buildBlogHeroImageUpload config postSlug originalName mimeType fileSize time see
       uploadResultMimeType = mimeType,
       uploadResultFileSize = fileSize
     }
+
+buildEventPosterImageUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
+buildEventPosterImageUpload config eventSlug originalName mimeType fileSize time seed =
+  UploadResult
+    { uploadResultOriginalName = originalName,
+      uploadResultStoragePath = eventPosterImagePath config eventSlug time seed,
+      uploadResultMimeType = mimeType,
+      uploadResultFileSize = fileSize
+    }

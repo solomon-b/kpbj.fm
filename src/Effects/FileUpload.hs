@@ -5,6 +5,7 @@ module Effects.FileUpload
     uploadShowLogo,
     uploadShowBanner,
     uploadBlogHeroImage,
+    uploadEventPosterImage,
 
     -- * Helper functions
     stripStorageRoot,
@@ -249,6 +250,49 @@ uploadBlogHeroImage postSlug fileData = runExceptT $ do
 
   -- Build upload result and move file
   let uploadResult = buildBlogHeroImageUpload config postSlug originalName actualMimeType fileSize time seed
+      storagePath = uploadResultStoragePath uploadResult
+
+  liftIO $ do
+    createDirectoryIfMissing True (takeDirectory storagePath)
+    copyFile tempPath storagePath
+
+  pure uploadResult
+
+-- | Upload a poster image for an event.
+--
+-- Validates the image file using both browser-provided MIME type and magic byte detection,
+-- then stores it in the event poster images directory.
+--
+-- Poster images are optional for events but when provided must pass validation.
+uploadEventPosterImage ::
+  (MonadIO m, Log.MonadLog m) =>
+  -- | Event slug for directory organization
+  Slug ->
+  -- | Uploaded poster image file data
+  FileData Mem ->
+  m (Either UploadError UploadResult)
+uploadEventPosterImage eventSlug fileData = runExceptT $ do
+  -- Convert to temp file and process
+  tempPath <- ExceptT $ convertFileDataToTempFile fileData
+
+  let originalName = fdFileName fileData
+      browserMimeType = fdFileCType fileData
+
+  -- Get file info and setup
+  fileSize <- liftIO $ getFileSize tempPath
+  let config = defaultStorageConfig
+  time <- liftIO getCurrentTime
+  seed <- liftIO Random.getStdGen
+
+  -- Validate with browser-provided MIME type and file size
+  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+
+  -- Validate actual file content against magic bytes
+  actualMimeType <- ExceptT $ do
+    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+
+  -- Build upload result and move file
+  let uploadResult = buildEventPosterImageUpload config eventSlug originalName actualMimeType fileSize time seed
       storagePath = uploadResultStoragePath uploadResult
 
   liftIO $ do

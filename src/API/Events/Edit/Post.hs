@@ -15,14 +15,15 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
-import Data.Foldable (traverse_)
+import Data.Aeson qualified as Aeson
+import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -33,6 +34,7 @@ import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.FileUpload (stripStorageRoot, uploadEventPosterImage)
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
@@ -41,9 +43,8 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm (..))
-import Web.FormUrlEncoded qualified as Form
 
 --------------------------------------------------------------------------------
 
@@ -56,7 +57,7 @@ type Route =
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] EventEditForm
+        :> MultipartForm Mem EventEditForm
         :> Servant.Post '[HTML] (Lucid.Html ())
     )
 
@@ -71,33 +72,29 @@ data EventEditForm = EventEditForm
     eefLocationName :: Text,
     eefLocationAddress :: Text,
     eefStatus :: Text,
-    eefTags :: [Text]
+    eefTags :: [Text],
+    eefPosterImage :: Maybe (FileData Mem)
   }
   deriving (Show)
 
-instance FromForm EventEditForm where
-  fromForm :: Form.Form -> Either Text EventEditForm
-  fromForm form = do
-    title <- Form.parseUnique "title" form
-    description <- Form.parseUnique "description" form
-    startsAt <- Form.parseUnique "starts_at" form
-    endsAt <- Form.parseUnique "ends_at" form
-    locationName <- Form.parseUnique "location_name" form
-    locationAddress <- Form.parseUnique "location_address" form
-    status <- Form.parseUnique "status" form
-    tags <- Form.parseMaybe "tags" form
-
-    pure
-      EventEditForm
-        { eefTitle = title,
-          eefDescription = description,
-          eefStartsAt = startsAt,
-          eefEndsAt = endsAt,
-          eefLocationName = locationName,
-          eefLocationAddress = locationAddress,
-          eefStatus = status,
-          eefTags = parseTags $ fromMaybe "" tags
-        }
+instance FromMultipart Mem EventEditForm where
+  fromMultipart multipartData =
+    EventEditForm
+      <$> lookupInput "title" multipartData
+      <*> lookupInput "description" multipartData
+      <*> lookupInput "starts_at" multipartData
+      <*> lookupInput "ends_at" multipartData
+      <*> lookupInput "location_name" multipartData
+      <*> lookupInput "location_address" multipartData
+      <*> lookupInput "status" multipartData
+      <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
+      <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
+    where
+      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
+      fileDataToNothing (Just fileData)
+        | Text.null (fdFileName fileData) = Nothing
+        | otherwise = Just fileData
+      fileDataToNothing Nothing = Nothing
 
 -- | Parse comma-separated tags
 parseTags :: Text -> [Text]
@@ -212,6 +209,20 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
           let errorMsg = Sanitize.displayContentValidationError addrError
           renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
         (Right validTitle, Right validDescription, Right validLocationName, Right validLocationAddress) -> do
+          -- Upload poster image if provided
+          posterImagePath <- case eefPosterImage editForm of
+            Nothing -> pure event.emPosterImageUrl -- Keep existing image
+            Just posterImageFile -> do
+              let newSlug = Slug.mkSlug validTitle
+              uploadResult <- uploadEventPosterImage newSlug posterImageFile
+              case uploadResult of
+                Left uploadError -> do
+                  Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
+                  pure event.emPosterImageUrl -- Keep existing image on error
+                Right result -> do
+                  Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
+                  pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+
           let newSlug = Slug.mkSlug validTitle
               updateData =
                 Events.Insert
@@ -223,7 +234,8 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
                     Events.eiLocationName = validLocationName,
                     Events.eiLocationAddress = validLocationAddress,
                     Events.eiStatus = parsedStatus,
-                    Events.eiAuthorId = event.emAuthorId
+                    Events.eiAuthorId = event.emAuthorId,
+                    Events.eiPosterImageUrl = posterImagePath
                   }
 
           -- Update the event and tags in a transaction
