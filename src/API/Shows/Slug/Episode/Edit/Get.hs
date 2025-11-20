@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Shows.Slug.Episode.Edit.Get where
@@ -8,6 +9,7 @@ module API.Shows.Slug.Episode.Edit.Get where
 import API.Shows.Slug.Episode.Edit.Get.Templates.Error (notAuthorizedTemplate, notFoundTemplate, notLoggedInTemplate)
 import API.Shows.Slug.Episode.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -15,10 +17,12 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
+import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Domain.Types.Slug (Slug)
+import Domain.Types.Slug (Slug, matchSlug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -40,15 +44,16 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /shows/:show_slug/episodes/:episode_slug/edit"
+    "GET /shows/:show_id/episodes/:episode_id/:slug/edit"
     ( "shows"
-        :> Servant.Capture "show_slug" Slug
+        :> Servant.Capture "show_id" Shows.Id
         :> "episodes"
-        :> Servant.Capture "episode_slug" Slug
+        :> Servant.Capture "episode_id" Episodes.Id
+        :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
+        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------
@@ -64,23 +69,25 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Slug ->
+  Shows.Id ->
+  Episodes.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
-handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer showId episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to episode edit" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
+      html <- renderTemplate hxRequest Nothing notLoggedInTemplate
+      pure $ Servant.noHeader html
     Just (user, userMetadata) -> do
       -- NOTE: Experimental use of a 'HT.Transaction' here. We aren't applying
       -- these globally yet due to difficulty logging the raw sql. However, I
       -- want a reference in the repo in case we end up needing a transaction
       -- somewhere.
       mResult <- execTransactionSpan $ runMaybeT $ do
-        episode <- MaybeT $ HT.statement () (Episodes.getEpisodeBySlug showSlug episodeSlug)
+        episode <- MaybeT $ HT.statement () (Episodes.getEpisodeById episodeId)
         showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
         tracks <- lift $ HT.statement () (Episodes.getTracksForEpisode episode.id)
         -- Admins don't need explicit host check since they have access to all shows
@@ -93,17 +100,33 @@ handler _tracer showSlug episodeSlug cookie (foldHxReq -> hxRequest) = do
       case mResult of
         Left err -> do
           Log.logAttention "getEpisodeById execution error" (show err)
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          pure $ Servant.noHeader html
         Right Nothing -> do
-          Log.logInfo_ $ "No episode : '" <> display episodeSlug <> "'"
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-        Right (Just (episode, showModel, tracks, isHost)) ->
-          if episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-            then do
-              Log.logInfo "Authorized user accessing episode edit form" episode.id
-              let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                  editTemplate = template showModel episode tracks userMetadata isStaff
-              renderTemplate hxRequest (Just userMetadata) editTemplate
+          Log.logInfo_ $ "No episode : '" <> display episodeId <> "'"
+          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          pure $ Servant.noHeader html
+        Right (Just (episode, showModel, tracks, isHost)) -> do
+          let canonicalSlug = episode.slug
+              showIdText = display showId
+              episodeIdText = display episodeId
+              slugText = display canonicalSlug
+              canonicalUrl = [i|/shows/#{showIdText}/episodes/#{episodeIdText}/#{slugText}/edit|]
+
+          if matchSlug canonicalSlug (Just urlSlug)
+            then
+              if episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+                then do
+                  Log.logInfo "Authorized user accessing episode edit form" episode.id
+                  let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+                      editTemplate = template showModel episode tracks userMetadata isStaff
+                  html <- renderTemplate hxRequest (Just userMetadata) editTemplate
+                  pure $ Servant.noHeader html
+                else do
+                  Log.logInfo "User tried to edit episode they don't own" episode.id
+                  html <- renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+                  pure $ Servant.noHeader html
             else do
-              Log.logInfo "User tried to edit episode they don't own" episode.id
-              renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+              Log.logInfo "Redirecting to canonical episode edit URL" canonicalUrl
+              html <- renderTemplate hxRequest (Just userMetadata) (redirectTemplate canonicalUrl)
+              pure $ Servant.addHeader canonicalUrl html
