@@ -3,6 +3,11 @@ module API where
 --------------------------------------------------------------------------------
 
 import API.About.Get qualified as About.Get
+import API.Admin.Users.Delete qualified as Admin.Users.Delete
+import API.Admin.Users.Detail.Get qualified as Admin.Users.Detail.Get
+import API.Admin.Users.Edit.Get qualified as Admin.Users.Edit.Get
+import API.Admin.Users.Edit.Post qualified as Admin.Users.Edit.Post
+import API.Admin.Users.Get qualified as Admin.Users.Get
 import API.Archive.Get qualified as Archive.Get
 import API.Blog.Delete qualified as Blog.Delete
 import API.Blog.Edit.Get qualified as Blog.Edit.Get
@@ -74,6 +79,8 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Log (MonadLog)
 import OpenTelemetry.Trace (Tracer)
@@ -134,6 +141,11 @@ type API =
     :<|> Episodes.Get.RouteWithSlug
     :<|> Episodes.Get.RouteWithoutSlug
     :<|> Episodes.Delete.Route
+    :<|> Admin.Users.Get.Route
+    :<|> Admin.Users.Detail.Get.Route
+    :<|> Admin.Users.Edit.Get.Route
+    :<|> Admin.Users.Edit.Post.Route
+    :<|> Admin.Users.Delete.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
     :<|> User.Logout.Get.Route
@@ -202,6 +214,11 @@ server env =
     :<|> Episodes.Get.handlerWithSlug
     :<|> Episodes.Get.handlerWithoutSlug
     :<|> Episodes.Delete.handler
+    :<|> Admin.Users.Get.handler
+    :<|> Admin.Users.Detail.Get.handler
+    :<|> Admin.Users.Edit.Get.handler
+    :<|> Admin.Users.Edit.Post.handler
+    :<|> Admin.Users.Delete.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
     :<|> User.Logout.Get.handler
@@ -290,6 +307,26 @@ userRegisterGetLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Get.Rout
 -- | Route: POST /user/register
 userRegisterPostLink :: Links.Link
 userRegisterPostLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Post.Route)
+
+-- | Route: GET /admin/users
+adminUsersGetLink :: Maybe Int64 -> Maybe Text -> Maybe UserMetadata.UserRole -> Links.Link
+adminUsersGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Get.Route)
+
+-- | Route: GET /admin/users/:id
+adminUserDetailGetLink :: User.Id -> Links.Link
+adminUserDetailGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Detail.Get.Route)
+
+-- | Route: GET /admin/users/:id/edit
+adminUserEditGetLink :: User.Id -> Links.Link
+adminUserEditGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Edit.Get.Route)
+
+-- | Route: POST /admin/users/:id/edit
+adminUserEditPostLink :: User.Id -> Links.Link
+adminUserEditPostLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Edit.Post.Route)
+
+-- | Route: DELETE /admin/users/:id
+adminUserDeleteLink :: User.Id -> Links.Link
+adminUserDeleteLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Delete.Route)
 
 -- | Route: GET /privacy-policy
 privacyPolicyGetLink :: Links.Link

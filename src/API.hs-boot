@@ -18,9 +18,18 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
+
+-- Admin routes
+adminUsersGetLink :: Maybe Int64 -> Maybe Text -> Maybe UserMetadata.UserRole -> Links.Link
+adminUserDetailGetLink :: User.Id -> Links.Link
+adminUserEditGetLink :: User.Id -> Links.Link
+adminUserEditPostLink :: User.Id -> Links.Link
+adminUserDeleteLink :: User.Id -> Links.Link
 
 rootGetLink :: Links.Link
 staticGetLink :: Links.Link
