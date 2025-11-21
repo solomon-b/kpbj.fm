@@ -199,6 +199,19 @@ library
     API.User.Register.Get
     API.User.Register.Get.Templates.Form
     API.User.Register.Post
+    API.Admin.Users.Get
+    API.Admin.Users.Get.Templates.Error
+    API.Admin.Users.Get.Templates.Page
+    API.Admin.Users.Detail.Get
+    API.Admin.Users.Detail.Get.Templates.Error
+    API.Admin.Users.Detail.Get.Templates.Page
+    API.Admin.Users.Edit.Get
+    API.Admin.Users.Edit.Get.Templates.Error
+    API.Admin.Users.Edit.Get.Templates.Page
+    API.Admin.Users.Edit.Post
+    API.Admin.Users.Edit.Post.Templates.Error
+    API.Admin.Users.Edit.Post.Templates.Success
+    API.Admin.Users.Delete
     App.Common
     Component.Form
     Component.Form.Builder

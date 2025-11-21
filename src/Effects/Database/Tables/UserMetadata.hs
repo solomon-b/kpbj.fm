@@ -9,9 +9,11 @@ module Effects.Database.Tables.UserMetadata where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Password.Argon2 (Argon2, PasswordHash)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
+import Data.Time (UTCTime)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
@@ -19,8 +21,9 @@ import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneRow, interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneColumn (..), OneRow, interp, sql)
 import Hasql.Statement qualified as Hasql
+import OrphanInstances.UTCTime ()
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -177,3 +180,143 @@ insertUserWithMetadata UserWithMetadataInsert {..} =
     )
     SELECT id FROM new_user
   |]
+
+--------------------------------------------------------------------------------
+-- Admin Management Queries
+
+-- | Combined user and metadata for admin queries
+data UserWithMetadata = UserWithMetadata
+  { uwmUserId :: User.Id,
+    uwmEmail :: EmailAddress,
+    uwmUserCreatedAt :: UTCTime,
+    uwmUserUpdatedAt :: UTCTime,
+    uwmMetadataId :: Id,
+    uwmUserMetadataUserId :: User.Id,
+    uwmDisplayName :: DisplayName,
+    uwmFullName :: FullName,
+    uwmAvatarUrl :: Maybe Text,
+    uwmUserRole :: UserRole
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (DecodeRow)
+  deriving (Display) via (RecordInstance UserWithMetadata)
+
+-- | Get all users with pagination, including full user info
+getAllUsersWithPagination :: Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
+getAllUsersWithPagination limit offset =
+  interp
+    True
+    [sql|
+    SELECT
+      u.id, u.email, u.created_at, u.updated_at,
+      um.id, um.user_id, um.display_name, um.full_name,
+      um.avatar_url, um.user_role
+    FROM users u
+    INNER JOIN user_metadata um ON u.id = um.user_id
+    ORDER BY u.created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Get users filtered by role with pagination
+getUsersByRole :: UserRole -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
+getUsersByRole role limit offset =
+  interp
+    True
+    [sql|
+    SELECT
+      u.id, u.email, u.created_at, u.updated_at,
+      um.id, um.user_id, um.display_name, um.full_name,
+      um.avatar_url, um.user_role
+    FROM users u
+    INNER JOIN user_metadata um ON u.id = um.user_id
+    WHERE um.user_role = #{role}
+    ORDER BY u.created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Search users by display name or email with pagination
+searchUsers :: Text -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
+searchUsers query limit offset =
+  interp
+    True
+    [sql|
+    SELECT
+      u.id, u.email, u.created_at, u.updated_at,
+      um.id, um.user_id, um.display_name, um.full_name,
+      um.avatar_url, um.user_role
+    FROM users u
+    INNER JOIN user_metadata um ON u.id = um.user_id
+    WHERE
+      um.display_name ILIKE ('%' || #{query} || '%') OR
+      CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%')
+    ORDER BY u.created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Update user role
+updateUserRole :: User.Id -> UserRole -> Hasql.Statement () (Maybe Id)
+updateUserRole userId newRole =
+  listToMaybe
+    <$> interp
+      True
+      [sql|
+      UPDATE user_metadata
+      SET user_role = #{newRole}
+      WHERE user_id = #{userId}
+      RETURNING id
+    |]
+
+-- | Model for updating user metadata fields
+data ModelUpdate = ModelUpdate
+  { muDisplayName :: Maybe DisplayName,
+    muFullName :: Maybe FullName,
+    muAvatarUrl :: Maybe (Maybe Text)
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving (Display) via (RecordInstance ModelUpdate)
+
+-- | Update user metadata fields (NULL values preserve existing data)
+updateUserMetadata :: Id -> ModelUpdate -> Hasql.Statement () (Maybe Id)
+updateUserMetadata metadataId ModelUpdate {..} =
+  listToMaybe
+    <$> interp
+      True
+      [sql|
+      UPDATE user_metadata
+      SET
+        display_name = COALESCE(#{muDisplayName}, display_name),
+        full_name = COALESCE(#{muFullName}, full_name),
+        avatar_url = CASE
+          WHEN #{hasAvatarUpdate} THEN #{avatarValue}
+          ELSE avatar_url
+        END
+      WHERE id = #{metadataId}
+      RETURNING id
+    |]
+  where
+    hasAvatarUpdate = case muAvatarUrl of
+      Nothing -> False
+      Just _ -> True
+    avatarValue = fromMaybe Nothing muAvatarUrl
+
+-- | Count total users
+countUsers :: Hasql.Statement () Int64
+countUsers =
+  let query =
+        interp
+          False
+          [sql| SELECT COUNT(*)::bigint FROM users |]
+   in maybe 0 getOneColumn <$> query
+
+-- | Count users by role
+countUsersByRole :: UserRole -> Hasql.Statement () Int64
+countUsersByRole role =
+  let query =
+        interp
+          False
+          [sql|
+        SELECT COUNT(*)::bigint
+        FROM user_metadata
+        WHERE user_role = #{role}
+      |]
+   in maybe 0 getOneColumn <$> query
