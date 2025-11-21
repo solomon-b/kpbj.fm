@@ -162,3 +162,12 @@ buildEventPosterImageUpload config eventSlug originalName mimeType fileSize time
       uploadResultMimeType = mimeType,
       uploadResultFileSize = fileSize
     }
+
+buildUserAvatarUpload :: StorageConfig -> Text -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
+buildUserAvatarUpload config userId originalName mimeType fileSize time seed =
+  UploadResult
+    { uploadResultOriginalName = originalName,
+      uploadResultStoragePath = userAvatarPath config userId time seed,
+      uploadResultMimeType = mimeType,
+      uploadResultFileSize = fileSize
+    }
