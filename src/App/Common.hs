@@ -12,6 +12,7 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
+import Data.Bool (bool)
 import Data.Coerce (coerce)
 import Data.Has (Has)
 import Domain.Types.Cookie (Cookie (..))
@@ -24,6 +25,22 @@ import Hasql.Pool qualified as HSQL.Pool
 import Log.Class qualified as Log
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
+
+--------------------------------------------------------------------------------
+-- Authorization
+
+data AuthorizationCheck = Authorized | Unauthorized
+  deriving stock (Show, Eq)
+
+-- | Check if a user has admin privileges
+checkAdminAuthorization ::
+  Maybe (User.Model, UserMetadata.Model) ->
+  AuthorizationCheck
+checkAdminAuthorization = \case
+  Nothing ->
+    Unauthorized
+  Just (_user, userMeta) ->
+    bool Unauthorized Authorized (UserMetadata.isAdmin userMeta.mUserRole)
 
 --------------------------------------------------------------------------------
 

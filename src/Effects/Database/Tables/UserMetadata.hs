@@ -117,14 +117,20 @@ data Model = Model
 
 --------------------------------------------------------------------------------
 
+-- | Get user metadata by user ID
+--
+-- Only returns metadata if the user is active (not deleted).
+-- This is used by authentication to verify that logged-in users haven't been deleted.
 getUserMetadata :: User.Id -> Hasql.Statement () (Maybe Model)
 getUserMetadata userId =
   interp
     False
     [sql|
-    SELECT id, user_id, display_name, full_name, avatar_url, user_role
-    FROM user_metadata
-    WHERE user_id = #{userId}
+    SELECT um.id, um.user_id, um.display_name, um.full_name, um.avatar_url, um.user_role
+    FROM user_metadata um
+    INNER JOIN users u ON um.user_id = u.id
+    WHERE um.user_id = #{userId}
+      AND u.deleted_at IS NULL
   |]
 
 data ModelInsert = ModelInsert
@@ -202,6 +208,8 @@ data UserWithMetadata = UserWithMetadata
   deriving (Display) via (RecordInstance UserWithMetadata)
 
 -- | Get all users with pagination, including full user info
+--
+-- Only returns active (non-deleted) users.
 getAllUsersWithPagination :: Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
 getAllUsersWithPagination limit offset =
   interp
@@ -213,11 +221,14 @@ getAllUsersWithPagination limit offset =
       um.avatar_url, um.user_role
     FROM users u
     INNER JOIN user_metadata um ON u.id = um.user_id
+    WHERE u.deleted_at IS NULL
     ORDER BY u.created_at DESC
     LIMIT #{limit} OFFSET #{offset}
   |]
 
 -- | Get users filtered by role with pagination
+--
+-- Only returns active (non-deleted) users.
 getUsersByRole :: UserRole -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
 getUsersByRole role limit offset =
   interp
@@ -230,11 +241,14 @@ getUsersByRole role limit offset =
     FROM users u
     INNER JOIN user_metadata um ON u.id = um.user_id
     WHERE um.user_role = #{role}
+      AND u.deleted_at IS NULL
     ORDER BY u.created_at DESC
     LIMIT #{limit} OFFSET #{offset}
   |]
 
 -- | Search users by display name or email with pagination
+--
+-- Only returns active (non-deleted) users.
 searchUsers :: Text -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
 searchUsers query limit offset =
   interp
@@ -247,10 +261,29 @@ searchUsers query limit offset =
     FROM users u
     INNER JOIN user_metadata um ON u.id = um.user_id
     WHERE
-      um.display_name ILIKE ('%' || #{query} || '%') OR
-      CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%')
+      (um.display_name ILIKE ('%' || #{query} || '%') OR
+       CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%'))
+      AND u.deleted_at IS NULL
     ORDER BY u.created_at DESC
     LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Get a single user with metadata by user ID
+--
+-- Only returns the user if they are active (not deleted).
+getUserWithMetadataById :: User.Id -> Hasql.Statement () (Maybe UserWithMetadata)
+getUserWithMetadataById userId =
+  interp
+    False
+    [sql|
+    SELECT
+      u.id, u.email, u.created_at, u.updated_at,
+      um.id, um.user_id, um.display_name, um.full_name,
+      um.avatar_url, um.user_role
+    FROM users u
+    INNER JOIN user_metadata um ON u.id = um.user_id
+    WHERE u.id = #{userId}
+      AND u.deleted_at IS NULL
   |]
 
 -- | Update user role
@@ -299,16 +332,16 @@ updateUserMetadata metadataId ModelUpdate {..} =
       Just _ -> True
     avatarValue = fromMaybe Nothing muAvatarUrl
 
--- | Count total users
+-- | Count total active users (excluding soft-deleted users)
 countUsers :: Hasql.Statement () Int64
 countUsers =
   let query =
         interp
           False
-          [sql| SELECT COUNT(*)::bigint FROM users |]
+          [sql| SELECT COUNT(*)::bigint FROM users WHERE deleted_at IS NULL |]
    in maybe 0 getOneColumn <$> query
 
--- | Count users by role
+-- | Count active users by role (excluding soft-deleted users)
 countUsersByRole :: UserRole -> Hasql.Statement () Int64
 countUsersByRole role =
   let query =
@@ -316,7 +349,47 @@ countUsersByRole role =
           False
           [sql|
         SELECT COUNT(*)::bigint
-        FROM user_metadata
-        WHERE user_role = #{role}
+        FROM user_metadata um
+        INNER JOIN users u ON um.user_id = u.id
+        WHERE um.user_role = #{role}
+          AND u.deleted_at IS NULL
       |]
    in maybe 0 getOneColumn <$> query
+
+--------------------------------------------------------------------------------
+-- User Deletion
+
+-- | Soft delete a user by setting deleted_at timestamp and invalidating all sessions
+--
+-- Atomically performs:
+-- 1. Sets deleted_at = NOW() on users table
+-- 2. Deletes all active sessions for the user
+--
+-- Returns user ID on success, Nothing if user doesn't exist or already deleted.
+--
+-- CASCADE BEHAVIOR: User content is PRESERVED for audit purposes:
+-- - Episodes, blog posts, events: Remain with author attribution
+-- - Show host assignments: Preserved in show_hosts table
+-- - Authentication: Immediately prevented (getUserMetadata returns Nothing)
+-- - Sessions: All invalidated immediately
+--
+-- Deleted users cannot authenticate or perform any actions but their historical
+-- contributions remain visible. Hard delete is intentionally not supported.
+softDeleteUser :: User.Id -> Hasql.Statement () (Maybe User.Id)
+softDeleteUser userId =
+  fmap listToMaybe
+    . interp
+      True
+    $ [sql|
+    WITH deleted_user AS (
+      UPDATE users
+      SET deleted_at = NOW()
+      WHERE id = #{userId} AND deleted_at IS NULL
+      RETURNING id
+    ),
+    deleted_sessions AS (
+      DELETE FROM server_sessions
+      WHERE user_id IN (SELECT id FROM deleted_user)
+    )
+    SELECT id FROM deleted_user
+  |]

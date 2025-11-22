@@ -212,6 +212,7 @@ library
     API.Admin.Users.Edit.Post.Templates.Error
     API.Admin.Users.Edit.Post.Templates.Success
     API.Admin.Users.Delete
+    API.Admin.Users.Delete.Templates.Success
     App.Common
     Component.Form
     Component.Form.Builder

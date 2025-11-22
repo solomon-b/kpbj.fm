@@ -4,7 +4,7 @@ module API.Admin.Users.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (adminUserDetailGetLink, adminUsersGetLink)
+import {-# SOURCE #-} API (adminUserDeleteLink, adminUserDetailGetLink, adminUsersGetLink)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.String.Interpolate (i)
@@ -24,6 +24,9 @@ template ::
   Maybe UserMetadata.UserRole ->
   Lucid.Html ()
 template users currentPage hasMore maybeQuery maybeRoleFilter = do
+  -- Success/Error banner container (for HTMX out-of-band swaps)
+  Lucid.div_ [Lucid.id_ "success-banner-container"] mempty
+
   -- Page header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
     Lucid.h1_ [Lucid.class_ "text-3xl font-bold"] "USER MANAGEMENT"
@@ -104,32 +107,59 @@ template users currentPage hasMore maybeQuery maybeRoleFilter = do
     when cond action = if cond then action else mempty
 
 renderUserRow :: UserMetadata.UserWithMetadata -> Lucid.Html ()
-renderUserRow user = do
-  Lucid.tr_ [Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"] $ do
-    Lucid.td_ [Lucid.class_ "p-4"] $
-      Lucid.span_ [Lucid.class_ "font-bold"] $
-        Lucid.toHtml (display user.uwmDisplayName)
+renderUserRow user =
+  let userId = user.uwmUserId
+      displayName = user.uwmDisplayName
+      email = user.uwmEmail
+      userRole = user.uwmUserRole
+      createdAt = user.uwmUserCreatedAt
+      userDetailUrl = Links.linkURI $ adminUserDetailGetLink userId
+      userDeleteUrl = Links.linkURI $ adminUserDeleteLink userId
+      userIdText = display userId
+      rowId = [i|user-row-#{userIdText}|]
+      confirmMessage =
+        "Are you sure you want to delete user \""
+          <> display displayName
+          <> "\" ("
+          <> display email
+          <> ")? This action cannot be undone."
+   in do
+        Lucid.tr_
+          [ Lucid.id_ rowId,
+            Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"
+          ]
+          $ do
+            Lucid.td_ [Lucid.class_ "p-4"] $
+              Lucid.span_ [Lucid.class_ "font-bold"] $
+                Lucid.toHtml (display displayName)
 
-    Lucid.td_ [Lucid.class_ "p-4"] $
-      Lucid.toHtml (display user.uwmEmail)
+            Lucid.td_ [Lucid.class_ "p-4"] $
+              Lucid.toHtml (display email)
 
-    Lucid.td_ [Lucid.class_ "p-4"] $
-      renderRoleBadge user.uwmUserRole
+            Lucid.td_ [Lucid.class_ "p-4"] $
+              renderRoleBadge userRole
 
-    Lucid.td_ [Lucid.class_ "p-4"] $
-      Lucid.toHtml (formatDate user.uwmUserCreatedAt)
+            Lucid.td_ [Lucid.class_ "p-4"] $
+              Lucid.toHtml (formatDate createdAt)
 
-    Lucid.td_ [Lucid.class_ "p-4 text-right"] $
-      Lucid.a_
-        [ Lucid.href_ [i|/#{userDetailUrl}|],
-          hxGet_ [i|/#{userDetailUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "text-blue-600 font-bold hover:underline"
-        ]
-        "View"
-  where
-    userDetailUrl = Links.linkURI $ adminUserDetailGetLink user.uwmUserId
+            Lucid.td_ [Lucid.class_ "p-4 text-right"] $ do
+              Lucid.a_
+                [ Lucid.href_ [i|/#{userDetailUrl}|],
+                  hxGet_ [i|/#{userDetailUrl}|],
+                  hxTarget_ "#main-content",
+                  hxPushUrl_ "true",
+                  Lucid.class_ "text-blue-600 font-bold hover:underline mr-4"
+                ]
+                "View"
+
+              Lucid.button_
+                [ hxDelete_ [i|/#{userDeleteUrl}|],
+                  hxTarget_ [i|\##{rowId}|],
+                  hxSwap_ "outerHTML",
+                  hxConfirm_ confirmMessage,
+                  Lucid.class_ "text-red-600 font-bold hover:underline"
+                ]
+                "Delete"
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
 renderRoleBadge role = do
