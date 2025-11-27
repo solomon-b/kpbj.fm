@@ -20,6 +20,7 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
+import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -78,7 +79,7 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   userInfoResult <- getUserInfo cookie
   let mUserInfo = fmap snd userInfoResult
   let page = fromMaybe 1 maybePage
-  let offset = (page - 1) * fromIntegral postsPerPage
+  let offset = fromIntegral $ (page - 1) * fromIntegral postsPerPage :: Offset
 
   showResult <- execQuerySpan (Shows.getShowBySlug slug)
   case showResult of

@@ -47,6 +47,7 @@ import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
 import Domain.Types.Limit (Limit)
+import Domain.Types.Offset (Offset)
 import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
@@ -241,7 +242,7 @@ data UserWithMetadata = UserWithMetadata
 -- | Get all users with pagination, including full user info
 --
 -- Only returns active (non-deleted) users.
-getAllUsersWithPagination :: Limit -> Int64 -> Hasql.Statement () [UserWithMetadata]
+getAllUsersWithPagination :: Limit -> Offset -> Hasql.Statement () [UserWithMetadata]
 getAllUsersWithPagination limit offset =
   interp
     True
@@ -261,7 +262,7 @@ getAllUsersWithPagination limit offset =
 --
 -- Only returns active (non-deleted) users.
 -- Pass an empty list for roles to include all roles.
-getUsersByRole :: [UserRole] -> Limit -> Int64 -> UserSortBy -> Hasql.Statement () [UserWithMetadata]
+getUsersByRole :: [UserRole] -> Limit -> Offset -> UserSortBy -> Hasql.Statement () [UserWithMetadata]
 getUsersByRole roles limit offset sortBy =
   case sortBy of
     JoinDateNewest ->
@@ -333,7 +334,7 @@ getUsersByRole roles limit offset sortBy =
 --
 -- Only returns active (non-deleted) users.
 -- Pass an empty list for roles to include all roles.
-searchUsers :: Text -> [UserRole] -> Limit -> Int64 -> UserSortBy -> Hasql.Statement () [UserWithMetadata]
+searchUsers :: Text -> [UserRole] -> Limit -> Offset -> UserSortBy -> Hasql.Statement () [UserWithMetadata]
 searchUsers query roles limit offset sortBy =
   case sortBy of
     JoinDateNewest ->
