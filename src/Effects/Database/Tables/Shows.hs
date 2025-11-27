@@ -13,6 +13,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (UTCTime)
 import Domain.Types.Genre (Genre)
+import Domain.Types.Limit (Limit)
 import Domain.Types.Search (Search)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.HostDetails qualified as HostDetails
@@ -147,7 +148,7 @@ getShowById showId =
   |]
 
 -- | Get shows by status with pagination
-getShowsByStatus :: Text -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getShowsByStatus :: Text -> Limit -> Int64 -> Hasql.Statement () [Model]
 getShowsByStatus status limit offset =
   interp
     False
@@ -160,7 +161,7 @@ getShowsByStatus status limit offset =
   |]
 
 -- | Get all shows with pagination
-getAllShows :: Int64 -> Int64 -> Hasql.Statement () [Model]
+getAllShows :: Limit -> Int64 -> Hasql.Statement () [Model]
 getAllShows limit offset =
   interp
     False
@@ -172,7 +173,7 @@ getAllShows limit offset =
   |]
 
 -- | Get shows by genre with pagination
-getShowsByGenre :: Genre -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getShowsByGenre :: Genre -> Limit -> Int64 -> Hasql.Statement () [Model]
 getShowsByGenre genre limit offset =
   interp
     False
@@ -185,7 +186,7 @@ getShowsByGenre genre limit offset =
   |]
 
 -- | Get shows by genre and status with pagination
-getShowsByGenreAndStatus :: Genre -> Status -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getShowsByGenreAndStatus :: Genre -> Status -> Limit -> Int64 -> Hasql.Statement () [Model]
 getShowsByGenreAndStatus genre status limit offset =
   interp
     False
@@ -266,7 +267,7 @@ getAllActiveShows =
   |]
 
 -- | Search shows by text query with pagination
-searchShows :: Search -> Int64 -> Int64 -> Hasql.Statement () [Model]
+searchShows :: Search -> Limit -> Int64 -> Hasql.Statement () [Model]
 searchShows searchTerm limit offset =
   interp
     False

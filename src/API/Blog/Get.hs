@@ -20,6 +20,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Limit (Limit)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -67,8 +68,8 @@ handler ::
   m (Lucid.Html ())
 handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
-      limit = 10
-      offset = (page - 1) * limit
+      limit = 10 :: Limit
+      offset = (page - 1) * fromIntegral limit
 
   -- Get user info once upfront
   mUserInfo <- getUserInfo cookie <&> fmap snd
@@ -93,7 +94,7 @@ getBlogPostResults ::
     MonadReader env m,
     Has Tracer env
   ) =>
-  Int64 ->
+  Limit ->
   Int64 ->
   Maybe Text ->
   m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
@@ -117,7 +118,7 @@ getPostsWithTags ::
     MonadReader env m,
     Has Tracer env
   ) =>
-  Int64 ->
+  Limit ->
   Int64 ->
   m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
 getPostsWithTags limit offset =
@@ -135,7 +136,7 @@ getPostsWithTagsFiltered ::
     Has Tracer env
   ) =>
   BlogTags.Model ->
-  Int64 ->
+  Limit ->
   Int64 ->
   m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
 getPostsWithTagsFiltered tag limit offset =

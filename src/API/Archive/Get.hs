@@ -19,6 +19,7 @@ import Data.Text (Text)
 import Data.Time (UTCTime (..), fromGregorian, secondsToDiffTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Limit (Limit)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -68,8 +69,8 @@ handler ::
   m (Lucid.Html ())
 handler _tracer (normalize -> normalizedSearch) (normalize -> normalizedGenre) mYear maybePage cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
-      limit = 12
-      offset = (page - 1) * limit
+      limit = 12 :: Limit
+      offset = (page - 1) * fromIntegral limit
       (mDateFrom, mDateTo) = convertYear mYear
 
   mUserInfo <- getUserInfo cookie <&> fmap snd
@@ -84,7 +85,7 @@ handler _tracer (normalize -> normalizedSearch) (normalize -> normalizedGenre) m
       Log.logInfo "Failed to count episodes from database" ()
       renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episodes. Please try again.")
     (Right episodes, Right totalCount) -> do
-      let hasMore = (offset + limit) < totalCount
+      let hasMore = (offset + fromIntegral limit) < totalCount
       if page > 1
         then renderTemplate hxRequest mUserInfo (episodeCardsOnly episodes page hasMore totalCount normalizedSearch normalizedGenre mYear)
         else do
