@@ -4,7 +4,7 @@ module API.Admin.Users.Detail.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (adminUserEditGetLink, adminUsersGetLink)
+import {-# SOURCE #-} API (adminUserEditGetLink, adminUserRolePatchLink, adminUsersGetLink)
 import Control.Monad (unless)
 import Data.Maybe (fromMaybe, isJust)
 import Data.String.Interpolate (i)
@@ -59,7 +59,7 @@ template user metadata userShows userEpisodes = do
     -- User metadata grid
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t-2 border-gray-200"] $ do
       renderField "Full Name" (Text.unpack $ display metadata.mFullName)
-      renderField "Role" (renderRoleName metadata.mUserRole)
+      renderRoleField user.mId metadata.mUserRole
       case metadata.mAvatarUrl of
         Nothing -> renderField "Avatar" ("No avatar set" :: String)
         Just url -> renderField "Avatar" (Text.unpack url)
@@ -87,11 +87,37 @@ renderField label value = do
     Lucid.dt_ [Lucid.class_ "font-bold text-gray-700 mb-1"] $ Lucid.toHtml label
     Lucid.dd_ [Lucid.class_ "text-gray-900"] $ Lucid.toHtml value
 
-renderRoleName :: UserMetadata.UserRole -> String
-renderRoleName UserMetadata.Admin = "Admin"
-renderRoleName UserMetadata.Staff = "Staff"
-renderRoleName UserMetadata.Host = "Host"
-renderRoleName UserMetadata.User = "User"
+renderRoleField :: User.Id -> UserMetadata.UserRole -> Lucid.Html ()
+renderRoleField userId currentRole = do
+  Lucid.div_ $ do
+    Lucid.dt_ [Lucid.class_ "font-bold text-gray-700 mb-1"] "Role"
+    Lucid.dd_ [Lucid.id_ "role-dropdown-container", Lucid.class_ "flex items-center gap-3"] $
+      renderRoleDropdown userId currentRole
+
+renderRoleDropdown :: User.Id -> UserMetadata.UserRole -> Lucid.Html ()
+renderRoleDropdown userId currentRole =
+  Lucid.select_
+    [ Lucid.name_ "role",
+      Lucid.class_ "p-2 border-2 border-gray-800 bg-white font-bold",
+      hxPatch_ [i|/#{rolePatchUrl}|],
+      hxTarget_ "#role-dropdown-container",
+      hxSwap_ "innerHTML"
+    ]
+    $ do
+      roleOption UserMetadata.User currentRole
+      roleOption UserMetadata.Host currentRole
+      roleOption UserMetadata.Staff currentRole
+      roleOption UserMetadata.Admin currentRole
+  where
+    rolePatchUrl = Links.linkURI $ adminUserRolePatchLink userId
+
+    roleOption :: UserMetadata.UserRole -> UserMetadata.UserRole -> Lucid.Html ()
+    roleOption role selected =
+      Lucid.option_
+        ( [Lucid.value_ (display role)]
+            <> [Lucid.selected_ "selected" | role == selected]
+        )
+        $ Lucid.toHtml (display role)
 
 renderShowCard :: Shows.Model -> Lucid.Html ()
 renderShowCard showModel = do
