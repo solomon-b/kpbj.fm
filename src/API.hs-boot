@@ -6,6 +6,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
+import Domain.Types.Filter (Filter)
 import Domain.Types.FullName (FullName)
 import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
@@ -25,7 +26,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 -- Admin routes
-adminUsersGetLink :: Maybe Int64 -> Maybe Text -> Maybe UserMetadata.UserRole -> Links.Link
+adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Links.Link
 adminUserDetailGetLink :: User.Id -> Links.Link
 adminUserEditGetLink :: User.Id -> Links.Link
 adminUserEditPostLink :: User.Id -> Links.Link

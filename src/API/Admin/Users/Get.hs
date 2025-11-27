@@ -14,9 +14,10 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.Filter (Filter (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -38,8 +39,8 @@ type Route =
     ( "admin"
         :> "users"
         :> Servant.QueryParam "page" Int64
-        :> Servant.QueryParam "q" Text
-        :> Servant.QueryParam "role" UserMetadata.UserRole
+        :> Servant.QueryParam "q" (Filter Text)
+        :> Servant.QueryParam "role" (Filter UserMetadata.UserRole)
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
@@ -59,30 +60,32 @@ handler ::
   ) =>
   Tracer ->
   Maybe Int64 ->
-  Maybe Text ->
-  Maybe UserMetadata.UserRole ->
+  Maybe (Filter Text) ->
+  Maybe (Filter UserMetadata.UserRole) ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybePage maybeQuery maybeRoleFilter cookie (foldHxReq -> hxRequest) = do
+handler _tracer maybePage queryFilterParam roleFilterParam cookie (foldHxReq -> hxRequest) = do
+  let page = fromMaybe 1 maybePage
+      limit = 20
+      offset = (page - 1) * limit
+      roleFilter = getFilter =<< roleFilterParam
+      queryFilter = getFilter =<< queryFilterParam
+
   getUserInfo cookie >>= \case
     Nothing -> renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (_user, userMetadata) ->
       if not (UserMetadata.isAdmin userMetadata.mUserRole)
         then renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
         else do
-          let page = fromMaybe 1 maybePage
-              limit = 20
-              offset = (page - 1) * limit
-
-          getUsersResults limit offset maybeQuery maybeRoleFilter >>= \case
+          getUsersResults limit offset queryFilter roleFilter >>= \case
             Left _err -> do
               Log.logInfo "Failed to fetch users from database" ()
               renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to load users. Please try again.")
             Right allUsers -> do
               let users = take (fromIntegral limit) allUsers
                   hasMore = length allUsers > fromIntegral limit
-                  usersTemplate = template users page hasMore maybeQuery maybeRoleFilter
+                  usersTemplate = template users page hasMore queryFilter roleFilter
               renderTemplate hxRequest (Just userMetadata) usersTemplate
 
 getUsersResults ::
@@ -97,14 +100,9 @@ getUsersResults ::
   Maybe Text ->
   Maybe UserMetadata.UserRole ->
   m (Either HSQL.Pool.UsageError [UserMetadata.UserWithMetadata])
-getUsersResults limit offset maybeQuery maybeRoleFilter = do
-  case (maybeQuery, maybeRoleFilter) of
-    (Just query, _) ->
-      -- Search takes precedence over role filter
-      execQuerySpan (UserMetadata.searchUsers query (limit + 1) offset)
-    (Nothing, Just role) ->
-      -- Filter by role
-      execQuerySpan (UserMetadata.getUsersByRole role (limit + 1) offset)
-    (Nothing, Nothing) ->
-      -- No filters, get all users
-      execQuerySpan (UserMetadata.getAllUsersWithPagination (limit + 1) offset)
+getUsersResults limit offset maybeQuery (maybeToList -> roles) =
+  case maybeQuery of
+    Just query ->
+      execQuerySpan (UserMetadata.searchUsers query roles (limit + 1) offset)
+    Nothing ->
+      execQuerySpan (UserMetadata.getUsersByRole roles (limit + 1) offset)

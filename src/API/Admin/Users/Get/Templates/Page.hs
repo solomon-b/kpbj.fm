@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module API.Admin.Users.Get.Templates.Page where
 
@@ -11,6 +12,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Domain.Types.Filter (Filter (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras
@@ -182,7 +184,7 @@ renderEmptyState maybeQuery = do
         Just query -> Lucid.toHtml $ "No users found matching \"" <> query <> "\"."
 
 renderPagination :: Int64 -> Bool -> Maybe Text -> Maybe UserMetadata.UserRole -> Lucid.Html ()
-renderPagination currentPage hasMore maybeQuery maybeRoleFilter = do
+renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filter -> maybeRoleFilter) = do
   Lucid.div_ [Lucid.class_ "flex justify-between items-center"] $ do
     -- Previous button
     if currentPage > 1

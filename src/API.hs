@@ -65,6 +65,7 @@ import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
+import Domain.Types.Filter (Filter)
 import Domain.Types.FullName (FullName)
 import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
@@ -309,7 +310,7 @@ userRegisterPostLink :: Links.Link
 userRegisterPostLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Post.Route)
 
 -- | Route: GET /admin/users
-adminUsersGetLink :: Maybe Int64 -> Maybe Text -> Maybe UserMetadata.UserRole -> Links.Link
+adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Links.Link
 adminUsersGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Get.Route)
 
 -- | Route: GET /admin/users/:id
