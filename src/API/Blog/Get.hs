@@ -21,6 +21,7 @@ import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
+import Domain.Types.Offset (Offset)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -69,7 +70,7 @@ handler ::
 handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       limit = 10 :: Limit
-      offset = (page - 1) * fromIntegral limit
+      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
 
   -- Get user info once upfront
   mUserInfo <- getUserInfo cookie <&> fmap snd
@@ -95,7 +96,7 @@ getBlogPostResults ::
     Has Tracer env
   ) =>
   Limit ->
-  Int64 ->
+  Offset ->
   Maybe Text ->
   m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
 getBlogPostResults limit offset maybeTag = do
@@ -119,7 +120,7 @@ getPostsWithTags ::
     Has Tracer env
   ) =>
   Limit ->
-  Int64 ->
+  Offset ->
   m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
 getPostsWithTags limit offset =
   execTransactionSpan $ do
@@ -137,7 +138,7 @@ getPostsWithTagsFiltered ::
   ) =>
   BlogTags.Model ->
   Limit ->
-  Int64 ->
+  Offset ->
   m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
 getPostsWithTagsFiltered tag limit offset =
   execTransactionSpan $ do

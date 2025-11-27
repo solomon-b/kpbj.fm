@@ -22,6 +22,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Genre (Genre)
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.Limit (Limit)
+import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
 import Effects.Database.Class (MonadDB)
@@ -74,7 +75,7 @@ handler ::
 handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
   getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do
     let limit = 12 :: Limit
-        offset = (coerce page - 1) * fromIntegral limit
+        offset = fromIntegral $ ((coerce page :: Int64) - 1) * fromIntegral limit :: Offset
 
     -- Fetch limit + 1 to check if there are more results
     getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus >>= \case
@@ -95,7 +96,7 @@ getShows ::
     Has Tracer env
   ) =>
   Limit ->
-  Int64 ->
+  Offset ->
   Maybe Search ->
   Maybe Genre ->
   Maybe Shows.Status ->
