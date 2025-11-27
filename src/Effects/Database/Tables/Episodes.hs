@@ -12,6 +12,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (UTCTime)
+import Domain.Types.Limit (Limit)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Shows qualified as Shows
@@ -157,7 +158,7 @@ data Update = Update
 -- Database Queries
 
 -- | Get published episodes for a show
-getPublishedEpisodesForShow :: Shows.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getPublishedEpisodesForShow :: Shows.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
 getPublishedEpisodesForShow showId limit offset =
   interp
     False
@@ -186,7 +187,7 @@ getEpisodesById showId =
   |]
 
 -- | Get all recent episodes across all shows (for admin dashboard)
-getAllRecentEpisodes :: Int64 -> Hasql.Statement () [Model]
+getAllRecentEpisodes :: Limit -> Hasql.Statement () [Model]
 getAllRecentEpisodes limit =
   interp
     False
@@ -228,7 +229,7 @@ getEpisodeById episodeId =
   |]
 
 -- | Get non-archived episodes by user (episodes they created)
-getEpisodesByUser :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getEpisodesByUser :: User.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
 getEpisodesByUser userId limit offset =
   interp
     False
@@ -243,7 +244,7 @@ getEpisodesByUser userId limit offset =
   |]
 
 -- | Get recent published episodes across all shows
-getRecentPublishedEpisodes :: Int64 -> Int64 -> Hasql.Statement () [Model]
+getRecentPublishedEpisodes :: Limit -> Int64 -> Hasql.Statement () [Model]
 getRecentPublishedEpisodes limit offset =
   interp
     False
@@ -294,7 +295,7 @@ getPublishedEpisodesWithFilters ::
   Maybe UTCTime ->
   Maybe UTCTime ->
   Text ->
-  Int64 ->
+  Limit ->
   Int64 ->
   Hasql.Statement () [EpisodeWithShow]
 getPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo sortBy limit offset =

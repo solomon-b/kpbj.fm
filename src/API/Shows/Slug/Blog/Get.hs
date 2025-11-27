@@ -19,6 +19,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Limit (Limit)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -53,7 +54,7 @@ type Route =
 
 --------------------------------------------------------------------------------
 
-postsPerPage :: Int64
+postsPerPage :: Limit
 postsPerPage = 12
 
 handler ::
@@ -77,7 +78,7 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   userInfoResult <- getUserInfo cookie
   let mUserInfo = fmap snd userInfoResult
   let page = fromMaybe 1 maybePage
-  let offset = (page - 1) * postsPerPage
+  let offset = (page - 1) * fromIntegral postsPerPage
 
   showResult <- execQuerySpan (Shows.getShowBySlug slug)
   case showResult of
@@ -122,7 +123,7 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
 
       case (blogPostsResult, tagsResult, totalPostsResult) of
         (Right posts, Right tags, Right totalPosts) -> do
-          let totalPages = (totalPosts + postsPerPage - 1) `div` postsPerPage
+          let totalPages = (totalPosts + fromIntegral postsPerPage - 1) `div` fromIntegral postsPerPage
           let pageTemplate = template showModel posts tags maybeTag page totalPages isHost
           renderTemplate hxRequest mUserInfo pageTemplate
         _ -> do
@@ -130,6 +131,6 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
           let posts = fromRight [] blogPostsResult
           let tags = fromRight [] tagsResult
           let totalPosts = fromRight 0 totalPostsResult
-          let totalPages = (totalPosts + postsPerPage - 1) `div` postsPerPage
+          let totalPages = (totalPosts + fromIntegral postsPerPage - 1) `div` fromIntegral postsPerPage
           let pageTemplate = template showModel posts tags maybeTag page totalPages isHost
           renderTemplate hxRequest mUserInfo pageTemplate

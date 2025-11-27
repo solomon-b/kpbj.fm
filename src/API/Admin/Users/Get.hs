@@ -19,6 +19,7 @@ import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Limit (Limit)
 import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -70,8 +71,8 @@ handler ::
   m (Lucid.Html ())
 handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
-      limit = 20
-      offset = (page - 1) * limit
+      limit = 20 :: Limit
+      offset = (page - 1) * fromIntegral limit
       roleFilter = getFilter =<< roleFilterParam
       queryFilter = getFilter =<< queryFilterParam
       sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
@@ -99,7 +100,7 @@ getUsersResults ::
     MonadReader env m,
     Has Tracer env
   ) =>
-  Int64 ->
+  Limit ->
   Int64 ->
   Maybe Text ->
   Maybe UserMetadata.UserRole ->

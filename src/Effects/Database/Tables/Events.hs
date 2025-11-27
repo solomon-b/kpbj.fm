@@ -12,6 +12,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (MonthOfYear, UTCTime, Year)
+import Domain.Types.Limit (Limit)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.User qualified as User
@@ -142,7 +143,7 @@ data Insert = Insert
 -- Database Queries
 
 -- | Get published events, optionally filtered by tag
-getPublishedEvents :: Maybe Text -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getPublishedEvents :: Maybe Text -> Limit -> Int64 -> Hasql.Statement () [Model]
 getPublishedEvents maybeTagName limit offset =
   interp
     False
@@ -180,7 +181,7 @@ getEventById eventId =
   |]
 
 -- | Get events by author
-getEventsByAuthor :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getEventsByAuthor :: User.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
 getEventsByAuthor authorId limit offset =
   interp
     False
