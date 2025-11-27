@@ -119,17 +119,19 @@
     </header>
 
     <!-- Minimal Player Bar -->
-    <div class="px-6 text-center">
-      <div class="inline-flex items-center gap-4 text-sm font-mono">
-        <a href="#" id="playPauseBtn" class="hover:text-gray-600 cursor-pointer">[ PLAY ]</a>
-        <span class="text-gray-500">|</span>
-        <div id="nowPlaying">
-          NOW PLAYING: KPBJ 95.9 FM
+    <div class="px-4 text-center">
+      <div class="inline-flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-sm font-mono">
+        <div class="flex items-center gap-2 sm:gap-4">
+          <a href="#" id="playPauseBtn" class="hover:text-gray-600 cursor-pointer">[ PLAY ]</a>
+          <span class="text-gray-500 hidden sm:inline">|</span>
+          <div class="flex items-center gap-2">
+            <span>VOL:</span>
+            <input type="range" min="0" max="100" value="80" id="volumeSlider" class="w-16 sm:w-20 h-1">
+          </div>
         </div>
-        <span class="text-gray-500">|</span>
-        <div class="flex items-center gap-2">
-          <span>VOL:</span>
-          <input type="range" min="0" max="100" value="80" id="volumeSlider" class="w-20 h-1">
+        <span class="text-gray-500 hidden sm:inline">|</span>
+        <div id="nowPlaying" class="text-xs sm:text-sm">
+          KPBJ 95.9 FM
         </div>
       </div>
     </div>
