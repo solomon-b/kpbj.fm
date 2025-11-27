@@ -10,6 +10,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
+import Domain.Types.Limit (Limit)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.BlogTags qualified as BlogTags
@@ -104,7 +105,7 @@ data Insert = Insert
 -- Database Queries
 
 -- | Get all published blog posts ordered by publication date
-getPublishedBlogPosts :: Int64 -> Int64 -> Hasql.Statement () [Model]
+getPublishedBlogPosts :: Limit -> Int64 -> Hasql.Statement () [Model]
 getPublishedBlogPosts limit offset =
   interp
     False
@@ -139,7 +140,7 @@ getBlogPostById postId =
   |]
 
 -- | Get blog posts by author
-getBlogPostsByAuthor :: User.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getBlogPostsByAuthor :: User.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
 getBlogPostsByAuthor authorId limit offset =
   interp
     False
@@ -242,7 +243,7 @@ removeTagFromPost postId tagId =
   |]
 
 -- | Get posts with specific tag
-getPostsByTag :: BlogTags.Id -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getPostsByTag :: BlogTags.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
 getPostsByTag tagId limit offset =
   interp
     False

@@ -21,6 +21,7 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Genre (Genre)
 import Domain.Types.HxRequest (HxRequest (..))
+import Domain.Types.Limit (Limit)
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
 import Effects.Database.Class (MonadDB)
@@ -72,8 +73,8 @@ handler ::
   m (Lucid.Html ())
 handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
   getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do
-    let limit = 12
-        offset = (coerce page - 1) * limit
+    let limit = 12 :: Limit
+        offset = (coerce page - 1) * fromIntegral limit
 
     -- Fetch limit + 1 to check if there are more results
     getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus >>= \case
@@ -93,7 +94,7 @@ getShows ::
     MonadReader env m,
     Has Tracer env
   ) =>
-  Int64 ->
+  Limit ->
   Int64 ->
   Maybe Search ->
   Maybe Genre ->

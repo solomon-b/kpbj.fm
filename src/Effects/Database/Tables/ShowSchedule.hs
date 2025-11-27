@@ -12,6 +12,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, displayBuilder)
 import Data.Time (Day, DayOfWeek (..), TimeOfDay, UTCTime)
 import Data.Vector (Vector)
+import Domain.Types.Limit (Limit)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
 import GHC.Generics
@@ -419,7 +420,7 @@ fromUpcomingShowDateRow (showId, showDate, dayOfWeek, startTime, endTime) =
 --
 -- This generates dates based on the show's schedule templates and validity periods.
 -- For N-of-month schedules, it calculates which weeks of each month the show airs.
-getUpcomingShowDates :: Shows.Id -> Day -> Int64 -> Hasql.Statement () [UpcomingShowDate]
+getUpcomingShowDates :: Shows.Id -> Day -> Limit -> Hasql.Statement () [UpcomingShowDate]
 getUpcomingShowDates showId referenceDate limit =
   fmap fromUpcomingShowDateRow
     <$> interp
@@ -485,7 +486,7 @@ getUpcomingShowDates showId referenceDate limit =
 --
 -- Like getUpcomingShowDates, but filters out dates that already have episodes scheduled.
 -- This is used in the episode upload form to prevent double-booking time slots.
-getUpcomingUnscheduledShowDates :: Shows.Id -> Int64 -> Hasql.Statement () [UpcomingShowDate]
+getUpcomingUnscheduledShowDates :: Shows.Id -> Limit -> Hasql.Statement () [UpcomingShowDate]
 getUpcomingUnscheduledShowDates showId limit =
   fmap fromUpcomingShowDateRow
     <$> interp
