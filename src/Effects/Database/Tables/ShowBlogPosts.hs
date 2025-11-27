@@ -13,6 +13,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.Limit (Limit)
+import Domain.Types.Offset (Offset)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
@@ -78,7 +79,7 @@ data Insert = Insert
 -- Database Queries
 
 -- | Get published blog posts for a show
-getPublishedShowBlogPosts :: Shows.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
+getPublishedShowBlogPosts :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedShowBlogPosts showId limit offset =
   interp
     False
@@ -127,7 +128,7 @@ getShowBlogPostById postId =
   |]
 
 -- | Get show blog posts by author
-getShowBlogPostsByAuthor :: User.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
+getShowBlogPostsByAuthor :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getShowBlogPostsByAuthor authorId limit offset =
   interp
     False
@@ -140,7 +141,7 @@ getShowBlogPostsByAuthor authorId limit offset =
   |]
 
 -- | Get recent published show blog posts across all shows
-getRecentPublishedShowBlogPosts :: Limit -> Int64 -> Hasql.Statement () [Model]
+getRecentPublishedShowBlogPosts :: Limit -> Offset -> Hasql.Statement () [Model]
 getRecentPublishedShowBlogPosts limit offset =
   interp
     False
@@ -221,7 +222,7 @@ canUserEditShowBlogPost userId postId =
    in maybe False getOneColumn <$> query
 
 -- | Get published blog posts for a show by show slug
-getPublishedShowBlogPostsBySlug :: Text -> Limit -> Int64 -> Hasql.Statement () [Model]
+getPublishedShowBlogPostsBySlug :: Text -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedShowBlogPostsBySlug showSlug limit offset =
   interp
     False
@@ -235,7 +236,7 @@ getPublishedShowBlogPostsBySlug showSlug limit offset =
   |]
 
 -- | Get published blog posts for a show filtered by tag
-getPublishedShowBlogPostsByShowAndTag :: Shows.Id -> ShowBlogTags.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
+getPublishedShowBlogPostsByShowAndTag :: Shows.Id -> ShowBlogTags.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedShowBlogPostsByShowAndTag showId tagId limit offset =
   interp
     False
@@ -327,7 +328,7 @@ removeTagFromShowBlogPost postId tagId =
   |]
 
 -- | Get show blog posts with specific tag
-getShowBlogPostsByTag :: ShowBlogTags.Id -> Limit -> Int64 -> Hasql.Statement () [Model]
+getShowBlogPostsByTag :: ShowBlogTags.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getShowBlogPostsByTag tagId limit offset =
   interp
     False

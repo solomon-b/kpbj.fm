@@ -230,6 +230,7 @@ library
     Domain.Types.Genre
     Domain.Types.HxRequest
     Domain.Types.Limit
+    Domain.Types.Offset
     Domain.Types.PageNumber
     Domain.Types.PageView
     Domain.Types.Search
