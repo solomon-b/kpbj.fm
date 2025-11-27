@@ -3,7 +3,36 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Effects.Database.Tables.UserMetadata where
+module Effects.Database.Tables.UserMetadata
+  ( -- * UserRole
+    UserRole (..),
+    isAdmin,
+    isStaffOrHigher,
+    isHostOrHigher,
+
+    -- * Model Types
+    Id (..),
+    Model (..),
+    ModelInsert (..),
+    ModelUpdate (..),
+    UserWithMetadata (..),
+    UserWithMetadataInsert (..),
+
+    -- * Queries
+    getUserMetadata,
+    insertUserMetadata,
+    insertUserWithMetadata,
+    getAllUsersWithPagination,
+    getUsersByRole,
+    searchUsers,
+    getUserWithMetadataById,
+    updateUserRole,
+    updateUserMetadata,
+    countUsers,
+    countUsersByRole,
+    softDeleteUser,
+  )
+where
 
 --------------------------------------------------------------------------------
 
@@ -17,6 +46,7 @@ import Data.Time (UTCTime)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
+import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
@@ -226,50 +256,161 @@ getAllUsersWithPagination limit offset =
     LIMIT #{limit} OFFSET #{offset}
   |]
 
--- | Get users filtered by role(s) with pagination
+-- | Get users filtered by role(s) with pagination and sorting
 --
 -- Only returns active (non-deleted) users.
 -- Pass an empty list for roles to include all roles.
-getUsersByRole :: [UserRole] -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
-getUsersByRole roles limit offset =
-  interp
-    True
-    [sql|
-    SELECT
-      u.id, u.email, u.created_at, u.updated_at,
-      um.id, um.user_id, um.display_name, um.full_name,
-      um.avatar_url, um.user_role
-    FROM users u
-    INNER JOIN user_metadata um ON u.id = um.user_id
-    WHERE (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
-      AND u.deleted_at IS NULL
-    ORDER BY u.created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
-  |]
+getUsersByRole :: [UserRole] -> Int64 -> Int64 -> UserSortBy -> Hasql.Statement () [UserWithMetadata]
+getUsersByRole roles limit offset sortBy =
+  case sortBy of
+    JoinDateNewest ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        WHERE (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        ORDER BY u.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    JoinDateOldest ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        WHERE (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        ORDER BY u.created_at ASC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    NameAZ ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        WHERE (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        ORDER BY um.display_name ASC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    ShowCount ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        LEFT JOIN show_hosts sh ON u.id = sh.user_id
+        WHERE (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        GROUP BY u.id, u.email, u.created_at, u.updated_at,
+                 um.id, um.user_id, um.display_name, um.full_name,
+                 um.avatar_url, um.user_role
+        ORDER BY COUNT(sh.show_id) DESC, u.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
 
--- | Search users by display name or email with optional role filter and pagination
+-- | Search users by display name or email with optional role filter, pagination, and sorting
 --
 -- Only returns active (non-deleted) users.
 -- Pass an empty list for roles to include all roles.
-searchUsers :: Text -> [UserRole] -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
-searchUsers query roles limit offset =
-  interp
-    True
-    [sql|
-    SELECT
-      u.id, u.email, u.created_at, u.updated_at,
-      um.id, um.user_id, um.display_name, um.full_name,
-      um.avatar_url, um.user_role
-    FROM users u
-    INNER JOIN user_metadata um ON u.id = um.user_id
-    WHERE
-      (um.display_name ILIKE ('%' || #{query} || '%') OR
-       CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%'))
-      AND (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
-      AND u.deleted_at IS NULL
-    ORDER BY u.created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
-  |]
+searchUsers :: Text -> [UserRole] -> Int64 -> Int64 -> UserSortBy -> Hasql.Statement () [UserWithMetadata]
+searchUsers query roles limit offset sortBy =
+  case sortBy of
+    JoinDateNewest ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        WHERE
+          (um.display_name ILIKE ('%' || #{query} || '%') OR
+           CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%'))
+          AND (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        ORDER BY u.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    JoinDateOldest ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        WHERE
+          (um.display_name ILIKE ('%' || #{query} || '%') OR
+           CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%'))
+          AND (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        ORDER BY u.created_at ASC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    NameAZ ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        WHERE
+          (um.display_name ILIKE ('%' || #{query} || '%') OR
+           CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%'))
+          AND (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        ORDER BY um.display_name ASC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    ShowCount ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        LEFT JOIN show_hosts sh ON u.id = sh.user_id
+        WHERE
+          (um.display_name ILIKE ('%' || #{query} || '%') OR
+           CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%'))
+          AND (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        GROUP BY u.id, u.email, u.created_at, u.updated_at,
+                 um.id, um.user_id, um.display_name, um.full_name,
+                 um.avatar_url, um.user_role
+        ORDER BY COUNT(sh.show_id) DESC, u.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
 
 -- | Get a single user with metadata by user ID
 --

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Admin.Users.Get where
+module API.Admin.Users.Get (Route, handler) where
 
 --------------------------------------------------------------------------------
 
@@ -19,6 +19,7 @@ import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -41,6 +42,7 @@ type Route =
         :> Servant.QueryParam "page" Int64
         :> Servant.QueryParam "q" (Filter Text)
         :> Servant.QueryParam "role" (Filter UserMetadata.UserRole)
+        :> Servant.QueryParam "sort" (Filter UserSortBy)
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
@@ -62,15 +64,17 @@ handler ::
   Maybe Int64 ->
   Maybe (Filter Text) ->
   Maybe (Filter UserMetadata.UserRole) ->
+  Maybe (Filter UserSortBy) ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybePage queryFilterParam roleFilterParam cookie (foldHxReq -> hxRequest) = do
+handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       limit = 20
       offset = (page - 1) * limit
       roleFilter = getFilter =<< roleFilterParam
       queryFilter = getFilter =<< queryFilterParam
+      sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
 
   getUserInfo cookie >>= \case
     Nothing -> renderTemplate hxRequest Nothing notLoggedInTemplate
@@ -78,14 +82,14 @@ handler _tracer maybePage queryFilterParam roleFilterParam cookie (foldHxReq -> 
       if not (UserMetadata.isAdmin userMetadata.mUserRole)
         then renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
         else do
-          getUsersResults limit offset queryFilter roleFilter >>= \case
+          getUsersResults limit offset queryFilter roleFilter sortBy >>= \case
             Left _err -> do
               Log.logInfo "Failed to fetch users from database" ()
               renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to load users. Please try again.")
             Right allUsers -> do
               let users = take (fromIntegral limit) allUsers
                   hasMore = length allUsers > fromIntegral limit
-                  usersTemplate = template users page hasMore queryFilter roleFilter
+                  usersTemplate = template users page hasMore queryFilter roleFilter sortBy
               renderTemplate hxRequest (Just userMetadata) usersTemplate
 
 getUsersResults ::
@@ -99,10 +103,11 @@ getUsersResults ::
   Int64 ->
   Maybe Text ->
   Maybe UserMetadata.UserRole ->
+  UserSortBy ->
   m (Either HSQL.Pool.UsageError [UserMetadata.UserWithMetadata])
-getUsersResults limit offset maybeQuery (maybeToList -> roles) =
+getUsersResults limit offset maybeQuery (maybeToList -> roles) sortBy =
   case maybeQuery of
     Just query ->
-      execQuerySpan (UserMetadata.searchUsers query roles (limit + 1) offset)
+      execQuerySpan (UserMetadata.searchUsers query roles (limit + 1) offset sortBy)
     Nothing ->
-      execQuerySpan (UserMetadata.getUsersByRole roles (limit + 1) offset)
+      execQuerySpan (UserMetadata.getUsersByRole roles (limit + 1) offset sortBy)
