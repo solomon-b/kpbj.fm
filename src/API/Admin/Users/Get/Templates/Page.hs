@@ -13,6 +13,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Domain.Types.Filter (Filter (..))
+import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras
@@ -24,8 +25,9 @@ template ::
   Bool ->
   Maybe Text ->
   Maybe UserMetadata.UserRole ->
+  UserSortBy ->
   Lucid.Html ()
-template users currentPage hasMore maybeQuery maybeRoleFilter = do
+template users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   -- Success/Error banner container (for HTMX out-of-band swaps)
   Lucid.div_ [Lucid.id_ "success-banner-container"] mempty
 
@@ -40,11 +42,11 @@ template users currentPage hasMore maybeQuery maybeRoleFilter = do
       [ hxGet_ [i|/admin/users|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-4"
+        Lucid.class_ "flex flex-col md:flex-row gap-4 items-end"
       ]
       $ do
         -- Search input
-        Lucid.div_ $ do
+        Lucid.div_ [Lucid.class_ "flex-1"] $ do
           Lucid.label_ [Lucid.for_ "search", Lucid.class_ "block font-bold mb-2"] "Search"
           Lucid.input_
             [ Lucid.type_ "search",
@@ -56,8 +58,8 @@ template users currentPage hasMore maybeQuery maybeRoleFilter = do
             ]
 
         -- Role filter
-        Lucid.div_ $ do
-          Lucid.label_ [Lucid.for_ "role", Lucid.class_ "block font-bold mb-2"] "Filter by Role"
+        Lucid.div_ [Lucid.class_ "flex-1"] $ do
+          Lucid.label_ [Lucid.for_ "role", Lucid.class_ "block font-bold mb-2"] "Role"
           Lucid.select_
             [ Lucid.name_ "role",
               Lucid.id_ "role",
@@ -70,14 +72,28 @@ template users currentPage hasMore maybeQuery maybeRoleFilter = do
               Lucid.option_ [Lucid.value_ "Staff", selectedIf (maybeRoleFilter == Just UserMetadata.Staff)] "Staff"
               Lucid.option_ [Lucid.value_ "Admin", selectedIf (maybeRoleFilter == Just UserMetadata.Admin)] "Admin"
 
-        -- Submit button (for non-JS support)
-        Lucid.div_ [Lucid.class_ "md:col-span-2 flex gap-4"] $ do
+        -- Sort filter
+        Lucid.div_ [Lucid.class_ "flex-1"] $ do
+          Lucid.label_ [Lucid.for_ "sort", Lucid.class_ "block font-bold mb-2"] "Sort By"
+          Lucid.select_
+            [ Lucid.name_ "sort",
+              Lucid.id_ "sort",
+              Lucid.class_ "w-full p-3 border-2 border-gray-800"
+            ]
+            $ do
+              Lucid.option_ [Lucid.value_ "newest", selectedIf (sortBy == JoinDateNewest)] "Join Date (Newest)"
+              Lucid.option_ [Lucid.value_ "oldest", selectedIf (sortBy == JoinDateOldest)] "Join Date (Oldest)"
+              Lucid.option_ [Lucid.value_ "name", selectedIf (sortBy == NameAZ)] "Name A-Z"
+              Lucid.option_ [Lucid.value_ "shows", selectedIf (sortBy == ShowCount)] "Show Count"
+
+        -- Submit button
+        Lucid.div_ [Lucid.class_ "flex gap-4"] $ do
           Lucid.button_
             [ Lucid.type_ "submit",
               Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
             ]
-            "FILTER"
-          when (isJust maybeQuery || isJust maybeRoleFilter) $
+            "SEARCH"
+          when (isJust maybeQuery || isJust maybeRoleFilter || sortBy /= JoinDateNewest) $
             Lucid.a_
               [ Lucid.href_ "/admin/users",
                 hxGet_ "/admin/users",
@@ -85,7 +101,7 @@ template users currentPage hasMore maybeQuery maybeRoleFilter = do
                 hxPushUrl_ "true",
                 Lucid.class_ "bg-gray-300 text-gray-800 px-6 py-3 font-bold hover:bg-gray-400"
               ]
-              "CLEAR FILTERS"
+              "CLEAR"
 
   -- User table or empty state
   if null users
@@ -103,7 +119,7 @@ template users currentPage hasMore maybeQuery maybeRoleFilter = do
           Lucid.tbody_ $
             mapM_ renderUserRow users
 
-      renderPagination currentPage hasMore maybeQuery maybeRoleFilter
+      renderPagination currentPage hasMore maybeQuery maybeRoleFilter sortBy
   where
     selectedIf condition = if condition then Lucid.selected_ "selected" else mempty
     when cond action = if cond then action else mempty
@@ -179,8 +195,8 @@ renderEmptyState maybeQuery = do
         Nothing -> "No users found."
         Just query -> Lucid.toHtml $ "No users found matching \"" <> query <> "\"."
 
-renderPagination :: Int64 -> Bool -> Maybe Text -> Maybe UserMetadata.UserRole -> Lucid.Html ()
-renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filter -> maybeRoleFilter) = do
+renderPagination :: Int64 -> Bool -> Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()
+renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filter -> maybeRoleFilter) sortBy = do
   Lucid.div_ [Lucid.class_ "flex justify-between items-center"] $ do
     -- Previous button
     if currentPage > 1
@@ -215,8 +231,9 @@ renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filte
       else
         Lucid.div_ [] mempty
   where
-    prevPageUrl = Links.linkURI $ adminUsersGetLink (Just (currentPage - 1)) maybeQuery maybeRoleFilter
-    nextPageUrl = Links.linkURI $ adminUsersGetLink (Just (currentPage + 1)) maybeQuery maybeRoleFilter
+    maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
+    prevPageUrl = Links.linkURI $ adminUsersGetLink (Just (currentPage - 1)) maybeQuery maybeRoleFilter maybeSortFilter
+    nextPageUrl = Links.linkURI $ adminUsersGetLink (Just (currentPage + 1)) maybeQuery maybeRoleFilter maybeSortFilter
 
 formatDate :: UTCTime -> String
 formatDate = formatTime defaultTimeLocale "%Y-%m-%d"

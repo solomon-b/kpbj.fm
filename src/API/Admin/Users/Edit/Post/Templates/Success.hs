@@ -35,4 +35,4 @@ successTemplate userId = do
         "← BACK TO USERS"
   where
     detailUrl = Links.linkURI $ adminUserDetailGetLink userId
-    usersUrl = Links.linkURI $ adminUsersGetLink Nothing Nothing Nothing
+    usersUrl = Links.linkURI $ adminUsersGetLink Nothing Nothing Nothing Nothing

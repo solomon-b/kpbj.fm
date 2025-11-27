@@ -233,6 +233,7 @@ library
     Domain.Types.PageView
     Domain.Types.Search
     Domain.Types.Slug
+    Domain.Types.UserSortBy
     Domain.Types.WeekOffset
     Effects.Database.Tables.BlogPosts
     Effects.Database.Tables.BlogTags
