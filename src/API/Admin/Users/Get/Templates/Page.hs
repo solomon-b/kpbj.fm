@@ -99,7 +99,7 @@ template users currentPage hasMore maybeQuery maybeRoleFilter = do
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Email"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Role"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Joined"
-              Lucid.th_ [Lucid.class_ "p-4 text-right"] "Actions"
+              Lucid.th_ [Lucid.class_ "p-4 text-center w-24"] ""
           Lucid.tbody_ $
             mapM_ renderUserRow users
 
@@ -128,7 +128,11 @@ renderUserRow user =
    in do
         Lucid.tr_
           [ Lucid.id_ rowId,
-            Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"
+            Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50 cursor-pointer",
+            Lucid.href_ [i|/#{userDetailUrl}|],
+            hxGet_ [i|/#{userDetailUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true"
           ]
           $ do
             Lucid.td_ [Lucid.class_ "p-4"] $
@@ -144,22 +148,14 @@ renderUserRow user =
             Lucid.td_ [Lucid.class_ "p-4"] $
               Lucid.toHtml (formatDate createdAt)
 
-            Lucid.td_ [Lucid.class_ "p-4 text-right"] $ do
-              Lucid.a_
-                [ Lucid.href_ [i|/#{userDetailUrl}|],
-                  hxGet_ [i|/#{userDetailUrl}|],
-                  hxTarget_ "#main-content",
-                  hxPushUrl_ "true",
-                  Lucid.class_ "text-blue-600 font-bold hover:underline mr-4"
-                ]
-                "View"
-
+            Lucid.td_ [Lucid.class_ "p-4 text-center"] $
               Lucid.button_
                 [ hxDelete_ [i|/#{userDeleteUrl}|],
                   hxTarget_ [i|\##{rowId}|],
                   hxSwap_ "outerHTML",
                   hxConfirm_ confirmMessage,
-                  Lucid.class_ "text-red-600 font-bold hover:underline"
+                  Lucid.class_ "text-red-600 font-bold hover:underline",
+                  xOnClick_ "event.stopPropagation()"
                 ]
                 "Delete"
 
