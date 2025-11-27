@@ -30,6 +30,7 @@ adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMet
 adminUserDetailGetLink :: User.Id -> Links.Link
 adminUserEditGetLink :: User.Id -> Links.Link
 adminUserEditPostLink :: User.Id -> Links.Link
+adminUserRolePatchLink :: User.Id -> Links.Link
 adminUserDeleteLink :: User.Id -> Links.Link
 
 rootGetLink :: Links.Link
