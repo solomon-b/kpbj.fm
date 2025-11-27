@@ -6,11 +6,95 @@
     <title>kpbj.fm</title>
     <link rel="stylesheet" href="/assets/css/output.css">
     <script src="//unpkg.com/alpinejs" defer></script>
+    <style>
+      /* Snowfall effect */
+      .snowfall {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 9999;
+        overflow: hidden;
+      }
+      .snowflake {
+        position: absolute;
+        top: -10px;
+        color: #fff;
+        font-size: 1em;
+        text-shadow: 0 0 3px rgba(255,255,255,0.8);
+        animation: fall linear infinite;
+        opacity: 0.8;
+      }
+      @keyframes fall {
+        0% { transform: translateY(-10px) rotate(0deg); }
+        100% { transform: translateY(100vh) rotate(360deg); }
+      }
+      .snowflake:nth-child(1) { left: 2%; animation-duration: 10s; animation-delay: 0s; font-size: 0.8em; opacity: 0.6; }
+      .snowflake:nth-child(2) { left: 5%; animation-duration: 12s; animation-delay: 1s; font-size: 1.2em; opacity: 0.9; }
+      .snowflake:nth-child(3) { left: 8%; animation-duration: 8s; animation-delay: 0.5s; font-size: 0.6em; opacity: 0.5; }
+      .snowflake:nth-child(4) { left: 12%; animation-duration: 14s; animation-delay: 2s; font-size: 1em; opacity: 0.7; }
+      .snowflake:nth-child(5) { left: 15%; animation-duration: 9s; animation-delay: 0s; font-size: 0.9em; opacity: 0.8; }
+      .snowflake:nth-child(6) { left: 18%; animation-duration: 11s; animation-delay: 3s; font-size: 1.1em; opacity: 0.6; }
+      .snowflake:nth-child(7) { left: 22%; animation-duration: 13s; animation-delay: 1.5s; font-size: 0.7em; opacity: 0.9; }
+      .snowflake:nth-child(8) { left: 25%; animation-duration: 7s; animation-delay: 0s; font-size: 1.3em; opacity: 0.5; }
+      .snowflake:nth-child(9) { left: 28%; animation-duration: 10s; animation-delay: 2.5s; font-size: 0.8em; opacity: 0.7; }
+      .snowflake:nth-child(10) { left: 32%; animation-duration: 15s; animation-delay: 1s; font-size: 1em; opacity: 0.8; }
+      .snowflake:nth-child(11) { left: 35%; animation-duration: 8s; animation-delay: 0s; font-size: 0.6em; opacity: 0.6; }
+      .snowflake:nth-child(12) { left: 38%; animation-duration: 12s; animation-delay: 3.5s; font-size: 1.2em; opacity: 0.9; }
+      .snowflake:nth-child(13) { left: 42%; animation-duration: 9s; animation-delay: 0.5s; font-size: 0.9em; opacity: 0.5; }
+      .snowflake:nth-child(14) { left: 45%; animation-duration: 11s; animation-delay: 2s; font-size: 1.1em; opacity: 0.7; }
+      .snowflake:nth-child(15) { left: 48%; animation-duration: 14s; animation-delay: 1s; font-size: 0.7em; opacity: 0.8; }
+      .snowflake:nth-child(16) { left: 52%; animation-duration: 10s; animation-delay: 0s; font-size: 1.3em; opacity: 0.6; }
+      .snowflake:nth-child(17) { left: 55%; animation-duration: 13s; animation-delay: 4s; font-size: 0.8em; opacity: 0.9; }
+      .snowflake:nth-child(18) { left: 58%; animation-duration: 7s; animation-delay: 1.5s; font-size: 1em; opacity: 0.5; }
+      .snowflake:nth-child(19) { left: 62%; animation-duration: 9s; animation-delay: 0s; font-size: 0.6em; opacity: 0.7; }
+      .snowflake:nth-child(20) { left: 65%; animation-duration: 12s; animation-delay: 2.5s; font-size: 1.2em; opacity: 0.8; }
+      .snowflake:nth-child(21) { left: 68%; animation-duration: 8s; animation-delay: 0.5s; font-size: 0.9em; opacity: 0.6; }
+      .snowflake:nth-child(22) { left: 72%; animation-duration: 15s; animation-delay: 3s; font-size: 1.1em; opacity: 0.9; }
+      .snowflake:nth-child(23) { left: 75%; animation-duration: 10s; animation-delay: 1s; font-size: 0.7em; opacity: 0.5; }
+      .snowflake:nth-child(24) { left: 78%; animation-duration: 11s; animation-delay: 0s; font-size: 1.3em; opacity: 0.7; }
+      .snowflake:nth-child(25) { left: 82%; animation-duration: 14s; animation-delay: 4.5s; font-size: 0.8em; opacity: 0.8; }
+      .snowflake:nth-child(26) { left: 85%; animation-duration: 9s; animation-delay: 2s; font-size: 1em; opacity: 0.6; }
+      .snowflake:nth-child(27) { left: 88%; animation-duration: 13s; animation-delay: 0.5s; font-size: 0.6em; opacity: 0.9; }
+      .snowflake:nth-child(28) { left: 92%; animation-duration: 7s; animation-delay: 1s; font-size: 1.2em; opacity: 0.5; }
+      .snowflake:nth-child(29) { left: 95%; animation-duration: 10s; animation-delay: 3.5s; font-size: 0.9em; opacity: 0.7; }
+      .snowflake:nth-child(30) { left: 98%; animation-duration: 12s; animation-delay: 0s; font-size: 1.1em; opacity: 0.8; }
+      .snowflake:nth-child(31) { left: 3%; animation-duration: 11s; animation-delay: 5s; font-size: 0.7em; opacity: 0.6; }
+      .snowflake:nth-child(32) { left: 10%; animation-duration: 9s; animation-delay: 2s; font-size: 1em; opacity: 0.7; }
+      .snowflake:nth-child(33) { left: 20%; animation-duration: 13s; animation-delay: 0s; font-size: 0.8em; opacity: 0.8; }
+      .snowflake:nth-child(34) { left: 30%; animation-duration: 8s; animation-delay: 4s; font-size: 1.1em; opacity: 0.5; }
+      .snowflake:nth-child(35) { left: 40%; animation-duration: 10s; animation-delay: 1.5s; font-size: 0.6em; opacity: 0.9; }
+      .snowflake:nth-child(36) { left: 50%; animation-duration: 14s; animation-delay: 0.5s; font-size: 1.3em; opacity: 0.6; }
+      .snowflake:nth-child(37) { left: 60%; animation-duration: 7s; animation-delay: 3s; font-size: 0.9em; opacity: 0.7; }
+      .snowflake:nth-child(38) { left: 70%; animation-duration: 12s; animation-delay: 2.5s; font-size: 1.2em; opacity: 0.8; }
+      .snowflake:nth-child(39) { left: 80%; animation-duration: 9s; animation-delay: 1s; font-size: 0.7em; opacity: 0.5; }
+      .snowflake:nth-child(40) { left: 90%; animation-duration: 11s; animation-delay: 4.5s; font-size: 1em; opacity: 0.9; }
+    </style>
     <script
       src="https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD">
     </script>
   </head>
   <body class="relative font-body flex flex-col min-h-screen" x-data="spaApp()">
+    <!-- Snowfall effect -->
+    <div class="snowfall" aria-hidden="true">
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div><div class="snowflake">❅</div><div class="snowflake">❆</div>
+      <div class="snowflake">❄</div>
+    </div>
+
     <header class="relative z-50">
       <div class="relative flex flex-col justify-center items-center p-3">
         <nav class="text-center">
