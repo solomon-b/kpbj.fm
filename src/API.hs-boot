@@ -22,11 +22,12 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Servant.Links qualified as Links
+import Domain.Types.UserSortBy (UserSortBy)
 
 --------------------------------------------------------------------------------
 
 -- Admin routes
-adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Links.Link
+adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
 adminUserDetailGetLink :: User.Id -> Links.Link
 adminUserEditGetLink :: User.Id -> Links.Link
 adminUserEditPostLink :: User.Id -> Links.Link

@@ -78,7 +78,7 @@ template user metadata userShows userEpisodes = do
       Lucid.div_ [Lucid.class_ "space-y-4"] $
         mapM_ renderEpisodeCard userEpisodes
   where
-    backUrl = Links.linkURI $ adminUsersGetLink Nothing Nothing Nothing
+    backUrl = Links.linkURI $ adminUsersGetLink Nothing Nothing Nothing Nothing
     editUrl = Links.linkURI $ adminUserEditGetLink user.mId
 
 renderField :: String -> String -> Lucid.Html ()

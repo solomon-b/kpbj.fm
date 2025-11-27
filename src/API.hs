@@ -73,6 +73,7 @@ import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.PageView (PageView)
 import Domain.Types.Search (Search)
 import Domain.Types.Slug (Slug)
+import Domain.Types.UserSortBy (UserSortBy)
 import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
@@ -313,7 +314,7 @@ userRegisterPostLink :: Links.Link
 userRegisterPostLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Post.Route)
 
 -- | Route: GET /admin/users
-adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Links.Link
+adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
 adminUsersGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Get.Route)
 
 -- | Route: GET /admin/users/:id
