@@ -226,11 +226,12 @@ getAllUsersWithPagination limit offset =
     LIMIT #{limit} OFFSET #{offset}
   |]
 
--- | Get users filtered by role with pagination
+-- | Get users filtered by role(s) with pagination
 --
 -- Only returns active (non-deleted) users.
-getUsersByRole :: UserRole -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
-getUsersByRole role limit offset =
+-- Pass an empty list for roles to include all roles.
+getUsersByRole :: [UserRole] -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
+getUsersByRole roles limit offset =
   interp
     True
     [sql|
@@ -240,17 +241,18 @@ getUsersByRole role limit offset =
       um.avatar_url, um.user_role
     FROM users u
     INNER JOIN user_metadata um ON u.id = um.user_id
-    WHERE um.user_role = #{role}
+    WHERE (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
       AND u.deleted_at IS NULL
     ORDER BY u.created_at DESC
     LIMIT #{limit} OFFSET #{offset}
   |]
 
--- | Search users by display name or email with pagination
+-- | Search users by display name or email with optional role filter and pagination
 --
 -- Only returns active (non-deleted) users.
-searchUsers :: Text -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
-searchUsers query limit offset =
+-- Pass an empty list for roles to include all roles.
+searchUsers :: Text -> [UserRole] -> Int64 -> Int64 -> Hasql.Statement () [UserWithMetadata]
+searchUsers query roles limit offset =
   interp
     True
     [sql|
@@ -263,6 +265,7 @@ searchUsers query limit offset =
     WHERE
       (um.display_name ILIKE ('%' || #{query} || '%') OR
        CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%'))
+      AND (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
       AND u.deleted_at IS NULL
     ORDER BY u.created_at DESC
     LIMIT #{limit} OFFSET #{offset}

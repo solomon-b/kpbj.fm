@@ -225,6 +225,7 @@ library
     Domain.Types.Cookie
     Domain.Types.FileStorage
     Domain.Types.FileUpload
+    Domain.Types.Filter
     Domain.Types.Genre
     Domain.Types.HxRequest
     Domain.Types.PageNumber
