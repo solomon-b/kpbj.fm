@@ -93,20 +93,16 @@ library
     API.About.Get.Templates
     API.Archive.Get
     API.Archive.Get.Templates.EpisodeCard
-    API.Archive.Get.Templates.Error
     API.Archive.Get.Templates.Page
     API.Archive.Get.Templates.SearchFilters
     API.Blog.Get
-    API.Blog.Get.Templates.Error
     API.Blog.Get.Templates.Page
     API.Blog.Get.Templates.Pagination
     API.Blog.Get.Templates.PostCard
     API.Blog.New.Get
-    API.Blog.New.Get.Templates.Error
     API.Blog.New.Get.Templates.Form
     API.Blog.New.Post
     API.Blog.Edit.Get
-    API.Blog.Edit.Get.Templates.Error
     API.Blog.Edit.Get.Templates.Form
     API.Blog.Edit.Post
     API.Blog.Delete
@@ -116,7 +112,6 @@ library
     API.Donate.Get.Templates
     API.Events.Get
     API.Events.Get.Templates.Controls
-    API.Events.Get.Templates.Error
     API.Events.Get.Templates.List
     API.Events.Get.Templates.MonthView
     API.Events.Get.Templates.Page
@@ -126,7 +121,6 @@ library
     API.Events.New.Get.Templates.Form
     API.Events.New.Post
     API.Events.Edit.Get
-    API.Events.Edit.Get.Templates.Error
     API.Events.Edit.Get.Templates.Form
     API.Events.Edit.Post
     API.Events.Delete
@@ -143,7 +137,6 @@ library
     API.PrivacyPolicy.Get
     API.PrivacyPolicy.Get.Templates
     API.Shows.Get
-    API.Shows.Get.Templates.Error
     API.Shows.Get.Templates.Page
     API.Shows.Get.Templates.Pagination
     API.Shows.Get.Templates.ScheduleView
@@ -162,7 +155,6 @@ library
     API.Shows.Slug.Episode.Edit.Get.Templates.Scripts
     API.Shows.Slug.Episode.Edit.Post
     API.Shows.Slug.Episode.New.Get
-    API.Shows.Slug.Episode.New.Get.Templates.Error
     API.Shows.Slug.Episode.New.Get.Templates.Form
     API.Shows.Slug.Episode.New.Post
     API.Shows.Slug.Get
@@ -193,13 +185,10 @@ library
     API.User.Register.Get.Templates.Form
     API.User.Register.Post
     API.Admin.Users.Get
-    API.Admin.Users.Get.Templates.Error
     API.Admin.Users.Get.Templates.Page
     API.Admin.Users.Detail.Get
-    API.Admin.Users.Detail.Get.Templates.Error
     API.Admin.Users.Detail.Get.Templates.Page
     API.Admin.Users.Edit.Get
-    API.Admin.Users.Edit.Get.Templates.Error
     API.Admin.Users.Edit.Get.Templates.Page
     API.Admin.Users.Edit.Post
     API.Admin.Users.Role.Patch

@@ -1,12 +1,15 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Shows.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Get.Templates.Error (errorTemplate)
+import {-# SOURCE #-} API (rootGetLink)
 import API.Shows.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -17,6 +20,7 @@ import Data.Coerce (coerce)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
+import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Genre (Genre)
@@ -35,7 +39,13 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
 
 --------------------------------------------------------------------------------
 
@@ -81,7 +91,8 @@ handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce
     getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus >>= \case
       Left err -> do
         Log.logInfo "Failed to fetch shows from database" (Aeson.object ["error" .= show err])
-        renderTemplate htmxRequest mUserInfo (errorTemplate "Failed to load shows. Please try again.")
+        let banner = BannerParams Error "Error" "Failed to load shows. Please try again."
+        renderTemplate htmxRequest mUserInfo (redirectWithBanner [i|/#{rootGetUrl}|] banner)
       Right allShows -> do
         let someShows = take (fromIntegral limit) allShows
             hasMore = length allShows > fromIntegral limit

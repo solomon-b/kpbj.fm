@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Shows.Slug.Episode.New.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Episode.New.Get.Templates.Error (notLoggedInTemplate, showLoadErrorTemplate)
+import {-# SOURCE #-} API (hostDashboardGetLink, userLoginGetLink)
 import API.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad (guard, unless)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -16,6 +19,7 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
+import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -34,7 +38,16 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+
+hostDashboardGetUrl :: Links.URI
+hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 --------------------------------------------------------------------------------
 
@@ -71,7 +84,8 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to episode upload" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
+      let banner = BannerParams Error "Authentication Required" "You must be logged in to upload episodes."
+      renderTemplate hxRequest Nothing (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
     Just (user, userMetadata) -> do
       -- Fetch show, verify host permissions, and get upcoming unscheduled dates in a transaction
       mResult <- execTransactionSpan $ runMaybeT $ do
@@ -86,10 +100,12 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
       case mResult of
         Left err -> do
           Log.logAttention "Failed to load episode upload form" (show err)
-          renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
+          let banner = BannerParams Error "Error" "Failed to load your shows."
+          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
         Right Nothing -> do
           Log.logInfo "Show not found or user not authorized" (showSlug, User.mId user)
-          renderTemplate hxRequest (Just userMetadata) showLoadErrorTemplate
+          let banner = BannerParams Error "Error" "Show not found or you don't have permission to upload episodes."
+          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
         Right (Just (showModel, upcomingDates)) -> do
           Log.logInfo "Authorized user accessing episode upload form" showModel.id
           renderTemplate hxRequest (Just userMetadata) $ episodeUploadForm showModel upcomingDates

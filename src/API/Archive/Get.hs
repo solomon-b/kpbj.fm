@@ -1,12 +1,15 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Archive.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Archive.Get.Templates.Error (errorTemplate)
+import {-# SOURCE #-} API (rootGetLink)
 import API.Archive.Get.Templates.Page (episodeCardsOnly, template)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -15,6 +18,7 @@ import Data.Functor ((<&>))
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (UTCTime (..), fromGregorian, secondsToDiffTime)
 import Domain.Types.Cookie (Cookie (..))
@@ -31,7 +35,13 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
 
 --------------------------------------------------------------------------------
 
@@ -81,10 +91,12 @@ handler _tracer (normalize -> normalizedSearch) (normalize -> normalizedGenre) m
   case (episodesResult, totalCountResult) of
     (Left err, _) -> do
       Log.logInfo "Failed to fetch episodes from database" (show err)
-      renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episodes. Please try again.")
+      let banner = BannerParams Error "Error" "Failed to load episodes. Please try again."
+      renderTemplate hxRequest mUserInfo (redirectWithBanner [i|/#{rootGetUrl}|] banner)
     (_, Left _err) -> do
       Log.logInfo "Failed to count episodes from database" ()
-      renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episodes. Please try again.")
+      let banner = BannerParams Error "Error" "Failed to load episodes. Please try again."
+      renderTemplate hxRequest mUserInfo (redirectWithBanner [i|/#{rootGetUrl}|] banner)
     (Right episodes, Right totalCount) -> do
       let hasMore = (fromIntegral offset + fromIntegral limit) < totalCount
       if page > 1

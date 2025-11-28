@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Admin.Users.Get (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Admin.Users.Get.Templates.Error (errorTemplate, notAuthorizedTemplate, notLoggedInTemplate)
+import {-# SOURCE #-} API (rootGetLink, userLoginGetLink)
 import API.Admin.Users.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -15,6 +18,7 @@ import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, maybeToList)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
@@ -33,7 +37,16 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -80,15 +93,20 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
       sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
 
   getUserInfo cookie >>= \case
-    Nothing -> renderTemplate hxRequest Nothing notLoggedInTemplate
+    Nothing -> do
+      let banner = BannerParams Error "Login Required" "You must be logged in to access this page."
+      renderTemplate hxRequest Nothing (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
     Just (_user, userMetadata) ->
       if not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata
-        then renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+        then do
+          let banner = BannerParams Error "Admin Access Required" "You do not have permission to access this page."
+          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
         else do
           getUsersResults limit offset queryFilter roleFilter sortBy >>= \case
             Left _err -> do
               Log.logInfo "Failed to fetch users from database" ()
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to load users. Please try again.")
+              let banner = BannerParams Error "Error" "Failed to load users. Please try again."
+              renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
             Right allUsers -> do
               let users = take (fromIntegral limit) allUsers
                   hasMore = length allUsers > fromIntegral limit
