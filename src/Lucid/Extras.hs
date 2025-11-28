@@ -77,6 +77,12 @@ xShow_ = Lucid.makeAttributes "x-show"
 xText_ :: Text -> Lucid.Attributes
 xText_ = Lucid.makeAttributes "x-text"
 
+xOnClickOutside_ :: Text -> Lucid.Attributes
+xOnClickOutside_ = Lucid.makeAttributes "x-on:click.outside"
+
+xTransition_ :: Lucid.Attributes
+xTransition_ = Lucid.makeAttributesRaw "x-transition" ""
+
 dataDropdownToggle_ :: Text -> Lucid.Attributes
 dataDropdownToggle_ = Lucid.makeAttributes "data-dropdown-toggle"
 

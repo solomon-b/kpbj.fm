@@ -11,7 +11,7 @@ import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
-import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Data.Time (UTCTime, defaultTimeLocale, formatTime, toGregorian, utctDay)
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -20,6 +20,7 @@ import Lucid.Extras
 import Servant.Links qualified as Links
 
 template ::
+  UTCTime ->
   [UserMetadata.UserWithMetadata] ->
   Int64 ->
   Bool ->
@@ -27,7 +28,7 @@ template ::
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
   Lucid.Html ()
-template users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
+template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   -- Page header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
     Lucid.h1_ [Lucid.class_ "text-3xl font-bold"] "USER MANAGEMENT"
@@ -113,18 +114,18 @@ template users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Email"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Role"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Status"
-              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Joined"
+              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Member Since"
               Lucid.th_ [Lucid.class_ "p-4 text-center w-24"] ""
           Lucid.tbody_ $
-            mapM_ renderUserRow users
+            mapM_ (renderUserRow now) users
 
       renderPagination currentPage hasMore maybeQuery maybeRoleFilter sortBy
   where
     selectedIf condition = if condition then Lucid.selected_ "selected" else mempty
     when cond action = if cond then action else mempty
 
-renderUserRow :: UserMetadata.UserWithMetadata -> Lucid.Html ()
-renderUserRow user =
+renderUserRow :: UTCTime -> UserMetadata.UserWithMetadata -> Lucid.Html ()
+renderUserRow now user =
   let userId = user.uwmUserId
       displayName = user.uwmDisplayName
       email = user.uwmEmail
@@ -177,47 +178,39 @@ renderUserRow user =
             Lucid.td_ cellLinkAttrs $
               renderStatusBadge suspendedAt
 
-            Lucid.td_ cellLinkAttrs $
-              Lucid.toHtml (formatDate createdAt)
+            Lucid.td_ cellLinkAttrs $ do
+              Lucid.div_ [Lucid.class_ "text-sm"] $ Lucid.toHtml (formatMonthYear createdAt)
+              Lucid.div_ [Lucid.class_ "text-xs text-gray-600"] $ Lucid.toHtml (formatRelativeTime now createdAt)
 
             Lucid.td_ [Lucid.class_ "p-4 text-center"] $
-              Lucid.div_ [Lucid.class_ "flex gap-3 justify-center"] $ do
-                if isSuspended
-                  then
-                    Lucid.button_
-                      [ hxPost_ [i|/#{userUnsuspendUrl}|],
-                        hxTarget_ [i|\##{rowId}|],
-                        hxSwap_ "outerHTML",
-                        hxConfirm_ unsuspendConfirmMessage,
-                        Lucid.class_ "text-green-600 font-bold hover:underline",
-                        xOnClick_ "event.stopPropagation()"
-                      ]
-                      "Unsuspend"
-                  else Lucid.form_
-                    [ hxPost_ [i|/#{userSuspendUrl}|],
-                      hxTarget_ [i|\##{rowId}|],
-                      hxSwap_ "outerHTML",
-                      hxConfirm_ suspendConfirmMessage,
-                      xOnClick_ "event.stopPropagation()",
-                      Lucid.class_ "inline"
-                    ]
-                    $ do
-                      Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "reason", Lucid.value_ "Suspended by admin"]
-                      Lucid.button_
-                        [ Lucid.type_ "submit",
-                          Lucid.class_ "text-yellow-600 font-bold hover:underline",
-                          xOnClick_ "event.stopPropagation()"
-                        ]
-                        "Suspend"
-                Lucid.button_
-                  [ hxDelete_ [i|/#{userDeleteUrl}|],
-                    hxTarget_ [i|\##{rowId}|],
-                    hxSwap_ "outerHTML",
-                    hxConfirm_ deleteConfirmMessage,
-                    Lucid.class_ "text-red-600 font-bold hover:underline",
-                    xOnClick_ "event.stopPropagation()"
-                  ]
-                  "Delete"
+              Lucid.select_
+                [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
+                  xData_ "{}",
+                  xOnChange_ [i|
+                    const action = $el.value;
+                    $el.value = '';
+                    if (action === 'suspend') {
+                      if (confirm('#{suspendConfirmMessage}')) {
+                        htmx.ajax('POST', '/#{userSuspendUrl}', {target: '\##{rowId}', swap: 'outerHTML', values: {reason: 'Suspended by admin'}});
+                      }
+                    } else if (action === 'unsuspend') {
+                      if (confirm('#{unsuspendConfirmMessage}')) {
+                        htmx.ajax('POST', '/#{userUnsuspendUrl}', {target: '\##{rowId}', swap: 'outerHTML'});
+                      }
+                    } else if (action === 'delete') {
+                      if (confirm('#{deleteConfirmMessage}')) {
+                        htmx.ajax('DELETE', '/#{userDeleteUrl}', {target: '\##{rowId}', swap: 'outerHTML'});
+                      }
+                    }
+                  |],
+                  xOnClick_ "event.stopPropagation()"
+                ]
+                $ do
+                  Lucid.option_ [Lucid.value_ ""] "Actions..."
+                  if isSuspended
+                    then Lucid.option_ [Lucid.value_ "unsuspend"] "Unsuspend"
+                    else Lucid.option_ [Lucid.value_ "suspend"] "Suspend"
+                  Lucid.option_ [Lucid.value_ "delete"] "Delete"
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
 renderRoleBadge role = do
@@ -290,5 +283,21 @@ renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filte
     prevPageUrl = Links.linkURI $ adminUsersGetLink (Just (currentPage - 1)) maybeQuery maybeRoleFilter maybeSortFilter
     nextPageUrl = Links.linkURI $ adminUsersGetLink (Just (currentPage + 1)) maybeQuery maybeRoleFilter maybeSortFilter
 
-formatDate :: UTCTime -> String
-formatDate = formatTime defaultTimeLocale "%Y-%m-%d"
+formatMonthYear :: UTCTime -> String
+formatMonthYear = formatTime defaultTimeLocale "%B %Y"
+
+formatRelativeTime :: UTCTime -> UTCTime -> String
+formatRelativeTime now time =
+  let (year, month, _) = toGregorian (utctDay time)
+      (currentYear, currentMonth, _) = toGregorian (utctDay now)
+      totalMonths = (currentYear - year) * 12 + fromIntegral (currentMonth - month)
+      years = totalMonths `div` 12
+      months = totalMonths `mod` 12
+   in case (years, months) of
+        (0, 0) -> "This month"
+        (0, 1) -> "1 month"
+        (0, m) -> show m <> " months"
+        (1, 0) -> "1 year"
+        (y, 0) -> show y <> " years"
+        (1, m) -> "1 year, " <> show m <> " months"
+        (y, m) -> show y <> " years, " <> show m <> " months"

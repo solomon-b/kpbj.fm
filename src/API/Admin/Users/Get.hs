@@ -12,12 +12,13 @@ import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, maybeToList)
+import Data.Time (getCurrentTime)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
@@ -108,9 +109,10 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
               let banner = BannerParams Error "Error" "Failed to load users. Please try again."
               renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
             Right allUsers -> do
+              now <- liftIO getCurrentTime
               let users = take (fromIntegral limit) allUsers
                   hasMore = length allUsers > fromIntegral limit
-                  usersTemplate = template users page hasMore queryFilter roleFilter sortBy
+                  usersTemplate = template now users page hasMore queryFilter roleFilter sortBy
               renderTemplate hxRequest (Just userMetadata) usersTemplate
 
 getUsersResults ::
