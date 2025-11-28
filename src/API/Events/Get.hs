@@ -1,15 +1,18 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Events.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Events.Get.Templates.Error (errorTemplate)
+import {-# SOURCE #-} API (rootGetLink)
 import API.Events.Get.Templates.List (renderListContent)
 import API.Events.Get.Templates.MonthView (CalendarDay (..), renderMonthContent)
 import API.Events.Get.Templates.Page (header)
 import API.Events.Get.Templates.WeekView (WeekDay (..), renderWeekContent)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -19,6 +22,7 @@ import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (MonthOfYear, UTCTime (..), Year, addDays, fromGregorian, toGregorian, utctDay)
 import Data.Time.Calendar (gregorianMonthLength)
@@ -39,7 +43,13 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
 
 --------------------------------------------------------------------------------
 
@@ -230,7 +240,8 @@ renderListTemplate ::
 renderListTemplate currentTime currentMonth maybeTagFilter eventTagsWithCounts = \case
   Left err -> do
     Log.logAttention "Failed to fetch events from database" (Aeson.object ["error" .= show err])
-    pure (errorTemplate "Failed to load events. Please try again.")
+    let banner = BannerParams Error "Error" "Failed to load events. Please try again."
+    pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
   Right events -> pure $ do
     header currentTime ListView maybeTagFilter currentMonth eventTagsWithCounts
     Lucid.section_ [Lucid.id_ "events-content-container", Lucid.class_ "w-full"] $ do
@@ -251,7 +262,8 @@ renderMonthTemplate ::
 renderMonthTemplate currentTime year month maybeTagFilter eventTagsWithCounts = \case
   Left err -> do
     Log.logAttention "Failed to fetch events from database" (Aeson.object ["error" .= show err])
-    pure (errorTemplate "Failed to load events. Please try again.")
+    let banner = BannerParams Error "Error" "Failed to load events. Please try again."
+    pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
   Right events -> pure $ do
     let calendarGrid = generateCalendarGrid year month events
     header currentTime (MonthView year month) maybeTagFilter (year, month) eventTagsWithCounts
@@ -273,7 +285,8 @@ renderWeekTemplate ::
 renderWeekTemplate currentTime year weekNum maybeTagFilter eventTagsWithCounts = \case
   Left err -> do
     Log.logAttention "Failed to fetch events from database" (Aeson.object ["error" .= show err])
-    pure (errorTemplate "Failed to load events. Please try again.")
+    let banner = BannerParams Error "Error" "Failed to load events. Please try again."
+    pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
   Right events -> do
     let currentWeek = (year, fromIntegral weekNum)
         weekGrid = generateWeekGrid year weekNum events
