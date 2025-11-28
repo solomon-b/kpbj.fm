@@ -121,6 +121,7 @@ instance FromMultipart Mem EpisodeUploadForm where
 
 --------------------------------------------------------------------------------
 
+-- TODO: This handler is a shitshow:
 handler ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -164,20 +165,17 @@ handler _tracer showSlug cookie form = do
             Left _err -> do
               Log.logInfo "Failed to check host permissions" showSlug
               loadFrame $ errorTemplate "Failed to verify permissions."
-            Right False -> do
-              Log.logInfo "User is not host of show" (user.mId, showSlug)
-              loadFrame $ errorTemplate "You are not authorized to upload episodes for this show."
-            Right True -> do
-              -- Process upload
-              result <- processEpisodeUpload userMetadata user form
-
-              case result of
+            Right True | not (UserMetadata.isSuspended userMetadata) -> do
+              processEpisodeUpload userMetadata user form >>= \case
                 Left err -> do
                   Log.logInfo "Episode upload failed" err
                   loadFrame $ errorTemplate err
                 Right episodeId -> do
                   Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
                   loadFrame $ successTemplate episodeId
+            Right _ -> do
+              Log.logInfo "User is not host of show" (user.mId, showSlug)
+              loadFrame $ errorTemplate "You are not authorized to upload episodes for this show."
 
 -- | Process episode upload form
 processEpisodeUpload ::
