@@ -20,6 +20,7 @@ import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -66,7 +67,7 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) = do
     Nothing ->
       renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (_user, userMetadata)
-      | not (UserMetadata.isAdmin userMetadata.mUserRole) ->
+      | not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata ->
           renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
     Just (_user, userMetadata) -> do
       -- Fetch target user and their metadata

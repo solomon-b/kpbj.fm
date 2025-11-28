@@ -212,6 +212,8 @@ library
     API.Admin.Users.Edit.Post.Templates.Error
     API.Admin.Users.Edit.Post.Templates.Success
     API.Admin.Users.Role.Patch
+    API.Admin.Users.Suspend.Post
+    API.Admin.Users.Unsuspend.Post
     API.Admin.Users.Delete
     API.Admin.Users.Delete.Templates.Success
     App.Common

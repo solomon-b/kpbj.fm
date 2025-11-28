@@ -44,6 +44,7 @@ checkAdminAuthorization = \case
 
 --------------------------------------------------------------------------------
 
+-- | Get user info
 getUserInfo ::
   ( MonadDB m,
     Log.MonadLog m,
@@ -66,7 +67,10 @@ getUserInfo (coerce -> cookie) =
           Log.logAttention "Failed to query user_metadata" (Aeson.object ["user.id" .= user.mId])
           pure Nothing
 
--- | Render template with proper HTMX handling
+-- | Render template with proper HTMX handling and suspension status
+--
+-- Shows a warning banner at the top of every page for suspended users.
+-- Pass NotSuspended for unauthenticated users or when suspension status is unknown.
 renderTemplate :: (Log.MonadLog m, MonadCatch m) => HxRequest -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
 renderTemplate hxRequest mUserInfo templateContent =
   case (mUserInfo, hxRequest) of

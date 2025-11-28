@@ -5,7 +5,7 @@ module API.Admin.Users.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (adminUserDeleteLink, adminUserDetailGetLink, adminUsersGetLink)
+import {-# SOURCE #-} API (adminUserDeleteLink, adminUserDetailGetLink, adminUserSuspendPostLink, adminUserUnsuspendPostLink, adminUsersGetLink)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.String.Interpolate (i)
@@ -85,6 +85,7 @@ template users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
               Lucid.option_ [Lucid.value_ "oldest", selectedIf (sortBy == JoinDateOldest)] "Join Date (Oldest)"
               Lucid.option_ [Lucid.value_ "name", selectedIf (sortBy == NameAZ)] "Name A-Z"
               Lucid.option_ [Lucid.value_ "shows", selectedIf (sortBy == ShowCount)] "Show Count"
+              Lucid.option_ [Lucid.value_ "status", selectedIf (sortBy == StatusSuspended)] "Status (Suspended First)"
 
         -- Submit button
         Lucid.div_ [Lucid.class_ "flex gap-4"] $ do
@@ -114,6 +115,7 @@ template users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Display Name"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Email"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Role"
+              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Status"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Joined"
               Lucid.th_ [Lucid.class_ "p-4 text-center w-24"] ""
           Lucid.tbody_ $
@@ -131,16 +133,28 @@ renderUserRow user =
       email = user.uwmEmail
       userRole = user.uwmUserRole
       createdAt = user.uwmUserCreatedAt
+      suspendedAt = user.uwmSuspendedAt
       userDetailUrl = Links.linkURI $ adminUserDetailGetLink userId
       userDeleteUrl = Links.linkURI $ adminUserDeleteLink userId
+      userSuspendUrl = Links.linkURI $ adminUserSuspendPostLink userId
+      userUnsuspendUrl = Links.linkURI $ adminUserUnsuspendPostLink userId
       userIdText = display userId
       rowId = [i|user-row-#{userIdText}|]
-      confirmMessage =
+      deleteConfirmMessage =
         "Are you sure you want to delete user \""
           <> display displayName
           <> "\" ("
           <> display email
           <> ")? This action cannot be undone."
+      suspendConfirmMessage =
+        "Are you sure you want to suspend user \""
+          <> display displayName
+          <> "\"? They will see a warning banner and cannot perform host actions."
+      unsuspendConfirmMessage =
+        "Are you sure you want to unsuspend user \""
+          <> display displayName
+          <> "\"? They will regain full access to their account."
+      isSuspended = isJust suspendedAt
    in do
         Lucid.tr_
           [ Lucid.id_ rowId,
@@ -162,18 +176,48 @@ renderUserRow user =
               renderRoleBadge userRole
 
             Lucid.td_ [Lucid.class_ "p-4"] $
+              renderStatusBadge suspendedAt
+
+            Lucid.td_ [Lucid.class_ "p-4"] $
               Lucid.toHtml (formatDate createdAt)
 
             Lucid.td_ [Lucid.class_ "p-4 text-center"] $
-              Lucid.button_
-                [ hxDelete_ [i|/#{userDeleteUrl}|],
-                  hxTarget_ [i|\##{rowId}|],
-                  hxSwap_ "outerHTML",
-                  hxConfirm_ confirmMessage,
-                  Lucid.class_ "text-red-600 font-bold hover:underline",
-                  xOnClick_ "event.stopPropagation()"
-                ]
-                "Delete"
+              Lucid.div_ [Lucid.class_ "flex gap-3 justify-center"] $ do
+                if isSuspended
+                  then
+                    Lucid.button_
+                      [ hxPost_ [i|/#{userUnsuspendUrl}|],
+                        hxTarget_ [i|\##{rowId}|],
+                        hxSwap_ "outerHTML",
+                        hxConfirm_ unsuspendConfirmMessage,
+                        Lucid.class_ "text-green-600 font-bold hover:underline",
+                        xOnClick_ "event.stopPropagation()"
+                      ]
+                      "Unsuspend"
+                  else Lucid.form_
+                    [ hxPost_ [i|/#{userSuspendUrl}|],
+                      hxTarget_ [i|\##{rowId}|],
+                      hxSwap_ "outerHTML",
+                      hxConfirm_ suspendConfirmMessage,
+                      xOnClick_ "event.stopPropagation()",
+                      Lucid.class_ "inline"
+                    ]
+                    $ do
+                      Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "reason", Lucid.value_ "Suspended by admin"]
+                      Lucid.button_
+                        [ Lucid.type_ "submit",
+                          Lucid.class_ "text-yellow-600 font-bold hover:underline"
+                        ]
+                        "Suspend"
+                Lucid.button_
+                  [ hxDelete_ [i|/#{userDeleteUrl}|],
+                    hxTarget_ [i|\##{rowId}|],
+                    hxSwap_ "outerHTML",
+                    hxConfirm_ deleteConfirmMessage,
+                    Lucid.class_ "text-red-600 font-bold hover:underline",
+                    xOnClick_ "event.stopPropagation()"
+                  ]
+                  "Delete"
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
 renderRoleBadge role = do
@@ -186,6 +230,17 @@ renderRoleBadge role = do
   Lucid.span_
     [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{bgClass} #{textClass}|]]
     $ Lucid.toHtml roleText
+
+renderStatusBadge :: Maybe UTCTime -> Lucid.Html ()
+renderStatusBadge = \case
+  Nothing ->
+    Lucid.span_
+      [Lucid.class_ "inline-block px-3 py-1 text-sm font-bold rounded bg-green-100 text-green-800"]
+      "Active"
+  Just _ ->
+    Lucid.span_
+      [Lucid.class_ "inline-block px-3 py-1 text-sm font-bold rounded bg-yellow-100 text-yellow-800"]
+      "Suspended"
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do

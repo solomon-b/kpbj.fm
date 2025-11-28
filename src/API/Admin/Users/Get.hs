@@ -24,6 +24,7 @@ import Domain.Types.Offset (Offset)
 import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -81,7 +82,7 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
   getUserInfo cookie >>= \case
     Nothing -> renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (_user, userMetadata) ->
-      if not (UserMetadata.isAdmin userMetadata.mUserRole)
+      if not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata
         then renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
         else do
           getUsersResults limit offset queryFilter roleFilter sortBy >>= \case

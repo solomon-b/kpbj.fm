@@ -9,8 +9,7 @@ import API.Events.Get.Templates.List (renderListContent)
 import API.Events.Get.Templates.MonthView (CalendarDay (..), renderMonthContent)
 import API.Events.Get.Templates.Page (header)
 import API.Events.Get.Templates.WeekView (WeekDay (..), renderWeekContent)
-import App.Common (getUserInfo)
-import Component.Frame (loadFrame, loadFrameWithUser)
+import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -26,6 +25,7 @@ import Data.Time.Calendar (gregorianMonthLength)
 import Data.Time.Calendar.WeekDate (fromWeekDate, toWeekDate)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..))
+import Domain.Types.HxRequest qualified as HxRequest
 import Domain.Types.PageView (PageView (..))
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB)
@@ -170,15 +170,9 @@ handler _tracer (normalizeTagFilter -> tagFilter) (fromMaybe ListView -> view) c
           events <- execQuerySpan (Events.getPublishedEvents tagFilter limit offset)
           renderListTemplate now (utcTimeToYearMonth now) tagFilter eventTagsWithCounts events
 
-    case hxRequest of
-      Just IsHxRequest ->
-        pure template
-      _ ->
-        case mUserInfo of
-          Just (_user, userMetadata) ->
-            loadFrameWithUser userMetadata template
-          Nothing ->
-            loadFrame template
+    let hxReq = HxRequest.foldHxReq hxRequest
+        mUserMetadata = fmap snd mUserInfo
+    renderTemplate hxReq mUserMetadata template
 
 utcTimeToYearMonth :: UTCTime -> (Year, MonthOfYear)
 utcTimeToYearMonth = (\(y, m, _) -> (y, m)) . toGregorian . utctDay

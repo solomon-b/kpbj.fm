@@ -33,6 +33,8 @@ adminUserEditGetLink :: User.Id -> Links.Link
 adminUserEditPostLink :: User.Id -> Links.Link
 adminUserRolePatchLink :: User.Id -> Links.Link
 adminUserDeleteLink :: User.Id -> Links.Link
+adminUserSuspendPostLink :: User.Id -> Links.Link
+adminUserUnsuspendPostLink :: User.Id -> Links.Link
 
 rootGetLink :: Links.Link
 staticGetLink :: Links.Link

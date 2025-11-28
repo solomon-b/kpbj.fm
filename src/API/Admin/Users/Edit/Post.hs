@@ -26,6 +26,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Effects.Observability qualified as Observability
@@ -78,7 +79,7 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
   getUserInfo cookie >>= \case
     Nothing -> renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (_user, userMetadata) ->
-      if not (UserMetadata.isAdmin userMetadata.mUserRole)
+      if not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata
         then renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
         else do
           -- Parse form fields

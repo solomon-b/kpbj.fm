@@ -9,6 +9,8 @@ import API.Admin.Users.Edit.Get qualified as Admin.Users.Edit.Get
 import API.Admin.Users.Edit.Post qualified as Admin.Users.Edit.Post
 import API.Admin.Users.Get qualified as Admin.Users.Get
 import API.Admin.Users.Role.Patch qualified as Admin.Users.Role.Patch
+import API.Admin.Users.Suspend.Post qualified as Admin.Users.Suspend.Post
+import API.Admin.Users.Unsuspend.Post qualified as Admin.Users.Unsuspend.Post
 import API.Archive.Get qualified as Archive.Get
 import API.Blog.Delete qualified as Blog.Delete
 import API.Blog.Edit.Get qualified as Blog.Edit.Get
@@ -149,6 +151,8 @@ type API =
     :<|> Admin.Users.Edit.Get.Route
     :<|> Admin.Users.Edit.Post.Route
     :<|> Admin.Users.Role.Patch.Route
+    :<|> Admin.Users.Suspend.Post.Route
+    :<|> Admin.Users.Unsuspend.Post.Route
     :<|> Admin.Users.Delete.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
@@ -223,6 +227,8 @@ server env =
     :<|> Admin.Users.Edit.Get.handler
     :<|> Admin.Users.Edit.Post.handler
     :<|> Admin.Users.Role.Patch.handler
+    :<|> Admin.Users.Suspend.Post.handler
+    :<|> Admin.Users.Unsuspend.Post.handler
     :<|> Admin.Users.Delete.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
@@ -336,6 +342,14 @@ adminUserRolePatchLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Role.Pa
 -- | Route: DELETE /admin/users/:id
 adminUserDeleteLink :: User.Id -> Links.Link
 adminUserDeleteLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Delete.Route)
+
+-- | Route: POST /admin/users/:id/suspend
+adminUserSuspendPostLink :: User.Id -> Links.Link
+adminUserSuspendPostLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Suspend.Post.Route)
+
+-- | Route: POST /admin/users/:id/unsuspend
+adminUserUnsuspendPostLink :: User.Id -> Links.Link
+adminUserUnsuspendPostLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Unsuspend.Post.Route)
 
 -- | Route: GET /privacy-policy
 privacyPolicyGetLink :: Links.Link

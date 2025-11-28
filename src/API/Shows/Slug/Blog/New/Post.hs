@@ -235,6 +235,9 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
   getUserInfo cookie >>= \case
     Nothing ->
       renderTemplate hxRequest Nothing loginRequiredTemplate
+    Just (_user, userMetadata)
+      | UserMetadata.isSuspended userMetadata ->
+          renderTemplate hxRequest (Just userMetadata) (errorTemplate showSlug "You have been suspended.")
     Just (user, userMetadata) -> do
       -- Fetch show and verify host permissions in a transaction
       mResult <- execTransactionSpan $ runMaybeT $ do

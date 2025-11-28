@@ -9,6 +9,7 @@ import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
+import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
@@ -276,6 +277,17 @@ navigation =
     Lucid.a_ [Lucid.id_ "nav-about", Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "About"
     Lucid.a_ [Lucid.id_ "nav-contact", Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ "font-bold uppercase hover:underline"] "Contact"
 
+-- | Suspension warning banner displayed at the top of every page for suspended users
+suspensionBanner :: SuspensionStatus -> Lucid.Html ()
+suspensionBanner NotSuspended = mempty
+suspensionBanner Suspended =
+  Lucid.div_ [Lucid.class_ "bg-red-600 text-white px-4 py-3 text-center"] $ do
+    Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto"] $ do
+      Lucid.p_ [Lucid.class_ "font-bold text-lg"] "Account Suspended"
+      Lucid.p_ [Lucid.class_ "text-sm mt-1"] "Your account was suspended."
+      Lucid.p_ [Lucid.class_ "text-sm mt-2"] $
+        Lucid.toHtml @Text "If you believe this is an error, please contact us at contact@kpbj.fm"
+
 template :: Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
 template mUser main =
   Lucid.doctypehtml_ $ do
@@ -289,6 +301,8 @@ template mUser main =
       Lucid.script_ [] ("tailwind.config = { theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] playerScript
     Lucid.body_ [Lucid.class_ "font-mono text-gray-800 min-h-screen flex flex-col"] $ do
+      -- Suspension warning banner (if suspended)
+      suspensionBanner $ maybe UserMetadata.NotSuspended UserMetadata.mSuspensionStatus mUser
       -- Persistent header with navigation
       Lucid.header_ [Lucid.class_ "bg-white p-4"] $ do
         Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto flex flex-col items-center gap-4"] $ do
