@@ -50,6 +50,7 @@ template showModel episode tracks userMeta isStaff = do
       { Builder.fbAction = [i|/shows/#{display showSlug}/episodes/#{display episodeSlug}/edit|],
         Builder.fbMethod = "post",
         Builder.fbHeader = Just (formHeader showModel episode userMeta episodeBackUrl),
+        Builder.fbHtmx = Nothing,
         Builder.fbFields =
           [ -- Basic Information Section with validated fields
             Builder.SectionField

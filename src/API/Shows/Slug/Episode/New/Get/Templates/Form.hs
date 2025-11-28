@@ -38,7 +38,8 @@ episodeUploadForm showModel upcomingDates = do
         fbHeader = Just (renderFormHeader showModel),
         fbFields = episodeFormFields showModel upcomingDates,
         fbAdditionalContent = [renderSubmitActions, renderTrackManagementScript],
-        fbStyles = defaultFormStyles
+        fbStyles = defaultFormStyles,
+        fbHtmx = Nothing
       }
 
 --------------------------------------------------------------------------------

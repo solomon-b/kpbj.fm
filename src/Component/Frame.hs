@@ -312,8 +312,10 @@ template mUser main =
           navigation
           authWidget mUser
 
-      Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center", Lucid.id_ "main-content"] $ do
+      Lucid.div_ [Lucid.class_ "px-4 max-w-6xl mx-auto w-full"] $
         Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ "w-full"] mempty
+      Lucid.main_
+        [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center", Lucid.id_ "main-content"]
         main
       Lucid.footer_ [Lucid.class_ "px-4 py-8 mt-auto text-center"] $ do
         Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
