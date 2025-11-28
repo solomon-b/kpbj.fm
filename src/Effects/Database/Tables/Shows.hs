@@ -22,7 +22,7 @@ import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneRow (..), interp, sql)
+import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeRow, EncodeValue (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.UTCTime ()
 import Servant qualified
@@ -300,3 +300,98 @@ getHostsForShow showId =
     WHERE sh.show_id = #{showId} AND sh.left_at IS NULL
     ORDER BY sh.is_primary DESC, sh.joined_at ASC
   |]
+
+--------------------------------------------------------------------------------
+-- Admin Queries
+
+-- | Show with aggregated host information for admin listing.
+--
+-- This is a flat structure (not nested) to allow automatic DecodeRow deriving.
+data ShowWithHostInfo = ShowWithHostInfo
+  { swhiId :: Id,
+    swhiTitle :: Text,
+    swhiSlug :: Slug,
+    swhiDescription :: Text,
+    swhiGenre :: Maybe Text,
+    swhiLogoUrl :: Maybe Text,
+    swhiBannerUrl :: Maybe Text,
+    swhiStatus :: Status,
+    swhiDurationMinutes :: Maybe Int64,
+    swhiCreatedAt :: UTCTime,
+    swhiUpdatedAt :: UTCTime,
+    swhiHostCount :: Int64,
+    swhiHostNames :: Maybe Text
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (DecodeRow)
+  deriving (Display) via (RecordInstance ShowWithHostInfo)
+
+-- | Get all shows with host count and host names for admin listing.
+--
+-- Returns shows with aggregated host information, ordered by creation date.
+-- Only counts active hosts (where left_at IS NULL).
+getAllShowsWithHostInfo :: Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
+getAllShowsWithHostInfo limit offset =
+  interp
+    False
+    [sql|
+    SELECT
+      s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
+      s.status, s.duration_minutes, s.created_at, s.updated_at,
+      COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
+      STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
+    FROM shows s
+    LEFT JOIN show_hosts sh ON s.id = sh.show_id
+    LEFT JOIN user_metadata um ON sh.user_id = um.user_id
+    GROUP BY s.id
+    ORDER BY s.created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Get shows filtered by status with host info for admin listing.
+getShowsByStatusWithHostInfo :: Status -> Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
+getShowsByStatusWithHostInfo status limit offset =
+  interp
+    False
+    [sql|
+    SELECT
+      s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
+      s.status, s.duration_minutes, s.created_at, s.updated_at,
+      COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
+      STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
+    FROM shows s
+    LEFT JOIN show_hosts sh ON s.id = sh.show_id
+    LEFT JOIN user_metadata um ON sh.user_id = um.user_id
+    WHERE s.status = #{status}
+    GROUP BY s.id
+    ORDER BY s.created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Search shows with host info for admin listing.
+searchShowsWithHostInfo :: Search -> Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
+searchShowsWithHostInfo searchTerm limit offset =
+  interp
+    False
+    [sql|
+    SELECT
+      s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
+      s.status, s.duration_minutes, s.created_at, s.updated_at,
+      COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
+      STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
+    FROM shows s
+    LEFT JOIN show_hosts sh ON s.id = sh.show_id
+    LEFT JOIN user_metadata um ON sh.user_id = um.user_id
+    WHERE (s.title ILIKE #{searchPattern} OR s.description ILIKE #{searchPattern} OR s.genre ILIKE #{searchPattern})
+    GROUP BY s.id
+    ORDER BY
+      CASE
+        WHEN s.title ILIKE #{searchPattern} THEN 1
+        WHEN s.description ILIKE #{searchPattern} THEN 2
+        ELSE 3
+      END,
+      s.title
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+  where
+    searchPattern = "%" <> searchTerm <> "%"

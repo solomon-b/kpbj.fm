@@ -184,6 +184,11 @@ library
     API.User.Register.Get
     API.User.Register.Get.Templates.Form
     API.User.Register.Post
+    API.Admin.Shows.Get
+    API.Admin.Shows.Get.Templates.Page
+    API.Admin.Shows.New.Get
+    API.Admin.Shows.New.Get.Templates.Page
+    API.Admin.Shows.New.Post
     API.Admin.Users.Get
     API.Admin.Users.Get.Templates.Page
     API.Admin.Users.Detail.Get

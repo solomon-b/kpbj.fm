@@ -2,31 +2,23 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Admin.Users.Get (Route, handler) where
+module API.Admin.Shows.New.Get (Route, handler) where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (rootGetLink, userLoginGetLink)
-import API.Admin.Users.Get.Templates.Page (template)
+import API.Admin.Shows.New.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Data.Int (Int64)
-import Data.Maybe (fromMaybe, maybeToList)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
-import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.Filter (Filter (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Domain.Types.Limit (Limit)
-import Domain.Types.Offset (Offset)
-import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.UserMetadata (isSuspended)
@@ -53,13 +45,10 @@ userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
 type Route =
   Observability.WithSpan
-    "GET /admin/users"
+    "GET /admin/shows/new"
     ( "admin"
-        :> "users"
-        :> Servant.QueryParam "page" Int64
-        :> Servant.QueryParam "q" (Filter Text)
-        :> Servant.QueryParam "role" (Filter UserMetadata.UserRole)
-        :> Servant.QueryParam "sort" (Filter UserSortBy)
+        :> "shows"
+        :> "new"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
@@ -78,21 +67,10 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Maybe Int64 ->
-  Maybe (Filter Text) ->
-  Maybe (Filter UserMetadata.UserRole) ->
-  Maybe (Filter UserSortBy) ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) = do
-  let page = fromMaybe 1 maybePage
-      limit = 20 :: Limit
-      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
-      roleFilter = getFilter =<< roleFilterParam
-      queryFilter = getFilter =<< queryFilterParam
-      sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
-
+handler _tracer cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       let banner = BannerParams Error "Login Required" "You must be logged in to access this page."
@@ -103,34 +81,11 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
           let banner = BannerParams Error "Admin Access Required" "You do not have permission to access this page."
           renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
         else do
-          getUsersResults limit offset queryFilter roleFilter sortBy >>= \case
+          -- Fetch all users for the host selection dropdown
+          execQuerySpan (UserMetadata.getAllUsersWithPagination 1000 0) >>= \case
             Left _err -> do
-              Log.logInfo "Failed to fetch users from database" ()
-              let banner = BannerParams Error "Error" "Failed to load users. Please try again."
+              Log.logInfo "Failed to fetch eligible hosts from database" ()
+              let banner = BannerParams Error "Error" "Failed to load form data. Please try again."
               renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
-            Right allUsers -> do
-              now <- liftIO getCurrentTime
-              let users = take (fromIntegral limit) allUsers
-                  hasMore = length allUsers > fromIntegral limit
-                  usersTemplate = template now users page hasMore queryFilter roleFilter sortBy
-              renderTemplate hxRequest (Just userMetadata) usersTemplate
-
-getUsersResults ::
-  ( MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env
-  ) =>
-  Limit ->
-  Offset ->
-  Maybe Text ->
-  Maybe UserMetadata.UserRole ->
-  UserSortBy ->
-  m (Either HSQL.Pool.UsageError [UserMetadata.UserWithMetadata])
-getUsersResults limit offset maybeQuery (maybeToList -> roles) sortBy =
-  case maybeQuery of
-    Just query ->
-      execQuerySpan (UserMetadata.searchUsers query roles (limit + 1) offset sortBy)
-    Nothing ->
-      execQuerySpan (UserMetadata.getUsersByRole roles (limit + 1) offset sortBy)
+            Right eligibleHosts -> do
+              renderTemplate hxRequest (Just userMetadata) (template eligibleHosts)

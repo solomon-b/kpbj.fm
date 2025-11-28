@@ -182,11 +182,12 @@ renderUserRow now user =
               Lucid.div_ [Lucid.class_ "text-sm"] $ Lucid.toHtml (formatMonthYear createdAt)
               Lucid.div_ [Lucid.class_ "text-xs text-gray-600"] $ Lucid.toHtml (formatRelativeTime now createdAt)
 
-            Lucid.td_ [Lucid.class_ "p-4 text-center"] $
-              Lucid.select_
+            Lucid.td_ [Lucid.class_ "p-4 text-center"]
+              $ Lucid.select_
                 [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
                   xData_ "{}",
-                  xOnChange_ [i|
+                  xOnChange_
+                    [i|
                     const action = $el.value;
                     $el.value = '';
                     if (action === 'suspend') {
@@ -205,12 +206,12 @@ renderUserRow now user =
                   |],
                   xOnClick_ "event.stopPropagation()"
                 ]
-                $ do
-                  Lucid.option_ [Lucid.value_ ""] "Actions..."
-                  if isSuspended
-                    then Lucid.option_ [Lucid.value_ "unsuspend"] "Unsuspend"
-                    else Lucid.option_ [Lucid.value_ "suspend"] "Suspend"
-                  Lucid.option_ [Lucid.value_ "delete"] "Delete"
+              $ do
+                Lucid.option_ [Lucid.value_ ""] "Actions..."
+                if isSuspended
+                  then Lucid.option_ [Lucid.value_ "unsuspend"] "Unsuspend"
+                  else Lucid.option_ [Lucid.value_ "suspend"] "Suspend"
+                Lucid.option_ [Lucid.value_ "delete"] "Delete"
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
 renderRoleBadge role = do
