@@ -27,6 +27,9 @@ import Domain.Types.UserSortBy (UserSortBy)
 --------------------------------------------------------------------------------
 
 -- Admin routes
+adminShowsGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
+adminShowsNewGetLink :: Links.Link
+adminShowsNewPostLink :: Links.Link
 adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
 adminUserDetailGetLink :: User.Id -> Links.Link
 adminUserEditGetLink :: User.Id -> Links.Link

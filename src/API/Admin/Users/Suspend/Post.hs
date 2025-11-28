@@ -10,7 +10,6 @@ import App.Common (AuthorizationCheck (..), checkAdminAuthorization, getUserInfo
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Time (UTCTime, getCurrentTime)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans.Maybe (MaybeT (..))
@@ -19,6 +18,7 @@ import Data.Aeson qualified as Aeson
 import Data.Has (Has)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Class (MonadDB, runDBTransaction)
 import Effects.Database.Tables.User qualified as User
