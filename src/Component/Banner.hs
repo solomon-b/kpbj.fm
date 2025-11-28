@@ -42,7 +42,8 @@ renderBanner ::
 renderBanner bannerType title message =
   Lucid.div_
     [ Lucid.id_ bannerContainerId,
-      LucidBase.makeAttributes "hx-swap-oob" "true"
+      LucidBase.makeAttributes "hx-swap-oob" "true",
+      Lucid.class_ "w-full"
     ]
     $ do
       Lucid.div_

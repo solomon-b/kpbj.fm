@@ -7,6 +7,7 @@ module API.Admin.Users.Suspend.Post where
 
 import API.Admin.Users.Get.Templates.Page (renderUserRow)
 import App.Common (AuthorizationCheck (..), checkAdminAuthorization, getUserInfo)
+import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -15,7 +16,6 @@ import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
@@ -29,7 +29,6 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
-import Lucid.Base qualified as LucidBase
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
@@ -108,16 +107,16 @@ renderSuspendResult = \case
       -- Return the updated row (will replace the old row)
       renderUserRow updatedUser
       -- Also send an OOB success banner
-      renderSuccessBanner (display updatedUser.uwmEmail)
+      renderBanner Warning "User Suspended" (display updatedUser.uwmEmail <> " has been suspended. They will see a warning banner and cannot perform host actions.")
   TargetUserNotFound uid -> do
     Log.logInfo "User not found during suspend" (Aeson.object ["userId" .= display uid])
-    pure $ renderErrorBanner "User not found or already suspended."
+    pure $ renderBanner Error "Suspend Failed" "User not found or already suspended."
   UserAlreadySuspended uid -> do
     Log.logInfo "User already suspended" (Aeson.object ["userId" .= display uid])
-    pure $ renderErrorBanner "User is already suspended."
+    pure $ renderBanner Error "Suspend Failed" "User is already suspended."
   SuspendFailed err -> do
     Log.logInfo "Database error during suspension" (Aeson.object ["error" .= show err])
-    pure $ renderErrorBanner "Failed to suspend user. Please try again."
+    pure $ renderBanner Error "Suspend Failed" "Failed to suspend user. Please try again."
 
 --------------------------------------------------------------------------------
 
@@ -142,61 +141,8 @@ handler _tracer targetUserId cookie SuspendForm {..} = do
   case checkAdminAuthorization userInfo of
     Unauthorized -> do
       Log.logInfo_ "Suspend failed: Unauthorized"
-      pure $ renderErrorBanner "Unauthorized"
+      pure $ renderBanner Error "Suspend Failed" "Unauthorized"
     Authorized -> do
       Log.logInfo "Suspending user" (Aeson.object ["targetUserId" .= display targetUserId, "reason" .= sfReason])
       result <- executeSuspension targetUserId sfReason
       renderSuspendResult result
-
---------------------------------------------------------------------------------
--- Template Helpers
-
-renderSuccessBanner :: Text -> Lucid.Html ()
-renderSuccessBanner email =
-  Lucid.div_
-    [ Lucid.id_ "success-banner-container",
-      LucidBase.makeAttributes "hx-swap-oob" "true"
-    ]
-    $ do
-      Lucid.div_
-        [ Lucid.id_ "success-banner",
-          Lucid.class_ "bg-yellow-100 border-2 border-yellow-600 p-4 mb-6 w-full"
-        ]
-        $ do
-          Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
-            Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
-              Lucid.span_ [Lucid.class_ "text-2xl"] [i||]
-              Lucid.div_ $ do
-                Lucid.h3_ [Lucid.class_ "font-bold text-yellow-800"] "User Suspended"
-                Lucid.p_ [Lucid.class_ "text-sm text-yellow-700"] $ do
-                  Lucid.toHtml email
-                  " has been suspended. They will see a warning banner and cannot perform host actions."
-            Lucid.button_
-              [ Lucid.onclick_ "this.closest('#success-banner').remove()",
-                Lucid.class_ "text-yellow-600 hover:text-yellow-800 font-bold text-xl"
-              ]
-              [i||]
-
-renderErrorBanner :: Text -> Lucid.Html ()
-renderErrorBanner errorMsg =
-  Lucid.div_
-    [ Lucid.id_ "success-banner-container",
-      LucidBase.makeAttributes "hx-swap-oob" "true"
-    ]
-    $ do
-      Lucid.div_
-        [ Lucid.id_ "success-banner",
-          Lucid.class_ "bg-red-100 border-2 border-red-600 p-4 mb-6 w-full"
-        ]
-        $ do
-          Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
-            Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
-              Lucid.span_ [Lucid.class_ "text-2xl"] [i||]
-              Lucid.div_ $ do
-                Lucid.h3_ [Lucid.class_ "font-bold text-red-800"] "Suspend Failed"
-                Lucid.p_ [Lucid.class_ "text-sm text-red-700"] $ Lucid.toHtml errorMsg
-            Lucid.button_
-              [ Lucid.onclick_ "this.closest('#success-banner').remove()",
-                Lucid.class_ "text-red-600 hover:text-red-800 font-bold text-xl"
-              ]
-              [i||]
