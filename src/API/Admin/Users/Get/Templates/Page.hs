@@ -28,9 +28,6 @@ template ::
   UserSortBy ->
   Lucid.Html ()
 template users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
-  -- Success/Error banner container (for HTMX out-of-band swaps)
-  Lucid.div_ [Lucid.id_ "success-banner-container"] mempty
-
   -- Page header
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
     Lucid.h1_ [Lucid.class_ "text-3xl font-bold"] "USER MANAGEMENT"
@@ -135,6 +132,12 @@ renderUserRow user =
       createdAt = user.uwmUserCreatedAt
       suspendedAt = user.uwmSuspendedAt
       userDetailUrl = Links.linkURI $ adminUserDetailGetLink userId
+      cellLinkAttrs =
+        [ Lucid.class_ "p-4 cursor-pointer",
+          hxGet_ [i|/#{userDetailUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true"
+        ]
       userDeleteUrl = Links.linkURI $ adminUserDeleteLink userId
       userSuspendUrl = Links.linkURI $ adminUserSuspendPostLink userId
       userUnsuspendUrl = Links.linkURI $ adminUserUnsuspendPostLink userId
@@ -158,27 +161,23 @@ renderUserRow user =
    in do
         Lucid.tr_
           [ Lucid.id_ rowId,
-            Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50 cursor-pointer",
-            Lucid.href_ [i|/#{userDetailUrl}|],
-            hxGet_ [i|/#{userDetailUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true"
+            Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"
           ]
           $ do
-            Lucid.td_ [Lucid.class_ "p-4"] $
+            Lucid.td_ cellLinkAttrs $
               Lucid.span_ [Lucid.class_ "font-bold"] $
                 Lucid.toHtml (display displayName)
 
-            Lucid.td_ [Lucid.class_ "p-4"] $
+            Lucid.td_ cellLinkAttrs $
               Lucid.toHtml (display email)
 
-            Lucid.td_ [Lucid.class_ "p-4"] $
+            Lucid.td_ cellLinkAttrs $
               renderRoleBadge userRole
 
-            Lucid.td_ [Lucid.class_ "p-4"] $
+            Lucid.td_ cellLinkAttrs $
               renderStatusBadge suspendedAt
 
-            Lucid.td_ [Lucid.class_ "p-4"] $
+            Lucid.td_ cellLinkAttrs $
               Lucid.toHtml (formatDate createdAt)
 
             Lucid.td_ [Lucid.class_ "p-4 text-center"] $
@@ -206,7 +205,8 @@ renderUserRow user =
                       Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "reason", Lucid.value_ "Suspended by admin"]
                       Lucid.button_
                         [ Lucid.type_ "submit",
-                          Lucid.class_ "text-yellow-600 font-bold hover:underline"
+                          Lucid.class_ "text-yellow-600 font-bold hover:underline",
+                          xOnClick_ "event.stopPropagation()"
                         ]
                         "Suspend"
                 Lucid.button_

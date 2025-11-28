@@ -4,8 +4,8 @@ module API.Admin.Users.Delete where
 
 --------------------------------------------------------------------------------
 
-import API.Admin.Users.Delete.Templates.Success (renderSuccessBanner)
 import App.Common (AuthorizationCheck (..), checkAdminAuthorization, getUserInfo)
+import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -15,7 +15,6 @@ import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
-import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.EmailAddress (EmailAddress)
@@ -28,7 +27,6 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
-import Lucid.Base qualified as LucidBase
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
@@ -85,13 +83,13 @@ renderDeleteResult :: (Log.MonadLog m) => DeleteResult -> m (Lucid.Html ())
 renderDeleteResult = \case
   DeleteSuccess uid email -> do
     Log.logInfo "User soft deleted successfully" (Aeson.object ["userId" .= display uid])
-    pure $ renderSuccessBanner (display email)
+    pure $ renderBanner Success "User Deleted" ("User " <> display email <> " has been successfully deleted. They can no longer authenticate.")
   TargetUserNotFound uid -> do
     Log.logInfo "User already deleted or not found during delete" (Aeson.object ["userId" .= display uid])
-    pure $ renderSimpleErrorBanner "User not found."
+    pure $ renderBanner Error "Delete Failed" "User not found."
   DeleteFailed err -> do
     Log.logInfo "Database error" (Aeson.object ["error" .= show err])
-    pure $ renderSimpleErrorBanner "Failed to delete user. Please try again."
+    pure $ renderBanner Error "Delete Failed" "Failed to delete user. Please try again."
 
 --------------------------------------------------------------------------------
 
@@ -115,32 +113,6 @@ handler _tracer targetUserId cookie = do
   case checkAdminAuthorization userInfo of
     Unauthorized -> do
       Log.logInfo_ "Delete failed: Unauthorized"
-      pure $ renderSimpleErrorBanner "Unauthorized"
-    Authorized -> do
-      result <- executeUserDeletion targetUserId
-      renderDeleteResult result
-
--- Helper for error banners
-renderSimpleErrorBanner :: Text -> Lucid.Html ()
-renderSimpleErrorBanner errorMsg =
-  Lucid.div_
-    [ Lucid.id_ "error-banner-container",
-      LucidBase.makeAttributes "hx-swap-oob" "true"
-    ]
-    $ do
-      Lucid.div_
-        [ Lucid.id_ "error-banner",
-          Lucid.class_ "bg-red-100 border-2 border-red-600 p-4 mb-6 w-full"
-        ]
-        $ do
-          Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
-            Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
-              Lucid.span_ [Lucid.class_ "text-2xl"] "⚠️"
-              Lucid.div_ $ do
-                Lucid.h3_ [Lucid.class_ "font-bold text-red-800"] "Delete Failed"
-                Lucid.p_ [Lucid.class_ "text-sm text-red-700"] $ Lucid.toHtml errorMsg
-            Lucid.button_
-              [ Lucid.onclick_ "this.closest('#error-banner').remove()",
-                Lucid.class_ "text-red-600 hover:text-red-800 font-bold text-xl"
-              ]
-              "✕"
+      pure $ renderBanner Error "Delete Failed" "Unauthorized"
+    Authorized ->
+      executeUserDeletion targetUserId >>= renderDeleteResult
