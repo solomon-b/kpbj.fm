@@ -213,6 +213,7 @@ handler _tracer showId postId showSlug cookie (foldHxReq -> hxRequest) editForm 
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (_user, userMetadata)
       | UserMetadata.isSuspended userMetadata ->
+          -- TODO: UNDEFINED!!!
           renderTemplate hxRequest (Just userMetadata) (undefined showSlug ("You have been suspended." :: Text))
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do

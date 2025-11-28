@@ -1,10 +1,14 @@
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module API.Shows.Slug.Episode.New.Post where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Episode.New.Post.Templates.Result (errorTemplate, successTemplate)
-import App.Common (getUserInfo)
-import Component.Frame (loadFrame)
+import {-# SOURCE #-} API (episodesGetLink, userLoginGetLink)
+import API.Shows.Slug.Episode.Get.Templates.Page qualified as DetailPage
+import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -13,6 +17,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
 import Data.Int (Int64)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
@@ -21,6 +26,7 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
@@ -39,10 +45,12 @@ import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.OneRow ()
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 import Text.Read (readMaybe)
@@ -58,8 +66,9 @@ type Route =
         :> "episodes"
         :> "new"
         :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> MultipartForm Mem EpisodeUploadForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
+        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------
@@ -121,7 +130,43 @@ instance FromMultipart Mem EpisodeUploadForm where
 
 --------------------------------------------------------------------------------
 
--- TODO: This handler is a shitshow:
+-- | URL helper for login page
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+
+--------------------------------------------------------------------------------
+
+-- | Error template for upload failures
+errorTemplate :: Text -> Lucid.Html ()
+errorTemplate errorMsg = do
+  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
+    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Upload Failed"
+    Lucid.p_ [Lucid.class_ "mb-6 text-red-700"] $ Lucid.toHtml errorMsg
+
+-- | Template for login required error
+loginRequiredTemplate :: Lucid.Html ()
+loginRequiredTemplate =
+  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
+    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Login Required"
+    Lucid.p_ [Lucid.class_ "mb-4"] "You must be logged in to upload episodes."
+    Lucid.a_
+      [ Lucid.href_ [i|/#{userLoginGetUrl}|],
+        hxGet_ [i|/#{userLoginGetUrl}|],
+        hxTarget_ "#main-content",
+        hxPushUrl_ "true",
+        Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
+      ]
+      "LOGIN"
+
+-- | Template for permission denied error
+permissionDeniedTemplate :: Lucid.Html ()
+permissionDeniedTemplate =
+  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
+    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Permission Denied"
+    Lucid.p_ [Lucid.class_ "mb-4"] "You are not authorized to upload episodes for this show."
+
+--------------------------------------------------------------------------------
+
 handler ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -135,26 +180,23 @@ handler ::
   Tracer ->
   Slug ->
   Maybe Cookie ->
+  Maybe HxRequest ->
   EpisodeUploadForm ->
-  m (Lucid.Html ())
-handler _tracer showSlug cookie form = do
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
+handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
   getUserInfo cookie >>= \case
-    Nothing -> do
-      loadFrame $ do
-        Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-          Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Authentication Required"
-          Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You must be logged in to upload episodes."
-          Lucid.a_ [Lucid.href_ "/user/login", Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"] "Login"
+    Nothing ->
+      Servant.noHeader <$> renderTemplate hxRequest Nothing loginRequiredTemplate
     Just (user, userMetadata) -> do
       -- Verify show exists and user is authorized
       showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
       case showResult of
         Left _err -> do
           Log.logInfo "Failed to fetch show" showSlug
-          loadFrame $ errorTemplate "Failed to load show information."
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to load show information.")
         Right Nothing -> do
           Log.logInfo "Show not found" showSlug
-          loadFrame $ errorTemplate "Show not found."
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Show not found.")
         Right (Just showModel) -> do
           -- Verify user is host (admins can upload to any show)
           isAuthorized <-
@@ -164,18 +206,57 @@ handler _tracer showSlug cookie form = do
           case isAuthorized of
             Left _err -> do
               Log.logInfo "Failed to check host permissions" showSlug
-              loadFrame $ errorTemplate "Failed to verify permissions."
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to verify permissions.")
             Right True | not (UserMetadata.isSuspended userMetadata) -> do
               processEpisodeUpload userMetadata user form >>= \case
                 Left err -> do
                   Log.logInfo "Episode upload failed" err
-                  loadFrame $ errorTemplate err
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate err)
                 Right episodeId -> do
                   Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
-                  loadFrame $ successTemplate episodeId
+                  handleUploadSuccess hxRequest userMetadata showModel episodeId
             Right _ -> do
               Log.logInfo "User is not host of show" (user.mId, showSlug)
-              loadFrame $ errorTemplate "You are not authorized to upload episodes for this show."
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) permissionDeniedTemplate
+
+-- | Handle successful upload by redirecting to episode page with banner
+handleUploadSuccess ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  HxRequest ->
+  UserMetadata.Model ->
+  Shows.Model ->
+  Episodes.Id ->
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
+handleUploadSuccess hxRequest userMetadata showModel episodeId = do
+  -- Fetch the created episode
+  execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+    Right (Just episode) -> do
+      -- Fetch tracks for the episode
+      tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episodeId)
+      let tracks = either (const []) id tracksResult
+          -- Check if user can edit (hosts and admins can)
+          canEdit = UserMetadata.isHostOrHigher userMetadata.mUserRole
+          detailUrl = Links.linkURI $ episodesGetLink showModel.id episodeId episode.slug
+          banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
+      html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+        IsHxRequest -> do
+          DetailPage.template showModel episode tracks canEdit
+          banner
+        IsNotHxRequest -> do
+          banner
+          DetailPage.template showModel episode tracks canEdit
+      pure $ Servant.addHeader [i|/#{detailUrl}|] html
+    _ -> do
+      Log.logInfo_ "Created episode but failed to retrieve it"
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Episode was created but there was an error displaying the confirmation.")
 
 -- | Process episode upload form
 processEpisodeUpload ::

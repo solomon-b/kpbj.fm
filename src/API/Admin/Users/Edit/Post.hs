@@ -8,7 +8,6 @@ module API.Admin.Users.Edit.Post where
 
 import {-# SOURCE #-} API (adminUserDetailGetLink)
 import API.Admin.Users.Detail.Get.Templates.Page qualified as DetailPage
-import API.Admin.Users.Edit.Post.Templates.Error (errorTemplate, notAuthorizedTemplate, notLoggedInTemplate)
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Applicative ((<|>))
@@ -82,17 +81,17 @@ handler ::
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
   getUserInfo cookie >>= \case
-    Nothing -> Servant.noHeader <$> renderTemplate hxRequest Nothing notLoggedInTemplate
+    Nothing -> Servant.noHeader <$> renderTemplate hxRequest Nothing (renderBanner Error "Login Required" "You must be logged in to edit users.")
     Just (_user, userMetadata)
       | not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata ->
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Admin Access Required" "You do not have permission to edit users.")
     Just (_user, userMetadata) -> do
       -- Parse form fields
       let formInputs = inputs multipartData
 
       case extractFormFields formInputs of
         Left errorMsg ->
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate targetUserId errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Error Updating User" errorMsg)
         Right (newDisplayName, newFullName, newRole) -> do
           -- Handle avatar upload if provided
           avatarUploadResult <- case lookupFile "avatar" multipartData of
@@ -107,7 +106,7 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
 
           case avatarUploadResult of
             Left errorMsg ->
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate targetUserId errorMsg)
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Error Updating User" errorMsg)
             Right maybeAvatarPath -> do
               -- Update user metadata and role in transaction
               updateResult <- execTransactionSpan $ do
@@ -136,9 +135,9 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
               case updateResult of
                 Left _err -> do
                   Log.logInfo "Failed to update user" ()
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate targetUserId "Failed to update user. Please try again.")
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Error Updating User" "Failed to update user. Please try again.")
                 Right Nothing ->
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate targetUserId "User metadata not found")
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Error Updating User" "User metadata not found.")
                 Right (Just ()) -> do
                   Log.logInfo "User updated successfully" ()
                   -- Fetch updated user data for detail page
@@ -151,11 +150,11 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
 
                   case updatedUserData of
                     Left _err ->
-                      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate targetUserId "User updated but failed to load details.")
+                      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Error Updating User" "User updated but failed to load details.")
                     Right (Nothing, _, _, _) ->
-                      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate targetUserId "User not found after update.")
+                      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Error Updating User" "User not found after update.")
                     Right (_, Nothing, _, _) ->
-                      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate targetUserId "User metadata not found after update.")
+                      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Error Updating User" "User metadata not found after update.")
                     Right (Just updatedUser, Just updatedMetadata, shows', episodes) -> do
                       let detailUrl = Links.linkURI $ adminUserDetailGetLink targetUserId
                       html <- renderTemplate hxRequest (Just userMetadata) $ do
