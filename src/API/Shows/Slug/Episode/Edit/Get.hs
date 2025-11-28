@@ -6,9 +6,10 @@ module API.Shows.Slug.Episode.Edit.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Episode.Edit.Get.Templates.Error (notAuthorizedTemplate, notFoundTemplate, notLoggedInTemplate)
+import API.Get.Templates qualified as HomeTemplate
 import API.Shows.Slug.Episode.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..), renderBanner)
 import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -21,7 +22,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
@@ -53,7 +54,7 @@ type Route =
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text, Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------
@@ -74,13 +75,16 @@ handler ::
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text, Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer showId episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to episode edit" ()
-      html <- renderTemplate hxRequest Nothing notLoggedInTemplate
-      pure $ Servant.noHeader html
+      let banner = renderBanner Warning "Login Required" "Please login to edit episodes."
+      html <- renderTemplate hxRequest Nothing $ case hxRequest of
+        IsHxRequest -> HomeTemplate.template <> banner
+        IsNotHxRequest -> banner <> HomeTemplate.template
+      pure $ Servant.addHeader "/" $ Servant.noHeader html
     Just (user, userMetadata) -> do
       -- NOTE: Experimental use of a 'HT.Transaction' here. We aren't applying
       -- these globally yet due to difficulty logging the raw sql. However, I
@@ -100,12 +104,18 @@ handler _tracer showId episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
       case mResult of
         Left err -> do
           Log.logAttention "getEpisodeById execution error" (show err)
-          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-          pure $ Servant.noHeader html
+          let banner = renderBanner Warning "Episode Not Found" "The episode you're trying to edit doesn't exist."
+          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+            IsHxRequest -> HomeTemplate.template <> banner
+            IsNotHxRequest -> banner <> HomeTemplate.template
+          pure $ Servant.addHeader "/" $ Servant.noHeader html
         Right Nothing -> do
           Log.logInfo_ $ "No episode : '" <> display episodeId <> "'"
-          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-          pure $ Servant.noHeader html
+          let banner = renderBanner Warning "Episode Not Found" "The episode you're trying to edit doesn't exist."
+          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+            IsHxRequest -> HomeTemplate.template <> banner
+            IsNotHxRequest -> banner <> HomeTemplate.template
+          pure $ Servant.addHeader "/" $ Servant.noHeader html
         Right (Just (episode, showModel, tracks, isHost)) -> do
           let canonicalSlug = episode.slug
               showIdText = display showId
@@ -121,12 +131,15 @@ handler _tracer showId episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
                   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
                       editTemplate = template showModel episode tracks userMetadata isStaff
                   html <- renderTemplate hxRequest (Just userMetadata) editTemplate
-                  pure $ Servant.noHeader html
+                  pure $ Servant.noHeader $ Servant.noHeader html
                 else do
                   Log.logInfo "User tried to edit episode they don't own" episode.id
-                  html <- renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
-                  pure $ Servant.noHeader html
+                  let banner = renderBanner Error "Access Denied" "You can only edit your own episodes."
+                  html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+                    IsHxRequest -> HomeTemplate.template <> banner
+                    IsNotHxRequest -> banner <> HomeTemplate.template
+                  pure $ Servant.addHeader "/" $ Servant.noHeader html
             else do
               Log.logInfo "Redirecting to canonical episode edit URL" canonicalUrl
               html <- renderTemplate hxRequest (Just userMetadata) (redirectTemplate canonicalUrl)
-              pure $ Servant.addHeader canonicalUrl html
+              pure $ Servant.noHeader $ Servant.addHeader canonicalUrl html
