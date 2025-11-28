@@ -106,7 +106,6 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Status"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Hosts"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Genre"
-              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Duration"
           Lucid.tbody_ $
             mapM_ renderShowRow theShowList
 
@@ -151,11 +150,6 @@ renderShowRow showInfo =
             Lucid.td_ cellLinkAttrs $
               Lucid.toHtml $
                 fromMaybe "-" showInfo.swhiGenre
-
-            Lucid.td_ cellLinkAttrs $
-              case showInfo.swhiDurationMinutes of
-                Nothing -> "-"
-                Just mins -> Lucid.toHtml $ show mins <> " min"
 
 renderStatusBadge :: Shows.Status -> Lucid.Html ()
 renderStatusBadge status = do

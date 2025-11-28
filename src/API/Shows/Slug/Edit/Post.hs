@@ -18,7 +18,6 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Data.Text.Read (decimal)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
@@ -76,8 +75,7 @@ data ShowEditForm = ShowEditForm
     sefGenre :: Maybe Text,
     sefLogoFile :: Maybe (FileData Mem),
     sefBannerFile :: Maybe (FileData Mem),
-    sefStatus :: Text,
-    sefDurationMinutes :: Maybe Text
+    sefStatus :: Text
   }
   deriving (Show)
 
@@ -90,7 +88,6 @@ instance FromMultipart Mem ShowEditForm where
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData
-      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "duration_minutes" multipartData))
     where
       emptyToNothing :: Maybe Text -> Maybe Text
       emptyToNothing (Just "") = Nothing
@@ -294,17 +291,8 @@ updateShow hxRequest _user userMetadata showModel editForm = do
       Log.logInfo "Invalid status in show edit form" (sefStatus editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid show status value.")
     Just parsedStatus -> do
-      -- Parse duration if provided
-      let mDuration = case sefDurationMinutes editForm of
-            Nothing -> Nothing
-            Just durText ->
-              case decimal durText of
-                Right (n, _) -> Just n
-                Left _ -> Nothing
-
-          -- If not staff, preserve original schedule/settings values
-          finalStatus = if isStaff then parsedStatus else showModel.status
-          finalDuration = if isStaff then mDuration else showModel.durationMinutes
+      -- If not staff, preserve original schedule/settings values
+      let finalStatus = if isStaff then parsedStatus else showModel.status
 
           -- Generate slug from title
           generatedSlug = Slug.mkSlug (sefTitle editForm)
@@ -329,8 +317,7 @@ updateShow hxRequest _user userMetadata showModel editForm = do
                     siGenre = sefGenre editForm,
                     siLogoUrl = finalLogoUrl,
                     siBannerUrl = finalBannerUrl,
-                    siStatus = finalStatus,
-                    siDurationMinutes = finalDuration
+                    siStatus = finalStatus
                   }
 
           -- Update the show
