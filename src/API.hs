@@ -3,6 +3,9 @@ module API where
 --------------------------------------------------------------------------------
 
 import API.About.Get qualified as About.Get
+import API.Admin.Shows.Get qualified as Admin.Shows.Get
+import API.Admin.Shows.New.Get qualified as Admin.Shows.New.Get
+import API.Admin.Shows.New.Post qualified as Admin.Shows.New.Post
 import API.Admin.Users.Delete qualified as Admin.Users.Delete
 import API.Admin.Users.Detail.Get qualified as Admin.Users.Detail.Get
 import API.Admin.Users.Edit.Get qualified as Admin.Users.Edit.Get
@@ -146,6 +149,9 @@ type API =
     :<|> Episodes.Get.RouteWithSlug
     :<|> Episodes.Get.RouteWithoutSlug
     :<|> Episodes.Delete.Route
+    :<|> Admin.Shows.Get.Route
+    :<|> Admin.Shows.New.Get.Route
+    :<|> Admin.Shows.New.Post.Route
     :<|> Admin.Users.Get.Route
     :<|> Admin.Users.Detail.Get.Route
     :<|> Admin.Users.Edit.Get.Route
@@ -222,6 +228,9 @@ server env =
     :<|> Episodes.Get.handlerWithSlug
     :<|> Episodes.Get.handlerWithoutSlug
     :<|> Episodes.Delete.handler
+    :<|> Admin.Shows.Get.handler
+    :<|> Admin.Shows.New.Get.handler
+    :<|> Admin.Shows.New.Post.handler
     :<|> Admin.Users.Get.handler
     :<|> Admin.Users.Detail.Get.handler
     :<|> Admin.Users.Edit.Get.handler
@@ -318,6 +327,18 @@ userRegisterGetLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Get.Rout
 -- | Route: POST /user/register
 userRegisterPostLink :: Links.Link
 userRegisterPostLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Post.Route)
+
+-- | Route: GET /admin/shows
+adminShowsGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
+adminShowsGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Shows.Get.Route)
+
+-- | Route: GET /admin/shows/new
+adminShowsNewGetLink :: Links.Link
+adminShowsNewGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Shows.New.Get.Route)
+
+-- | Route: POST /admin/shows/new
+adminShowsNewPostLink :: Links.Link
+adminShowsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Admin.Shows.New.Post.Route)
 
 -- | Route: GET /admin/users
 adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
