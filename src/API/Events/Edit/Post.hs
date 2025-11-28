@@ -7,7 +7,6 @@ module API.Events.Edit.Post where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (eventGetLink)
-import API.Events.Edit.Post.Templates.Error (errorTemplate, forbiddenTemplate, notFoundTemplate, unauthorizedTemplate)
 import API.Events.Event.Get.Templates.Page qualified as DetailPage
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
@@ -141,7 +140,7 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized event edit attempt" eventId
-      Servant.noHeader <$> renderTemplate hxRequest Nothing unauthorizedTemplate
+      Servant.noHeader <$> renderTemplate hxRequest Nothing (renderBanner Error "Access Denied" "You must be logged in to edit events.")
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
         event <- MaybeT $ HT.statement () (Events.getEventById eventId)
@@ -151,16 +150,16 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
       case mResult of
         Left err -> do
           Log.logAttention "getEventById execution error" (show err)
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Warning "Event Not Found" "The event you're trying to update doesn't exist.")
         Right Nothing -> do
           Log.logInfo "No event found with id" eventId
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Warning "Event Not Found" "The event you're trying to update doesn't exist.")
         Right (Just (event, oldTags)) ->
           if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then updateEvent hxRequest userMetadata event oldTags editForm
             else do
               Log.logInfo "User attempted to edit event they don't own" event.emId
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Access Denied" "You can only edit events you created or have staff permissions.")
 
 updateEvent ::
   ( MonadDB m,
@@ -181,13 +180,13 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
   case (parseStatus (eefStatus editForm), parseDateTime (eefStartsAt editForm), parseDateTime (eefEndsAt editForm)) of
     (Nothing, _, _) -> do
       Log.logInfo "Invalid status in event edit form" (eefStatus editForm)
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid event status value.")
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Invalid event status value.")
     (_, Nothing, _) -> do
       Log.logInfo "Invalid starts_at datetime in event edit form" (eefStartsAt editForm)
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid start date/time format.")
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Invalid start date/time format.")
     (_, _, Nothing) -> do
       Log.logInfo "Invalid ends_at datetime in event edit form" (eefEndsAt editForm)
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid end date/time format.")
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Invalid end date/time format.")
     (Just parsedStatus, Just parsedStartsAt, Just parsedEndsAt) -> do
       -- Sanitize user input to prevent XSS attacks
       let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
@@ -203,16 +202,16 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
            ) of
         (Left titleError, _, _, _) -> do
           let errorMsg = Sanitize.displayContentValidationError titleError
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" errorMsg)
         (_, Left descError, _, _) -> do
           let errorMsg = Sanitize.displayContentValidationError descError
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" errorMsg)
         (_, _, Left nameError, _) -> do
           let errorMsg = Sanitize.displayContentValidationError nameError
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" errorMsg)
         (_, _, _, Left addrError) -> do
           let errorMsg = Sanitize.displayContentValidationError addrError
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" errorMsg)
         (Right validTitle, Right validDescription, Right validLocationName, Right validLocationAddress) -> do
           -- Upload poster image if provided
           posterImagePath <- case eefPosterImage editForm of
@@ -256,10 +255,10 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
           case mUpdateResult of
             Left err -> do
               Log.logInfo "Failed to update event" (event.emId, show err)
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Database error occurred. Please try again.")
             Right Nothing -> do
               Log.logInfo "Event update returned Nothing" event.emId
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update event. Please try again.")
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Failed to update event. Please try again.")
             Right (Just _) -> do
               Log.logInfo "Successfully updated event" event.emId
               -- Fetch updated event data for detail page
@@ -271,9 +270,9 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
 
               case updatedEventData of
                 Left _err ->
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Event updated but failed to load details.")
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Event updated but failed to load details.")
                 Right Nothing ->
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Event updated but not found.")
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Event updated but not found.")
                 Right (Just (updatedEvent, author, newTags)) -> do
                   let detailUrl = Links.linkURI $ eventGetLink event.emId newSlug
                       banner = renderBanner Success "Event Updated" "Your event has been updated and saved."
