@@ -22,7 +22,6 @@ CREATE TABLE shows (
     logo_url TEXT, -- Path to show logo/artwork
     banner_url TEXT, -- Path to show banner image
     status show_status NOT NULL DEFAULT 'active',
-    duration_minutes BIGINT, -- Typical episode duration
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

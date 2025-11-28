@@ -17,7 +17,6 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
-import Data.Int (Int64)
 import Data.Maybe (mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -87,7 +86,6 @@ data NewShowForm = NewShowForm
     nsfGenre :: Maybe Text,
     nsfLogoFile :: Maybe (FileData Mem),
     nsfBannerFile :: Maybe (FileData Mem),
-    nsfDurationMinutes :: Maybe Int64,
     nsfStatus :: Text,
     nsfHosts :: [User.Id]
   }
@@ -101,7 +99,6 @@ instance FromMultipart Mem NewShowForm where
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "genre" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
-      <*> pure (parseDuration =<< either (const Nothing) Just (lookupInput "duration_minutes" multipartData))
       <*> lookupInput "status" multipartData
       <*> pure (parseHosts $ either (const []) id (lookupInputs "hosts" multipartData))
     where
@@ -115,11 +112,6 @@ instance FromMultipart Mem NewShowForm where
         | Text.null (fdFileName fileData) = Nothing
         | otherwise = Just fileData
       fileDataToNothing Nothing = Nothing
-
-      parseDuration :: Text -> Maybe Int64
-      parseDuration t = case Text.Read.decimal t of
-        Right (n, "") -> Just n
-        _ -> Nothing
 
       parseHosts :: [Text] -> [User.Id]
       parseHosts = mapMaybe parseUserId
@@ -282,7 +274,6 @@ validateNewShow form = do
                 Shows.siGenre = sanitizedGenre,
                 Shows.siLogoUrl = Nothing, -- Will be set after file upload
                 Shows.siBannerUrl = Nothing, -- Will be set after file upload
-                Shows.siDurationMinutes = nsfDurationMinutes form,
                 Shows.siStatus = status
               }
 

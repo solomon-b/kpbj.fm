@@ -89,7 +89,6 @@ data Model = Model
     logoUrl :: Maybe Text,
     bannerUrl :: Maybe Text,
     status :: Status,
-    durationMinutes :: Maybe Int64,
     createdAt :: UTCTime,
     updatedAt :: UTCTime
   }
@@ -104,8 +103,7 @@ data Insert = Insert
     siGenre :: Maybe Text,
     siLogoUrl :: Maybe Text,
     siBannerUrl :: Maybe Text,
-    siStatus :: Status,
-    siDurationMinutes :: Maybe Int64
+    siStatus :: Status
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (EncodeRow)
@@ -120,7 +118,7 @@ getActiveShows =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE status = 'active'
     ORDER BY title
@@ -132,7 +130,7 @@ getShowBySlug slug =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE slug = #{slug}
   |]
@@ -143,7 +141,7 @@ getShowById showId =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE id = #{showId}
   |]
@@ -154,7 +152,7 @@ getShowsByStatus status limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE status = #{status}
     ORDER BY title
@@ -167,7 +165,7 @@ getAllShows limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     ORDER BY title
     LIMIT #{limit} OFFSET #{offset}
@@ -179,7 +177,7 @@ getShowsByGenre genre limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE genre = #{display genre}
     ORDER BY title
@@ -192,7 +190,7 @@ getShowsByGenreAndStatus genre status limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE genre = #{genre} AND status = #{status}
     ORDER BY title
@@ -206,8 +204,8 @@ insertShow Insert {..} =
     <$> interp
       False
       [sql|
-    INSERT INTO shows(title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at)
-    VALUES (#{siTitle}, #{siSlug}, #{siDescription}, #{siGenre}, #{siLogoUrl}, #{siBannerUrl}, #{siStatus}, #{siDurationMinutes}, NOW(), NOW())
+    INSERT INTO shows(title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at)
+    VALUES (#{siTitle}, #{siSlug}, #{siDescription}, #{siGenre}, #{siLogoUrl}, #{siBannerUrl}, #{siStatus}, NOW(), NOW())
     RETURNING id
   |]
 
@@ -220,7 +218,7 @@ updateShow showId Insert {..} =
     UPDATE shows
     SET title = #{siTitle}, slug = #{siSlug}, description = #{siDescription},
         genre = #{siGenre}, logo_url = #{siLogoUrl}, banner_url = #{siBannerUrl},
-        status = #{siStatus}, duration_minutes = #{siDurationMinutes},
+        status = #{siStatus},
         updated_at = NOW()
     WHERE id = #{showId}
     RETURNING id
@@ -235,7 +233,7 @@ getShowForUser userId =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows s
     JOIN show_hosts sh ON s.id = sh.show_id
     WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
@@ -248,7 +246,7 @@ getShowsForUser userId =
   interp
     False
     [sql|
-    SELECT s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url, s.status, s.duration_minutes, s.created_at, s.updated_at
+    SELECT s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url, s.status, s.created_at, s.updated_at
     FROM shows s
     JOIN show_hosts sh ON s.id = sh.show_id
     WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
@@ -261,7 +259,7 @@ getAllActiveShows =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE status = 'active'
     ORDER BY title
@@ -273,7 +271,7 @@ searchShows searchTerm limit offset =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, duration_minutes, created_at, updated_at
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern} OR genre ILIKE #{searchPattern})
     ORDER BY
@@ -316,7 +314,6 @@ data ShowWithHostInfo = ShowWithHostInfo
     swhiLogoUrl :: Maybe Text,
     swhiBannerUrl :: Maybe Text,
     swhiStatus :: Status,
-    swhiDurationMinutes :: Maybe Int64,
     swhiCreatedAt :: UTCTime,
     swhiUpdatedAt :: UTCTime,
     swhiHostCount :: Int64,
@@ -337,7 +334,7 @@ getAllShowsWithHostInfo limit offset =
     [sql|
     SELECT
       s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
-      s.status, s.duration_minutes, s.created_at, s.updated_at,
+      s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
     FROM shows s
@@ -356,7 +353,7 @@ getShowsByStatusWithHostInfo status limit offset =
     [sql|
     SELECT
       s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
-      s.status, s.duration_minutes, s.created_at, s.updated_at,
+      s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
     FROM shows s
@@ -376,7 +373,7 @@ searchShowsWithHostInfo searchTerm limit offset =
     [sql|
     SELECT
       s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
-      s.status, s.duration_minutes, s.created_at, s.updated_at,
+      s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
     FROM shows s

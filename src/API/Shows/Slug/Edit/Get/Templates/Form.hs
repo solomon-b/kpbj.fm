@@ -11,7 +11,6 @@ where
 import {-# SOURCE #-} API (hostDashboardGetLink, mediaGetLink, showGetLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
-import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -155,21 +154,6 @@ showEditFormFields showModel isStaff =
                           ],
                         vsHint = Just "Active shows appear on the shows page",
                         vsValidation = emptyValidation {vrRequired = True}
-                      },
-                    ValidatedTextField
-                      { vfName = "duration_minutes",
-                        vfLabel = "Typical Duration (minutes)",
-                        vfInitialValue = fmap (Text.pack . show) showModel.durationMinutes,
-                        vfPlaceholder = Just "e.g. 120",
-                        vfHint = Just "How long is a typical episode?",
-                        vfValidation =
-                          ValidationRules
-                            { vrMinLength = Nothing,
-                              vrMaxLength = Nothing,
-                              vrPattern = Just "[0-9]+",
-                              vrRequired = False,
-                              vrCustomValidation = Nothing
-                            }
                       }
                   ]
               }
@@ -181,10 +165,6 @@ showEditFormFields showModel isStaff =
                 hfValue = case showModel.status of
                   Shows.Active -> "active"
                   Shows.Inactive -> "inactive"
-              },
-            HiddenField
-              { hfName = "duration_minutes",
-                hfValue = maybe "" (Text.pack . show) showModel.durationMinutes
               }
           ]
       },
