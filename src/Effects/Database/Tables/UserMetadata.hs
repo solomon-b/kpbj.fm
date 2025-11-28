@@ -10,6 +10,10 @@ module Effects.Database.Tables.UserMetadata
     isStaffOrHigher,
     isHostOrHigher,
 
+    -- * Suspension
+    SuspensionStatus (..),
+    isSuspended,
+
     -- * Model Types
     Id (..),
     Model (..),
@@ -31,6 +35,11 @@ module Effects.Database.Tables.UserMetadata
     countUsers,
     countUsersByRole,
     softDeleteUser,
+
+    -- * Suspension Queries
+    suspendUser,
+    unsuspendUser,
+    getSuspensionStatus,
   )
 where
 
@@ -115,6 +124,35 @@ isHostOrHigher Admin = True
 isHostOrHigher _ = False
 
 --------------------------------------------------------------------------------
+-- Suspension Status
+
+-- | Represents a user's suspension status
+--
+-- Suspended users can still log in but will see a warning banner and cannot
+-- perform host actions. Their show relationships are preserved.
+data SuspensionStatus = NotSuspended | Suspended
+  deriving stock (Generic, Show, Eq)
+
+instance Display SuspensionStatus where
+  displayBuilder NotSuspended = "NotSuspended"
+  displayBuilder Suspended = "Suspended"
+
+instance DecodeValue SuspensionStatus where
+  decodeValue = Decoders.enum $ \case
+    "Suspended" -> Just Suspended
+    "NotSuspended" -> Just NotSuspended
+    _ -> Nothing
+
+instance EncodeValue SuspensionStatus where
+  encodeValue = Encoders.enum $ \case
+    Suspended -> "Suspended"
+    NotSuspended -> "NotSuspended"
+
+-- | Check if a suspension status indicates the user is suspended
+isSuspended :: Model -> Bool
+isSuspended user = user.mSuspensionStatus == Suspended
+
+--------------------------------------------------------------------------------
 -- Model
 
 newtype Id = Id Int64
@@ -141,7 +179,8 @@ data Model = Model
     mDisplayName :: DisplayName,
     mFullName :: FullName,
     mAvatarUrl :: Maybe Text,
-    mUserRole :: UserRole
+    mUserRole :: UserRole,
+    mSuspensionStatus :: SuspensionStatus
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
@@ -158,7 +197,7 @@ getUserMetadata userId =
   interp
     False
     [sql|
-    SELECT um.id, um.user_id, um.display_name, um.full_name, um.avatar_url, um.user_role
+    SELECT um.id, um.user_id, um.display_name, um.full_name, um.avatar_url, um.user_role, u.suspension_status
     FROM user_metadata um
     INNER JOIN users u ON um.user_id = u.id
     WHERE um.user_id = #{userId}
@@ -228,6 +267,8 @@ data UserWithMetadata = UserWithMetadata
     uwmEmail :: EmailAddress,
     uwmUserCreatedAt :: UTCTime,
     uwmUserUpdatedAt :: UTCTime,
+    uwmSuspendedAt :: Maybe UTCTime,
+    uwmSuspensionReason :: Maybe Text,
     uwmMetadataId :: Id,
     uwmUserMetadataUserId :: User.Id,
     uwmDisplayName :: DisplayName,
@@ -249,6 +290,7 @@ getAllUsersWithPagination limit offset =
     [sql|
     SELECT
       u.id, u.email, u.created_at, u.updated_at,
+      u.suspended_at, u.suspension_reason,
       um.id, um.user_id, um.display_name, um.full_name,
       um.avatar_url, um.user_role
     FROM users u
@@ -271,6 +313,7 @@ getUsersByRole roles limit offset sortBy =
         [sql|
         SELECT
           u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
           um.id, um.user_id, um.display_name, um.full_name,
           um.avatar_url, um.user_role
         FROM users u
@@ -286,6 +329,7 @@ getUsersByRole roles limit offset sortBy =
         [sql|
         SELECT
           u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
           um.id, um.user_id, um.display_name, um.full_name,
           um.avatar_url, um.user_role
         FROM users u
@@ -301,6 +345,7 @@ getUsersByRole roles limit offset sortBy =
         [sql|
         SELECT
           u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
           um.id, um.user_id, um.display_name, um.full_name,
           um.avatar_url, um.user_role
         FROM users u
@@ -316,6 +361,7 @@ getUsersByRole roles limit offset sortBy =
         [sql|
         SELECT
           u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
           um.id, um.user_id, um.display_name, um.full_name,
           um.avatar_url, um.user_role
         FROM users u
@@ -324,9 +370,26 @@ getUsersByRole roles limit offset sortBy =
         WHERE (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
           AND u.deleted_at IS NULL
         GROUP BY u.id, u.email, u.created_at, u.updated_at,
+                 u.suspended_at, u.suspension_reason,
                  um.id, um.user_id, um.display_name, um.full_name,
                  um.avatar_url, um.user_role
         ORDER BY COUNT(sh.show_id) DESC, u.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    StatusSuspended ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        WHERE (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        ORDER BY u.suspended_at IS NULL ASC, u.suspended_at DESC, u.created_at DESC
         LIMIT #{limit} OFFSET #{offset}
       |]
 
@@ -343,6 +406,7 @@ searchUsers query roles limit offset sortBy =
         [sql|
         SELECT
           u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
           um.id, um.user_id, um.display_name, um.full_name,
           um.avatar_url, um.user_role
         FROM users u
@@ -361,6 +425,7 @@ searchUsers query roles limit offset sortBy =
         [sql|
         SELECT
           u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
           um.id, um.user_id, um.display_name, um.full_name,
           um.avatar_url, um.user_role
         FROM users u
@@ -379,6 +444,7 @@ searchUsers query roles limit offset sortBy =
         [sql|
         SELECT
           u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
           um.id, um.user_id, um.display_name, um.full_name,
           um.avatar_url, um.user_role
         FROM users u
@@ -397,6 +463,7 @@ searchUsers query roles limit offset sortBy =
         [sql|
         SELECT
           u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
           um.id, um.user_id, um.display_name, um.full_name,
           um.avatar_url, um.user_role
         FROM users u
@@ -408,9 +475,29 @@ searchUsers query roles limit offset sortBy =
           AND (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
           AND u.deleted_at IS NULL
         GROUP BY u.id, u.email, u.created_at, u.updated_at,
+                 u.suspended_at, u.suspension_reason,
                  um.id, um.user_id, um.display_name, um.full_name,
                  um.avatar_url, um.user_role
         ORDER BY COUNT(sh.show_id) DESC, u.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    StatusSuspended ->
+      interp
+        True
+        [sql|
+        SELECT
+          u.id, u.email, u.created_at, u.updated_at,
+          u.suspended_at, u.suspension_reason,
+          um.id, um.user_id, um.display_name, um.full_name,
+          um.avatar_url, um.user_role
+        FROM users u
+        INNER JOIN user_metadata um ON u.id = um.user_id
+        WHERE
+          (um.display_name ILIKE ('%' || #{query} || '%') OR
+           CAST(u.email AS TEXT) ILIKE ('%' || #{query} || '%'))
+          AND (cardinality(#{roles}) = 0 OR um.user_role = ANY(#{roles}))
+          AND u.deleted_at IS NULL
+        ORDER BY u.suspended_at IS NULL ASC, u.suspended_at DESC, u.created_at DESC
         LIMIT #{limit} OFFSET #{offset}
       |]
 
@@ -424,6 +511,7 @@ getUserWithMetadataById userId =
     [sql|
     SELECT
       u.id, u.email, u.created_at, u.updated_at,
+      u.suspended_at, u.suspension_reason,
       um.id, um.user_id, um.display_name, um.full_name,
       um.avatar_url, um.user_role
     FROM users u
@@ -538,4 +626,83 @@ softDeleteUser userId =
       WHERE user_id IN (SELECT id FROM deleted_user)
     )
     SELECT id FROM deleted_user
+  |]
+
+--------------------------------------------------------------------------------
+-- User Suspension
+
+-- | Suspend a user by setting suspended_at timestamp and invalidating all sessions
+--
+-- Atomically performs:
+-- 1. Sets suspended_at = NOW() on users table
+-- 2. Sets suspension_status = 'Suspended'
+-- 3. Stores suspension reason for audit
+-- 4. Deletes all active sessions for the user (forces re-login)
+--
+-- Returns user ID on success, Nothing if user doesn't exist, already suspended, or deleted.
+--
+-- BEHAVIOR: Suspended users maintain their relationships:
+-- - Show host assignments: Preserved in show_hosts table
+-- - Episodes, blog posts: Remain attributed to user
+-- - Authentication: Still allowed (user sees suspension banner)
+-- - Host actions: Blocked at handler level (checked via SuspensionStatus)
+-- - Sessions: Invalidated to force re-login and see suspension notice
+--
+-- Unlike deletion, suspension is reversible via unsuspendUser.
+suspendUser :: User.Id -> Text -> Hasql.Statement () (Maybe User.Id)
+suspendUser userId reason =
+  fmap listToMaybe
+    . interp
+      True
+    $ [sql|
+    WITH suspended_user AS (
+      UPDATE users
+      SET suspended_at = NOW(),
+          suspension_status = 'Suspended',
+          suspension_reason = #{reason}
+      WHERE id = #{userId}
+        AND suspended_at IS NULL
+        AND deleted_at IS NULL
+      RETURNING id
+    ),
+    deleted_sessions AS (
+      DELETE FROM server_sessions
+      WHERE user_id IN (SELECT id FROM suspended_user)
+    )
+    SELECT id FROM suspended_user
+  |]
+
+-- | Unsuspend (reinstate) a user by clearing suspended_at timestamp
+--
+-- Returns user ID on success, Nothing if user doesn't exist, not suspended, or deleted.
+unsuspendUser :: User.Id -> Hasql.Statement () (Maybe User.Id)
+unsuspendUser userId =
+  fmap listToMaybe
+    . interp
+      True
+    $ [sql|
+    UPDATE users
+    SET suspended_at = NULL,
+        suspension_status = 'NotSuspended',
+        suspension_reason = NULL
+    WHERE id = #{userId}
+      AND suspended_at IS NOT NULL
+      AND deleted_at IS NULL
+    RETURNING id
+  |]
+
+-- | Get suspension status for a user
+--
+-- Returns the suspension status (NotSuspended or Suspended).
+-- Returns Nothing if user doesn't exist or is deleted.
+getSuspensionStatus :: User.Id -> Hasql.Statement () (Maybe SuspensionStatus)
+getSuspensionStatus userId =
+  fmap getOneColumn
+    <$> interp
+      False
+      [sql|
+    SELECT suspension_status
+    FROM users
+    WHERE id = #{userId}
+      AND deleted_at IS NULL
   |]

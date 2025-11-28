@@ -90,10 +90,12 @@ handler _tracer showId _showSlug postId _postSlug cookie = do
               pure $ renderSimpleErrorBanner "Blog post not found."
             Right (Just blogPost) -> do
               -- Check authorization: must be host of the show or author
-              let isAuthor = blogPost.authorId == user.mId
+              let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+                  isAuthor = blogPost.authorId == user.mId
+
               isHost <- checkIfHost userMetadata user showModel.id
 
-              if isAuthor || isHost
+              if isStaff || ((isAuthor || isHost) && not (UserMetadata.isSuspended userMetadata))
                 then deleteBlogPost blogPost
                 else do
                   Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "postId" .= blogPost.id])

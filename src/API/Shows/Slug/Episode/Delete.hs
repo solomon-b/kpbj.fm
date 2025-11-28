@@ -97,7 +97,7 @@ handler _tracer showId _showSlug episodeId _episodeSlug cookie = do
 
               isHost <- if isStaff || isCreator then pure True else checkIfHost user episode
 
-              if isStaff || isCreator || isHost
+              if isStaff || ((isCreator || isHost) && not (UserMetadata.isSuspended userMeta))
                 then archiveEpisode showModel episode
                 else do
                   Log.logInfo "Archive failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
