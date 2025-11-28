@@ -8,7 +8,8 @@ import API.Admin.Users.Get.Templates.Page (renderUserRow)
 import App.Common (AuthorizationCheck (..), checkAdminAuthorization, getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Time (UTCTime, getCurrentTime)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans.Maybe (MaybeT (..))
@@ -80,13 +81,13 @@ executeUnsuspension targetUserId = do
       UnsuspendSuccess updatedUser
 
 -- | Render the appropriate HTML response based on unsuspension result
-renderUnsuspendResult :: (Log.MonadLog m) => UnsuspendResult -> m (Lucid.Html ())
-renderUnsuspendResult = \case
+renderUnsuspendResult :: (Log.MonadLog m) => UTCTime -> UnsuspendResult -> m (Lucid.Html ())
+renderUnsuspendResult now = \case
   UnsuspendSuccess updatedUser -> do
     Log.logInfo "User unsuspended successfully" (Aeson.object ["userId" .= display updatedUser.uwmUserId, "email" .= display updatedUser.uwmEmail])
     pure $ do
       -- Return the updated row (will replace the old row)
-      renderUserRow updatedUser
+      renderUserRow now updatedUser
       -- Also send an OOB success banner
       renderBanner Success "User Unsuspended" (display updatedUser.uwmDisplayName <> "'s suspension has been lifted. They can now use the site normally.")
   TargetUserNotFound uid -> do
@@ -124,5 +125,6 @@ handler _tracer targetUserId cookie = do
       pure $ renderBanner Error "Unsuspend Failed" "Unauthorized"
     Authorized -> do
       Log.logInfo "Unsuspending user" (Aeson.object ["targetUserId" .= display targetUserId])
+      now <- liftIO getCurrentTime
       result <- executeUnsuspension targetUserId
-      renderUnsuspendResult result
+      renderUnsuspendResult now result

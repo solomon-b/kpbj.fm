@@ -9,7 +9,8 @@ import API.Admin.Users.Get.Templates.Page (renderUserRow)
 import App.Common (AuthorizationCheck (..), checkAdminAuthorization, getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Time (UTCTime, getCurrentTime)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans.Maybe (MaybeT (..))
@@ -99,13 +100,13 @@ executeSuspension targetUserId reason = do
       SuspendSuccess updatedUser
 
 -- | Render the appropriate HTML response based on suspension result
-renderSuspendResult :: (Log.MonadLog m) => SuspendResult -> m (Lucid.Html ())
-renderSuspendResult = \case
+renderSuspendResult :: (Log.MonadLog m) => UTCTime -> SuspendResult -> m (Lucid.Html ())
+renderSuspendResult now = \case
   SuspendSuccess updatedUser -> do
     Log.logInfo "User suspended successfully" (Aeson.object ["userId" .= display updatedUser.uwmUserId, "email" .= display updatedUser.uwmEmail])
     pure $ do
       -- Return the updated row (will replace the old row)
-      renderUserRow updatedUser
+      renderUserRow now updatedUser
       -- Also send an OOB success banner
       renderBanner Warning "User Suspended" (display updatedUser.uwmEmail <> " has been suspended. They will see a warning banner and cannot perform host actions.")
   TargetUserNotFound uid -> do
@@ -144,5 +145,6 @@ handler _tracer targetUserId cookie SuspendForm {..} = do
       pure $ renderBanner Error "Suspend Failed" "Unauthorized"
     Authorized -> do
       Log.logInfo "Suspending user" (Aeson.object ["targetUserId" .= display targetUserId, "reason" .= sfReason])
+      now <- liftIO getCurrentTime
       result <- executeSuspension targetUserId sfReason
-      renderSuspendResult result
+      renderSuspendResult now result
