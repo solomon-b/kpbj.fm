@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Events.Edit.Post where
 
 --------------------------------------------------------------------------------
 
+import {-# SOURCE #-} API (eventGetLink)
 import API.Events.Edit.Post.Templates.Error (errorTemplate, forbiddenTemplate, notFoundTemplate, unauthorizedTemplate)
-import API.Events.Edit.Post.Templates.Success (template)
+import API.Events.Event.Get.Templates.Page qualified as DetailPage
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (unless, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -18,18 +21,19 @@ import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
@@ -43,6 +47,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 
@@ -58,7 +63,7 @@ type Route =
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> MultipartForm Mem EventEditForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
+        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------
@@ -131,12 +136,12 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   EventEditForm ->
-  m (Lucid.Html ())
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized event edit attempt" eventId
-      renderTemplate hxRequest Nothing unauthorizedTemplate
+      Servant.noHeader <$> renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
         event <- MaybeT $ HT.statement () (Events.getEventById eventId)
@@ -146,16 +151,16 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
       case mResult of
         Left err -> do
           Log.logAttention "getEventById execution error" (show err)
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
           Log.logInfo "No event found with id" eventId
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just (event, oldTags)) ->
           if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then updateEvent hxRequest userMetadata event oldTags editForm
             else do
               Log.logInfo "User attempted to edit event they don't own" event.emId
-              renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
 
 updateEvent ::
   ( MonadDB m,
@@ -170,19 +175,19 @@ updateEvent ::
   Events.Model ->
   [EventTags.Model] ->
   EventEditForm ->
-  m (Lucid.Html ())
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 updateEvent hxRequest userMetadata event oldTags editForm = do
   -- Parse and validate form data
   case (parseStatus (eefStatus editForm), parseDateTime (eefStartsAt editForm), parseDateTime (eefEndsAt editForm)) of
     (Nothing, _, _) -> do
       Log.logInfo "Invalid status in event edit form" (eefStatus editForm)
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid event status value.")
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid event status value.")
     (_, Nothing, _) -> do
       Log.logInfo "Invalid starts_at datetime in event edit form" (eefStartsAt editForm)
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid start date/time format.")
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid start date/time format.")
     (_, _, Nothing) -> do
       Log.logInfo "Invalid ends_at datetime in event edit form" (eefEndsAt editForm)
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid end date/time format.")
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid end date/time format.")
     (Just parsedStatus, Just parsedStartsAt, Just parsedEndsAt) -> do
       -- Sanitize user input to prevent XSS attacks
       let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
@@ -198,16 +203,16 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
            ) of
         (Left titleError, _, _, _) -> do
           let errorMsg = Sanitize.displayContentValidationError titleError
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
         (_, Left descError, _, _) -> do
           let errorMsg = Sanitize.displayContentValidationError descError
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
         (_, _, Left nameError, _) -> do
           let errorMsg = Sanitize.displayContentValidationError nameError
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
         (_, _, _, Left addrError) -> do
           let errorMsg = Sanitize.displayContentValidationError addrError
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
         (Right validTitle, Right validDescription, Right validLocationName, Right validLocationAddress) -> do
           -- Upload poster image if provided
           posterImagePath <- case eefPosterImage editForm of
@@ -251,18 +256,35 @@ updateEvent hxRequest userMetadata event oldTags editForm = do
           case mUpdateResult of
             Left err -> do
               Log.logInfo "Failed to update event" (event.emId, show err)
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
             Right Nothing -> do
               Log.logInfo "Event update returned Nothing" event.emId
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update event. Please try again.")
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update event. Please try again.")
             Right (Just _) -> do
               Log.logInfo "Successfully updated event" event.emId
-              -- Fetch the updated event to get the new slug
-              execQuerySpan (Events.getEventById event.emId) >>= \case
-                Right (Just updatedEvent) ->
-                  renderTemplate hxRequest (Just userMetadata) (template updatedEvent)
-                _ ->
-                  renderTemplate hxRequest (Just userMetadata) (errorTemplate "Event updated but failed to retrieve. Please refresh.")
+              -- Fetch updated event data for detail page
+              updatedEventData <- execTransactionSpan $ runMaybeT $ do
+                updatedEvent <- MaybeT $ HT.statement () (Events.getEventById event.emId)
+                author <- MaybeT $ HT.statement () (UserMetadata.getUserMetadata updatedEvent.emAuthorId)
+                newTags <- lift $ HT.statement () (Events.getEventTags event.emId)
+                pure (updatedEvent, author, newTags)
+
+              case updatedEventData of
+                Left _err ->
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Event updated but failed to load details.")
+                Right Nothing ->
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Event updated but not found.")
+                Right (Just (updatedEvent, author, newTags)) -> do
+                  let detailUrl = Links.linkURI $ eventGetLink event.emId newSlug
+                      banner = renderBanner Success "Event Updated" "Your event has been updated and saved."
+                  html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+                    IsHxRequest -> do
+                      DetailPage.template updatedEvent newTags author
+                      banner
+                    IsNotHxRequest -> do
+                      banner
+                      DetailPage.template updatedEvent newTags author
+                  pure $ Servant.addHeader [i|/#{detailUrl}|] html
 
 -- | Update tags for an event (add new ones)
 updateEventTags ::

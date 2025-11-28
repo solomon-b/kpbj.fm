@@ -206,14 +206,14 @@ handler ::
   Maybe HxRequest ->
   ShowBlogEditForm ->
   m (Lucid.Html ())
-handler _tracer showId postId _slug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer showId postId showSlug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized blog edit attempt" (showId, postId)
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (_user, userMetadata)
       | UserMetadata.isSuspended userMetadata ->
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate showSlug "You have been suspended.")
+          renderTemplate hxRequest (Just userMetadata) (undefined showSlug ("You have been suspended." :: Text))
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
         blogPost <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)

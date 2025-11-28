@@ -55,7 +55,8 @@ template blogPost tags userMeta = do
         fbHeader = Just (renderFormHeader blogPost userMeta postBackUrl),
         fbFields = blogEditFormFields blogPost tagsText,
         fbAdditionalContent = [renderSubmitActions postBackUrl],
-        fbStyles = defaultFormStyles
+        fbStyles = defaultFormStyles,
+        fbHtmx = Nothing
       }
 
 --------------------------------------------------------------------------------

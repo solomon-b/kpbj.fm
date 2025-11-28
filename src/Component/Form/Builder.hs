@@ -8,6 +8,7 @@ module Component.Form.Builder
     FormStyles (..),
     ValidationRules (..),
     SelectOption (..),
+    HtmxConfig (..),
     emptyValidation,
     defaultFormStyles,
 
@@ -35,7 +36,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Lucid qualified
 import Lucid.Base (makeAttributes)
-import Lucid.Extras (xBindClass_, xData_, xModel_, xOnChange_, xOnSubmit_, xShow_, xText_)
+import Lucid.Extras (hxPost_, hxSwap_, hxTarget_, xBindClass_, xData_, xModel_, xOnChange_, xOnSubmit_, xShow_, xText_)
 
 --------------------------------------------------------------------------------
 
@@ -174,6 +175,14 @@ data FormField
         vrfValidation :: ValidationRules
       }
 
+-- | HTMX configuration for form submission
+data HtmxConfig = HtmxConfig
+  { -- | Target element for response (e.g., "#main-content")
+    hcTarget :: Text,
+    -- | Optional swap strategy (default: innerHTML)
+    hcSwap :: Maybe Text
+  }
+
 -- | Form builder configuration
 data FormBuilder = FormBuilder
   { fbAction :: Text,
@@ -181,7 +190,9 @@ data FormBuilder = FormBuilder
     fbHeader :: Maybe (Lucid.Html ()),
     fbFields :: [FormField],
     fbAdditionalContent :: [Lucid.Html ()],
-    fbStyles :: FormStyles
+    fbStyles :: FormStyles,
+    -- | Optional HTMX config for progressive enhancement
+    fbHtmx :: Maybe HtmxConfig
   }
 
 --------------------------------------------------------------------------------
@@ -286,8 +297,12 @@ generateAlpineState allFields =
       return false;
     }
 
-    // Validation passed, manually submit the form
-    event.target.submit();
+    // Validation passed - use HTMX if available, otherwise fallback to regular submit
+    if (typeof htmx !== 'undefined' && event.target.hasAttribute('hx-post')) {
+      htmx.trigger(event.target, 'submit');
+    } else {
+      event.target.submit();
+    }
     return true;
   },
 
@@ -500,12 +515,21 @@ renderFormElement builder allFields = do
   let hasValidation = any isValidated allFields
       hasFileFields = any isFileField allFields
       styles = fbStyles builder
+      -- Default HTMX config: target #main-content with innerHTML swap
+      defaultHtmxConfig = HtmxConfig "#main-content" Nothing
+      htmxConfig = fromMaybe defaultHtmxConfig (fbHtmx builder)
+      htmxAttrs =
+        [ hxPost_ (fbAction builder),
+          hxTarget_ (hcTarget htmxConfig)
+        ]
+          <> maybe [] (\s -> [hxSwap_ s]) (hcSwap htmxConfig)
   Lucid.form_
     ( [ Lucid.action_ (fbAction builder),
         Lucid.method_ (fbMethod builder),
         Lucid.class_ (fsFormClasses styles)
       ]
         <> ([Lucid.enctype_ "multipart/form-data" | hasFileFields])
+        <> htmxAttrs
         <> (if hasValidation then [xOnSubmit_ "validateAndSubmit($event)", makeAttributes "novalidate" ""] else [])
     )
     $ do

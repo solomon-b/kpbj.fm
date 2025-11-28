@@ -46,7 +46,8 @@ editBlogPostForm showModel post tags = do
         fbHeader = Just (renderFormHeader showModel post),
         fbFields = showBlogEditFormFields post tags,
         fbAdditionalContent = [renderSubmitActions showModel post],
-        fbStyles = defaultFormStyles
+        fbStyles = defaultFormStyles,
+        fbHtmx = Nothing
       }
 
 --------------------------------------------------------------------------------

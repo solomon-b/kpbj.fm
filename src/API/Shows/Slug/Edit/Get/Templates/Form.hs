@@ -44,7 +44,8 @@ template showModel userMeta isStaff = do
         fbHeader = Just (renderFormHeader userMeta showModel),
         fbFields = showEditFormFields showModel isStaff,
         fbAdditionalContent = [renderSubmitActions showSlug],
-        fbStyles = defaultFormStyles
+        fbStyles = defaultFormStyles,
+        fbHtmx = Nothing
       }
 
 --------------------------------------------------------------------------------

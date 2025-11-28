@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Blog.Edit.Post where
 
 --------------------------------------------------------------------------------
 
+import {-# SOURCE #-} API (blogPostGetLink)
 import API.Blog.Edit.Post.Templates.Error (errorTemplate, forbiddenTemplate, notFoundTemplate, unauthorizedTemplate)
-import API.Blog.Edit.Post.Templates.Success (template)
+import API.Blog.Post.Get.Templates.Page qualified as DetailPage
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (unless, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -19,11 +22,12 @@ import Data.Aeson qualified as Aeson
 import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -43,6 +47,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..))
@@ -60,7 +65,7 @@ type Route =
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> MultipartForm Mem BlogEditForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
+        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------
@@ -153,12 +158,12 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   BlogEditForm ->
-  m (Lucid.Html ())
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 handler _tracer blogPostId _slug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized blog edit attempt" blogPostId
-      renderTemplate hxRequest Nothing unauthorizedTemplate
+      Servant.noHeader <$> renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
         blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
@@ -168,16 +173,16 @@ handler _tracer blogPostId _slug cookie (foldHxReq -> hxRequest) editForm = do
       case mResult of
         Left err -> do
           Log.logAttention "getBlogPostById execution error" (show err)
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right Nothing -> do
           Log.logInfo "No blog post found with id" blogPostId
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
         Right (Just (blogPost, oldTags)) ->
           if blogPost.bpmAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then updateBlogPost hxRequest userMetadata blogPost oldTags editForm
             else do
               Log.logInfo "User attempted to edit blog post they don't own" blogPost.bpmId
-              renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
 
 updateBlogPost ::
   ( MonadDB m,
@@ -193,12 +198,12 @@ updateBlogPost ::
   BlogPosts.Model ->
   [BlogTags.Model] ->
   BlogEditForm ->
-  m (Lucid.Html ())
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
   case parseStatus (befStatus editForm) of
     Nothing -> do
       Log.logInfo "Invalid status in blog edit form" (befStatus editForm)
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid blog post status value.")
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid blog post status value.")
     Just parsedStatus -> do
       -- Process hero image upload if present
       heroImagePath <- case befHeroImage editForm of
@@ -224,10 +229,10 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
       case (Sanitize.validateContentLength 200 sanitizedTitle, Sanitize.validateContentLength 50000 sanitizedContent) of
         (Left titleError, _) -> do
           let errorMsg = Sanitize.displayContentValidationError titleError
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
         (_, Left contentError) -> do
           let errorMsg = Sanitize.displayContentValidationError contentError
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
         (Right validTitle, Right validContent) -> do
           let updateData =
                 BlogPosts.Insert
@@ -249,13 +254,37 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
           case mUpdateResult of
             Left err -> do
               Log.logInfo "Failed to update blog post" (blogPost.bpmId, show err)
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
             Right Nothing -> do
               Log.logInfo "Blog post update returned Nothing" blogPost.bpmId
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update blog post. Please try again.")
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update blog post. Please try again.")
             Right (Just _) -> do
               Log.logInfo "Successfully updated blog post" blogPost.bpmId
-              renderTemplate hxRequest (Just userMetadata) (template blogPost.bpmId newSlug)
+              -- Fetch updated post data for detail page
+              updatedPostData <- execTransactionSpan $ runMaybeT $ do
+                updatedPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPost.bpmId)
+                author <- MaybeT $ HT.statement () (UserMetadata.getUserMetadata updatedPost.bpmAuthorId)
+                newTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
+                pure (updatedPost, author, newTags)
+
+              case updatedPostData of
+                Left _err ->
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Post updated but failed to load details.")
+                Right Nothing ->
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Post updated but not found.")
+                Right (Just (updatedPost, author, newTags)) -> do
+                  let detailUrl = Links.linkURI $ blogPostGetLink blogPost.bpmId newSlug
+                      banner = renderBanner Success "Blog Post Updated" "Your blog post has been updated and saved."
+                  html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+                    IsHxRequest -> do
+                      -- HTMX request: render content first, banner uses OOB swap
+                      DetailPage.template updatedPost author newTags
+                      banner
+                    IsNotHxRequest -> do
+                      -- Regular request: render banner first (no OOB swap available)
+                      banner
+                      DetailPage.template updatedPost author newTags
+                  pure $ Servant.addHeader [i|/#{detailUrl}|] html
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::
