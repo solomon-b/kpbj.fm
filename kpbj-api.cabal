@@ -217,6 +217,7 @@ library
     API.Admin.Users.Delete
     API.Admin.Users.Delete.Templates.Success
     App.Common
+    Component.Banner
     Component.Form
     Component.Form.Builder
     Component.Form.Internal
