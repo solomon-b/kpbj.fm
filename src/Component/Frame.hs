@@ -242,6 +242,49 @@ playerScript =
     }
   |]
 
+-- | JavaScript to display banner from URL query parameters on page load
+--
+-- Reads _banner, _title, and _msg query params, displays the banner,
+-- then cleans up the URL using history.replaceState.
+bannerFromUrlScript :: Text
+bannerFromUrlScript =
+  "\
+  \(function() {\
+  \  const params = new URLSearchParams(window.location.search);\
+  \  const bannerType = params.get('_banner');\
+  \  const title = params.get('_title');\
+  \  const message = params.get('_msg');\
+  \  if (bannerType && title && message) {\
+  \    const styles = {\
+  \      success: { bg: 'bg-green-100', border: 'border-green-600', title: 'text-green-800', msg: 'text-green-700', dismiss: 'text-green-600 hover:text-green-800', icon: '\\u2713' },\
+  \      error: { bg: 'bg-red-100', border: 'border-red-600', title: 'text-red-800', msg: 'text-red-700', dismiss: 'text-red-600 hover:text-red-800', icon: '\\u2715' },\
+  \      warning: { bg: 'bg-yellow-100', border: 'border-yellow-600', title: 'text-yellow-800', msg: 'text-yellow-700', dismiss: 'text-yellow-600 hover:text-yellow-800', icon: '\\u26A0' },\
+  \      info: { bg: 'bg-blue-100', border: 'border-blue-600', title: 'text-blue-800', msg: 'text-blue-700', dismiss: 'text-blue-600 hover:text-blue-800', icon: '\\u2139' }\
+  \    };\
+  \    const style = styles[bannerType] || styles.info;\
+  \    const container = document.getElementById('banner-container');\
+  \    if (container) {\
+  \      container.innerHTML = '<div id=\"banner\" class=\"' + style.bg + ' border-2 ' + style.border + ' p-4 mb-6 w-full\">' +\
+  \        '<div class=\"flex items-center justify-between\">' +\
+  \          '<div class=\"flex items-center gap-3\">' +\
+  \            '<span class=\"text-2xl\">' + style.icon + '</span>' +\
+  \            '<div>' +\
+  \              '<h3 class=\"font-bold ' + style.title + '\">' + decodeURIComponent(title) + '</h3>' +\
+  \              '<p class=\"text-sm ' + style.msg + '\">' + decodeURIComponent(message) + '</p>' +\
+  \            '</div>' +\
+  \          '</div>' +\
+  \          '<button onclick=\"this.closest(\\'#banner\\').remove()\" class=\"' + style.dismiss + ' font-bold text-xl\">\\u00D7</button>' +\
+  \        '</div>' +\
+  \      '</div>';\
+  \    }\
+  \    params.delete('_banner');\
+  \    params.delete('_title');\
+  \    params.delete('_msg');\
+  \    const newUrl = params.toString() ? window.location.pathname + '?' + params.toString() : window.location.pathname;\
+  \    window.history.replaceState({}, '', newUrl);\
+  \  }\
+  \})();"
+
 authWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
 authWidget mUser =
   Lucid.div_ [Lucid.class_ "flex gap-4 items-center text-sm text-gray-600"] $ do
@@ -319,6 +362,8 @@ template mUser main =
         main
       Lucid.footer_ [Lucid.class_ "px-4 py-8 mt-auto text-center"] $ do
         Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
+      -- Script to display banner from URL params (runs after DOM is ready)
+      Lucid.script_ [] bannerFromUrlScript
 
 -- footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
 --   div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do

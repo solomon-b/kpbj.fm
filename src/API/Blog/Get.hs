@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Blog.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Blog.Get.Templates.Error (errorTemplate)
+import {-# SOURCE #-} API (rootGetLink)
 import API.Blog.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad (forM)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -17,6 +20,7 @@ import Data.Functor ((<&>))
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -34,7 +38,13 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
 
 --------------------------------------------------------------------------------
 
@@ -81,7 +91,8 @@ handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   case blogPostsResult of
     Left _err -> do
       Log.logInfo "Failed to fetch blog posts from database" ()
-      renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load blog posts. Please try again.")
+      let banner = BannerParams Error "Error" "Failed to load blog posts. Please try again."
+      renderTemplate hxRequest mUserInfo (redirectWithBanner [i|/#{rootGetUrl}|] banner)
     Right allPosts -> do
       let posts = take (fromIntegral limit) allPosts
           hasMore = length allPosts > fromIntegral limit

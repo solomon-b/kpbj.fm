@@ -6,8 +6,10 @@ module API.Shows.Slug.Blog.Edit.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogEditGetLink, showBlogPostGetLink, showGetLink)
+import {-# SOURCE #-} API (rootGetLink, showBlogEditGetLink, showBlogPostGetLink, showGetLink)
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -58,6 +60,9 @@ showBlogEditGetUrl showId postId slug = Links.linkURI $ showBlogEditGetLink show
 
 showGetUrl :: Slug -> Links.URI
 showGetUrl showSlug = Links.linkURI $ showGetLink showSlug
+
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
 
 --------------------------------------------------------------------------------
 
@@ -206,15 +211,15 @@ handler ::
   Maybe HxRequest ->
   ShowBlogEditForm ->
   m (Lucid.Html ())
-handler _tracer showId postId showSlug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer showId postId _showSlug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized blog edit attempt" (showId, postId)
       renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (_user, userMetadata)
-      | UserMetadata.isSuspended userMetadata ->
-          -- TODO: UNDEFINED!!!
-          renderTemplate hxRequest (Just userMetadata) (undefined showSlug ("You have been suspended." :: Text))
+      | UserMetadata.isSuspended userMetadata -> do
+          let banner = BannerParams Error "Account Suspended" "Your account has been suspended. You cannot edit blog posts."
+          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
         blogPost <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)

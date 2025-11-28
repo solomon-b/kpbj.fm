@@ -6,10 +6,11 @@ module API.Events.Edit.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Events.Edit.Get.Templates.Error (notAuthorizedTemplate, notFoundTemplate, notLoggedInTemplate)
+import {-# SOURCE #-} API (eventsGetLink, hostDashboardGetLink, userLoginGetLink)
 import API.Events.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
-import Component.Redirect (redirectTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectTemplate, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -36,7 +37,19 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+eventsGetUrl :: Links.URI
+eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+
+hostDashboardGetUrl :: Links.URI
+hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 --------------------------------------------------------------------------------
 
@@ -74,7 +87,8 @@ handler _tracer eventId urlSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to event edit" ()
-      html <- renderTemplate hxRequest Nothing notLoggedInTemplate
+      let banner = BannerParams Error "Access Denied" "You must be logged in to edit events."
+      html <- renderTemplate hxRequest Nothing (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
       pure $ Servant.noHeader html
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
@@ -85,11 +99,13 @@ handler _tracer eventId urlSlug cookie (foldHxReq -> hxRequest) = do
       case mResult of
         Left err -> do
           Log.logAttention "getEventById execution error" (show err)
-          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          let banner = BannerParams Warning "Event Not Found" "The event you're trying to edit doesn't exist."
+          html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{eventsGetUrl}|] banner)
           pure $ Servant.noHeader html
         Right Nothing -> do
           Log.logInfo "No event found with id" eventId
-          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          let banner = BannerParams Warning "Event Not Found" "The event you're trying to edit doesn't exist."
+          html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{eventsGetUrl}|] banner)
           pure $ Servant.noHeader html
         Right (Just (event, tags)) -> do
           let canonicalSlug = event.emSlug
@@ -107,7 +123,8 @@ handler _tracer eventId urlSlug cookie (foldHxReq -> hxRequest) = do
                   pure $ Servant.noHeader html
                 else do
                   Log.logInfo "User tried to edit event they don't own" event.emId
-                  html <- renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+                  let banner = BannerParams Error "Access Denied" "You can only edit events you created or have staff permissions."
+                  html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
                   pure $ Servant.noHeader html
             else do
               Log.logInfo "Redirecting to canonical event edit URL" canonicalUrl

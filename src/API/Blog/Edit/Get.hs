@@ -6,10 +6,11 @@ module API.Blog.Edit.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Blog.Edit.Get.Templates.Error (notAuthorizedTemplate, notFoundTemplate, notLoggedInTemplate)
+import {-# SOURCE #-} API (blogGetLink, hostDashboardGetLink, userLoginGetLink)
 import API.Blog.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
-import Component.Redirect (redirectTemplate)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), redirectTemplate, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -36,7 +37,19 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+blogGetUrl :: Links.URI
+blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+
+hostDashboardGetUrl :: Links.URI
+hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 --------------------------------------------------------------------------------
 
@@ -74,7 +87,8 @@ handler _tracer blogPostId urlSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to blog edit" ()
-      html <- renderTemplate hxRequest Nothing notLoggedInTemplate
+      let banner = BannerParams Error "Access Denied" "You must be logged in to edit blog posts."
+      html <- renderTemplate hxRequest Nothing (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
       pure $ Servant.noHeader html
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
@@ -85,11 +99,13 @@ handler _tracer blogPostId urlSlug cookie (foldHxReq -> hxRequest) = do
       case mResult of
         Left err -> do
           Log.logAttention "getBlogPostById execution error" (show err)
-          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          let banner = BannerParams Warning "Blog Post Not Found" "The blog post you're trying to edit doesn't exist."
+          html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{blogGetUrl}|] banner)
           pure $ Servant.noHeader html
         Right Nothing -> do
           Log.logInfo "No blog post found with id" blogPostId
-          html <- renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          let banner = BannerParams Warning "Blog Post Not Found" "The blog post you're trying to edit doesn't exist."
+          html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{blogGetUrl}|] banner)
           pure $ Servant.noHeader html
         Right (Just (blogPost, tags)) -> do
           let canonicalSlug = blogPost.bpmSlug
@@ -107,7 +123,8 @@ handler _tracer blogPostId urlSlug cookie (foldHxReq -> hxRequest) = do
                   pure $ Servant.noHeader html
                 else do
                   Log.logInfo "User tried to edit blog post they don't own" blogPost.bpmId
-                  html <- renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+                  let banner = BannerParams Error "Access Denied" "You can only edit blog posts you authored or have staff permissions."
+                  html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
                   pure $ Servant.noHeader html
             else do
               Log.logInfo "Redirecting to canonical blog edit URL" canonicalUrl
