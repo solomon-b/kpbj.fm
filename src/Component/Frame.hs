@@ -5,6 +5,7 @@ module Component.Frame where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (aboutGetLink, archiveGetLink, blogGetLink, donateGetLink, eventsGetLink, hostDashboardGetLink, rootGetLink, showsScheduleGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
+import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -311,7 +312,9 @@ template mUser main =
           navigation
           authWidget mUser
 
-      Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center", Lucid.id_ "main-content"] main
+      Lucid.main_ [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center", Lucid.id_ "main-content"] $ do
+        Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ "w-full"] mempty
+        main
       Lucid.footer_ [Lucid.class_ "px-4 py-8 mt-auto text-center"] $ do
         Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
 
