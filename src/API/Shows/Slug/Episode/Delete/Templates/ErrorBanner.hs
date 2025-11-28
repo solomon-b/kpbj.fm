@@ -10,6 +10,7 @@ where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodesDeleteLink, episodesEditGetLink)
+import Component.Banner (BannerType (..), renderBanner)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -31,33 +32,7 @@ renderErrorBannerWithCard showModel episode errorMsg = do
   -- Main response: return the episode card unchanged
   renderEpisodeCard showModel episode
   -- Out-of-band: inject error banner at top
-  renderErrorBanner errorMsg
-
--- | Render the error banner with hx-swap-oob
-renderErrorBanner :: Text -> Lucid.Html ()
-renderErrorBanner errorMsg = do
-  Lucid.div_
-    [ Lucid.id_ "error-banner-container",
-      LucidBase.makeAttributes "hx-swap-oob" "true",
-      Lucid.class_ "w-full"
-    ]
-    $ do
-      Lucid.div_
-        [ Lucid.id_ "error-banner",
-          Lucid.class_ "bg-red-100 border-2 border-red-600 p-4 mb-6"
-        ]
-        $ do
-          Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
-            Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
-              Lucid.span_ [Lucid.class_ "text-2xl"] "⚠️"
-              Lucid.div_ $ do
-                Lucid.h3_ [Lucid.class_ "font-bold text-red-800"] "Archive Failed"
-                Lucid.p_ [Lucid.class_ "text-sm text-red-700"] $ Lucid.toHtml errorMsg
-            Lucid.button_
-              [ Lucid.onclick_ "this.closest('#error-banner').remove()",
-                Lucid.class_ "text-red-600 hover:text-red-800 font-bold text-xl"
-              ]
-              "✕"
+  renderBanner Error "Archive Failed" errorMsg
 
 -- | Render the episode card (copied from Episode template to avoid circular dependency)
 renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()

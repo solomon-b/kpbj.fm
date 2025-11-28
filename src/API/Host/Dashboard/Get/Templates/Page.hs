@@ -30,8 +30,7 @@ import Servant.Links qualified as Links
 -- | Host Dashboard template
 template :: UserMetadata.Model -> [Shows.Model] -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.ScheduleTemplate] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
 template userMeta allShows selectedShow recentEpisodes blogPosts schedules nextShow = do
-  -- Error banner container (empty by default, populated by HTMX out-of-band swaps)
-  Lucid.div_ [Lucid.id_ "error-banner-container"] ""
+  -- Note: Error banners use the #banner-container in Component.Frame via hx-swap-oob
   renderShowSelector userMeta allShows selectedShow
   renderDashboardContent userMeta selectedShow recentEpisodes blogPosts schedules nextShow
 
