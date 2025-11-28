@@ -132,21 +132,6 @@ showFormFields eligibleHosts =
                   ],
                 vsHint = Just "Active shows appear on the shows page",
                 vsValidation = emptyValidation {vrRequired = True}
-              },
-            ValidatedTextField
-              { vfName = "duration_minutes",
-                vfLabel = "Typical Duration (minutes)",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "e.g. 120",
-                vfHint = Just "How long is a typical episode?",
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Nothing,
-                      vrMaxLength = Nothing,
-                      vrPattern = Just "[0-9]+",
-                      vrRequired = False,
-                      vrCustomValidation = Nothing
-                    }
               }
           ]
       },

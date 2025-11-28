@@ -45,7 +45,6 @@ prop_insertSelect cfg = do
         UUT.siLogoUrl showInsert === UUT.logoUrl selected
         UUT.siBannerUrl showInsert === UUT.bannerUrl selected
         UUT.siStatus showInsert === UUT.status selected
-        UUT.siDurationMinutes showInsert === UUT.durationMinutes selected
         insertedId === UUT.id selected
 
 prop_getShowBySlug :: TestDBConfig -> PropertyT IO ()
