@@ -110,7 +110,6 @@ library
     API.Blog.Edit.Get.Templates.Form
     API.Blog.Edit.Post
     API.Blog.Edit.Post.Templates.Error
-    API.Blog.Edit.Post.Templates.Success
     API.Blog.Delete
     API.Blog.Post.Get
     API.Blog.Post.Get.Templates.Page
@@ -132,7 +131,6 @@ library
     API.Events.Edit.Get.Templates.Form
     API.Events.Edit.Post
     API.Events.Edit.Post.Templates.Error
-    API.Events.Edit.Post.Templates.Success
     API.Events.Delete
     API.Events.Event.Get
     API.Events.Event.Get.Templates.Page
@@ -210,7 +208,6 @@ library
     API.Admin.Users.Edit.Get.Templates.Page
     API.Admin.Users.Edit.Post
     API.Admin.Users.Edit.Post.Templates.Error
-    API.Admin.Users.Edit.Post.Templates.Success
     API.Admin.Users.Role.Patch
     API.Admin.Users.Suspend.Post
     API.Admin.Users.Unsuspend.Post

@@ -6,7 +6,9 @@ module API.Events.New.Post where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (eventGetLink, eventsGetLink, eventsNewGetLink)
+import API.Events.Event.Get.Templates.Page qualified as DetailPage
 import App.Common (getUserInfo, renderTemplate)
+import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -23,8 +25,8 @@ import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Domain.Types.Slug (Slug)
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
@@ -55,9 +57,6 @@ eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 eventsNewGetUrl :: Links.URI
 eventsNewGetUrl = Links.linkURI eventsNewGetLink
 
-eventGetUrl :: Events.Id -> Slug -> Links.URI
-eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
-
 --------------------------------------------------------------------------------
 
 type Route =
@@ -68,49 +67,10 @@ type Route =
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> MultipartForm Mem NewEventForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
+        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------
-
--- | Success template after event creation
-successTemplate :: Events.Model -> Lucid.Html ()
-successTemplate event = do
-  Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Event Created Successfully!"
-    Lucid.p_ [Lucid.class_ "mb-6"] $ do
-      "Your event \""
-      Lucid.strong_ $ Lucid.toHtml event.emTitle
-      "\" has been "
-      case event.emStatus of
-        Events.Published -> "published and is now live."
-        Events.Draft -> "saved as a draft."
-
-    Lucid.div_ [Lucid.class_ "space-x-4"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
-          hxGet_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block"
-        ]
-        "VIEW EVENT"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{eventsGetUrl}|],
-          hxGet_ [i|/#{eventsGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
-        ]
-        "← BACK TO EVENTS"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{eventsNewGetUrl}|],
-          hxGet_ [i|/#{eventsNewGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700 inline-block"
-        ]
-        "CREATE ANOTHER EVENT"
 
 -- | Error template for validation failures
 errorTemplate :: [Text] -> Lucid.Html ()
@@ -280,7 +240,7 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   NewEventForm ->
-  m (Lucid.Html ())
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 handler _tracer cookie (foldHxReq -> hxRequest) form = do
   getUserInfo cookie >>= \case
     Just (user, userMetadata) | UserMetadata.isStaffOrHigher userMetadata.mUserRole -> do
@@ -306,7 +266,7 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
           fetchEvent hxRequest userMetadata eventId
     _ -> do
       Log.logInfo "Unauthorized access to event creation form" ()
-      renderTemplate hxRequest Nothing notAuthorizedTemplate
+      Servant.noHeader <$> renderTemplate hxRequest Nothing notAuthorizedTemplate
 
 validateForm ::
   ( Log.MonadLog m,
@@ -317,14 +277,14 @@ validateForm ::
   UserMetadata.Model ->
   Maybe Text ->
   NewEventForm ->
-  (Events.Insert -> m (Lucid.Html ())) ->
-  m (Lucid.Html ())
+  (Events.Insert -> m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))) ->
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 validateForm hxRequest user userMetadata posterImagePath form k =
   case validateEventForm form of
     Left validationError -> do
       let errorMsg = Sanitize.displayContentValidationError validationError
       Log.logInfo "Event creation failed validation" errorMsg
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate [errorMsg])
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate [errorMsg])
     Right (title, description, startsAt, endsAt, locationName, locationAddress, status) ->
       let slug = Slug.mkSlug title
           eventInsert =
@@ -353,13 +313,13 @@ insertEvent ::
   HxRequest ->
   UserMetadata.Model ->
   Events.Insert ->
-  (Events.Id -> m (Lucid.Html ())) ->
-  m (Lucid.Html ())
+  (Events.Id -> m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))) ->
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 insertEvent hxRequest userMetadata eventInsert k =
   execQuerySpan (Events.insertEvent eventInsert) >>= \case
     Left _err -> do
       Log.logInfo "Failed to create event in database" ()
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate ["Database error occurred. Please try again."])
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate ["Database error occurred. Please try again."])
     Right eventId ->
       k eventId
 
@@ -406,11 +366,23 @@ fetchEvent ::
   HxRequest ->
   UserMetadata.Model ->
   Events.Id ->
-  m (Lucid.Html ())
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 fetchEvent hxRequest userMetadata eventId =
   execQuerySpan (Events.getEventById eventId) >>= \case
     Right (Just event) -> do
-      renderTemplate hxRequest (Just userMetadata) (successTemplate event)
+      -- Get tags for the event
+      tagsResult <- execQuerySpan (Events.getEventTags eventId)
+      let tags = either (const []) id tagsResult
+      let detailUrl = Links.linkURI $ eventGetLink eventId (Events.emSlug event)
+          banner = renderBanner Success "Event Created" "Your event has been created successfully."
+      html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+        IsHxRequest -> do
+          DetailPage.template event tags userMetadata
+          banner
+        IsNotHxRequest -> do
+          banner
+          DetailPage.template event tags userMetadata
+      pure $ Servant.addHeader [i|/#{detailUrl}|] html
     _ -> do
-      Log.logInfo "Failed to fetc event" (Aeson.object ["eventId" .= eventId])
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate ["Database error occurred. Please try again."])
+      Log.logInfo "Failed to fetch event" (Aeson.object ["eventId" .= eventId])
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate ["Database error occurred. Please try again."])

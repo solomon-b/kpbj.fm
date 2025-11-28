@@ -41,7 +41,8 @@ newBlogPostForm showModel = do
         fbHeader = Just (renderFormHeader showModel),
         fbFields = showBlogFormFields,
         fbAdditionalContent = [renderSubmitActions showModel],
-        fbStyles = defaultFormStyles
+        fbStyles = defaultFormStyles,
+        fbHtmx = Nothing
       }
 
 --------------------------------------------------------------------------------

@@ -62,7 +62,8 @@ template event tags userMeta = do
         fbHeader = Just (renderFormHeader event userMeta eventBackUrl),
         fbFields = eventEditFormFields event tagsText,
         fbAdditionalContent = [renderSubmitActions eventBackUrl],
-        fbStyles = defaultFormStyles
+        fbStyles = defaultFormStyles,
+        fbHtmx = Nothing
       }
 
 --------------------------------------------------------------------------------

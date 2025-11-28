@@ -35,7 +35,8 @@ template userMeta = do
         fbHeader = Just (renderFormHeader userMeta),
         fbFields = blogFormFields,
         fbAdditionalContent = [renderSubmitActions],
-        fbStyles = defaultFormStyles
+        fbStyles = defaultFormStyles,
+        fbHtmx = Nothing
       }
 
 --------------------------------------------------------------------------------
