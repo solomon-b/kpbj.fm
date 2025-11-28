@@ -575,6 +575,36 @@ INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
 SELECT u.id, 'Staff Member', 'KPBJ Staff', 'Staff'
 FROM users u WHERE u.email = 'staff@kpbj.fm';
 
+-- Create regular users (password: "password")
+INSERT INTO users (email, password) VALUES
+  ('listener@example.com', '$argon2id$v=19$m=65536,t=2,p=1$IBMrLbPnVTsuf02vfr/jbA$u5UMpeqN0c7BR2L/AlIKpwk6lQ1E4y1j7OGXvRb7X5I'),
+  ('musicfan@example.com', '$argon2id$v=19$m=65536,t=2,p=1$IBMrLbPnVTsuf02vfr/jbA$u5UMpeqN0c7BR2L/AlIKpwk6lQ1E4y1j7OGXvRb7X5I'),
+  ('vinyl.collector@example.com', '$argon2id$v=19$m=65536,t=2,p=1$IBMrLbPnVTsuf02vfr/jbA$u5UMpeqN0c7BR2L/AlIKpwk6lQ1E4y1j7OGXvRb7X5I'),
+  ('portland.local@example.com', '$argon2id$v=19$m=65536,t=2,p=1$IBMrLbPnVTsuf02vfr/jbA$u5UMpeqN0c7BR2L/AlIKpwk6lQ1E4y1j7OGXvRb7X5I'),
+  ('nightowl@example.com', '$argon2id$v=19$m=65536,t=2,p=1$IBMrLbPnVTsuf02vfr/jbA$u5UMpeqN0c7BR2L/AlIKpwk6lQ1E4y1j7OGXvRb7X5I')
+ON CONFLICT (email) DO NOTHING;
+
+-- Create regular user_metadata
+INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
+SELECT u.id, 'RadioHead42', 'Alex Thompson', 'User'
+FROM users u WHERE u.email = 'listener@example.com';
+
+INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
+SELECT u.id, 'JazzCat', 'Maria Santos', 'User'
+FROM users u WHERE u.email = 'musicfan@example.com';
+
+INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
+SELECT u.id, 'VinylJunkie', 'Sam Chen', 'User'
+FROM users u WHERE u.email = 'vinyl.collector@example.com';
+
+INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
+SELECT u.id, 'PDXBeats', 'Jordan Rivera', 'User'
+FROM users u WHERE u.email = 'portland.local@example.com';
+
+INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
+SELECT u.id, 'MidnightListener', 'Casey Park', 'User'
+FROM users u WHERE u.email = 'nightowl@example.com';
+
 -- Create event tags
 INSERT INTO event_tags (name) VALUES
   ('Live Music'),
@@ -1062,6 +1092,11 @@ SELECT
     'Host Users' as metric,
     COUNT(*) as count
 FROM users WHERE email LIKE 'host-%'
+UNION ALL
+SELECT
+    'Regular Users' as metric,
+    COUNT(*) as count
+FROM users WHERE email LIKE '%@example.com'
 UNION ALL
 SELECT
     'Host Details' as metric,
