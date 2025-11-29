@@ -6,7 +6,7 @@ module API.Admin.Shows.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (adminShowsGetLink, adminShowsNewGetLink, showGetLink)
+import {-# SOURCE #-} API (adminShowsGetLink, adminShowsNewGetLink, showEditGetLink, showGetLink)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.String.Interpolate (i)
@@ -106,6 +106,7 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Status"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Hosts"
               Lucid.th_ [Lucid.class_ "p-4 text-left"] "Genre"
+              Lucid.th_ [Lucid.class_ "p-4 text-center w-24"] ""
           Lucid.tbody_ $
             mapM_ renderShowRow theShowList
 
@@ -118,6 +119,7 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
 renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
 renderShowRow showInfo =
   let showDetailUrl = Links.linkURI $ showGetLink showInfo.swhiSlug
+      showEditUrl = Links.linkURI $ showEditGetLink showInfo.swhiSlug
       cellLinkAttrs =
         [ Lucid.class_ "p-4 cursor-pointer",
           hxGet_ [i|/#{showDetailUrl}|],
@@ -150,6 +152,25 @@ renderShowRow showInfo =
             Lucid.td_ cellLinkAttrs $
               Lucid.toHtml $
                 fromMaybe "-" showInfo.swhiGenre
+
+            Lucid.td_ [Lucid.class_ "p-4 text-center"]
+              $ Lucid.select_
+                [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
+                  xData_ "{}",
+                  xOnChange_
+                    [i|
+                    const action = $el.value;
+                    $el.value = '';
+                    if (action === 'edit') {
+                      htmx.ajax('GET', '/#{showEditUrl}', {target: '\#main-content', swap: 'innerHTML'});
+                      history.pushState({}, '', '/#{showEditUrl}');
+                    }
+                  |],
+                  xOnClick_ "event.stopPropagation()"
+                ]
+              $ do
+                Lucid.option_ [Lucid.value_ ""] "Actions..."
+                Lucid.option_ [Lucid.value_ "edit"] "Edit"
 
 renderStatusBadge :: Shows.Status -> Lucid.Html ()
 renderStatusBadge status = do
