@@ -27,6 +27,35 @@ import Servant.Links qualified as Links
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug
 
+-- | Get the next day of the week (for overnight show handling)
+succDay :: DayOfWeek -> DayOfWeek
+succDay Sunday = Monday
+succDay Monday = Tuesday
+succDay Tuesday = Wednesday
+succDay Wednesday = Thursday
+succDay Thursday = Friday
+succDay Friday = Saturday
+succDay Saturday = Sunday
+
+-- | Check if a show is currently live, handling overnight shows
+--
+-- For overnight shows (where end_time <= start_time), the show spans two calendar days.
+-- E.g., Tuesday 23:00 - 00:00 means Tuesday 23:00 to Wednesday 00:00.
+isShowLive :: Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> TimeOfDay -> TimeOfDay -> Bool
+isShowLive mCurrentDay mCurrentTime showDay startTime endTime =
+  case (mCurrentDay, mCurrentTime) of
+    (Just currentDay, Just currentTime) ->
+      let isOvernight = endTime <= startTime
+      in if isOvernight
+         then -- Show crosses midnight: live if (same day AND after start) OR (next day AND before end)
+              (currentDay == showDay && currentTime >= startTime)
+              || (currentDay == succDay showDay && currentTime < endTime)
+         else -- Normal same-day show
+              currentDay == showDay
+              && currentTime >= startTime
+              && currentTime < endTime
+    _ -> False
+
 -- | Main schedule view template
 renderScheduleView :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> WeekOffset -> Day -> Lucid.Html ()
 renderScheduleView scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart = do
@@ -168,20 +197,22 @@ dayToColumn Sunday = 8
 -- | Render a show as a calendar block that spans rows
 renderCalendarShow :: Maybe DayOfWeek -> Maybe TimeOfDay -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
 renderCalendarShow currentDayOfWeek currentTimeOfDay show' = do
-  let TimeOfDay startHour _ _ = ShowSchedule.sswdStartTime show'
-      TimeOfDay endHour endMin _ = ShowSchedule.sswdEndTime show'
+  let startTime = ShowSchedule.sswdStartTime show'
+      endTime = ShowSchedule.sswdEndTime show'
+      TimeOfDay startHour _ _ = startTime
+      TimeOfDay endHour endMin _ = endTime
+      -- Detect overnight shows (end_time <= start_time means crosses midnight)
+      isOvernight = endTime <= startTime
       -- Calculate grid row positions (1-indexed, add 1 for header)
       startRow = startHour + 1
-      endRow = endHour + 1 + (if endMin > 0 then 1 else 0) -- Round up if minutes
+      -- For overnight shows, extend to end of grid (row 25 = midnight)
+      endRow = if isOvernight
+               then 25  -- Extend to end of day (midnight)
+               else endHour + 1 + (if endMin > 0 then 1 else 0) -- Round up if minutes
       dayCol = dayToColumn (ShowSchedule.sswdDayOfWeek show')
       showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
-      -- Check if this show is currently live
-      isLive = case (currentDayOfWeek, currentTimeOfDay) of
-        (Just currentDay, Just currentTime) ->
-          currentDay == ShowSchedule.sswdDayOfWeek show'
-            && currentTime >= ShowSchedule.sswdStartTime show'
-            && currentTime < ShowSchedule.sswdEndTime show'
-        _ -> False
+      -- Check if this show is currently live (using helper that handles overnight)
+      isLive = isShowLive currentDayOfWeek currentTimeOfDay (ShowSchedule.sswdDayOfWeek show') startTime endTime
       -- Styling
       gridStyle = [i|grid-row: #{startRow} / #{endRow}; grid-column: #{dayCol};|]
       bgClass :: Text
@@ -245,13 +276,8 @@ renderMobileShowItem :: Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> ShowS
 renderMobileShowItem currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
   let showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
       startTimeText = formatTimeOfDay (ShowSchedule.sswdStartTime show')
-      -- Check if this show is currently airing
-      isLiveShow = case (currentDayOfWeek, currentTimeOfDay) of
-        (Just currentDay, Just currentTime) ->
-          currentDay == dayOfWeek
-            && currentTime >= ShowSchedule.sswdStartTime show'
-            && currentTime < ShowSchedule.sswdEndTime show'
-        _ -> False
+      -- Check if this show is currently airing (using helper that handles overnight shows)
+      isLiveShow = isShowLive currentDayOfWeek currentTimeOfDay dayOfWeek (ShowSchedule.sswdStartTime show') (ShowSchedule.sswdEndTime show')
       containerClass = "flex justify-between items-center p-3 border border-gray-300"
   Lucid.div_ [Lucid.class_ containerClass] $ do
     Lucid.div_ $ do
