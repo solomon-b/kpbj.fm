@@ -6,7 +6,7 @@ module API.Shows.Slug.Edit.Get where
 --------------------------------------------------------------------------------
 
 import API.Get.Templates qualified as HomeTemplate
-import API.Shows.Slug.Edit.Get.Templates.Form (template)
+import API.Shows.Slug.Edit.Get.Templates.Form (schedulesToJson, template)
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
@@ -22,6 +22,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -102,14 +103,31 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
             Right True -> do
               Log.logInfo "Authorized user accessing show edit form" showModel.id
               let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                  editTemplate = template showModel userMetadata isStaff
+              -- Fetch schedules only if staff (they're the only ones who see the schedule section)
+              schedulesJson <-
+                if isStaff
+                  then
+                    execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id) >>= \case
+                      Left err -> do
+                        Log.logInfo "Failed to fetch schedules" (show err)
+                        pure "[]"
+                      Right scheds -> pure $ schedulesToJson scheds
+                  else pure "[]"
+              let editTemplate = template showModel userMetadata isStaff schedulesJson
               html <- renderTemplate hxRequest (Just userMetadata) editTemplate
               pure $ Servant.noHeader html
             Right False ->
               if UserMetadata.isStaffOrHigher userMetadata.mUserRole
                 then do
                   Log.logInfo "Staff user accessing show edit form" showModel.id
-                  let editTemplate = template showModel userMetadata True
+                  -- Fetch schedules for staff
+                  schedulesJson <-
+                    execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id) >>= \case
+                      Left err -> do
+                        Log.logInfo "Failed to fetch schedules" (show err)
+                        pure "[]"
+                      Right scheds -> pure $ schedulesToJson scheds
+                  let editTemplate = template showModel userMetadata True schedulesJson
                   html <- renderTemplate hxRequest (Just userMetadata) editTemplate
                   pure $ Servant.noHeader html
                 else do
