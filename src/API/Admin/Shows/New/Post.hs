@@ -11,17 +11,22 @@ import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (forM_)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Aeson ((.=))
+import Data.Aeson (FromJSON, ToJSON, (.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
+import Data.Int (Int64)
 import Data.Maybe (mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Text.Read qualified as Text.Read
+import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Data.Vector qualified as Vector
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -30,6 +35,7 @@ import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
@@ -37,6 +43,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
 import Effects.Observability qualified as Observability
+import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
@@ -87,9 +94,20 @@ data NewShowForm = NewShowForm
     nsfLogoFile :: Maybe (FileData Mem),
     nsfBannerFile :: Maybe (FileData Mem),
     nsfStatus :: Text,
-    nsfHosts :: [User.Id]
+    nsfHosts :: [User.Id],
+    nsfSchedulesJson :: Maybe Text
   }
   deriving (Show)
+
+-- | Schedule slot info parsed from JSON form data
+data ScheduleSlotInfo = ScheduleSlotInfo
+  { dayOfWeek :: Text,
+    weeksOfMonth :: [Int64],
+    startTime :: Text,
+    endTime :: Text
+  }
+  deriving stock (Show, Generic, Eq)
+  deriving anyclass (FromJSON, ToJSON)
 
 instance FromMultipart Mem NewShowForm where
   fromMultipart multipartData =
@@ -101,6 +119,7 @@ instance FromMultipart Mem NewShowForm where
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData
       <*> pure (parseHosts $ either (const []) id (lookupInputs "hosts" multipartData))
+      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedules_json" multipartData))
     where
       emptyToNothing :: Maybe Text -> Maybe Text
       emptyToNothing (Just "") = Nothing
@@ -356,6 +375,11 @@ handleShowCreation hxRequest userMetadata showData form = do
           -- Assign hosts to the show
           assignHostsToShow showId (nsfHosts form)
 
+          -- Parse and create schedules
+          case parseSchedules (nsfSchedulesJson form) of
+            Left err -> Log.logInfo "Failed to parse schedules" (Aeson.object ["error" .= err])
+            Right schedules -> createSchedulesForShow showId schedules
+
           -- Fetch the created show
           execQuerySpan (Shows.getShowById showId) >>= \case
             Right (Just createdShow) -> do
@@ -436,3 +460,86 @@ promoteUserToHostIfNeeded userId = do
         _ ->
           -- User already has Host, Staff, or Admin role - no promotion needed
           pure ()
+
+--------------------------------------------------------------------------------
+-- Schedule Creation Helpers
+
+-- | Parse schedules JSON from form data
+parseSchedules :: Maybe Text -> Either Text [ScheduleSlotInfo]
+parseSchedules Nothing = Right []
+parseSchedules (Just schedulesJson)
+  | Text.null (Text.strip schedulesJson) = Right []
+  | schedulesJson == "[]" = Right []
+  | otherwise = case Aeson.eitherDecodeStrict (Text.encodeUtf8 schedulesJson) of
+      Left err -> Left $ "Invalid schedules JSON: " <> Text.pack err
+      Right slots -> Right slots
+
+-- | Parse day of week from text
+parseDayOfWeek :: Text -> Maybe DayOfWeek
+parseDayOfWeek "sunday" = Just Sunday
+parseDayOfWeek "monday" = Just Monday
+parseDayOfWeek "tuesday" = Just Tuesday
+parseDayOfWeek "wednesday" = Just Wednesday
+parseDayOfWeek "thursday" = Just Thursday
+parseDayOfWeek "friday" = Just Friday
+parseDayOfWeek "saturday" = Just Saturday
+parseDayOfWeek _ = Nothing
+
+-- | Parse time of day from "HH:MM" format
+parseTimeOfDay :: Text -> Maybe TimeOfDay
+parseTimeOfDay t = parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack t)
+
+-- | Create schedules for a newly created show
+createSchedulesForShow ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Shows.Id ->
+  [ScheduleSlotInfo] ->
+  m ()
+createSchedulesForShow showId slots = do
+  today <- liftIO $ utctDay <$> getCurrentTime
+
+  forM_ slots $ \slot -> do
+    case ( parseDayOfWeek (dayOfWeek slot),
+           parseTimeOfDay (startTime slot),
+           parseTimeOfDay (endTime slot)
+         ) of
+      (Just dow, Just start, Just end) -> do
+        -- Create schedule template
+        let templateInsert =
+              ShowSchedule.ScheduleTemplateInsert
+                { ShowSchedule.stiShowId = showId,
+                  ShowSchedule.stiDayOfWeek = Just dow,
+                  ShowSchedule.stiWeeksOfMonth = Just (Vector.fromList (weeksOfMonth slot)),
+                  ShowSchedule.stiStartTime = start,
+                  ShowSchedule.stiEndTime = end,
+                  ShowSchedule.stiTimezone = "America/Los_Angeles"
+                }
+
+        templateResult <- execQuerySpan (ShowSchedule.insertScheduleTemplate templateInsert)
+        case templateResult of
+          Left err ->
+            Log.logInfo "Failed to insert schedule template" (Aeson.object ["error" .= Text.pack (show err)])
+          Right templateId -> do
+            -- Create validity record (effective immediately, no end date)
+            let validityInsert =
+                  ShowSchedule.ValidityInsert
+                    { ShowSchedule.viTemplateId = templateId,
+                      ShowSchedule.viEffectiveFrom = today,
+                      ShowSchedule.viEffectiveUntil = Nothing
+                    }
+            validityResult <- execQuerySpan (ShowSchedule.insertValidity validityInsert)
+            case validityResult of
+              Left err ->
+                Log.logInfo "Failed to insert validity" (Aeson.object ["error" .= Text.pack (show err)])
+              Right _ ->
+                Log.logInfo "Created schedule for show" (Aeson.object ["showId" .= show showId, "day" .= show dow])
+      _ ->
+        Log.logInfo "Invalid schedule slot data - skipping" (Aeson.object ["slot" .= Aeson.toJSON slot])
