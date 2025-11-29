@@ -36,7 +36,7 @@ template eligibleHosts =
         fbMethod = "post",
         fbHeader = Just renderFormHeader,
         fbFields = showFormFields eligibleHosts,
-        fbAdditionalContent = [renderSubmitActions],
+        fbAdditionalContent = [renderSubmitActions, renderScheduleManagementScript],
         fbStyles = defaultFormStyles,
         fbHtmx = Nothing
       }
@@ -171,6 +171,15 @@ showFormFields eligibleHosts =
               { pfHtml = renderHostsMultiSelect eligibleHosts
               }
           ]
+      },
+    -- Schedule Section (using PlainField for dynamic list management)
+    SectionField
+      { sfTitle = "SCHEDULE",
+        sfFields =
+          [ PlainField
+              { pfHtml = renderScheduleSection
+              }
+          ]
       }
   ]
 
@@ -231,6 +240,153 @@ renderHostOption user =
               Lucid.div_ [Lucid.class_ "font-bold"] $ Lucid.toHtml displayName
               Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $
                 Lucid.toHtml (email <> " • " <> roleText)
+
+--------------------------------------------------------------------------------
+-- Schedule Section (dynamic add/remove time slots)
+
+renderScheduleSection :: Lucid.Html ()
+renderScheduleSection = do
+  Lucid.p_ [Lucid.class_ "text-sm text-gray-600 mb-4"] $
+    "Add recurring time slots when this show will air. Leave empty if no regular schedule."
+
+  Lucid.div_ [Lucid.id_ "schedule-container"] $ do
+    -- Schedule entries will be inserted here by JavaScript
+    Lucid.div_ [Lucid.class_ "border-2 border-dashed border-gray-400 p-8 text-center text-gray-600", Lucid.id_ "schedule-add-btn-container"] $ do
+      Lucid.button_
+        [ Lucid.type_ "button",
+          Lucid.id_ "add-schedule-btn",
+          Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700"
+        ]
+        "+ ADD TIME SLOT"
+      Lucid.div_ [Lucid.class_ "mt-2 text-sm"] "Click to add a recurring schedule"
+
+  -- Hidden field for JSON data
+  Lucid.input_
+    [ Lucid.type_ "hidden",
+      Lucid.name_ "schedules_json",
+      Lucid.id_ "schedules-json",
+      Lucid.value_ "[]"
+    ]
+
+--------------------------------------------------------------------------------
+-- Schedule Management JavaScript
+
+renderScheduleManagementScript :: Lucid.Html ()
+renderScheduleManagementScript =
+  Lucid.script_
+    [i|
+// Schedule management module (IIFE to avoid global pollution)
+(function() {
+  // Schedule slot HTML template
+  const createScheduleElement = () => {
+    const div = document.createElement('div');
+    div.className = 'border-2 border-gray-300 p-4 bg-gray-50 mb-4 schedule-slot';
+    div.innerHTML = `
+      <div class='flex justify-between items-center mb-4'>
+        <span class='font-bold text-sm'>TIME SLOT</span>
+        <button type='button' class='bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700'
+                data-action='remove-schedule'>REMOVE</button>
+      </div>
+
+      <div class='grid grid-cols-1 md:grid-cols-2 gap-4 mb-4'>
+        <div>
+          <label class='block font-bold text-sm mb-1'>Day of Week *</label>
+          <select class='w-full p-2 border-2 border-gray-400 font-mono schedule-day' required>
+            <option value=''>-- Select Day --</option>
+            <option value='sunday'>Sunday</option>
+            <option value='monday'>Monday</option>
+            <option value='tuesday'>Tuesday</option>
+            <option value='wednesday'>Wednesday</option>
+            <option value='thursday'>Thursday</option>
+            <option value='friday'>Friday</option>
+            <option value='saturday'>Saturday</option>
+          </select>
+        </div>
+
+        <div>
+          <label class='block font-bold text-sm mb-1'>Weeks of Month *</label>
+          <div class='flex gap-3 flex-wrap'>
+            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='1' checked> 1st</label>
+            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='2' checked> 2nd</label>
+            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='3' checked> 3rd</label>
+            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='4' checked> 4th</label>
+            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='5' checked> 5th</label>
+          </div>
+          <p class='text-xs text-gray-500 mt-1'>Select which weeks of each month (all = every week)</p>
+        </div>
+      </div>
+
+      <div class='grid grid-cols-2 gap-4'>
+        <div>
+          <label class='block font-bold text-sm mb-1'>Start Time *</label>
+          <input type='time' class='w-full p-2 border-2 border-gray-400 font-mono schedule-start' required>
+        </div>
+        <div>
+          <label class='block font-bold text-sm mb-1'>End Time *</label>
+          <input type='time' class='w-full p-2 border-2 border-gray-400 font-mono schedule-end' required>
+        </div>
+      </div>
+    `;
+    return div;
+  };
+
+  // Extract schedule data from DOM element
+  const extractScheduleData = (div) => {
+    const weekCheckboxes = div.querySelectorAll('.schedule-week:checked');
+    const weeksOfMonth = Array.from(weekCheckboxes).map(cb => parseInt(cb.value, 10));
+
+    return {
+      dayOfWeek: div.querySelector('.schedule-day')?.value || '',
+      weeksOfMonth: weeksOfMonth,
+      startTime: div.querySelector('.schedule-start')?.value || '',
+      endTime: div.querySelector('.schedule-end')?.value || ''
+    };
+  };
+
+  // Update hidden JSON field with current schedules
+  const updateSchedulesJson = () => {
+    const scheduleDivs = document.querySelectorAll('\#schedule-container .schedule-slot');
+    const schedules = Array.from(scheduleDivs)
+      .map(extractScheduleData)
+      .filter(s => s.dayOfWeek && s.weeksOfMonth.length > 0 && s.startTime && s.endTime);
+
+    const jsonField = document.getElementById('schedules-json');
+    if (jsonField) {
+      jsonField.value = JSON.stringify(schedules);
+    }
+  };
+
+  // Add new schedule slot
+  const addSchedule = () => {
+    const container = document.getElementById('schedule-container');
+    const addButton = document.getElementById('schedule-add-btn-container');
+    if (container && addButton) {
+      container.insertBefore(createScheduleElement(), addButton);
+      updateSchedulesJson();
+    }
+  };
+
+  // Remove schedule slot
+  const removeSchedule = (button) => {
+    button.closest('.schedule-slot')?.remove();
+    updateSchedulesJson();
+  };
+
+  // Initialize
+  document.getElementById('add-schedule-btn')?.addEventListener('click', addSchedule);
+
+  const container = document.getElementById('schedule-container');
+  if (container) {
+    container.addEventListener('input', updateSchedulesJson);
+    container.addEventListener('change', updateSchedulesJson);
+    container.addEventListener('click', (e) => {
+      if (e.target.dataset.action === 'remove-schedule') {
+        removeSchedule(e.target);
+      }
+    });
+  }
+})();
+|]
 
 --------------------------------------------------------------------------------
 -- Form Submit Actions (rendered inside <form>)
