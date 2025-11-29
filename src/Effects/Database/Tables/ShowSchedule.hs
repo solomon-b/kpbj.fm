@@ -186,6 +186,57 @@ getActiveRecurringScheduleTemplates =
     ORDER BY st.day_of_week, st.start_time
   |]
 
+-- | Wrapper for single Text result from conflict check
+newtype ConflictingShowTitle = ConflictingShowTitle {getConflictingShowTitle :: Text}
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (DecodeRow)
+
+-- | Check if a time slot conflicts with any active schedule (excluding a specific show)
+--
+-- Returns the title of the conflicting show if there's a conflict, Nothing otherwise.
+-- Checks for overlapping time ranges on the same day of week with overlapping weeks.
+checkTimeSlotConflict ::
+  Shows.Id ->
+  DayOfWeek ->
+  Vector Int64 ->
+  TimeOfDay ->
+  TimeOfDay ->
+  Hasql.Statement () (Maybe Text)
+checkTimeSlotConflict excludeShowId dow weeks start end =
+  fmap getConflictingShowTitle
+    <$> interp
+      False
+      [sql|
+    SELECT s.title
+    FROM schedule_templates st
+    JOIN schedule_template_validity stv ON stv.template_id = st.id
+    JOIN shows s ON s.id = st.show_id
+    WHERE s.status = 'active'
+      AND st.show_id != #{excludeShowId}
+      AND st.day_of_week = #{dow}::day_of_week
+      AND stv.effective_from <= CURRENT_DATE
+      AND (stv.effective_until IS NULL OR stv.effective_until > CURRENT_DATE)
+      -- Check weeks overlap
+      AND (st.weeks_of_month IS NULL OR st.weeks_of_month && #{weeks})
+      -- Check time overlap (handles overnight shows)
+      AND (
+        CASE
+          -- Neither overnight: simple overlap check
+          WHEN st.end_time > st.start_time AND #{end} > #{start} THEN
+            st.start_time < #{end} AND #{start} < st.end_time
+          -- Existing is overnight, new is not
+          WHEN st.end_time <= st.start_time AND #{end} > #{start} THEN
+            #{start} < st.end_time OR #{end} > st.start_time
+          -- New is overnight, existing is not
+          WHEN #{end} <= #{start} AND st.end_time > st.start_time THEN
+            st.start_time < #{end} OR st.end_time > #{start}
+          -- Both overnight: always overlap
+          ELSE TRUE
+        END
+      )
+    LIMIT 1
+  |]
+
 -- | Insert a new schedule template
 --
 -- Returns the generated ID
