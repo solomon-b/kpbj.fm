@@ -475,7 +475,12 @@ getUpcomingShowDates showId referenceDate limit =
       show_date,
       day_of_week,
       (show_date::TEXT || ' ' || start_time::TEXT)::TIMESTAMP AT TIME ZONE timezone as start_time,
-      (show_date::TEXT || ' ' || end_time::TEXT)::TIMESTAMP AT TIME ZONE timezone as end_time
+      -- If end_time <= start_time, it's an overnight show (e.g., 23:00-00:00)
+      -- In that case, end_time belongs to the next day
+      (CASE WHEN end_time <= start_time
+        THEN ((show_date + INTERVAL '1 day')::DATE::TEXT || ' ' || end_time::TEXT)
+        ELSE (show_date::TEXT || ' ' || end_time::TEXT)
+      END)::TIMESTAMP AT TIME ZONE timezone as end_time
     FROM schedule_instances
     WHERE show_date >= #{referenceDate}::DATE
     ORDER BY show_date
@@ -539,7 +544,12 @@ getUpcomingUnscheduledShowDates showId limit =
         si.show_date,
         si.day_of_week,
         (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone as start_time,
-        (si.show_date::TEXT || ' ' || si.end_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone as end_time
+        -- If end_time <= start_time, it's an overnight show (e.g., 23:00-00:00)
+        -- In that case, end_time belongs to the next day
+        (CASE WHEN si.end_time <= si.start_time
+          THEN ((si.show_date + INTERVAL '1 day')::DATE::TEXT || ' ' || si.end_time::TEXT)
+          ELSE (si.show_date::TEXT || ' ' || si.end_time::TEXT)
+        END)::TIMESTAMP AT TIME ZONE si.timezone as end_time
       FROM schedule_instances si
       LEFT JOIN episodes e ON e.show_id = si.show_id
         AND e.scheduled_at = (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone
