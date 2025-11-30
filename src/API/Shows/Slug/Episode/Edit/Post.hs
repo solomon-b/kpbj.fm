@@ -173,7 +173,7 @@ parseTracksFromForm form = parseTracksFromIndex 0
 parseStatus :: Text -> Maybe Episodes.Status
 parseStatus "draft" = Just Episodes.Draft
 parseStatus "published" = Just Episodes.Published
-parseStatus "archived" = Just Episodes.Archived
+parseStatus "deleted" = Just Episodes.Deleted
 parseStatus _ = Nothing
 
 -- | Success template after episode update

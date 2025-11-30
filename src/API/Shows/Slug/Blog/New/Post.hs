@@ -94,7 +94,7 @@ successTemplate showModel post = do
       case ShowBlogPosts.status post of
         Published -> "published and is now live."
         Draft -> "saved as a draft."
-        Archived -> "archived."
+        Deleted -> "deleted."
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_

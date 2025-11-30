@@ -87,5 +87,5 @@ renderStatusBadge Draft =
   Lucid.span_ [Lucid.class_ "inline-block bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-bold"] "DRAFT"
 renderStatusBadge Published =
   Lucid.span_ [Lucid.class_ "inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold"] "PUBLISHED"
-renderStatusBadge Archived =
-  Lucid.span_ [Lucid.class_ "inline-block bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold"] "ARCHIVED"
+renderStatusBadge Deleted =
+  Lucid.span_ [Lucid.class_ "inline-block bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold"] "DELETED"

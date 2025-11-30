@@ -14,14 +14,14 @@ import Servant qualified
 
 --------------------------------------------------------------------------------
 
-data BlogPostStatus = Draft | Published | Archived
+data BlogPostStatus = Draft | Published | Deleted
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
 
 instance Display BlogPostStatus where
   displayBuilder Draft = "draft"
   displayBuilder Published = "published"
-  displayBuilder Archived = "archived"
+  displayBuilder Deleted = "deleted"
 
 instance DecodeValue BlogPostStatus where
   decodeValue = Decoders.enum decodeBlogPost
@@ -30,19 +30,19 @@ decodeBlogPost :: Text -> Maybe BlogPostStatus
 decodeBlogPost = \case
   "draft" -> Just Draft
   "published" -> Just Published
-  "archived" -> Just Archived
+  "deleted" -> Just Deleted
   _ -> Nothing
 
 instance EncodeValue BlogPostStatus where
   encodeValue = Encoders.enum $ \case
     Draft -> "draft"
     Published -> "published"
-    Archived -> "archived"
+    Deleted -> "deleted"
 
 instance Servant.FromHttpApiData BlogPostStatus where
   parseUrlPiece "draft" = Right Draft
   parseUrlPiece "published" = Right Published
-  parseUrlPiece "archived" = Right Archived
+  parseUrlPiece "deleted" = Right Deleted
   parseUrlPiece invalid = Left $ "Invalid BlogPostStatus: " <> invalid
 
 instance Servant.ToHttpApiData BlogPostStatus where

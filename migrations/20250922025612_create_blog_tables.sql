@@ -7,7 +7,7 @@ CREATE TABLE blog_posts (
     excerpt TEXT, -- Short preview (optional, can be generated)
     hero_image_url TEXT, -- Hero/banner image displayed at top of post (optional)
     author_id BIGINT NOT NULL REFERENCES users(id),
-    status TEXT NOT NULL DEFAULT 'draft', -- draft, published, archived
+    status TEXT NOT NULL DEFAULT 'draft', -- draft, published, deleted
     published_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -37,4 +37,4 @@ CREATE INDEX idx_blog_posts_slug ON blog_posts(slug);
 -- This will be enforced at the application level, but we add a comment for documentation
 COMMENT ON TABLE blog_posts IS 'Blog posts - only users with Staff or Admin roles can create posts';
 COMMENT ON COLUMN blog_posts.author_id IS 'Must be a user with Staff or Admin role';
-COMMENT ON COLUMN blog_posts.status IS 'Status: draft, published, archived';
+COMMENT ON COLUMN blog_posts.status IS 'Status: draft, published, deleted';
