@@ -25,7 +25,7 @@ import Servant.Links qualified as Links
 
 -- | Create URL for show page
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug
+showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
 
 -- | Get the next day of the week (for overnight show handling)
 succDay :: DayOfWeek -> DayOfWeek
@@ -46,14 +46,14 @@ isShowLive mCurrentDay mCurrentTime showDay startTime endTime =
   case (mCurrentDay, mCurrentTime) of
     (Just currentDay, Just currentTime) ->
       let isOvernight = endTime <= startTime
-      in if isOvernight
-         then -- Show crosses midnight: live if (same day AND after start) OR (next day AND before end)
+       in if isOvernight
+            then -- Show crosses midnight: live if (same day AND after start) OR (next day AND before end)
               (currentDay == showDay && currentTime >= startTime)
-              || (currentDay == succDay showDay && currentTime < endTime)
-         else -- Normal same-day show
+                || (currentDay == succDay showDay && currentTime < endTime)
+            else -- Normal same-day show
               currentDay == showDay
-              && currentTime >= startTime
-              && currentTime < endTime
+                && currentTime >= startTime
+                && currentTime < endTime
     _ -> False
 
 -- | Main schedule view template
@@ -206,9 +206,10 @@ renderCalendarShow currentDayOfWeek currentTimeOfDay show' = do
       -- Calculate grid row positions (1-indexed, add 1 for header)
       startRow = startHour + 1
       -- For overnight shows, extend to end of grid (row 25 = midnight)
-      endRow = if isOvernight
-               then 25  -- Extend to end of day (midnight)
-               else endHour + 1 + (if endMin > 0 then 1 else 0) -- Round up if minutes
+      endRow =
+        if isOvernight
+          then 25 -- Extend to end of day (midnight)
+          else endHour + 1 + (if endMin > 0 then 1 else 0) -- Round up if minutes
       dayCol = dayToColumn (ShowSchedule.sswdDayOfWeek show')
       showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
       -- Check if this show is currently live (using helper that handles overnight)

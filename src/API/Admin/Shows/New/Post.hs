@@ -208,7 +208,7 @@ successTemplate :: Shows.Model -> Lucid.Html ()
 successTemplate theShow = do
   let showTitle = theShow.title
       showDescription = theShow.description
-      showDetailUrl = Links.linkURI $ showGetLink theShow.slug
+      showDetailUrl = Links.linkURI $ showGetLink theShow.slug Nothing
   renderBanner Success "Show Created" [i|"#{showTitle}" has been created successfully.|]
 
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
@@ -398,7 +398,7 @@ handleShowCreation hxRequest userMetadata showData form = do
                   execQuerySpan (Shows.getShowById showId) >>= \case
                     Right (Just createdShow) -> do
                       Log.logInfo "Successfully created show" (Aeson.object ["title" .= Shows.siTitle finalShowData, "id" .= show showId])
-                      let detailUrl = Links.linkURI $ showGetLink createdShow.slug
+                      let detailUrl = Links.linkURI $ showGetLink createdShow.slug Nothing
                       html <- renderTemplate hxRequest (Just userMetadata) (successTemplate createdShow)
                       pure $ Servant.addHeader [i|/#{detailUrl}|] html
                     _ -> do

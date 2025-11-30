@@ -51,7 +51,7 @@ import Web.FormUrlEncoded (FromForm (..), parseMaybe, parseUnique)
 
 -- URL helpers
 showGetUrl :: Slug -> Links.URI
-showGetUrl showSlug = Links.linkURI $ showGetLink showSlug
+showGetUrl showSlug = Links.linkURI $ showGetLink showSlug Nothing
 
 showBlogGetUrl :: Slug -> Links.URI
 showBlogGetUrl showSlug = Links.linkURI $ showBlogGetLink showSlug Nothing Nothing

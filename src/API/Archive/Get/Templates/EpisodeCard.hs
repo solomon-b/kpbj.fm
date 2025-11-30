@@ -92,7 +92,7 @@ renderEpisodeCard ews = do
             "NO AUDIO"
   where
     showGetUrl :: Slug -> Links.URI
-    showGetUrl slug = Links.linkURI $ showGetLink slug
+    showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
 
 formatDate :: UTCTime -> Text
 formatDate = Text.pack . formatTime defaultTimeLocale "%b %e, %Y"

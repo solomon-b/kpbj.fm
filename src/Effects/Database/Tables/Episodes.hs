@@ -180,22 +180,7 @@ getEpisodesById showId =
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
     WHERE show_id = #{showId} AND status != 'archived'
-    ORDER BY published_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
-  |]
-
--- | Get all recent episodes across all shows (for admin dashboard)
-getAllRecentEpisodes :: Limit -> Hasql.Statement () [Model]
-getAllRecentEpisodes limit =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, description, episode_number,
-           audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-           artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
-    FROM episodes
-    WHERE status != 'archived'
-    ORDER BY published_at DESC NULLS LAST, created_at DESC
-    LIMIT #{limit}
+    ORDER BY scheduled_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
   |]
 
 -- | Get episode by show slug and episode slug

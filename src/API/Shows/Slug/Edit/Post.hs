@@ -67,7 +67,7 @@ hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug
+showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
 
 --------------------------------------------------------------------------------
 

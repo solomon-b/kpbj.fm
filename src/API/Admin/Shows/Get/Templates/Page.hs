@@ -118,7 +118,7 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
 
 renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
 renderShowRow showInfo =
-  let showDetailUrl = Links.linkURI $ showGetLink showInfo.swhiSlug
+  let showDetailUrl = Links.linkURI $ showGetLink showInfo.swhiSlug Nothing
       showEditUrl = Links.linkURI $ showEditGetLink showInfo.swhiSlug
       cellLinkAttrs =
         [ Lucid.class_ "p-4 cursor-pointer",
