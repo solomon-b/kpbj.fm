@@ -467,16 +467,16 @@ showEditGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Get.Route)
 showEditPostLink :: Slug -> Links.Link
 showEditPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Post.Route)
 
--- | Route: GET /shows/:show_id/episodes/:episode_id/:slug
-episodesGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
+-- | Route: GET /shows/:show_slug/episodes/:episode_id/:slug
+episodesGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.RouteWithSlug)
 
--- | Route: GET /shows/:show_id/episodes/:episode_id (without slug, redirects to canonical)
-episodesGetLinkById :: Shows.Id -> Episodes.Id -> Links.Link
+-- | Route: GET /shows/:show_slug/episodes/:episode_id (without slug, redirects to canonical)
+episodesGetLinkById :: Slug -> Episodes.Id -> Links.Link
 episodesGetLinkById = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.RouteWithoutSlug)
 
--- | Route: POST /shows/:show_id/episodes/:episode_id/:slug/edit
-episodesEditPostLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
+-- | Route: POST /shows/:show_slug/episodes/:episode_id/:slug/edit
+episodesEditPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Post.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/new
@@ -487,16 +487,16 @@ episodesNewGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Get.Route)
 episodesNewPostLink :: Slug -> Links.Link
 episodesNewPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Post.Route)
 
--- | Route: GET /shows/:show_id/episodes/:episode_id/:slug/edit
-episodesEditGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
+-- | Route: GET /shows/:show_slug/episodes/:episode_id/:slug/edit
+episodesEditGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
 
--- | Route: DELETE /shows/:show_id/:show_slug/episodes/:episode_id/:episode_slug
-episodesDeleteLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
+-- | Route: DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug
+episodesDeleteLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDeleteLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Delete.Route)
 
--- | Route: POST /shows/:show_id/:show_slug/episodes/:episode_id/:episode_slug/publish
-episodesPublishPostLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
+-- | Route: POST /shows/:show_slug/episodes/:episode_id/:episode_slug/publish
+episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Publish.Post.Route)
 
 -- | Route: GET /host/dashboard

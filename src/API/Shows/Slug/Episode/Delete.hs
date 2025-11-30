@@ -35,9 +35,8 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "DELETE /shows/:show_id/:show_slug/episodes/:episode_id/:episode_slug"
+    "DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug"
     ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
         :> Servant.Capture "show_slug" Slug
         :> "episodes"
         :> Servant.Capture "episode_id" Episodes.Id
@@ -59,21 +58,20 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
   Slug ->
   Episodes.Id ->
   Slug ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer showId _showSlug episodeId _episodeSlug cookie = do
-  -- Fetch the show by ID
-  execQuerySpan (Shows.getShowById showId) >>= \case
+handler _tracer showSlug episodeId _episodeSlug cookie = do
+  -- Fetch the show by slug
+  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
     Left err -> do
       Log.logInfo "Archive failed: Failed to fetch show" (Aeson.object ["error" .= show err])
       -- Can't render card without show, return just error banner
       pure $ renderBanner Error "Archive Failed" "Database error. Please try again or contact support."
     Right Nothing -> do
-      Log.logInfo "Archive failed: Show not found" (Aeson.object ["showId" .= showId])
+      Log.logInfo "Archive failed: Show not found" (Aeson.object ["showSlug" .= showSlug])
       pure $ renderBanner Error "Archive Failed" "Show not found."
     Right (Just showModel) -> do
       getUserInfo cookie >>= \case

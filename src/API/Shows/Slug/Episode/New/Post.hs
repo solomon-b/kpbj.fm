@@ -243,7 +243,7 @@ handleUploadSuccess hxRequest userMetadata showModel episodeId = do
       -- Fetch tracks for the episode
       tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episodeId)
       let tracks = fromRight [] tracksResult
-          detailUrl = Links.linkURI $ episodesGetLink showModel.id episodeId episode.slug
+          detailUrl = Links.linkURI $ episodesGetLink showModel.slug episodeId episode.slug
           banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
       html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
         IsHxRequest -> do
