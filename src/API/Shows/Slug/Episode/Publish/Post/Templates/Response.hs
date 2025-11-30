@@ -1,15 +1,18 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Host.Dashboard.Get.Templates.Episode
-  ( renderEpisodeTableRow,
+module API.Shows.Slug.Episode.Publish.Post.Templates.Response
+  ( renderErrorBannerWithRow,
+    renderSuccessRow,
   )
 where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodesDeleteLink, episodesEditGetLink, episodesGetLink, episodesPublishPostLink)
+import Component.Banner (BannerType (..), renderBanner)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Slug (Slug)
@@ -36,11 +39,26 @@ episodePublishUrl showId showSlug episodeId episodeSlug = Links.linkURI $ episod
 
 --------------------------------------------------------------------------------
 
--- | Render individual episode as table row
-renderEpisodeTableRow :: Shows.Model -> Episodes.Model -> Lucid.Html ()
-renderEpisodeTableRow showModel episode = do
+-- | Render an error banner AND the episode row (to prevent row removal on error)
+renderErrorBannerWithRow :: Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()
+renderErrorBannerWithRow showModel episode errorMsg = do
+  -- Main response: return the episode row unchanged
+  renderEpisodeRow showModel episode
+  -- Out-of-band: inject error banner at top
+  renderBanner Error "Publish Failed" errorMsg
+
+-- | Render the success response - the updated episode row
+renderSuccessRow :: Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderSuccessRow = renderEpisodeRow
+
+-- | Render individual episode as table row (mirrors the dashboard Episode template)
+renderEpisodeRow :: Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisodeRow showModel episode = do
   let episodeId = episode.id
       episodeRowId = [i|episode-row-#{episodeId}|]
+      episodeEditUrl = episodeEditGetUrl showModel.id episode.id episode.slug
+      episodeDelUrl = episodeDeleteUrl showModel.id showModel.slug episode.id episode.slug
+      episodePubUrl = episodePublishUrl showModel.id showModel.slug episode.id episode.slug
   Lucid.tr_ [Lucid.class_ "border-b border-gray-300 hover:bg-gray-50", Lucid.id_ episodeRowId] $ do
     -- Episode number
     Lucid.td_ [Lucid.class_ "px-4 py-3 font-bold text-gray-800"] $
@@ -106,7 +124,7 @@ renderEpisodeTableRow showModel episode = do
               Lucid.class_ "hidden"
             ]
             ""
-          -- Hidden button for Publish
+          -- Hidden button for Publish (only shown for draft episodes)
           Lucid.button_
             [ hxPost_ [i|/#{episodePubUrl}|],
               hxTarget_ ("#" <> episodeRowId),
@@ -141,7 +159,3 @@ renderEpisodeTableRow showModel episode = do
                   Lucid.option_ [Lucid.value_ "publish"] "Publish"
                 _ -> mempty
               Lucid.option_ [Lucid.value_ "archive"] "Archive"
-  where
-    episodeEditUrl = episodeEditGetUrl showModel.id episode.id episode.slug
-    episodeDelUrl = episodeDeleteUrl showModel.id showModel.slug episode.id episode.slug
-    episodePubUrl = episodePublishUrl showModel.id showModel.slug episode.id episode.slug

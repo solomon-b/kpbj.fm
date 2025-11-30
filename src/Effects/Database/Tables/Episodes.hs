@@ -409,6 +409,18 @@ deleteEpisode episodeId =
     RETURNING id
   |]
 
+-- | Publish an episode (set status to published and set published_at timestamp)
+publishEpisode :: Id -> Hasql.Statement () (Maybe Id)
+publishEpisode episodeId =
+  interp
+    False
+    [sql|
+    UPDATE episodes
+    SET status = 'published', published_at = NOW(), updated_at = NOW()
+    WHERE id = #{episodeId}
+    RETURNING id
+  |]
+
 -- | Check if a user is a current host of the show for a given episode
 -- Returns True if the user is a current host, False otherwise
 isUserHostOfEpisodeShow :: User.Id -> Id -> Hasql.Statement () Bool

@@ -51,6 +51,7 @@ import API.Shows.Slug.Episode.Edit.Post qualified as Episodes.Edit.Post
 import API.Shows.Slug.Episode.Get qualified as Episodes.Get
 import API.Shows.Slug.Episode.New.Get qualified as Episodes.New.Get
 import API.Shows.Slug.Episode.New.Post qualified as Episodes.New.Post
+import API.Shows.Slug.Episode.Publish.Post qualified as Episodes.Publish.Post
 import API.Shows.Slug.Get qualified as Show.Get
 import API.Static.Get qualified as Static.Get
 import API.TermsOfService.Get qualified as TermsOfService.Get
@@ -149,6 +150,7 @@ type API =
     :<|> Episodes.Get.RouteWithSlug
     :<|> Episodes.Get.RouteWithoutSlug
     :<|> Episodes.Delete.Route
+    :<|> Episodes.Publish.Post.Route
     :<|> Admin.Shows.Get.Route
     :<|> Admin.Shows.New.Get.Route
     :<|> Admin.Shows.New.Post.Route
@@ -228,6 +230,7 @@ server env =
     :<|> Episodes.Get.handlerWithSlug
     :<|> Episodes.Get.handlerWithoutSlug
     :<|> Episodes.Delete.handler
+    :<|> Episodes.Publish.Post.handler
     :<|> Admin.Shows.Get.handler
     :<|> Admin.Shows.New.Get.handler
     :<|> Admin.Shows.New.Post.handler
@@ -491,6 +494,10 @@ episodesEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Rout
 -- | Route: DELETE /shows/:show_id/:show_slug/episodes/:episode_id/:episode_slug
 episodesDeleteLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDeleteLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Delete.Route)
+
+-- | Route: POST /shows/:show_id/:show_slug/episodes/:episode_id/:episode_slug/publish
+episodesPublishPostLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
+episodesPublishPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Publish.Post.Route)
 
 -- | Route: GET /host/dashboard
 hostDashboardGetLink :: Maybe Slug -> Links.Link
