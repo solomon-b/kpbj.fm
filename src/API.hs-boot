@@ -89,4 +89,5 @@ episodesNewGetLink :: Slug -> Links.Link
 episodesNewPostLink :: Slug -> Links.Link
 episodesEditGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
 episodesDeleteLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
+episodesPublishPostLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
 hostDashboardGetLink :: Maybe Slug -> Links.Link
