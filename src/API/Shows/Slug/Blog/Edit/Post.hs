@@ -59,7 +59,7 @@ showBlogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
 showBlogEditGetUrl showId postId slug = Links.linkURI $ showBlogEditGetLink showId postId slug
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl showSlug = Links.linkURI $ showGetLink showSlug
+showGetUrl showSlug = Links.linkURI $ showGetLink showSlug Nothing
 
 rootGetUrl :: Links.URI
 rootGetUrl = Links.linkURI rootGetLink

@@ -10,11 +10,11 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogGetLink, showsGetLink)
+import {-# SOURCE #-} API (showBlogGetLink, showGetLink, showsGetLink)
 import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
 import API.Shows.Slug.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
 import API.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -67,8 +67,8 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> [ShowBlogPosts.Model] -> Lucid.Html ()
-template showModel episodes hosts schedules blogPosts = do
+template :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> [ShowBlogPosts.Model] -> Int -> Lucid.Html ()
+template showModel episodes hosts schedules blogPosts currentPage = do
   renderShowHeader showModel hosts schedules
 
   -- Tabbed Content with Alpine.js
@@ -103,32 +103,93 @@ template showModel episodes hosts schedules blogPosts = do
 
       -- Episodes Tab Content
       Lucid.section_ [Lucid.class_ "w-full", xShow_ "activeTab === 'episodes'"] $ do
-        renderEpisodesContent showModel episodes
+        renderEpisodesContent showModel episodes currentPage
 
       -- Blog Tab Content
       Lucid.section_ [Lucid.class_ "w-full", xShow_ "activeTab === 'blog'"] $ do
         renderBlogContent showModel blogPosts
 
+-- | Number of episodes per page (should match handler)
+episodesPerPage :: Int
+episodesPerPage = 10
+
 -- Helper function to render episodes content
-renderEpisodesContent :: Shows.Model -> [Episodes.Model] -> Lucid.Html ()
-renderEpisodesContent showModel episodes = do
+renderEpisodesContent :: Shows.Model -> [Episodes.Model] -> Int -> Lucid.Html ()
+renderEpisodesContent showModel episodes currentPage = do
   if null episodes
     then do
       Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
         Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "No Episodes Yet"
         Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] "This show hasn't published any episodes yet. Check back soon!"
     else do
-      -- Featured/Latest Episode with tracks
+      -- Featured/Latest Episode with tracks (only on page 1)
       case episodes of
         (latestEpisode : otherEpisodes) -> do
-          -- Fallback if tracks failed to load
-          renderLatestEpisode showModel latestEpisode []
+          -- Only show featured episode on first page
+          if currentPage == 1
+            then do
+              renderLatestEpisode showModel latestEpisode []
+              unless (null otherEpisodes) $ do
+                Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+                  Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
+                  mapM_ (renderEpisodeCard showModel) otherEpisodes
+            else do
+              -- On subsequent pages, show all episodes as cards
+              Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+                Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Episodes"
+                mapM_ (renderEpisodeCard showModel) episodes
 
-          unless (null otherEpisodes) $ do
-            Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-              Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
-              mapM_ (renderEpisodeCard showModel) otherEpisodes
+          -- Pagination controls
+          renderPagination showModel currentPage (length episodes)
         _ -> mempty
+
+-- | Render pagination controls
+renderPagination :: Shows.Model -> Int -> Int -> Lucid.Html ()
+renderPagination showModel currentPage episodeCount = do
+  let hasNextPage = episodeCount >= episodesPerPage
+      hasPrevPage = currentPage > 1
+      showSlug = Shows.slug showModel
+
+  when (hasPrevPage || hasNextPage) $ do
+    Lucid.div_ [Lucid.class_ "flex justify-center gap-4 mt-6"] $ do
+      -- Previous page button
+      if hasPrevPage
+        then do
+          let prevUrl = Links.linkURI $ showGetLink showSlug (Just (currentPage - 1))
+          Lucid.a_
+            [ Lucid.href_ [i|/#{prevUrl}|],
+              hxGet_ [i|/#{prevUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "bg-gray-800 text-white px-4 py-2 font-bold hover:bg-gray-700"
+            ]
+            "Previous"
+        else
+          Lucid.span_
+            [Lucid.class_ "bg-gray-300 text-gray-500 px-4 py-2 font-bold cursor-not-allowed"]
+            "Previous"
+
+      -- Page indicator
+      Lucid.span_ [Lucid.class_ "px-4 py-2 font-bold"] $
+        Lucid.toHtml $
+          "Page " <> show currentPage
+
+      -- Next page button
+      if hasNextPage
+        then do
+          let nextUrl = Links.linkURI $ showGetLink showSlug (Just (currentPage + 1))
+          Lucid.a_
+            [ Lucid.href_ [i|/#{nextUrl}|],
+              hxGet_ [i|/#{nextUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ "bg-gray-800 text-white px-4 py-2 font-bold hover:bg-gray-700"
+            ]
+            "Next"
+        else
+          Lucid.span_
+            [Lucid.class_ "bg-gray-300 text-gray-500 px-4 py-2 font-bold cursor-not-allowed"]
+            "Next"
 
 -- Helper function to render blog content
 renderBlogContent :: Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()

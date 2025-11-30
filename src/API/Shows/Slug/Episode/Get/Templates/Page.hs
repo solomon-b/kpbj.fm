@@ -32,7 +32,7 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug
+showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
 
 episodeEditGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
 episodeEditGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showId episodeId episodeSlug

@@ -13,9 +13,13 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Limit (Limit)
+import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
@@ -41,12 +45,17 @@ type Route =
     "GET /shows/:slug"
     ( "shows"
         :> Servant.Capture "slug" Slug
+        :> Servant.QueryParam "page" Int
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
 --------------------------------------------------------------------------------
+
+-- | Number of episodes to show per page
+episodesPerPage :: Int64
+episodesPerPage = 10
 
 handler ::
   ( Has Tracer env,
@@ -60,12 +69,16 @@ handler ::
   ) =>
   Tracer ->
   Slug ->
+  Maybe Int ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer slug cookie (foldHxReq -> hxRequest) = do
+handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
   userInfoResult <- getUserInfo cookie
   let mUserInfo = fmap snd userInfoResult
+      page = fromMaybe 1 mPage
+      limit = fromIntegral episodesPerPage
+      offset = fromIntegral (page - 1) * fromIntegral episodesPerPage
   execQuerySpan (Shows.getShowBySlug slug) >>= \case
     Left err -> do
       Log.logInfo "Failed to fetch show from database" (show err)
@@ -74,21 +87,23 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
       Log.logInfo ("Show not found: " <> display slug) ()
       renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just showModel) -> do
-      fetchShowDetails showModel >>= \case
+      fetchShowDetails showModel limit offset >>= \case
         Left err -> do
           Log.logAttention "Failed to fetch show details from database" (show err)
-          let showTemplate = template showModel [] [] [] []
+          let showTemplate = template showModel [] [] [] [] page
           renderTemplate hxRequest mUserInfo showTemplate
         Right (hosts, schedule, episodes, blogPosts) -> do
-          let showTemplate = template showModel episodes hosts schedule blogPosts
+          let showTemplate = template showModel episodes hosts schedule blogPosts page
           renderTemplate hxRequest mUserInfo showTemplate
 
 fetchShowDetails ::
   (MonadDB m) =>
   Shows.Model ->
+  Limit ->
+  Offset ->
   m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate], [Episodes.Model], [ShowBlogPosts.Model]))
-fetchShowDetails showModel = runDBTransaction $ do
-  episodes <- TRX.statement () $ Episodes.getEpisodesById showModel.id
+fetchShowDetails showModel limit offset = runDBTransaction $ do
+  episodes <- TRX.statement () $ Episodes.getPublishedEpisodesForShow showModel.id limit offset
   hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id
   blogPosts <- TRX.statement () $ ShowBlogPosts.getPublishedShowBlogPosts showModel.id 3 0
   schedule <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showModel.id

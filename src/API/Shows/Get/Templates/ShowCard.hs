@@ -23,7 +23,7 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug
+showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
 
 --------------------------------------------------------------------------------
 
