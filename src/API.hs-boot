@@ -82,12 +82,12 @@ showBlogEditPostLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
 showBlogDeleteLink :: Shows.Id -> Slug -> ShowBlogPosts.Id -> Slug -> Links.Link
 showEditGetLink :: Slug -> Links.Link
 showEditPostLink :: Slug -> Links.Link
-episodesGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
-episodesGetLinkById :: Shows.Id -> Episodes.Id -> Links.Link
-episodesEditPostLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
+episodesGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+episodesGetLinkById :: Slug -> Episodes.Id -> Links.Link
+episodesEditPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesNewGetLink :: Slug -> Links.Link
 episodesNewPostLink :: Slug -> Links.Link
-episodesEditGetLink :: Shows.Id -> Episodes.Id -> Slug -> Links.Link
-episodesDeleteLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
-episodesPublishPostLink :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.Link
+episodesEditGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+episodesDeleteLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 hostDashboardGetLink :: Maybe Slug -> Links.Link

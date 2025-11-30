@@ -40,12 +40,12 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
--- | Route for episode with show ID, episode ID and slug (canonical URL)
+-- | Route for episode with show slug, episode ID and slug (canonical URL)
 type RouteWithSlug =
   Observability.WithSpan
-    "GET /shows/:show_id/episodes/:episode_id/:slug"
+    "GET /shows/:show_slug/episodes/:episode_id/:slug"
     ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
+        :> Servant.Capture "show_slug" Slug
         :> "episodes"
         :> Servant.Capture "episode_id" Episodes.Id
         :> Servant.Capture "slug" Slug
@@ -54,12 +54,12 @@ type RouteWithSlug =
         :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )
 
--- | Route for episode with show ID and episode ID only (redirects to canonical)
+-- | Route for episode with show slug and episode ID only (redirects to canonical)
 type RouteWithoutSlug =
   Observability.WithSpan
-    "GET /shows/:show_id/episodes/:episode_id"
+    "GET /shows/:show_slug/episodes/:episode_id"
     ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
+        :> Servant.Capture "show_slug" Slug
         :> "episodes"
         :> Servant.Capture "episode_id" Episodes.Id
         :> Servant.Header "Cookie" Cookie
@@ -69,7 +69,7 @@ type RouteWithoutSlug =
 
 --------------------------------------------------------------------------------
 
--- | Handler for episode with show ID, episode ID, and slug
+-- | Handler for episode with show slug, episode ID, and slug
 handlerWithSlug ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -81,15 +81,15 @@ handlerWithSlug ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
+  Slug ->
   Episodes.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlerWithSlug tracer showId episodeId slug = handler tracer showId episodeId (Just slug)
+handlerWithSlug tracer showSlug episodeId slug = handler tracer showSlug episodeId (Just slug)
 
--- | Handler for episode with show ID and episode ID only (always redirects)
+-- | Handler for episode with show slug and episode ID only (always redirects)
 handlerWithoutSlug ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -101,12 +101,12 @@ handlerWithoutSlug ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
+  Slug ->
   Episodes.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlerWithoutSlug tracer showId episodeId = handler tracer showId episodeId Nothing
+handlerWithoutSlug tracer showSlug episodeId = handler tracer showSlug episodeId Nothing
 
 -- | Shared handler for both routes
 handler ::
@@ -120,41 +120,52 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
+  Slug ->
   Episodes.Id ->
   Maybe Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showId episodeId mUrlSlug cookie (foldHxReq -> hxRequest) = do
+handler _tracer showSlug episodeId mUrlSlug cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
 
-  execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+  -- First fetch the show by slug to verify it exists
+  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
     Left _err -> do
-      Log.logInfo "Failed to fetch episode from database" episodeId
-      html <- renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episode. Please try again.")
+      Log.logInfo "Failed to fetch show from database" showSlug
+      html <- renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")
       pure $ Servant.noHeader html
     Right Nothing -> do
-      Log.logInfo "Episode not found" episodeId
-      html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (mkSlug "unknown") (mkSlug "unknown"))
+      Log.logInfo "Show not found" showSlug
+      html <- renderTemplate hxRequest mUserInfo (notFoundTemplate showSlug (mkSlug "unknown"))
       pure $ Servant.noHeader html
-    Right (Just episode) -> do
-      -- Verify episode belongs to the show
-      if episode.showId /= showId
-        then do
-          Log.logInfo "Episode does not belong to show" (showId, episodeId)
-          html <- renderTemplate hxRequest mUserInfo (errorTemplate "Episode not found in this show.")
+    Right (Just showModel) -> do
+      execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+        Left _err -> do
+          Log.logInfo "Failed to fetch episode from database" episodeId
+          html <- renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episode. Please try again.")
           pure $ Servant.noHeader html
-        else do
-          let canonicalSlug = episode.slug
-              showIdText = display showId
-              episodeIdText = display episodeId
-              slugText = display canonicalSlug
-              canonicalUrl = [i|/shows/#{showIdText}/episodes/#{episodeIdText}/#{slugText}|]
+        Right Nothing -> do
+          Log.logInfo "Episode not found" episodeId
+          html <- renderTemplate hxRequest mUserInfo (notFoundTemplate showSlug (mkSlug "unknown"))
+          pure $ Servant.noHeader html
+        Right (Just episode) -> do
+          -- Verify episode belongs to the show
+          if episode.showId /= showModel.id
+            then do
+              Log.logInfo "Episode does not belong to show" (showSlug, episodeId)
+              html <- renderTemplate hxRequest mUserInfo (errorTemplate "Episode not found in this show.")
+              pure $ Servant.noHeader html
+            else do
+              let canonicalSlug = episode.slug
+                  showSlugText = display showSlug
+                  episodeIdText = display episodeId
+                  slugText = display canonicalSlug
+                  canonicalUrl = [i|/shows/#{showSlugText}/episodes/#{episodeIdText}/#{slugText}|]
 
-          if matchSlug canonicalSlug mUrlSlug
-            then renderEpisode hxRequest mUserInfo cookie episode
-            else renderRedirect hxRequest mUserInfo canonicalUrl
+              if matchSlug canonicalSlug mUrlSlug
+                then renderEpisode hxRequest mUserInfo cookie episode
+                else renderRedirect hxRequest mUserInfo canonicalUrl
 
 renderEpisode ::
   ( Has Tracer env,
