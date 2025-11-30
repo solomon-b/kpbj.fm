@@ -27,9 +27,7 @@ import Domain.Types.Slug (Slug, matchSlug, mkSlug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -173,8 +171,7 @@ renderEpisode ::
   Maybe Cookie ->
   Episodes.Model ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-renderEpisode hxRequest mUserInfo cookie episode = do
-  userInfoResult <- getUserInfo cookie
+renderEpisode hxRequest mUserInfo _cookie episode = do
   showResult <- execQuerySpan (Shows.getShowById episode.showId)
   tracks <- fromRight [] <$> execQuerySpan (Episodes.getTracksForEpisode episode.id)
 
@@ -188,17 +185,7 @@ renderEpisode hxRequest mUserInfo cookie episode = do
       html <- renderTemplate hxRequest mUserInfo (errorTemplate "Show not found for this episode.")
       pure $ Servant.noHeader html
     Right (Just showModel) -> do
-      canEdit <- case userInfoResult of
-        Nothing ->
-          pure False
-        Just (user, userMeta) -> do
-          if UserMetadata.isAdmin userMeta.mUserRole || episode.createdBy == user.mId
-            then pure True
-            else do
-              isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
-              pure $ fromRight False isHostResult
-
-      let episodeTemplate = template showModel episode tracks canEdit
+      let episodeTemplate = template showModel episode tracks
       html <- renderTemplate hxRequest mUserInfo episodeTemplate
 
       pure $ Servant.noHeader html

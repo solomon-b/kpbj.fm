@@ -15,6 +15,7 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
@@ -241,18 +242,16 @@ handleUploadSuccess hxRequest userMetadata showModel episodeId = do
     Right (Just episode) -> do
       -- Fetch tracks for the episode
       tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episodeId)
-      let tracks = either (const []) id tracksResult
-          -- Check if user can edit (hosts and admins can)
-          canEdit = UserMetadata.isHostOrHigher userMetadata.mUserRole
+      let tracks = fromRight [] tracksResult
           detailUrl = Links.linkURI $ episodesGetLink showModel.id episodeId episode.slug
           banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
       html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
         IsHxRequest -> do
-          DetailPage.template showModel episode tracks canEdit
+          DetailPage.template showModel episode tracks
           banner
         IsNotHxRequest -> do
           banner
-          DetailPage.template showModel episode tracks canEdit
+          DetailPage.template showModel episode tracks
       pure $ Servant.addHeader [i|/#{detailUrl}|] html
     _ -> do
       Log.logInfo_ "Created episode but failed to retrieve it"
