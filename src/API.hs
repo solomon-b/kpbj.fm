@@ -421,7 +421,7 @@ showsScheduleGetLink :: Maybe WeekOffset -> Links.Link
 showsScheduleGetLink = Links.safeLink (Proxy @API) (Proxy @Shows.Schedule.Get.Route)
 
 -- | Route: GET /shows/:slug
-showGetLink :: Slug -> Links.Link
+showGetLink :: Slug -> Maybe Int -> Links.Link
 showGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Get.Route)
 
 -- | Route: GET /shows/:slug/blog

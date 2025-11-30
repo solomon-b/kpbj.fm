@@ -27,7 +27,7 @@ showBlogNewPostUrl :: Shows.Model -> Links.URI
 showBlogNewPostUrl showModel = Links.linkURI $ showBlogNewPostLink (Shows.slug showModel)
 
 showGetUrl :: Shows.Model -> Links.URI
-showGetUrl showModel = Links.linkURI $ showGetLink (Shows.slug showModel)
+showGetUrl showModel = Links.linkURI $ showGetLink (Shows.slug showModel) Nothing
 
 --------------------------------------------------------------------------------
 

@@ -73,8 +73,8 @@ episodeFormFields showModel upcomingDates =
         hfValue = ""
       },
     HiddenField
-      { hfName = "action",
-        hfValue = "publish"
+      { hfName = "status",
+        hfValue = "draft"
       },
     -- Show Info Section (read-only display)
     PlainField
@@ -272,17 +272,32 @@ renderSubmitActions :: Lucid.Html ()
 renderSubmitActions =
   Lucid.section_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-end items-center"] $ do
-      Lucid.div_ [Lucid.class_ "flex gap-4"] $ do
-        Lucid.a_
-          [ Lucid.href_ "/host/dashboard",
-            Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
-          ]
-          "CANCEL"
+      Lucid.div_ [Lucid.class_ "flex gap-4 items-center"] $ do
+        -- Status toggle switch
+        Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
+          Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600", Lucid.id_ "status-label-draft"] "Draft"
+          Lucid.label_ [Lucid.class_ "relative inline-flex items-center cursor-pointer"] $ do
+            Lucid.input_
+              [ Lucid.type_ "checkbox",
+                Lucid.id_ "status-toggle",
+                Lucid.class_ "sr-only peer"
+              ]
+            Lucid.div_
+              [ Lucid.class_ $
+                  "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 "
+                    <> "peer-focus:ring-blue-300 rounded-full peer "
+                    <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
+                    <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
+                    <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
+                    <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
+              ]
+              mempty
+          Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600", Lucid.id_ "status-label-published"] "Published"
         Lucid.button_
           [ Lucid.type_ "submit",
             Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
           ]
-          "PUBLISH EPISODE"
+          "SUBMIT"
 
 --------------------------------------------------------------------------------
 -- Track Management JavaScript (injected via fbAdditionalContent)
@@ -418,6 +433,15 @@ renderTrackManagementScript =
   audioInput?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) extractAudioDuration(file);
+  });
+
+  // Status toggle - update hidden field
+  const statusToggle = document.getElementById('status-toggle');
+  const statusField = document.querySelector('input[name="status"]');
+  statusToggle?.addEventListener('change', () => {
+    if (statusField) {
+      statusField.value = statusToggle.checked ? 'published' : 'draft';
+    }
   });
 })();
 |]

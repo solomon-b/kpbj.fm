@@ -96,8 +96,8 @@ data EpisodeUploadForm = EpisodeUploadForm
     eufDescription :: Text,
     eufTags :: Maybe Text,
     eufDurationSeconds :: Maybe Text, -- Duration from browser audio detection
-    -- Publishing action
-    eufAction :: Text, -- "draft" or "publish"
+    -- Publishing status
+    eufStatus :: Text, -- "draft" or "published"
     -- Track data (JSON encoded)
     eufTracksJson :: Maybe Text,
     -- File uploads
@@ -116,7 +116,7 @@ instance FromMultipart Mem EpisodeUploadForm where
       <*> lookupInput "description" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) Just (lookupInput "duration_seconds" multipartData))
-      <*> lookupInput "action" multipartData
+      <*> lookupInput "status" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tracks_json" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "audio_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "artwork_file" multipartData))
@@ -310,7 +310,7 @@ processEpisodeUpload userMetadata user form = do
                       -- Generate episode slug for filename
                       let episodeSlug = Slug.mkSlug episodeData.title
                       -- Handle file uploads (pass scheduled date for file organization)
-                      uploadResults <- processFileUploads episodeData.showSlug episodeSlug episodeData.scheduledAt (eufAudioFile form) (eufArtworkFile form)
+                      uploadResults <- processFileUploads episodeData.showSlug episodeSlug episodeData.scheduledAt episodeData.status (eufAudioFile form) (eufArtworkFile form)
 
                       case uploadResults of
                         Left uploadErr -> pure $ Left uploadErr
@@ -356,11 +356,11 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
         Just timestamp -> Right (Just timestamp)
         Nothing -> Left $ Sanitize.ContentInvalid $ "Invalid scheduled timestamp format: " <> timestampStr
 
-  -- Determine episode status from action
-  status <- case eufAction form of
+  -- Determine episode status
+  status <- case eufStatus form of
     "draft" -> Right Episodes.Draft
-    "publish" -> Right Episodes.Published
-    _ -> Left $ Sanitize.ContentInvalid "Invalid publish action"
+    "published" -> Right Episodes.Published
+    _ -> Left $ Sanitize.ContentInvalid "Invalid status value"
 
   -- Sanitize and validate episode metadata
   let sanitizedTitle = Sanitize.sanitizeTitle (eufTitle form)
@@ -433,16 +433,21 @@ processFileUploads ::
   Slug ->
   -- | Scheduled date (for file organization)
   Maybe UTCTime ->
+  -- | Episode status (audio only required for published)
+  Episodes.Status ->
   -- | Audio file
   Maybe (FileData Mem) ->
   -- | Artwork file
   Maybe (FileData Mem) ->
   -- | (audioPath, artworkPath)
   m (Either Text (Maybe Text, Maybe Text))
-processFileUploads showSlug episodeSlug mScheduledDate mAudioFile mArtworkFile = do
-  -- Process main audio file (required)
+processFileUploads showSlug episodeSlug mScheduledDate status mAudioFile mArtworkFile = do
+  -- Process main audio file (required for published, optional for draft)
   audioResult <- case mAudioFile of
-    Nothing -> pure $ Left "Audio file is required for episodes"
+    Nothing ->
+      case status of
+        Episodes.Draft -> pure $ Right Nothing -- Audio optional for drafts
+        _ -> pure $ Left "Audio file is required for published episodes"
     Just audioFile -> do
       result <- FileUpload.uploadEpisodeAudio showSlug episodeSlug mScheduledDate audioFile
       case result of

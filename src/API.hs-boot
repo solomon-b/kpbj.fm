@@ -71,7 +71,7 @@ eventEditPostLink :: Events.Id -> Slug -> Links.Link
 eventDeleteLink :: Events.Id -> Slug -> Links.Link
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link
 showsScheduleGetLink :: Maybe WeekOffset -> Links.Link
-showGetLink :: Slug -> Links.Link
+showGetLink :: Slug -> Maybe Int -> Links.Link
 showBlogGetLink :: Slug -> Maybe Int64 -> Maybe Text -> Links.Link
 showBlogPostGetLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
 showBlogPostGetLinkById :: Shows.Id -> ShowBlogPosts.Id -> Links.Link

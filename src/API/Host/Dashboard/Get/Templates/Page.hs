@@ -147,7 +147,7 @@ renderShowIcon selectedShow =
       Lucid.span_ [Lucid.class_ "text-2xl"] "🎵"
     case selectedShow of
       Just showModel -> do
-        let showUrl = Links.linkURI $ showGetLink showModel.slug
+        let showUrl = Links.linkURI $ showGetLink showModel.slug Nothing
             editUrl = Links.linkURI $ showEditGetLink showModel.slug
         Lucid.div_ [Lucid.class_ "flex flex-col gap-2"] $ do
           Lucid.a_
