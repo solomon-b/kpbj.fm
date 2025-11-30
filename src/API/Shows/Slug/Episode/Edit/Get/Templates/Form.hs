@@ -38,7 +38,7 @@ episodesIdGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink 
 
 -- | Episode edit template
 template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template showModel episode tracks userMeta isStaff = do
+template showModel episode tracks userMeta _isStaff = do
   let showSlug = showModel.slug
       episodeSlug = episode.slug
       episodeBackUrl = episodesIdGetUrl showModel.id episode.id episodeSlug
@@ -52,7 +52,12 @@ template showModel episode tracks userMeta isStaff = do
         Builder.fbHeader = Just (formHeader showModel episode userMeta episodeBackUrl),
         Builder.fbHtmx = Nothing,
         Builder.fbFields =
-          [ -- Basic Information Section with validated fields
+          [ -- Hidden status field (controlled by toggle)
+            Builder.HiddenField
+              { Builder.hfName = "status",
+                Builder.hfValue = display episode.status
+              },
+            -- Basic Information Section with validated fields
             Builder.SectionField
               { Builder.sfTitle = "BASIC INFORMATION",
                 Builder.sfFields =
@@ -89,43 +94,12 @@ template showModel episode tracks userMeta isStaff = do
                       }
                   ]
               },
-            -- Status Section - conditional based on staff role
-            Builder.ConditionalField
-              { Builder.cfCondition = isStaff,
-                Builder.cfTrueFields =
-                  [ Builder.SectionField
-                      { Builder.sfTitle = "STATUS & SCHEDULE",
-                        Builder.sfFields =
-                          [ Builder.ValidatedSelectField
-                              { Builder.vsName = "status",
-                                Builder.vsLabel = "Episode Status",
-                                Builder.vsOptions = statusOptions episode,
-                                Builder.vsHint = Just "Only published episodes appear on the show page",
-                                Builder.vsValidation =
-                                  Builder.ValidationRules
-                                    { Builder.vrMinLength = Nothing,
-                                      Builder.vrMaxLength = Nothing,
-                                      Builder.vrPattern = Nothing,
-                                      Builder.vrRequired = True,
-                                      vrCustomValidation = Nothing
-                                    }
-                              }
-                          ]
-                      }
-                  ],
-                Builder.cfFalseFields =
-                  [ Builder.HiddenField
-                      { Builder.hfName = "status",
-                        Builder.hfValue = display episode.status
-                      }
-                  ]
-              },
             -- Track Listing Section
             Builder.PlainField
               { Builder.pfHtml = trackListingSection tracks
               }
           ],
-        Builder.fbAdditionalContent = [formActions episodeBackUrl],
+        Builder.fbAdditionalContent = [formActions episode],
         Builder.fbStyles = Builder.defaultFormStyles
       }
 
@@ -134,13 +108,6 @@ template showModel episode tracks userMeta isStaff = do
 --------------------------------------------------------------------------------
 -- HELPER FUNCTIONS
 --------------------------------------------------------------------------------
-
-statusOptions :: Episodes.Model -> [Builder.SelectOption]
-statusOptions episode =
-  [ Builder.SelectOption "draft" "Draft" (episode.status == Episodes.Draft) Nothing,
-    Builder.SelectOption "published" "Published" (episode.status == Episodes.Published) Nothing,
-    Builder.SelectOption "archived" "Archived" (episode.status == Episodes.Archived) Nothing
-  ]
 
 formHeader :: Shows.Model -> Episodes.Model -> UserMetadata.Model -> Links.URI -> Lucid.Html ()
 formHeader showModel episode userMeta episodeBackUrl = do
@@ -189,23 +156,56 @@ trackListingSection tracks = do
         else forM_ (zip [(0 :: Int) ..] tracks) $ uncurry renderTrackEditor
     addTrackButton
 
-formActions :: Links.URI -> Lucid.Html ()
-formActions episodeBackUrl = do
-  Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 transition-colors"
-        ]
-        "UPDATE EPISODE"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{episodeBackUrl}|],
-          hxGet_ [i|/#{episodeBackUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline inline-block"
-        ]
-        "CANCEL"
+formActions :: Episodes.Model -> Lucid.Html ()
+formActions episode = do
+  let isPublished = episode.status == Episodes.Published
+  Lucid.section_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6"] $ do
+    Lucid.div_ [Lucid.class_ "flex flex-col gap-4"] $ do
+      -- Publishing note
+      Lucid.p_ [Lucid.class_ "text-sm text-gray-600 italic"] $
+        "Note: Published episodes will not be publicly visible until the scheduled date/time. "
+          <> "Once the scheduled time has passed, the episode can no longer be edited."
+      Lucid.div_ [Lucid.class_ "flex justify-end items-center"] $ do
+        Lucid.div_ [Lucid.class_ "flex gap-4 items-center"] $ do
+          -- Status toggle switch
+          Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
+            Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Draft"
+            Lucid.label_ [Lucid.class_ "relative inline-flex items-center cursor-pointer"] $ do
+              Lucid.input_ $
+                [ Lucid.type_ "checkbox",
+                  Lucid.id_ "status-toggle",
+                  Lucid.class_ "sr-only peer"
+                ]
+                  <> [Lucid.checked_ | isPublished]
+              Lucid.div_
+                [ Lucid.class_ $
+                    "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 "
+                      <> "peer-focus:ring-blue-300 rounded-full peer "
+                      <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
+                      <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
+                      <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
+                      <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
+                ]
+                mempty
+            Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Published"
+          Lucid.button_
+            [ Lucid.type_ "submit",
+              Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
+            ]
+            "SUBMIT"
+  -- JavaScript to sync toggle with hidden field
+  Lucid.script_
+    [i|
+(function() {
+  const statusToggle = document.getElementById('status-toggle');
+  const statusField = document.querySelector('input[name="status"]');
+  statusToggle?.addEventListener('change', () => {
+    if (statusField) {
+      statusField.value = statusToggle.checked ? 'published' : 'draft';
+    }
+  });
+})();
+|]
 
 --------------------------------------------------------------------------------
 -- TRACK EDITOR COMPONENTS
