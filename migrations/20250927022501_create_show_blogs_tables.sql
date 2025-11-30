@@ -9,7 +9,7 @@ CREATE TABLE show_blog_posts (
     author_id BIGINT NOT NULL REFERENCES users(id), -- Must be a host of the show
     
     -- Publishing
-    status TEXT NOT NULL DEFAULT 'draft', -- draft, published, archived
+    status TEXT NOT NULL DEFAULT 'draft', -- draft, published, deleted
     published_at TIMESTAMPTZ,
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -38,7 +38,7 @@ CREATE INDEX idx_show_blog_posts_published_at ON show_blog_posts(published_at DE
 CREATE INDEX idx_show_blog_posts_slug ON show_blog_posts(show_id, slug);
 
 -- Add constraints
-ALTER TABLE show_blog_posts ADD CONSTRAINT check_status CHECK (status IN ('draft', 'published', 'archived'));
+ALTER TABLE show_blog_posts ADD CONSTRAINT check_status CHECK (status IN ('draft', 'published', 'deleted'));
 ALTER TABLE show_blog_posts ADD CONSTRAINT unique_show_blog_slug UNIQUE (show_id, slug);
 
 -- Add comments for documentation
@@ -47,4 +47,4 @@ COMMENT ON TABLE show_blog_tags IS 'Tags specific to show blog posts';
 COMMENT ON TABLE show_blog_post_tags IS 'Many-to-many relationship between show blog posts and tags';
 
 COMMENT ON COLUMN show_blog_posts.author_id IS 'Must be a host of the associated show';
-COMMENT ON COLUMN show_blog_posts.status IS 'Status: draft, published, archived';
+COMMENT ON COLUMN show_blog_posts.status IS 'Status: draft, published, deleted';

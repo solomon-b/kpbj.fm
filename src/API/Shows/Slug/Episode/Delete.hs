@@ -97,12 +97,12 @@ handler _tracer showId _showSlug episodeId _episodeSlug cookie = do
               isHost <- if isStaff || isCreator then pure True else checkIfHost user episode
 
               if isStaff || ((isCreator || isHost) && not (UserMetadata.isSuspended userMeta))
-                then archiveEpisode showModel episode
+                then softDeleteEpisode showModel episode
                 else do
-                  Log.logInfo "Archive failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
-                  pure $ renderErrorBannerWithCard showModel episode "You don't have permission to archive this episode."
+                  Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
+                  pure $ renderErrorBannerWithCard showModel episode "You don't have permission to delete this episode."
 
-archiveEpisode ::
+softDeleteEpisode ::
   ( Has Tracer env,
     Log.MonadLog m,
     MonadReader env m,
@@ -115,16 +115,16 @@ archiveEpisode ::
   Shows.Model ->
   Episodes.Model ->
   m (Lucid.Html ())
-archiveEpisode showModel episode = do
-  execQuerySpan (Episodes.archiveEpisode episode.id) >>= \case
+softDeleteEpisode showModel episode = do
+  execQuerySpan (Episodes.deleteEpisode episode.id) >>= \case
     Left err -> do
-      Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
-      pure $ renderErrorBannerWithCard showModel episode "Failed to archive episode due to a database error."
+      Log.logInfo "Delete failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
+      pure $ renderErrorBannerWithCard showModel episode "Failed to delete episode due to a database error."
     Right Nothing -> do
-      Log.logInfo "Archive failed: Episode not found during archive" (Aeson.object ["episodeId" .= episode.id])
-      pure $ renderErrorBannerWithCard showModel episode "Episode not found during archive operation."
+      Log.logInfo "Delete failed: Episode not found during delete" (Aeson.object ["episodeId" .= episode.id])
+      pure $ renderErrorBannerWithCard showModel episode "Episode not found during delete operation."
     Right (Just _) -> do
-      Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
+      Log.logInfo "Episode deleted successfully" (Aeson.object ["episodeId" .= episode.id])
       pure emptyResponse
 
 checkIfHost ::

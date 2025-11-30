@@ -188,7 +188,7 @@ parseTags tagText =
 parseStatus :: Text -> Maybe BlogPostStatus
 parseStatus "published" = Just Published
 parseStatus "draft" = Just Draft
-parseStatus "archived" = Just Archived
+parseStatus "deleted" = Just Deleted
 parseStatus _ = Nothing
 
 --------------------------------------------------------------------------------

@@ -29,14 +29,14 @@ import Servant qualified
 --------------------------------------------------------------------------------
 -- Episode Status Type
 
-data Status = Draft | Published | Archived
+data Status = Draft | Published | Deleted
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
 
 instance Display Status where
   displayBuilder Draft = "draft"
   displayBuilder Published = "published"
-  displayBuilder Archived = "archived"
+  displayBuilder Deleted = "deleted"
 
 instance DecodeValue Status where
   decodeValue = Decoders.enum decodeStatus
@@ -45,19 +45,19 @@ decodeStatus :: Text -> Maybe Status
 decodeStatus = \case
   "draft" -> Just Draft
   "published" -> Just Published
-  "archived" -> Just Archived
+  "deleted" -> Just Deleted
   _ -> Nothing
 
 instance EncodeValue Status where
   encodeValue = Encoders.enum $ \case
     Draft -> "draft"
     Published -> "published"
-    Archived -> "archived"
+    Deleted -> "deleted"
 
 instance Servant.FromHttpApiData Status where
   parseUrlPiece "draft" = Right Draft
   parseUrlPiece "published" = Right Published
-  parseUrlPiece "archived" = Right Archived
+  parseUrlPiece "deleted" = Right Deleted
   parseUrlPiece invalid = Left $ "Invalid Status: " <> invalid
 
 instance Servant.ToHttpApiData Status where
@@ -169,7 +169,7 @@ getPublishedEpisodesForShow showId limit offset =
     LIMIT #{limit} OFFSET #{offset}
   |]
 
--- | Get all non-archived episodes for a show
+-- | Get all non-deleted episodes for a show
 getEpisodesById :: Shows.Id -> Hasql.Statement () [Model]
 getEpisodesById showId =
   interp
@@ -179,7 +179,7 @@ getEpisodesById showId =
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
-    WHERE show_id = #{showId} AND status != 'archived'
+    WHERE show_id = #{showId} AND status != 'deleted'
     ORDER BY scheduled_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
   |]
 
@@ -210,7 +210,7 @@ getEpisodeById episodeId =
     WHERE id = #{episodeId}
   |]
 
--- | Get non-archived episodes by user (episodes they created)
+-- | Get non-deleted episodes by user (episodes they created)
 getEpisodesByUser :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getEpisodesByUser userId limit offset =
   interp
@@ -220,7 +220,7 @@ getEpisodesByUser userId limit offset =
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
-    WHERE created_by = #{userId} AND status != 'archived'
+    WHERE created_by = #{userId} AND status != 'deleted'
     ORDER BY created_at DESC
     LIMIT #{limit} OFFSET #{offset}
   |]
@@ -397,14 +397,14 @@ updateEpisode Update {..} =
     RETURNING id
   |]
 
--- | Archive an episode (soft delete by setting status to archived)
-archiveEpisode :: Id -> Hasql.Statement () (Maybe Id)
-archiveEpisode episodeId =
+-- | Delete an episode (soft delete by setting status to deleted)
+deleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
+deleteEpisode episodeId =
   interp
     False
     [sql|
     UPDATE episodes
-    SET status = 'archived', updated_at = NOW()
+    SET status = 'deleted', updated_at = NOW()
     WHERE id = #{episodeId}
     RETURNING id
   |]
@@ -427,9 +427,9 @@ isUserHostOfEpisodeShow userId episodeId =
       |]
    in maybe False getOneColumn <$> query
 
--- | Hard delete an episode (use with caution - prefer archiveEpisode for soft delete)
-deleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
-deleteEpisode episodeId =
+-- | Hard delete an episode (use with caution - prefer deleteEpisode for soft delete)
+hardDeleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
+hardDeleteEpisode episodeId =
   interp
     False
     [sql|
