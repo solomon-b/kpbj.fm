@@ -11,6 +11,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, RecordInstance (..), displayBuilder)
 import Data.Time (UTCTime)
 import Domain.Types.DisplayName (DisplayName)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
@@ -87,8 +88,12 @@ data ShowHostWithUser = ShowHostWithUser
     displayName :: DisplayName,
     fullName :: Text,
     avatarUrl :: Maybe Text,
-    metadataCreatedAt :: UTCTime,
-    metadataUpdatedAt :: UTCTime
+    bio :: Maybe Text,
+    websiteUrl :: Maybe Text,
+    instagramHandle :: Maybe Text,
+    twitterHandle :: Maybe Text,
+    soundcloudUrl :: Maybe Text,
+    bandcampUrl :: Maybe Text
   }
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance ShowHostWithUser)
@@ -116,10 +121,30 @@ getShowHostsWithUsers showId =
     False
     [sql|
     SELECT
-      sh.show_id, sh.user_id, sh.role, sh.is_primary, sh.joined_at, sh.left_at,
-      u.email, u.created_at, u.updated_at,
-      um.display_name, um.full_name, um.avatar_url, um.created_at, um.updated_at
+      sh.show_id,
+      sh.user_id,
+      sh.role,
+      sh.is_primary,
+      sh.joined_at,
+      sh.left_at,
+
+      u.email,
+      u.created_at,
+      u.updated_at,
+
+      um.display_name,
+      um.full_name,
+      um.avatar_url,
+
+      hd.bio,
+      hd.website_url,
+      hd.instagram_handle,
+      hd.twitter_handle,
+      hd.soundcloud_url,
+      hd.bandcamp_url
+
     FROM show_hosts sh
+    JOIN host_details hd ON hd.user_id = sh.user_id
     JOIN users u ON sh.user_id = u.id
     JOIN user_metadata um ON u.id = um.user_id
     WHERE sh.show_id = #{showId} AND sh.left_at IS NULL
@@ -159,6 +184,21 @@ isUserHostOfShow userId showId =
         SELECT EXISTS(
           SELECT 1 FROM show_hosts
           WHERE user_id = #{userId} AND show_id = #{showId} AND left_at IS NULL
+        )
+      |]
+   in maybe False getOneColumn <$> query
+
+-- | Check if user is host of show
+isUserHostOfShowSlug :: User.Id -> Slug -> Hasql.Statement () Bool
+isUserHostOfShowSlug userId slug =
+  let query =
+        interp
+          True
+          [sql|
+        SELECT EXISTS(
+          SELECT 1 FROM show_hosts
+          JOIN shows on shows.id = show_hosts.show_id
+          WHERE user_id = #{userId} AND slug = #{slug} AND left_at IS NULL
         )
       |]
    in maybe False getOneColumn <$> query

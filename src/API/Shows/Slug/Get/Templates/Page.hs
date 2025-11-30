@@ -10,18 +10,16 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogGetLink, showEditGetLink, showsGetLink)
+import {-# SOURCE #-} API (showBlogGetLink, showsGetLink)
 import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
 import API.Shows.Slug.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
 import API.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
-import Control.Monad (unless, when)
+import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Database.Tables.HostDetails qualified as HostDetails
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -69,21 +67,8 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> Maybe HostDetails.Model -> [ShowBlogPosts.Model] -> Bool -> Lucid.Html ()
-template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails blogPosts canEdit = do
-  -- Edit button for authorized users
-  when canEdit $ do
-    let editUrl = Links.linkURI $ showEditGetLink showModel.slug
-    Lucid.div_ [Lucid.class_ "mb-4 w-full text-right"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{editUrl}|],
-          hxGet_ [i|/#{editUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "inline-block bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700"
-        ]
-        "✏ EDIT SHOW"
-
+template :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> [ShowBlogPosts.Model] -> Lucid.Html ()
+template showModel episodes hosts schedules blogPosts = do
   renderShowHeader showModel hosts schedules
 
   -- Tabbed Content with Alpine.js
@@ -118,15 +103,15 @@ template showModel episodes latestEpisodeTracks hosts schedules _mHostDetails bl
 
       -- Episodes Tab Content
       Lucid.section_ [Lucid.class_ "w-full", xShow_ "activeTab === 'episodes'"] $ do
-        renderEpisodesContent showModel episodes latestEpisodeTracks
+        renderEpisodesContent showModel episodes
 
       -- Blog Tab Content
       Lucid.section_ [Lucid.class_ "w-full", xShow_ "activeTab === 'blog'"] $ do
         renderBlogContent showModel blogPosts
 
 -- Helper function to render episodes content
-renderEpisodesContent :: Shows.Model -> [Episodes.Model] -> Maybe [EpisodeTrack.Model] -> Lucid.Html ()
-renderEpisodesContent showModel episodes latestEpisodeTracks = do
+renderEpisodesContent :: Shows.Model -> [Episodes.Model] -> Lucid.Html ()
+renderEpisodesContent showModel episodes = do
   if null episodes
     then do
       Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
@@ -134,16 +119,8 @@ renderEpisodesContent showModel episodes latestEpisodeTracks = do
         Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] "This show hasn't published any episodes yet. Check back soon!"
     else do
       -- Featured/Latest Episode with tracks
-      case (episodes, latestEpisodeTracks) of
-        (latestEpisode : otherEpisodes, Just tracks) -> do
-          renderLatestEpisode showModel latestEpisode tracks
-
-          -- Other Episodes
-          unless (null otherEpisodes) $ do
-            Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-              Lucid.h3_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Previous Episodes"
-              mapM_ (renderEpisodeCard showModel) otherEpisodes
-        (latestEpisode : otherEpisodes, Nothing) -> do
+      case episodes of
+        (latestEpisode : otherEpisodes) -> do
           -- Fallback if tracks failed to load
           renderLatestEpisode showModel latestEpisode []
 
@@ -163,7 +140,7 @@ renderBlogContent showModel blogPosts = do
         Lucid.p_ [Lucid.class_ "text-gray-600 mb-6"] "This show hasn't published any blog posts yet. Check back soon!"
     else do
       Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"] $ do
-        mapM_ (\post -> renderPostCard showModel post False) blogPosts
+        mapM_ (renderPostCard showModel) blogPosts
 
       -- View all link
       let blogUrl = Links.linkURI $ showBlogGetLink (Shows.slug showModel) Nothing Nothing

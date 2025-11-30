@@ -12,21 +12,24 @@ import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Applicative ((<|>))
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
+import Data.Text.Read qualified as Text.Read
 import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Data.Vector qualified as Vector
@@ -54,7 +57,7 @@ import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
+import Servant.Multipart (FileData, FromMultipart, Input (..), Mem, MultipartData (..), MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -90,6 +93,7 @@ data ShowEditForm = ShowEditForm
     sefLogoFile :: Maybe (FileData Mem),
     sefBannerFile :: Maybe (FileData Mem),
     sefStatus :: Text,
+    sefHosts :: [User.Id],
     sefSchedulesJson :: Maybe Text
   }
   deriving (Show)
@@ -113,6 +117,7 @@ instance FromMultipart Mem ShowEditForm where
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData
+      <*> pure (parseHosts $ fromRight [] (lookupInputs "hosts" multipartData))
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedules_json" multipartData))
     where
       emptyToNothing :: Maybe Text -> Maybe Text
@@ -126,6 +131,19 @@ instance FromMultipart Mem ShowEditForm where
         | Text.null (fdFileName fileData) = Nothing
         | otherwise = Just fileData
       fileDataToNothing Nothing = Nothing
+
+      parseHosts :: [Text] -> [User.Id]
+      parseHosts = mapMaybe parseUserId
+
+      parseUserId :: Text -> Maybe User.Id
+      parseUserId t = case Text.Read.decimal t of
+        Right (n, "") -> Just (User.Id n)
+        _ -> Nothing
+
+      -- Helper to lookup all values for a given input name (for multi-select)
+      lookupInputs :: Text -> MultipartData Mem -> Either String [Text]
+      lookupInputs name multipart =
+        Right [iValue input | input <- inputs multipart, iName input == name]
 
 -- | Parse show status from text
 parseStatus :: Text -> Maybe Shows.Status
@@ -247,27 +265,26 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
       Log.logInfo "Unauthorized show edit attempt" slug
       Servant.noHeader <$> renderTemplate hxRequest Nothing unauthorizedTemplate
     Just (user, userMetadata) -> do
-      -- Fetch the show to verify it exists and check authorization
-      execQuerySpan (Shows.getShowBySlug slug) >>= \case
+      execQuerySpan (ShowHost.isUserHostOfShowSlug user.mId slug) >>= \case
         Left err -> do
-          Log.logAttention "getShowBySlug execution error" (show err)
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-        Right Nothing -> do
-          Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
-        Right (Just showModel) -> do
-          -- Check authorization - user must be a host of the show or staff+
-          execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id) >>= \case
-            Left err -> do
-              Log.logAttention "isUserHostOfShow execution error" (show err)
+          Log.logAttention "isUserHostOfShow execution error" (show err)
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+        Right isHost -> do
+          let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+          if not (isHost || isStaff)
+            then do
+              Log.logInfo "User attempted to edit show they don't host" slug
               Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
-            Right True -> updateShow hxRequest user userMetadata showModel editForm
-            Right False ->
-              if UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                then updateShow hxRequest user userMetadata showModel editForm
-                else do
-                  Log.logInfo "User attempted to edit show they don't host" showModel.id
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+            else do
+              execQuerySpan (Shows.getShowBySlug slug) >>= \case
+                Left err -> do
+                  Log.logAttention "getShowBySlug execution error" (show err)
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+                Right Nothing -> do
+                  Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+                Right (Just showModel) -> do
+                  updateShow hxRequest user userMetadata showModel editForm
 
 updateShow ::
   ( MonadDB m,
@@ -342,8 +359,11 @@ updateShow hxRequest _user userMetadata showModel editForm = do
                     let updatedShowModel = showModel {Shows.title = sefTitle editForm, Shows.description = sefDescription editForm, Shows.genre = sefGenre editForm, Shows.slug = generatedSlug, Shows.status = finalStatus, Shows.logoUrl = finalLogoUrl, Shows.bannerUrl = finalBannerUrl}
                         -- Use the submitted JSON so user sees what they tried to submit
                         submittedSchedulesJson = fromMaybe "[]" (sefSchedulesJson editForm)
+                        submittedHostIds = Set.fromList (sefHosts editForm)
                         banner = renderBanner Error "Schedule Error" err
-                        editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson
+                    -- Refetch eligible hosts for the form
+                    eligibleHosts <- fetchEligibleHosts
+                    let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds
                     Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (banner <> editTemplate)
                   Right schedules -> do
                     -- Check for conflicts with other shows
@@ -355,11 +375,17 @@ updateShow hxRequest _user userMetadata showModel editForm = do
                         let updatedShowModel = showModel {Shows.title = sefTitle editForm, Shows.description = sefDescription editForm, Shows.genre = sefGenre editForm, Shows.slug = generatedSlug, Shows.status = finalStatus, Shows.logoUrl = finalLogoUrl, Shows.bannerUrl = finalBannerUrl}
                             -- Use the submitted JSON so user sees what they tried to submit
                             submittedSchedulesJson = fromMaybe "[]" (sefSchedulesJson editForm)
+                            submittedHostIds = Set.fromList (sefHosts editForm)
                             banner = renderBanner Error "Schedule Conflict" conflictErr
-                            editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson
+                        -- Refetch eligible hosts for the form
+                        eligibleHosts <- fetchEligibleHosts
+                        let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds
                         Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (banner <> editTemplate)
                       Right () -> do
+                        -- Update schedules
                         updateSchedulesForShow showModel.id schedules
+                        -- Update hosts
+                        updateHostsForShow showModel.id (sefHosts editForm)
                         redirectToShowPage generatedSlug
                 else redirectToShowPage generatedSlug
   where
@@ -502,7 +528,7 @@ checkScheduleConflicts ::
   Shows.Id ->
   [ScheduleSlotInfo] ->
   m (Either Text ())
-checkScheduleConflicts showId slots = go slots
+checkScheduleConflicts showId = go
   where
     go [] = pure (Right ())
     go (slot : rest) =
@@ -599,3 +625,84 @@ updateSchedulesForShow showId newSchedules = do
                 Log.logInfo "Created new schedule for show" (show showId, show dow)
       _ ->
         Log.logInfo "Invalid schedule slot data - skipping" (show slot)
+
+--------------------------------------------------------------------------------
+-- Host Update Helpers
+
+-- | Fetch all eligible hosts for the form (all users)
+fetchEligibleHosts ::
+  ( Log.MonadLog m,
+    MonadDB m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    Has Tracer env
+  ) =>
+  m [UserMetadata.UserWithMetadata]
+fetchEligibleHosts =
+  execQuerySpan (UserMetadata.getAllUsersWithPagination 1000 0) >>= \case
+    Left err -> do
+      Log.logInfo "Failed to fetch eligible hosts" (show err)
+      pure []
+    Right hosts -> pure hosts
+
+-- | Update hosts for a show
+--
+-- Compares the new host list with the current hosts and:
+-- 1. Removes hosts that are no longer in the list
+-- 2. Adds hosts that are new to the list
+-- 3. Promotes users to Host role if they aren't already Host or higher
+updateHostsForShow ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Shows.Id ->
+  [User.Id] ->
+  m ()
+updateHostsForShow showId newHostIds = do
+  let newHostSet = Set.fromList newHostIds
+
+  -- Get current hosts
+  currentHosts <-
+    execQuerySpan (ShowHost.getShowHosts showId) >>= \case
+      Left err -> do
+        Log.logInfo "Failed to fetch current hosts" (show err)
+        pure []
+      Right hosts -> pure hosts
+
+  let currentHostSet = Set.fromList $ map (.shmUserId) currentHosts
+
+  -- Find hosts to remove (in current but not in new)
+  let hostsToRemove = Set.toList $ Set.difference currentHostSet newHostSet
+
+  -- Find hosts to add (in new but not in current)
+  let hostsToAdd = Set.toList $ Set.difference newHostSet currentHostSet
+
+  -- Remove hosts that are no longer assigned
+  forM_ hostsToRemove $ \hostId -> do
+    _ <- execQuerySpan (ShowHost.removeShowHost showId hostId)
+    Log.logInfo "Removed host from show" (show showId, show hostId)
+
+  -- Add new hosts
+  forM_ hostsToAdd $ \hostId -> do
+    -- Add host to show
+    _ <- execQuerySpan (ShowHost.addHostToShow showId hostId)
+    Log.logInfo "Added host to show" (show showId, show hostId)
+
+    -- Promote user to Host role if they're currently just a User
+    execQuerySpan (UserMetadata.getUserMetadata hostId) >>= \case
+      Left err ->
+        Log.logInfo "Failed to fetch user metadata for role promotion" (show err)
+      Right Nothing ->
+        Log.logInfo "User not found for role promotion" (show hostId)
+      Right (Just userMeta) ->
+        when (userMeta.mUserRole == UserMetadata.User) $ do
+          _ <- execQuerySpan (UserMetadata.updateUserRole hostId UserMetadata.Host)
+          Log.logInfo "Promoted user to Host role" (show hostId)
+
+  Log.logInfo "Host update complete" (show showId, "removed" :: Text, length hostsToRemove, "added" :: Text, length hostsToAdd)

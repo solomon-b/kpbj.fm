@@ -86,9 +86,7 @@ handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
 
   -- Get blog posts based on filters (tag only)
-  blogPostsResult <- getBlogPostResults limit offset maybeTag
-
-  case blogPostsResult of
+  getBlogPostResults limit offset maybeTag >>= \case
     Left _err -> do
       Log.logInfo "Failed to fetch blog posts from database" ()
       let banner = BannerParams Error "Error" "Failed to load blog posts. Please try again."
