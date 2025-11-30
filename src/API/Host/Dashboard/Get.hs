@@ -128,7 +128,7 @@ handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
 fetchDashboardData :: Day -> Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model], [ShowSchedule.ScheduleTemplate], Maybe ShowSchedule.UpcomingShowDate)
 fetchDashboardData today showModel = do
   episodes <- Txn.statement () (Episodes.getEpisodesById showModel.id)
-  blogPosts <- Txn.statement () (ShowBlogPosts.getPublishedShowBlogPosts showModel.id 10 0)
+  blogPosts <- Txn.statement () (ShowBlogPosts.getShowBlogPosts showModel.id 10 0)
   schedules <- Txn.statement () (ShowSchedule.getScheduleTemplatesForShow showModel.id)
   upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showModel.id today 1)
   let nextShow = listToMaybe upcomingShows

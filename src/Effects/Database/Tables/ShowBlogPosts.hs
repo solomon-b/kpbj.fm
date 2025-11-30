@@ -79,6 +79,19 @@ data Insert = Insert
 -- Database Queries
 
 -- | Get published blog posts for a show
+getShowBlogPosts :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
+getShowBlogPosts showId limit offset =
+  interp
+    False
+    [sql|
+    SELECT id, show_id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
+    FROM show_blog_posts
+    WHERE show_id = #{showId}
+    ORDER BY status, published_at DESC NULLS LAST, created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
+-- | Get published blog posts for a show
 getPublishedShowBlogPosts :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedShowBlogPosts showId limit offset =
   interp
