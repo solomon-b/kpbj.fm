@@ -154,23 +154,34 @@ renderShowRow showInfo =
                 fromMaybe "-" showInfo.swhiGenre
 
             Lucid.td_ [Lucid.class_ "p-4 text-center"]
-              $ Lucid.select_
-                [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
-                  xData_ "{}",
-                  xOnChange_
-                    [i|
-                    const action = $el.value;
-                    $el.value = '';
-                    if (action === 'edit') {
-                      htmx.ajax('GET', '/#{showEditUrl}', {target: '\#main-content', swap: 'innerHTML'});
-                      history.pushState({}, '', '/#{showEditUrl}');
-                    }
-                  |],
-                  xOnClick_ "event.stopPropagation()"
-                ]
+              $ Lucid.div_ [xData_ "{}"]
               $ do
-                Lucid.option_ [Lucid.value_ ""] "Actions..."
-                Lucid.option_ [Lucid.value_ "edit"] "Edit"
+                -- Hidden link for Edit - HTMX handles history properly
+                Lucid.a_
+                  [ Lucid.href_ [i|/#{showEditUrl}|],
+                    hxGet_ [i|/#{showEditUrl}|],
+                    hxTarget_ "#main-content",
+                    hxPushUrl_ "true",
+                    xRef_ "editLink",
+                    Lucid.class_ "hidden"
+                  ]
+                  ""
+                -- Visible dropdown
+                Lucid.select_
+                  [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
+                    xOnChange_
+                      [i|
+                      const action = $el.value;
+                      $el.value = '';
+                      if (action === 'edit') {
+                        $refs.editLink.click();
+                      }
+                    |],
+                    xOnClick_ "event.stopPropagation()"
+                  ]
+                  $ do
+                    Lucid.option_ [Lucid.value_ ""] "Actions..."
+                    Lucid.option_ [Lucid.value_ "edit"] "Edit"
 
 renderStatusBadge :: Shows.Status -> Lucid.Html ()
 renderStatusBadge status = do
