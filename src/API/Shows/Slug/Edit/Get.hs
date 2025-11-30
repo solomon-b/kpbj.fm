@@ -14,6 +14,8 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
@@ -103,31 +105,21 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
             Right True -> do
               Log.logInfo "Authorized user accessing show edit form" showModel.id
               let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-              -- Fetch schedules only if staff (they're the only ones who see the schedule section)
-              schedulesJson <-
+              -- Fetch staff-only data (schedules and hosts) if user is staff
+              (schedulesJson, eligibleHosts, currentHostIds) <-
                 if isStaff
-                  then
-                    execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id) >>= \case
-                      Left err -> do
-                        Log.logInfo "Failed to fetch schedules" (show err)
-                        pure "[]"
-                      Right scheds -> pure $ schedulesToJson scheds
-                  else pure "[]"
-              let editTemplate = template showModel userMetadata isStaff schedulesJson
+                  then fetchStaffData showModel.id
+                  else pure ("[]", [], Set.empty)
+              let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds
               html <- renderTemplate hxRequest (Just userMetadata) editTemplate
               pure $ Servant.noHeader html
             Right False ->
               if UserMetadata.isStaffOrHigher userMetadata.mUserRole
                 then do
                   Log.logInfo "Staff user accessing show edit form" showModel.id
-                  -- Fetch schedules for staff
-                  schedulesJson <-
-                    execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id) >>= \case
-                      Left err -> do
-                        Log.logInfo "Failed to fetch schedules" (show err)
-                        pure "[]"
-                      Right scheds -> pure $ schedulesToJson scheds
-                  let editTemplate = template showModel userMetadata True schedulesJson
+                  -- Fetch staff-only data (schedules and hosts)
+                  (schedulesJson, eligibleHosts, currentHostIds) <- fetchStaffData showModel.id
+                  let editTemplate = template showModel userMetadata True schedulesJson eligibleHosts currentHostIds
                   html <- renderTemplate hxRequest (Just userMetadata) editTemplate
                   pure $ Servant.noHeader html
                 else do
@@ -137,3 +129,41 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
                     IsHxRequest -> HomeTemplate.template <> banner
                     IsNotHxRequest -> banner <> HomeTemplate.template
                   pure $ Servant.addHeader "/" html
+
+-- | Fetch staff-only data for the edit form (schedules and hosts)
+fetchStaffData ::
+  ( Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadDB m,
+    Has Tracer env
+  ) =>
+  Shows.Id ->
+  m (Text, [UserMetadata.UserWithMetadata], Set User.Id)
+fetchStaffData showId = do
+  -- Fetch schedules
+  schedulesJson <-
+    execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showId) >>= \case
+      Left err -> do
+        Log.logInfo "Failed to fetch schedules" (show err)
+        pure "[]"
+      Right scheds -> pure $ schedulesToJson scheds
+
+  -- Fetch all eligible hosts (all users)
+  eligibleHosts <-
+    execQuerySpan (UserMetadata.getAllUsersWithPagination 1000 0) >>= \case
+      Left err -> do
+        Log.logInfo "Failed to fetch eligible hosts" (show err)
+        pure []
+      Right hosts -> pure hosts
+
+  -- Fetch current hosts for this show
+  currentHostIds <-
+    execQuerySpan (ShowHost.getShowHosts showId) >>= \case
+      Left err -> do
+        Log.logInfo "Failed to fetch current hosts" (show err)
+        pure Set.empty
+      Right hosts -> pure $ Set.fromList $ map (.shmUserId) hosts
+
+  pure (schedulesJson, eligibleHosts, currentHostIds)

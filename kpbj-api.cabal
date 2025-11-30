@@ -52,6 +52,7 @@ library
                   , aeson
                   , base
                   , bytestring
+                  , containers
                   , data-has
                   , deriving-aeson
                   , directory
