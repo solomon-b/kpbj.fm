@@ -1,5 +1,5 @@
 -- Create show status domain
-CREATE DOMAIN show_status AS TEXT CHECK (VALUE IN ('active', 'inactive', 'hiatus', 'archived'));
+CREATE DOMAIN show_status AS TEXT CHECK (VALUE IN ('active', 'inactive', 'hiatus', 'deleted'));
 
 -- Create day of week enum
 CREATE TYPE day_of_week AS ENUM (
@@ -51,15 +51,15 @@ CREATE TABLE episodes (
     audio_file_size BIGINT, -- File size in bytes
     audio_mime_type TEXT, -- MIME type (audio/mpeg, audio/wav, etc.)
     duration_seconds INTEGER, -- Actual duration of the episode
-    
+
     -- Episode artwork
     artwork_url TEXT, -- Path to episode-specific artwork
-    
+
     -- Scheduling and publishing
     scheduled_at TIMESTAMPTZ, -- When the episode is scheduled to air
     published_at TIMESTAMPTZ, -- When the episode was published
-    status TEXT NOT NULL DEFAULT 'draft', -- draft, scheduled, published, archived
-    
+    status TEXT NOT NULL DEFAULT 'draft', -- draft, scheduled, published, deleted
+
     -- Metadata
     created_by BIGINT NOT NULL REFERENCES users(id), -- Who created this episode
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -71,7 +71,7 @@ CREATE TABLE episode_tracks (
     id BIGSERIAL PRIMARY KEY,
     episode_id BIGINT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     track_number INTEGER NOT NULL, -- Order within the episode
-    
+
     -- Track information
     title TEXT NOT NULL,
     artist TEXT NOT NULL,
@@ -79,10 +79,10 @@ CREATE TABLE episode_tracks (
     year INTEGER, -- Release year
     duration TEXT, -- Duration as string (e.g., "4:23")
     label TEXT, -- Record label
-    
+
     -- Special flags
     is_exclusive_premiere BOOLEAN NOT NULL DEFAULT FALSE,
-    
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -146,7 +146,7 @@ CREATE INDEX idx_schedule_template_validity_active ON schedule_template_validity
 
 -- Add constraints
 ALTER TABLE show_hosts ADD CONSTRAINT check_role CHECK (role IN ('host', 'co-host', 'guest'));
-ALTER TABLE episodes ADD CONSTRAINT check_status CHECK (status IN ('draft', 'scheduled', 'published', 'archived'));
+ALTER TABLE episodes ADD CONSTRAINT check_status CHECK (status IN ('draft', 'scheduled', 'published', 'deleted'));
 ALTER TABLE episodes ADD CONSTRAINT unique_episode_slug UNIQUE (show_id, slug);
 ALTER TABLE episodes ADD CONSTRAINT unique_episode_scheduled_at UNIQUE (show_id, scheduled_at);
 
@@ -181,7 +181,7 @@ COMMENT ON TABLE schedule_templates IS 'Immutable schedule patterns - either rec
 COMMENT ON TABLE schedule_template_validity IS 'Mutable time bounds for when schedule templates are active';
 
 COMMENT ON COLUMN show_hosts.role IS 'Role: host, co-host, guest';
-COMMENT ON COLUMN episodes.status IS 'Status: draft, scheduled, published, archived';
+COMMENT ON COLUMN episodes.status IS 'Status: draft, scheduled, published, deleted';
 COMMENT ON COLUMN episodes.episode_number IS 'Auto-incremented per show via trigger';
 COMMENT ON COLUMN schedule_templates.day_of_week IS 'Day of week (sunday, monday, tuesday, wednesday, thursday, friday, saturday); NULL for one-time shows';
 COMMENT ON COLUMN schedule_templates.weeks_of_month IS 'Array of week numbers [1,2,3,4,5] indicating which weeks of the month; NULL for one-time shows; Use [1,2,3,4,5] for every week';
