@@ -29,13 +29,12 @@ import Servant qualified
 --------------------------------------------------------------------------------
 -- Episode Status Type
 
-data Status = Draft | Scheduled | Published | Archived
+data Status = Draft | Published | Archived
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
 
 instance Display Status where
   displayBuilder Draft = "draft"
-  displayBuilder Scheduled = "scheduled"
   displayBuilder Published = "published"
   displayBuilder Archived = "archived"
 
@@ -45,7 +44,6 @@ instance DecodeValue Status where
 decodeStatus :: Text -> Maybe Status
 decodeStatus = \case
   "draft" -> Just Draft
-  "scheduled" -> Just Scheduled
   "published" -> Just Published
   "archived" -> Just Archived
   _ -> Nothing
@@ -53,13 +51,11 @@ decodeStatus = \case
 instance EncodeValue Status where
   encodeValue = Encoders.enum $ \case
     Draft -> "draft"
-    Scheduled -> "scheduled"
     Published -> "published"
     Archived -> "archived"
 
 instance Servant.FromHttpApiData Status where
   parseUrlPiece "draft" = Right Draft
-  parseUrlPiece "scheduled" = Right Scheduled
   parseUrlPiece "published" = Right Published
   parseUrlPiece "archived" = Right Archived
   parseUrlPiece invalid = Left $ "Invalid Status: " <> invalid

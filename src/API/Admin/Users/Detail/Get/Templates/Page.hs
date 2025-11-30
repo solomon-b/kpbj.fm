@@ -146,7 +146,6 @@ renderEpisodeCard episode = do
 
 renderStatus :: Episodes.Status -> String
 renderStatus Episodes.Draft = "Draft"
-renderStatus Episodes.Scheduled = "Scheduled"
 renderStatus Episodes.Published = "Published"
 renderStatus Episodes.Archived = "Archived"
 
