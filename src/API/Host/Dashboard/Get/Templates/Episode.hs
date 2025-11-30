@@ -71,7 +71,13 @@ renderEpisodeTableRow showModel episode = do
 
     -- Status
     Lucid.td_ [Lucid.class_ "px-4 py-3 text-sm"] $ do
-      Lucid.span_ [Lucid.class_ "inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold"] "PUBLISHED"
+      case episode.status of
+        Episodes.Draft ->
+          Lucid.span_ [Lucid.class_ "inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold"] "DRAFT"
+        Episodes.Published ->
+          Lucid.span_ [Lucid.class_ "inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold"] "PUBLISHED"
+        Episodes.Archived ->
+          Lucid.span_ [Lucid.class_ "inline-block bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-bold"] "ARCHIVED"
 
     -- Actions
     Lucid.td_ [Lucid.class_ "px-4 py-3 text-right"] $ do
