@@ -17,7 +17,7 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Base qualified as LucidBase
-import Lucid.Extras (hxDelete_, hxGet_, hxPushUrl_, hxSwap_, hxTarget_)
+import Lucid.Extras (hxDelete_, hxGet_, hxPushUrl_, hxSwap_, hxTarget_, xData_, xOnChange_, xRef_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -79,24 +79,48 @@ renderEpisodeTableRow showModel episode = do
         Episodes.Deleted ->
           Lucid.span_ [Lucid.class_ "inline-block bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold"] "DELETED"
 
-    -- Actions
-    Lucid.td_ [Lucid.class_ "px-4 py-3 text-right"] $ do
-      let episodeEditUrl = episodeEditGetUrl showModel.id episode.id episode.slug
-          episodeDelUrl = episodeDeleteUrl showModel.id showModel.slug episode.id episode.slug
-      Lucid.div_ [Lucid.class_ "flex gap-2 justify-end"] $ do
+    -- Actions dropdown
+    Lucid.td_ [Lucid.class_ "px-4 py-3 text-center"]
+      $ Lucid.div_ [xData_ "{}"]
+      $ do
+        -- Hidden link for Edit - HTMX handles history properly
         Lucid.a_
           [ Lucid.href_ [i|/#{episodeEditUrl}|],
             hxGet_ [i|/#{episodeEditUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "bg-blue-600 text-white px-3 py-1 text-xs font-bold hover:bg-blue-700 no-underline"
+            xRef_ "editLink",
+            Lucid.class_ "hidden"
           ]
-          "EDIT"
+          ""
+        -- Hidden button for Archive
         Lucid.button_
           [ hxDelete_ [i|/#{episodeDelUrl}|],
             hxTarget_ ("#" <> episodeRowId),
             hxSwap_ "outerHTML",
             LucidBase.makeAttributes "hx-confirm" "Are you sure you want to archive this episode? It will no longer appear in your dashboard or public show page.",
-            Lucid.class_ "bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700"
+            xRef_ "archiveBtn",
+            Lucid.class_ "hidden"
           ]
-          "ARCHIVE"
+          ""
+        -- Visible dropdown
+        Lucid.select_
+          [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
+            xOnChange_
+              [i|
+              const action = $el.value;
+              $el.value = '';
+              if (action === 'edit') {
+                $refs.editLink.click();
+              } else if (action === 'archive') {
+                $refs.archiveBtn.click();
+              }
+            |]
+          ]
+          $ do
+            Lucid.option_ [Lucid.value_ ""] "Actions..."
+            Lucid.option_ [Lucid.value_ "edit"] "Edit"
+            Lucid.option_ [Lucid.value_ "archive"] "Archive"
+  where
+    episodeEditUrl = episodeEditGetUrl showModel.id episode.id episode.slug
+    episodeDelUrl = episodeDeleteUrl showModel.id showModel.slug episode.id episode.slug
