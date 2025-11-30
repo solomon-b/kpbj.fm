@@ -45,7 +45,7 @@ editBlogPostForm showModel post tags = do
         fbMethod = "post",
         fbHeader = Just (renderFormHeader showModel post),
         fbFields = showBlogEditFormFields post tags,
-        fbAdditionalContent = [renderSubmitActions showModel post],
+        fbAdditionalContent = [renderSubmitActions showModel post, renderStatusToggleScript],
         fbStyles = defaultFormStyles,
         fbHtmx = Nothing
       }
@@ -91,7 +91,12 @@ showBlogEditFormFields post tags =
         Published -> "published"
         Draft -> "draft"
         _ -> "draft"
-   in [ -- Post Details Section
+   in [ -- Hidden status field (controlled by toggle)
+        HiddenField
+          { hfName = "status",
+            hfValue = statusValue
+          },
+        -- Post Details Section
         SectionField
           { sfTitle = "POST DETAILS",
             sfFields =
@@ -140,22 +145,6 @@ showBlogEditFormFields post tags =
                           vrRequired = False,
                           vrCustomValidation = Nothing
                         }
-                  }
-              ]
-          },
-        -- Publishing Options Section
-        SectionField
-          { sfTitle = "PUBLISHING OPTIONS",
-            sfFields =
-              [ ValidatedSelectField
-                  { vsName = "status",
-                    vsLabel = "Publication Status",
-                    vsOptions =
-                      [ SelectOption "published" "Publish Immediately" (statusValue == "published") Nothing,
-                        SelectOption "draft" "Save as Draft" (statusValue == "draft") Nothing
-                      ],
-                    vsHint = Nothing,
-                    vsValidation = emptyValidation {vrRequired = True}
                   },
                 ValidatedTextareaField
                   { vtName = "excerpt",
@@ -181,22 +170,53 @@ showBlogEditFormFields post tags =
 -- Form Submit Actions (rendered inside <form>)
 
 renderSubmitActions :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
-renderSubmitActions showModel post =
-  Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 transition-colors"
-        ]
-        "UPDATE POST"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogPostGetUrl showModel post}|],
-          hxGet_ [i|/#{showBlogPostGetUrl showModel post}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline inline-block"
-        ]
-        "CANCEL"
+renderSubmitActions _showModel post =
+  let isPublished = ShowBlogPosts.status post == Published
+   in Lucid.section_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6"] $ do
+        Lucid.div_ [Lucid.class_ "flex justify-end items-center"] $ do
+          Lucid.div_ [Lucid.class_ "flex gap-4 items-center"] $ do
+            -- Status toggle switch
+            Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
+              Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Draft"
+              Lucid.label_ [Lucid.class_ "relative inline-flex items-center cursor-pointer"] $ do
+                Lucid.input_ $
+                  [ Lucid.type_ "checkbox",
+                    Lucid.id_ "status-toggle",
+                    Lucid.class_ "sr-only peer"
+                  ]
+                    <> [Lucid.checked_ | isPublished]
+                Lucid.div_
+                  [ Lucid.class_ $
+                      "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 "
+                        <> "peer-focus:ring-blue-300 rounded-full peer "
+                        <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
+                        <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
+                        <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
+                        <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
+                  ]
+                  mempty
+              Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Published"
+            Lucid.button_
+              [ Lucid.type_ "submit",
+                Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
+              ]
+              "SUBMIT"
+
+-- | JavaScript for status toggle
+renderStatusToggleScript :: Lucid.Html ()
+renderStatusToggleScript =
+  Lucid.script_
+    [i|
+(function() {
+  const statusToggle = document.getElementById('status-toggle');
+  const statusField = document.querySelector('input[name="status"]');
+  statusToggle?.addEventListener('change', () => {
+    if (statusField) {
+      statusField.value = statusToggle.checked ? 'published' : 'draft';
+    }
+  });
+})();
+|]
 
 --------------------------------------------------------------------------------
 -- Error Templates
