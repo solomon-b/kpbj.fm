@@ -151,6 +151,16 @@ data Update = Update
   deriving anyclass (EncodeRow)
   deriving (Display) via (RecordInstance Update)
 
+-- | Episode file update data for updating audio and artwork files
+data FileUpdate = FileUpdate
+  { efuId :: Id,
+    efuAudioFilePath :: Maybe Text,
+    efuArtworkUrl :: Maybe Text
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (EncodeRow)
+  deriving (Display) via (RecordInstance FileUpdate)
+
 --------------------------------------------------------------------------------
 -- Database Queries
 
@@ -397,6 +407,23 @@ updateEpisode Update {..} =
     SET title = #{euTitle}, description = #{euDescription},
         updated_at = NOW()
     WHERE id = #{euId}
+    RETURNING id
+  |]
+
+-- | Update an episode's audio and artwork files
+--
+-- Only updates fields that are provided (Just value). Nothing values are ignored
+-- and the existing values are kept.
+updateEpisodeFiles :: FileUpdate -> Hasql.Statement () (Maybe Id)
+updateEpisodeFiles FileUpdate {..} =
+  interp
+    False
+    [sql|
+    UPDATE episodes
+    SET audio_file_path = COALESCE(#{efuAudioFilePath}, audio_file_path),
+        artwork_url = COALESCE(#{efuArtworkUrl}, artwork_url),
+        updated_at = NOW()
+    WHERE id = #{efuId}
     RETURNING id
   |]
 

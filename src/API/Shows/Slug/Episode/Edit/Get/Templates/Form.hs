@@ -17,6 +17,7 @@ import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
+import Data.Time (UTCTime)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -36,18 +37,29 @@ episodesIdGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink 
 
 --------------------------------------------------------------------------------
 
+-- | Check if the episode's scheduled date is in the future (allowing file uploads)
+isScheduledInFuture :: UTCTime -> Episodes.Model -> Bool
+isScheduledInFuture now episode = case episode.scheduledAt of
+  Nothing -> True -- No scheduled date means it's still editable
+  Just scheduledAt -> scheduledAt > now
+
 -- | Episode edit template
-template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template showModel episode tracks userMeta _isStaff = do
-  let showSlug = showModel.slug
+--
+-- The currentTime parameter is used to determine if the scheduled date has passed.
+-- If the scheduled date is in the future, file upload fields are shown.
+template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
+template currentTime showModel episode tracks userMeta _isStaff = do
+  let showIdText = display showModel.id
       episodeSlug = episode.slug
+      episodeIdText = display episode.id
       episodeBackUrl = episodesIdGetUrl showModel.id episode.id episodeSlug
       titleValue = episode.title
       descriptionValue = fromMaybe "" episode.description
+      allowFileUpload = isScheduledInFuture currentTime episode
 
   Builder.buildValidatedForm
     Builder.FormBuilder
-      { Builder.fbAction = [i|/shows/#{display showSlug}/episodes/#{display episodeSlug}/edit|],
+      { Builder.fbAction = [i|/shows/#{showIdText}/episodes/#{episodeIdText}/#{display episodeSlug}/edit|],
         Builder.fbMethod = "post",
         Builder.fbHeader = Just (formHeader showModel episode userMeta episodeBackUrl),
         Builder.fbHtmx = Nothing,
@@ -93,6 +105,40 @@ template showModel episode tracks userMeta _isStaff = do
                             }
                       }
                   ]
+              },
+            -- File Upload Section (only shown if scheduled date is in the future)
+            Builder.ConditionalField
+              { Builder.cfCondition = allowFileUpload,
+                Builder.cfTrueFields =
+                  [ Builder.SectionField
+                      { Builder.sfTitle = "MEDIA FILES",
+                        Builder.sfFields =
+                          [ Builder.ValidatedFileField
+                              { Builder.vffName = "audio_file",
+                                Builder.vffLabel = "Audio File",
+                                Builder.vffAccept = Just "audio/*",
+                                Builder.vffHint = Just "MP3, WAV, FLAC accepted • Max 500MB • Leave empty to keep current file",
+                                Builder.vffMaxSizeMB = Just 500,
+                                Builder.vffValidation = Builder.emptyValidation, -- Optional for edits
+                                Builder.vffButtonText = "📁 CHOOSE AUDIO FILE",
+                                Builder.vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block",
+                                Builder.vffCurrentValue = episode.audioFilePath
+                              },
+                            Builder.ValidatedFileField
+                              { Builder.vffName = "artwork_file",
+                                Builder.vffLabel = "Episode Artwork",
+                                Builder.vffAccept = Just "image/jpeg,image/png",
+                                Builder.vffHint = Just "JPG, PNG accepted • Max 5MB • Recommended: 800x800px • Leave empty to keep current",
+                                Builder.vffMaxSizeMB = Just 5,
+                                Builder.vffValidation = Builder.emptyValidation, -- Optional
+                                Builder.vffButtonText = "🖼️ CHOOSE IMAGE",
+                                Builder.vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
+                                Builder.vffCurrentValue = episode.artworkUrl
+                              }
+                          ]
+                      }
+                  ],
+                Builder.cfFalseFields = [] -- No file upload fields when scheduled date has passed
               },
             -- Track Listing Section
             Builder.PlainField

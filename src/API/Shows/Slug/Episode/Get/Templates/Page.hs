@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesEditGetLink, mediaGetLink, showGetLink)
+import {-# SOURCE #-} API (mediaGetLink, showGetLink)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -34,27 +34,11 @@ mediaGetUrl = Links.linkURI mediaGetLink
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
 
-episodeEditGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showId episodeId episodeSlug
-
 --------------------------------------------------------------------------------
 
-template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Bool -> Lucid.Html ()
-template showModel episode tracks canEdit = do
+template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
+template showModel episode tracks = do
   Lucid.div_ [Lucid.class_ "max-w-4xl mx-auto px-4 py-8 w-full"] $ do
-    -- Edit button for authorized users
-    when canEdit $ do
-      let editUrl = episodeEditGetUrl showModel.id episode.id episode.slug
-      Lucid.div_ [Lucid.class_ "mb-4 w-full text-right"] $ do
-        Lucid.a_
-          [ Lucid.href_ [i|/#{editUrl}|],
-            hxGet_ [i|/#{editUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "inline-block bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700"
-          ]
-          "✏ EDIT EPISODE"
-
     -- Main episode container
     Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800"] $ do
       -- Episode header with artwork
