@@ -12,7 +12,7 @@ import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
@@ -21,6 +21,7 @@ import Data.Has (Has)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
@@ -128,8 +129,12 @@ handler _tracer showId episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
               if episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
                 then do
                   Log.logInfo "Authorized user accessing episode edit form" episode.id
+                  currentTime <- liftIO getCurrentTime
+                  Log.logInfo "Episode scheduled_at" (show episode.scheduledAt)
+                  Log.logInfo "Current time" (show currentTime)
+                  Log.logInfo "Is scheduled in future?" (show $ case episode.scheduledAt of Nothing -> True; Just s -> s > currentTime)
                   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                      editTemplate = template showModel episode tracks userMetadata isStaff
+                      editTemplate = template currentTime showModel episode tracks userMetadata isStaff
                   html <- renderTemplate hxRequest (Just userMetadata) editTemplate
                   pure $ Servant.noHeader $ Servant.noHeader html
                 else do
