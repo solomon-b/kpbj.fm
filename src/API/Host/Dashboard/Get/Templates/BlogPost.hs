@@ -62,7 +62,7 @@ renderBlogPostTableRow showModel post = do
     Lucid.td_ [Lucid.class_ "px-4 py-3 text-sm"] $ do
       case post.publishedAt of
         Just publishedAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" publishedAt
-        Nothing -> Lucid.span_ [Lucid.class_ "text-gray-500 italic"] "Draft"
+        Nothing -> Lucid.span_ [Lucid.class_ "text-gray-500 italic"] "—"
 
     -- Status
     Lucid.td_ [Lucid.class_ "px-4 py-3 text-sm"] $
