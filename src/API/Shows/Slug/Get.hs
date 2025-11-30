@@ -16,11 +16,13 @@ import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text.Display (display)
+import Data.Time (UTCTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
+import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -65,7 +67,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    MonadClock m
   ) =>
   Tracer ->
   Slug ->
@@ -87,7 +90,8 @@ handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
       Log.logInfo ("Show not found: " <> display slug) ()
       renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just showModel) -> do
-      fetchShowDetails showModel limit offset >>= \case
+      now <- currentSystemTime
+      fetchShowDetails now showModel limit offset >>= \case
         Left err -> do
           Log.logAttention "Failed to fetch show details from database" (show err)
           let showTemplate = template showModel [] [] [] [] page
@@ -98,12 +102,13 @@ handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
 
 fetchShowDetails ::
   (MonadDB m) =>
+  UTCTime ->
   Shows.Model ->
   Limit ->
   Offset ->
   m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate], [Episodes.Model], [ShowBlogPosts.Model]))
-fetchShowDetails showModel limit offset = runDBTransaction $ do
-  episodes <- TRX.statement () $ Episodes.getPublishedEpisodesForShow showModel.id limit offset
+fetchShowDetails now showModel limit offset = runDBTransaction $ do
+  episodes <- TRX.statement () $ Episodes.getPublishedEpisodesForShow now showModel.id limit offset
   hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id
   blogPosts <- TRX.statement () $ ShowBlogPosts.getPublishedShowBlogPosts showModel.id 3 0
   schedule <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showModel.id

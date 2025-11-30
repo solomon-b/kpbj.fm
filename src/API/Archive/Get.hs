@@ -25,6 +25,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
+import Effects.Clock (MonadClock (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -69,7 +70,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    MonadClock m
   ) =>
   Tracer ->
   Maybe Text ->
@@ -85,9 +87,10 @@ handler _tracer (normalize -> normalizedSearch) (normalize -> normalizedGenre) m
       offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
       (mDateFrom, mDateTo) = convertYear mYear
 
+  now <- currentSystemTime
   mUserInfo <- getUserInfo cookie <&> fmap snd
   dbResult <- execTransactionSpan $ do
-    episodesResult <- TRX.statement () $ Episodes.getPublishedEpisodesWithFilters normalizedSearch normalizedGenre mDateFrom mDateTo "newest" limit offset
+    episodesResult <- TRX.statement () $ Episodes.getPublishedEpisodesWithFilters now normalizedSearch normalizedGenre mDateFrom mDateTo "newest" limit offset
     totalCountResult <- TRX.statement () $ Episodes.countPublishedEpisodesWithFilters normalizedSearch normalizedGenre mDateFrom mDateTo
     pure (episodesResult, totalCountResult)
 

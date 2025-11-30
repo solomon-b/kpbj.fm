@@ -155,8 +155,8 @@ data Update = Update
 -- Database Queries
 
 -- | Get published episodes for a show
-getPublishedEpisodesForShow :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getPublishedEpisodesForShow showId limit offset =
+getPublishedEpisodesForShow :: UTCTime -> Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
+getPublishedEpisodesForShow now showId limit offset =
   interp
     False
     [sql|
@@ -164,7 +164,7 @@ getPublishedEpisodesForShow showId limit offset =
            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
     FROM episodes
-    WHERE show_id = #{showId} AND status = 'published'
+    WHERE show_id = #{showId} AND status = 'published' AND scheduled_at <= #{now}
     ORDER BY published_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
     LIMIT #{limit} OFFSET #{offset}
   |]
@@ -272,6 +272,7 @@ data EpisodeWithShow = EpisodeWithShow
 -- | Get published episodes with show details and filters for archive page
 -- Returns episodes with show information, filtered by optional search, show_id, genre, and date range
 getPublishedEpisodesWithFilters ::
+  UTCTime ->
   Maybe Text ->
   Maybe Text ->
   Maybe UTCTime ->
@@ -280,7 +281,7 @@ getPublishedEpisodesWithFilters ::
   Limit ->
   Offset ->
   Hasql.Statement () [EpisodeWithShow]
-getPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo sortBy limit offset =
+getPublishedEpisodesWithFilters now mSearch mGenre mDateFrom mDateTo sortBy limit offset =
   case sortBy of
     "longest" ->
       interp
@@ -299,6 +300,7 @@ getPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo sortBy limit of
     JOIN users u ON sh.user_id = u.id
     LEFT JOIN user_metadata um ON u.id = um.user_id
     WHERE e.status = 'published'
+      AND e.scheduled_at <= #{now}
       AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
       AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
@@ -323,6 +325,7 @@ getPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo sortBy limit of
     JOIN users u ON sh.user_id = u.id
     LEFT JOIN user_metadata um ON u.id = um.user_id
     WHERE e.status = 'published'
+      AND e.scheduled_at <= #{now}
       AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
       AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
