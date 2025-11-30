@@ -32,8 +32,8 @@ import Servant.Links qualified as Links
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
-episodesIdGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
-episodesIdGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink showId episodeId episodeSlug
+episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
+episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
@@ -49,17 +49,17 @@ isScheduledInFuture now episode = case episode.scheduledAt of
 -- If the scheduled date is in the future, file upload fields are shown.
 template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
 template currentTime showModel episode tracks userMeta _isStaff = do
-  let showIdText = display showModel.id
+  let showSlugText = display showModel.slug
       episodeSlug = episode.slug
       episodeIdText = display episode.id
-      episodeBackUrl = episodesIdGetUrl showModel.id episode.id episodeSlug
+      episodeBackUrl = episodesIdGetUrl showModel.slug episode.id episodeSlug
       titleValue = episode.title
       descriptionValue = fromMaybe "" episode.description
       allowFileUpload = isScheduledInFuture currentTime episode
 
   Builder.buildValidatedForm
     Builder.FormBuilder
-      { Builder.fbAction = [i|/shows/#{showIdText}/episodes/#{episodeIdText}/#{display episodeSlug}/edit|],
+      { Builder.fbAction = [i|/shows/#{showSlugText}/episodes/#{episodeIdText}/#{display episodeSlug}/edit|],
         Builder.fbMethod = "post",
         Builder.fbHeader = Just (formHeader showModel episode userMeta episodeBackUrl),
         Builder.fbHtmx = Nothing,

@@ -22,17 +22,17 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-episodeGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
-episodeGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink showId episodeId episodeSlug
+episodeGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
+episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
 
-episodeEditGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showId episodeId episodeSlug
+episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
+episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeId episodeSlug
 
-episodeDeleteUrl :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.URI
-episodeDeleteUrl showId showSlug episodeId episodeSlug = Links.linkURI $ episodesDeleteLink showId showSlug episodeId episodeSlug
+episodeDeleteUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
+episodeDeleteUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesDeleteLink showSlug episodeId episodeSlug
 
-episodePublishUrl :: Shows.Id -> Slug -> Episodes.Id -> Slug -> Links.URI
-episodePublishUrl showId showSlug episodeId episodeSlug = Links.linkURI $ episodesPublishPostLink showId showSlug episodeId episodeSlug
+episodePublishUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
+episodePublishUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesPublishPostLink showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
@@ -49,7 +49,7 @@ renderEpisodeTableRow showModel episode = do
 
     -- Title
     Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do
-      let episodeUrl = episodeGetUrl showModel.id episode.id episode.slug
+      let episodeUrl = episodeGetUrl showModel.slug episode.id episode.slug
       Lucid.div_ [Lucid.class_ "font-bold text-gray-900"]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{episodeUrl}|],
@@ -142,6 +142,6 @@ renderEpisodeTableRow showModel episode = do
                 _ -> mempty
               Lucid.option_ [Lucid.value_ "archive"] "Archive"
   where
-    episodeEditUrl = episodeEditGetUrl showModel.id episode.id episode.slug
-    episodeDelUrl = episodeDeleteUrl showModel.id showModel.slug episode.id episode.slug
-    episodePubUrl = episodePublishUrl showModel.id showModel.slug episode.id episode.slug
+    episodeEditUrl = episodeEditGetUrl showModel.slug episode.id episode.slug
+    episodeDelUrl = episodeDeleteUrl showModel.slug episode.id episode.slug
+    episodePubUrl = episodePublishUrl showModel.slug episode.id episode.slug

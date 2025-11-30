@@ -46,9 +46,9 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /shows/:show_id/episodes/:episode_id/:slug/edit"
+    "GET /shows/:show_slug/episodes/:episode_id/:slug/edit"
     ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
+        :> Servant.Capture "show_slug" Slug
         :> "episodes"
         :> Servant.Capture "episode_id" Episodes.Id
         :> Servant.Capture "slug" Slug
@@ -71,13 +71,13 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
+  Slug ->
   Episodes.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text, Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showId episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
+handler _tracer showSlug episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to episode edit" ()
@@ -119,10 +119,10 @@ handler _tracer showId episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
           pure $ Servant.addHeader "/" $ Servant.noHeader html
         Right (Just (episode, showModel, tracks, isHost)) -> do
           let canonicalSlug = episode.slug
-              showIdText = display showId
+              showSlugText = display showSlug
               episodeIdText = display episodeId
               slugText = display canonicalSlug
-              canonicalUrl = [i|/shows/#{showIdText}/episodes/#{episodeIdText}/#{slugText}/edit|]
+              canonicalUrl = [i|/shows/#{showSlugText}/episodes/#{episodeIdText}/#{slugText}/edit|]
 
           if matchSlug canonicalSlug (Just urlSlug)
             then

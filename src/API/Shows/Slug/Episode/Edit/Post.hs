@@ -57,16 +57,16 @@ import Text.Read (readMaybe)
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
 
-episodesIdGetUrl :: Shows.Id -> Episodes.Id -> Slug -> Links.URI
-episodesIdGetUrl showId episodeId episodeSlug = Links.linkURI $ episodesGetLink showId episodeId episodeSlug
+episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
+episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_id/episodes/:episode_id/:slug/edit"
+    "POST /shows/:show_slug/episodes/:episode_id/:slug/edit"
     ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
+        :> Servant.Capture "show_slug" Slug
         :> "episodes"
         :> Servant.Capture "episode_id" Episodes.Id
         :> Servant.Capture "slug" Slug
@@ -202,9 +202,9 @@ parseStatus "deleted" = Just Episodes.Deleted
 parseStatus _ = Nothing
 
 -- | Success template after episode update
-successTemplate :: Shows.Id -> Episodes.Id -> Slug -> Lucid.Html ()
-successTemplate showId episodeId episodeSlug = do
-  let epUrl = episodesIdGetUrl showId episodeId episodeSlug
+successTemplate :: Slug -> Episodes.Id -> Slug -> Lucid.Html ()
+successTemplate showSlug episodeId episodeSlug = do
+  let epUrl = episodesIdGetUrl showSlug episodeId episodeSlug
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
     Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Episode Updated Successfully!"
     Lucid.p_ [Lucid.class_ "mb-6"] "Your episode has been updated and saved."
@@ -288,14 +288,14 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
+  Slug ->
   Episodes.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   EpisodeEditForm ->
   m (Lucid.Html ())
-handler _tracer _showId episodeId _urlSlug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer _showSlug episodeId _urlSlug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized episode edit attempt" episodeId
@@ -432,7 +432,7 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                       renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but track update failed: " <> trackErr)
                     Right _ -> do
                       Log.logInfo "Successfully updated episode and tracks" episode.id
-                      renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.id episode.id episode.slug)
+                      renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.id episode.slug)
 
 -- | Process file uploads for episode editing
 processFileUploads ::
