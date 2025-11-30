@@ -172,7 +172,6 @@ parseTracksFromForm form = parseTracksFromIndex 0
 -- | Parse episode status from text
 parseStatus :: Text -> Maybe Episodes.Status
 parseStatus "draft" = Just Episodes.Draft
-parseStatus "scheduled" = Just Episodes.Scheduled
 parseStatus "published" = Just Episodes.Published
 parseStatus "archived" = Just Episodes.Archived
 parseStatus _ = Nothing
