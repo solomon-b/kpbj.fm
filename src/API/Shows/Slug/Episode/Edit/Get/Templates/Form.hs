@@ -138,7 +138,6 @@ template showModel episode tracks userMeta isStaff = do
 statusOptions :: Episodes.Model -> [Builder.SelectOption]
 statusOptions episode =
   [ Builder.SelectOption "draft" "Draft" (episode.status == Episodes.Draft) Nothing,
-    Builder.SelectOption "scheduled" "Scheduled" (episode.status == Episodes.Scheduled) Nothing,
     Builder.SelectOption "published" "Published" (episode.status == Episodes.Published) Nothing,
     Builder.SelectOption "archived" "Archived" (episode.status == Episodes.Archived) Nothing
   ]
