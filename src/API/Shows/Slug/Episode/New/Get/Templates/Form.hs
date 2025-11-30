@@ -84,18 +84,7 @@ episodeFormFields showModel upcomingDates =
     SectionField
       { sfTitle = "EPISODE DETAILS",
         sfFields =
-          [ ValidatedSelectField
-              { vsName = "episode_type",
-                vsLabel = "Episode Type",
-                vsOptions =
-                  [ SelectOption "pre-recorded" "Pre-recorded" True Nothing,
-                    SelectOption "live" "Live Show" False Nothing,
-                    SelectOption "hybrid" "Hybrid (Live + Pre-recorded segments)" False Nothing
-                  ],
-                vsHint = Nothing,
-                vsValidation = emptyValidation {vrRequired = True}
-              },
-            ValidatedTextField
+          [ ValidatedTextField
               { vfName = "title",
                 vfLabel = "Episode Title",
                 vfInitialValue = Nothing,

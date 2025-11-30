@@ -91,7 +91,6 @@ data EpisodeUploadForm = EpisodeUploadForm
   { -- Show and scheduling
     eufId :: Text,
     eufScheduledDate :: Maybe Text,
-    eufEpisodeType :: Text,
     -- Episode metadata
     eufTitle :: Text,
     eufDescription :: Text,
@@ -112,7 +111,6 @@ instance FromMultipart Mem EpisodeUploadForm where
     EpisodeUploadForm
       <$> lookupInput "show_id" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "scheduled_date" multipartData))
-      <*> lookupInput "episode_type" multipartData
       <*> lookupInput "title" multipartData
       <*> lookupInput "description" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tags" multipartData))
