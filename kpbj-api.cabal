@@ -52,10 +52,12 @@ library
                   , aeson
                   , base
                   , bytestring
+                  , containers
                   , data-has
                   , deriving-aeson
                   , directory
                   , exceptions
+                  , extra
                   , filepath
                   , hasql
                   , hasql-interpolate
@@ -86,6 +88,7 @@ library
                   , vector
                   , wai-extra
                   , web-server-core
+                  , witherable
                   , xss-sanitize
   exposed-modules:
     API
@@ -230,7 +233,6 @@ library
     Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
     Effects.Database.Tables.EventTags
-    Effects.Database.Tables.HostDetails
     Effects.Database.Tables.Shows
     Effects.Database.Tables.ShowBlogPosts
     Effects.Database.Tables.ShowBlogTags

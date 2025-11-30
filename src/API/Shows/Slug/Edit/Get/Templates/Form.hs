@@ -13,6 +13,8 @@ import {-# SOURCE #-} API (hostDashboardGetLink, mediaGetLink, showGetLink)
 import Component.Form.Builder
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -23,9 +25,10 @@ import Data.Vector qualified as Vector
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xRef_, xShow_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -45,8 +48,11 @@ mediaGetUrl = Links.linkURI mediaGetLink
 --
 -- The schedulesJson parameter should be a JSON array of schedule slot objects.
 -- Use 'schedulesToJson' to convert from database models.
-template :: Shows.Model -> UserMetadata.Model -> Bool -> Text -> Lucid.Html ()
-template showModel userMeta isStaff schedulesJson = do
+--
+-- The eligibleHosts parameter is all users who can be assigned as hosts.
+-- The currentHostIds parameter is the set of user IDs currently hosting this show.
+template :: Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Lucid.Html ()
+template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds = do
   let showSlug = showModel.slug
       additionalContent =
         if isStaff
@@ -57,7 +63,7 @@ template showModel userMeta isStaff schedulesJson = do
       { fbAction = [i|/shows/#{display showSlug}/edit|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader userMeta showModel),
-        fbFields = showEditFormFields showModel isStaff,
+        fbFields = showEditFormFields showModel isStaff eligibleHosts currentHostIds,
         fbAdditionalContent = additionalContent,
         fbStyles = defaultFormStyles,
         fbHtmx = Nothing
@@ -100,8 +106,8 @@ renderFormHeader userMeta showModel = do
 --------------------------------------------------------------------------------
 -- Form Fields Definition
 
-showEditFormFields :: Shows.Model -> Bool -> [FormField]
-showEditFormFields showModel isStaff =
+showEditFormFields :: Shows.Model -> Bool -> [UserMetadata.UserWithMetadata] -> Set User.Id -> [FormField]
+showEditFormFields showModel isStaff eligibleHosts currentHostIds =
   [ -- Basic Information Section
     SectionField
       { sfTitle = "BASIC INFORMATION",
@@ -212,6 +218,21 @@ showEditFormFields showModel isStaff =
               }
           ]
       },
+    -- Hosts Section (staff/admin only)
+    ConditionalField
+      { cfCondition = isStaff,
+        cfTrueFields =
+          [ SectionField
+              { sfTitle = "HOSTS",
+                sfFields =
+                  [ PlainField
+                      { pfHtml = renderHostsMultiSelect eligibleHosts currentHostIds
+                      }
+                  ]
+              }
+          ],
+        cfFalseFields = []
+      },
     -- Schedule Section (staff/admin only)
     ConditionalField
       { cfCondition = isStaff,
@@ -252,11 +273,87 @@ renderSubmitActions showSlug = do
         "CANCEL"
 
 --------------------------------------------------------------------------------
+-- Searchable Multi-Select for Hosts
+
+-- | Render a searchable multi-select for host assignment.
+--
+-- Current hosts are displayed at the top of the list with their checkboxes pre-checked.
+-- Other eligible hosts are shown below.
+renderHostsMultiSelect :: [UserMetadata.UserWithMetadata] -> Set User.Id -> Lucid.Html ()
+renderHostsMultiSelect eligibleHosts currentHostIds = do
+  -- Partition into current hosts and other hosts
+  let (currentHosts, otherHosts) = partitionHosts eligibleHosts currentHostIds
+      sortedHosts = currentHosts <> otherHosts
+  Lucid.div_ [xData_ "{ search: '' }"] $ do
+    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Assign Hosts"
+    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mb-2"] "Select one or more hosts for this show. Regular users will be automatically promoted to Host role."
+
+    -- Search input
+    Lucid.div_ [Lucid.class_ "mb-2"] $ do
+      Lucid.input_
+        [ Lucid.type_ "text",
+          Lucid.placeholder_ "Search by name or email...",
+          Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono",
+          xModel_ "search"
+        ]
+
+    -- Results container
+    Lucid.div_ [Lucid.class_ "bg-gray-100 border-2 border-gray-300"] $ do
+      -- Header
+      Lucid.div_ [Lucid.class_ "bg-gray-200 border-b border-gray-400 p-3 font-bold text-sm"] $
+        Lucid.toHtml ("AVAILABLE HOSTS (" <> show (length eligibleHosts) <> ")")
+
+      -- Scrollable host list
+      Lucid.div_ [Lucid.class_ "max-h-64 overflow-y-auto"] $
+        mapM_ (renderHostOption currentHostIds) sortedHosts
+
+-- | Partition hosts into current hosts and other hosts
+partitionHosts :: [UserMetadata.UserWithMetadata] -> Set User.Id -> ([UserMetadata.UserWithMetadata], [UserMetadata.UserWithMetadata])
+partitionHosts hosts currentIds =
+  let isCurrent h = Set.member h.uwmUserId currentIds
+   in (filter isCurrent hosts, filter (not . isCurrent) hosts)
+
+-- | Render a single host option in the multi-select
+renderHostOption :: Set User.Id -> UserMetadata.UserWithMetadata -> Lucid.Html ()
+renderHostOption currentHostIds user =
+  let userId = user.uwmUserId
+      displayName = display user.uwmDisplayName
+      email = display user.uwmEmail
+      roleText = display user.uwmUserRole
+      userIdText = display userId
+      isCurrentHost = Set.member userId currentHostIds
+      -- Alpine.js filter condition - check if search matches name or email
+      filterCondition =
+        [i|search === '' || '#{displayName}'.toLowerCase().includes(search.toLowerCase()) || '#{email}'.toLowerCase().includes(search.toLowerCase())|]
+   in Lucid.div_
+        [ Lucid.class_ "border-b border-gray-300 p-3 hover:bg-gray-200 cursor-pointer",
+          xShow_ filterCondition,
+          xBindClass_ "{ 'bg-blue-50': $refs.host_#{userIdText}?.checked }"
+        ]
+        $ do
+          Lucid.div_ [Lucid.class_ "flex items-center"] $ do
+            Lucid.input_ $
+              [ Lucid.type_ "checkbox",
+                Lucid.name_ "hosts",
+                Lucid.id_ [i|host_#{userIdText}|],
+                Lucid.value_ userIdText,
+                Lucid.class_ "mr-3",
+                xRef_ [i|host_#{userIdText}|]
+              ]
+                <> [Lucid.checked_ | isCurrentHost]
+            Lucid.label_ [Lucid.for_ [i|host_#{userIdText}|], Lucid.class_ "flex-1 cursor-pointer"] $ do
+              Lucid.div_ [Lucid.class_ "font-bold"] $ Lucid.toHtml displayName
+              Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] $
+                Lucid.toHtml $
+                  email <> " • " <> roleText <> if isCurrentHost then " • CURRENT HOST" else ""
+
+--------------------------------------------------------------------------------
 -- Schedule Section (staff/admin only)
 
 renderScheduleSection :: Lucid.Html ()
 renderScheduleSection = do
-  Lucid.p_ [Lucid.class_ "text-sm text-gray-600 mb-4"] $
+  Lucid.p_
+    [Lucid.class_ "text-sm text-gray-600 mb-4"]
     "Manage recurring time slots when this show will air. Changes will take effect immediately."
 
   Lucid.div_ [Lucid.id_ "schedule-container"] $ do
@@ -298,8 +395,8 @@ schedulesToJson schedules =
         [ Aeson.object
             [ "dayOfWeek" Aeson..= maybe ("" :: Text) dayOfWeekToText sched.dayOfWeek,
               "weeksOfMonth" Aeson..= maybe ([] :: [Int]) (map fromIntegral . Vector.toList) sched.weeksOfMonth,
-              "startTime" Aeson..= (Text.take 5 $ Text.pack $ show sched.startTime),
-              "endTime" Aeson..= (Text.take 5 $ Text.pack $ show sched.endTime)
+              "startTime" Aeson..= Text.take 5 (Text.pack $ show sched.startTime),
+              "endTime" Aeson..= Text.take 5 (Text.pack $ show sched.endTime)
             ]
           | sched <- schedules
         ]

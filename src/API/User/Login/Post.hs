@@ -97,13 +97,14 @@ handler ::
     )
 handler _tracer sockAddr mUserAgent Login {..} redirectQueryParam = do
   execQuerySpanThrow (User.getUserByEmail ulEmail) >>= \case
-    Just user -> do
-      Log.logInfo "Login Attempt" ulEmail
-      if checkPassword ulPassword (User.mPassword user) == PasswordCheckSuccess
-        then
+    Just user
+      | checkPassword ulPassword (User.mPassword user) == PasswordCheckSuccess -> do
+          Log.logInfo "Login Attempt" ulEmail
           let redirectLink = fromMaybe (Http.toUrlPiece rootGetLink) redirectQueryParam
-           in attemptLogin sockAddr mUserAgent redirectLink user
-        else invalidCredentialResponse ulEmail (Aeson.object [("field", "password"), "value" .= ulPassword])
+          attemptLogin sockAddr mUserAgent redirectLink user
+    Just _user -> do
+      Log.logInfo "Login Attempt" ulEmail
+      invalidCredentialResponse ulEmail (Aeson.object [("field", "password"), "value" .= ulPassword])
     Nothing ->
       invalidCredentialResponse ulEmail (Aeson.object [("field", "email"), "value" .= ulEmail])
 

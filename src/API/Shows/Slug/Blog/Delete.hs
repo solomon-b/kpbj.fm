@@ -89,13 +89,9 @@ handler _tracer showId _showSlug postId _postSlug cookie = do
               Log.logInfo "Delete failed: Blog post not found" (Aeson.object ["postId" .= postId])
               pure $ renderBanner Error "Delete Failed" "Blog post not found."
             Right (Just blogPost) -> do
-              -- Check authorization: must be host of the show or author
-              let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                  isAuthor = blogPost.authorId == user.mId
+              isHostOrStaff <- checkIfHost userMetadata user showModel.id
 
-              isHost <- checkIfHost userMetadata user showModel.id
-
-              if isStaff || ((isAuthor || isHost) && not (UserMetadata.isSuspended userMetadata))
+              if isHostOrStaff && not (UserMetadata.isSuspended userMetadata)
                 then deleteBlogPost blogPost
                 else do
                   Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "postId" .= blogPost.id])
@@ -140,12 +136,7 @@ checkIfHost ::
   User.Model ->
   Shows.Id ->
   m Bool
-checkIfHost userMetadata user showId = do
-  -- Admins don't need explicit host check since they have access to all shows
-  if UserMetadata.isAdmin userMetadata.mUserRole
-    then pure True
-    else do
-      result <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showId)
-      case result of
-        Left _ -> pure False
-        Right authorized -> pure authorized
+checkIfHost userMetadata user showId
+  | UserMetadata.isStaffOrHigher userMetadata.mUserRole = pure True
+  | UserMetadata.isSuspended userMetadata = pure False
+  | otherwise = execQuerySpan (ShowHost.isUserHostOfShow user.mId showId) >>= either (const $ pure False) pure

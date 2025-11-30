@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Shows.Slug.Get where
@@ -11,24 +12,21 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
+import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Database.Tables.HostDetails qualified as HostDetails
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
+import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -68,8 +66,7 @@ handler ::
 handler _tracer slug cookie (foldHxReq -> hxRequest) = do
   userInfoResult <- getUserInfo cookie
   let mUserInfo = fmap snd userInfoResult
-  showResult <- execQuerySpan (Shows.getShowBySlug slug)
-  case showResult of
+  execQuerySpan (Shows.getShowBySlug slug) >>= \case
     Left err -> do
       Log.logInfo "Failed to fetch show from database" (show err)
       renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")
@@ -77,51 +74,22 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
       Log.logInfo ("Show not found: " <> display slug) ()
       renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just showModel) -> do
-      episodesResult <- execQuerySpan (Episodes.getEpisodesById showModel.id)
-      hostsResult <- execQuerySpan (ShowHost.getShowHostsWithUsers showModel.id)
-      schedulesResult <- execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id)
-
-      -- Check if current user can edit this show
-      canEdit <- case userInfoResult of
-        Nothing -> pure False
-        Just (user, userMeta) -> do
-          -- User must be a host of the show OR staff+
-          if UserMetadata.isStaffOrHigher userMeta.mUserRole
-            then pure True
-            else do
-              isHostResult <- execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
-              pure $ fromRight False isHostResult
-
-      -- Fetch tracks for the latest episode if episodes exist
-      latestEpisodeTracks <- case episodesResult of
-        Right (latestEpisode : _) -> do
-          tracksResult <- execQuerySpan (Episodes.getTracksForEpisode latestEpisode.id)
-          pure $ case tracksResult of
-            Right tracks -> Just tracks
-            Left _ -> Nothing
-        _ -> pure Nothing
-
-      -- Fetch host details for the primary host
-      mHostDetails <- case hostsResult of
-        Right (ShowHost.ShowHostWithUser {userId = uid} : _) -> do
-          hostDetailsResult <- execQuerySpan (HostDetails.getHostDetailsByUserId uid)
-          pure $ case hostDetailsResult of
-            Right details -> details
-            Left _ -> Nothing
-        _ -> pure Nothing
-
-      -- Fetch recent blog posts for this show
-      blogPostsResult <- execQuerySpan (ShowBlogPosts.getPublishedShowBlogPosts showModel.id 3 0)
-      let blogPosts = fromRight [] blogPostsResult
-
-      case (episodesResult, hostsResult, schedulesResult) of
-        (Right episodes, Right hosts, Right schedules) -> do
-          let showTemplate = template showModel episodes latestEpisodeTracks hosts schedules mHostDetails blogPosts canEdit
+      fetchShowDetails showModel >>= \case
+        Left err -> do
+          Log.logAttention "Failed to fetch show details from database" (show err)
+          let showTemplate = template showModel [] [] [] []
           renderTemplate hxRequest mUserInfo showTemplate
-        _ ->
-          -- If any query fails, show with empty data for the failed parts
-          let episodes = fromRight [] episodesResult
-              hosts = fromRight [] hostsResult
-              schedules = fromRight [] schedulesResult
-              showTemplate = template showModel episodes latestEpisodeTracks hosts schedules mHostDetails blogPosts canEdit
-           in renderTemplate hxRequest mUserInfo showTemplate
+        Right (hosts, schedule, episodes, blogPosts) -> do
+          let showTemplate = template showModel episodes hosts schedule blogPosts
+          renderTemplate hxRequest mUserInfo showTemplate
+
+fetchShowDetails ::
+  (MonadDB m) =>
+  Shows.Model ->
+  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate], [Episodes.Model], [ShowBlogPosts.Model]))
+fetchShowDetails showModel = runDBTransaction $ do
+  episodes <- TRX.statement () $ Episodes.getEpisodesById showModel.id
+  hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id
+  blogPosts <- TRX.statement () $ ShowBlogPosts.getPublishedShowBlogPosts showModel.id 3 0
+  schedule <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showModel.id
+  pure (hosts, schedule, episodes, blogPosts)

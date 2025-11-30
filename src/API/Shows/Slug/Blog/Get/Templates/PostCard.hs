@@ -4,7 +4,7 @@ module API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogDeleteLink, showBlogEditGetLink, showBlogPostGetLink)
+import {-# SOURCE #-} API (showBlogPostGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -21,18 +21,10 @@ showBlogPostGetUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
 showBlogPostGetUrl showModel post =
   Links.linkURI $ showBlogPostGetLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
-showBlogEditGetUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
-showBlogEditGetUrl showModel post =
-  Links.linkURI $ showBlogEditGetLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
-
-showBlogDeleteUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
-showBlogDeleteUrl showModel post =
-  Links.linkURI $ showBlogDeleteLink (Shows.id showModel) (Shows.slug showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
-
 --------------------------------------------------------------------------------
 
-renderPostCard :: Shows.Model -> ShowBlogPosts.Model -> Bool -> Lucid.Html ()
-renderPostCard showModel post isHost = do
+renderPostCard :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
+renderPostCard showModel post = do
   let postId = [i|post-#{ShowBlogPosts.id post}|]
   Lucid.article_
     [ Lucid.class_ "bg-white border-2 border-gray-800 p-6 hover:shadow-lg transition-shadow",
@@ -79,26 +71,3 @@ renderPostCard showModel post isHost = do
             Lucid.class_ "text-blue-600 font-bold hover:underline"
           ]
           "Read more →"
-
-        -- Show edit/delete buttons for hosts
-        if isHost
-          then Lucid.div_ [Lucid.class_ "flex gap-2"] $ do
-            -- Edit button
-            Lucid.a_
-              [ Lucid.href_ [i|/#{showBlogEditGetUrl showModel post}|],
-                hxGet_ [i|/#{showBlogEditGetUrl showModel post}|],
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                Lucid.class_ "bg-blue-600 text-white px-3 py-1 text-sm font-bold hover:bg-blue-700 no-underline"
-              ]
-              "✏️ EDIT"
-            -- Delete button
-            Lucid.button_
-              [ hxDelete_ [i|/#{showBlogDeleteUrl showModel post}|],
-                hxTarget_ ("#" <> postId),
-                hxSwap_ "outerHTML",
-                hxConfirm_ "Are you sure you want to delete this blog post? This action cannot be undone.",
-                Lucid.class_ "bg-red-600 text-white px-3 py-1 text-sm font-bold hover:bg-red-700"
-              ]
-              "🗑️ DELETE"
-          else mempty

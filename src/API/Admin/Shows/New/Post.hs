@@ -16,6 +16,7 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson (FromJSON, ToJSON, (.=))
 import Data.Aeson qualified as Aeson
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (mapMaybe)
@@ -118,7 +119,7 @@ instance FromMultipart Mem NewShowForm where
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData
-      <*> pure (parseHosts $ either (const []) id (lookupInputs "hosts" multipartData))
+      <*> pure (parseHosts $ fromRight [] (lookupInputs "hosts" multipartData))
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedules_json" multipartData))
     where
       emptyToNothing :: Maybe Text -> Maybe Text
@@ -352,44 +353,57 @@ handleShowCreation ::
   NewShowForm ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 handleShowCreation hxRequest userMetadata showData form = do
-  -- Process file uploads first
-  uploadResults <- processShowArtworkUploads showData.siSlug (nsfLogoFile form) (nsfBannerFile form)
+  -- Parse schedules first to check for conflicts before creating the show
+  case parseSchedules (nsfSchedulesJson form) of
+    Left err -> do
+      Log.logInfo "Failed to parse schedules" (Aeson.object ["error" .= err])
+      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Invalid schedule data: " <> err)
+    Right schedules -> do
+      -- Check for schedule conflicts before creating the show
+      -- Use Shows.Id 0 as placeholder since the show doesn't exist yet
+      -- This means we check against ALL active shows (no exclusion)
+      conflictResult <- checkScheduleConflicts (Shows.Id 0) schedules
+      case conflictResult of
+        Left conflictErr -> do
+          Log.logInfo "Schedule conflict detected" (Aeson.object ["error" .= conflictErr])
+          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate conflictErr)
+        Right () -> do
+          -- No conflicts, proceed with file uploads
+          uploadResults <- processShowArtworkUploads showData.siSlug (nsfLogoFile form) (nsfBannerFile form)
 
-  case uploadResults of
-    Left uploadErr -> do
-      Log.logInfo "Failed to upload show artwork" uploadErr
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "File upload error: " <> uploadErr)
-    Right (mLogoPath, mBannerPath) -> do
-      -- Update show data with file paths
-      let finalShowData =
-            showData
-              { Shows.siLogoUrl = mLogoPath,
-                Shows.siBannerUrl = mBannerPath
-              }
+          case uploadResults of
+            Left uploadErr -> do
+              Log.logInfo "Failed to upload show artwork" uploadErr
+              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "File upload error: " <> uploadErr)
+            Right (mLogoPath, mBannerPath) -> do
+              -- Update show data with file paths
+              let finalShowData =
+                    showData
+                      { Shows.siLogoUrl = mLogoPath,
+                        Shows.siBannerUrl = mBannerPath
+                      }
 
-      execQuerySpan (Shows.insertShow finalShowData) >>= \case
-        Left dbError -> do
-          Log.logInfo "Database error creating show" (Aeson.object ["error" .= Text.pack (show dbError)])
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
-        Right showId -> do
-          -- Assign hosts to the show
-          assignHostsToShow showId (nsfHosts form)
+              execQuerySpan (Shows.insertShow finalShowData) >>= \case
+                Left dbError -> do
+                  Log.logInfo "Database error creating show" (Aeson.object ["error" .= Text.pack (show dbError)])
+                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+                Right showId -> do
+                  -- Assign hosts to the show
+                  assignHostsToShow showId (nsfHosts form)
 
-          -- Parse and create schedules
-          case parseSchedules (nsfSchedulesJson form) of
-            Left err -> Log.logInfo "Failed to parse schedules" (Aeson.object ["error" .= err])
-            Right schedules -> createSchedulesForShow showId schedules
+                  -- Create schedules (already validated for conflicts)
+                  createSchedulesForShow showId schedules
 
-          -- Fetch the created show
-          execQuerySpan (Shows.getShowById showId) >>= \case
-            Right (Just createdShow) -> do
-              Log.logInfo "Successfully created show" (Aeson.object ["title" .= Shows.siTitle finalShowData, "id" .= show showId])
-              let detailUrl = Links.linkURI $ showGetLink createdShow.slug
-              html <- renderTemplate hxRequest (Just userMetadata) (successTemplate createdShow)
-              pure $ Servant.addHeader [i|/#{detailUrl}|] html
-            _ -> do
-              Log.logInfo_ "Created show but failed to retrieve it"
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Show was created but there was an error displaying the confirmation.")
+                  -- Fetch the created show
+                  execQuerySpan (Shows.getShowById showId) >>= \case
+                    Right (Just createdShow) -> do
+                      Log.logInfo "Successfully created show" (Aeson.object ["title" .= Shows.siTitle finalShowData, "id" .= show showId])
+                      let detailUrl = Links.linkURI $ showGetLink createdShow.slug
+                      html <- renderTemplate hxRequest (Just userMetadata) (successTemplate createdShow)
+                      pure $ Servant.addHeader [i|/#{detailUrl}|] html
+                    _ -> do
+                      Log.logInfo_ "Created show but failed to retrieve it"
+                      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Show was created but there was an error displaying the confirmation.")
 
 -- | Assign hosts to a show and auto-promote regular users to Host role
 assignHostsToShow ::
@@ -488,6 +502,35 @@ parseDayOfWeek _ = Nothing
 -- | Parse time of day from "HH:MM" format
 parseTimeOfDay :: Text -> Maybe TimeOfDay
 parseTimeOfDay t = parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack t)
+
+-- | Check for schedule conflicts with other shows
+--
+-- For new show creation, pass Shows.Id 0 to check against ALL active shows.
+checkScheduleConflicts ::
+  ( Log.MonadLog m,
+    MonadDB m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    Has Tracer env
+  ) =>
+  Shows.Id ->
+  [ScheduleSlotInfo] ->
+  m (Either Text ())
+checkScheduleConflicts showId = go
+  where
+    go [] = pure (Right ())
+    go (slot : rest) =
+      case (parseDayOfWeek (dayOfWeek slot), parseTimeOfDay (startTime slot), parseTimeOfDay (endTime slot)) of
+        (Just dow, Just start, Just end) -> do
+          let weeks = Vector.fromList (weeksOfMonth slot)
+          execQuerySpan (ShowSchedule.checkTimeSlotConflict showId dow weeks start end) >>= \case
+            Left err -> do
+              Log.logInfo "Failed to check schedule conflict" (Text.pack $ show err)
+              pure (Right ()) -- Don't block on DB errors, let it through
+            Right (Just conflictingShow) ->
+              pure (Left $ "Schedule conflict: " <> dayOfWeek slot <> " " <> startTime slot <> "-" <> endTime slot <> " overlaps with \"" <> conflictingShow <> "\"")
+            Right Nothing -> go rest
+        _ -> go rest -- Skip invalid slots, they'll fail later anyway
 
 -- | Create schedules for a newly created show
 createSchedulesForShow ::
