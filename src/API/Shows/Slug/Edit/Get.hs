@@ -13,13 +13,16 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Bool (bool)
 import Data.Has (Has)
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
+import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -28,6 +31,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
+import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -75,65 +79,67 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
         IsNotHxRequest -> banner <> HomeTemplate.template
       pure $ Servant.addHeader "/" html
     Just (user, userMetadata) -> do
-      execQuerySpan (Shows.getShowBySlug slug) >>= \case
+      execQuerySpan (ShowHost.isUserHostOfShowSlug user.mId slug) >>= \case
         Left err -> do
-          Log.logAttention "getShowBySlug execution error" (show err)
-          let banner = renderBanner Warning "Show Not Found" "The show you're trying to edit doesn't exist."
+          Log.logAttention "isUserHostOfShow execution error" (show err)
+          let banner = renderBanner Error "Not Authorized" "You don't have permission to edit this show."
           html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
             IsHxRequest -> HomeTemplate.template <> banner
             IsNotHxRequest -> banner <> HomeTemplate.template
           pure $ Servant.addHeader "/" html
-        Right Nothing -> do
-          Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
-          let banner = renderBanner Warning "Show Not Found" "The show you're trying to edit doesn't exist."
-          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-            IsHxRequest -> HomeTemplate.template <> banner
-            IsNotHxRequest -> banner <> HomeTemplate.template
-          pure $ Servant.addHeader "/" html
-        Right (Just showModel) -> do
-          -- Check if user is a host of this show or is staff+
-          execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id) >>= \case
-            Left err -> do
-              Log.logAttention "isUserHostOfShow execution error" (show err)
+        Right isHost -> do
+          let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+          if not (isHost || isStaff)
+            then do
               let banner = renderBanner Error "Not Authorized" "You don't have permission to edit this show."
               html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                 IsHxRequest -> HomeTemplate.template <> banner
                 IsNotHxRequest -> banner <> HomeTemplate.template
               pure $ Servant.addHeader "/" html
-            Right True -> do
-              Log.logInfo "Authorized user accessing show edit form" showModel.id
-              let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-              -- Fetch schedules only if staff (they're the only ones who see the schedule section)
-              schedulesJson <-
-                if isStaff
-                  then
-                    execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id) >>= \case
-                      Left err -> do
-                        Log.logInfo "Failed to fetch schedules" (show err)
-                        pure "[]"
-                      Right scheds -> pure $ schedulesToJson scheds
-                  else pure "[]"
-              let editTemplate = template showModel userMetadata isStaff schedulesJson
-              html <- renderTemplate hxRequest (Just userMetadata) editTemplate
-              pure $ Servant.noHeader html
-            Right False ->
-              if UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                then do
-                  Log.logInfo "Staff user accessing show edit form" showModel.id
-                  -- Fetch schedules for staff
-                  schedulesJson <-
-                    execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id) >>= \case
-                      Left err -> do
-                        Log.logInfo "Failed to fetch schedules" (show err)
-                        pure "[]"
-                      Right scheds -> pure $ schedulesToJson scheds
-                  let editTemplate = template showModel userMetadata True schedulesJson
-                  html <- renderTemplate hxRequest (Just userMetadata) editTemplate
-                  pure $ Servant.noHeader html
-                else do
-                  Log.logInfo "User tried to edit show they don't host" showModel.id
-                  let banner = renderBanner Error "Not Authorized" "You don't have permission to edit this show. Only hosts and staff can edit show details."
+            else
+              execQuerySpan (Shows.getShowBySlug slug) >>= \case
+                Left err -> do
+                  Log.logAttention "getShowBySlug execution error" (show err)
+                  let banner = renderBanner Warning "Show Not Found" "The show you're trying to edit doesn't exist."
                   html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                     IsHxRequest -> HomeTemplate.template <> banner
                     IsNotHxRequest -> banner <> HomeTemplate.template
                   pure $ Servant.addHeader "/" html
+                Right Nothing -> do
+                  Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
+                  let banner = renderBanner Warning "Show Not Found" "The show you're trying to edit doesn't exist."
+                  html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+                    IsHxRequest -> HomeTemplate.template <> banner
+                    IsNotHxRequest -> banner <> HomeTemplate.template
+                  pure $ Servant.addHeader "/" html
+                Right (Just showModel) -> do
+                  bool (pure (Right ("[]", [], Set.empty))) (fetchStaffData showModel.id) isStaff >>= \case
+                    Left err -> do
+                      Log.logAttention "Failed to fetchStaffData" (show err)
+                      let banner = renderBanner Warning "Show Not Found" "An error occurred fetching show data"
+                      html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+                        IsHxRequest -> HomeTemplate.template <> banner
+                        IsNotHxRequest -> banner <> HomeTemplate.template
+                      pure $ Servant.addHeader "/" html
+                    Right (schedulesJson, eligibleHosts, currentHostIds) -> do
+                      let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds
+                      html <- renderTemplate hxRequest (Just userMetadata) editTemplate
+                      pure $ Servant.noHeader html
+
+-- | Fetch staff-only data for the edit form (schedules and hosts)
+fetchStaffData ::
+  ( Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadDB m,
+    Has Tracer env
+  ) =>
+  Shows.Id ->
+  m (Either HSQL.Pool.UsageError (Text, [UserMetadata.UserWithMetadata], Set User.Id))
+fetchStaffData showId = runDBTransaction $ do
+  schedulesJson <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showId
+  eligibleHosts <- TRX.statement () $ UserMetadata.getAllUsersWithPagination 1000 0
+  currentHostIds <- TRX.statement () $ ShowHost.getShowHosts showId
+
+  pure (schedulesToJson schedulesJson, eligibleHosts, Set.fromList $ fmap (.shmUserId) currentHostIds)

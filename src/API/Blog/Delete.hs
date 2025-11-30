@@ -72,16 +72,13 @@ handler _tracer postId _postSlug cookie = do
         Right Nothing -> do
           Log.logInfo "Delete failed: Blog post not found" (Aeson.object ["postId" .= postId])
           pure $ renderBanner Error "Delete Failed" "Blog post not found."
-        Right (Just blogPost) -> do
-          -- Check authorization: must be staff or admin, or the author
-          let isAuthor = blogPost.bpmAuthorId == user.mId
-              isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-
-          if isAuthor || isStaffOrAdmin
-            then deleteBlogPost blogPost
-            else do
+        Right (Just blogPost)
+          | -- Check authorization: must be staff or admin, or the author
+            blogPost.bpmAuthorId /= user.mId && not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) -> do
               Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "postId" .= blogPost.bpmId])
               pure $ renderBanner Error "Delete Failed" "You don't have permission to delete this blog post."
+        Right (Just blogPost) -> do
+          deleteBlogPost blogPost
 
 deleteBlogPost ::
   ( Has Tracer env,

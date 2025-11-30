@@ -25,11 +25,12 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
-import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Class (MonadDB (..))
+import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
+import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -85,19 +86,17 @@ handler _tracer (normalize -> normalizedSearch) (normalize -> normalizedGenre) m
       (mDateFrom, mDateTo) = convertYear mYear
 
   mUserInfo <- getUserInfo cookie <&> fmap snd
-  episodesResult <- execQuerySpan $ Episodes.getPublishedEpisodesWithFilters normalizedSearch normalizedGenre mDateFrom mDateTo "newest" limit offset
-  totalCountResult <- execQuerySpan $ Episodes.countPublishedEpisodesWithFilters normalizedSearch normalizedGenre mDateFrom mDateTo
+  dbResult <- execTransactionSpan $ do
+    episodesResult <- TRX.statement () $ Episodes.getPublishedEpisodesWithFilters normalizedSearch normalizedGenre mDateFrom mDateTo "newest" limit offset
+    totalCountResult <- TRX.statement () $ Episodes.countPublishedEpisodesWithFilters normalizedSearch normalizedGenre mDateFrom mDateTo
+    pure (episodesResult, totalCountResult)
 
-  case (episodesResult, totalCountResult) of
-    (Left err, _) -> do
-      Log.logInfo "Failed to fetch episodes from database" (show err)
+  case dbResult of
+    Left err -> do
+      Log.logInfo "DB Usage Error" (show err)
       let banner = BannerParams Error "Error" "Failed to load episodes. Please try again."
       renderTemplate hxRequest mUserInfo (redirectWithBanner [i|/#{rootGetUrl}|] banner)
-    (_, Left _err) -> do
-      Log.logInfo "Failed to count episodes from database" ()
-      let banner = BannerParams Error "Error" "Failed to load episodes. Please try again."
-      renderTemplate hxRequest mUserInfo (redirectWithBanner [i|/#{rootGetUrl}|] banner)
-    (Right episodes, Right totalCount) -> do
+    Right (episodes, totalCount) -> do
       let hasMore = (fromIntegral offset + fromIntegral limit) < totalCount
       if page > 1
         then renderTemplate hxRequest mUserInfo (episodeCardsOnly episodes page hasMore totalCount normalizedSearch normalizedGenre mYear)

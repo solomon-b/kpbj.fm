@@ -72,16 +72,13 @@ handler _tracer eventId _eventSlug cookie = do
         Right Nothing -> do
           Log.logInfo "Delete failed: Event not found" (Aeson.object ["eventId" .= eventId])
           pure $ renderBanner Error "Delete Failed" "Event not found."
-        Right (Just event) -> do
-          -- Check authorization: must be staff/admin or the creator
-          let isCreator = event.emAuthorId == user.mId
-              isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-
-          if isCreator || isStaffOrAdmin
-            then deleteEvent event
-            else do
+        Right (Just event)
+          | -- Check authorization: must be staff/admin or the creator
+            event.emAuthorId /= user.mId && not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) -> do
               Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "eventId" .= event.emId])
               pure $ renderBanner Error "Delete Failed" "You don't have permission to delete this event."
+        Right (Just event) -> do
+          deleteEvent event
 
 deleteEvent ::
   ( Has Tracer env,

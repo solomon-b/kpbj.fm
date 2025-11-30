@@ -17,7 +17,6 @@ import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Search (Search)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.HostDetails qualified as HostDetails
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
@@ -285,19 +284,6 @@ searchShows searchTerm limit offset =
   |]
   where
     searchPattern = "%" <> searchTerm <> "%"
-
--- | Get host details for all hosts of a show (joins through show_hosts to host_details)
-getHostsForShow :: Id -> Hasql.Statement () [HostDetails.Model]
-getHostsForShow showId =
-  interp
-    False
-    [sql|
-    SELECT hd.id, hd.user_id, hd.bio, hd.website_url, hd.instagram_handle, hd.twitter_handle, hd.soundcloud_url, hd.bandcamp_url, hd.created_at, hd.updated_at
-    FROM host_details hd
-    JOIN show_hosts sh ON hd.user_id = sh.user_id
-    WHERE sh.show_id = #{showId} AND sh.left_at IS NULL
-    ORDER BY sh.is_primary DESC, sh.joined_at ASC
-  |]
 
 --------------------------------------------------------------------------------
 -- Admin Queries
