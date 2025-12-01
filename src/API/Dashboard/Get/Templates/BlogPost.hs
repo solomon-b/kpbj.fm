@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Host.Dashboard.Get.Templates.BlogPost
+module API.Dashboard.Get.Templates.BlogPost
   ( renderBlogPostTableRow,
   )
 where

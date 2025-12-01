@@ -22,6 +22,7 @@ import API.Blog.Get qualified as Blog.Get
 import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
+import API.Dashboard.Get qualified as Dashboard.Get
 import API.Donate.Get qualified as Donate.Get
 import API.Events.Delete qualified as Events.Delete
 import API.Events.Edit.Get qualified as Events.Edit.Get
@@ -31,7 +32,6 @@ import API.Events.Get qualified as Events.Get
 import API.Events.New.Get qualified as Events.New.Get
 import API.Events.New.Post qualified as Events.New.Post
 import API.Get qualified as Root.Get
-import API.Host.Dashboard.Get qualified as Host.Dashboard.Get
 import API.Media.Get qualified as Media.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
 import API.Shows.Get qualified as Shows.Get
@@ -132,7 +132,7 @@ type API =
     :<|> Events.Edit.Get.Route
     :<|> Events.Edit.Post.Route
     :<|> Events.Delete.Route
-    :<|> Host.Dashboard.Get.Route
+    :<|> Dashboard.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
     :<|> Shows.Get.Route
@@ -213,7 +213,7 @@ server env =
     :<|> Events.Edit.Get.handler
     :<|> Events.Edit.Post.handler
     :<|> Events.Delete.handler
-    :<|> Host.Dashboard.Get.handler
+    :<|> Dashboard.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
     :<|> Shows.Get.handler
@@ -508,6 +508,6 @@ episodesDiscardDraftLink = Links.safeLink (Proxy @API) (Proxy @Episodes.DiscardD
 episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Publish.Post.Route)
 
--- | Route: GET /host/dashboard
+-- | Route: GET /dashboard
 hostDashboardGetLink :: Maybe Slug -> Links.Link
-hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Host.Dashboard.Get.Route)
+hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Get.Route)
