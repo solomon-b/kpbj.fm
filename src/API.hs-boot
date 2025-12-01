@@ -26,18 +26,16 @@ import Domain.Types.UserSortBy (UserSortBy)
 
 --------------------------------------------------------------------------------
 
--- Admin routes
-adminShowsGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
-adminShowsNewGetLink :: Links.Link
-adminShowsNewPostLink :: Links.Link
-adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
-adminUserDetailGetLink :: User.Id -> Links.Link
-adminUserEditGetLink :: User.Id -> Links.Link
-adminUserEditPostLink :: User.Id -> Links.Link
-adminUserRolePatchLink :: User.Id -> Links.Link
-adminUserDeleteLink :: User.Id -> Links.Link
-adminUserSuspendPostLink :: User.Id -> Links.Link
-adminUserUnsuspendPostLink :: User.Id -> Links.Link
+-- Dashboard admin routes
+dashboardShowsNewGetLink :: Links.Link
+dashboardShowsNewPostLink :: Links.Link
+dashboardUserDetailGetLink :: User.Id -> Links.Link
+dashboardUserEditGetLink :: User.Id -> Links.Link
+dashboardUserEditPostLink :: User.Id -> Links.Link
+dashboardUserRolePatchLink :: User.Id -> Links.Link
+dashboardUserDeleteLink :: User.Id -> Links.Link
+dashboardUserSuspendPostLink :: User.Id -> Links.Link
+dashboardUserUnsuspendPostLink :: User.Id -> Links.Link
 
 rootGetLink :: Links.Link
 staticGetLink :: Links.Link
@@ -95,3 +93,7 @@ hostDashboardGetLink :: Maybe Slug -> Links.Link
 dashboardEpisodesGetLink :: Maybe Slug -> Links.Link
 dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 dashboardBlogGetLink :: Maybe Slug -> Links.Link
+dashboardUsersGetLink :: Links.Link
+dashboardUsersGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
+dashboardShowsGetLink :: Links.Link
+dashboardShowsGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
