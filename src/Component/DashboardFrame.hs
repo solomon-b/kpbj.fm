@@ -10,8 +10,9 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardBlogGetLink, dashboardEpisodesGetLink, rootGetLink, userLogoutGetLink)
+import {-# SOURCE #-} API (dashboardBlogGetLink, dashboardEpisodesGetLink, dashboardShowsGetLink, dashboardUsersGetLink, rootGetLink, userLogoutGetLink)
 import Component.Banner (bannerContainerId)
+import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -39,6 +40,12 @@ dashboardEpisodesGetUrl mSlug = Links.linkURI $ dashboardEpisodesGetLink mSlug
 dashboardBlogGetUrl :: Maybe Slug -> Links.URI
 dashboardBlogGetUrl mSlug = Links.linkURI $ dashboardBlogGetLink mSlug
 
+dashboardUsersGetUrl :: Links.URI
+dashboardUsersGetUrl = Links.linkURI dashboardUsersGetLink
+
+dashboardShowsGetUrl :: Links.URI
+dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -47,6 +54,8 @@ data DashboardNav
   | NavBlog
   | NavSchedule
   | NavSettings
+  | NavUsers
+  | NavShows
   deriving (Eq, Show)
 
 -- | Dashboard frame template - full page liquid layout with sidebar
@@ -90,9 +99,9 @@ sidebar ::
   DashboardNav ->
   Lucid.Html ()
 sidebar userMeta allShows selectedShow activeNav =
-  Lucid.aside_ [Lucid.class_ "w-64 bg-gray-900 text-white flex flex-col"] $ do
+  Lucid.aside_ [Lucid.class_ "w-64 bg-gray-900 text-white flex flex-col h-screen sticky top-0"] $ do
     -- Logo / Brand
-    Lucid.div_ [Lucid.class_ "p-4 border-b border-gray-700"] $ do
+    Lucid.div_ [Lucid.class_ "p-4 border-b border-gray-700 shrink-0"] $ do
       Lucid.a_
         [ Lucid.href_ [i|/#{rootGetUrl}|],
           Lucid.class_ "text-lg font-bold hover:text-gray-300 block"
@@ -103,14 +112,22 @@ sidebar userMeta allShows selectedShow activeNav =
     -- Show selector (if multiple shows)
     showSelector allShows selectedShow activeNav
 
-    -- Navigation
-    Lucid.nav_ [Lucid.class_ "flex-1 p-4"] $ do
+    -- Navigation (scrollable if needed)
+    Lucid.nav_ [Lucid.class_ "flex-1 p-4 overflow-y-auto"] $ do
       Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
         navItem "EPISODES" NavEpisodes activeNav selectedShow
         navItem "BLOG" NavBlog activeNav selectedShow
 
-    -- User info at bottom
-    Lucid.div_ [Lucid.class_ "p-4 border-t border-gray-700"] $ do
+      -- Staff/Admin section - shown only for Staff or higher roles
+      when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
+        Lucid.div_ [Lucid.class_ "border-t border-gray-700 mt-4 pt-4"] $ do
+          Lucid.span_ [Lucid.class_ "text-xs text-gray-500 block px-4 mb-2"] "ADMIN"
+          Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+            staffNavItem "USERS" NavUsers activeNav
+            staffNavItem "SHOWS" NavShows activeNav
+
+    -- User info at bottom (always visible)
+    Lucid.div_ [Lucid.class_ "p-4 border-t border-gray-700 shrink-0 mt-auto"] $ do
       Lucid.div_ [Lucid.class_ "text-sm text-gray-400 mb-2"] $ do
         Lucid.span_ [Lucid.class_ "block font-bold text-white"] $
           Lucid.toHtml userMeta.mDisplayName
@@ -125,6 +142,7 @@ sidebar userMeta allShows selectedShow activeNav =
 -- | Show selector dropdown in sidebar
 --
 -- When changed, navigates to the same tab but with the new show selected.
+-- For admin pages (Users/Shows), changing the show navigates to Episodes instead.
 showSelector :: [Shows.Model] -> Maybe Shows.Model -> DashboardNav -> Lucid.Html ()
 showSelector allShows selectedShow activeNav =
   case allShows of
@@ -137,7 +155,8 @@ showSelector allShows selectedShow activeNav =
           Lucid.toHtml singleShow.title
     _ -> do
       -- Multiple shows - dropdown with JS redirect
-      let baseUrl = Text.pack $ show $ navUrlBase activeNav
+      -- For admin pages, redirect to Episodes when show changes
+      let baseUrl = Text.pack $ show $ showSelectorTargetUrl activeNav
       Lucid.div_ [Lucid.class_ "p-4 border-b border-gray-700"] $ do
         Lucid.label_ [Lucid.for_ "show-selector", Lucid.class_ "text-xs text-gray-500 block mb-1"] "SHOW"
         Lucid.select_
@@ -147,6 +166,19 @@ showSelector allShows selectedShow activeNav =
             onchange_ [i|window.location.href = '/#{baseUrl}?show=' + this.value|]
           ]
           $ mapM_ (renderShowOption selectedShow) allShows
+
+-- | Get the URL to navigate to when show selector changes
+-- For show-specific pages (Episodes, Blog), stay on the same page
+-- For admin pages (Users, Shows), navigate to Episodes
+showSelectorTargetUrl :: DashboardNav -> Links.URI
+showSelectorTargetUrl = \case
+  NavEpisodes -> dashboardEpisodesGetUrl Nothing
+  NavBlog -> dashboardBlogGetUrl Nothing
+  NavSchedule -> dashboardEpisodesGetUrl Nothing
+  NavSettings -> dashboardEpisodesGetUrl Nothing
+  -- Admin pages: changing show goes to Episodes
+  NavUsers -> dashboardEpisodesGetUrl Nothing
+  NavShows -> dashboardEpisodesGetUrl Nothing
 
 -- | Render a single show option
 renderShowOption :: Maybe Shows.Model -> Shows.Model -> Lucid.Html ()
@@ -170,6 +202,27 @@ navItem label nav activeNav mShow = do
   Lucid.li_ $
     Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
 
+-- | Staff navigation item - doesn't require show context
+-- Uses full page navigation (no HTMX) since admin pages have different sidebar state
+staffNavItem :: Text -> DashboardNav -> DashboardNav -> Lucid.Html ()
+staffNavItem label nav activeNav = do
+  let isActive = nav == activeNav
+      baseClasses = "block px-4 py-2 text-sm font-bold transition-colors"
+      activeClasses = "bg-gray-800 text-white"
+      inactiveClasses = "text-gray-400 hover:text-white hover:bg-gray-800"
+      classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
+      url = staffNavUrl nav
+  Lucid.li_ $
+    -- No hxGet_ here - force full page load to get correct sidebar state
+    Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
+
+-- | Get URL for staff navigation item (no show context)
+staffNavUrl :: DashboardNav -> Links.URI
+staffNavUrl = \case
+  NavUsers -> dashboardUsersGetUrl
+  NavShows -> dashboardShowsGetUrl
+  other -> navUrl other Nothing
+
 -- | Get URL for navigation item (with show query param)
 navUrl :: DashboardNav -> Maybe Shows.Model -> Links.URI
 navUrl nav mShow =
@@ -179,14 +232,8 @@ navUrl nav mShow =
         NavBlog -> dashboardBlogGetUrl mSlug
         NavSchedule -> dashboardEpisodesGetUrl mSlug -- TODO: Add schedule route
         NavSettings -> dashboardEpisodesGetUrl mSlug -- TODO: Add settings route
-
--- | Get base URL for navigation item (without query params, for show selector)
-navUrlBase :: DashboardNav -> Links.URI
-navUrlBase = \case
-  NavEpisodes -> dashboardEpisodesGetUrl Nothing
-  NavBlog -> dashboardBlogGetUrl Nothing
-  NavSchedule -> dashboardEpisodesGetUrl Nothing
-  NavSettings -> dashboardEpisodesGetUrl Nothing
+        NavUsers -> dashboardUsersGetUrl
+        NavShows -> dashboardShowsGetUrl
 
 -- | Top bar with breadcrumb and actions
 topBar :: UserMetadata.Model -> Maybe Shows.Model -> Lucid.Html ()
