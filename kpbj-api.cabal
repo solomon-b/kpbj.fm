@@ -141,6 +141,22 @@ library
     API.Dashboard.Get.Templates.Auth
     API.Dashboard.Get.Templates.BlogPost
     API.Dashboard.Get.Templates.Episode
+    API.Dashboard.Shows.Get
+    API.Dashboard.Shows.Get.Templates.Page
+    API.Dashboard.Shows.New.Get
+    API.Dashboard.Shows.New.Get.Templates.Page
+    API.Dashboard.Shows.New.Post
+    API.Dashboard.Users.Get
+    API.Dashboard.Users.Get.Templates.Page
+    API.Dashboard.Users.Delete
+    API.Dashboard.Users.Detail.Get
+    API.Dashboard.Users.Detail.Get.Templates.Page
+    API.Dashboard.Users.Edit.Get
+    API.Dashboard.Users.Edit.Get.Templates.Page
+    API.Dashboard.Users.Edit.Post
+    API.Dashboard.Users.Role.Patch
+    API.Dashboard.Users.Suspend.Post
+    API.Dashboard.Users.Unsuspend.Post
     API.Media.Get
     API.PrivacyPolicy.Get
     API.PrivacyPolicy.Get.Templates
@@ -195,22 +211,6 @@ library
     API.User.Register.Get
     API.User.Register.Get.Templates.Form
     API.User.Register.Post
-    API.Admin.Shows.Get
-    API.Admin.Shows.Get.Templates.Page
-    API.Admin.Shows.New.Get
-    API.Admin.Shows.New.Get.Templates.Page
-    API.Admin.Shows.New.Post
-    API.Admin.Users.Get
-    API.Admin.Users.Get.Templates.Page
-    API.Admin.Users.Detail.Get
-    API.Admin.Users.Detail.Get.Templates.Page
-    API.Admin.Users.Edit.Get
-    API.Admin.Users.Edit.Get.Templates.Page
-    API.Admin.Users.Edit.Post
-    API.Admin.Users.Role.Patch
-    API.Admin.Users.Suspend.Post
-    API.Admin.Users.Unsuspend.Post
-    API.Admin.Users.Delete
     App.Common
     Component.Banner
     Component.Form

@@ -3,17 +3,15 @@ module API where
 --------------------------------------------------------------------------------
 
 import API.About.Get qualified as About.Get
-import API.Admin.Shows.Get qualified as Admin.Shows.Get
-import API.Admin.Shows.New.Get qualified as Admin.Shows.New.Get
-import API.Admin.Shows.New.Post qualified as Admin.Shows.New.Post
-import API.Admin.Users.Delete qualified as Admin.Users.Delete
-import API.Admin.Users.Detail.Get qualified as Admin.Users.Detail.Get
-import API.Admin.Users.Edit.Get qualified as Admin.Users.Edit.Get
-import API.Admin.Users.Edit.Post qualified as Admin.Users.Edit.Post
-import API.Admin.Users.Get qualified as Admin.Users.Get
-import API.Admin.Users.Role.Patch qualified as Admin.Users.Role.Patch
-import API.Admin.Users.Suspend.Post qualified as Admin.Users.Suspend.Post
-import API.Admin.Users.Unsuspend.Post qualified as Admin.Users.Unsuspend.Post
+import API.Dashboard.Shows.New.Get qualified as Dashboard.Shows.New.Get
+import API.Dashboard.Shows.New.Post qualified as Dashboard.Shows.New.Post
+import API.Dashboard.Users.Delete qualified as Dashboard.Users.Delete
+import API.Dashboard.Users.Detail.Get qualified as Dashboard.Users.Detail.Get
+import API.Dashboard.Users.Edit.Get qualified as Dashboard.Users.Edit.Get
+import API.Dashboard.Users.Edit.Post qualified as Dashboard.Users.Edit.Post
+import API.Dashboard.Users.Role.Patch qualified as Dashboard.Users.Role.Patch
+import API.Dashboard.Users.Suspend.Post qualified as Dashboard.Users.Suspend.Post
+import API.Dashboard.Users.Unsuspend.Post qualified as Dashboard.Users.Unsuspend.Post
 import API.Archive.Get qualified as Archive.Get
 import API.Blog.Delete qualified as Blog.Delete
 import API.Blog.Edit.Get qualified as Blog.Edit.Get
@@ -26,6 +24,8 @@ import API.Dashboard.Blog.Get qualified as Dashboard.Blog.Get
 import API.Dashboard.Episodes.Episode.Get qualified as Dashboard.Episodes.Episode.Get
 import API.Dashboard.Episodes.Get qualified as Dashboard.Episodes.Get
 import API.Dashboard.Get qualified as Dashboard.Get
+import API.Dashboard.Shows.Get qualified as Dashboard.Shows.Get
+import API.Dashboard.Users.Get qualified as Dashboard.Users.Get
 import API.Donate.Get qualified as Donate.Get
 import API.Events.Delete qualified as Events.Delete
 import API.Events.Edit.Get qualified as Events.Edit.Get
@@ -139,6 +139,8 @@ type API =
     :<|> Dashboard.Episodes.Get.Route
     :<|> Dashboard.Episodes.Episode.Get.Route
     :<|> Dashboard.Blog.Get.Route
+    :<|> Dashboard.Users.Get.Route
+    :<|> Dashboard.Shows.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
     :<|> Shows.Get.Route
@@ -159,17 +161,15 @@ type API =
     :<|> Episodes.Delete.Route
     :<|> Episodes.DiscardDraft.Route
     :<|> Episodes.Publish.Post.Route
-    :<|> Admin.Shows.Get.Route
-    :<|> Admin.Shows.New.Get.Route
-    :<|> Admin.Shows.New.Post.Route
-    :<|> Admin.Users.Get.Route
-    :<|> Admin.Users.Detail.Get.Route
-    :<|> Admin.Users.Edit.Get.Route
-    :<|> Admin.Users.Edit.Post.Route
-    :<|> Admin.Users.Role.Patch.Route
-    :<|> Admin.Users.Suspend.Post.Route
-    :<|> Admin.Users.Unsuspend.Post.Route
-    :<|> Admin.Users.Delete.Route
+    :<|> Dashboard.Shows.New.Get.Route
+    :<|> Dashboard.Shows.New.Post.Route
+    :<|> Dashboard.Users.Detail.Get.Route
+    :<|> Dashboard.Users.Edit.Get.Route
+    :<|> Dashboard.Users.Edit.Post.Route
+    :<|> Dashboard.Users.Role.Patch.Route
+    :<|> Dashboard.Users.Suspend.Post.Route
+    :<|> Dashboard.Users.Unsuspend.Post.Route
+    :<|> Dashboard.Users.Delete.Route
     :<|> User.Login.Get.Route
     :<|> User.Login.Post.Route
     :<|> User.Logout.Get.Route
@@ -223,6 +223,8 @@ server env =
     :<|> Dashboard.Episodes.Get.handler
     :<|> Dashboard.Episodes.Episode.Get.handler
     :<|> Dashboard.Blog.Get.handler
+    :<|> Dashboard.Users.Get.handler
+    :<|> Dashboard.Shows.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
     :<|> Shows.Get.handler
@@ -243,17 +245,15 @@ server env =
     :<|> Episodes.Delete.handler
     :<|> Episodes.DiscardDraft.handler
     :<|> Episodes.Publish.Post.handler
-    :<|> Admin.Shows.Get.handler
-    :<|> Admin.Shows.New.Get.handler
-    :<|> Admin.Shows.New.Post.handler
-    :<|> Admin.Users.Get.handler
-    :<|> Admin.Users.Detail.Get.handler
-    :<|> Admin.Users.Edit.Get.handler
-    :<|> Admin.Users.Edit.Post.handler
-    :<|> Admin.Users.Role.Patch.handler
-    :<|> Admin.Users.Suspend.Post.handler
-    :<|> Admin.Users.Unsuspend.Post.handler
-    :<|> Admin.Users.Delete.handler
+    :<|> Dashboard.Shows.New.Get.handler
+    :<|> Dashboard.Shows.New.Post.handler
+    :<|> Dashboard.Users.Detail.Get.handler
+    :<|> Dashboard.Users.Edit.Get.handler
+    :<|> Dashboard.Users.Edit.Post.handler
+    :<|> Dashboard.Users.Role.Patch.handler
+    :<|> Dashboard.Users.Suspend.Post.handler
+    :<|> Dashboard.Users.Unsuspend.Post.handler
+    :<|> Dashboard.Users.Delete.handler
     :<|> User.Login.Get.handler
     :<|> User.Login.Post.handler
     :<|> User.Logout.Get.handler
@@ -343,49 +343,41 @@ userRegisterGetLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Get.Rout
 userRegisterPostLink :: Links.Link
 userRegisterPostLink = Links.safeLink (Proxy @API) (Proxy @User.Register.Post.Route)
 
--- | Route: GET /admin/shows
-adminShowsGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
-adminShowsGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Shows.Get.Route)
+-- | Route: GET /dashboard/shows/new
+dashboardShowsNewGetLink :: Links.Link
+dashboardShowsNewGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.New.Get.Route)
 
--- | Route: GET /admin/shows/new
-adminShowsNewGetLink :: Links.Link
-adminShowsNewGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Shows.New.Get.Route)
+-- | Route: POST /dashboard/shows/new
+dashboardShowsNewPostLink :: Links.Link
+dashboardShowsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.New.Post.Route)
 
--- | Route: POST /admin/shows/new
-adminShowsNewPostLink :: Links.Link
-adminShowsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Admin.Shows.New.Post.Route)
+-- | Route: GET /dashboard/users/:id
+dashboardUserDetailGetLink :: User.Id -> Links.Link
+dashboardUserDetailGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Detail.Get.Route)
 
--- | Route: GET /admin/users
-adminUsersGetLink :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
-adminUsersGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Get.Route)
+-- | Route: GET /dashboard/users/:id/edit
+dashboardUserEditGetLink :: User.Id -> Links.Link
+dashboardUserEditGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Edit.Get.Route)
 
--- | Route: GET /admin/users/:id
-adminUserDetailGetLink :: User.Id -> Links.Link
-adminUserDetailGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Detail.Get.Route)
+-- | Route: POST /dashboard/users/:id/edit
+dashboardUserEditPostLink :: User.Id -> Links.Link
+dashboardUserEditPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Edit.Post.Route)
 
--- | Route: GET /admin/users/:id/edit
-adminUserEditGetLink :: User.Id -> Links.Link
-adminUserEditGetLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Edit.Get.Route)
+-- | Route: PATCH /dashboard/users/:id/role
+dashboardUserRolePatchLink :: User.Id -> Links.Link
+dashboardUserRolePatchLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Role.Patch.Route)
 
--- | Route: POST /admin/users/:id/edit
-adminUserEditPostLink :: User.Id -> Links.Link
-adminUserEditPostLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Edit.Post.Route)
+-- | Route: DELETE /dashboard/users/:id
+dashboardUserDeleteLink :: User.Id -> Links.Link
+dashboardUserDeleteLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Delete.Route)
 
--- | Route: PATCH /admin/users/:id/role
-adminUserRolePatchLink :: User.Id -> Links.Link
-adminUserRolePatchLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Role.Patch.Route)
+-- | Route: POST /dashboard/users/:id/suspend
+dashboardUserSuspendPostLink :: User.Id -> Links.Link
+dashboardUserSuspendPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Suspend.Post.Route)
 
--- | Route: DELETE /admin/users/:id
-adminUserDeleteLink :: User.Id -> Links.Link
-adminUserDeleteLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Delete.Route)
-
--- | Route: POST /admin/users/:id/suspend
-adminUserSuspendPostLink :: User.Id -> Links.Link
-adminUserSuspendPostLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Suspend.Post.Route)
-
--- | Route: POST /admin/users/:id/unsuspend
-adminUserUnsuspendPostLink :: User.Id -> Links.Link
-adminUserUnsuspendPostLink = Links.safeLink (Proxy @API) (Proxy @Admin.Users.Unsuspend.Post.Route)
+-- | Route: POST /dashboard/users/:id/unsuspend
+dashboardUserUnsuspendPostLink :: User.Id -> Links.Link
+dashboardUserUnsuspendPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Unsuspend.Post.Route)
 
 -- | Route: GET /privacy-policy
 privacyPolicyGetLink :: Links.Link
@@ -532,3 +524,20 @@ dashboardEpisodeGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes
 -- | Route: GET /dashboard/blog
 dashboardBlogGetLink :: Maybe Slug -> Links.Link
 dashboardBlogGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Blog.Get.Route)
+
+-- | Route: GET /dashboard/users (no filters - for sidebar navigation)
+dashboardUsersGetLink :: Links.Link
+dashboardUsersGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Get.Route) Nothing Nothing Nothing Nothing
+
+-- | Route: GET /dashboard/users (with pagination and filters)
+dashboardUsersGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
+dashboardUsersGetLinkFull = Links.safeLink (Proxy @API) (Proxy @Dashboard.Users.Get.Route)
+
+-- | Route: GET /dashboard/shows (no filters - for sidebar navigation)
+dashboardShowsGetLink :: Links.Link
+dashboardShowsGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Get.Route) Nothing Nothing Nothing
+
+-- | Route: GET /dashboard/shows (with pagination and filters)
+dashboardShowsGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
+dashboardShowsGetLinkFull = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Get.Route)
+
