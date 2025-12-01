@@ -1,11 +1,11 @@
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Host.Dashboard.Get where
+module API.Dashboard.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Host.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
-import API.Host.Dashboard.Get.Templates.Page (template)
+import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
+import API.Dashboard.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -40,9 +40,8 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /host/dashboard"
-    ( "host"
-        :> "dashboard"
+    "GET /dashboard"
+    ( "dashboard"
         :> Servant.QueryParam "show" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest

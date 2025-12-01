@@ -131,11 +131,11 @@ library
     API.Events.Event.Get.Templates.Page
     API.Get
     API.Get.Templates
-    API.Host.Dashboard.Get
-    API.Host.Dashboard.Get.Templates.Auth
-    API.Host.Dashboard.Get.Templates.BlogPost
-    API.Host.Dashboard.Get.Templates.Episode
-    API.Host.Dashboard.Get.Templates.Page
+    API.Dashboard.Get
+    API.Dashboard.Get.Templates.Auth
+    API.Dashboard.Get.Templates.BlogPost
+    API.Dashboard.Get.Templates.Episode
+    API.Dashboard.Get.Templates.Page
     API.Media.Get
     API.PrivacyPolicy.Get
     API.PrivacyPolicy.Get.Templates
