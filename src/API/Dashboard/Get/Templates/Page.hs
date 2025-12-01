@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Host.Dashboard.Get.Templates.Page
+module API.Dashboard.Get.Templates.Page
   ( template,
   )
 where
 
-import {-# SOURCE #-} API (blogNewGetLink, episodesNewGetLink, showBlogNewGetLink, showEditGetLink, showGetLink)
-import API.Host.Dashboard.Get.Templates.BlogPost (renderBlogPostTableRow)
-import API.Host.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
+import {-# SOURCE #-} API (blogNewGetLink, episodesNewGetLink, hostDashboardGetLink, showBlogNewGetLink, showEditGetLink, showGetLink)
+import API.Dashboard.Get.Templates.BlogPost (renderBlogPostTableRow)
+import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
 import Data.Maybe (mapMaybe)
 import Data.String.Interpolate (i)
@@ -45,6 +45,7 @@ renderShowSelector userMeta allShows selectedShow =
           isAdmin = UserMetadata.isAdmin userMeta.mUserRole
           selectorLabel :: Text
           selectorLabel = if isAdmin then "View Show:" else "Select Show:"
+          dashboardUrl = Text.pack $ show $ Links.linkURI $ hostDashboardGetLink Nothing
       Lucid.section_
         [ Lucid.class_ "bg-gray-100 border-2 border-gray-800 p-4 mb-6 w-full",
           xData_ [i|{ selectedShow: '#{selectedSlug}' }|]
@@ -56,7 +57,7 @@ renderShowSelector userMeta allShows selectedShow =
               Lucid.name_ "show",
               Lucid.class_ "w-full p-2 border-2 border-gray-800 font-bold bg-white",
               xModel_ "selectedShow",
-              xOnChange_ "htmx.ajax('GET', '/host/dashboard?show=' + selectedShow, {target: '#main-content', swap: 'innerHTML', pushUrl: true})"
+              xOnChange_ $ "htmx.ajax('GET', '/" <> dashboardUrl <> "?show=' + selectedShow, {target: '#main-content', swap: 'innerHTML', pushUrl: true})"
             ]
             $ mapM_ (renderShowOption selectedShow) allShows
 

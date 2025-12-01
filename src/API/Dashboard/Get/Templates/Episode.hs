@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Host.Dashboard.Get.Templates.Episode
+module API.Dashboard.Get.Templates.Episode
   ( renderEpisodeTableRow,
   )
 where
