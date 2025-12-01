@@ -46,6 +46,7 @@ import API.Shows.Slug.Blog.Post.Get qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Edit.Get qualified as Show.Edit.Get
 import API.Shows.Slug.Edit.Post qualified as Show.Edit.Post
 import API.Shows.Slug.Episode.Delete qualified as Episodes.Delete
+import API.Shows.Slug.Episode.DiscardDraft qualified as Episodes.DiscardDraft
 import API.Shows.Slug.Episode.Edit.Get qualified as Episodes.Edit.Get
 import API.Shows.Slug.Episode.Edit.Post qualified as Episodes.Edit.Post
 import API.Shows.Slug.Episode.Get qualified as Episodes.Get
@@ -150,6 +151,7 @@ type API =
     :<|> Episodes.Get.RouteWithSlug
     :<|> Episodes.Get.RouteWithoutSlug
     :<|> Episodes.Delete.Route
+    :<|> Episodes.DiscardDraft.Route
     :<|> Episodes.Publish.Post.Route
     :<|> Admin.Shows.Get.Route
     :<|> Admin.Shows.New.Get.Route
@@ -230,6 +232,7 @@ server env =
     :<|> Episodes.Get.handlerWithSlug
     :<|> Episodes.Get.handlerWithoutSlug
     :<|> Episodes.Delete.handler
+    :<|> Episodes.DiscardDraft.handler
     :<|> Episodes.Publish.Post.handler
     :<|> Admin.Shows.Get.handler
     :<|> Admin.Shows.New.Get.handler
@@ -492,8 +495,14 @@ episodesEditGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
 
 -- | Route: DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug
+-- Archive (soft delete) - staff+ only
 episodesDeleteLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDeleteLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Delete.Route)
+
+-- | Route: DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug/draft
+-- Discard draft (hard delete) - hosts can discard their own drafts
+episodesDiscardDraftLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+episodesDiscardDraftLink = Links.safeLink (Proxy @API) (Proxy @Episodes.DiscardDraft.Route)
 
 -- | Route: POST /shows/:show_slug/episodes/:episode_id/:episode_slug/publish
 episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
