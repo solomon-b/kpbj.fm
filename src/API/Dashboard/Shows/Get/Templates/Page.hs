@@ -6,7 +6,7 @@ module API.Dashboard.Shows.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardShowsGetLink, dashboardShowsGetLinkFull, dashboardShowsNewGetLink, showEditGetLink, showGetLink)
+import {-# SOURCE #-} API (dashboardShowsGetLink, dashboardShowsGetLinkFull, dashboardShowsNewGetLink, dashboardShowsSlugEditGetLink, showGetLink)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.String.Interpolate (i)
@@ -120,7 +120,7 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
 renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
 renderShowRow showInfo =
   let showDetailUrl = Links.linkURI $ showGetLink showInfo.swhiSlug Nothing
-      showEditUrl = Links.linkURI $ showEditGetLink showInfo.swhiSlug
+      showEditUrl = Links.linkURI $ dashboardShowsSlugEditGetLink showInfo.swhiSlug
       cellLinkAttrs =
         [ Lucid.class_ "p-4 cursor-pointer",
           hxGet_ [i|/#{showDetailUrl}|],

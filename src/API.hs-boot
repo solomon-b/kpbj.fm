@@ -78,8 +78,8 @@ showBlogNewPostLink :: Slug -> Links.Link
 showBlogEditGetLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
 showBlogEditPostLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
 showBlogDeleteLink :: Shows.Id -> Slug -> ShowBlogPosts.Id -> Slug -> Links.Link
-showEditGetLink :: Slug -> Links.Link
-showEditPostLink :: Slug -> Links.Link
+dashboardShowsSlugEditGetLink :: Slug -> Links.Link
+dashboardShowsSlugEditPostLink :: Slug -> Links.Link
 episodesGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesGetLinkById :: Slug -> Episodes.Id -> Links.Link
 episodesEditPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link

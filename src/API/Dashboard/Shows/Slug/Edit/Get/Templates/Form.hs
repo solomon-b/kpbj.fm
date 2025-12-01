@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Slug.Edit.Get.Templates.Form
+module API.Dashboard.Shows.Slug.Edit.Get.Templates.Form
   ( template,
     schedulesToJson,
   )
@@ -9,7 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (hostDashboardGetLink, mediaGetLink, showGetLink)
+import {-# SOURCE #-} API (dashboardShowsGetLink, mediaGetLink, showGetLink)
 import Component.Form.Builder
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
@@ -33,8 +33,8 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
+dashboardShowsGetUrl :: Links.URI
+dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
 
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
@@ -60,7 +60,7 @@ template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds =
           else [renderSubmitActions showSlug]
   buildValidatedForm
     FormBuilder
-      { fbAction = [i|/shows/#{display showSlug}/edit|],
+      { fbAction = [i|/dashboard/shows/#{display showSlug}/edit|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader userMeta showModel),
         fbFields = showEditFormFields showModel isStaff eligibleHosts currentHostIds,
@@ -93,15 +93,15 @@ renderFormHeader userMeta showModel = do
             hxPushUrl_ "true",
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
           ]
-          "← BACK TO SHOW"
+          "VIEW SHOW"
         Lucid.a_
-          [ Lucid.href_ [i|/#{hostDashboardGetUrl}|],
-            hxGet_ [i|/#{hostDashboardGetUrl}|],
+          [ Lucid.href_ [i|/#{dashboardShowsGetUrl}|],
+            hxGet_ [i|/#{dashboardShowsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
           ]
-          "DASHBOARD"
+          "ALL SHOWS"
 
 --------------------------------------------------------------------------------
 -- Form Fields Definition
@@ -201,7 +201,7 @@ showEditFormFields showModel isStaff eligibleHosts currentHostIds =
                 vffHint = Just "JPG, PNG, WebP, GIF accepted • Max 10MB • Recommended: 300x300px",
                 vffMaxSizeMB = Just 10,
                 vffValidation = emptyValidation, -- Optional
-                vffButtonText = "🖼️ CHOOSE LOGO IMAGE",
+                vffButtonText = "CHOOSE LOGO IMAGE",
                 vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
                 vffCurrentValue = fmap (\url -> [i|/#{mediaGetUrl}/#{url}|]) showModel.logoUrl
               },
@@ -212,7 +212,7 @@ showEditFormFields showModel isStaff eligibleHosts currentHostIds =
                 vffHint = Just "JPG, PNG, WebP, GIF accepted • Max 10MB • Recommended: 1200x300px",
                 vffMaxSizeMB = Just 10,
                 vffValidation = emptyValidation, -- Optional
-                vffButtonText = "🖼️ CHOOSE BANNER IMAGE",
+                vffButtonText = "CHOOSE BANNER IMAGE",
                 vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
                 vffCurrentValue = fmap (\url -> [i|/#{mediaGetUrl}/#{url}|]) showModel.bannerUrl
               }

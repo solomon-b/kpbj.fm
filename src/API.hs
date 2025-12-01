@@ -3,15 +3,6 @@ module API where
 --------------------------------------------------------------------------------
 
 import API.About.Get qualified as About.Get
-import API.Dashboard.Shows.New.Get qualified as Dashboard.Shows.New.Get
-import API.Dashboard.Shows.New.Post qualified as Dashboard.Shows.New.Post
-import API.Dashboard.Users.Delete qualified as Dashboard.Users.Delete
-import API.Dashboard.Users.Detail.Get qualified as Dashboard.Users.Detail.Get
-import API.Dashboard.Users.Edit.Get qualified as Dashboard.Users.Edit.Get
-import API.Dashboard.Users.Edit.Post qualified as Dashboard.Users.Edit.Post
-import API.Dashboard.Users.Role.Patch qualified as Dashboard.Users.Role.Patch
-import API.Dashboard.Users.Suspend.Post qualified as Dashboard.Users.Suspend.Post
-import API.Dashboard.Users.Unsuspend.Post qualified as Dashboard.Users.Unsuspend.Post
 import API.Archive.Get qualified as Archive.Get
 import API.Blog.Delete qualified as Blog.Delete
 import API.Blog.Edit.Get qualified as Blog.Edit.Get
@@ -25,7 +16,18 @@ import API.Dashboard.Episodes.Episode.Get qualified as Dashboard.Episodes.Episod
 import API.Dashboard.Episodes.Get qualified as Dashboard.Episodes.Get
 import API.Dashboard.Get qualified as Dashboard.Get
 import API.Dashboard.Shows.Get qualified as Dashboard.Shows.Get
+import API.Dashboard.Shows.New.Get qualified as Dashboard.Shows.New.Get
+import API.Dashboard.Shows.New.Post qualified as Dashboard.Shows.New.Post
+import API.Dashboard.Shows.Slug.Edit.Get qualified as Dashboard.Shows.Slug.Edit.Get
+import API.Dashboard.Shows.Slug.Edit.Post qualified as Dashboard.Shows.Slug.Edit.Post
+import API.Dashboard.Users.Delete qualified as Dashboard.Users.Delete
+import API.Dashboard.Users.Detail.Get qualified as Dashboard.Users.Detail.Get
+import API.Dashboard.Users.Edit.Get qualified as Dashboard.Users.Edit.Get
+import API.Dashboard.Users.Edit.Post qualified as Dashboard.Users.Edit.Post
 import API.Dashboard.Users.Get qualified as Dashboard.Users.Get
+import API.Dashboard.Users.Role.Patch qualified as Dashboard.Users.Role.Patch
+import API.Dashboard.Users.Suspend.Post qualified as Dashboard.Users.Suspend.Post
+import API.Dashboard.Users.Unsuspend.Post qualified as Dashboard.Users.Unsuspend.Post
 import API.Donate.Get qualified as Donate.Get
 import API.Events.Delete qualified as Events.Delete
 import API.Events.Edit.Get qualified as Events.Edit.Get
@@ -46,8 +48,6 @@ import API.Shows.Slug.Blog.Get qualified as Show.Blog.Get
 import API.Shows.Slug.Blog.New.Get qualified as Show.Blog.New.Get
 import API.Shows.Slug.Blog.New.Post qualified as Show.Blog.New.Post
 import API.Shows.Slug.Blog.Post.Get qualified as Show.Blog.Post.Get
-import API.Shows.Slug.Edit.Get qualified as Show.Edit.Get
-import API.Shows.Slug.Edit.Post qualified as Show.Edit.Post
 import API.Shows.Slug.Episode.Delete qualified as Episodes.Delete
 import API.Shows.Slug.Episode.DiscardDraft qualified as Episodes.DiscardDraft
 import API.Shows.Slug.Episode.Edit.Get qualified as Episodes.Edit.Get
@@ -154,8 +154,8 @@ type API =
     :<|> Show.Blog.Edit.Get.Route
     :<|> Show.Blog.Edit.Post.Route
     :<|> Show.Blog.Delete.Route
-    :<|> Show.Edit.Get.Route
-    :<|> Show.Edit.Post.Route
+    :<|> Dashboard.Shows.Slug.Edit.Get.Route
+    :<|> Dashboard.Shows.Slug.Edit.Post.Route
     :<|> Episodes.Get.RouteWithSlug
     :<|> Episodes.Get.RouteWithoutSlug
     :<|> Episodes.Delete.Route
@@ -238,8 +238,8 @@ server env =
     :<|> Show.Blog.Edit.Get.handler
     :<|> Show.Blog.Edit.Post.handler
     :<|> Show.Blog.Delete.handler
-    :<|> Show.Edit.Get.handler
-    :<|> Show.Edit.Post.handler
+    :<|> Dashboard.Shows.Slug.Edit.Get.handler
+    :<|> Dashboard.Shows.Slug.Edit.Post.handler
     :<|> Episodes.Get.handlerWithSlug
     :<|> Episodes.Get.handlerWithoutSlug
     :<|> Episodes.Delete.handler
@@ -463,13 +463,13 @@ showBlogEditPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Edit.Post.R
 showBlogDeleteLink :: Shows.Id -> Slug -> ShowBlogPosts.Id -> Slug -> Links.Link
 showBlogDeleteLink = Links.safeLink (Proxy @API) (Proxy @Show.Blog.Delete.Route)
 
--- | Route: GET /shows/:slug/edit
-showEditGetLink :: Slug -> Links.Link
-showEditGetLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Get.Route)
+-- | Route: GET /dashboard/shows/:slug/edit
+dashboardShowsSlugEditGetLink :: Slug -> Links.Link
+dashboardShowsSlugEditGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Slug.Edit.Get.Route)
 
--- | Route: POST /shows/:slug/edit
-showEditPostLink :: Slug -> Links.Link
-showEditPostLink = Links.safeLink (Proxy @API) (Proxy @Show.Edit.Post.Route)
+-- | Route: POST /dashboard/shows/:slug/edit
+dashboardShowsSlugEditPostLink :: Slug -> Links.Link
+dashboardShowsSlugEditPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Slug.Edit.Post.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/:episode_id/:slug
 episodesGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
@@ -540,4 +540,3 @@ dashboardShowsGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Get.
 -- | Route: GET /dashboard/shows (with pagination and filters)
 dashboardShowsGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
 dashboardShowsGetLinkFull = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Get.Route)
-
