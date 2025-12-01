@@ -1,14 +1,17 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Slug.Edit.Get where
+module API.Dashboard.Shows.Slug.Edit.Get (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Get.Templates qualified as HomeTemplate
-import API.Shows.Slug.Edit.Get.Templates.Form (schedulesToJson, template)
-import App.Common (getUserInfo, renderTemplate)
-import Component.Banner (BannerType (..), renderBanner)
+import {-# SOURCE #-} API (rootGetLink, userLoginGetLink)
+import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form (schedulesToJson, template)
+import App.Common (getUserInfo, renderDashboardTemplate)
+import Component.Banner (BannerType (..))
+import Component.DashboardFrame (DashboardNav (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -17,6 +20,7 @@ import Data.Bool (bool)
 import Data.Has (Has)
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
@@ -28,6 +32,7 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -37,19 +42,29 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "GET /shows/:slug/edit"
-    ( "shows"
+    "GET /dashboard/shows/:slug/edit"
+    ( "dashboard"
+        :> "shows"
         :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
+        :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
 --------------------------------------------------------------------------------
@@ -68,63 +83,59 @@ handler ::
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
+  m (Lucid.Html ())
 handler _tracer slug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to show edit" ()
-      let banner = renderBanner Error "Not Logged In" "You must be logged in to edit a show."
-      html <- renderTemplate hxRequest Nothing $ case hxRequest of
-        IsHxRequest -> HomeTemplate.template <> banner
-        IsNotHxRequest -> banner <> HomeTemplate.template
-      pure $ Servant.addHeader "/" html
+      let banner = BannerParams Error "Login Required" "You must be logged in to edit a show."
+      pure $ redirectWithBanner [i|/#{userLoginGetUrl}|] banner
+    Just (_user, userMetadata)
+      | isSuspended userMetadata -> do
+          let banner = BannerParams Error "Account Suspended" "Your account has been suspended."
+          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
     Just (user, userMetadata) -> do
+      -- Check if user can edit this show (host or staff+)
       execQuerySpan (ShowHost.isUserHostOfShowSlug user.mId slug) >>= \case
         Left err -> do
           Log.logAttention "isUserHostOfShow execution error" (show err)
-          let banner = renderBanner Error "Not Authorized" "You don't have permission to edit this show."
-          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-            IsHxRequest -> HomeTemplate.template <> banner
-            IsNotHxRequest -> banner <> HomeTemplate.template
-          pure $ Servant.addHeader "/" html
+          let banner = BannerParams Error "Error" "An error occurred. Please try again."
+          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
         Right isHost -> do
           let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
           if not (isHost || isStaff)
             then do
-              let banner = renderBanner Error "Not Authorized" "You don't have permission to edit this show."
-              html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                IsHxRequest -> HomeTemplate.template <> banner
-                IsNotHxRequest -> banner <> HomeTemplate.template
-              pure $ Servant.addHeader "/" html
-            else
+              let banner = BannerParams Error "Access Denied" "You don't have permission to edit this show."
+              pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
+            else do
+              -- Fetch the show to edit
               execQuerySpan (Shows.getShowBySlug slug) >>= \case
                 Left err -> do
                   Log.logAttention "getShowBySlug execution error" (show err)
-                  let banner = renderBanner Warning "Show Not Found" "The show you're trying to edit doesn't exist."
-                  html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                    IsHxRequest -> HomeTemplate.template <> banner
-                    IsNotHxRequest -> banner <> HomeTemplate.template
-                  pure $ Servant.addHeader "/" html
+                  let banner = BannerParams Error "Error" "Failed to load show. Please try again."
+                  pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
                 Right Nothing -> do
                   Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
-                  let banner = renderBanner Warning "Show Not Found" "The show you're trying to edit doesn't exist."
-                  html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                    IsHxRequest -> HomeTemplate.template <> banner
-                    IsNotHxRequest -> banner <> HomeTemplate.template
-                  pure $ Servant.addHeader "/" html
+                  let banner = BannerParams Warning "Not Found" "The show you're trying to edit doesn't exist."
+                  pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
                 Right (Just showModel) -> do
+                  -- Fetch sidebar shows for dashboard navigation
+                  sidebarShowsResult <-
+                    if UserMetadata.isAdmin userMetadata.mUserRole
+                      then execQuerySpan Shows.getAllActiveShows
+                      else execQuerySpan (Shows.getShowsForUser user.mId)
+                  let sidebarShows = either (const []) id sidebarShowsResult
+                      selectedShow = Just showModel
+
+                  -- Fetch staff-only data (schedules, hosts) if user is staff
                   bool (pure (Right ("[]", [], Set.empty))) (fetchStaffData showModel.id) isStaff >>= \case
                     Left err -> do
                       Log.logAttention "Failed to fetchStaffData" (show err)
-                      let banner = renderBanner Warning "Show Not Found" "An error occurred fetching show data"
-                      html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                        IsHxRequest -> HomeTemplate.template <> banner
-                        IsNotHxRequest -> banner <> HomeTemplate.template
-                      pure $ Servant.addHeader "/" html
+                      let banner = BannerParams Error "Error" "An error occurred fetching show data."
+                      pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
                     Right (schedulesJson, eligibleHosts, currentHostIds) -> do
                       let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds
-                      html <- renderTemplate hxRequest (Just userMetadata) editTemplate
-                      pure $ Servant.noHeader html
+                      renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows editTemplate
 
 -- | Fetch staff-only data for the edit form (schedules and hosts)
 fetchStaffData ::
