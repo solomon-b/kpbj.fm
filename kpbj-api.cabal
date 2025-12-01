@@ -153,6 +153,7 @@ library
     API.Shows.Slug.Episode.Get.Templates.Page
     API.Shows.Slug.Episode.Delete
     API.Shows.Slug.Episode.Delete.Templates.ErrorBanner
+    API.Shows.Slug.Episode.DiscardDraft
     API.Shows.Slug.Episode.Publish.Post
     API.Shows.Slug.Episode.Publish.Post.Templates.Response
     API.Shows.Slug.Episode.Edit.Get

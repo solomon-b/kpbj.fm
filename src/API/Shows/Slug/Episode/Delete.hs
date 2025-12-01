@@ -20,7 +20,6 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -33,6 +32,13 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
+-- | Soft delete (archive) route for episodes.
+--
+-- This is restricted to staff or higher roles. It sets the episode status
+-- to 'deleted' but preserves the record in the database. Use this to remove
+-- published episodes from public view while maintaining history.
+--
+-- For discarding draft episodes, hosts should use the DiscardDraft endpoint instead.
 type Route =
   Observability.WithSpan
     "DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug"
@@ -47,6 +53,11 @@ type Route =
 
 --------------------------------------------------------------------------------
 
+-- | Handler for archiving episodes (soft delete).
+--
+-- Only staff or higher roles can archive episodes. This allows admins to
+-- remove content from public view while preserving the database record
+-- for compliance, legal, or moderation purposes.
 handler ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -79,7 +90,7 @@ handler _tracer showSlug episodeId _episodeSlug cookie = do
           Log.logInfo_ "No user session"
           -- Can't render card without episode, return simple error
           pure $ renderBanner Error "Archive Failed" "You must be logged in to archive episodes."
-        Just (user, userMeta) -> do
+        Just (_user, userMeta) -> do
           execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
             Left err -> do
               Log.logInfo "Archive failed: Failed to fetch episode" (Aeson.object ["error" .= show err])
@@ -88,17 +99,14 @@ handler _tracer showSlug episodeId _episodeSlug cookie = do
               Log.logInfo "Archive failed: Episode not found" (Aeson.object ["episodeId" .= episodeId])
               pure $ renderBanner Error "Archive Failed" "Episode not found."
             Right (Just episode) -> do
-              -- Check authorization: staff, creator, or host
+              -- Only staff or higher can archive episodes
               let isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole
-                  isCreator = episode.createdBy == user.mId
 
-              isHost <- if isStaff || isCreator then pure True else checkIfHost user episode
-
-              if isStaff || ((isCreator || isHost) && not (UserMetadata.isSuspended userMeta))
+              if isStaff && not (UserMetadata.isSuspended userMeta)
                 then softDeleteEpisode showModel episode
                 else do
-                  Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
-                  pure $ renderErrorBannerWithCard showModel episode "You don't have permission to delete this episode."
+                  Log.logInfo "Archive failed: Not authorized (staff+ required)" (Aeson.object ["userId" .= userMeta.mUserId, "episodeId" .= episode.id])
+                  pure $ renderErrorBannerWithCard showModel episode "Only staff members can archive episodes. Hosts can discard draft episodes instead."
 
 softDeleteEpisode ::
   ( Has Tracer env,
@@ -116,30 +124,11 @@ softDeleteEpisode ::
 softDeleteEpisode showModel episode = do
   execQuerySpan (Episodes.deleteEpisode episode.id) >>= \case
     Left err -> do
-      Log.logInfo "Delete failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
-      pure $ renderErrorBannerWithCard showModel episode "Failed to delete episode due to a database error."
+      Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
+      pure $ renderErrorBannerWithCard showModel episode "Failed to archive episode due to a database error."
     Right Nothing -> do
-      Log.logInfo "Delete failed: Episode not found during delete" (Aeson.object ["episodeId" .= episode.id])
-      pure $ renderErrorBannerWithCard showModel episode "Episode not found during delete operation."
+      Log.logInfo "Archive failed: Episode not found during archive" (Aeson.object ["episodeId" .= episode.id])
+      pure $ renderErrorBannerWithCard showModel episode "Episode not found during archive operation."
     Right (Just _) -> do
-      Log.logInfo "Episode deleted successfully" (Aeson.object ["episodeId" .= episode.id])
+      Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
       pure emptyResponse
-
-checkIfHost ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  User.Model ->
-  Episodes.Model ->
-  m Bool
-checkIfHost user episode = do
-  result <- execQuerySpan (Episodes.isUserHostOfEpisodeShow user.mId episode.id)
-  case result of
-    Left _ -> pure False
-    Right authorized -> pure authorized
