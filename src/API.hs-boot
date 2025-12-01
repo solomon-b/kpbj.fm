@@ -92,3 +92,6 @@ episodesDeleteLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDiscardDraftLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 hostDashboardGetLink :: Maybe Slug -> Links.Link
+dashboardEpisodesGetLink :: Maybe Slug -> Links.Link
+dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+dashboardBlogGetLink :: Maybe Slug -> Links.Link

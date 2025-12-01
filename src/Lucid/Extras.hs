@@ -80,6 +80,10 @@ xText_ = Lucid.makeAttributes "x-text"
 xOnClickOutside_ :: Text -> Lucid.Attributes
 xOnClickOutside_ = Lucid.makeAttributes "x-on:click.outside"
 
+-- | Listen for HTMX's pushedIntoHistory event (fired after hx-push-url updates history)
+xOnHtmxPushedIntoHistory_ :: Text -> Lucid.Attributes
+xOnHtmxPushedIntoHistory_ = Lucid.makeAttributes "x-on:htmx:pushed-into-history.window"
+
 xTransition_ :: Lucid.Attributes
 xTransition_ = Lucid.makeAttributesRaw "x-transition" ""
 
@@ -91,6 +95,10 @@ dataDropdownOffsetDistance_ = Lucid.makeAttributes "data-dropdown-offset-distanc
 
 dataDropdownTrigger_ :: Text -> Lucid.Attributes
 dataDropdownTrigger_ = Lucid.makeAttributes "data-dropdown-trigger"
+
+-- | Vanilla JS onchange handler
+onchange_ :: Text -> Lucid.Attributes
+onchange_ = Lucid.makeAttributes "onchange"
 
 --------------------------------------------------------------------------------
 -- HTMX

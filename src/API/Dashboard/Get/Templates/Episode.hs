@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesDeleteLink, episodesDiscardDraftLink, episodesEditGetLink, episodesGetLink, episodesPublishPostLink)
+import {-# SOURCE #-} API (dashboardEpisodeGetLink, episodesDeleteLink, episodesDiscardDraftLink, episodesEditGetLink, episodesPublishPostLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -24,7 +24,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 episodeGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
+episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeGetLink showSlug episodeId episodeSlug
 
 episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
 episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeId episodeSlug
@@ -94,7 +94,7 @@ renderEpisodeTableRow userMeta showModel episode = do
     Lucid.td_ [Lucid.class_ "px-4 py-3 text-center"] $
       Lucid.div_ [xData_ "{}"] $
         do
-          -- Hidden link for Edit - HTMX handles history properly
+          -- Hidden link for Edit
           Lucid.a_
             [ Lucid.href_ [i|/#{episodeEditUrl}|],
               hxGet_ [i|/#{episodeEditUrl}|],
