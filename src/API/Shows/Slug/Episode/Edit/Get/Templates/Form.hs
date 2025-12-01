@@ -47,8 +47,9 @@ isScheduledInFuture now episode = case episode.scheduledAt of
 --
 -- The currentTime parameter is used to determine if the scheduled date has passed.
 -- If the scheduled date is in the future, file upload fields are shown.
+-- The isStaff parameter indicates if the user has staff-level permissions or higher.
 template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template currentTime showModel episode tracks userMeta _isStaff = do
+template currentTime showModel episode tracks userMeta isStaff = do
   let showSlugText = display showModel.slug
       episodeSlug = episode.slug
       episodeIdText = display episode.id
@@ -56,6 +57,8 @@ template currentTime showModel episode tracks userMeta _isStaff = do
       titleValue = episode.title
       descriptionValue = fromMaybe "" episode.description
       allowFileUpload = isScheduledInFuture currentTime episode
+      -- Status can be changed if the scheduled date is in the future OR user is staff/admin
+      canChangeStatus = allowFileUpload || isStaff
 
   Builder.buildValidatedForm
     Builder.FormBuilder
@@ -145,7 +148,7 @@ template currentTime showModel episode tracks userMeta _isStaff = do
               { Builder.pfHtml = trackListingSection tracks
               }
           ],
-        Builder.fbAdditionalContent = [formActions episode],
+        Builder.fbAdditionalContent = [formActions episode canChangeStatus],
         Builder.fbStyles = Builder.defaultFormStyles
       }
 
@@ -202,54 +205,74 @@ trackListingSection tracks = do
         else forM_ (zip [(0 :: Int) ..] tracks) $ uncurry renderTrackEditor
     addTrackButton
 
-formActions :: Episodes.Model -> Lucid.Html ()
-formActions episode = do
+formActions :: Episodes.Model -> Bool -> Lucid.Html ()
+formActions episode canChangeStatus = do
   let isPublished = episode.status == Episodes.Published
+      -- Style classes for disabled state
+      labelClass =
+        if canChangeStatus
+          then "relative inline-flex items-center cursor-pointer"
+          else "relative inline-flex items-center cursor-not-allowed opacity-50"
+      toggleClass =
+        if canChangeStatus
+          then
+            "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 "
+              <> "peer-focus:ring-blue-300 rounded-full peer "
+              <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
+              <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
+              <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
+              <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
+          else
+            "w-11 h-6 bg-gray-300 rounded-full "
+              <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
+              <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
+              <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
+              <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-400"
   Lucid.section_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6"] $ do
     Lucid.div_ [Lucid.class_ "flex flex-col gap-4"] $ do
       -- Publishing note
-      Lucid.p_ [Lucid.class_ "text-sm text-gray-600 italic"] $
-        "Note: Published episodes will not be publicly visible until the scheduled date/time. "
-          <> "Once the scheduled time has passed, the episode can no longer be edited."
+      if canChangeStatus
+        then
+          Lucid.p_ [Lucid.class_ "text-sm text-gray-600 italic"] $
+            "Note: Published episodes will not be publicly visible until the scheduled date/time. "
+              <> "Once the scheduled time has passed, the episode can no longer be edited."
+        else
+          Lucid.p_ [Lucid.class_ "text-sm text-yellow-700 italic"] $
+            "Note: This episode's scheduled date has passed. Status changes are locked. "
+              <> "Only staff or admin users can change the status of past episodes."
       Lucid.div_ [Lucid.class_ "flex justify-end items-center"] $ do
         Lucid.div_ [Lucid.class_ "flex gap-4 items-center"] $ do
           -- Status toggle switch
           Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
             Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Draft"
-            Lucid.label_ [Lucid.class_ "relative inline-flex items-center cursor-pointer"] $ do
+            Lucid.label_ [Lucid.class_ labelClass] $ do
               Lucid.input_ $
                 [ Lucid.type_ "checkbox",
                   Lucid.id_ "status-toggle",
                   Lucid.class_ "sr-only peer"
                 ]
                   <> [Lucid.checked_ | isPublished]
-              Lucid.div_
-                [ Lucid.class_ $
-                    "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 "
-                      <> "peer-focus:ring-blue-300 rounded-full peer "
-                      <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
-                      <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
-                      <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
-                      <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
-                ]
-                mempty
+                  <> [Lucid.disabled_ "disabled" | not canChangeStatus]
+              Lucid.div_ [Lucid.class_ toggleClass] mempty
             Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Published"
           Lucid.button_
             [ Lucid.type_ "submit",
               Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
             ]
             "SUBMIT"
-  -- JavaScript to sync toggle with hidden field
+  -- JavaScript to sync toggle with hidden field (only if enabled)
   Lucid.script_
     [i|
 (function() {
   const statusToggle = document.getElementById('status-toggle');
   const statusField = document.querySelector('input[name="status"]');
-  statusToggle?.addEventListener('change', () => {
-    if (statusField) {
-      statusField.value = statusToggle.checked ? 'published' : 'draft';
-    }
-  });
+  if (statusToggle && !statusToggle.disabled) {
+    statusToggle.addEventListener('change', () => {
+      if (statusField) {
+        statusField.value = statusToggle.checked ? 'published' : 'draft';
+      }
+    });
+  }
 })();
 |]
 

@@ -8,12 +8,13 @@ import API.Shows.Slug.Episode.Publish.Post.Templates.Response (renderErrorBanner
 import App.Common (getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
+import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
@@ -47,6 +48,12 @@ type Route =
     )
 
 --------------------------------------------------------------------------------
+
+-- | Check if the episode's scheduled date has passed
+isScheduledInPast :: UTCTime -> Episodes.Model -> Bool
+isScheduledInPast now episode = case episode.scheduledAt of
+  Nothing -> False -- No scheduled date means it hasn't "passed"
+  Just scheduledAt -> scheduledAt <= now
 
 handler ::
   ( Has Tracer env,
@@ -99,11 +106,20 @@ handler _tracer showSlug episodeId _episodeSlug cookie = do
 
                   isHost <- if isStaff || isCreator then pure True else checkIfHost user episode
 
-                  if isStaff || ((isCreator || isHost) && not (UserMetadata.isSuspended userMeta))
-                    then publishEpisode showModel episode
-                    else do
-                      Log.logInfo "Publish failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
-                      pure $ renderErrorBannerWithRow showModel episode "You don't have permission to publish this episode."
+                  -- Check if scheduled date has passed - only staff can publish past episodes
+                  currentTime <- liftIO getCurrentTime
+                  let isPast = isScheduledInPast currentTime episode
+
+                  if isPast && not isStaff
+                    then do
+                      Log.logInfo "Publish failed: Past episode, user not staff" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
+                      pure $ renderErrorBannerWithRow showModel episode "This episode's scheduled date has passed. Only staff or admin users can publish past episodes."
+                    else
+                      if isStaff || ((isCreator || isHost) && not (UserMetadata.isSuspended userMeta))
+                        then publishEpisode showModel episode
+                        else do
+                          Log.logInfo "Publish failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
+                          pure $ renderErrorBannerWithRow showModel episode "You don't have permission to publish this episode."
 
 publishEpisode ::
   ( Has Tracer env,
