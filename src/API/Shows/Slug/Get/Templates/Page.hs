@@ -73,14 +73,7 @@ template showModel episodes hosts schedules blogPosts currentPage = do
 
   -- Tabbed Content with Alpine.js
   Lucid.div_
-    [ xData_
-        [i|{
-        activeTab: localStorage.getItem('showPageTab') || 'episodes',
-        switchTab(tab) {
-          this.activeTab = tab;
-          localStorage.setItem('showPageTab', tab);
-        }
-      }|],
+    [ xData_ "{ activeTab: 'episodes' }",
       Lucid.class_ "w-full"
     ]
     $ do
@@ -89,13 +82,13 @@ template showModel episodes hosts schedules blogPosts currentPage = do
         Lucid.div_ [Lucid.class_ "border-b-2 border-gray-800"] $ do
           Lucid.nav_ [Lucid.class_ "flex gap-8"] $ do
             Lucid.button_
-              [ xOnClick_ "switchTab('episodes')",
+              [ xOnClick_ "activeTab = 'episodes'",
                 xBindClass_ "activeTab === 'episodes' ? 'py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5' : 'py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800'",
                 Lucid.type_ "button"
               ]
               "Episodes"
             Lucid.button_
-              [ xOnClick_ "switchTab('blog')",
+              [ xOnClick_ "activeTab = 'blog'",
                 xBindClass_ "activeTab === 'blog' ? 'py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5' : 'py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800'",
                 Lucid.type_ "button"
               ]
