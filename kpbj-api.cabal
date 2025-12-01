@@ -167,9 +167,9 @@ library
     API.Shows.Get.Templates.ShowCard
     API.Shows.Schedule.Get
     API.Shows.Schedule.Get.Templates.Page
-    API.Shows.Slug.Edit.Get
-    API.Shows.Slug.Edit.Get.Templates.Form
-    API.Shows.Slug.Edit.Post
+    API.Dashboard.Shows.Slug.Edit.Get
+    API.Dashboard.Shows.Slug.Edit.Get.Templates.Form
+    API.Dashboard.Shows.Slug.Edit.Post
     API.Shows.Slug.Episode.Get
     API.Shows.Slug.Episode.Get.Templates.Page
     API.Shows.Slug.Episode.Delete

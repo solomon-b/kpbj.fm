@@ -2,14 +2,15 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Slug.Edit.Post where
+module API.Dashboard.Shows.Slug.Edit.Post (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (hostDashboardGetLink, showGetLink)
-import API.Shows.Slug.Edit.Get.Templates.Form qualified as EditForm
-import App.Common (getUserInfo, renderTemplate)
-import Component.Banner (BannerType (..), renderBanner)
+import {-# SOURCE #-} API (dashboardShowsGetLink, rootGetLink, showGetLink, userLoginGetLink)
+import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form qualified as EditForm
+import App.Common (getUserInfo, renderDashboardTemplate)
+import Component.Banner (BannerType (..))
+import Component.DashboardFrame (DashboardNav (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Applicative ((<|>))
 import Control.Monad (forM_, when)
@@ -44,6 +45,7 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
@@ -52,7 +54,6 @@ import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
@@ -63,8 +64,14 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+
+dashboardShowsGetUrl :: Links.URI
+dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
 
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
@@ -73,8 +80,9 @@ showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:slug/edit"
-    ( "shows"
+    "POST /dashboard/shows/:slug/edit"
+    ( "dashboard"
+        :> "shows"
         :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
@@ -192,55 +200,6 @@ processShowArtworkUploads showSlug mLogoFile mBannerFile = do
     (Right logoPath, Left _bannerErr) -> pure $ Right (logoPath, Nothing)
     (Right logoPath, Right bannerPath) -> pure $ Right (logoPath, bannerPath)
 
--- | Error templates
-unauthorizedTemplate :: Lucid.Html ()
-unauthorizedTemplate = do
-  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Access Denied"
-    Lucid.p_ [Lucid.class_ "mb-6"] "You must be logged in to edit shows."
-
-notFoundTemplate :: Lucid.Html ()
-notFoundTemplate = do
-  Lucid.div_ [Lucid.class_ "bg-yellow-100 border-2 border-yellow-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-yellow-800"] "Show Not Found"
-    Lucid.p_ [Lucid.class_ "mb-6"] "The show you're trying to update doesn't exist."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{hostDashboardGetUrl}|],
-        hxGet_ [i|/#{hostDashboardGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-      ]
-      "← BACK TO DASHBOARD"
-
-forbiddenTemplate :: Lucid.Html ()
-forbiddenTemplate = do
-  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Access Denied"
-    Lucid.p_ [Lucid.class_ "mb-6"] "You can only edit shows you host or have staff permissions."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{hostDashboardGetUrl}|],
-        hxGet_ [i|/#{hostDashboardGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-      ]
-      "← BACK TO DASHBOARD"
-
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Update Failed"
-    Lucid.p_ [Lucid.class_ "mb-6"] $ Lucid.toHtml errorMsg
-    Lucid.a_
-      [ Lucid.href_ [i|/#{hostDashboardGetUrl}|],
-        hxGet_ [i|/#{hostDashboardGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-      ]
-      "← BACK TO DASHBOARD"
-
 --------------------------------------------------------------------------------
 
 handler ::
@@ -263,28 +222,44 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized show edit attempt" slug
-      Servant.noHeader <$> renderTemplate hxRequest Nothing unauthorizedTemplate
+      let banner = BannerParams Error "Login Required" "You must be logged in to edit a show."
+      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+    Just (_user, userMetadata)
+      | isSuspended userMetadata -> do
+          let banner = BannerParams Error "Account Suspended" "Your account has been suspended."
+          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
     Just (user, userMetadata) -> do
       execQuerySpan (ShowHost.isUserHostOfShowSlug user.mId slug) >>= \case
         Left err -> do
           Log.logAttention "isUserHostOfShow execution error" (show err)
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+          let banner = BannerParams Error "Error" "An error occurred. Please try again."
+          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
         Right isHost -> do
           let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
           if not (isHost || isStaff)
             then do
               Log.logInfo "User attempted to edit show they don't host" slug
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+              let banner = BannerParams Error "Access Denied" "You don't have permission to edit this show."
+              Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
             else do
               execQuerySpan (Shows.getShowBySlug slug) >>= \case
                 Left err -> do
                   Log.logAttention "getShowBySlug execution error" (show err)
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+                  let banner = BannerParams Error "Error" "Failed to load show. Please try again."
+                  Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
                 Right Nothing -> do
                   Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+                  let banner = BannerParams Warning "Not Found" "The show you're trying to update doesn't exist."
+                  Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
                 Right (Just showModel) -> do
-                  updateShow hxRequest user userMetadata showModel editForm
+                  -- Fetch sidebar shows for dashboard rendering on errors
+                  sidebarShowsResult <-
+                    if UserMetadata.isAdmin userMetadata.mUserRole
+                      then execQuerySpan Shows.getAllActiveShows
+                      else execQuerySpan (Shows.getShowsForUser user.mId)
+                  let sidebarShows = either (const []) id sidebarShowsResult
+                      selectedShow = Just showModel
+                  updateShow hxRequest user userMetadata showModel sidebarShows selectedShow editForm
 
 updateShow ::
   ( MonadDB m,
@@ -300,16 +275,19 @@ updateShow ::
   User.Model ->
   UserMetadata.Model ->
   Shows.Model ->
+  [Shows.Model] ->
+  Maybe Shows.Model ->
   ShowEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-updateShow hxRequest _user userMetadata showModel editForm = do
+updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow editForm = do
   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
 
   -- Parse and validate form data
   case parseStatus (sefStatus editForm) of
     Nothing -> do
       Log.logInfo "Invalid status in show edit form" (sefStatus editForm)
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid show status value.")
+      let banner = BannerParams Error "Validation Error" "Invalid show status value."
+      Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
     Just parsedStatus -> do
       -- If not staff, preserve original schedule/settings values
       let finalStatus = if isStaff then parsedStatus else showModel.status
@@ -323,7 +301,8 @@ updateShow hxRequest _user userMetadata showModel editForm = do
       case uploadResults of
         Left uploadErr -> do
           Log.logInfo "Failed to upload show artwork" uploadErr
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "File upload error: " <> uploadErr)
+          let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
+          Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
         Right (mLogoPath, mBannerPath) -> do
           -- Use new uploaded files if provided, otherwise keep existing values
           let finalLogoUrl = mLogoPath <|> showModel.logoUrl
@@ -344,10 +323,12 @@ updateShow hxRequest _user userMetadata showModel editForm = do
           execQuerySpan (Shows.updateShow showModel.id updateData) >>= \case
             Left err -> do
               Log.logInfo "Failed to update show" (showModel.id, show err)
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+              let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
+              Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
             Right Nothing -> do
               Log.logInfo "Show update returned Nothing" showModel.id
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update show. Please try again.")
+              let banner = BannerParams Error "Update Failed" "Failed to update show. Please try again."
+              Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
             Right (Just _updatedId) -> do
               Log.logInfo "Successfully updated show" showModel.id
               -- Process schedule updates if staff
@@ -360,11 +341,12 @@ updateShow hxRequest _user userMetadata showModel editForm = do
                         -- Use the submitted JSON so user sees what they tried to submit
                         submittedSchedulesJson = fromMaybe "[]" (sefSchedulesJson editForm)
                         submittedHostIds = Set.fromList (sefHosts editForm)
-                        banner = renderBanner Error "Schedule Error" err
+                        banner = BannerParams Error "Schedule Error" err
                     -- Refetch eligible hosts for the form
                     eligibleHosts <- fetchEligibleHosts
                     let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds
-                    Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (banner <> editTemplate)
+                    html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows (renderBannerHtml banner <> editTemplate)
+                    pure $ Servant.noHeader html
                   Right schedules -> do
                     -- Check for conflicts with other shows
                     conflictCheck <- checkScheduleConflicts showModel.id schedules
@@ -376,11 +358,12 @@ updateShow hxRequest _user userMetadata showModel editForm = do
                             -- Use the submitted JSON so user sees what they tried to submit
                             submittedSchedulesJson = fromMaybe "[]" (sefSchedulesJson editForm)
                             submittedHostIds = Set.fromList (sefHosts editForm)
-                            banner = renderBanner Error "Schedule Conflict" conflictErr
+                            banner = BannerParams Error "Schedule Conflict" conflictErr
                         -- Refetch eligible hosts for the form
                         eligibleHosts <- fetchEligibleHosts
                         let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds
-                        Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (banner <> editTemplate)
+                        html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows (renderBannerHtml banner <> editTemplate)
+                        pure $ Servant.noHeader html
                       Right () -> do
                         -- Update schedules
                         updateSchedulesForShow showModel.id schedules
@@ -389,6 +372,18 @@ updateShow hxRequest _user userMetadata showModel editForm = do
                         redirectToShowPage generatedSlug
                 else redirectToShowPage generatedSlug
   where
+    -- Render banner as HTML
+    renderBannerHtml :: BannerParams -> Lucid.Html ()
+    renderBannerHtml BannerParams {..} =
+      let bgColor = case bpType of
+            Success -> "bg-green-100 border-green-600 text-green-800"
+            Error -> "bg-red-100 border-red-600 text-red-800"
+            Warning -> "bg-yellow-100 border-yellow-600 text-yellow-800"
+            Info -> "bg-blue-100 border-blue-600 text-blue-800"
+       in Lucid.div_ [Lucid.class_ ("border-2 p-4 mb-4 " <> bgColor)] $ do
+            Lucid.strong_ $ Lucid.toHtml bpTitle
+            Lucid.span_ [Lucid.class_ "ml-2"] $ Lucid.toHtml bpMessage
+
     -- Redirect to the show page with a success banner
     redirectToShowPage :: (MonadIO m) => Slug -> m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     redirectToShowPage newSlug = do
