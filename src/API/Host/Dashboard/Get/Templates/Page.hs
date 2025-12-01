@@ -74,7 +74,7 @@ renderShowOption selectedShow showModel = do
 renderDashboardContent :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.ScheduleTemplate] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
 renderDashboardContent userMeta selectedShow recentEpisodes blogPosts schedules nextShow = do
   renderDashboardHeader userMeta selectedShow recentEpisodes blogPosts schedules nextShow
-  renderContentTabs selectedShow recentEpisodes blogPosts
+  renderContentTabs userMeta selectedShow recentEpisodes blogPosts
 
 -- | Dashboard header with show info, stats, and schedule
 renderDashboardHeader :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> [ShowSchedule.ScheduleTemplate] -> Maybe ShowSchedule.UpcomingShowDate -> Lucid.Html ()
@@ -170,8 +170,8 @@ renderShowIcon selectedShow =
         Lucid.span_ [Lucid.class_ "text-gray-400 text-sm"] "No show selected"
 
 -- | Tabbed content section with Episodes and Blog tabs
-renderContentTabs :: Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
-renderContentTabs selectedShow recentEpisodes blogPosts = do
+renderContentTabs :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> [ShowBlogPosts.Model] -> Lucid.Html ()
+renderContentTabs userMeta selectedShow recentEpisodes blogPosts = do
   Lucid.div_
     [ xData_
         [i|{
@@ -204,15 +204,15 @@ renderContentTabs selectedShow recentEpisodes blogPosts = do
 
       -- Episodes content
       Lucid.div_ [xShow_ "activeTab === 'episodes'"] $
-        renderRecentEpisodesSection selectedShow recentEpisodes
+        renderRecentEpisodesSection userMeta selectedShow recentEpisodes
 
       -- Blog content
       Lucid.div_ [xShow_ "activeTab === 'blog'"] $
         renderRecentBlogPostsSection selectedShow blogPosts
 
 -- | Recent episodes section (for tab content)
-renderRecentEpisodesSection :: Maybe Shows.Model -> [Episodes.Model] -> Lucid.Html ()
-renderRecentEpisodesSection selectedShow recentEpisodes =
+renderRecentEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Lucid.Html ()
+renderRecentEpisodesSection userMeta selectedShow recentEpisodes =
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-t-0 border-gray-800 p-6 mb-8"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-center mb-4"] $ do
       Lucid.h2_ [Lucid.class_ "text-xl font-bold"] "RECENT EPISODES"
@@ -247,7 +247,7 @@ renderRecentEpisodesSection selectedShow recentEpisodes =
               wrapperClass = "overflow-x-auto",
               tableClass = "w-full"
             }
-          $ mapM_ (maybe (const mempty) renderEpisodeTableRow selectedShow)
+          $ mapM_ (maybe (const mempty) (renderEpisodeTableRow userMeta) selectedShow)
           $ take 10 recentEpisodes
 
 -- | Recent blog posts section (for tab content)
