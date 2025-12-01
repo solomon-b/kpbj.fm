@@ -1,39 +1,20 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module API.Dashboard.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
-import API.Dashboard.Get.Templates.Page (template)
-import App.Common (getUserInfo, renderTemplate)
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
-import Data.List (find)
-import Data.Maybe (fromMaybe, listToMaybe)
-import Data.Time (Day, getCurrentTime, utctDay)
-import Domain.Types.Cookie (Cookie)
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import {-# SOURCE #-} API (dashboardEpisodesGetLink)
+import Component.Redirect (redirectTemplate)
+import Control.Monad.IO.Class (MonadIO)
+import Data.String.Interpolate (i)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
-import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
-import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
-import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
-import Hasql.Pool qualified as HSQL.Pool
-import Hasql.Transaction qualified as Txn
-import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -43,106 +24,17 @@ type Route =
     "GET /dashboard"
     ( "dashboard"
         :> Servant.QueryParam "show" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
 --------------------------------------------------------------------------------
 
+-- | Redirect /dashboard to /dashboard/episodes
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
+  (MonadIO m) =>
   Tracer ->
   Maybe Slug ->
-  Maybe Cookie ->
-  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized access to host dashboard" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
-    Just (_, userMetadata)
-      | not (UserMetadata.isHostOrHigher userMetadata.mUserRole) -> do
-          Log.logInfo "User without Host role tried to access host dashboard" userMetadata.mDisplayName
-          renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
-    Just (_, userMetadata)
-      -- Admins see all shows, hosts see their assigned shows
-      | UserMetadata.isAdmin userMetadata.mUserRole -> do
-          Log.logInfo "Authorized user accessing host dashboard" userMetadata.mDisplayName
-          -- Admin view: all active shows
-          execQuerySpan Shows.getAllActiveShows >>= \case
-            Left _err -> do
-              let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
-              renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-            Right [] -> do
-              -- No shows in system
-              let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
-              renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-            Right allShows@(firstShow : _) -> do
-              let showToFetch = findShow firstShow allShows maybeShowSlug
-
-              execTransactionSpan (fetchDashboardDataForAdmin showToFetch) >>= \case
-                Left _err -> do
-                  -- Failed to fetch data, render empty dashboard
-                  let dashboardTemplate = template userMetadata allShows (Just showToFetch) [] [] [] Nothing
-                  renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-                Right (episodes, blogPosts) -> do
-                  -- Admin dashboard doesn't show schedules (too complex for multi-show view)
-                  let dashboardTemplate = template userMetadata allShows (Just showToFetch) episodes blogPosts [] Nothing
-                  renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-    Just (user, userMetadata) -> do
-      -- Host view: only assigned shows
-      Log.logInfo "Authorized user accessing host dashboard" userMetadata.mDisplayName
-      execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
-        Left _err -> do
-          let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
-          renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-        Right [] -> do
-          -- No shows assigned
-          let dashboardTemplate = template userMetadata [] Nothing [] [] [] Nothing
-          renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-        Right userShows@(firstShow : _) -> do
-          let showToFetch = findShow firstShow userShows maybeShowSlug
-          today <- utctDay <$> liftIO getCurrentTime
-
-          execTransactionSpan (fetchDashboardData today showToFetch) >>= \case
-            Left _err -> do
-              -- Failed to fetch data, render empty dashboard
-              let dashboardTemplate = template userMetadata userShows (Just showToFetch) [] [] [] Nothing
-              renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-            Right (episodes, blogPosts, schedules, nextShow) -> do
-              let dashboardTemplate = template userMetadata userShows (Just showToFetch) episodes blogPosts schedules nextShow
-              renderTemplate hxRequest (Just userMetadata) dashboardTemplate
-
--- | Fetch all dashboard data in a single read-only transaction (for hosts)
-fetchDashboardData :: Day -> Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model], [ShowSchedule.ScheduleTemplate], Maybe ShowSchedule.UpcomingShowDate)
-fetchDashboardData today showModel = do
-  episodes <- Txn.statement () (Episodes.getEpisodesById showModel.id)
-  blogPosts <- Txn.statement () (ShowBlogPosts.getShowBlogPosts showModel.id 10 0)
-  schedules <- Txn.statement () (ShowSchedule.getScheduleTemplatesForShow showModel.id)
-  upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showModel.id today 1)
-  let nextShow = listToMaybe upcomingShows
-  pure (episodes, blogPosts, schedules, nextShow)
-
--- | Fetch dashboard data for admin (all shows data, no per-show schedules)
-fetchDashboardDataForAdmin :: Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowBlogPosts.Model])
-fetchDashboardDataForAdmin showModel = do
-  -- For the selected show, get its episodes and blog posts
-  episodes <- Txn.statement () (Episodes.getEpisodesById showModel.id)
-  blogPosts <- Txn.statement () (ShowBlogPosts.getPublishedShowBlogPosts showModel.id 10 0)
-  pure (episodes, blogPosts)
-
--- | Select show based on 'Slug' query parameter or default to first show
-findShow :: Shows.Model -> [Shows.Model] -> Maybe Slug -> Shows.Model
-findShow firstShow userShows = \case
-  Just slug -> fromMaybe firstShow $ find (\s -> s.slug == slug) userShows
-  Nothing -> firstShow
+handler _tracer maybeShowSlug =
+  let baseUrl = Links.linkURI $ dashboardEpisodesGetLink maybeShowSlug
+   in pure $ redirectTemplate [i|/#{baseUrl}|]

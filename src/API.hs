@@ -22,6 +22,9 @@ import API.Blog.Get qualified as Blog.Get
 import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
+import API.Dashboard.Blog.Get qualified as Dashboard.Blog.Get
+import API.Dashboard.Episodes.Episode.Get qualified as Dashboard.Episodes.Episode.Get
+import API.Dashboard.Episodes.Get qualified as Dashboard.Episodes.Get
 import API.Dashboard.Get qualified as Dashboard.Get
 import API.Donate.Get qualified as Donate.Get
 import API.Events.Delete qualified as Events.Delete
@@ -133,6 +136,9 @@ type API =
     :<|> Events.Edit.Post.Route
     :<|> Events.Delete.Route
     :<|> Dashboard.Get.Route
+    :<|> Dashboard.Episodes.Get.Route
+    :<|> Dashboard.Episodes.Episode.Get.Route
+    :<|> Dashboard.Blog.Get.Route
     :<|> PrivacyPolicy.Get.Route
     :<|> TermsOfService.Get.Route
     :<|> Shows.Get.Route
@@ -214,6 +220,9 @@ server env =
     :<|> Events.Edit.Post.handler
     :<|> Events.Delete.handler
     :<|> Dashboard.Get.handler
+    :<|> Dashboard.Episodes.Get.handler
+    :<|> Dashboard.Episodes.Episode.Get.handler
+    :<|> Dashboard.Blog.Get.handler
     :<|> PrivacyPolicy.Get.handler
     :<|> TermsOfService.Get.handler
     :<|> Shows.Get.handler
@@ -511,3 +520,15 @@ episodesPublishPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Publish.P
 -- | Route: GET /dashboard
 hostDashboardGetLink :: Maybe Slug -> Links.Link
 hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Get.Route)
+
+-- | Route: GET /dashboard/episodes
+dashboardEpisodesGetLink :: Maybe Slug -> Links.Link
+dashboardEpisodesGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Get.Route)
+
+-- | Route: GET /dashboard/episodes/:show_slug/:episode_id/:slug
+dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+dashboardEpisodeGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Episode.Get.Route)
+
+-- | Route: GET /dashboard/blog
+dashboardBlogGetLink :: Maybe Slug -> Links.Link
+dashboardBlogGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Blog.Get.Route)
