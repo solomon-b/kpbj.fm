@@ -342,6 +342,27 @@ isScheduledInFuture now episode = case episode.scheduledAt of
   Nothing -> True -- No scheduled date means it's still editable
   Just scheduledAt -> scheduledAt > now
 
+-- | Check if the episode's scheduled date has passed
+isScheduledInPast :: UTCTime -> Episodes.Model -> Bool
+isScheduledInPast now episode = case episode.scheduledAt of
+  Nothing -> False -- No scheduled date means it hasn't "passed"
+  Just scheduledAt -> scheduledAt <= now
+
+-- | Template for status change restriction error
+statusChangeRestrictedTemplate :: Lucid.Html ()
+statusChangeRestrictedTemplate = do
+  Lucid.div_ [Lucid.class_ "bg-yellow-100 border-2 border-yellow-600 p-8 text-center"] $ do
+    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-yellow-800"] "Status Change Not Allowed"
+    Lucid.p_ [Lucid.class_ "mb-6"] "This episode's scheduled date has passed. Only staff or admin users can change the status of past episodes."
+    Lucid.a_
+      [ Lucid.href_ [i|/#{hostDashboardGetUrl}|],
+        hxGet_ [i|/#{hostDashboardGetUrl}|],
+        hxTarget_ "#main-content",
+        hxPushUrl_ "true",
+        Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
+      ]
+      "← BACK TO DASHBOARD"
+
 updateEpisode ::
   ( MonadDB m,
     Log.MonadLog m,
@@ -365,74 +386,85 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
     Nothing -> do
       Log.logInfo "Invalid status in episode edit form" (eefStatus editForm)
       renderTemplate hxRequest (Just userMetadata) (errorTemplate "Invalid episode status value.")
-    Just _parsedStatus -> do
-      -- Sanitize user input to prevent XSS attacks
-      let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
-          sanitizedDescription = maybe "" Sanitize.sanitizeUserContent (eefDescription editForm)
+    Just parsedStatus -> do
+      -- Check if user is trying to change status on a past-scheduled episode
+      currentTime <- liftIO getCurrentTime
+      let statusChanged = parsedStatus /= episode.status
+          isPast = isScheduledInPast currentTime episode
+          isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
 
-      -- Validate content lengths
-      case (Sanitize.validateContentLength 200 sanitizedTitle, Sanitize.validateContentLength 10000 sanitizedDescription) of
-        (Left titleError, _) -> do
-          let errorMsg = Sanitize.displayContentValidationError titleError
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
-        (_, Left descError) -> do
-          let errorMsg = Sanitize.displayContentValidationError descError
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
-        (Right validTitle, Right validDescription) -> do
-          -- Update episode metadata (basic update, doesn't change audio/artwork)
-          let updateData =
-                Episodes.Update
-                  { euId = episode.id,
-                    euTitle = validTitle,
-                    euDescription = Just validDescription
-                  }
+      -- Restrict status changes on past episodes to staff/admin only
+      if statusChanged && isPast && not isStaffOrAdmin
+        then do
+          Log.logInfo "Host attempted to change status on past episode" (episode.id, episode.status, parsedStatus)
+          renderTemplate hxRequest (Just userMetadata) statusChangeRestrictedTemplate
+        else do
+          -- Sanitize user input to prevent XSS attacks
+          let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
+              sanitizedDescription = maybe "" Sanitize.sanitizeUserContent (eefDescription editForm)
 
-          -- Update the episode
-          execQuerySpan (Episodes.updateEpisode updateData) >>= \case
-            Left err -> do
-              Log.logInfo "Failed to update episode" (episode.id, show err)
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
-            Right Nothing -> do
-              Log.logInfo "Episode update returned Nothing" episode.id
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update episode. Please try again.")
-            Right (Just _) -> do
-              -- Check if file uploads are allowed (scheduled date is in the future)
-              currentTime <- liftIO getCurrentTime
-              let allowFileUpload = isScheduledInFuture currentTime episode
+          -- Validate content lengths
+          case (Sanitize.validateContentLength 200 sanitizedTitle, Sanitize.validateContentLength 10000 sanitizedDescription) of
+            (Left titleError, _) -> do
+              let errorMsg = Sanitize.displayContentValidationError titleError
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+            (_, Left descError) -> do
+              let errorMsg = Sanitize.displayContentValidationError descError
+              renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
+            (Right validTitle, Right validDescription) -> do
+              -- Update episode metadata (basic update, doesn't change audio/artwork)
+              let updateData =
+                    Episodes.Update
+                      { euId = episode.id,
+                        euTitle = validTitle,
+                        euDescription = Just validDescription
+                      }
 
-              -- Process file uploads if allowed and provided
-              fileUpdateResult <-
-                if allowFileUpload && (isJust (eefAudioFile editForm) || isJust (eefArtworkFile editForm))
-                  then processFileUploads showModel episode editForm
-                  else pure $ Right (Nothing, Nothing)
+              -- Update the episode
+              execQuerySpan (Episodes.updateEpisode updateData) >>= \case
+                Left err -> do
+                  Log.logInfo "Failed to update episode" (episode.id, show err)
+                  renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+                Right Nothing -> do
+                  Log.logInfo "Episode update returned Nothing" episode.id
+                  renderTemplate hxRequest (Just userMetadata) (errorTemplate "Failed to update episode. Please try again.")
+                Right (Just _) -> do
+                  -- Check if file uploads are allowed (scheduled date is in the future)
+                  let allowFileUpload = isScheduledInFuture currentTime episode
 
-              case fileUpdateResult of
-                Left fileErr -> do
-                  Log.logInfo "Failed to upload files" (episode.id, fileErr)
-                  renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but file upload failed: " <> fileErr)
-                Right (mAudioPath, mArtworkPath) -> do
-                  -- Update file paths in database if any files were uploaded
-                  when (isJust mAudioPath || isJust mArtworkPath) $ do
-                    let fileUpdate =
-                          Episodes.FileUpdate
-                            { efuId = episode.id,
-                              efuAudioFilePath = mAudioPath,
-                              efuArtworkUrl = mArtworkPath
-                            }
-                    execQuerySpan (Episodes.updateEpisodeFiles fileUpdate) >>= \case
-                      Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)
-                      Right Nothing -> Log.logInfo "File path update returned Nothing" episode.id
-                      Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
+                  -- Process file uploads if allowed and provided
+                  fileUpdateResult <-
+                    if allowFileUpload && (isJust (eefAudioFile editForm) || isJust (eefArtworkFile editForm))
+                      then processFileUploads showModel episode editForm
+                      else pure $ Right (Nothing, Nothing)
 
-                  -- Update tracks
-                  updateTracksResult <- updateTracks episode.id (eefTracks editForm)
-                  case updateTracksResult of
-                    Left trackErr -> do
-                      Log.logInfo "Failed to update tracks" (episode.id, trackErr)
-                      renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but track update failed: " <> trackErr)
-                    Right _ -> do
-                      Log.logInfo "Successfully updated episode and tracks" episode.id
-                      renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.id episode.slug)
+                  case fileUpdateResult of
+                    Left fileErr -> do
+                      Log.logInfo "Failed to upload files" (episode.id, fileErr)
+                      renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but file upload failed: " <> fileErr)
+                    Right (mAudioPath, mArtworkPath) -> do
+                      -- Update file paths in database if any files were uploaded
+                      when (isJust mAudioPath || isJust mArtworkPath) $ do
+                        let fileUpdate =
+                              Episodes.FileUpdate
+                                { efuId = episode.id,
+                                  efuAudioFilePath = mAudioPath,
+                                  efuArtworkUrl = mArtworkPath
+                                }
+                        execQuerySpan (Episodes.updateEpisodeFiles fileUpdate) >>= \case
+                          Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)
+                          Right Nothing -> Log.logInfo "File path update returned Nothing" episode.id
+                          Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
+
+                      -- Update tracks
+                      updateTracksResult <- updateTracks episode.id (eefTracks editForm)
+                      case updateTracksResult of
+                        Left trackErr -> do
+                          Log.logInfo "Failed to update tracks" (episode.id, trackErr)
+                          renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Episode updated but track update failed: " <> trackErr)
+                        Right _ -> do
+                          Log.logInfo "Successfully updated episode and tracks" episode.id
+                          renderTemplate hxRequest (Just userMetadata) (successTemplate showModel.slug episode.id episode.slug)
 
 -- | Process file uploads for episode editing
 processFileUploads ::
