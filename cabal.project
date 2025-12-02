@@ -3,7 +3,7 @@ packages: .
 source-repository-package
   type: git
   location: https://github.com/solomon-b/web-server
-  tag: ef3936d323c59f46a0c707e502aa44d991be2536
+  tag: 16bcc47190f10bb5cea486092d833c1c63fcf783
   subdir: web-server-core
 
 -- Use tmp-postgres from master to avoid prettyprinter compatibility issues
