@@ -8,19 +8,21 @@ module API.Dashboard.Users.Detail.Get where
 
 import {-# SOURCE #-} API (dashboardUsersGetLink, rootGetLink, userLoginGetLink)
 import API.Dashboard.Users.Detail.Get.Templates.Page (template)
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
+import Component.DashboardFrame (DashboardNav (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -82,12 +84,20 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       let banner = BannerParams Error "Login Required" "You must be logged in to access this page."
-      renderTemplate hxRequest Nothing (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+      pure $ redirectWithBanner [i|/#{userLoginGetUrl}|] banner
     Just (_user, userMetadata)
       | not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata -> do
           let banner = BannerParams Error "Admin Access Required" "You do not have permission to access this page."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
-    Just (_user, userMetadata) -> do
+          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
+    Just (user, userMetadata) -> do
+      -- Fetch shows for sidebar (admins see all, staff see their assigned shows)
+      showsResult <-
+        if UserMetadata.isAdmin userMetadata.mUserRole
+          then execQuerySpan Shows.getAllActiveShows
+          else execQuerySpan (Shows.getShowsForUser (User.mId user))
+      let allShows = either (const []) id showsResult
+          selectedShow = listToMaybe allShows
+
       -- Fetch target user and their metadata
       userDataResult <- execTransactionSpan $ do
         maybeTargetUser <- HT.statement () (User.getUser targetUserId)
@@ -98,13 +108,13 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) = do
         Left _err -> do
           Log.logInfo "Failed to fetch user from database" ()
           let banner = BannerParams Error "Error" "Failed to load user. Please try again."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{dashboardUsersGetUrl}|] banner)
+          pure $ redirectWithBanner [i|/#{dashboardUsersGetUrl}|] banner
         Right (Nothing, _) -> do
           let banner = BannerParams Warning "User Not Found" "The user you are looking for does not exist."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{dashboardUsersGetUrl}|] banner)
+          pure $ redirectWithBanner [i|/#{dashboardUsersGetUrl}|] banner
         Right (_, Nothing) -> do
           let banner = BannerParams Warning "User Not Found" "The user you are looking for does not exist."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{dashboardUsersGetUrl}|] banner)
+          pure $ redirectWithBanner [i|/#{dashboardUsersGetUrl}|] banner
         Right (Just targetUser, Just targetMetadata) -> do
           -- Fetch additional info: shows they host, episodes they created
           additionalData <- execTransactionSpan $ do
@@ -115,6 +125,6 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) = do
           case additionalData of
             Left _err -> do
               Log.logInfo "Failed to fetch user activity from database" ()
-              renderTemplate hxRequest (Just userMetadata) (template targetUser targetMetadata [] [])
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers (template targetUser targetMetadata [] [])
             Right (shows', episodes) ->
-              renderTemplate hxRequest (Just userMetadata) (template targetUser targetMetadata shows' episodes)
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers (template targetUser targetMetadata shows' episodes)
