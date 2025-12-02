@@ -1,7 +1,7 @@
 { pkgs, kpbj-api }:
 
 pkgs.dockerTools.buildImage {
-  name = "sbothwell/kpbj.fm";
+  name = "ghcr.io/solomon-b/kpbj.fm";
   created = "now";
   tag = kpbj-api.version;
   # https://discourse.nixos.org/t/copy-files-into-a-docker-container-using-copytoroot/21144/5
