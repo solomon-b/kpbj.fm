@@ -46,11 +46,12 @@
           };
         in
         rec {
-          devShell = pkgs.mkShell {
+          devShell = hsPkgs.shellFor {
+            packages = p: [ p.kpbj-api ];
+            withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
               pkgs.flyctl
-              hsPkgs.ghc
               hsPkgs.haskell-language-server
               hsPkgs.hlint
               hsPkgs.weeder
@@ -62,8 +63,7 @@
               pkgs.postgresql
               pkgs.shellcheck
               pkgs.sqlx-cli
-              pkgs.zlib
-              pkgs.zlib.dev
+              pkgs.pkg-config
             ];
           };
 
