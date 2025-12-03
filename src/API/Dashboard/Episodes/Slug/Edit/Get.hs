@@ -2,12 +2,12 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Slug.Episode.Edit.Get where
+module API.Dashboard.Episodes.Slug.Edit.Get where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (template)
 import API.Get.Templates qualified as HomeTemplate
-import API.Shows.Slug.Episode.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.Redirect (redirectTemplate)
@@ -46,10 +46,10 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /shows/:show_slug/episodes/:episode_id/:slug/edit"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
+    "GET /dashboard/episodes/:show_slug/:episode_id/:slug/edit"
+    ( "dashboard"
         :> "episodes"
+        :> Servant.Capture "show_slug" Slug
         :> Servant.Capture "episode_id" Episodes.Id
         :> Servant.Capture "slug" Slug
         :> "edit"
@@ -122,7 +122,7 @@ handler _tracer showSlug episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
               showSlugText = display showSlug
               episodeIdText = display episodeId
               slugText = display canonicalSlug
-              canonicalUrl = [i|/shows/#{showSlugText}/episodes/#{episodeIdText}/#{slugText}/edit|]
+              canonicalUrl = [i|/dashboard/episodes/#{showSlugText}/#{episodeIdText}/#{slugText}/edit|]
 
           if matchSlug canonicalSlug (Just urlSlug)
             then

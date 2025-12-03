@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Slug.Episode.Edit.Get.Templates.Scripts
+module API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts
   ( scripts,
   )
 where
@@ -28,7 +28,7 @@ scripts = do
         trackDiv.innerHTML = `
           <div class="flex justify-between items-center mb-3">
             <h3 class="font-bold">Track \#$${index + 1}</h3>
-            <button type="button" class="text-red-600 font-bold hover:text-red-800 remove-track-btn">✕ REMOVE</button>
+            <button type="button" class="text-red-600 font-bold hover:text-red-800 remove-track-btn">X REMOVE</button>
           </div>
 
           <div class="grid grid-cols-2 gap-4">

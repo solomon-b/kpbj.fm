@@ -179,6 +179,19 @@ getPublishedEpisodesForShow now showId limit offset =
     LIMIT #{limit} OFFSET #{offset}
   |]
 
+-- | Get all non-deleted episodes
+getAllEpisodes :: Hasql.Statement () [Model]
+getAllEpisodes =
+  interp
+    False
+    [sql|
+    SELECT id, show_id, title, slug, description, episode_number,
+           audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
+           artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
+    FROM episodes
+    ORDER BY scheduled_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
+  |]
+
 -- | Get all non-deleted episodes for a show
 getEpisodesById :: Shows.Id -> Hasql.Statement () [Model]
 getEpisodesById showId =

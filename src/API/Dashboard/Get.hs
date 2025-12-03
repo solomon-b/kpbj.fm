@@ -21,20 +21,20 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /dashboard"
+    "GET /dashboard/:slug"
     ( "dashboard"
-        :> Servant.QueryParam "show" Slug
+        :> Servant.Capture "slug" Slug
         :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
 --------------------------------------------------------------------------------
 
--- | Redirect /dashboard to /dashboard/episodes
+-- | Redirect /dashboard/:slug to /dashboard/episodes/:slug
 handler ::
   (MonadIO m) =>
   Tracer ->
-  Maybe Slug ->
+  Slug ->
   m (Lucid.Html ())
-handler _tracer maybeShowSlug =
-  let baseUrl = Links.linkURI $ dashboardEpisodesGetLink maybeShowSlug
+handler _tracer showSlug =
+  let baseUrl = Links.linkURI $ dashboardEpisodesGetLink showSlug
    in pure $ redirectTemplate [i|/#{baseUrl}|]

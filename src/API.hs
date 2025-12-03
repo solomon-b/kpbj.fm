@@ -12,8 +12,10 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Dashboard.Blog.Get qualified as Dashboard.Blog.Get
-import API.Dashboard.Episodes.Episode.Get qualified as Dashboard.Episodes.Episode.Get
 import API.Dashboard.Episodes.Get qualified as Dashboard.Episodes.Get
+import API.Dashboard.Episodes.Slug.Edit.Get qualified as Dashboard.Episodes.Slug.Edit.Get
+import API.Dashboard.Episodes.Slug.Edit.Post qualified as Dashboard.Episodes.Slug.Edit.Post
+import API.Dashboard.Episodes.Slug.Get qualified as Dashboard.Episodes.Slug.Get
 import API.Dashboard.Get qualified as Dashboard.Get
 import API.Dashboard.Shows.Get qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get qualified as Dashboard.Shows.New.Get
@@ -50,8 +52,6 @@ import API.Shows.Slug.Blog.New.Post qualified as Show.Blog.New.Post
 import API.Shows.Slug.Blog.Post.Get qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Delete qualified as Episodes.Delete
 import API.Shows.Slug.Episode.DiscardDraft qualified as Episodes.DiscardDraft
-import API.Shows.Slug.Episode.Edit.Get qualified as Episodes.Edit.Get
-import API.Shows.Slug.Episode.Edit.Post qualified as Episodes.Edit.Post
 import API.Shows.Slug.Episode.Get qualified as Episodes.Get
 import API.Shows.Slug.Episode.New.Get qualified as Episodes.New.Get
 import API.Shows.Slug.Episode.New.Post qualified as Episodes.New.Post
@@ -123,8 +123,6 @@ type API =
     :<|> Blog.Edit.Post.Route
     :<|> Blog.Delete.Route
     :<|> Donate.Get.Route
-    :<|> Episodes.Edit.Get.Route
-    :<|> Episodes.Edit.Post.Route
     :<|> Episodes.New.Get.Route
     :<|> Episodes.New.Post.Route
     :<|> Events.Get.Route
@@ -137,7 +135,9 @@ type API =
     :<|> Events.Delete.Route
     :<|> Dashboard.Get.Route
     :<|> Dashboard.Episodes.Get.Route
-    :<|> Dashboard.Episodes.Episode.Get.Route
+    :<|> Dashboard.Episodes.Slug.Get.Route
+    :<|> Dashboard.Episodes.Slug.Edit.Get.Route
+    :<|> Dashboard.Episodes.Slug.Edit.Post.Route
     :<|> Dashboard.Blog.Get.Route
     :<|> Dashboard.Users.Get.Route
     :<|> Dashboard.Shows.Get.Route
@@ -207,8 +207,6 @@ server env =
     :<|> Blog.Edit.Post.handler
     :<|> Blog.Delete.handler
     :<|> Donate.Get.handler
-    :<|> Episodes.Edit.Get.handler
-    :<|> Episodes.Edit.Post.handler
     :<|> Episodes.New.Get.handler
     :<|> Episodes.New.Post.handler
     :<|> Events.Get.handler
@@ -221,7 +219,9 @@ server env =
     :<|> Events.Delete.handler
     :<|> Dashboard.Get.handler
     :<|> Dashboard.Episodes.Get.handler
-    :<|> Dashboard.Episodes.Episode.Get.handler
+    :<|> Dashboard.Episodes.Slug.Get.handler
+    :<|> Dashboard.Episodes.Slug.Edit.Get.handler
+    :<|> Dashboard.Episodes.Slug.Edit.Post.handler
     :<|> Dashboard.Blog.Get.handler
     :<|> Dashboard.Users.Get.handler
     :<|> Dashboard.Shows.Get.handler
@@ -479,10 +479,6 @@ episodesGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.RouteWithSlug
 episodesGetLinkById :: Slug -> Episodes.Id -> Links.Link
 episodesGetLinkById = Links.safeLink (Proxy @API) (Proxy @Episodes.Get.RouteWithoutSlug)
 
--- | Route: POST /shows/:show_slug/episodes/:episode_id/:slug/edit
-episodesEditPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
-episodesEditPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Post.Route)
-
 -- | Route: GET /shows/:show_slug/episodes/new
 episodesNewGetLink :: Slug -> Links.Link
 episodesNewGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Get.Route)
@@ -491,9 +487,13 @@ episodesNewGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Get.Route)
 episodesNewPostLink :: Slug -> Links.Link
 episodesNewPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.New.Post.Route)
 
--- | Route: GET /shows/:show_slug/episodes/:episode_id/:slug/edit
-episodesEditGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
-episodesEditGetLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Edit.Get.Route)
+-- | Route: GET /dashboard/episodes/:show_slug/:episode_id/:slug/edit
+dashboardEpisodeEditGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+dashboardEpisodeEditGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Slug.Edit.Get.Route)
+
+-- | Route: POST /dashboard/episodes/:show_slug/:episode_id/:slug/edit
+dashboardEpisodeEditPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+dashboardEpisodeEditPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Slug.Edit.Post.Route)
 
 -- | Route: DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug
 -- Archive (soft delete) - staff+ only
@@ -509,17 +509,17 @@ episodesDiscardDraftLink = Links.safeLink (Proxy @API) (Proxy @Episodes.DiscardD
 episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Publish.Post.Route)
 
--- | Route: GET /dashboard
-hostDashboardGetLink :: Maybe Slug -> Links.Link
+-- | Route: GET /dashboard/:slug
+hostDashboardGetLink :: Slug -> Links.Link
 hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Get.Route)
 
--- | Route: GET /dashboard/episodes
-dashboardEpisodesGetLink :: Maybe Slug -> Links.Link
+-- | Route: GET /dashboard/episodes/:slug
+dashboardEpisodesGetLink :: Slug -> Links.Link
 dashboardEpisodesGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Get.Route)
 
 -- | Route: GET /dashboard/episodes/:show_slug/:episode_id/:slug
 dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
-dashboardEpisodeGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Episode.Get.Route)
+dashboardEpisodeGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Slug.Get.Route)
 
 -- | Route: GET /dashboard/blog
 dashboardBlogGetLink :: Maybe Slug -> Links.Link
