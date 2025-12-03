@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardBlogGetLink, dashboardEpisodesGetLink, dashboardShowsGetLink, dashboardUsersGetLink, rootGetLink, userLogoutGetLink)
+import {-# SOURCE #-} API (dashboardBlogsGetLink, dashboardEpisodesGetLink, dashboardShowsGetLink, dashboardUsersGetLink, rootGetLink, userLogoutGetLink)
 import Component.Banner (bannerContainerId)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
@@ -37,8 +37,8 @@ userLogoutGetUrl = Links.linkURI userLogoutGetLink
 dashboardEpisodesGetUrl :: Slug -> Links.URI
 dashboardEpisodesGetUrl slug = Links.linkURI $ dashboardEpisodesGetLink slug
 
-dashboardBlogGetUrl :: Slug -> Links.URI
-dashboardBlogGetUrl mSlug = Links.linkURI $ dashboardBlogGetLink mSlug
+dashboardBlogsGetUrl :: Slug -> Links.URI
+dashboardBlogsGetUrl mSlug = Links.linkURI $ dashboardBlogsGetLink mSlug
 
 dashboardUsersGetUrl :: Links.URI
 dashboardUsersGetUrl = Links.linkURI dashboardUsersGetLink
@@ -248,7 +248,7 @@ navUrl nav mShow =
   let mSlug = Shows.slug <$> mShow
    in case nav of
         NavEpisodes -> dashboardEpisodesGetUrl <$> mSlug
-        NavBlog -> dashboardBlogGetUrl <$> mSlug
+        NavBlog -> dashboardBlogsGetUrl <$> mSlug
         NavSchedule -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add schedule route
         NavSettings -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add settings route
         NavUsers -> Just dashboardUsersGetUrl
