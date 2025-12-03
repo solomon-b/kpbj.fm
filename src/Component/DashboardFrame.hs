@@ -155,47 +155,43 @@ showSelector allShows selectedShow activeNav =
           Lucid.toHtml singleShow.title
     _ -> do
       -- Multiple shows - dropdown with JS redirect
+      -- URLs are pre-generated server-side using safe links and stored in data-url attributes
       -- For admin pages, redirect to Episodes when show changes
-      -- URL pattern for Episodes: /dashboard/episodes/:slug (slug in path)
-      -- URL pattern for Blog: /dashboard/blog?show=:slug (slug as query param)
-      let baseUrlPrefix = showSelectorTargetUrl activeNav
-          urlPattern :: Text
-          urlPattern = case activeNav of
-            NavEpisodes -> [i|'/#{baseUrlPrefix}/' + this.value|]
-            _ -> [i|'/#{baseUrlPrefix}?show=' + this.value|]
       Lucid.div_ [Lucid.class_ "p-4 border-b border-gray-700"] $ do
         Lucid.label_ [Lucid.for_ "show-selector", Lucid.class_ "text-xs text-gray-500 block mb-1"] "SHOW"
         Lucid.select_
           [ Lucid.id_ "show-selector",
             Lucid.name_ "show",
             Lucid.class_ "w-full p-2 bg-gray-800 border border-gray-600 text-white text-sm font-bold",
-            onchange_ [i|window.location.href = #{urlPattern}|]
+            onchange_ "window.location.href = this.options[this.selectedIndex].dataset.url"
           ]
-          $ mapM_ (renderShowOption selectedShow) allShows
+          $ mapM_ (renderShowOption activeNav selectedShow) allShows
 
--- | Get the base URL path to navigate to when show selector changes
--- For show-specific pages (Episodes, Blog), stay on the same page
--- For admin pages (Users, Shows), navigate to Episodes
--- Returns just the base path - the slug will be appended in JavaScript
-showSelectorTargetUrl :: DashboardNav -> Text
-showSelectorTargetUrl = \case
-  NavEpisodes -> "dashboard/episodes"
-  NavBlog -> "dashboard/blog"
-  NavSchedule -> "dashboard/episodes"
-  NavSettings -> "dashboard/episodes"
-  -- Admin pages: changing show goes to Episodes
-  NavUsers -> "dashboard/episodes"
-  NavShows -> "dashboard/episodes"
-
--- | Render a single show option
-renderShowOption :: Maybe Shows.Model -> Shows.Model -> Lucid.Html ()
-renderShowOption selectedShow showModel = do
+-- | Render a single show option with pre-generated URL using safe links
+renderShowOption :: DashboardNav -> Maybe Shows.Model -> Shows.Model -> Lucid.Html ()
+renderShowOption activeNav selectedShow showModel = do
   let isSelected = maybe False (\s -> Shows.slug s == Shows.slug showModel) selectedShow
       showSlug = Shows.slug showModel
       showTitle = Shows.title showModel
-  if isSelected
-    then Lucid.option_ [Lucid.value_ (display showSlug), Lucid.selected_ "selected"] (Lucid.toHtml showTitle)
-    else Lucid.option_ [Lucid.value_ (display showSlug)] (Lucid.toHtml showTitle)
+      -- Generate URL using safe links - navUrl returns the correct URL for each nav type
+      targetNav = showSelectorTargetNav activeNav
+      url = navUrl targetNav (Just showModel)
+      urlAttr = maybe "" (\u -> [i|/#{u}|]) url
+  Lucid.option_
+    ( [ Lucid.value_ (display showSlug),
+        Lucid.data_ "url" urlAttr
+      ]
+        <> [Lucid.selected_ "selected" | isSelected]
+    )
+    (Lucid.toHtml showTitle)
+
+-- | Determine which nav to use for show selector URL generation
+-- For admin pages (Users, Shows), navigate to Episodes when show changes
+showSelectorTargetNav :: DashboardNav -> DashboardNav
+showSelectorTargetNav = \case
+  NavUsers -> NavEpisodes
+  NavShows -> NavEpisodes
+  other -> other
 
 -- | Navigation item - simple link with server-rendered active state
 -- If no URL can be generated (e.g., Episodes without a show), renders as disabled
