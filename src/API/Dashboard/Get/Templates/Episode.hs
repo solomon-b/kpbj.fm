@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEpisodeGetLink, episodesDeleteLink, episodesDiscardDraftLink, episodesEditGetLink, episodesPublishPostLink)
+import {-# SOURCE #-} API (dashboardEpisodeEditGetLink, dashboardEpisodeGetLink, episodesDeleteLink, episodesDiscardDraftLink, episodesPublishPostLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -27,7 +27,7 @@ episodeGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
 episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeGetLink showSlug episodeId episodeSlug
 
 episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeId episodeSlug
+episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeEditGetLink showSlug episodeId episodeSlug
 
 episodeArchiveUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
 episodeArchiveUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesDeleteLink showSlug episodeId episodeSlug

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Episodes.Episode.Get.Templates.Page
+module API.Dashboard.Episodes.Slug.Get.Templates.Page
   ( template,
     errorTemplate,
     notFoundTemplate,
@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEpisodesGetLink, episodesEditGetLink, mediaGetLink)
+import {-# SOURCE #-} API (dashboardEpisodeEditGetLink, dashboardEpisodesGetLink, mediaGetLink)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -30,11 +30,11 @@ import Servant.Links qualified as Links
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
 
-dashboardEpisodesGetUrl :: Maybe Shows.Model -> Links.URI
-dashboardEpisodesGetUrl mShow = Links.linkURI $ dashboardEpisodesGetLink (Shows.slug <$> mShow)
+dashboardEpisodesGetUrl :: Slug -> Links.URI
+dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesGetLink showSlug
 
 episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeId episodeSlug
+episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeEditGetLink showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
@@ -43,7 +43,7 @@ template :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> [EpisodeTrack
 template _userMeta showModel episode tracks = do
   -- Back button and header
   Lucid.div_ [Lucid.class_ "mb-6"] $ do
-    let backUrl = dashboardEpisodesGetUrl (Just showModel)
+    let backUrl = dashboardEpisodesGetUrl showModel.slug
     Lucid.a_
       [ Lucid.href_ [i|/#{backUrl}|],
         hxGet_ [i|/#{backUrl}|],
@@ -296,11 +296,10 @@ errorTemplate errorMsg = do
 
 notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate showSlug = do
-  let backUrl = Links.linkURI $ dashboardEpisodesGetLink (Just showSlug)
+  let backUrl = Links.linkURI $ dashboardEpisodesGetLink showSlug
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
     Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-4"] "Episode Not Found"
-    Lucid.p_ [Lucid.class_ "text-gray-700 mb-6"] $
-      "We couldn't find the episode you're looking for."
+    Lucid.p_ [Lucid.class_ "text-gray-700 mb-6"] "We couldn't find the episode you're looking for."
     Lucid.a_
       [ Lucid.href_ [i|/#{backUrl}|],
         hxGet_ [i|/#{backUrl}|],

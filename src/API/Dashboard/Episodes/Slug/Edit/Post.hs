@@ -2,12 +2,12 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Slug.Episode.Edit.Post where
+module API.Dashboard.Episodes.Slug.Edit.Post where
 
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodesGetLink)
-import API.Shows.Slug.Episode.Edit.Get.Templates.Form qualified as EditForm
+import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form qualified as EditForm
 import API.Shows.Slug.Episode.Get.Templates.Page qualified as DetailPage
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
@@ -63,10 +63,10 @@ episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLin
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_slug/episodes/:episode_id/:slug/edit"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
+    "POST /dashboard/episodes/:show_slug/:episode_id/:slug/edit"
+    ( "dashboard"
         :> "episodes"
+        :> Servant.Capture "show_slug" Slug
         :> Servant.Capture "episode_id" Episodes.Id
         :> Servant.Capture "slug" Slug
         :> "edit"

@@ -6,7 +6,7 @@ module API.Events.Edit.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventsGetLink, hostDashboardGetLink, userLoginGetLink)
+import {-# SOURCE #-} API (dashboardShowsGetLink, eventsGetLink, userLoginGetLink)
 import API.Events.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
@@ -48,8 +48,8 @@ eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
-hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
+dashboardGetUrl :: Links.URI
+dashboardGetUrl = Links.linkURI dashboardShowsGetLink
 
 --------------------------------------------------------------------------------
 
@@ -124,7 +124,7 @@ handler _tracer eventId urlSlug cookie (foldHxReq -> hxRequest) = do
                 else do
                   Log.logInfo "User tried to edit event they don't own" event.emId
                   let banner = BannerParams Error "Access Denied" "You can only edit events you created or have staff permissions."
-                  html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
+                  html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{dashboardGetUrl}|] banner)
                   pure $ Servant.noHeader html
             else do
               Log.logInfo "Redirecting to canonical event edit URL" canonicalUrl

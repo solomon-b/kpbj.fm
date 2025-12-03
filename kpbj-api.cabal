@@ -133,8 +133,12 @@ library
     API.Get.Templates
     API.Dashboard.Blog.Get
     API.Dashboard.Blog.Get.Templates.Page
-    API.Dashboard.Episodes.Episode.Get
-    API.Dashboard.Episodes.Episode.Get.Templates.Page
+    API.Dashboard.Episodes.Slug.Edit.Get
+    API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
+    API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts
+    API.Dashboard.Episodes.Slug.Edit.Post
+    API.Dashboard.Episodes.Slug.Get
+    API.Dashboard.Episodes.Slug.Get.Templates.Page
     API.Dashboard.Episodes.Get
     API.Dashboard.Episodes.Get.Templates.Page
     API.Dashboard.Get
@@ -177,10 +181,6 @@ library
     API.Shows.Slug.Episode.DiscardDraft
     API.Shows.Slug.Episode.Publish.Post
     API.Shows.Slug.Episode.Publish.Post.Templates.Response
-    API.Shows.Slug.Episode.Edit.Get
-    API.Shows.Slug.Episode.Edit.Get.Templates.Form
-    API.Shows.Slug.Episode.Edit.Get.Templates.Scripts
-    API.Shows.Slug.Episode.Edit.Post
     API.Shows.Slug.Episode.New.Get
     API.Shows.Slug.Episode.New.Get.Templates.Form
     API.Shows.Slug.Episode.New.Post
