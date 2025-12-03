@@ -13,6 +13,7 @@ import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.PageView (PageView)
 import Domain.Types.Search (Search)
 import Domain.Types.Slug (Slug)
+import Domain.Types.UserSortBy (UserSortBy)
 import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -22,7 +23,6 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Servant.Links qualified as Links
-import Domain.Types.UserSortBy (UserSortBy)
 
 --------------------------------------------------------------------------------
 
@@ -36,7 +36,6 @@ dashboardUserRolePatchLink :: User.Id -> Links.Link
 dashboardUserDeleteLink :: User.Id -> Links.Link
 dashboardUserSuspendPostLink :: User.Id -> Links.Link
 dashboardUserUnsuspendPostLink :: User.Id -> Links.Link
-
 rootGetLink :: Links.Link
 staticGetLink :: Links.Link
 mediaGetLink :: Links.Link
@@ -82,15 +81,15 @@ dashboardShowsSlugEditGetLink :: Slug -> Links.Link
 dashboardShowsSlugEditPostLink :: Slug -> Links.Link
 episodesGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesGetLinkById :: Slug -> Episodes.Id -> Links.Link
-episodesEditPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesNewGetLink :: Slug -> Links.Link
 episodesNewPostLink :: Slug -> Links.Link
-episodesEditGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+dashboardEpisodeEditGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
+dashboardEpisodeEditPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDeleteLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDiscardDraftLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
-hostDashboardGetLink :: Maybe Slug -> Links.Link
-dashboardEpisodesGetLink :: Maybe Slug -> Links.Link
+hostDashboardGetLink :: Slug -> Links.Link
+dashboardEpisodesGetLink :: Slug -> Links.Link
 dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 dashboardBlogGetLink :: Maybe Slug -> Links.Link
 dashboardUsersGetLink :: Links.Link

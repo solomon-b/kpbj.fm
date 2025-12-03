@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (aboutGetLink, archiveGetLink, blogGetLink, donateGetLink, eventsGetLink, hostDashboardGetLink, rootGetLink, showsScheduleGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
+import {-# SOURCE #-} API (aboutGetLink, archiveGetLink, blogGetLink, dashboardShowsGetLink, donateGetLink, eventsGetLink, rootGetLink, showsScheduleGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
 import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
@@ -46,8 +46,8 @@ userRegisterGetUrl = Link.linkURI $ userRegisterGetLink Nothing Nothing Nothing
 userLogoutGetUrl :: Link.URI
 userLogoutGetUrl = Link.linkURI userLogoutGetLink
 
-hostDashboardGetUrl :: Link.URI
-hostDashboardGetUrl = Link.linkURI $ hostDashboardGetLink Nothing
+dashboardGetUrl :: Link.URI
+dashboardGetUrl = Link.linkURI dashboardShowsGetLink
 
 showsScheduleGetUrl :: Link.URI
 showsScheduleGetUrl = Link.linkURI $ showsScheduleGetLink Nothing
@@ -295,7 +295,7 @@ authWidget mUser =
       Just user -> do
         Lucid.span_ [Lucid.class_ "text-gray-400"] "•"
         Lucid.span_ [Lucid.class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
-        Lucid.a_ [Lucid.href_ [i|/#{hostDashboardGetUrl}|], hxGet_ [i|/#{hostDashboardGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
+        Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], hxGet_ [i|/#{dashboardGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
         Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
 
 logo :: Lucid.Html ()

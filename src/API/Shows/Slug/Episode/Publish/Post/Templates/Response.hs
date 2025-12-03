@@ -9,7 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesDeleteLink, episodesEditGetLink, episodesGetLink, episodesPublishPostLink)
+import {-# SOURCE #-} API (dashboardEpisodeEditGetLink, episodesDeleteLink, episodesGetLink, episodesPublishPostLink)
 import Component.Banner (BannerType (..), renderBanner)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -29,7 +29,7 @@ episodeGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
 episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
 
 episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesEditGetLink showSlug episodeId episodeSlug
+episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeEditGetLink showSlug episodeId episodeSlug
 
 episodeDeleteUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
 episodeDeleteUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesDeleteLink showSlug episodeId episodeSlug

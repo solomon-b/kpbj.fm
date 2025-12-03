@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Slug.Episode.Edit.Get.Templates.Form
+module API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
   ( template,
   )
 where
@@ -9,7 +9,7 @@ where
 --------------------------------------------------------------------------------
 
 import {-# SOURCE #-} API (episodesGetLink, hostDashboardGetLink)
-import API.Shows.Slug.Episode.Edit.Get.Templates.Scripts (scripts)
+import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts (scripts)
 import Component.Form qualified as Form
 import Component.Form.Builder qualified as Builder
 import Component.Form.Internal (hiddenInput)
@@ -29,8 +29,8 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
+hostDashboardGetUrl :: Slug -> Links.URI
+hostDashboardGetUrl showSlug = Links.linkURI $ hostDashboardGetLink showSlug
 
 episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
 episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
@@ -62,7 +62,7 @@ template currentTime showModel episode tracks userMeta isStaff = do
 
   Builder.buildValidatedForm
     Builder.FormBuilder
-      { Builder.fbAction = [i|/shows/#{showSlugText}/episodes/#{episodeIdText}/#{display episodeSlug}/edit|],
+      { Builder.fbAction = [i|/dashboard/episodes/#{showSlugText}/#{episodeIdText}/#{display episodeSlug}/edit|],
         Builder.fbMethod = "post",
         Builder.fbHeader = Just (formHeader showModel episode userMeta episodeBackUrl),
         Builder.fbHtmx = Nothing,
@@ -123,7 +123,7 @@ template currentTime showModel episode tracks userMeta isStaff = do
                                 Builder.vffHint = Just "MP3, WAV, FLAC accepted • Max 500MB • Leave empty to keep current file",
                                 Builder.vffMaxSizeMB = Just 500,
                                 Builder.vffValidation = Builder.emptyValidation, -- Optional for edits
-                                Builder.vffButtonText = "📁 CHOOSE AUDIO FILE",
+                                Builder.vffButtonText = "CHOOSE AUDIO FILE",
                                 Builder.vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block",
                                 Builder.vffCurrentValue = episode.audioFilePath
                               },
@@ -134,7 +134,7 @@ template currentTime showModel episode tracks userMeta isStaff = do
                                 Builder.vffHint = Just "JPG, PNG accepted • Max 5MB • Recommended: 800x800px • Leave empty to keep current",
                                 Builder.vffMaxSizeMB = Just 5,
                                 Builder.vffValidation = Builder.emptyValidation, -- Optional
-                                Builder.vffButtonText = "🖼️ CHOOSE IMAGE",
+                                Builder.vffButtonText = "CHOOSE IMAGE",
                                 Builder.vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
                                 Builder.vffCurrentValue = episode.artworkUrl
                               }
@@ -181,15 +181,16 @@ formHeader showModel episode userMeta episodeBackUrl = do
             hxPushUrl_ "true",
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
           ]
-          "← BACK TO EPISODE"
-        Lucid.a_
-          [ Lucid.href_ [i|/#{hostDashboardGetUrl}|],
-            hxGet_ [i|/#{hostDashboardGetUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
-          ]
-          "DASHBOARD"
+          "<- BACK TO EPISODE"
+        let dashboardUrl = hostDashboardGetUrl showModel.slug
+         in Lucid.a_
+              [ Lucid.href_ [i|/#{dashboardUrl}|],
+                hxGet_ [i|/#{dashboardUrl}|],
+                hxTarget_ "#main-content",
+                hxPushUrl_ "true",
+                Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+              ]
+              "DASHBOARD"
 
 --------------------------------------------------------------------------------
 -- FORM SECTIONS
@@ -316,7 +317,7 @@ trackEditorHeader idx = do
       [ Lucid.type_ "button",
         Lucid.class_ "text-red-600 font-bold hover:text-red-800 remove-track-btn"
       ]
-      "✕ REMOVE"
+      "X REMOVE"
 
 trackNumberField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
 trackNumberField idx track =

@@ -6,7 +6,7 @@ module API.Blog.Edit.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink, hostDashboardGetLink, userLoginGetLink)
+import {-# SOURCE #-} API (blogGetLink, dashboardShowsGetLink, userLoginGetLink)
 import API.Blog.Edit.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
@@ -48,8 +48,8 @@ blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
-hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI $ hostDashboardGetLink Nothing
+dashboardGetUrl :: Links.URI
+dashboardGetUrl = Links.linkURI dashboardShowsGetLink
 
 --------------------------------------------------------------------------------
 
@@ -124,7 +124,7 @@ handler _tracer blogPostId urlSlug cookie (foldHxReq -> hxRequest) = do
                 else do
                   Log.logInfo "User tried to edit blog post they don't own" blogPost.bpmId
                   let banner = BannerParams Error "Access Denied" "You can only edit blog posts you authored or have staff permissions."
-                  html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
+                  html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{dashboardGetUrl}|] banner)
                   pure $ Servant.noHeader html
             else do
               Log.logInfo "Redirecting to canonical blog edit URL" canonicalUrl

@@ -1,12 +1,11 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Episodes.Episode.Get where
+module API.Dashboard.Episodes.Slug.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Episode.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
+import API.Dashboard.Episodes.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))

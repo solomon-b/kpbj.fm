@@ -34,8 +34,8 @@ rootGetUrl = Links.linkURI rootGetLink
 userLogoutGetUrl :: Links.URI
 userLogoutGetUrl = Links.linkURI userLogoutGetLink
 
-dashboardEpisodesGetUrl :: Maybe Slug -> Links.URI
-dashboardEpisodesGetUrl mSlug = Links.linkURI $ dashboardEpisodesGetLink mSlug
+dashboardEpisodesGetUrl :: Slug -> Links.URI
+dashboardEpisodesGetUrl slug = Links.linkURI $ dashboardEpisodesGetLink slug
 
 dashboardBlogGetUrl :: Maybe Slug -> Links.URI
 dashboardBlogGetUrl mSlug = Links.linkURI $ dashboardBlogGetLink mSlug
@@ -156,29 +156,36 @@ showSelector allShows selectedShow activeNav =
     _ -> do
       -- Multiple shows - dropdown with JS redirect
       -- For admin pages, redirect to Episodes when show changes
-      let baseUrl = Text.pack $ show $ showSelectorTargetUrl activeNav
+      -- URL pattern for Episodes: /dashboard/episodes/:slug (slug in path)
+      -- URL pattern for Blog: /dashboard/blog?show=:slug (slug as query param)
+      let baseUrlPrefix = showSelectorTargetUrl activeNav
+          urlPattern :: Text
+          urlPattern = case activeNav of
+            NavEpisodes -> [i|'/#{baseUrlPrefix}/' + this.value|]
+            _ -> [i|'/#{baseUrlPrefix}?show=' + this.value|]
       Lucid.div_ [Lucid.class_ "p-4 border-b border-gray-700"] $ do
         Lucid.label_ [Lucid.for_ "show-selector", Lucid.class_ "text-xs text-gray-500 block mb-1"] "SHOW"
         Lucid.select_
           [ Lucid.id_ "show-selector",
             Lucid.name_ "show",
             Lucid.class_ "w-full p-2 bg-gray-800 border border-gray-600 text-white text-sm font-bold",
-            onchange_ [i|window.location.href = '/#{baseUrl}?show=' + this.value|]
+            onchange_ [i|window.location.href = #{urlPattern}|]
           ]
           $ mapM_ (renderShowOption selectedShow) allShows
 
--- | Get the URL to navigate to when show selector changes
+-- | Get the base URL path to navigate to when show selector changes
 -- For show-specific pages (Episodes, Blog), stay on the same page
 -- For admin pages (Users, Shows), navigate to Episodes
-showSelectorTargetUrl :: DashboardNav -> Links.URI
+-- Returns just the base path - the slug will be appended in JavaScript
+showSelectorTargetUrl :: DashboardNav -> Text
 showSelectorTargetUrl = \case
-  NavEpisodes -> dashboardEpisodesGetUrl Nothing
-  NavBlog -> dashboardBlogGetUrl Nothing
-  NavSchedule -> dashboardEpisodesGetUrl Nothing
-  NavSettings -> dashboardEpisodesGetUrl Nothing
+  NavEpisodes -> "dashboard/episodes"
+  NavBlog -> "dashboard/blog"
+  NavSchedule -> "dashboard/episodes"
+  NavSettings -> "dashboard/episodes"
   -- Admin pages: changing show goes to Episodes
-  NavUsers -> dashboardEpisodesGetUrl Nothing
-  NavShows -> dashboardEpisodesGetUrl Nothing
+  NavUsers -> "dashboard/episodes"
+  NavShows -> "dashboard/episodes"
 
 -- | Render a single show option
 renderShowOption :: Maybe Shows.Model -> Shows.Model -> Lucid.Html ()
@@ -191,16 +198,24 @@ renderShowOption selectedShow showModel = do
     else Lucid.option_ [Lucid.value_ (display showSlug)] (Lucid.toHtml showTitle)
 
 -- | Navigation item - simple link with server-rendered active state
+-- If no URL can be generated (e.g., Episodes without a show), renders as disabled
 navItem :: Text -> DashboardNav -> DashboardNav -> Maybe Shows.Model -> Lucid.Html ()
 navItem label nav activeNav mShow = do
   let isActive = nav == activeNav
       baseClasses = "block px-4 py-2 text-sm font-bold transition-colors"
       activeClasses = "bg-gray-800 text-white"
       inactiveClasses = "text-gray-400 hover:text-white hover:bg-gray-800"
-      classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
-      url = navUrl nav mShow
-  Lucid.li_ $
-    Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
+      disabledClasses = "text-gray-600 cursor-not-allowed"
+      mUrl = navUrl nav mShow
+  case mUrl of
+    Just url ->
+      let classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
+       in Lucid.li_ $
+            Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
+    Nothing ->
+      let classes = baseClasses <> " " <> disabledClasses
+       in Lucid.li_ $
+            Lucid.span_ [Lucid.class_ classes] (Lucid.toHtml label)
 
 -- | Staff navigation item - doesn't require show context
 -- Uses full page navigation (no HTMX) since admin pages have different sidebar state
@@ -210,30 +225,34 @@ staffNavItem label nav activeNav = do
       baseClasses = "block px-4 py-2 text-sm font-bold transition-colors"
       activeClasses = "bg-gray-800 text-white"
       inactiveClasses = "text-gray-400 hover:text-white hover:bg-gray-800"
-      classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
-      url = staffNavUrl nav
-  Lucid.li_ $
-    -- No hxGet_ here - force full page load to get correct sidebar state
-    Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
+  case staffNavUrl nav of
+    Just url ->
+      let classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
+       in Lucid.li_ $
+            -- No hxGet_ here - force full page load to get correct sidebar state
+            Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
+    Nothing -> mempty
 
 -- | Get URL for staff navigation item (no show context)
-staffNavUrl :: DashboardNav -> Links.URI
+staffNavUrl :: DashboardNav -> Maybe Links.URI
 staffNavUrl = \case
-  NavUsers -> dashboardUsersGetUrl
-  NavShows -> dashboardShowsGetUrl
+  NavUsers -> Just dashboardUsersGetUrl
+  NavShows -> Just dashboardShowsGetUrl
   other -> navUrl other Nothing
 
--- | Get URL for navigation item (with show query param)
-navUrl :: DashboardNav -> Maybe Shows.Model -> Links.URI
+-- | Get URL for navigation item
+-- Episodes requires a show slug in the path, Blog uses query param
+-- Returns Nothing if a required show is not provided
+navUrl :: DashboardNav -> Maybe Shows.Model -> Maybe Links.URI
 navUrl nav mShow =
   let mSlug = Shows.slug <$> mShow
    in case nav of
-        NavEpisodes -> dashboardEpisodesGetUrl mSlug
-        NavBlog -> dashboardBlogGetUrl mSlug
-        NavSchedule -> dashboardEpisodesGetUrl mSlug -- TODO: Add schedule route
-        NavSettings -> dashboardEpisodesGetUrl mSlug -- TODO: Add settings route
-        NavUsers -> dashboardUsersGetUrl
-        NavShows -> dashboardShowsGetUrl
+        NavEpisodes -> dashboardEpisodesGetUrl <$> mSlug
+        NavBlog -> Just $ dashboardBlogGetUrl mSlug
+        NavSchedule -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add schedule route
+        NavSettings -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add settings route
+        NavUsers -> Just dashboardUsersGetUrl
+        NavShows -> Just dashboardShowsGetUrl
 
 -- | Top bar with breadcrumb and actions
 topBar :: UserMetadata.Model -> Maybe Shows.Model -> Lucid.Html ()
