@@ -46,8 +46,8 @@ import Text.HTML (HTML)
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
-hostDashboardGetUrl :: Slug -> Links.URI
-hostDashboardGetUrl slug = Links.linkURI $ hostDashboardGetLink slug
+hostDashboardGetUrl :: Links.URI
+hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
 
 --------------------------------------------------------------------------------
 
@@ -101,11 +101,11 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
         Left err -> do
           Log.logAttention "Failed to load episode upload form" (show err)
           let banner = BannerParams Error "Error" "Failed to load your shows."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl showSlug}|] banner)
+          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
         Right Nothing -> do
           Log.logInfo "Show not found or user not authorized" (showSlug, User.mId user)
           let banner = BannerParams Error "Error" "Show not found or you don't have permission to upload episodes."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl showSlug}|] banner)
+          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
         Right (Just (showModel, upcomingDates)) -> do
           Log.logInfo "Authorized user accessing episode upload form" showModel.id
           renderTemplate hxRequest (Just userMetadata) $ episodeUploadForm showModel upcomingDates

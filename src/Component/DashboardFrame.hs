@@ -37,7 +37,7 @@ userLogoutGetUrl = Links.linkURI userLogoutGetLink
 dashboardEpisodesGetUrl :: Slug -> Links.URI
 dashboardEpisodesGetUrl slug = Links.linkURI $ dashboardEpisodesGetLink slug
 
-dashboardBlogGetUrl :: Maybe Slug -> Links.URI
+dashboardBlogGetUrl :: Slug -> Links.URI
 dashboardBlogGetUrl mSlug = Links.linkURI $ dashboardBlogGetLink mSlug
 
 dashboardUsersGetUrl :: Links.URI
@@ -248,7 +248,7 @@ navUrl nav mShow =
   let mSlug = Shows.slug <$> mShow
    in case nav of
         NavEpisodes -> dashboardEpisodesGetUrl <$> mSlug
-        NavBlog -> Just $ dashboardBlogGetUrl mSlug
+        NavBlog -> dashboardBlogGetUrl <$> mSlug
         NavSchedule -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add schedule route
         NavSettings -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add settings route
         NavUsers -> Just dashboardUsersGetUrl

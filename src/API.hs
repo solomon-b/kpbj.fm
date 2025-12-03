@@ -510,7 +510,7 @@ episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Publish.Post.Route)
 
 -- | Route: GET /dashboard/:slug
-hostDashboardGetLink :: Slug -> Links.Link
+hostDashboardGetLink :: Links.Link
 hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Get.Route)
 
 -- | Route: GET /dashboard/episodes/:slug
@@ -522,7 +522,7 @@ dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 dashboardEpisodeGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Slug.Get.Route)
 
 -- | Route: GET /dashboard/blog
-dashboardBlogGetLink :: Maybe Slug -> Links.Link
+dashboardBlogGetLink :: Slug -> Links.Link
 dashboardBlogGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Blog.Get.Route)
 
 -- | Route: GET /dashboard/users (no filters - for sidebar navigation)
