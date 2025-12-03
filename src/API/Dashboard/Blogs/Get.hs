@@ -1,10 +1,10 @@
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Blog.Get where
+module API.Dashboard.Blogs.Get where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Blog.Get.Templates.Page (template)
+import API.Dashboard.Blogs.Get.Templates.Page (template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
@@ -38,7 +38,7 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /dashboard/blog"
+    "GET /dashboard/blogs"
     ( "dashboard"
         :> "blog"
         :> Servant.Capture "show" Slug
