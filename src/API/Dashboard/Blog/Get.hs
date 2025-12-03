@@ -41,7 +41,7 @@ type Route =
     "GET /dashboard/blog"
     ( "dashboard"
         :> "blog"
-        :> Servant.QueryParam "show" Slug
+        :> Servant.Capture "show" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
@@ -60,11 +60,11 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Maybe Slug ->
+  Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
+handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to dashboard blog" ()
@@ -85,7 +85,7 @@ handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
               let content = template userMetadata Nothing []
               renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog content
             Right allShows@(firstShow : _) -> do
-              let showToFetch = findShow firstShow allShows maybeShowSlug
+              let showToFetch = findShow firstShow allShows (Just showSlug)
               execTransactionSpan (fetchBlogData showToFetch) >>= \case
                 Left _err -> do
                   let content = template userMetadata (Just showToFetch) []
@@ -103,7 +103,7 @@ handler _tracer maybeShowSlug cookie (foldHxReq -> hxRequest) = do
           let content = template userMetadata Nothing []
           renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog content
         Right userShows@(firstShow : _) -> do
-          let showToFetch = findShow firstShow userShows maybeShowSlug
+          let showToFetch = findShow firstShow userShows (Just showSlug)
           execTransactionSpan (fetchBlogData showToFetch) >>= \case
             Left _err -> do
               let content = template userMetadata (Just showToFetch) []

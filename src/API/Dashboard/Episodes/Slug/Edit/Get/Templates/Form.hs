@@ -29,8 +29,8 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-hostDashboardGetUrl :: Slug -> Links.URI
-hostDashboardGetUrl showSlug = Links.linkURI $ hostDashboardGetLink showSlug
+hostDashboardGetUrl :: Links.URI
+hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
 
 episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
 episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
@@ -182,7 +182,7 @@ formHeader showModel episode userMeta episodeBackUrl = do
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
           ]
           "<- BACK TO EPISODE"
-        let dashboardUrl = hostDashboardGetUrl showModel.slug
+        let dashboardUrl = hostDashboardGetUrl
          in Lucid.a_
               [ Lucid.href_ [i|/#{dashboardUrl}|],
                 hxGet_ [i|/#{dashboardUrl}|],

@@ -88,10 +88,10 @@ dashboardEpisodeEditPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDeleteLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDiscardDraftLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
-hostDashboardGetLink :: Slug -> Links.Link
+hostDashboardGetLink :: Links.Link
 dashboardEpisodesGetLink :: Slug -> Links.Link
 dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
-dashboardBlogGetLink :: Maybe Slug -> Links.Link
+dashboardBlogGetLink :: Slug -> Links.Link
 dashboardUsersGetLink :: Links.Link
 dashboardUsersGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
 dashboardShowsGetLink :: Links.Link
