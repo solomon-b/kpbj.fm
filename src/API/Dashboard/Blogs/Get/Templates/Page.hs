@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Blog.Get.Templates.Page
+module API.Dashboard.Blogs.Get.Templates.Page
   ( template,
   )
 where
