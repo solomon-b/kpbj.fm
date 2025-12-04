@@ -4,7 +4,7 @@ module API.Dashboard.Users.Detail.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardUserEditGetLink, dashboardUserRolePatchLink, dashboardUsersGetLink)
+import {-# SOURCE #-} API (dashboardUserEditGetLink, dashboardUserRolePatchLink)
 import Control.Monad (unless)
 import Data.Maybe (fromMaybe, isJust)
 import Data.String.Interpolate (i)
@@ -26,17 +26,6 @@ template ::
   [Episodes.Model] ->
   Lucid.Html ()
 template user metadata userShows userEpisodes = do
-  -- Back button and header
-  Lucid.div_ [Lucid.class_ "mb-8"] $ do
-    Lucid.a_
-      [ Lucid.href_ [i|/#{backUrl}|],
-        hxGet_ [i|/#{backUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "text-blue-600 hover:underline font-bold mb-4 inline-block"
-      ]
-      "← Back to Users"
-
   -- User profile section
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-start"] $ do
@@ -78,7 +67,6 @@ template user metadata userShows userEpisodes = do
       Lucid.div_ [Lucid.class_ "space-y-4"] $
         mapM_ renderEpisodeCard userEpisodes
   where
-    backUrl = Links.linkURI dashboardUsersGetLink
     editUrl = Links.linkURI $ dashboardUserEditGetLink user.mId
 
 renderField :: String -> String -> Lucid.Html ()

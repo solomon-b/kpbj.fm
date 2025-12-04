@@ -97,14 +97,14 @@ handler _tracer showSlug mPage cookie (foldHxReq -> hxRequest) = do
           execQuerySpan Shows.getAllActiveShows >>= \case
             Left _err -> do
               let content = errorTemplate "Failed to load shows."
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows content
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows Nothing Nothing content
             Right allShows -> do
               let selectedShow = find (\s -> s.slug == showSlug) allShows
               case selectedShow of
                 Nothing -> do
                   Log.logInfo ("Show not found: " <> display showSlug) ()
                   let content = notFoundTemplate showSlug
-                  renderDashboardTemplate hxRequest userMetadata allShows Nothing NavShows content
+                  renderDashboardTemplate hxRequest userMetadata allShows Nothing NavShows Nothing Nothing content
                 Just showModel -> do
                   renderShowDetails hxRequest userMetadata allShows showModel mPage
     Just (user, userMetadata) -> do
@@ -112,14 +112,14 @@ handler _tracer showSlug mPage cookie (foldHxReq -> hxRequest) = do
       execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
         Left _err -> do
           let content = errorTemplate "Failed to load shows."
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows content
+          renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows Nothing Nothing content
         Right userShows -> do
           let selectedShow = find (\s -> s.slug == showSlug) userShows
           case selectedShow of
             Nothing -> do
               Log.logInfo ("Show not found or not authorized: " <> display showSlug) ()
               let content = notFoundTemplate showSlug
-              renderDashboardTemplate hxRequest userMetadata userShows Nothing NavShows content
+              renderDashboardTemplate hxRequest userMetadata userShows Nothing NavShows Nothing Nothing content
             Just showModel -> do
               renderShowDetails hxRequest userMetadata userShows showModel mPage
 
@@ -145,10 +145,10 @@ renderShowDetails hxRequest userMetadata allShows showModel mPage = do
     Left err -> do
       Log.logAttention "Failed to fetch show details from database" (show err)
       let content = template showModel [] [] [] [] page
-      renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows content
+      renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
     Right (hosts, schedule, episodes, blogPosts) -> do
       let content = template showModel episodes hosts schedule blogPosts page
-      renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows content
+      renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
 
 fetchShowDetails ::
   (MonadDB m) =>

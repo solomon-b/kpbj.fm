@@ -5,9 +5,9 @@ module API.Dashboard.Users.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardUserDeleteLink, dashboardUserDetailGetLink, dashboardUserSuspendPostLink, dashboardUserUnsuspendPostLink, dashboardUsersGetLink, dashboardUsersGetLinkFull)
+import {-# SOURCE #-} API (dashboardUserDeleteLink, dashboardUserDetailGetLink, dashboardUserSuspendPostLink, dashboardUserUnsuspendPostLink, dashboardUsersGetLinkFull)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isJust, isNothing)
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -19,6 +19,7 @@ import Lucid qualified
 import Lucid.Extras
 import Servant.Links qualified as Links
 
+-- | Users list template (filters are now in the top bar)
 template ::
   UTCTime ->
   [UserMetadata.UserWithMetadata] ->
@@ -29,79 +30,6 @@ template ::
   UserSortBy ->
   Lucid.Html ()
 template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
-  -- Page header
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
-    Lucid.h1_ [Lucid.class_ "text-3xl font-bold"] "USER MANAGEMENT"
-    Lucid.p_ [Lucid.class_ "text-gray-600 mt-2"] "Manage all users, roles, and permissions"
-
-  -- Filters section
-  Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8 w-full"] $ do
-    Lucid.form_
-      [ hxGet_ [i|/#{dashboardUsersGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "flex flex-col md:flex-row gap-4 items-end"
-      ]
-      $ do
-        -- Search input
-        Lucid.div_ [Lucid.class_ "flex-1"] $ do
-          Lucid.label_ [Lucid.for_ "search", Lucid.class_ "block font-bold mb-2"] "Search"
-          Lucid.input_
-            [ Lucid.type_ "search",
-              Lucid.name_ "q",
-              Lucid.id_ "search",
-              Lucid.value_ (fromMaybe "" maybeQuery),
-              Lucid.placeholder_ "Search by name or email...",
-              Lucid.class_ "w-full p-3 border-2 border-gray-800"
-            ]
-
-        -- Role filter
-        Lucid.div_ [Lucid.class_ "flex-1"] $ do
-          Lucid.label_ [Lucid.for_ "role", Lucid.class_ "block font-bold mb-2"] "Role"
-          Lucid.select_
-            [ Lucid.name_ "role",
-              Lucid.id_ "role",
-              Lucid.class_ "w-full p-3 border-2 border-gray-800"
-            ]
-            $ do
-              Lucid.option_ [Lucid.value_ "", selectedIf (isNothing maybeRoleFilter)] "All Roles"
-              Lucid.option_ [Lucid.value_ "User", selectedIf (maybeRoleFilter == Just UserMetadata.User)] "User"
-              Lucid.option_ [Lucid.value_ "Host", selectedIf (maybeRoleFilter == Just UserMetadata.Host)] "Host"
-              Lucid.option_ [Lucid.value_ "Staff", selectedIf (maybeRoleFilter == Just UserMetadata.Staff)] "Staff"
-              Lucid.option_ [Lucid.value_ "Admin", selectedIf (maybeRoleFilter == Just UserMetadata.Admin)] "Admin"
-
-        -- Sort filter
-        Lucid.div_ [Lucid.class_ "flex-1"] $ do
-          Lucid.label_ [Lucid.for_ "sort", Lucid.class_ "block font-bold mb-2"] "Sort By"
-          Lucid.select_
-            [ Lucid.name_ "sort",
-              Lucid.id_ "sort",
-              Lucid.class_ "w-full p-3 border-2 border-gray-800"
-            ]
-            $ do
-              Lucid.option_ [Lucid.value_ "newest", selectedIf (sortBy == JoinDateNewest)] "Join Date (Newest)"
-              Lucid.option_ [Lucid.value_ "oldest", selectedIf (sortBy == JoinDateOldest)] "Join Date (Oldest)"
-              Lucid.option_ [Lucid.value_ "name", selectedIf (sortBy == NameAZ)] "Name A-Z"
-              Lucid.option_ [Lucid.value_ "shows", selectedIf (sortBy == ShowCount)] "Show Count"
-              Lucid.option_ [Lucid.value_ "status", selectedIf (sortBy == StatusSuspended)] "Status (Suspended First)"
-
-        -- Submit button
-        Lucid.div_ [Lucid.class_ "flex gap-4"] $ do
-          Lucid.button_
-            [ Lucid.type_ "submit",
-              Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-            ]
-            "SEARCH"
-          when (isJust maybeQuery || isJust maybeRoleFilter || sortBy /= JoinDateNewest) $
-            Lucid.a_
-              [ Lucid.href_ [i|/#{dashboardUsersGetUrl}|],
-                hxGet_ [i|/#{dashboardUsersGetUrl}|],
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                Lucid.class_ "bg-gray-300 text-gray-800 px-6 py-3 font-bold hover:bg-gray-400"
-              ]
-              "CLEAR"
-
   -- User table or empty state
   if null users
     then renderEmptyState maybeQuery
@@ -120,10 +48,6 @@ template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
             mapM_ (renderUserRow now) users
 
       renderPagination currentPage hasMore maybeQuery maybeRoleFilter sortBy
-  where
-    selectedIf condition = if condition then Lucid.selected_ "selected" else mempty
-    when cond action = if cond then action else mempty
-    dashboardUsersGetUrl = Links.linkURI dashboardUsersGetLink
 
 renderUserRow :: UTCTime -> UserMetadata.UserWithMetadata -> Lucid.Html ()
 renderUserRow now user =
