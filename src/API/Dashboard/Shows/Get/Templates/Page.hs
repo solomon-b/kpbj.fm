@@ -6,9 +6,9 @@ module API.Dashboard.Shows.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardShowsGetLink, dashboardShowsGetLinkFull, dashboardShowsNewGetLink, dashboardShowsSlugEditGetLink, dashboardShowsSlugGetLink)
+import {-# SOURCE #-} API (dashboardShowsGetLinkFull, dashboardShowsSlugEditGetLink, dashboardShowsSlugGetLink)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isJust, isNothing)
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -20,6 +20,7 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
+-- | Shows list template (filters are now in the top bar)
 template ::
   [Shows.ShowWithHostInfo] ->
   Int64 ->
@@ -28,72 +29,6 @@ template ::
   Maybe Shows.Status ->
   Lucid.Html ()
 template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
-  -- Page header
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "flex justify-between items-center"] $ do
-      Lucid.div_ [] $ do
-        Lucid.h1_ [Lucid.class_ "text-3xl font-bold"] "SHOW MANAGEMENT"
-        Lucid.p_ [Lucid.class_ "text-gray-600 mt-2"] "Manage all shows and their hosts"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardShowsNewGetUrl}|],
-          hxGet_ [i|/#{dashboardShowsNewGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-        ]
-        "+ NEW SHOW"
-
-  -- Filters section
-  Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8 w-full"] $ do
-    Lucid.form_
-      [ hxGet_ [i|/#{dashboardShowsGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "flex flex-col md:flex-row gap-4 items-end"
-      ]
-      $ do
-        -- Search input
-        Lucid.div_ [Lucid.class_ "flex-1"] $ do
-          Lucid.label_ [Lucid.for_ "search", Lucid.class_ "block font-bold mb-2"] "Search"
-          Lucid.input_
-            [ Lucid.type_ "search",
-              Lucid.name_ "q",
-              Lucid.id_ "search",
-              Lucid.value_ (fromMaybe "" maybeQuery),
-              Lucid.placeholder_ "Search by title, description, or genre...",
-              Lucid.class_ "w-full p-3 border-2 border-gray-800"
-            ]
-
-        -- Status filter
-        Lucid.div_ [Lucid.class_ "flex-1"] $ do
-          Lucid.label_ [Lucid.for_ "status", Lucid.class_ "block font-bold mb-2"] "Status"
-          Lucid.select_
-            [ Lucid.name_ "status",
-              Lucid.id_ "status",
-              Lucid.class_ "w-full p-3 border-2 border-gray-800"
-            ]
-            $ do
-              Lucid.option_ [Lucid.value_ "", selectedIf (isNothing maybeStatusFilter)] "All Statuses"
-              Lucid.option_ [Lucid.value_ "active", selectedIf (maybeStatusFilter == Just Shows.Active)] "Active"
-              Lucid.option_ [Lucid.value_ "inactive", selectedIf (maybeStatusFilter == Just Shows.Inactive)] "Inactive"
-
-        -- Submit button
-        Lucid.div_ [Lucid.class_ "flex gap-4"] $ do
-          Lucid.button_
-            [ Lucid.type_ "submit",
-              Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-            ]
-            "SEARCH"
-          when (isJust maybeQuery || isJust maybeStatusFilter) $
-            Lucid.a_
-              [ Lucid.href_ [i|/#{dashboardShowsGetUrl}|],
-                hxGet_ [i|/#{dashboardShowsGetUrl}|],
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                Lucid.class_ "bg-gray-300 text-gray-800 px-6 py-3 font-bold hover:bg-gray-400"
-              ]
-              "CLEAR"
-
   -- Shows table or empty state
   if null theShowList
     then renderEmptyState maybeQuery
@@ -111,11 +46,6 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
             mapM_ renderShowRow theShowList
 
       renderPagination currentPage hasMore maybeQuery maybeStatusFilter
-  where
-    selectedIf condition = if condition then Lucid.selected_ "selected" else mempty
-    when cond action = if cond then action else mempty
-    dashboardShowsNewGetUrl = Links.linkURI dashboardShowsNewGetLink
-    dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
 
 renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
 renderShowRow showInfo =

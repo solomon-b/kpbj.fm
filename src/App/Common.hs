@@ -88,6 +88,8 @@ renderTemplate hxRequest mUserInfo templateContent =
 --
 -- The dashboard uses its own frame with a left sidebar navigation,
 -- completely separate from the main site's header/navigation.
+-- Stats appear in the top bar (schedule info, counts, etc.).
+-- The action button appears in the top bar (e.g., "New Episode", "New Post").
 renderDashboardTemplate ::
   (Log.MonadLog m, MonadCatch m) =>
   HxRequest ->
@@ -95,11 +97,13 @@ renderDashboardTemplate ::
   [Shows.Model] ->
   Maybe Shows.Model ->
   DashboardNav ->
+  Maybe (Lucid.Html ()) ->
+  Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   m (Lucid.Html ())
-renderDashboardTemplate hxRequest userInfo allShows selectedShow activeNav templateContent =
+renderDashboardTemplate hxRequest userInfo allShows selectedShow activeNav statsContent actionButton templateContent =
   case hxRequest of
     IsHxRequest ->
       DashboardFrame.loadDashboardContentOnly templateContent
     IsNotHxRequest ->
-      DashboardFrame.loadDashboardFrame userInfo allShows selectedShow activeNav templateContent
+      DashboardFrame.loadDashboardFrame userInfo allShows selectedShow activeNav statsContent actionButton templateContent

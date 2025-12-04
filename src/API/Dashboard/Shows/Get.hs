@@ -6,7 +6,7 @@ module API.Dashboard.Shows.Get (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink, userLoginGetLink)
+import {-# SOURCE #-} API (dashboardShowsGetLink, dashboardShowsNewGetLink, rootGetLink, userLoginGetLink)
 import API.Dashboard.Shows.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
@@ -16,6 +16,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, listToMaybe)
@@ -37,12 +38,12 @@ import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
 import Text.HTML (HTML)
-import Data.Either (fromRight)
 
 --------------------------------------------------------------------------------
 
@@ -119,7 +120,58 @@ handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -
           let theShows = take (fromIntegral limit) allShows
               hasMore = length allShows > fromIntegral limit
               showsTemplate = template theShows page hasMore queryFilter statusFilter
-          renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows showsTemplate
+              filtersContent = Just $ filtersUI queryFilter statusFilter
+          renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows filtersContent newShowButton showsTemplate
+  where
+    newShowButton :: Maybe (Lucid.Html ())
+    newShowButton =
+      let newShowUrl = Links.linkURI dashboardShowsNewGetLink
+       in Just $
+            Lucid.a_
+              [ Lucid.href_ [i|/#{newShowUrl}|],
+                hxGet_ [i|/#{newShowUrl}|],
+                hxTarget_ "#main-content",
+                hxPushUrl_ "true",
+                Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
+              ]
+              "New Show"
+
+-- | Filter UI for top bar
+filtersUI :: Maybe Text -> Maybe Shows.Status -> Lucid.Html ()
+filtersUI queryFilter statusFilter = do
+  let dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
+  Lucid.form_
+    [ hxGet_ [i|/#{dashboardShowsGetUrl}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      Lucid.class_ "flex items-center gap-3"
+    ]
+    $ do
+      -- Search input
+      Lucid.input_
+        [ Lucid.type_ "search",
+          Lucid.name_ "q",
+          Lucid.value_ (fromMaybe "" queryFilter),
+          Lucid.placeholder_ "Search...",
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 w-32"
+        ]
+      -- Status filter
+      Lucid.select_
+        [ Lucid.name_ "status",
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300"
+        ]
+        $ do
+          Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (statusFilter == Nothing)) "All Statuses"
+          Lucid.option_ ([Lucid.value_ "active"] <> selectedWhen (statusFilter == Just Shows.Active)) "Active"
+          Lucid.option_ ([Lucid.value_ "inactive"] <> selectedWhen (statusFilter == Just Shows.Inactive)) "Inactive"
+      -- Submit button
+      Lucid.button_
+        [ Lucid.type_ "submit",
+          Lucid.class_ "px-3 py-1 text-sm bg-gray-800 text-white font-bold hover:bg-gray-700"
+        ]
+        "Filter"
+  where
+    selectedWhen cond = if cond then [Lucid.selected_ "selected"] else []
 
 getShowsResults ::
   ( MonadUnliftIO m,

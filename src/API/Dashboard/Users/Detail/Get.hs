@@ -125,6 +125,6 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) = do
           case additionalData of
             Left _err -> do
               Log.logInfo "Failed to fetch user activity from database" ()
-              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers (template targetUser targetMetadata [] [])
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing (template targetUser targetMetadata [] [])
             Right (shows', episodes) ->
-              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers (template targetUser targetMetadata shows' episodes)
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing (template targetUser targetMetadata shows' episodes)

@@ -135,7 +135,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
                       pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
                     Right (schedulesJson, eligibleHosts, currentHostIds) -> do
                       let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds
-                      renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows editTemplate
+                      renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows Nothing Nothing editTemplate
 
 -- | Fetch staff-only data for the edit form (schedules and hosts)
 fetchStaffData ::

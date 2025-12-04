@@ -170,7 +170,7 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
                           pageContent = do
                             DetailPage.template updatedUser updatedMetadata shows' episodes
                             renderBanner Success "User Updated" "The user's information has been updated."
-                      html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers pageContent
+                      html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing pageContent
                       pure $ Servant.addHeader [i|/#{detailUrl}|] html
 
 extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.UserRole)

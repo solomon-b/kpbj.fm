@@ -345,7 +345,7 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
                     -- Refetch eligible hosts for the form
                     eligibleHosts <- fetchEligibleHosts
                     let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds
-                    html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows (renderBannerHtml banner <> editTemplate)
+                    html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows Nothing Nothing (renderBannerHtml banner <> editTemplate)
                     pure $ Servant.noHeader html
                   Right schedules -> do
                     -- Check for conflicts with other shows
@@ -362,7 +362,7 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
                         -- Refetch eligible hosts for the form
                         eligibleHosts <- fetchEligibleHosts
                         let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds
-                        html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows (renderBannerHtml banner <> editTemplate)
+                        html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows Nothing Nothing (renderBannerHtml banner <> editTemplate)
                         pure $ Servant.noHeader html
                       Right () -> do
                         -- Update schedules

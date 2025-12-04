@@ -117,4 +117,4 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) = do
               let banner = BannerParams Warning "User Not Found" "The user you are trying to edit does not exist."
               pure $ redirectWithBanner [i|/#{dashboardUsersGetUrl}|] banner
             Right (Just targetUser, Just targetMetadata) ->
-              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers (template targetUser targetMetadata)
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing (template targetUser targetMetadata)

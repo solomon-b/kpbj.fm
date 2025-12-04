@@ -6,7 +6,7 @@ module API.Dashboard.Users.Get (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink, userLoginGetLink)
+import {-# SOURCE #-} API (dashboardUsersGetLink, rootGetLink, userLoginGetLink)
 import API.Dashboard.Users.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
@@ -38,6 +38,7 @@ import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
@@ -123,7 +124,58 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
           let users = take (fromIntegral limit) allUsers
               hasMore = length allUsers > fromIntegral limit
               usersTemplate = template now users page hasMore queryFilter roleFilter sortBy
-          renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers usersTemplate
+              filtersContent = Just $ filtersUI queryFilter roleFilter sortBy
+          renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers filtersContent Nothing usersTemplate
+
+-- | Filter UI for top bar
+filtersUI :: Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()
+filtersUI queryFilter roleFilter sortBy = do
+  let dashboardUsersGetUrl = Links.linkURI dashboardUsersGetLink
+  Lucid.form_
+    [ hxGet_ [i|/#{dashboardUsersGetUrl}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      Lucid.class_ "flex items-center gap-3"
+    ]
+    $ do
+      -- Search input
+      Lucid.input_
+        [ Lucid.type_ "search",
+          Lucid.name_ "q",
+          Lucid.value_ (fromMaybe "" queryFilter),
+          Lucid.placeholder_ "Search...",
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 w-32"
+        ]
+      -- Role filter
+      Lucid.select_
+        [ Lucid.name_ "role",
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300"
+        ]
+        $ do
+          Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (roleFilter == Nothing)) "All Roles"
+          Lucid.option_ ([Lucid.value_ "User"] <> selectedWhen (roleFilter == Just UserMetadata.User)) "User"
+          Lucid.option_ ([Lucid.value_ "Host"] <> selectedWhen (roleFilter == Just UserMetadata.Host)) "Host"
+          Lucid.option_ ([Lucid.value_ "Staff"] <> selectedWhen (roleFilter == Just UserMetadata.Staff)) "Staff"
+          Lucid.option_ ([Lucid.value_ "Admin"] <> selectedWhen (roleFilter == Just UserMetadata.Admin)) "Admin"
+      -- Sort filter
+      Lucid.select_
+        [ Lucid.name_ "sort",
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300"
+        ]
+        $ do
+          Lucid.option_ ([Lucid.value_ "newest"] <> selectedWhen (sortBy == JoinDateNewest)) "Newest"
+          Lucid.option_ ([Lucid.value_ "oldest"] <> selectedWhen (sortBy == JoinDateOldest)) "Oldest"
+          Lucid.option_ ([Lucid.value_ "name"] <> selectedWhen (sortBy == NameAZ)) "Name A-Z"
+          Lucid.option_ ([Lucid.value_ "shows"] <> selectedWhen (sortBy == ShowCount)) "Show Count"
+          Lucid.option_ ([Lucid.value_ "status"] <> selectedWhen (sortBy == StatusSuspended)) "Status"
+      -- Submit button
+      Lucid.button_
+        [ Lucid.type_ "submit",
+          Lucid.class_ "px-3 py-1 text-sm bg-gray-800 text-white font-bold hover:bg-gray-700"
+        ]
+        "Filter"
+  where
+    selectedWhen cond = if cond then [Lucid.selected_ "selected"] else []
 
 getUsersResults ::
   ( MonadUnliftIO m,
