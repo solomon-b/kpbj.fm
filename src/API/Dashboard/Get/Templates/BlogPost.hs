@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogEditGetLink, showBlogPostGetLink)
+import {-# SOURCE #-} API (dashboardBlogPostGetLink, showBlogEditGetLink)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -22,8 +22,8 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-showBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-showBlogPostGetUrl showId postId postSlug = Links.linkURI $ showBlogPostGetLink showId postId postSlug
+dashboardBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
+dashboardBlogPostGetUrl showId postId postSlug = Links.linkURI $ dashboardBlogPostGetLink showId postId postSlug
 
 showBlogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
 showBlogEditGetUrl showId postId postSlug = Links.linkURI $ showBlogEditGetLink showId postId postSlug
@@ -38,7 +38,7 @@ renderBlogPostTableRow showModel post = do
   Lucid.tr_ [Lucid.class_ "border-b border-gray-300 hover:bg-gray-50", Lucid.id_ postRowId] $ do
     -- Title
     Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do
-      let postUrl = showBlogPostGetUrl showModel.id post.id post.slug
+      let postUrl = dashboardBlogPostGetUrl showModel.id post.id post.slug
       Lucid.div_ [Lucid.class_ "font-bold text-gray-900"]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{postUrl}|],

@@ -93,6 +93,7 @@ hostDashboardGetLink :: Links.Link
 dashboardEpisodesGetLink :: Slug -> Links.Link
 dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 dashboardBlogsGetLink :: Slug -> Links.Link
+dashboardBlogPostGetLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
 dashboardUsersGetLink :: Links.Link
 dashboardUsersGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
 dashboardShowsGetLink :: Links.Link

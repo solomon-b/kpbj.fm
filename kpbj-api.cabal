@@ -133,6 +133,8 @@ library
     API.Get.Templates
     API.Dashboard.Blogs.Get
     API.Dashboard.Blogs.Get.Templates.Page
+    API.Dashboard.Blogs.Slug.Get
+    API.Dashboard.Blogs.Slug.Get.Templates.Page
     API.Dashboard.Episodes.Slug.Edit.Get
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts
