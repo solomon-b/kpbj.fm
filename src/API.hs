@@ -12,6 +12,7 @@ import API.Blog.New.Get qualified as Blog.New.Get
 import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Dashboard.Blogs.Get qualified as Dashboard.Blogs.Get
+import API.Dashboard.Blogs.Slug.Get qualified as Dashboard.Blogs.Slug.Get
 import API.Dashboard.Episodes.Get qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Slug.Edit.Get qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post qualified as Dashboard.Episodes.Slug.Edit.Post
@@ -140,6 +141,7 @@ type API =
     :<|> Dashboard.Episodes.Slug.Edit.Get.Route
     :<|> Dashboard.Episodes.Slug.Edit.Post.Route
     :<|> Dashboard.Blogs.Get.Route
+    :<|> Dashboard.Blogs.Slug.Get.Route
     :<|> Dashboard.Users.Get.Route
     :<|> Dashboard.Shows.Get.Route
     :<|> PrivacyPolicy.Get.Route
@@ -225,6 +227,7 @@ server env =
     :<|> Dashboard.Episodes.Slug.Edit.Get.handler
     :<|> Dashboard.Episodes.Slug.Edit.Post.handler
     :<|> Dashboard.Blogs.Get.handler
+    :<|> Dashboard.Blogs.Slug.Get.handler
     :<|> Dashboard.Users.Get.handler
     :<|> Dashboard.Shows.Get.handler
     :<|> PrivacyPolicy.Get.handler
@@ -531,6 +534,10 @@ dashboardEpisodeGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes
 -- | Route: GET /dashboard/blog
 dashboardBlogsGetLink :: Slug -> Links.Link
 dashboardBlogsGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Blogs.Get.Route)
+
+-- | Route: GET /dashboard/blog/:show_id/:post_id/:slug
+dashboardBlogPostGetLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
+dashboardBlogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Blogs.Slug.Get.Route)
 
 -- | Route: GET /dashboard/users (no filters - for sidebar navigation)
 dashboardUsersGetLink :: Links.Link
