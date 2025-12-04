@@ -133,8 +133,10 @@ sidebar userMeta activeNav selectedShow =
     -- Navigation (scrollable if needed)
     Lucid.nav_ [Lucid.class_ "flex-1 p-4 overflow-y-auto"] $ do
       Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
-        navItem "EPISODES" NavEpisodes activeNav selectedShow
-        navItem "BLOG" NavBlog activeNav selectedShow
+        Lucid.span_ [Lucid.class_ "text-xs text-gray-500 block px-4 mb-2"] "HOST"
+        Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+          navItem "EPISODES" NavEpisodes activeNav selectedShow
+          navItem "BLOG" NavBlog activeNav selectedShow
 
       -- Staff/Admin section - shown only for Staff or higher roles
       when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
