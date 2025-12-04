@@ -84,7 +84,7 @@ template userMeta allShows selectedShow activeNav main =
         -- Main content area
         Lucid.div_ [Lucid.class_ "flex-1 flex flex-col"] $ do
           -- Top bar
-          topBar userMeta selectedShow
+          topBar
           -- Banner container
           Lucid.div_ [Lucid.class_ "px-8"] $
             Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ "w-full"] mempty
@@ -250,19 +250,11 @@ navUrl nav mShow =
         NavUsers -> Just dashboardUsersGetUrl
         NavShows -> Just dashboardShowsGetUrl
 
--- | Top bar with breadcrumb and actions
-topBar :: UserMetadata.Model -> Maybe Shows.Model -> Lucid.Html ()
-topBar _userMeta selectedShow =
+-- | Top bar with actions (no breadcrumb - sidebar provides context)
+topBar :: Lucid.Html ()
+topBar =
   Lucid.header_ [Lucid.class_ "bg-white border-b border-gray-200 px-8 py-4"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
-      -- Breadcrumb
-      Lucid.div_ [Lucid.class_ "flex items-center gap-2 text-sm"] $ do
-        Lucid.span_ [Lucid.class_ "text-gray-400"] "Dashboard"
-        case selectedShow of
-          Just showModel -> do
-            Lucid.span_ [Lucid.class_ "text-gray-400"] "/"
-            Lucid.span_ [Lucid.class_ "font-bold"] $ Lucid.toHtml showModel.title
-          Nothing -> mempty
+    Lucid.div_ [Lucid.class_ "flex items-center justify-end"] $ do
       -- Back to site link
       Lucid.a_
         [ Lucid.href_ [i|/#{rootGetUrl}|],
