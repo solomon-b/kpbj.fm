@@ -29,5 +29,5 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Deploy 🚀
-      run: ./deploy.sh
+    - name: Publish 🚀
+      run: nix run .#publish

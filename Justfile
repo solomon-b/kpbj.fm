@@ -214,6 +214,61 @@ mock-data:
 #-------------------------------------------------------------------------------
 ## Deployment
 
-# Deploy
-deploy:
-  nix run .#deploy
+# Build and publish Docker image to container registry
+publish:
+  nix run .#publish
+
+#-------------------------------------------------------------------------------
+## Fly.io Staging
+
+STAGING_APP := "kpbj-fm-staging"
+STAGING_DB_APP := "kpbj-postgres-staging"
+STAGING_DB_NAME := "kpbj_fm_staging"
+
+# Deploy to staging
+staging-deploy:
+  fly deploy --app {{STAGING_APP}}
+
+# View staging logs
+staging-logs:
+  fly logs --app {{STAGING_APP}}
+
+# View staging app status
+staging-status:
+  fly status --app {{STAGING_APP}}
+
+# Open staging in browser
+staging-open:
+  fly open --app {{STAGING_APP}}
+
+# Connect to staging database with psql
+staging-psql:
+  fly postgres connect --app {{STAGING_DB_APP}} -d {{STAGING_DB_NAME}}
+
+# Load mock data into staging database
+staging-mock-data:
+  (cat mock-data.sql; echo "\\q") | fly postgres connect --app {{STAGING_DB_APP}} -d {{STAGING_DB_NAME}}
+
+# Run migrations on staging (via proxy)
+staging-migrations-run:
+  @echo "Starting proxy in background..."
+  fly proxy 15432:5432 -a {{STAGING_DB_APP}} &
+  @sleep 2
+  DATABASE_URL=postgres://postgres:$STAGING_DB_PASSWORD@localhost:15432/{{STAGING_DB_NAME}} sqlx migrate run --source migrations
+  @pkill -f "fly proxy 15432"
+
+# SSH into staging app
+staging-ssh:
+  fly ssh console --app {{STAGING_APP}}
+
+# Restart staging app
+staging-restart:
+  fly apps restart {{STAGING_APP}}
+
+# View staging secrets
+staging-secrets:
+  fly secrets list --app {{STAGING_APP}}
+
+# View staging machines
+staging-machines:
+  fly machines list --app {{STAGING_APP}}
