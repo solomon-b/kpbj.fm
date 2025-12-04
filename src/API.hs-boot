@@ -90,6 +90,7 @@ episodesDeleteLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesDiscardDraftLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 hostDashboardGetLink :: Links.Link
+dashboardEpisodesRedirectLink :: Links.Link
 dashboardEpisodesGetLink :: Slug -> Links.Link
 dashboardEpisodeGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 dashboardBlogsGetLink :: Slug -> Links.Link

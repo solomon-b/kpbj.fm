@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (aboutGetLink, archiveGetLink, blogGetLink, dashboardShowsGetLink, donateGetLink, eventsGetLink, rootGetLink, showsScheduleGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
+import {-# SOURCE #-} API (aboutGetLink, archiveGetLink, blogGetLink, dashboardEpisodesRedirectLink, donateGetLink, eventsGetLink, rootGetLink, showsScheduleGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
 import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
@@ -47,7 +47,7 @@ userLogoutGetUrl :: Link.URI
 userLogoutGetUrl = Link.linkURI userLogoutGetLink
 
 dashboardGetUrl :: Link.URI
-dashboardGetUrl = Link.linkURI dashboardShowsGetLink
+dashboardGetUrl = Link.linkURI dashboardEpisodesRedirectLink
 
 showsScheduleGetUrl :: Link.URI
 showsScheduleGetUrl = Link.linkURI $ showsScheduleGetLink Nothing
