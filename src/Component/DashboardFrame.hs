@@ -58,15 +58,37 @@ data DashboardNav
   | NavShows
   deriving (Eq, Show)
 
+-- | Get display title for navigation item
+navTitle :: DashboardNav -> Text
+navTitle = \case
+  NavEpisodes -> "Episodes"
+  NavBlog -> "Blog"
+  NavSchedule -> "Schedule"
+  NavSettings -> "Settings"
+  NavUsers -> "Users"
+  NavShows -> "Shows"
+
+-- | Check if navigation requires show context
+isShowScoped :: DashboardNav -> Bool
+isShowScoped = \case
+  NavEpisodes -> True
+  NavBlog -> True
+  NavSchedule -> True
+  NavSettings -> True
+  NavUsers -> False
+  NavShows -> False
+
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
   UserMetadata.Model ->
   [Shows.Model] ->
   Maybe Shows.Model ->
   DashboardNav ->
+  Maybe (Lucid.Html ()) ->
+  Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   Lucid.Html ()
-template userMeta allShows selectedShow activeNav main =
+template userMeta allShows selectedShow activeNav statsContent actionButton main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
       Lucid.title_ "Dashboard | KPBJ 95.9FM"
@@ -80,11 +102,11 @@ template userMeta allShows selectedShow activeNav main =
       -- Full height flex container
       Lucid.div_ [Lucid.class_ "min-h-screen flex"] $ do
         -- Left sidebar
-        sidebar userMeta allShows selectedShow activeNav
+        sidebar userMeta activeNav selectedShow
         -- Main content area
         Lucid.div_ [Lucid.class_ "flex-1 flex flex-col"] $ do
-          -- Top bar
-          topBar
+          -- Top bar with page title, show selector, stats, and action button
+          topBar activeNav allShows selectedShow statsContent actionButton
           -- Banner container
           Lucid.div_ [Lucid.class_ "px-8"] $
             Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ "w-full"] mempty
@@ -94,11 +116,10 @@ template userMeta allShows selectedShow activeNav main =
 -- | Left sidebar with navigation
 sidebar ::
   UserMetadata.Model ->
-  [Shows.Model] ->
-  Maybe Shows.Model ->
   DashboardNav ->
+  Maybe Shows.Model ->
   Lucid.Html ()
-sidebar userMeta allShows selectedShow activeNav =
+sidebar userMeta activeNav selectedShow =
   Lucid.aside_ [Lucid.class_ "w-64 bg-gray-900 text-white flex flex-col h-screen sticky top-0"] $ do
     -- Logo / Brand
     Lucid.div_ [Lucid.class_ "p-4 border-b border-gray-700 shrink-0"] $ do
@@ -108,9 +129,6 @@ sidebar userMeta allShows selectedShow activeNav =
         ]
         "KPBJ 95.9FM"
       Lucid.span_ [Lucid.class_ "text-xs text-gray-500 block mt-1"] "Dashboard"
-
-    -- Show selector (if multiple shows)
-    showSelector allShows selectedShow activeNav
 
     -- Navigation (scrollable if needed)
     Lucid.nav_ [Lucid.class_ "flex-1 p-4 overflow-y-auto"] $ do
@@ -139,33 +157,26 @@ sidebar userMeta allShows selectedShow activeNav =
         [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "text-sm text-gray-400 hover:text-white"]
         "Logout"
 
--- | Show selector dropdown in sidebar
+-- | Show selector dropdown for top bar
 --
--- When changed, navigates to the same tab but with the new show selected.
--- For admin pages (Users/Shows), changing the show navigates to Episodes instead.
-showSelector :: [Shows.Model] -> Maybe Shows.Model -> DashboardNav -> Lucid.Html ()
-showSelector allShows selectedShow activeNav =
+-- When changed, navigates to the same page but with the new show selected.
+showSelector :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Lucid.Html ()
+showSelector activeNav allShows selectedShow =
   case allShows of
     [] -> mempty
     [singleShow] ->
-      -- Single show - just display it
-      Lucid.div_ [Lucid.class_ "p-4 border-b border-gray-700"] $ do
-        Lucid.span_ [Lucid.class_ "text-xs text-gray-500 block mb-1"] "SHOW"
-        Lucid.span_ [Lucid.class_ "font-bold block truncate"] $
-          Lucid.toHtml singleShow.title
+      -- Single show - just display it as text
+      Lucid.span_ [Lucid.class_ "text-gray-600"] $ do
+        Lucid.toHtml singleShow.title
     _ -> do
       -- Multiple shows - dropdown with JS redirect
-      -- URLs are pre-generated server-side using safe links and stored in data-url attributes
-      -- For admin pages, redirect to Episodes when show changes
-      Lucid.div_ [Lucid.class_ "p-4 border-b border-gray-700"] $ do
-        Lucid.label_ [Lucid.for_ "show-selector", Lucid.class_ "text-xs text-gray-500 block mb-1"] "SHOW"
-        Lucid.select_
-          [ Lucid.id_ "show-selector",
-            Lucid.name_ "show",
-            Lucid.class_ "w-full p-2 bg-gray-800 border border-gray-600 text-white text-sm font-bold",
-            onchange_ "window.location.href = this.options[this.selectedIndex].dataset.url"
-          ]
-          $ mapM_ (renderShowOption activeNav selectedShow) allShows
+      Lucid.select_
+        [ Lucid.id_ "show-selector",
+          Lucid.name_ "show",
+          Lucid.class_ "px-3 py-1 border border-gray-300 bg-white text-sm font-medium",
+          onchange_ "window.location.href = this.options[this.selectedIndex].dataset.url"
+        ]
+        $ mapM_ (renderShowOption activeNav selectedShow) allShows
 
 -- | Render a single show option with pre-generated URL using safe links
 renderShowOption :: DashboardNav -> Maybe Shows.Model -> Shows.Model -> Lucid.Html ()
@@ -173,9 +184,8 @@ renderShowOption activeNav selectedShow showModel = do
   let isSelected = maybe False (\s -> Shows.slug s == Shows.slug showModel) selectedShow
       showSlug = Shows.slug showModel
       showTitle = Shows.title showModel
-      -- Generate URL using safe links - navUrl returns the correct URL for each nav type
-      targetNav = showSelectorTargetNav activeNav
-      url = navUrl targetNav (Just showModel)
+      -- Generate URL using safe links - stays on same nav but changes show
+      url = navUrl activeNav (Just showModel)
       urlAttr = maybe "" (\u -> [i|/#{u}|]) url
   Lucid.option_
     ( [ Lucid.value_ (display showSlug),
@@ -184,14 +194,6 @@ renderShowOption activeNav selectedShow showModel = do
         <> [Lucid.selected_ "selected" | isSelected]
     )
     (Lucid.toHtml showTitle)
-
--- | Determine which nav to use for show selector URL generation
--- For admin pages (Users, Shows), navigate to Episodes when show changes
-showSelectorTargetNav :: DashboardNav -> DashboardNav
-showSelectorTargetNav = \case
-  NavUsers -> NavEpisodes
-  NavShows -> NavEpisodes
-  other -> other
 
 -- | Navigation item - simple link with server-rendered active state
 -- If no URL can be generated (e.g., Episodes without a show), renders as disabled
@@ -250,17 +252,32 @@ navUrl nav mShow =
         NavUsers -> Just dashboardUsersGetUrl
         NavShows -> Just dashboardShowsGetUrl
 
--- | Top bar with actions (no breadcrumb - sidebar provides context)
-topBar :: Lucid.Html ()
-topBar =
+-- | Top bar with page title, show selector, stats, action button, and back link
+topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
+topBar activeNav allShows selectedShow statsContent actionButton =
   Lucid.header_ [Lucid.class_ "bg-white border-b border-gray-200 px-8 py-4"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-end"] $ do
-      -- Back to site link
-      Lucid.a_
-        [ Lucid.href_ [i|/#{rootGetUrl}|],
-          Lucid.class_ "text-sm text-gray-500 hover:text-gray-800"
-        ]
-        "Back to Site"
+    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
+      -- Left side: page title and show selector
+      Lucid.div_ [Lucid.class_ "flex items-center gap-4"] $ do
+        Lucid.h1_ [Lucid.class_ "text-xl font-bold"] $
+          Lucid.toHtml (navTitle activeNav)
+        -- Show selector (only for show-scoped pages)
+        when (isShowScoped activeNav) $
+          showSelector activeNav allShows selectedShow
+        -- Stats (schedule info, counts, etc.)
+        case statsContent of
+          Just stats -> Lucid.div_ [Lucid.class_ "text-sm text-gray-500 border-l border-gray-300 pl-4"] stats
+          Nothing -> mempty
+      -- Right side: action button and back to site link
+      Lucid.div_ [Lucid.class_ "flex items-center gap-4"] $ do
+        case actionButton of
+          Just btn -> btn
+          Nothing -> mempty
+        Lucid.a_
+          [ Lucid.href_ [i|/#{rootGetUrl}|],
+            Lucid.class_ "text-sm text-gray-500 hover:text-gray-800"
+          ]
+          "Back to Site"
 
 --------------------------------------------------------------------------------
 
@@ -271,10 +288,12 @@ loadDashboardFrame ::
   [Shows.Model] ->
   Maybe Shows.Model ->
   DashboardNav ->
+  Maybe (Lucid.Html ()) ->
+  Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   m (Lucid.Html ())
-loadDashboardFrame user allShows selectedShow nav content =
-  pure $ template user allShows selectedShow nav content
+loadDashboardFrame user allShows selectedShow nav statsContent actionButton content =
+  pure $ template user allShows selectedShow nav statsContent actionButton content
 
 -- | Load content only for HTMX requests
 loadDashboardContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())

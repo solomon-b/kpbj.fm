@@ -1,9 +1,11 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Blogs.Get where
 
 --------------------------------------------------------------------------------
 
+import {-# SOURCE #-} API (showBlogNewGetLink)
 import API.Dashboard.Blogs.Get.Templates.Page (template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
@@ -15,6 +17,7 @@ import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.List (find)
 import Data.Maybe (fromMaybe)
+import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -29,9 +32,11 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as Txn
 import Log qualified
 import Lucid qualified
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -79,38 +84,51 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
           Log.logInfo "Admin accessing dashboard blog" userMetadata.mDisplayName
           execQuerySpan Shows.getAllActiveShows >>= \case
             Left _err -> do
-              let content = template userMetadata Nothing []
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog content
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [])
             Right [] -> do
-              let content = template userMetadata Nothing []
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog content
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [])
             Right allShows@(firstShow : _) -> do
               let showToFetch = findShow firstShow allShows (Just showSlug)
               execTransactionSpan (fetchBlogData showToFetch) >>= \case
                 Left _err -> do
-                  let content = template userMetadata (Just showToFetch) []
-                  renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavBlog content
+                  renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavBlog (statsContent []) (actionButton showToFetch) (template (Just showToFetch) [])
                 Right blogPosts -> do
-                  let content = template userMetadata (Just showToFetch) blogPosts
-                  renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavBlog content
+                  renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavBlog (statsContent blogPosts) (actionButton showToFetch) (template (Just showToFetch) blogPosts)
     Just (user, userMetadata) -> do
       Log.logInfo "Host accessing dashboard blog" userMetadata.mDisplayName
       execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
         Left _err -> do
-          let content = template userMetadata Nothing []
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog content
+          renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [])
         Right [] -> do
-          let content = template userMetadata Nothing []
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog content
+          renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [])
         Right userShows@(firstShow : _) -> do
           let showToFetch = findShow firstShow userShows (Just showSlug)
           execTransactionSpan (fetchBlogData showToFetch) >>= \case
             Left _err -> do
-              let content = template userMetadata (Just showToFetch) []
-              renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavBlog content
+              renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavBlog (statsContent []) (actionButton showToFetch) (template (Just showToFetch) [])
             Right blogPosts -> do
-              let content = template userMetadata (Just showToFetch) blogPosts
-              renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavBlog content
+              renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavBlog (statsContent blogPosts) (actionButton showToFetch) (template (Just showToFetch) blogPosts)
+  where
+    -- \| Build stats content for top bar
+    statsContent :: [ShowBlogPosts.Model] -> Maybe (Lucid.Html ())
+    statsContent blogPosts =
+      Just $
+        Lucid.span_ [] $
+          Lucid.toHtml $
+            show (length blogPosts) <> " posts"
+
+    actionButton :: Shows.Model -> Maybe (Lucid.Html ())
+    actionButton showModel =
+      let newBlogUrl = Links.linkURI $ showBlogNewGetLink showModel.slug
+       in Just $
+            Lucid.a_
+              [ Lucid.href_ [i|/#{newBlogUrl}|],
+                hxGet_ [i|/#{newBlogUrl}|],
+                hxTarget_ "#main-content",
+                hxPushUrl_ "true",
+                Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
+              ]
+              "New Post"
 
 -- | Fetch blog data for dashboard
 fetchBlogData :: Shows.Model -> Txn.Transaction [ShowBlogPosts.Model]

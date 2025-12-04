@@ -83,11 +83,11 @@ handler _tracer showSlug episodeId _episodeSlug cookie (foldHxReq -> hxRequest) 
         Left _err -> do
           Log.logInfo "Failed to fetch show from database" showSlug
           let content = errorTemplate "Failed to load show. Please try again."
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes content
+          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
         Right Nothing -> do
           Log.logInfo "Show not found" showSlug
           let content = notFoundTemplate showSlug
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes content
+          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
         Right (Just showModel) -> do
           -- Verify user has access to this show (unless admin)
           hasAccess <-
@@ -108,18 +108,18 @@ handler _tracer showSlug episodeId _episodeSlug cookie (foldHxReq -> hxRequest) 
                 Left _err -> do
                   Log.logInfo "Failed to fetch episode from database" episodeId
                   let content = errorTemplate "Failed to load episode. Please try again."
-                  renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes content
+                  renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes Nothing Nothing content
                 Right Nothing -> do
                   Log.logInfo "Episode not found" episodeId
                   let content = notFoundTemplate showSlug
-                  renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes content
+                  renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes Nothing Nothing content
                 Right (Just episode) -> do
                   -- Verify episode belongs to the show
                   if episode.showId /= showModel.id
                     then do
                       Log.logInfo "Episode does not belong to show" (showSlug, episodeId)
                       let content = errorTemplate "Episode not found in this show."
-                      renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes content
+                      renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes Nothing Nothing content
                     else do
                       -- Fetch tracks for the episode
                       tracks <- fromRight [] <$> execQuerySpan (Episodes.getTracksForEpisode episode.id)
@@ -131,4 +131,4 @@ handler _tracer showSlug episodeId _episodeSlug cookie (foldHxReq -> hxRequest) 
                           else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
 
                       let content = template userMetadata showModel episode tracks
-                      renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes content
+                      renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes Nothing Nothing content

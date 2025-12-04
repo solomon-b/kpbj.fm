@@ -1,9 +1,11 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Episodes.Get where
 
 --------------------------------------------------------------------------------
 
+import {-# SOURCE #-} API (episodesNewGetLink)
 import API.Dashboard.Episodes.Get.Templates.Page (template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
@@ -14,8 +16,11 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
 import Data.List (find, uncons)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, mapMaybe)
+import Data.String.Interpolate (i)
+import Data.Text qualified as Text
 import Data.Time (Day, getCurrentTime, utctDay)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -31,9 +36,13 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as Txn
 import Log qualified
 import Lucid qualified
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
+import OrphanInstances.DayOfWeek (dayOfWeekToText)
+import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -82,8 +91,8 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
           Log.logInfo "Admin accessing dashboard episodes" userMetadata.mDisplayName
           execQuerySpan Shows.getAllActiveShows >>= \case
             Left _err -> do
-              let content = template userMetadata Nothing [] [] Nothing
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes content
+              let content = template userMetadata Nothing []
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
             Right allShows -> do
               let selectedShow = find (\s -> s.slug == showSlug) allShows
               case selectedShow of
@@ -92,47 +101,94 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
                     Nothing ->
                       execQuerySpan Episodes.getAllEpisodes >>= \case
                         Left _err -> do
-                          let content = template userMetadata Nothing [] [] Nothing
-                          renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes content
+                          let content = template userMetadata Nothing []
+                          renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
                         Right allEpisodes -> do
-                          let content = template userMetadata Nothing allEpisodes [] Nothing
-                          renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes content
+                          let content = template userMetadata Nothing allEpisodes
+                          renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes (statsContent userMetadata allEpisodes [] Nothing) Nothing content
                     Just (showToFetch, _) -> do
                       execTransactionSpan (fetchEpisodesData today showToFetch) >>= \case
                         Left _err -> do
-                          let content = template userMetadata (Just showToFetch) [] [] Nothing
-                          renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes content
+                          let content = template userMetadata (Just showToFetch) []
+                          renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes (statsContent userMetadata [] [] Nothing) (actionButton showToFetch) content
                         Right (episodes, schedules, nextShow) -> do
-                          let content = template userMetadata (Just showToFetch) episodes schedules nextShow
-                          renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes content
+                          let content = template userMetadata (Just showToFetch) episodes
+                          renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes (statsContent userMetadata episodes schedules nextShow) (actionButton showToFetch) content
                 Just showToFetch -> do
                   execTransactionSpan (fetchEpisodesData today showToFetch) >>= \case
                     Left _err -> do
-                      let content = template userMetadata (Just showToFetch) [] [] Nothing
-                      renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes content
+                      let content = template userMetadata (Just showToFetch) []
+                      renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes (statsContent userMetadata [] [] Nothing) (actionButton showToFetch) content
                     Right (episodes, schedules, nextShow) -> do
-                      let content = template userMetadata (Just showToFetch) episodes schedules nextShow
-                      renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes content
+                      let content = template userMetadata (Just showToFetch) episodes
+                      renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes (statsContent userMetadata episodes schedules nextShow) (actionButton showToFetch) content
     Just (user, userMetadata) -> do
       Log.logInfo "Host accessing dashboard episodes" userMetadata.mDisplayName
       execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
         Left _err -> do
-          let content = template userMetadata Nothing [] [] Nothing
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes content
+          let content = template userMetadata Nothing []
+          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
         Right userShows -> do
           let selectedShow = find (\s -> s.slug == showSlug) userShows
           case selectedShow of
             Nothing -> do
-              let content = template userMetadata Nothing [] [] Nothing
-              renderDashboardTemplate hxRequest userMetadata userShows Nothing NavEpisodes content
+              let content = template userMetadata Nothing []
+              renderDashboardTemplate hxRequest userMetadata userShows Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
             Just showToFetch -> do
               execTransactionSpan (fetchEpisodesData today showToFetch) >>= \case
                 Left _err -> do
-                  let content = template userMetadata (Just showToFetch) [] [] Nothing
-                  renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavEpisodes content
+                  let content = template userMetadata (Just showToFetch) []
+                  renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavEpisodes (statsContent userMetadata [] [] Nothing) (actionButton showToFetch) content
                 Right (episodes, schedules, nextShow) -> do
-                  let content = template userMetadata (Just showToFetch) episodes schedules nextShow
-                  renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavEpisodes content
+                  let content = template userMetadata (Just showToFetch) episodes
+                  renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavEpisodes (statsContent userMetadata episodes schedules nextShow) (actionButton showToFetch) content
+  where
+    actionButton :: Shows.Model -> Maybe (Lucid.Html ())
+    actionButton showModel =
+      let uploadUrl = Links.linkURI $ episodesNewGetLink showModel.slug
+       in Just $
+            Lucid.a_
+              [ Lucid.href_ [i|/#{uploadUrl}|],
+                hxGet_ [i|/#{uploadUrl}|],
+                hxTarget_ "#main-content",
+                hxPushUrl_ "true",
+                Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
+              ]
+              "New Episode"
+
+    -- \| Build stats content for top bar
+    statsContent ::
+      UserMetadata.Model ->
+      [Episodes.Model] ->
+      [ShowSchedule.ScheduleTemplate] ->
+      Maybe ShowSchedule.UpcomingShowDate ->
+      Maybe (Lucid.Html ())
+    statsContent userMeta episodes schedules nextShow =
+      Just $ do
+        -- Schedule info (only for hosts, not admins)
+        let isAdmin = UserMetadata.isAdmin userMeta.mUserRole
+        if not isAdmin
+          then do
+            renderScheduleInfo schedules
+            case nextShow of
+              Just upcoming -> do
+                Lucid.span_ [Lucid.class_ "mx-2"] "•"
+                Lucid.span_ [] $ do
+                  "Next: "
+                  Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d" (ShowSchedule.usdShowDate upcoming)
+              Nothing -> mempty
+            Lucid.span_ [Lucid.class_ "mx-2"] "•"
+          else mempty
+        Lucid.span_ [] $ Lucid.toHtml $ show (length episodes) <> " episodes"
+
+    renderScheduleInfo :: [ShowSchedule.ScheduleTemplate] -> Lucid.Html ()
+    renderScheduleInfo [] = Lucid.span_ [] "Not scheduled"
+    renderScheduleInfo (firstSchedule : rest) =
+      let allSchedules = firstSchedule : rest
+          dayNames = mapMaybe (fmap dayOfWeekToText . (.dayOfWeek)) allSchedules
+          dayText = if null dayNames then "One-time" else Text.intercalate ", " dayNames
+          timeRange = formatTimeOfDay firstSchedule.startTime <> "-" <> formatTimeOfDay firstSchedule.endTime
+       in Lucid.span_ [] $ Lucid.toHtml $ dayText <> " " <> timeRange
 
 -- | Fetch episodes data for dashboard
 fetchEpisodesData :: Day -> Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowSchedule.ScheduleTemplate], Maybe ShowSchedule.UpcomingShowDate)
