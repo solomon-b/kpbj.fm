@@ -14,6 +14,7 @@ import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Dashboard.Blogs.Get qualified as Dashboard.Blogs.Get
 import API.Dashboard.Blogs.Slug.Get qualified as Dashboard.Blogs.Slug.Get
 import API.Dashboard.Episodes.Get qualified as Dashboard.Episodes.Get
+import API.Dashboard.Episodes.Redirect qualified as Dashboard.Episodes.Redirect
 import API.Dashboard.Episodes.Slug.Edit.Get qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post qualified as Dashboard.Episodes.Slug.Edit.Post
 import API.Dashboard.Episodes.Slug.Get qualified as Dashboard.Episodes.Slug.Get
@@ -136,6 +137,7 @@ type API =
     :<|> Events.Edit.Post.Route
     :<|> Events.Delete.Route
     :<|> Dashboard.Get.Route
+    :<|> Dashboard.Episodes.Redirect.Route
     :<|> Dashboard.Episodes.Get.Route
     :<|> Dashboard.Episodes.Slug.Get.Route
     :<|> Dashboard.Episodes.Slug.Edit.Get.Route
@@ -222,6 +224,7 @@ server env =
     :<|> Events.Edit.Post.handler
     :<|> Events.Delete.handler
     :<|> Dashboard.Get.handler
+    :<|> Dashboard.Episodes.Redirect.handler
     :<|> Dashboard.Episodes.Get.handler
     :<|> Dashboard.Episodes.Slug.Get.handler
     :<|> Dashboard.Episodes.Slug.Edit.Get.handler
@@ -522,6 +525,10 @@ episodesPublishPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Publish.P
 -- | Route: GET /dashboard
 hostDashboardGetLink :: Links.Link
 hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Get.Route)
+
+-- | Route: GET /dashboard/episodes (redirects to first show)
+dashboardEpisodesRedirectLink :: Links.Link
+dashboardEpisodesRedirectLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Episodes.Redirect.Route)
 
 -- | Route: GET /dashboard/episodes/:slug
 dashboardEpisodesGetLink :: Slug -> Links.Link
