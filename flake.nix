@@ -76,10 +76,13 @@
               kpbj-api = hsPkgs.kpbj-api;
             };
 
-            deploy = pkgs.writeShellScriptBin "deploy" ''
+            publish = pkgs.writeShellScriptBin "publish" ''
               nix build .#docker
               image=$(docker load -i result | sed -n 's#^Loaded image: \([a-zA-Z0-9\.\/\-\:]*\)#\1#p')
               docker push $image
+              # Also tag and push as latest
+              docker tag $image ghcr.io/solomon-b/kpbj.fm:latest
+              docker push ghcr.io/solomon-b/kpbj.fm:latest
             '';
           };
 
@@ -91,7 +94,7 @@
               program = "${self.packages.${system}.kpbj-api}/bin/kpbj-api";
             };
 
-            deploy = flake-utils.lib.mkApp { drv = self.packages.${system}.deploy; };
+            publish = flake-utils.lib.mkApp { drv = self.packages.${system}.publish; };
             default = self.apps.${system}.kpbj-api;
           };
         });

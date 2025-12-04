@@ -18,17 +18,12 @@ pkgs.dockerTools.buildImage {
       "/bin/kpbj-api"
     ];
 
+    # Default env vars - override via fly.toml or `fly secrets set`
     Env = [
-      "APP_ENVIRONMENT=Development"
-      "APP_POSTGRES_DB=kpbj"
-      "APP_POSTGRES_HOST=transfigured-night"
-      "APP_POSTGRES_PASSWORD=kpbj"
-      "APP_POSTGRES_PORT=5432"
-      "APP_POSTGRES_USER=kpbj"
-      "APP_WARP_PORT=3000"
-      "APP_WARP_SERVERNAME=kpbj.fm"
+      "APP_ENVIRONMENT=Production"
+      "APP_WARP_PORT=4000"
       "APP_WARP_TIMEOUT=100"
-      "APP_OBSERVABILITY_VERBOSITY=Quiet"
+      "APP_OBSERVABILITY_VERBOSITY=Brief"
       "APP_OBSERVABILITY_EXPORTER=StdOut"
     ];
   };
