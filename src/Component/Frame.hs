@@ -295,7 +295,9 @@ authWidget mUser =
       Just user -> do
         Lucid.span_ [Lucid.class_ "text-gray-400"] "•"
         Lucid.span_ [Lucid.class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
-        Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], hxGet_ [i|/#{dashboardGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
+        -- Dashboard uses a completely different frame layout (sidebar navigation),
+        -- so we do a full page navigation instead of HTMX content swap
+        Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
         Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
 
 logo :: Lucid.Html ()
