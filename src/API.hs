@@ -519,7 +519,7 @@ episodesDiscardDraftLink = Links.safeLink (Proxy @API) (Proxy @Episodes.DiscardD
 episodesPublishPostLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesPublishPostLink = Links.safeLink (Proxy @API) (Proxy @Episodes.Publish.Post.Route)
 
--- | Route: GET /dashboard/:slug
+-- | Route: GET /dashboard
 hostDashboardGetLink :: Links.Link
 hostDashboardGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Get.Route)
 
