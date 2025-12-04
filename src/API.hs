@@ -474,8 +474,8 @@ dashboardShowsSlugEditGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Sh
 dashboardShowsSlugEditPostLink :: Slug -> Links.Link
 dashboardShowsSlugEditPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Slug.Edit.Post.Route)
 
--- | Route: GET /dashboard/shows/:slug
-dashboardShowsSlugGetLink :: Slug -> Maybe Int -> Links.Link
+-- | Route: GET /dashboard/shows/:showId/:showSlug
+dashboardShowsSlugGetLink :: Shows.Id -> Slug -> Maybe Int -> Links.Link
 dashboardShowsSlugGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Slug.Get.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/:episode_id/:slug
