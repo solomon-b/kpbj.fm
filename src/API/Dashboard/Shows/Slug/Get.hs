@@ -49,10 +49,11 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /dashboard/shows/:slug"
+    "GET /dashboard/shows/:showId/:showSlug"
     ( "dashboard"
         :> "shows"
-        :> Servant.Capture "slug" Slug
+        :> Servant.Capture "showId" Shows.Id
+        :> Servant.Capture "showSlug" Slug
         :> Servant.QueryParam "page" Int
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -77,12 +78,13 @@ handler ::
     MonadClock m
   ) =>
   Tracer ->
+  Shows.Id ->
   Slug ->
   Maybe Int ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer showSlug mPage cookie (foldHxReq -> hxRequest) = do
+handler _tracer showId showSlug mPage cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to dashboard show details" ()
@@ -99,10 +101,10 @@ handler _tracer showSlug mPage cookie (foldHxReq -> hxRequest) = do
               let content = errorTemplate "Failed to load shows."
               renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows Nothing Nothing content
             Right allShows -> do
-              let selectedShow = find (\s -> s.slug == showSlug) allShows
+              let selectedShow = find (\s -> s.id == showId) allShows
               case selectedShow of
                 Nothing -> do
-                  Log.logInfo ("Show not found: " <> display showSlug) ()
+                  Log.logInfo ("Show not found: " <> display showId) ()
                   let content = notFoundTemplate showSlug
                   renderDashboardTemplate hxRequest userMetadata allShows Nothing NavShows Nothing Nothing content
                 Just showModel -> do
@@ -114,10 +116,10 @@ handler _tracer showSlug mPage cookie (foldHxReq -> hxRequest) = do
           let content = errorTemplate "Failed to load shows."
           renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows Nothing Nothing content
         Right userShows -> do
-          let selectedShow = find (\s -> s.slug == showSlug) userShows
+          let selectedShow = find (\s -> s.id == showId) userShows
           case selectedShow of
             Nothing -> do
-              Log.logInfo ("Show not found or not authorized: " <> display showSlug) ()
+              Log.logInfo ("Show not found or not authorized: " <> display showId) ()
               let content = notFoundTemplate showSlug
               renderDashboardTemplate hxRequest userMetadata userShows Nothing NavShows Nothing Nothing content
             Just showModel -> do
