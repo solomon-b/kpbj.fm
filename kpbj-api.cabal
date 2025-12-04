@@ -143,6 +143,7 @@ library
     API.Dashboard.Episodes.Slug.Get.Templates.Page
     API.Dashboard.Episodes.Get
     API.Dashboard.Episodes.Get.Templates.Page
+    API.Dashboard.Episodes.Redirect
     API.Dashboard.Get
     API.Dashboard.Get.Templates.Auth
     API.Dashboard.Get.Templates.BlogPost
