@@ -22,6 +22,7 @@ import API.Dashboard.Shows.New.Get qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post qualified as Dashboard.Shows.New.Post
 import API.Dashboard.Shows.Slug.Edit.Get qualified as Dashboard.Shows.Slug.Edit.Get
 import API.Dashboard.Shows.Slug.Edit.Post qualified as Dashboard.Shows.Slug.Edit.Post
+import API.Dashboard.Shows.Slug.Get qualified as Dashboard.Shows.Slug.Get
 import API.Dashboard.Users.Delete qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get qualified as Dashboard.Users.Edit.Get
@@ -156,6 +157,7 @@ type API =
     :<|> Show.Blog.Delete.Route
     :<|> Dashboard.Shows.Slug.Edit.Get.Route
     :<|> Dashboard.Shows.Slug.Edit.Post.Route
+    :<|> Dashboard.Shows.Slug.Get.Route
     :<|> Episodes.Get.RouteWithSlug
     :<|> Episodes.Get.RouteWithoutSlug
     :<|> Episodes.Delete.Route
@@ -240,6 +242,7 @@ server env =
     :<|> Show.Blog.Delete.handler
     :<|> Dashboard.Shows.Slug.Edit.Get.handler
     :<|> Dashboard.Shows.Slug.Edit.Post.handler
+    :<|> Dashboard.Shows.Slug.Get.handler
     :<|> Episodes.Get.handlerWithSlug
     :<|> Episodes.Get.handlerWithoutSlug
     :<|> Episodes.Delete.handler
@@ -470,6 +473,10 @@ dashboardShowsSlugEditGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Sh
 -- | Route: POST /dashboard/shows/:slug/edit
 dashboardShowsSlugEditPostLink :: Slug -> Links.Link
 dashboardShowsSlugEditPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Slug.Edit.Post.Route)
+
+-- | Route: GET /dashboard/shows/:slug
+dashboardShowsSlugGetLink :: Slug -> Maybe Int -> Links.Link
+dashboardShowsSlugGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Slug.Get.Route)
 
 -- | Route: GET /shows/:show_slug/episodes/:episode_id/:slug
 episodesGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link

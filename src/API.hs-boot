@@ -79,6 +79,7 @@ showBlogEditPostLink :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.Link
 showBlogDeleteLink :: Shows.Id -> Slug -> ShowBlogPosts.Id -> Slug -> Links.Link
 dashboardShowsSlugEditGetLink :: Slug -> Links.Link
 dashboardShowsSlugEditPostLink :: Slug -> Links.Link
+dashboardShowsSlugGetLink :: Slug -> Maybe Int -> Links.Link
 episodesGetLink :: Slug -> Episodes.Id -> Slug -> Links.Link
 episodesGetLinkById :: Slug -> Episodes.Id -> Links.Link
 episodesNewGetLink :: Slug -> Links.Link

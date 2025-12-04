@@ -42,6 +42,7 @@ import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
 import Text.HTML (HTML)
+import Data.Either (fromRight)
 
 --------------------------------------------------------------------------------
 
@@ -106,7 +107,7 @@ handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let sidebarShows = either (const []) id sidebarShowsResult
+      let sidebarShows = fromRight [] sidebarShowsResult
           selectedShow = listToMaybe sidebarShows
 
       getShowsResults limit offset queryFilter statusFilter >>= \case
