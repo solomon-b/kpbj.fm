@@ -1,14 +1,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Events.New.Post where
+module API.Dashboard.Events.New.Post (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventGetLink, eventsGetLink, eventsNewGetLink)
-import API.Events.Event.Get.Templates.Page qualified as DetailPage
-import App.Common (getUserInfo, renderTemplate)
+import {-# SOURCE #-} API (dashboardEventsDetailGetLink, dashboardEventsNewGetLink, rootGetLink, userLoginGetLink)
+import API.Dashboard.Events.Slug.Get.Templates.Page qualified as DetailPage
+import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
+import Component.DashboardFrame (DashboardNav (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -18,6 +20,7 @@ import Data.Aeson qualified as Aeson
 import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
 import Data.List (find)
+import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -33,7 +36,9 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadEventPosterImage)
 import Effects.Observability qualified as Observability
@@ -51,18 +56,22 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-eventsGetUrl :: Links.URI
-eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
+dashboardEventsNewGetUrl :: Links.URI
+dashboardEventsNewGetUrl = Links.linkURI dashboardEventsNewGetLink
 
-eventsNewGetUrl :: Links.URI
-eventsNewGetUrl = Links.linkURI eventsNewGetLink
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "POST /events/new"
-    ( "events"
+    "POST /dashboard/events/new"
+    ( "dashboard"
+        :> "events"
         :> "new"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -84,29 +93,13 @@ errorTemplate errors = do
 
     Lucid.div_ [Lucid.class_ "text-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{eventsNewGetUrl}|],
-          hxGet_ [i|/#{eventsNewGetUrl}|],
+        [ Lucid.href_ [i|/#{dashboardEventsNewGetUrl}|],
+          hxGet_ [i|/#{dashboardEventsNewGetUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
         ]
-        "← TRY AGAIN"
-
--- | Template for unauthorized access
-notAuthorizedTemplate :: Lucid.Html ()
-notAuthorizedTemplate = do
-  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Access Denied"
-    Lucid.p_ [Lucid.class_ "mb-6"] "Only Staff and Admin users can create events."
-    Lucid.div_ [Lucid.class_ "space-x-4"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{eventsGetUrl}|],
-          hxGet_ [i|/#{eventsGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
-        ]
-        "← BACK TO EVENTS"
+        "<- TRY AGAIN"
 
 --------------------------------------------------------------------------------
 
@@ -183,40 +176,12 @@ validateEventForm form = do
     then Left $ Sanitize.ContentInvalid "End time must be after start time"
     else Right (validTitle, validDescription, startsAt, endsAt, validLocationName, validLocationAddress, status)
 
-validateTitle :: Text -> Either [Text] Text
-validateTitle title
-  | Text.null (Text.strip title) = Left ["Event title cannot be empty"]
-  | Text.length title < 3 = Left ["Event title must be at least 3 characters long"]
-  | Text.length title > 200 = Left ["Event title cannot exceed 200 characters"]
-  | otherwise = Right (Text.strip title)
-
-validateDescription :: Text -> Either [Text] Text
-validateDescription description
-  | Text.null (Text.strip description) = Left ["Event description cannot be empty"]
-  | Text.length description < 10 = Left ["Event description must be at least 10 characters long"]
-  | Text.length description > 5000 = Left ["Event description cannot exceed 5000 characters"]
-  | otherwise = Right (Text.strip description)
-
 validateDateTime :: Text -> Text -> Either [Text] UTCTime
 validateDateTime fieldName dateTimeStr
   | Text.null (Text.strip dateTimeStr) = Left [fieldName <> " cannot be empty"]
   | otherwise = case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" (Text.unpack dateTimeStr) of
       Nothing -> Left [fieldName <> " is not in a valid format"]
       Just utcTime -> Right utcTime
-
-validateLocationName :: Text -> Either [Text] Text
-validateLocationName locationName
-  | Text.null (Text.strip locationName) = Left ["Venue name cannot be empty"]
-  | Text.length locationName < 2 = Left ["Venue name must be at least 2 characters long"]
-  | Text.length locationName > 200 = Left ["Venue name cannot exceed 200 characters"]
-  | otherwise = Right (Text.strip locationName)
-
-validateLocationAddress :: Text -> Either [Text] Text
-validateLocationAddress locationAddress
-  | Text.null (Text.strip locationAddress) = Left ["Address cannot be empty"]
-  | Text.length locationAddress < 5 = Left ["Address must be at least 5 characters long"]
-  | Text.length locationAddress > 300 = Left ["Address cannot exceed 300 characters"]
-  | otherwise = Right (Text.strip locationAddress)
 
 validateStatus :: Text -> Either [Text] Events.Status
 validateStatus status = case status of
@@ -243,7 +208,22 @@ handler ::
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 handler _tracer cookie (foldHxReq -> hxRequest) form = do
   getUserInfo cookie >>= \case
-    Just (user, userMetadata) | UserMetadata.isStaffOrHigher userMetadata.mUserRole -> do
+    Nothing -> do
+      let banner = BannerParams Error "Login Required" "You must be logged in to create events."
+      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+    Just (_user, userMetadata)
+      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
+          let banner = BannerParams Error "Staff Access Required" "You do not have permission to create events."
+          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+    Just (user, userMetadata) -> do
+      -- Fetch shows for sidebar
+      showsResult <-
+        if UserMetadata.isAdmin userMetadata.mUserRole
+          then execQuerySpan Shows.getAllActiveShows
+          else execQuerySpan (Shows.getShowsForUser (User.mId user))
+      let allShows = either (const []) id showsResult
+          selectedShow = listToMaybe allShows
+
       -- Upload poster image if provided
       posterImagePath <- case nefPosterImage form of
         Nothing -> pure Nothing
@@ -258,15 +238,12 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
               Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
               pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
 
-      validateForm hxRequest user userMetadata posterImagePath form $ \eventInsert ->
-        insertEvent hxRequest userMetadata eventInsert $ \eventId -> do
+      validateForm hxRequest user userMetadata allShows selectedShow posterImagePath form $ \eventInsert ->
+        insertEvent hxRequest userMetadata allShows selectedShow eventInsert $ \eventId -> do
           Log.logInfo "Event created successfully" eventId
           traverse_ (addTag eventId) (parseTags (nefTags form))
 
-          fetchEvent hxRequest userMetadata eventId
-    _ -> do
-      Log.logInfo "Unauthorized access to event creation form" ()
-      Servant.noHeader <$> renderTemplate hxRequest Nothing notAuthorizedTemplate
+          fetchEvent hxRequest userMetadata allShows selectedShow eventId
 
 validateForm ::
   ( Log.MonadLog m,
@@ -275,16 +252,18 @@ validateForm ::
   HxRequest ->
   User.Model ->
   UserMetadata.Model ->
+  [Shows.Model] ->
+  Maybe Shows.Model ->
   Maybe Text ->
   NewEventForm ->
   (Events.Insert -> m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))) ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-validateForm hxRequest user userMetadata posterImagePath form k =
+validateForm hxRequest user userMetadata allShows selectedShow posterImagePath form k =
   case validateEventForm form of
     Left validationError -> do
       let errorMsg = Sanitize.displayContentValidationError validationError
       Log.logInfo "Event creation failed validation" errorMsg
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate [errorMsg])
+      Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (errorTemplate [errorMsg])
     Right (title, description, startsAt, endsAt, locationName, locationAddress, status) ->
       let slug = Slug.mkSlug title
           eventInsert =
@@ -312,14 +291,16 @@ insertEvent ::
   ) =>
   HxRequest ->
   UserMetadata.Model ->
+  [Shows.Model] ->
+  Maybe Shows.Model ->
   Events.Insert ->
   (Events.Id -> m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))) ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-insertEvent hxRequest userMetadata eventInsert k =
+insertEvent hxRequest userMetadata allShows selectedShow eventInsert k =
   execQuerySpan (Events.insertEvent eventInsert) >>= \case
     Left _err -> do
       Log.logInfo "Failed to create event in database" ()
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate ["Database error occurred. Please try again."])
+      Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (errorTemplate ["Database error occurred. Please try again."])
     Right eventId ->
       k eventId
 
@@ -349,10 +330,8 @@ addTag eventId tagName = do
               _ <- execQuerySpan (Events.assignTagToEvent eventId newTagId)
               pure ()
             Left _ ->
-              -- TODO: Handle tag creation failures
               pure ()
     Left _ ->
-      -- TODO: Handle tag lookup failures
       pure ()
 
 fetchEvent ::
@@ -365,24 +344,29 @@ fetchEvent ::
   ) =>
   HxRequest ->
   UserMetadata.Model ->
+  [Shows.Model] ->
+  Maybe Shows.Model ->
   Events.Id ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-fetchEvent hxRequest userMetadata eventId =
+fetchEvent hxRequest userMetadata allShows selectedShow eventId =
   execQuerySpan (Events.getEventById eventId) >>= \case
     Right (Just event) -> do
       -- Get tags for the event
       tagsResult <- execQuerySpan (Events.getEventTags eventId)
       let tags = either (const []) id tagsResult
-      let detailUrl = Links.linkURI $ eventGetLink eventId (Events.emSlug event)
+      -- Get author metadata
+      authorResult <- execQuerySpan (UserMetadata.getUserMetadata event.emAuthorId)
+      let mAuthor = either (const Nothing) id authorResult
+      let detailUrl = Links.linkURI $ dashboardEventsDetailGetLink eventId (Events.emSlug event)
           banner = renderBanner Success "Event Created" "Your event has been created successfully."
-      html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+      html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing $ case hxRequest of
         IsHxRequest -> do
-          DetailPage.template event tags userMetadata
+          DetailPage.template event tags mAuthor
           banner
         IsNotHxRequest -> do
           banner
-          DetailPage.template event tags userMetadata
+          DetailPage.template event tags mAuthor
       pure $ Servant.addHeader [i|/#{detailUrl}|] html
     _ -> do
       Log.logInfo "Failed to fetch event" (Aeson.object ["eventId" .= eventId])
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate ["Database error occurred. Please try again."])
+      Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (errorTemplate ["Database error occurred. Please try again."])

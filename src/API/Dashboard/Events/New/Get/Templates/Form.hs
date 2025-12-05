@@ -1,13 +1,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Events.New.Get.Templates.Form
+module API.Dashboard.Events.New.Get.Templates.Form
   ( template,
   )
 where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventsGetLink, eventsNewPostLink)
+import {-# SOURCE #-} API (dashboardEventsGetLink, dashboardEventsNewPostLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -17,11 +17,11 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-eventsGetUrl :: Links.URI
-eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
+dashboardEventsGetUrl :: Links.URI
+dashboardEventsGetUrl = Links.linkURI dashboardEventsGetLink
 
-eventsNewPostUrl :: Links.URI
-eventsNewPostUrl = Links.linkURI eventsNewPostLink
+dashboardEventsNewPostUrl :: Links.URI
+dashboardEventsNewPostUrl = Links.linkURI dashboardEventsNewPostLink
 
 --------------------------------------------------------------------------------
 
@@ -30,7 +30,7 @@ template :: UserMetadata.Model -> Lucid.Html ()
 template userMeta = do
   buildValidatedForm
     FormBuilder
-      { fbAction = [i|/#{eventsNewPostUrl}|],
+      { fbAction = [i|/#{dashboardEventsNewPostUrl}|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader userMeta),
         fbFields = eventFormFields,
@@ -53,8 +53,8 @@ renderFormHeader userMeta =
           Lucid.toHtml userMeta.mDisplayName
       Lucid.div_ [Lucid.class_ "text-center"] $ do
         Lucid.a_
-          [ Lucid.href_ [i|/#{eventsGetUrl}|],
-            hxGet_ [i|/#{eventsGetUrl}|],
+          [ Lucid.href_ [i|/#{dashboardEventsGetUrl}|],
+            hxGet_ [i|/#{dashboardEventsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
@@ -220,8 +220,8 @@ renderSubmitActions =
         ]
         "CREATE EVENT"
       Lucid.a_
-        [ Lucid.href_ [i|/#{eventsGetUrl}|],
-          hxGet_ [i|/#{eventsGetUrl}|],
+        [ Lucid.href_ [i|/#{dashboardEventsGetUrl}|],
+          hxGet_ [i|/#{dashboardEventsGetUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline"

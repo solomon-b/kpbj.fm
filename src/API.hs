@@ -13,6 +13,13 @@ import API.Dashboard.Episodes.Redirect qualified as Dashboard.Episodes.Redirect
 import API.Dashboard.Episodes.Slug.Edit.Get qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post qualified as Dashboard.Episodes.Slug.Edit.Post
 import API.Dashboard.Episodes.Slug.Get qualified as Dashboard.Episodes.Slug.Get
+import API.Dashboard.Events.Get qualified as Dashboard.Events.Get
+import API.Dashboard.Events.New.Get qualified as Dashboard.Events.New.Get
+import API.Dashboard.Events.New.Post qualified as Dashboard.Events.New.Post
+import API.Dashboard.Events.Slug.Delete qualified as Dashboard.Events.Slug.Delete
+import API.Dashboard.Events.Slug.Edit.Get qualified as Dashboard.Events.Slug.Edit.Get
+import API.Dashboard.Events.Slug.Edit.Post qualified as Dashboard.Events.Slug.Edit.Post
+import API.Dashboard.Events.Slug.Get qualified as Dashboard.Events.Slug.Get
 import API.Dashboard.Get qualified as Dashboard.Get
 import API.Dashboard.Shows.Get qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get qualified as Dashboard.Shows.New.Get
@@ -36,13 +43,8 @@ import API.Dashboard.Users.Role.Patch qualified as Dashboard.Users.Role.Patch
 import API.Dashboard.Users.Suspend.Post qualified as Dashboard.Users.Suspend.Post
 import API.Dashboard.Users.Unsuspend.Post qualified as Dashboard.Users.Unsuspend.Post
 import API.Donate.Get qualified as Donate.Get
-import API.Events.Delete qualified as Events.Delete
-import API.Events.Edit.Get qualified as Events.Edit.Get
-import API.Events.Edit.Post qualified as Events.Edit.Post
 import API.Events.Event.Get qualified as Events.Event.Get
 import API.Events.Get qualified as Events.Get
-import API.Events.New.Get qualified as Events.New.Get
-import API.Events.New.Post qualified as Events.New.Post
 import API.Get qualified as Root.Get
 import API.Media.Get qualified as Media.Get
 import API.PrivacyPolicy.Get qualified as PrivacyPolicy.Get
@@ -126,13 +128,8 @@ type API =
     :<|> Episodes.New.Get.Route
     :<|> Episodes.New.Post.Route
     :<|> Events.Get.Route
-    :<|> Events.New.Get.Route
-    :<|> Events.New.Post.Route
     :<|> Events.Event.Get.RouteWithSlug
     :<|> Events.Event.Get.RouteWithoutSlug
-    :<|> Events.Edit.Get.Route
-    :<|> Events.Edit.Post.Route
-    :<|> Events.Delete.Route
     :<|> Dashboard.Get.Route
     :<|> Dashboard.Episodes.Redirect.Route
     :<|> Dashboard.Episodes.Get.Route
@@ -148,6 +145,13 @@ type API =
     :<|> Dashboard.StationBlog.Slug.Edit.Get.Route
     :<|> Dashboard.StationBlog.Slug.Edit.Post.Route
     :<|> Dashboard.StationBlog.Slug.Delete.Route
+    :<|> Dashboard.Events.Get.Route
+    :<|> Dashboard.Events.New.Get.Route
+    :<|> Dashboard.Events.New.Post.Route
+    :<|> Dashboard.Events.Slug.Get.Route
+    :<|> Dashboard.Events.Slug.Edit.Get.Route
+    :<|> Dashboard.Events.Slug.Edit.Post.Route
+    :<|> Dashboard.Events.Slug.Delete.Route
     :<|> Dashboard.Users.Get.Route
     :<|> Dashboard.Shows.Get.Route
     :<|> PrivacyPolicy.Get.Route
@@ -215,13 +219,8 @@ server env =
     :<|> Episodes.New.Get.handler
     :<|> Episodes.New.Post.handler
     :<|> Events.Get.handler
-    :<|> Events.New.Get.handler
-    :<|> Events.New.Post.handler
     :<|> Events.Event.Get.handlerWithSlug
     :<|> Events.Event.Get.handlerWithoutSlug
-    :<|> Events.Edit.Get.handler
-    :<|> Events.Edit.Post.handler
-    :<|> Events.Delete.handler
     :<|> Dashboard.Get.handler
     :<|> Dashboard.Episodes.Redirect.handler
     :<|> Dashboard.Episodes.Get.handler
@@ -237,6 +236,13 @@ server env =
     :<|> Dashboard.StationBlog.Slug.Edit.Get.handler
     :<|> Dashboard.StationBlog.Slug.Edit.Post.handler
     :<|> Dashboard.StationBlog.Slug.Delete.handler
+    :<|> Dashboard.Events.Get.handler
+    :<|> Dashboard.Events.New.Get.handler
+    :<|> Dashboard.Events.New.Post.handler
+    :<|> Dashboard.Events.Slug.Get.handler
+    :<|> Dashboard.Events.Slug.Edit.Get.handler
+    :<|> Dashboard.Events.Slug.Edit.Post.handler
+    :<|> Dashboard.Events.Slug.Delete.handler
     :<|> Dashboard.Users.Get.handler
     :<|> Dashboard.Shows.Get.handler
     :<|> PrivacyPolicy.Get.handler
@@ -386,14 +392,6 @@ termsOfServiceGetLink = Links.safeLink (Proxy @API) (Proxy @TermsOfService.Get.R
 eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
 eventsGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Get.Route)
 
--- | Route: GET /events/new
-eventsNewGetLink :: Links.Link
-eventsNewGetLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Get.Route)
-
--- | Route: POST /events/new
-eventsNewPostLink :: Links.Link
-eventsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Events.New.Post.Route)
-
 -- | Route: GET /events/:id/:slug
 eventGetLink :: Events.Id -> Slug -> Links.Link
 eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.RouteWithSlug)
@@ -401,18 +399,6 @@ eventGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.RouteWithSlu
 -- | Route: GET /events/:id (without slug, redirects to canonical)
 eventGetLinkById :: Events.Id -> Links.Link
 eventGetLinkById = Links.safeLink (Proxy @API) (Proxy @Events.Event.Get.RouteWithoutSlug)
-
--- | Route: GET /events/:id/:slug/edit
-eventEditGetLink :: Events.Id -> Slug -> Links.Link
-eventEditGetLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Get.Route)
-
--- | Route: POST /events/:id/:slug/edit
-eventEditPostLink :: Events.Id -> Slug -> Links.Link
-eventEditPostLink = Links.safeLink (Proxy @API) (Proxy @Events.Edit.Post.Route)
-
--- | Route: DELETE /events/:event_id/:event_slug
-eventDeleteLink :: Events.Id -> Slug -> Links.Link
-eventDeleteLink = Links.safeLink (Proxy @API) (Proxy @Events.Delete.Route)
 
 -- | Route: GET /shows
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link
@@ -579,3 +565,35 @@ dashboardStationBlogEditPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard
 -- | Route: DELETE /dashboard/station-blog/:id/:slug
 dashboardStationBlogDeleteLink :: BlogPosts.Id -> Slug -> Links.Link
 dashboardStationBlogDeleteLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.Slug.Delete.Route)
+
+-- | Route: GET /dashboard/events (no pagination)
+dashboardEventsGetLink :: Links.Link
+dashboardEventsGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Events.Get.Route) Nothing
+
+-- | Route: GET /dashboard/events (with pagination)
+dashboardEventsGetLinkFull :: Maybe Int64 -> Links.Link
+dashboardEventsGetLinkFull = Links.safeLink (Proxy @API) (Proxy @Dashboard.Events.Get.Route)
+
+-- | Route: GET /dashboard/events/new
+dashboardEventsNewGetLink :: Links.Link
+dashboardEventsNewGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Events.New.Get.Route)
+
+-- | Route: POST /dashboard/events/new
+dashboardEventsNewPostLink :: Links.Link
+dashboardEventsNewPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Events.New.Post.Route)
+
+-- | Route: GET /dashboard/events/:id/:slug
+dashboardEventsDetailGetLink :: Events.Id -> Slug -> Links.Link
+dashboardEventsDetailGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Events.Slug.Get.Route)
+
+-- | Route: GET /dashboard/events/:id/:slug/edit
+dashboardEventsEditGetLink :: Events.Id -> Slug -> Links.Link
+dashboardEventsEditGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Events.Slug.Edit.Get.Route)
+
+-- | Route: POST /dashboard/events/:id/:slug/edit
+dashboardEventsEditPostLink :: Events.Id -> Slug -> Links.Link
+dashboardEventsEditPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Events.Slug.Edit.Post.Route)
+
+-- | Route: DELETE /dashboard/events/:id/:slug
+dashboardEventsDeleteLink :: Events.Id -> Slug -> Links.Link
+dashboardEventsDeleteLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Events.Slug.Delete.Route)

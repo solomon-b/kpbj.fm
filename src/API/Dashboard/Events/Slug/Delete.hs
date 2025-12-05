@@ -1,11 +1,15 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
-module API.Events.Delete where
+module API.Dashboard.Events.Slug.Delete (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import App.Common (getUserInfo)
+import {-# SOURCE #-} API (dashboardEventsGetLink)
+import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
+import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -13,32 +17,45 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
-import Data.Text (Text)
+import Data.Maybe (listToMaybe)
+import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+dashboardEventsGetUrl :: Links.URI
+dashboardEventsGetUrl = Links.linkURI dashboardEventsGetLink
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "DELETE /events/:event_id/:event_slug"
-    ( "events"
+    "DELETE /dashboard/events/:event_id/:event_slug"
+    ( "dashboard"
+        :> "events"
         :> Servant.Capture "event_id" Events.Id
         :> Servant.Capture "event_slug" Slug
         :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
         :> Servant.Delete '[HTML] (Lucid.Html ())
     )
 
@@ -58,13 +75,25 @@ handler ::
   Events.Id ->
   Slug ->
   Maybe Cookie ->
+  Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer eventId _eventSlug cookie = do
+handler _tracer eventId _eventSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo_ "No user session"
       pure $ renderBanner Error "Delete Failed" "You must be logged in to delete events."
+    Just (_user, userMetadata)
+      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
+          pure $ renderBanner Error "Delete Failed" "You do not have permission to delete events."
     Just (user, userMetadata) -> do
+      -- Fetch shows for sidebar
+      showsResult <-
+        if UserMetadata.isAdmin userMetadata.mUserRole
+          then execQuerySpan Shows.getAllActiveShows
+          else execQuerySpan (Shows.getShowsForUser (User.mId user))
+      let allShows = either (const []) id showsResult
+          selectedShow = listToMaybe allShows
+
       execQuerySpan (Events.getEventById eventId) >>= \case
         Left err -> do
           Log.logInfo "Delete failed: Failed to fetch event" (Aeson.object ["error" .= show err])
@@ -78,7 +107,7 @@ handler _tracer eventId _eventSlug cookie = do
               Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "eventId" .= event.emId])
               pure $ renderBanner Error "Delete Failed" "You don't have permission to delete this event."
         Right (Just event) -> do
-          deleteEvent event
+          deleteEvent hxRequest userMetadata allShows selectedShow event
 
 deleteEvent ::
   ( Has Tracer env,
@@ -90,9 +119,13 @@ deleteEvent ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  HxRequest ->
+  UserMetadata.Model ->
+  [Shows.Model] ->
+  Maybe Shows.Model ->
   Events.Model ->
   m (Lucid.Html ())
-deleteEvent event = do
+deleteEvent hxRequest userMetadata allShows selectedShow event = do
   execQuerySpan (Events.deleteEvent event.emId) >>= \case
     Left err -> do
       Log.logInfo "Delete failed: Database error" (Aeson.object ["error" .= show err, "eventId" .= event.emId])
@@ -102,5 +135,18 @@ deleteEvent event = do
       pure $ renderBanner Error "Delete Failed" "Event not found during delete operation."
     Right (Just _) -> do
       Log.logInfo "Event deleted successfully" (Aeson.object ["eventId" .= event.emId])
-      -- Return empty response so the event card gets removed
-      pure $ Lucid.toHtmlRaw ("" :: Text)
+      -- Return success message with redirect to events list
+      renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing successContent
+  where
+    successContent :: Lucid.Html ()
+    successContent = do
+      renderBanner Success "Event Deleted" "The event has been deleted successfully."
+      Lucid.div_ [Lucid.class_ "mt-4 text-center"] $
+        Lucid.a_
+          [ Lucid.href_ [i|/#{dashboardEventsGetUrl}|],
+            hxGet_ [i|/#{dashboardEventsGetUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
+          ]
+          "Back to Events"
