@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Blog.Edit.Get.Templates.Form
+module API.Dashboard.StationBlog.Slug.Edit.Get.Templates.Form
   ( template,
   )
 where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogEditPostLink, blogGetLink, blogPostGetLink, mediaGetLink)
+import {-# SOURCE #-} API (dashboardStationBlogDetailGetLink, dashboardStationBlogEditPostLink, dashboardStationBlogGetLink, mediaGetLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -25,14 +25,14 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 -- URL helpers
-blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
+dashboardStationBlogGetUrl :: Links.URI
+dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
 
-blogPostGetUrl :: BlogPosts.Id -> Slug -> Links.URI
-blogPostGetUrl postId slug = Links.linkURI $ blogPostGetLink postId slug
+dashboardStationBlogDetailGetUrl :: BlogPosts.Id -> Slug -> Links.URI
+dashboardStationBlogDetailGetUrl postId slug = Links.linkURI $ dashboardStationBlogDetailGetLink postId slug
 
-blogEditPostUrl :: BlogPosts.Id -> Slug -> Links.URI
-blogEditPostUrl postId slug = Links.linkURI $ blogEditPostLink postId slug
+dashboardStationBlogEditPostUrl :: BlogPosts.Id -> Slug -> Links.URI
+dashboardStationBlogEditPostUrl postId slug = Links.linkURI $ dashboardStationBlogEditPostLink postId slug
 
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
@@ -44,8 +44,8 @@ template :: BlogPosts.Model -> [BlogTags.Model] -> UserMetadata.Model -> Lucid.H
 template blogPost tags userMeta = do
   let postId = blogPost.bpmId
       postSlug = blogPost.bpmSlug
-      postBackUrl = blogPostGetUrl postId postSlug
-      postEditUrl = blogEditPostUrl postId postSlug
+      postBackUrl = dashboardStationBlogDetailGetUrl postId postSlug
+      postEditUrl = dashboardStationBlogEditPostUrl postId postSlug
       tagsText = Text.intercalate ", " $ map (\t -> t.btmName) tags
 
   buildValidatedForm
@@ -82,15 +82,15 @@ renderFormHeader blogPost userMeta postBackUrl =
             hxPushUrl_ "true",
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
           ]
-          "← BACK TO POST"
+          "<- BACK TO POST"
         Lucid.a_
-          [ Lucid.href_ [i|/#{blogGetUrl}|],
-            hxGet_ [i|/#{blogGetUrl}|],
+          [ Lucid.href_ [i|/#{dashboardStationBlogGetUrl}|],
+            hxGet_ [i|/#{dashboardStationBlogGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
           ]
-          "VIEW BLOG"
+          "VIEW ALL POSTS"
 
 --------------------------------------------------------------------------------
 -- Form Fields Definition

@@ -1,13 +1,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Blog.New.Get.Templates.Form
+module API.Dashboard.StationBlog.New.Get.Templates.Form
   ( template,
   )
 where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink, blogNewPostLink)
+import {-# SOURCE #-} API (dashboardStationBlogGetLink, dashboardStationBlogNewPostLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -17,11 +17,11 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
+dashboardStationBlogGetUrl :: Links.URI
+dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
 
-blogNewPostUrl :: Links.URI
-blogNewPostUrl = Links.linkURI blogNewPostLink
+dashboardStationBlogNewPostUrl :: Links.URI
+dashboardStationBlogNewPostUrl = Links.linkURI dashboardStationBlogNewPostLink
 
 --------------------------------------------------------------------------------
 
@@ -30,7 +30,7 @@ template :: UserMetadata.Model -> Lucid.Html ()
 template userMeta = do
   buildValidatedForm
     FormBuilder
-      { fbAction = [i|/#{blogNewPostUrl}|],
+      { fbAction = [i|/#{dashboardStationBlogNewPostUrl}|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader userMeta),
         fbFields = blogFormFields,
@@ -51,15 +51,6 @@ renderFormHeader userMeta =
         Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
           Lucid.strong_ "Author: "
           Lucid.toHtml userMeta.mDisplayName
-      Lucid.div_ [Lucid.class_ "text-center"] $ do
-        Lucid.a_
-          [ Lucid.href_ [i|/#{blogGetUrl}|],
-            hxGet_ [i|/#{blogGetUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
-          ]
-          "VIEW BLOG"
 
 --------------------------------------------------------------------------------
 -- Form Fields Definition
@@ -176,8 +167,8 @@ renderSubmitActions =
         ]
         "SAVE POST"
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogGetUrl}|],
-          hxGet_ [i|/#{blogGetUrl}|],
+        [ Lucid.href_ [i|/#{dashboardStationBlogGetUrl}|],
+          hxGet_ [i|/#{dashboardStationBlogGetUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline"

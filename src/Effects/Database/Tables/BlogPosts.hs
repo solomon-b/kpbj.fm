@@ -105,6 +105,20 @@ data Insert = Insert
 --------------------------------------------------------------------------------
 -- Database Queries
 
+-- | Get all blog posts (any status) ordered by creation date.
+--
+-- Used for admin dashboard to see all posts including drafts and archived.
+getAllBlogPosts :: Limit -> Offset -> Hasql.Statement () [Model]
+getAllBlogPosts limit offset =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, content, excerpt, hero_image_url, author_id, status, published_at, created_at, updated_at
+    FROM blog_posts
+    ORDER BY created_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
 -- | Get all published blog posts ordered by publication date
 getPublishedBlogPosts :: Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedBlogPosts limit offset =

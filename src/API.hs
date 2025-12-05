@@ -4,12 +4,7 @@ module API where
 
 import API.About.Get qualified as About.Get
 import API.Archive.Get qualified as Archive.Get
-import API.Blog.Delete qualified as Blog.Delete
-import API.Blog.Edit.Get qualified as Blog.Edit.Get
-import API.Blog.Edit.Post qualified as Blog.Edit.Post
 import API.Blog.Get qualified as Blog.Get
-import API.Blog.New.Get qualified as Blog.New.Get
-import API.Blog.New.Post qualified as Blog.New.Post
 import API.Blog.Post.Get qualified as Blog.Post.Get
 import API.Dashboard.Blogs.Get qualified as Dashboard.Blogs.Get
 import API.Dashboard.Blogs.Slug.Get qualified as Dashboard.Blogs.Slug.Get
@@ -25,6 +20,13 @@ import API.Dashboard.Shows.New.Post qualified as Dashboard.Shows.New.Post
 import API.Dashboard.Shows.Slug.Edit.Get qualified as Dashboard.Shows.Slug.Edit.Get
 import API.Dashboard.Shows.Slug.Edit.Post qualified as Dashboard.Shows.Slug.Edit.Post
 import API.Dashboard.Shows.Slug.Get qualified as Dashboard.Shows.Slug.Get
+import API.Dashboard.StationBlog.Get qualified as Dashboard.StationBlog.Get
+import API.Dashboard.StationBlog.New.Get qualified as Dashboard.StationBlog.New.Get
+import API.Dashboard.StationBlog.New.Post qualified as Dashboard.StationBlog.New.Post
+import API.Dashboard.StationBlog.Slug.Delete qualified as Dashboard.StationBlog.Slug.Delete
+import API.Dashboard.StationBlog.Slug.Edit.Get qualified as Dashboard.StationBlog.Slug.Edit.Get
+import API.Dashboard.StationBlog.Slug.Edit.Post qualified as Dashboard.StationBlog.Slug.Edit.Post
+import API.Dashboard.StationBlog.Slug.Get qualified as Dashboard.StationBlog.Slug.Get
 import API.Dashboard.Users.Delete qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get qualified as Dashboard.Users.Edit.Get
@@ -118,13 +120,8 @@ type API =
     :<|> About.Get.Route
     :<|> Archive.Get.Route
     :<|> Blog.Get.Route
-    :<|> Blog.New.Get.Route
-    :<|> Blog.New.Post.Route
     :<|> Blog.Post.Get.RouteWithSlug
     :<|> Blog.Post.Get.RouteWithoutSlug
-    :<|> Blog.Edit.Get.Route
-    :<|> Blog.Edit.Post.Route
-    :<|> Blog.Delete.Route
     :<|> Donate.Get.Route
     :<|> Episodes.New.Get.Route
     :<|> Episodes.New.Post.Route
@@ -144,6 +141,13 @@ type API =
     :<|> Dashboard.Episodes.Slug.Edit.Post.Route
     :<|> Dashboard.Blogs.Get.Route
     :<|> Dashboard.Blogs.Slug.Get.Route
+    :<|> Dashboard.StationBlog.Get.Route
+    :<|> Dashboard.StationBlog.New.Get.Route
+    :<|> Dashboard.StationBlog.New.Post.Route
+    :<|> Dashboard.StationBlog.Slug.Get.Route
+    :<|> Dashboard.StationBlog.Slug.Edit.Get.Route
+    :<|> Dashboard.StationBlog.Slug.Edit.Post.Route
+    :<|> Dashboard.StationBlog.Slug.Delete.Route
     :<|> Dashboard.Users.Get.Route
     :<|> Dashboard.Shows.Get.Route
     :<|> PrivacyPolicy.Get.Route
@@ -205,13 +209,8 @@ server env =
     :<|> About.Get.handler
     :<|> Archive.Get.handler
     :<|> Blog.Get.handler
-    :<|> Blog.New.Get.handler
-    :<|> Blog.New.Post.handler
     :<|> Blog.Post.Get.handlerWithSlug
     :<|> Blog.Post.Get.handlerWithoutSlug
-    :<|> Blog.Edit.Get.handler
-    :<|> Blog.Edit.Post.handler
-    :<|> Blog.Delete.handler
     :<|> Donate.Get.handler
     :<|> Episodes.New.Get.handler
     :<|> Episodes.New.Post.handler
@@ -231,6 +230,13 @@ server env =
     :<|> Dashboard.Episodes.Slug.Edit.Post.handler
     :<|> Dashboard.Blogs.Get.handler
     :<|> Dashboard.Blogs.Slug.Get.handler
+    :<|> Dashboard.StationBlog.Get.handler
+    :<|> Dashboard.StationBlog.New.Get.handler
+    :<|> Dashboard.StationBlog.New.Post.handler
+    :<|> Dashboard.StationBlog.Slug.Get.handler
+    :<|> Dashboard.StationBlog.Slug.Edit.Get.handler
+    :<|> Dashboard.StationBlog.Slug.Edit.Post.handler
+    :<|> Dashboard.StationBlog.Slug.Delete.handler
     :<|> Dashboard.Users.Get.handler
     :<|> Dashboard.Shows.Get.handler
     :<|> PrivacyPolicy.Get.handler
@@ -296,14 +302,6 @@ archiveGetLink = Links.safeLink (Proxy @API) (Proxy @Archive.Get.Route)
 blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
 blogGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Get.Route)
 
--- | Route: GET /blog/new
-blogNewGetLink :: Links.Link
-blogNewGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.New.Get.Route)
-
--- | Route: POST /blog/new
-blogNewPostLink :: Links.Link
-blogNewPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.New.Post.Route)
-
 -- | Route: GET /blog/:id/:slug
 blogPostGetLink :: BlogPosts.Id -> Slug -> Links.Link
 blogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.RouteWithSlug)
@@ -311,18 +309,6 @@ blogPostGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.RouteWithSlu
 -- | Route: GET /blog/:id (without slug, redirects to canonical)
 blogPostGetLinkById :: BlogPosts.Id -> Links.Link
 blogPostGetLinkById = Links.safeLink (Proxy @API) (Proxy @Blog.Post.Get.RouteWithoutSlug)
-
--- | Route: GET /blog/:id/:slug/edit
-blogEditGetLink :: BlogPosts.Id -> Slug -> Links.Link
-blogEditGetLink = Links.safeLink (Proxy @API) (Proxy @Blog.Edit.Get.Route)
-
--- | Route: POST /blog/:id/:slug/edit
-blogEditPostLink :: BlogPosts.Id -> Slug -> Links.Link
-blogEditPostLink = Links.safeLink (Proxy @API) (Proxy @Blog.Edit.Post.Route)
-
--- | Route: DELETE /blog/:post_id/:post_slug
-blogDeleteLink :: BlogPosts.Id -> Slug -> Links.Link
-blogDeleteLink = Links.safeLink (Proxy @API) (Proxy @Blog.Delete.Route)
 
 -- | Route: GET /donate
 donateGetLink :: Links.Link
@@ -561,3 +547,35 @@ dashboardShowsGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Get.
 -- | Route: GET /dashboard/shows (with pagination and filters)
 dashboardShowsGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
 dashboardShowsGetLinkFull = Links.safeLink (Proxy @API) (Proxy @Dashboard.Shows.Get.Route)
+
+-- | Route: GET /dashboard/station-blog (no pagination)
+dashboardStationBlogGetLink :: Links.Link
+dashboardStationBlogGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.Get.Route) Nothing
+
+-- | Route: GET /dashboard/station-blog (with pagination)
+dashboardStationBlogGetLinkFull :: Maybe Int64 -> Links.Link
+dashboardStationBlogGetLinkFull = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.Get.Route)
+
+-- | Route: GET /dashboard/station-blog/new
+dashboardStationBlogNewGetLink :: Links.Link
+dashboardStationBlogNewGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.New.Get.Route)
+
+-- | Route: POST /dashboard/station-blog/new
+dashboardStationBlogNewPostLink :: Links.Link
+dashboardStationBlogNewPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.New.Post.Route)
+
+-- | Route: GET /dashboard/station-blog/:id/:slug
+dashboardStationBlogDetailGetLink :: BlogPosts.Id -> Slug -> Links.Link
+dashboardStationBlogDetailGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.Slug.Get.Route)
+
+-- | Route: GET /dashboard/station-blog/:id/:slug/edit
+dashboardStationBlogEditGetLink :: BlogPosts.Id -> Slug -> Links.Link
+dashboardStationBlogEditGetLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.Slug.Edit.Get.Route)
+
+-- | Route: POST /dashboard/station-blog/:id/:slug/edit
+dashboardStationBlogEditPostLink :: BlogPosts.Id -> Slug -> Links.Link
+dashboardStationBlogEditPostLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.Slug.Edit.Post.Route)
+
+-- | Route: DELETE /dashboard/station-blog/:id/:slug
+dashboardStationBlogDeleteLink :: BlogPosts.Id -> Slug -> Links.Link
+dashboardStationBlogDeleteLink = Links.safeLink (Proxy @API) (Proxy @Dashboard.StationBlog.Slug.Delete.Route)

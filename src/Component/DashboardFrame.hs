@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardBlogsGetLink, dashboardEpisodesGetLink, dashboardShowsGetLink, dashboardUsersGetLink, rootGetLink, userLogoutGetLink)
+import {-# SOURCE #-} API (dashboardBlogsGetLink, dashboardEpisodesGetLink, dashboardShowsGetLink, dashboardStationBlogGetLink, dashboardUsersGetLink, rootGetLink, userLogoutGetLink)
 import Component.Banner (bannerContainerId)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
@@ -46,6 +46,9 @@ dashboardUsersGetUrl = Links.linkURI dashboardUsersGetLink
 dashboardShowsGetUrl :: Links.URI
 dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
 
+dashboardStationBlogGetUrl :: Links.URI
+dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -56,6 +59,7 @@ data DashboardNav
   | NavSettings
   | NavUsers
   | NavShows
+  | NavStationBlog
   deriving (Eq, Show)
 
 -- | Get display title for navigation item
@@ -67,6 +71,7 @@ navTitle = \case
   NavSettings -> "Settings"
   NavUsers -> "Users"
   NavShows -> "Shows"
+  NavStationBlog -> "Station Blog"
 
 -- | Check if navigation requires show context
 isShowScoped :: DashboardNav -> Bool
@@ -77,6 +82,7 @@ isShowScoped = \case
   NavSettings -> True
   NavUsers -> False
   NavShows -> False
+  NavStationBlog -> False
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
@@ -145,6 +151,7 @@ sidebar userMeta activeNav selectedShow =
           Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
             staffNavItem "USERS" NavUsers activeNav
             staffNavItem "SHOWS" NavShows activeNav
+            staffNavItem "STATION BLOG" NavStationBlog activeNav
 
     -- User info at bottom (always visible)
     Lucid.div_ [Lucid.class_ "p-4 border-t border-gray-700 shrink-0 mt-auto"] $ do
@@ -238,6 +245,7 @@ staffNavUrl :: DashboardNav -> Maybe Links.URI
 staffNavUrl = \case
   NavUsers -> Just dashboardUsersGetUrl
   NavShows -> Just dashboardShowsGetUrl
+  NavStationBlog -> Just dashboardStationBlogGetUrl
   other -> navUrl other Nothing
 
 -- | Get URL for navigation item
@@ -253,6 +261,7 @@ navUrl nav mShow =
         NavSettings -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add settings route
         NavUsers -> Just dashboardUsersGetUrl
         NavShows -> Just dashboardShowsGetUrl
+        NavStationBlog -> Just dashboardStationBlogGetUrl
 
 -- | Top bar with page title, show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
