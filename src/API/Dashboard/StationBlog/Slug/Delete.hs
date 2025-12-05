@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 
-module API.Blog.Delete where
+module API.Dashboard.StationBlog.Slug.Delete (Route, handler) where
 
 --------------------------------------------------------------------------------
 
+import {-# SOURCE #-} API (dashboardStationBlogGetLink)
 import App.Common (getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
+import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -13,13 +16,13 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
-import Data.Text (Text)
+import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
-import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -28,16 +31,23 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant ((:>))
 import Servant qualified
+import Servant.Links qualified as Links
 import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+dashboardStationBlogGetUrl :: Links.URI
+dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "DELETE /blog/:post_id/:post_slug"
-    ( "blog"
-        :> Servant.Capture "post_id" BlogPosts.Id
-        :> Servant.Capture "post_slug" Slug
+    "DELETE /dashboard/station-blog/:id/:slug"
+    ( "dashboard"
+        :> "station-blog"
+        :> Servant.Capture "id" BlogPosts.Id
+        :> Servant.Capture "slug" Slug
         :> Servant.Header "Cookie" Cookie
         :> Servant.Delete '[HTML] (Lucid.Html ())
     )
@@ -64,7 +74,11 @@ handler _tracer postId _postSlug cookie = do
     Nothing -> do
       Log.logInfo_ "No user session"
       pure $ renderBanner Error "Delete Failed" "You must be logged in to delete blog posts."
-    Just (user, userMetadata) -> do
+    Just (_user, userMetadata)
+      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
+          Log.logInfo_ "Delete failed: Not authorized (not staff)"
+          pure $ renderBanner Error "Delete Failed" "You don't have permission to delete blog posts."
+    Just (_user, _userMetadata) -> do
       execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
         Left err -> do
           Log.logInfo "Delete failed: Failed to fetch blog post" (Aeson.object ["error" .= show err])
@@ -72,11 +86,6 @@ handler _tracer postId _postSlug cookie = do
         Right Nothing -> do
           Log.logInfo "Delete failed: Blog post not found" (Aeson.object ["postId" .= postId])
           pure $ renderBanner Error "Delete Failed" "Blog post not found."
-        Right (Just blogPost)
-          | -- Check authorization: must be staff or admin, or the author
-            blogPost.bpmAuthorId /= user.mId && not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) -> do
-              Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "postId" .= blogPost.bpmId])
-              pure $ renderBanner Error "Delete Failed" "You don't have permission to delete this blog post."
         Right (Just blogPost) -> do
           deleteBlogPost blogPost
 
@@ -102,5 +111,5 @@ deleteBlogPost blogPost = do
       pure $ renderBanner Error "Delete Failed" "Blog post not found during delete operation."
     Right (Just _) -> do
       Log.logInfo "Blog post deleted successfully" (Aeson.object ["postId" .= BlogPosts.bpmId blogPost])
-      -- Return empty response so the post card gets removed
-      pure $ Lucid.toHtmlRaw ("" :: Text)
+      -- Redirect back to the station blog index
+      pure $ redirectTemplate [i|/#{dashboardStationBlogGetUrl}|]
