@@ -1,0 +1,169 @@
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
+
+module API.Dashboard.Events.Get.Templates.Page where
+
+--------------------------------------------------------------------------------
+
+import {-# SOURCE #-} API (dashboardEventsDeleteLink, dashboardEventsDetailGetLink, dashboardEventsEditGetLink, dashboardEventsGetLinkFull, eventGetLink)
+import Data.Int (Int64)
+import Data.String.Interpolate (i)
+import Data.Text (Text)
+import Data.Text.Display (display)
+import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Effects.Database.Tables.Events qualified as Events
+import Lucid qualified
+import Lucid.Extras
+import Servant.Links qualified as Links
+
+-- | Events list template
+template ::
+  [Events.Model] ->
+  Int64 ->
+  Bool ->
+  Lucid.Html ()
+template events currentPage hasMore = do
+  -- Events table or empty state
+  if null events
+    then renderEmptyState
+    else do
+      Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 overflow-hidden mb-8 w-full"] $
+        Lucid.table_ [Lucid.class_ "w-full"] $ do
+          Lucid.thead_ [Lucid.class_ "bg-gray-800 text-white"] $
+            Lucid.tr_ $ do
+              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Title"
+              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Status"
+              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Start Date"
+              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Location"
+              Lucid.th_ [Lucid.class_ "p-4 text-center w-24"] ""
+          Lucid.tbody_ $
+            mapM_ renderEventRow events
+
+      renderPagination currentPage hasMore
+
+renderEventRow :: Events.Model -> Lucid.Html ()
+renderEventRow event =
+  let eventId = event.emId
+      eventSlug = event.emSlug
+      title = event.emTitle
+      status = event.emStatus
+      startsAt = event.emStartsAt
+      locationName = event.emLocationName
+      detailUrl = Links.linkURI $ dashboardEventsDetailGetLink eventId eventSlug
+      editUrl = Links.linkURI $ dashboardEventsEditGetLink eventId eventSlug
+      viewUrl = Links.linkURI $ eventGetLink eventId eventSlug
+      deleteUrl = Links.linkURI $ dashboardEventsDeleteLink eventId eventSlug
+      cellLinkAttrs =
+        [ Lucid.class_ "p-4 cursor-pointer",
+          hxGet_ [i|/#{detailUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true"
+        ]
+      eventIdText = display eventId
+      rowId = [i|event-row-#{eventIdText}|]
+      deleteConfirmMessage =
+        "Are you sure you want to delete the event \""
+          <> display title
+          <> "\"? This action cannot be undone."
+   in do
+        Lucid.tr_
+          [ Lucid.id_ rowId,
+            Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"
+          ]
+          $ do
+            Lucid.td_ cellLinkAttrs $
+              Lucid.span_ [Lucid.class_ "font-bold"] $
+                Lucid.toHtml title
+
+            Lucid.td_ cellLinkAttrs $
+              renderStatusBadge status
+
+            Lucid.td_ cellLinkAttrs $ do
+              Lucid.div_ [Lucid.class_ "text-sm"] $ Lucid.toHtml (formatDateTime startsAt)
+
+            Lucid.td_ cellLinkAttrs $ do
+              Lucid.div_ [Lucid.class_ "text-sm"] $ Lucid.toHtml locationName
+
+            Lucid.td_ [Lucid.class_ "p-4 text-center"]
+              $ Lucid.select_
+                [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
+                  xData_ "{}",
+                  xOnChange_
+                    [i|
+                    const action = $el.value;
+                    $el.value = '';
+                    if (action === 'edit') {
+                      window.location.href = '/#{editUrl}';
+                    } else if (action === 'view') {
+                      window.location.href = '/#{viewUrl}';
+                    } else if (action === 'delete') {
+                      if (confirm('#{deleteConfirmMessage}')) {
+                        htmx.ajax('DELETE', '/#{deleteUrl}', {target: '\#main-content', swap: 'innerHTML'});
+                      }
+                    }
+                  |],
+                  xOnClick_ "event.stopPropagation()"
+                ]
+              $ do
+                Lucid.option_ [Lucid.value_ ""] "Actions..."
+                Lucid.option_ [Lucid.value_ "edit"] "Edit"
+                Lucid.option_ [Lucid.value_ "view"] "View"
+                Lucid.option_ [Lucid.value_ "delete"] "Delete"
+
+renderStatusBadge :: Events.Status -> Lucid.Html ()
+renderStatusBadge status = do
+  let (bgClass, textClass, statusText) = case status of
+        Events.Published -> ("bg-green-100", "text-green-800", "Published") :: (Text, Text, Text)
+        Events.Draft -> ("bg-yellow-100", "text-yellow-800", "Draft")
+
+  Lucid.span_
+    [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{bgClass} #{textClass}|]]
+    $ Lucid.toHtml statusText
+
+renderEmptyState :: Lucid.Html ()
+renderEmptyState = do
+  Lucid.div_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-12 text-center"] $ do
+    Lucid.p_ [Lucid.class_ "text-xl text-gray-600"] "No events found."
+    Lucid.p_ [Lucid.class_ "text-gray-500 mt-2"] "Create a new event to get started."
+
+renderPagination :: Int64 -> Bool -> Lucid.Html ()
+renderPagination currentPage hasMore = do
+  Lucid.div_ [Lucid.class_ "flex justify-between items-center"] $ do
+    -- Previous button
+    if currentPage > 1
+      then
+        Lucid.a_
+          [ Lucid.href_ [i|/#{prevPageUrl}|],
+            hxGet_ [i|/#{prevPageUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
+          ]
+          "<- PREVIOUS"
+      else
+        Lucid.div_ [] mempty
+
+    -- Page indicator
+    Lucid.span_ [Lucid.class_ "text-gray-600 font-bold"] $
+      Lucid.toHtml $
+        "Page " <> show currentPage
+
+    -- Next button
+    if hasMore
+      then
+        Lucid.a_
+          [ Lucid.href_ [i|/#{nextPageUrl}|],
+            hxGet_ [i|/#{nextPageUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
+          ]
+          "NEXT ->"
+      else
+        Lucid.div_ [] mempty
+  where
+    prevPageUrl = Links.linkURI $ dashboardEventsGetLinkFull (Just (currentPage - 1))
+    nextPageUrl = Links.linkURI $ dashboardEventsGetLinkFull (Just (currentPage + 1))
+
+formatDateTime :: UTCTime -> String
+formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"
