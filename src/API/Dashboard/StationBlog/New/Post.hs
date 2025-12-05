@@ -1,14 +1,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Blog.New.Post where
+module API.Dashboard.StationBlog.New.Post (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink, blogNewGetLink, blogPostGetLink, userLoginGetLink)
-import API.Blog.Post.Get.Templates.Page qualified as DetailPage
-import App.Common (getUserInfo, renderTemplate)
+import {-# SOURCE #-} API (dashboardStationBlogDetailGetLink, dashboardStationBlogGetLink, dashboardStationBlogNewGetLink, rootGetLink, userLoginGetLink)
+import API.Dashboard.StationBlog.Slug.Get.Templates.Page qualified as DetailPage
+import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
+import Component.DashboardFrame (DashboardNav (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad (unless, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -18,7 +20,7 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -33,7 +35,9 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
 import Effects.Observability qualified as Observability
@@ -52,11 +56,14 @@ import Web.FormUrlEncoded (FromForm (..), parseMaybe, parseUnique)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
 
-blogNewGetUrl :: Links.URI
-blogNewGetUrl = Links.linkURI blogNewGetLink
+dashboardStationBlogGetUrl :: Links.URI
+dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
+
+dashboardStationBlogNewGetUrl :: Links.URI
+dashboardStationBlogNewGetUrl = Links.linkURI dashboardStationBlogNewGetLink
 
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
@@ -65,8 +72,9 @@ userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
 type Route =
   Observability.WithSpan
-    "POST /blog/new"
-    ( "blog"
+    "POST /dashboard/station-blog/new"
+    ( "dashboard"
+        :> "station-blog"
         :> "new"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
@@ -80,56 +88,26 @@ type Route =
 errorTemplate :: Text -> Lucid.Html ()
 errorTemplate errorMsg = do
   Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "❌ Error Creating Blog Post"
+    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Error Creating Blog Post"
     Lucid.p_ [Lucid.class_ "mb-6 text-red-700"] $ Lucid.toHtml errorMsg
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogNewGetUrl}|],
-          hxGet_ [i|/#{blogNewGetUrl}|],
+        [ Lucid.href_ [i|/#{dashboardStationBlogNewGetUrl}|],
+          hxGet_ [i|/#{dashboardStationBlogNewGetUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
         ]
         "TRY AGAIN"
       Lucid.a_
-        [ Lucid.href_ [i|/#{blogGetUrl}|],
-          hxGet_ [i|/#{blogGetUrl}|],
+        [ Lucid.href_ [i|/#{dashboardStationBlogGetUrl}|],
+          hxGet_ [i|/#{dashboardStationBlogGetUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
         ]
         "BACK TO BLOG"
-
--- | Template for login required error
-loginRequiredTemplate :: Lucid.Html ()
-loginRequiredTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Login Required"
-    Lucid.p_ [Lucid.class_ "mb-4"] "You must be logged in to create blog posts."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{userLoginGetUrl}|],
-        hxGet_ [i|/#{userLoginGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-      ]
-      "LOGIN"
-
--- | Template for permission denied error
-permissionDeniedTemplate :: Lucid.Html ()
-permissionDeniedTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Permission Denied"
-    Lucid.p_ [Lucid.class_ "mb-4"] "Only Staff and Admin users can create blog posts."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{blogGetUrl}|],
-        hxGet_ [i|/#{blogGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-      ]
-      "BACK TO BLOG"
 
 --------------------------------------------------------------------------------
 
@@ -205,34 +183,43 @@ handler ::
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 handler _tracer cookie (foldHxReq -> hxRequest) form = do
   getUserInfo cookie >>= \case
-    Nothing ->
-      Servant.noHeader <$> renderTemplate hxRequest Nothing loginRequiredTemplate
-    Just (_user, userMetadata) ->
-      case userMetadata.mUserRole of
-        role | UserMetadata.isStaffOrHigher role -> do
-          -- Process hero image upload if present
-          heroImagePath <- case nbpfHeroImage form of
-            Nothing -> pure Nothing
-            Just heroImageFile -> do
-              let slug = Slug.mkSlug (nbpfTitle form)
-              uploadResult <- uploadBlogHeroImage slug heroImageFile
-              case uploadResult of
-                Left uploadError -> do
-                  Log.logInfo "Hero image upload failed" (Aeson.object ["error" .= Text.pack (show uploadError)])
-                  pure Nothing
-                Right result -> do
-                  Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" .= uploadResultStoragePath result])
-                  pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+    Nothing -> do
+      let banner = BannerParams Error "Login Required" "You must be logged in to create blog posts."
+      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+    Just (_user, userMetadata)
+      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
+          let banner = BannerParams Error "Staff Access Required" "You do not have permission to create blog posts."
+          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+    Just (user, userMetadata) -> do
+      -- Fetch shows for sidebar
+      showsResult <-
+        if UserMetadata.isAdmin userMetadata.mUserRole
+          then execQuerySpan Shows.getAllActiveShows
+          else execQuerySpan (Shows.getShowsForUser (User.mId user))
+      let allShows = either (const []) id showsResult
+          selectedShow = listToMaybe allShows
 
-          case validateNewBlogPost form userMetadata.mUserId heroImagePath of
-            Left validationError -> do
-              let errorMsg = Sanitize.displayContentValidationError validationError
-              Log.logInfo "Blog post creation failed" (Aeson.object ["message" .= errorMsg])
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate errorMsg)
-            Right blogPostData ->
-              handlePostCreation hxRequest userMetadata blogPostData form
-        _ ->
-          Servant.noHeader <$> renderTemplate hxRequest Nothing permissionDeniedTemplate
+      -- Process hero image upload if present
+      heroImagePath <- case nbpfHeroImage form of
+        Nothing -> pure Nothing
+        Just heroImageFile -> do
+          let slug = Slug.mkSlug (nbpfTitle form)
+          uploadResult <- uploadBlogHeroImage slug heroImageFile
+          case uploadResult of
+            Left uploadError -> do
+              Log.logInfo "Hero image upload failed" (Aeson.object ["error" .= Text.pack (show uploadError)])
+              pure Nothing
+            Right result -> do
+              Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" .= uploadResultStoragePath result])
+              pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+
+      case validateNewBlogPost form userMetadata.mUserId heroImagePath of
+        Left validationError -> do
+          let errorMsg = Sanitize.displayContentValidationError validationError
+          Log.logInfo "Blog post creation failed" (Aeson.object ["message" .= errorMsg])
+          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (errorTemplate errorMsg)
+        Right blogPostData ->
+          handlePostCreation hxRequest userMetadata allShows selectedShow blogPostData form
 
 -- | Validate and convert form data to blog post insert data
 validateNewBlogPost :: NewBlogPostForm -> User.Id -> Maybe Text -> Either Sanitize.ContentValidationError BlogPosts.Insert
@@ -320,33 +307,38 @@ handlePostCreation ::
   ) =>
   HxRequest ->
   UserMetadata.Model ->
+  [Shows.Model] ->
+  Maybe Shows.Model ->
   BlogPosts.Insert ->
   NewBlogPostForm ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handlePostCreation hxRequest userMetadata blogPostData form = do
+handlePostCreation hxRequest userMetadata allShows selectedShow blogPostData form = do
   execQuerySpan (BlogPosts.insertBlogPost blogPostData) >>= \case
     Left dbError -> do
       Log.logInfo "Database error creating blog post" (Aeson.object ["error" .= Text.pack (show dbError)])
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+      Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (errorTemplate "Database error occurred. Please try again.")
     Right postId -> do
       createPostTags postId form
       -- Fetch created post with author and tags for detail page
       execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
         Right (Just createdPost) -> do
+          -- Get author info
+          authorResult <- execQuerySpan (UserMetadata.getUserMetadata (BlogPosts.bpmAuthorId createdPost))
+          let author = either (const Nothing) id authorResult
           -- Get tags for the post
           tagsResult <- execQuerySpan (BlogPosts.getTagsForPost postId)
           let tags = either (const []) id tagsResult
           Log.logInfo "Successfully created blog post" (Aeson.object ["title" .= BlogPosts.bpmTitle createdPost])
-          let detailUrl = Links.linkURI $ blogPostGetLink postId (BlogPosts.bpmSlug createdPost)
+          let detailUrl = Links.linkURI $ dashboardStationBlogDetailGetLink postId (BlogPosts.bpmSlug createdPost)
               banner = renderBanner Success "Blog Post Created" "Your blog post has been created successfully."
-          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+          html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing $ case hxRequest of
             IsHxRequest -> do
-              DetailPage.template createdPost userMetadata tags
+              DetailPage.template createdPost tags author
               banner
             IsNotHxRequest -> do
               banner
-              DetailPage.template createdPost userMetadata tags
+              DetailPage.template createdPost tags author
           pure $ Servant.addHeader [i|/#{detailUrl}|] html
         _ -> do
           Log.logInfo_ "Created blog post but failed to retrieve it"
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Post was created but there was an error displaying the confirmation.")
+          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (errorTemplate "Post was created but there was an error displaying the confirmation.")

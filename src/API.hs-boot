@@ -42,13 +42,8 @@ mediaGetLink :: Links.Link
 aboutGetLink :: Links.Link
 archiveGetLink :: Maybe Text -> Maybe Text -> Maybe Int -> Maybe Int64 -> Links.Link
 blogGetLink :: Maybe Int64 -> Maybe Text -> Links.Link
-blogNewGetLink :: Links.Link
-blogNewPostLink :: Links.Link
 blogPostGetLink :: BlogPosts.Id -> Slug -> Links.Link
 blogPostGetLinkById :: BlogPosts.Id -> Links.Link
-blogEditGetLink :: BlogPosts.Id -> Slug -> Links.Link
-blogEditPostLink :: BlogPosts.Id -> Slug -> Links.Link
-blogDeleteLink :: BlogPosts.Id -> Slug -> Links.Link
 donateGetLink :: Links.Link
 userLoginGetLink :: Maybe Text -> Maybe EmailAddress -> Links.Link
 userLoginPostLink :: Maybe Text -> Links.Link
@@ -99,3 +94,11 @@ dashboardUsersGetLink :: Links.Link
 dashboardUsersGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter UserMetadata.UserRole) -> Maybe (Filter UserSortBy) -> Links.Link
 dashboardShowsGetLink :: Links.Link
 dashboardShowsGetLinkFull :: Maybe Int64 -> Maybe (Filter Text) -> Maybe (Filter Shows.Status) -> Links.Link
+dashboardStationBlogGetLink :: Links.Link
+dashboardStationBlogGetLinkFull :: Maybe Int64 -> Links.Link
+dashboardStationBlogNewGetLink :: Links.Link
+dashboardStationBlogNewPostLink :: Links.Link
+dashboardStationBlogDetailGetLink :: BlogPosts.Id -> Slug -> Links.Link
+dashboardStationBlogEditGetLink :: BlogPosts.Id -> Slug -> Links.Link
+dashboardStationBlogEditPostLink :: BlogPosts.Id -> Slug -> Links.Link
+dashboardStationBlogDeleteLink :: BlogPosts.Id -> Slug -> Links.Link

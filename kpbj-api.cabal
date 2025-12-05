@@ -102,13 +102,6 @@ library
     API.Blog.Get.Templates.Page
     API.Blog.Get.Templates.Pagination
     API.Blog.Get.Templates.PostCard
-    API.Blog.New.Get
-    API.Blog.New.Get.Templates.Form
-    API.Blog.New.Post
-    API.Blog.Edit.Get
-    API.Blog.Edit.Get.Templates.Form
-    API.Blog.Edit.Post
-    API.Blog.Delete
     API.Blog.Post.Get
     API.Blog.Post.Get.Templates.Page
     API.Donate.Get
@@ -135,6 +128,17 @@ library
     API.Dashboard.Blogs.Get.Templates.Page
     API.Dashboard.Blogs.Slug.Get
     API.Dashboard.Blogs.Slug.Get.Templates.Page
+    API.Dashboard.StationBlog.Get
+    API.Dashboard.StationBlog.Get.Templates.Page
+    API.Dashboard.StationBlog.New.Get
+    API.Dashboard.StationBlog.New.Get.Templates.Form
+    API.Dashboard.StationBlog.New.Post
+    API.Dashboard.StationBlog.Slug.Delete
+    API.Dashboard.StationBlog.Slug.Edit.Get
+    API.Dashboard.StationBlog.Slug.Edit.Get.Templates.Form
+    API.Dashboard.StationBlog.Slug.Edit.Post
+    API.Dashboard.StationBlog.Slug.Get
+    API.Dashboard.StationBlog.Slug.Get.Templates.Page
     API.Dashboard.Episodes.Slug.Edit.Get
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts

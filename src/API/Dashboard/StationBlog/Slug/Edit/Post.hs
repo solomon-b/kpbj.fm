@@ -2,14 +2,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Blog.Edit.Post where
+module API.Dashboard.StationBlog.Slug.Edit.Post (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogPostGetLink)
-import API.Blog.Post.Get.Templates.Page qualified as DetailPage
-import App.Common (getUserInfo, renderTemplate)
+import {-# SOURCE #-} API (dashboardStationBlogDetailGetLink, rootGetLink, userLoginGetLink)
+import API.Dashboard.StationBlog.Slug.Get.Templates.Page qualified as DetailPage
+import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
+import Component.DashboardFrame (DashboardNav (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad (unless, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -20,7 +22,7 @@ import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Foldable (fold, traverse_)
 import Data.Has (Has)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -32,10 +34,12 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
 import Effects.Observability qualified as Observability
@@ -54,10 +58,19 @@ import Web.FormUrlEncoded qualified as Form
 
 --------------------------------------------------------------------------------
 
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+
+--------------------------------------------------------------------------------
+
 type Route =
   Observability.WithSpan
-    "POST /blog/:id/:slug/edit"
-    ( "blog"
+    "POST /dashboard/station-blog/:id/:slug/edit"
+    ( "dashboard"
+        :> "station-blog"
         :> Servant.Capture "id" BlogPosts.Id
         :> Servant.Capture "slug" Slug
         :> "edit"
@@ -162,8 +175,22 @@ handler _tracer blogPostId _slug cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized blog edit attempt" blogPostId
-      Servant.noHeader <$> renderTemplate hxRequest Nothing (renderBanner Error "Access Denied" "You must be logged in to edit blog posts.")
+      let banner = BannerParams Error "Login Required" "You must be logged in to edit blog posts."
+      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+    Just (_user, userMetadata)
+      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
+          Log.logInfo "Non-staff user tried to edit station blog post" blogPostId
+          let banner = BannerParams Error "Staff Access Required" "You do not have permission to edit station blog posts."
+          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
     Just (user, userMetadata) -> do
+      -- Fetch shows for sidebar
+      showsResult <-
+        if UserMetadata.isAdmin userMetadata.mUserRole
+          then execQuerySpan Shows.getAllActiveShows
+          else execQuerySpan (Shows.getShowsForUser (User.mId user))
+      let allShows = either (const []) id showsResult
+          selectedShow = listToMaybe allShows
+
       mResult <- execTransactionSpan $ runMaybeT $ do
         blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
         oldTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
@@ -172,16 +199,12 @@ handler _tracer blogPostId _slug cookie (foldHxReq -> hxRequest) editForm = do
       case mResult of
         Left err -> do
           Log.logAttention "getBlogPostById execution error" (show err)
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Warning "Blog Post Not Found" "The blog post you're trying to update doesn't exist.")
+          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Warning "Blog Post Not Found" "The blog post you're trying to update doesn't exist.")
         Right Nothing -> do
           Log.logInfo "No blog post found with id" blogPostId
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Warning "Blog Post Not Found" "The blog post you're trying to update doesn't exist.")
+          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Warning "Blog Post Not Found" "The blog post you're trying to update doesn't exist.")
         Right (Just (blogPost, oldTags)) ->
-          if blogPost.bpmAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-            then updateBlogPost hxRequest userMetadata blogPost oldTags editForm
-            else do
-              Log.logInfo "User attempted to edit blog post they don't own" blogPost.bpmId
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Access Denied" "You can only edit blog posts you authored or have staff permissions.")
+          updateBlogPost hxRequest userMetadata allShows selectedShow blogPost oldTags editForm
 
 updateBlogPost ::
   ( MonadDB m,
@@ -194,15 +217,17 @@ updateBlogPost ::
   ) =>
   HxRequest ->
   UserMetadata.Model ->
+  [Shows.Model] ->
+  Maybe Shows.Model ->
   BlogPosts.Model ->
   [BlogTags.Model] ->
   BlogEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
+updateBlogPost hxRequest userMetadata allShows selectedShow blogPost oldTags editForm = do
   case parseStatus (befStatus editForm) of
     Nothing -> do
       Log.logInfo "Invalid status in blog edit form" (befStatus editForm)
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Invalid blog post status value.")
+      Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Error "Update Failed" "Invalid blog post status value.")
     Just parsedStatus -> do
       -- Process hero image upload if present
       heroImagePath <- case befHeroImage editForm of
@@ -228,10 +253,10 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
       case (Sanitize.validateContentLength 200 sanitizedTitle, Sanitize.validateContentLength 50000 sanitizedContent) of
         (Left titleError, _) -> do
           let errorMsg = Sanitize.displayContentValidationError titleError
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" errorMsg)
+          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Error "Update Failed" errorMsg)
         (_, Left contentError) -> do
           let errorMsg = Sanitize.displayContentValidationError contentError
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" errorMsg)
+          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Error "Update Failed" errorMsg)
         (Right validTitle, Right validContent) -> do
           let updateData =
                 BlogPosts.Insert
@@ -253,36 +278,36 @@ updateBlogPost hxRequest userMetadata blogPost oldTags editForm = do
           case mUpdateResult of
             Left err -> do
               Log.logInfo "Failed to update blog post" (blogPost.bpmId, show err)
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Database error occurred. Please try again.")
+              Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Error "Update Failed" "Database error occurred. Please try again.")
             Right Nothing -> do
               Log.logInfo "Blog post update returned Nothing" blogPost.bpmId
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Failed to update blog post. Please try again.")
+              Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Error "Update Failed" "Failed to update blog post. Please try again.")
             Right (Just _) -> do
               Log.logInfo "Successfully updated blog post" blogPost.bpmId
               -- Fetch updated post data for detail page
               updatedPostData <- execTransactionSpan $ runMaybeT $ do
                 updatedPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPost.bpmId)
-                author <- MaybeT $ HT.statement () (UserMetadata.getUserMetadata updatedPost.bpmAuthorId)
+                mAuthor <- lift $ HT.statement () (UserMetadata.getUserMetadata updatedPost.bpmAuthorId)
                 newTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
-                pure (updatedPost, author, newTags)
+                pure (updatedPost, mAuthor, newTags)
 
               case updatedPostData of
                 Left _err ->
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Post updated but failed to load details.")
+                  Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Error "Update Failed" "Post updated but failed to load details.")
                 Right Nothing ->
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (renderBanner Error "Update Failed" "Post updated but not found.")
-                Right (Just (updatedPost, author, newTags)) -> do
-                  let detailUrl = Links.linkURI $ blogPostGetLink blogPost.bpmId newSlug
+                  Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Error "Update Failed" "Post updated but not found.")
+                Right (Just (updatedPost, mAuthor, newTags)) -> do
+                  let detailUrl = Links.linkURI $ dashboardStationBlogDetailGetLink blogPost.bpmId newSlug
                       banner = renderBanner Success "Blog Post Updated" "Your blog post has been updated and saved."
-                  html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+                  html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing $ case hxRequest of
                     IsHxRequest -> do
                       -- HTMX request: render content first, banner uses OOB swap
-                      DetailPage.template updatedPost author newTags
+                      DetailPage.template updatedPost newTags mAuthor
                       banner
                     IsNotHxRequest -> do
                       -- Regular request: render banner first (no OOB swap available)
                       banner
-                      DetailPage.template updatedPost author newTags
+                      DetailPage.template updatedPost newTags mAuthor
                   pure $ Servant.addHeader [i|/#{detailUrl}|] html
 
 -- | Update tags for a blog post (add new ones)
