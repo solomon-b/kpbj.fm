@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+
 module API where
 
 --------------------------------------------------------------------------------
@@ -101,10 +104,11 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log (MonadLog)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:<|>) (..))
+import Servant (NamedRoutes, (:-))
 import Servant qualified
 import Servant.Links qualified as Links
 
@@ -115,81 +119,294 @@ runApi = App.runApp @API server ()
 
 --------------------------------------------------------------------------------
 
-type API =
-  Root.Get.Route
-    :<|> Static.Get.Route
-    :<|> Media.Get.Route
-    :<|> About.Get.Route
-    :<|> Archive.Get.Route
-    :<|> Blog.Get.Route
-    :<|> Blog.Post.Get.RouteWithSlug
-    :<|> Blog.Post.Get.RouteWithoutSlug
-    :<|> Donate.Get.Route
-    :<|> Episodes.New.Get.Route
-    :<|> Episodes.New.Post.Route
-    :<|> Events.Get.Route
-    :<|> Events.Event.Get.RouteWithSlug
-    :<|> Events.Event.Get.RouteWithoutSlug
-    :<|> Dashboard.Get.Route
-    :<|> Dashboard.Episodes.Redirect.Route
-    :<|> Dashboard.Episodes.Get.Route
-    :<|> Dashboard.Episodes.Slug.Get.Route
-    :<|> Dashboard.Episodes.Slug.Edit.Get.Route
-    :<|> Dashboard.Episodes.Slug.Edit.Post.Route
-    :<|> Dashboard.Blogs.Get.Route
-    :<|> Dashboard.Blogs.Slug.Get.Route
-    :<|> Dashboard.StationBlog.Get.Route
-    :<|> Dashboard.StationBlog.New.Get.Route
-    :<|> Dashboard.StationBlog.New.Post.Route
-    :<|> Dashboard.StationBlog.Slug.Get.Route
-    :<|> Dashboard.StationBlog.Slug.Edit.Get.Route
-    :<|> Dashboard.StationBlog.Slug.Edit.Post.Route
-    :<|> Dashboard.StationBlog.Slug.Delete.Route
-    :<|> Dashboard.Events.Get.Route
-    :<|> Dashboard.Events.New.Get.Route
-    :<|> Dashboard.Events.New.Post.Route
-    :<|> Dashboard.Events.Slug.Get.Route
-    :<|> Dashboard.Events.Slug.Edit.Get.Route
-    :<|> Dashboard.Events.Slug.Edit.Post.Route
-    :<|> Dashboard.Events.Slug.Delete.Route
-    :<|> Dashboard.Users.Get.Route
-    :<|> Dashboard.Shows.Get.Route
-    :<|> PrivacyPolicy.Get.Route
-    :<|> TermsOfService.Get.Route
-    :<|> Shows.Get.Route
-    :<|> Shows.Schedule.Get.Route
-    :<|> Show.Get.Route
-    :<|> Show.Blog.Get.Route
-    :<|> Show.Blog.New.Get.Route
-    :<|> Show.Blog.New.Post.Route
-    :<|> Show.Blog.Post.Get.RouteWithSlug
-    :<|> Show.Blog.Post.Get.RouteWithoutSlug
-    :<|> Show.Blog.Edit.Get.Route
-    :<|> Show.Blog.Edit.Post.Route
-    :<|> Show.Blog.Delete.Route
-    :<|> Dashboard.Shows.Slug.Edit.Get.Route
-    :<|> Dashboard.Shows.Slug.Edit.Post.Route
-    :<|> Dashboard.Shows.Slug.Get.Route
-    :<|> Episodes.Get.RouteWithSlug
-    :<|> Episodes.Get.RouteWithoutSlug
-    :<|> Episodes.Delete.Route
-    :<|> Episodes.DiscardDraft.Route
-    :<|> Episodes.Publish.Post.Route
-    :<|> Dashboard.Shows.New.Get.Route
-    :<|> Dashboard.Shows.New.Post.Route
-    :<|> Dashboard.Users.Detail.Get.Route
-    :<|> Dashboard.Users.Edit.Get.Route
-    :<|> Dashboard.Users.Edit.Post.Route
-    :<|> Dashboard.Users.Role.Patch.Route
-    :<|> Dashboard.Users.Suspend.Post.Route
-    :<|> Dashboard.Users.Unsuspend.Post.Route
-    :<|> Dashboard.Users.Delete.Route
-    :<|> User.Login.Get.Route
-    :<|> User.Login.Post.Route
-    :<|> User.Logout.Get.Route
-    :<|> User.Logout.Post.Route
-    :<|> User.Register.Get.Route
-    :<|> User.Register.Post.Route
+type API = NamedRoutes Routes
+
+-- | Top-level API routes for KPBJ 95.9FM website.
+--
+-- Includes standalone public pages and nested route groups for blog, events,
+-- shows, user authentication, and the admin dashboard.
+data Routes mode = Routes
+  { -- | @GET /@ - Home page
+    rootGet :: mode :- Root.Get.Route
+  , -- | @GET /static@ - Static file serving
+    staticGet :: mode :- Static.Get.Route
+  , -- | @GET /media@ - Media file serving
+    mediaGet :: mode :- Media.Get.Route
+  , -- | @GET /about@ - About page
+    aboutGet :: mode :- About.Get.Route
+  , -- | @GET /archive@ - Episode archive with search and filtering
+    archiveGet :: mode :- Archive.Get.Route
+  , -- | @GET /donate@ - Donation page
+    donateGet :: mode :- Donate.Get.Route
+  , -- | @GET /privacy-policy@ - Privacy policy page
+    privacyPolicyGet :: mode :- PrivacyPolicy.Get.Route
+  , -- | @GET /terms-of-service@ - Terms of service page
+    termsOfServiceGet :: mode :- TermsOfService.Get.Route
+  , -- | @/blog/...@ - Blog routes
+    blog :: mode :- NamedRoutes BlogRoutes
+  , -- | @/events/...@ - Events routes
+    events :: mode :- NamedRoutes EventsRoutes
+  , -- | @/shows/...@ - Shows routes
+    shows :: mode :- NamedRoutes ShowsRoutes
+  , -- | @/user/...@ - User authentication routes
+    user :: mode :- NamedRoutes UserRoutes
+  , -- | @/dashboard/...@ - Admin dashboard routes
+    dashboard :: mode :- NamedRoutes DashboardRoutes
+  }
+  deriving stock (Generic)
+
+-- | Station blog routes under @/blog@.
+--
+-- Provides listing and detail views for official KPBJ station blog posts.
+data BlogRoutes mode = BlogRoutes
+  { -- | @GET /blog@ - Blog listing with pagination and search
+    list :: mode :- Blog.Get.Route
+  , -- | @GET /blog/:id/:slug@ - Blog post detail (canonical URL with slug)
+    postWithSlug :: mode :- Blog.Post.Get.RouteWithSlug
+  , -- | @GET /blog/:id@ - Blog post detail (redirects to canonical URL)
+    postWithoutSlug :: mode :- Blog.Post.Get.RouteWithoutSlug
+  }
+  deriving stock (Generic)
+
+-- | Community events routes under @/events@.
+--
+-- Provides calendar views and detail pages for community events.
+data EventsRoutes mode = EventsRoutes
+  { -- | @GET /events@ - Events calendar with week/month/list views
+    list :: mode :- Events.Get.Route
+  , -- | @GET /events/:id/:slug@ - Event detail (canonical URL with slug)
+    detailWithSlug :: mode :- Events.Event.Get.RouteWithSlug
+  , -- | @GET /events/:id@ - Event detail (redirects to canonical URL)
+    detailWithoutSlug :: mode :- Events.Event.Get.RouteWithoutSlug
+  }
+  deriving stock (Generic)
+
+-- | Radio shows routes under @/shows@.
+--
+-- Includes show listings, schedule, individual show pages, and nested routes
+-- for show-specific blog posts and episodes.
+data ShowsRoutes mode = ShowsRoutes
+  { -- | @GET /shows@ - Shows listing with genre and status filtering
+    list :: mode :- Shows.Get.Route
+  , -- | @GET /shows/schedule@ - Weekly show schedule
+    schedule :: mode :- Shows.Schedule.Get.Route
+  , -- | @GET /shows/:slug@ - Individual show page
+    detail :: mode :- Show.Get.Route
+  , -- | @/shows/:slug/blog/...@ - Show-specific blog routes
+    blog :: mode :- NamedRoutes ShowBlogRoutes
+  , -- | @/shows/:slug/episodes/...@ - Show episode routes
+    episodes :: mode :- NamedRoutes ShowEpisodesRoutes
+  }
+  deriving stock (Generic)
+
+-- | Show-specific blog routes under @/shows/:showSlug/blog@.
+--
+-- Allows hosts to create and manage blog posts for their shows.
+data ShowBlogRoutes mode = ShowBlogRoutes
+  { -- | @GET /shows/:showSlug/blog@ - Show blog listing
+    list :: mode :- Show.Blog.Get.Route
+  , -- | @GET /shows/:showSlug/blog/new@ - New blog post form
+    newGet :: mode :- Show.Blog.New.Get.Route
+  , -- | @POST /shows/:showSlug/blog/new@ - Create new blog post
+    newPost :: mode :- Show.Blog.New.Post.Route
+  , -- | @GET /shows/:showSlug/blog/:id/:slug@ - Blog post detail (canonical)
+    postWithSlug :: mode :- Show.Blog.Post.Get.RouteWithSlug
+  , -- | @GET /shows/:showSlug/blog/:id@ - Blog post detail (redirects)
+    postWithoutSlug :: mode :- Show.Blog.Post.Get.RouteWithoutSlug
+  , -- | @GET /shows/:showSlug/blog/:id/edit@ - Edit blog post form
+    editGet :: mode :- Show.Blog.Edit.Get.Route
+  , -- | @POST /shows/:showSlug/blog/:id/edit@ - Update blog post
+    editPost :: mode :- Show.Blog.Edit.Post.Route
+  , -- | @DELETE /shows/:showSlug/blog/:id@ - Delete blog post
+    delete :: mode :- Show.Blog.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Show episode routes under @/shows/:showSlug/episodes@.
+--
+-- Allows hosts to create, view, and manage episodes for their shows.
+data ShowEpisodesRoutes mode = ShowEpisodesRoutes
+  { -- | @GET /shows/:showSlug/episodes/new@ - New episode upload form
+    newGet :: mode :- Episodes.New.Get.Route
+  , -- | @POST /shows/:showSlug/episodes/new@ - Create new episode
+    newPost :: mode :- Episodes.New.Post.Route
+  , -- | @GET /shows/:showSlug/episodes/:id/:slug@ - Episode detail (canonical)
+    detailWithSlug :: mode :- Episodes.Get.RouteWithSlug
+  , -- | @GET /shows/:showSlug/episodes/:id@ - Episode detail (redirects)
+    detailWithoutSlug :: mode :- Episodes.Get.RouteWithoutSlug
+  , -- | @DELETE /shows/:showSlug/episodes/:id@ - Delete episode
+    delete :: mode :- Episodes.Delete.Route
+  , -- | @POST /shows/:showSlug/episodes/:id/discard-draft@ - Discard draft episode
+    discardDraft :: mode :- Episodes.DiscardDraft.Route
+  , -- | @POST /shows/:showSlug/episodes/:id/publish@ - Publish draft episode
+    publish :: mode :- Episodes.Publish.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | User authentication routes under @/user@.
+--
+-- Handles login, logout, and registration flows.
+data UserRoutes mode = UserRoutes
+  { -- | @GET /user/login@ - Login page
+    loginGet :: mode :- User.Login.Get.Route
+  , -- | @POST /user/login@ - Process login credentials
+    loginPost :: mode :- User.Login.Post.Route
+  , -- | @GET /user/logout@ - Logout confirmation page
+    logoutGet :: mode :- User.Logout.Get.Route
+  , -- | @POST /user/logout@ - Process logout
+    logoutPost :: mode :- User.Logout.Post.Route
+  , -- | @GET /user/register@ - Registration page
+    registerGet :: mode :- User.Register.Get.Route
+  , -- | @POST /user/register@ - Process registration
+    registerPost :: mode :- User.Register.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard routes under @/dashboard@.
+--
+-- Provides management interfaces for episodes, blogs, events, shows, and users.
+-- Access is restricted based on user roles.
+data DashboardRoutes mode = DashboardRoutes
+  { -- | @GET /dashboard@ - Dashboard home with stats and recent activity
+    home :: mode :- Dashboard.Get.Route
+  , -- | @GET /dashboard/episodes@ - Redirect to episodes list
+    episodesRedirect :: mode :- Dashboard.Episodes.Redirect.Route
+  , -- | Host-accessible dashboard routes (episodes, blogs, events)
+    host :: mode :- NamedRoutes DashboardHostRoutes
+  , -- | Admin-only dashboard routes (station blog, shows, users)
+    admin :: mode :- NamedRoutes DashboardAdminRoutes
+  }
+  deriving stock (Generic)
+
+-- | Host-accessible dashboard routes.
+--
+-- Routes for hosts to manage their show's episodes and blog posts.
+data DashboardHostRoutes mode = DashboardHostRoutes
+  { -- | @/dashboard/episodes/...@ - Episode management routes
+    episodes :: mode :- NamedRoutes DashboardEpisodesRoutes
+  , -- | @/dashboard/blogs/...@ - Show blog management routes
+    blogs :: mode :- NamedRoutes DashboardBlogsRoutes
+  }
+  deriving stock (Generic)
+
+-- | Admin-only dashboard routes.
+--
+-- Routes for admins to manage station blog, shows, events, and users.
+data DashboardAdminRoutes mode = DashboardAdminRoutes
+  { -- | @/dashboard/station-blog/...@ - Station blog management routes
+    stationBlog :: mode :- NamedRoutes DashboardStationBlogRoutes
+  , -- | @/dashboard/shows/...@ - Show management routes
+    shows :: mode :- NamedRoutes DashboardShowsRoutes
+  , -- | @/dashboard/events/...@ - Event management routes
+    events :: mode :- NamedRoutes DashboardEventsRoutes
+  , -- | @/dashboard/users/...@ - User management routes
+    users :: mode :- NamedRoutes DashboardUsersRoutes
+  }
+  deriving stock (Generic)
+
+-- | Dashboard episode management routes under @/dashboard/episodes@.
+data DashboardEpisodesRoutes mode = DashboardEpisodesRoutes
+  { -- | @GET /dashboard/episodes/:showSlug@ - Episode list for a show
+    list :: mode :- Dashboard.Episodes.Get.Route
+  , -- | @GET /dashboard/episodes/:showSlug/:episodeSlug@ - Episode detail
+    detail :: mode :- Dashboard.Episodes.Slug.Get.Route
+  , -- | @GET /dashboard/episodes/:showSlug/:episodeSlug/edit@ - Edit episode form
+    editGet :: mode :- Dashboard.Episodes.Slug.Edit.Get.Route
+  , -- | @POST /dashboard/episodes/:showSlug/:episodeSlug/edit@ - Update episode
+    editPost :: mode :- Dashboard.Episodes.Slug.Edit.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard show blog management routes under @/dashboard/blogs@.
+data DashboardBlogsRoutes mode = DashboardBlogsRoutes
+  { -- | @GET /dashboard/blogs/:showSlug@ - Blog post list for a show
+    list :: mode :- Dashboard.Blogs.Get.Route
+  , -- | @GET /dashboard/blogs/:showSlug/:postSlug@ - Blog post detail
+    detail :: mode :- Dashboard.Blogs.Slug.Get.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard event management routes under @/dashboard/events@.
+data DashboardEventsRoutes mode = DashboardEventsRoutes
+  { -- | @GET /dashboard/events@ - Event list
+    list :: mode :- Dashboard.Events.Get.Route
+  , -- | @GET /dashboard/events/new@ - New event form
+    newGet :: mode :- Dashboard.Events.New.Get.Route
+  , -- | @POST /dashboard/events/new@ - Create event
+    newPost :: mode :- Dashboard.Events.New.Post.Route
+  , -- | @GET /dashboard/events/:slug@ - Event detail
+    detail :: mode :- Dashboard.Events.Slug.Get.Route
+  , -- | @GET /dashboard/events/:slug/edit@ - Edit event form
+    editGet :: mode :- Dashboard.Events.Slug.Edit.Get.Route
+  , -- | @POST /dashboard/events/:slug/edit@ - Update event
+    editPost :: mode :- Dashboard.Events.Slug.Edit.Post.Route
+  , -- | @DELETE /dashboard/events/:slug@ - Delete event
+    delete :: mode :- Dashboard.Events.Slug.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard station blog management routes under @/dashboard/station-blog@.
+--
+-- For staff and admins to manage official station blog posts.
+data DashboardStationBlogRoutes mode = DashboardStationBlogRoutes
+  { -- | @GET /dashboard/station-blog@ - Station blog post list
+    list :: mode :- Dashboard.StationBlog.Get.Route
+  , -- | @GET /dashboard/station-blog/new@ - New station blog post form
+    newGet :: mode :- Dashboard.StationBlog.New.Get.Route
+  , -- | @POST /dashboard/station-blog/new@ - Create station blog post
+    newPost :: mode :- Dashboard.StationBlog.New.Post.Route
+  , -- | @GET /dashboard/station-blog/:slug@ - Station blog post detail
+    detail :: mode :- Dashboard.StationBlog.Slug.Get.Route
+  , -- | @GET /dashboard/station-blog/:slug/edit@ - Edit station blog post form
+    editGet :: mode :- Dashboard.StationBlog.Slug.Edit.Get.Route
+  , -- | @POST /dashboard/station-blog/:slug/edit@ - Update station blog post
+    editPost :: mode :- Dashboard.StationBlog.Slug.Edit.Post.Route
+  , -- | @DELETE /dashboard/station-blog/:slug@ - Delete station blog post
+    delete :: mode :- Dashboard.StationBlog.Slug.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard show management routes under @/dashboard/shows@.
+--
+-- For admins to create and manage radio shows.
+data DashboardShowsRoutes mode = DashboardShowsRoutes
+  { -- | @GET /dashboard/shows@ - Show list
+    list :: mode :- Dashboard.Shows.Get.Route
+  , -- | @GET /dashboard/shows/new@ - New show form
+    newGet :: mode :- Dashboard.Shows.New.Get.Route
+  , -- | @POST /dashboard/shows/new@ - Create show
+    newPost :: mode :- Dashboard.Shows.New.Post.Route
+  , -- | @GET /dashboard/shows/:slug@ - Show detail
+    detail :: mode :- Dashboard.Shows.Slug.Get.Route
+  , -- | @GET /dashboard/shows/:slug/edit@ - Edit show form
+    editGet :: mode :- Dashboard.Shows.Slug.Edit.Get.Route
+  , -- | @POST /dashboard/shows/:slug/edit@ - Update show
+    editPost :: mode :- Dashboard.Shows.Slug.Edit.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard user management routes under @/dashboard/users@.
+--
+-- Admin-only routes for managing user accounts, roles, and suspensions.
+data DashboardUsersRoutes mode = DashboardUsersRoutes
+  { -- | @GET /dashboard/users@ - User list with pagination and search
+    list :: mode :- Dashboard.Users.Get.Route
+  , -- | @GET /dashboard/users/:id@ - User detail
+    detail :: mode :- Dashboard.Users.Detail.Get.Route
+  , -- | @GET /dashboard/users/:id/edit@ - Edit user form
+    editGet :: mode :- Dashboard.Users.Edit.Get.Route
+  , -- | @POST /dashboard/users/:id/edit@ - Update user
+    editPost :: mode :- Dashboard.Users.Edit.Post.Route
+  , -- | @PATCH /dashboard/users/:id/role@ - Update user role
+    rolePatch :: mode :- Dashboard.Users.Role.Patch.Route
+  , -- | @POST /dashboard/users/:id/suspend@ - Suspend user
+    suspendPost :: mode :- Dashboard.Users.Suspend.Post.Route
+  , -- | @POST /dashboard/users/:id/unsuspend@ - Unsuspend user
+    unsuspendPost :: mode :- Dashboard.Users.Unsuspend.Post.Route
+  , -- | @DELETE /dashboard/users/:id@ - Delete user
+    delete :: mode :- Dashboard.Users.Delete.Route
+  }
+  deriving stock (Generic)
 
 --------------------------------------------------------------------------------
 
@@ -207,80 +424,157 @@ server ::
   Environment ->
   Servant.ServerT API m
 server env =
-  Root.Get.handler
-    :<|> Static.Get.handler env
-    :<|> Media.Get.handler
-    :<|> About.Get.handler
-    :<|> Archive.Get.handler
-    :<|> Blog.Get.handler
-    :<|> Blog.Post.Get.handlerWithSlug
-    :<|> Blog.Post.Get.handlerWithoutSlug
-    :<|> Donate.Get.handler
-    :<|> Episodes.New.Get.handler
-    :<|> Episodes.New.Post.handler
-    :<|> Events.Get.handler
-    :<|> Events.Event.Get.handlerWithSlug
-    :<|> Events.Event.Get.handlerWithoutSlug
-    :<|> Dashboard.Get.handler
-    :<|> Dashboard.Episodes.Redirect.handler
-    :<|> Dashboard.Episodes.Get.handler
-    :<|> Dashboard.Episodes.Slug.Get.handler
-    :<|> Dashboard.Episodes.Slug.Edit.Get.handler
-    :<|> Dashboard.Episodes.Slug.Edit.Post.handler
-    :<|> Dashboard.Blogs.Get.handler
-    :<|> Dashboard.Blogs.Slug.Get.handler
-    :<|> Dashboard.StationBlog.Get.handler
-    :<|> Dashboard.StationBlog.New.Get.handler
-    :<|> Dashboard.StationBlog.New.Post.handler
-    :<|> Dashboard.StationBlog.Slug.Get.handler
-    :<|> Dashboard.StationBlog.Slug.Edit.Get.handler
-    :<|> Dashboard.StationBlog.Slug.Edit.Post.handler
-    :<|> Dashboard.StationBlog.Slug.Delete.handler
-    :<|> Dashboard.Events.Get.handler
-    :<|> Dashboard.Events.New.Get.handler
-    :<|> Dashboard.Events.New.Post.handler
-    :<|> Dashboard.Events.Slug.Get.handler
-    :<|> Dashboard.Events.Slug.Edit.Get.handler
-    :<|> Dashboard.Events.Slug.Edit.Post.handler
-    :<|> Dashboard.Events.Slug.Delete.handler
-    :<|> Dashboard.Users.Get.handler
-    :<|> Dashboard.Shows.Get.handler
-    :<|> PrivacyPolicy.Get.handler
-    :<|> TermsOfService.Get.handler
-    :<|> Shows.Get.handler
-    :<|> Shows.Schedule.Get.handler
-    :<|> Show.Get.handler
-    :<|> Show.Blog.Get.handler
-    :<|> Show.Blog.New.Get.handler
-    :<|> Show.Blog.New.Post.handler
-    :<|> Show.Blog.Post.Get.handlerWithSlug
-    :<|> Show.Blog.Post.Get.handlerWithoutSlug
-    :<|> Show.Blog.Edit.Get.handler
-    :<|> Show.Blog.Edit.Post.handler
-    :<|> Show.Blog.Delete.handler
-    :<|> Dashboard.Shows.Slug.Edit.Get.handler
-    :<|> Dashboard.Shows.Slug.Edit.Post.handler
-    :<|> Dashboard.Shows.Slug.Get.handler
-    :<|> Episodes.Get.handlerWithSlug
-    :<|> Episodes.Get.handlerWithoutSlug
-    :<|> Episodes.Delete.handler
-    :<|> Episodes.DiscardDraft.handler
-    :<|> Episodes.Publish.Post.handler
-    :<|> Dashboard.Shows.New.Get.handler
-    :<|> Dashboard.Shows.New.Post.handler
-    :<|> Dashboard.Users.Detail.Get.handler
-    :<|> Dashboard.Users.Edit.Get.handler
-    :<|> Dashboard.Users.Edit.Post.handler
-    :<|> Dashboard.Users.Role.Patch.handler
-    :<|> Dashboard.Users.Suspend.Post.handler
-    :<|> Dashboard.Users.Unsuspend.Post.handler
-    :<|> Dashboard.Users.Delete.handler
-    :<|> User.Login.Get.handler
-    :<|> User.Login.Post.handler
-    :<|> User.Logout.Get.handler
-    :<|> User.Logout.Post.handler
-    :<|> User.Register.Get.handler
-    :<|> User.Register.Post.handler
+  Routes
+    { rootGet = Root.Get.handler
+    , staticGet = Static.Get.handler env
+    , mediaGet = Media.Get.handler
+    , aboutGet = About.Get.handler
+    , archiveGet = Archive.Get.handler
+    , donateGet = Donate.Get.handler
+    , privacyPolicyGet = PrivacyPolicy.Get.handler
+    , termsOfServiceGet = TermsOfService.Get.handler
+    , blog = blogRoutes
+    , events = eventsRoutes
+    , shows = showsRoutes
+    , user = userRoutes
+    , dashboard = dashboardRoutes
+    }
+  where
+    blogRoutes =
+      BlogRoutes
+        { list = Blog.Get.handler
+        , postWithSlug = Blog.Post.Get.handlerWithSlug
+        , postWithoutSlug = Blog.Post.Get.handlerWithoutSlug
+        }
+
+    eventsRoutes =
+      EventsRoutes
+        { list = Events.Get.handler
+        , detailWithSlug = Events.Event.Get.handlerWithSlug
+        , detailWithoutSlug = Events.Event.Get.handlerWithoutSlug
+        }
+
+    showsRoutes =
+      ShowsRoutes
+        { list = Shows.Get.handler
+        , schedule = Shows.Schedule.Get.handler
+        , detail = Show.Get.handler
+        , blog = showBlogRoutes
+        , episodes = showEpisodesRoutes
+        }
+
+    showBlogRoutes =
+      ShowBlogRoutes
+        { list = Show.Blog.Get.handler
+        , newGet = Show.Blog.New.Get.handler
+        , newPost = Show.Blog.New.Post.handler
+        , postWithSlug = Show.Blog.Post.Get.handlerWithSlug
+        , postWithoutSlug = Show.Blog.Post.Get.handlerWithoutSlug
+        , editGet = Show.Blog.Edit.Get.handler
+        , editPost = Show.Blog.Edit.Post.handler
+        , delete = Show.Blog.Delete.handler
+        }
+
+    showEpisodesRoutes =
+      ShowEpisodesRoutes
+        { newGet = Episodes.New.Get.handler
+        , newPost = Episodes.New.Post.handler
+        , detailWithSlug = Episodes.Get.handlerWithSlug
+        , detailWithoutSlug = Episodes.Get.handlerWithoutSlug
+        , delete = Episodes.Delete.handler
+        , discardDraft = Episodes.DiscardDraft.handler
+        , publish = Episodes.Publish.Post.handler
+        }
+
+    userRoutes =
+      UserRoutes
+        { loginGet = User.Login.Get.handler
+        , loginPost = User.Login.Post.handler
+        , logoutGet = User.Logout.Get.handler
+        , logoutPost = User.Logout.Post.handler
+        , registerGet = User.Register.Get.handler
+        , registerPost = User.Register.Post.handler
+        }
+
+    dashboardRoutes =
+      DashboardRoutes
+        { home = Dashboard.Get.handler
+        , episodesRedirect = Dashboard.Episodes.Redirect.handler
+        , host = dashboardHostRoutes
+        , admin = dashboardAdminRoutes
+        }
+
+    dashboardHostRoutes =
+      DashboardHostRoutes
+        { episodes = dashboardEpisodesRoutes
+        , blogs = dashboardBlogsRoutes
+        }
+
+    dashboardAdminRoutes =
+      DashboardAdminRoutes
+        { stationBlog = dashboardStationBlogRoutes
+        , shows = dashboardShowsRoutes
+        , events = dashboardEventsRoutes
+        , users = dashboardUsersRoutes
+        }
+
+    dashboardEpisodesRoutes =
+      DashboardEpisodesRoutes
+        { list = Dashboard.Episodes.Get.handler
+        , detail = Dashboard.Episodes.Slug.Get.handler
+        , editGet = Dashboard.Episodes.Slug.Edit.Get.handler
+        , editPost = Dashboard.Episodes.Slug.Edit.Post.handler
+        }
+
+    dashboardBlogsRoutes =
+      DashboardBlogsRoutes
+        { list = Dashboard.Blogs.Get.handler
+        , detail = Dashboard.Blogs.Slug.Get.handler
+        }
+
+    dashboardEventsRoutes =
+      DashboardEventsRoutes
+        { list = Dashboard.Events.Get.handler
+        , newGet = Dashboard.Events.New.Get.handler
+        , newPost = Dashboard.Events.New.Post.handler
+        , detail = Dashboard.Events.Slug.Get.handler
+        , editGet = Dashboard.Events.Slug.Edit.Get.handler
+        , editPost = Dashboard.Events.Slug.Edit.Post.handler
+        , delete = Dashboard.Events.Slug.Delete.handler
+        }
+
+    dashboardStationBlogRoutes =
+      DashboardStationBlogRoutes
+        { list = Dashboard.StationBlog.Get.handler
+        , newGet = Dashboard.StationBlog.New.Get.handler
+        , newPost = Dashboard.StationBlog.New.Post.handler
+        , detail = Dashboard.StationBlog.Slug.Get.handler
+        , editGet = Dashboard.StationBlog.Slug.Edit.Get.handler
+        , editPost = Dashboard.StationBlog.Slug.Edit.Post.handler
+        , delete = Dashboard.StationBlog.Slug.Delete.handler
+        }
+
+    dashboardShowsRoutes =
+      DashboardShowsRoutes
+        { list = Dashboard.Shows.Get.handler
+        , newGet = Dashboard.Shows.New.Get.handler
+        , newPost = Dashboard.Shows.New.Post.handler
+        , detail = Dashboard.Shows.Slug.Get.handler
+        , editGet = Dashboard.Shows.Slug.Edit.Get.handler
+        , editPost = Dashboard.Shows.Slug.Edit.Post.handler
+        }
+
+    dashboardUsersRoutes =
+      DashboardUsersRoutes
+        { list = Dashboard.Users.Get.handler
+        , detail = Dashboard.Users.Detail.Get.handler
+        , editGet = Dashboard.Users.Edit.Get.handler
+        , editPost = Dashboard.Users.Edit.Post.handler
+        , rolePatch = Dashboard.Users.Role.Patch.handler
+        , suspendPost = Dashboard.Users.Suspend.Post.handler
+        , unsuspendPost = Dashboard.Users.Unsuspend.Post.handler
+        , delete = Dashboard.Users.Delete.handler
+        }
 
 --------------------------------------------------------------------------------
 
