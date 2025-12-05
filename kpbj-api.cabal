@@ -112,14 +112,6 @@ library
     API.Events.Get.Templates.MonthView
     API.Events.Get.Templates.Page
     API.Events.Get.Templates.WeekView
-    API.Events.New.Get
-    API.Events.New.Get.Templates.Auth
-    API.Events.New.Get.Templates.Form
-    API.Events.New.Post
-    API.Events.Edit.Get
-    API.Events.Edit.Get.Templates.Form
-    API.Events.Edit.Post
-    API.Events.Delete
     API.Events.Event.Get
     API.Events.Event.Get.Templates.Page
     API.Get
@@ -128,6 +120,17 @@ library
     API.Dashboard.Blogs.Get.Templates.Page
     API.Dashboard.Blogs.Slug.Get
     API.Dashboard.Blogs.Slug.Get.Templates.Page
+    API.Dashboard.Events.Get
+    API.Dashboard.Events.Get.Templates.Page
+    API.Dashboard.Events.New.Get
+    API.Dashboard.Events.New.Get.Templates.Form
+    API.Dashboard.Events.New.Post
+    API.Dashboard.Events.Slug.Delete
+    API.Dashboard.Events.Slug.Edit.Get
+    API.Dashboard.Events.Slug.Edit.Get.Templates.Form
+    API.Dashboard.Events.Slug.Edit.Post
+    API.Dashboard.Events.Slug.Get
+    API.Dashboard.Events.Slug.Get.Templates.Page
     API.Dashboard.StationBlog.Get
     API.Dashboard.StationBlog.Get.Templates.Page
     API.Dashboard.StationBlog.New.Get

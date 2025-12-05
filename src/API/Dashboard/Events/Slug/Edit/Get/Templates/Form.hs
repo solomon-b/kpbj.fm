@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Events.Edit.Get.Templates.Form
+module API.Dashboard.Events.Slug.Edit.Get.Templates.Form
   ( template,
   )
 where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventEditPostLink, eventGetLink, eventsGetLink, mediaGetLink)
+import {-# SOURCE #-} API (dashboardEventsDetailGetLink, dashboardEventsEditPostLink, dashboardEventsGetLink, mediaGetLink)
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -26,14 +26,14 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 -- URL helpers
-eventsGetUrl :: Links.URI
-eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
+dashboardEventsGetUrl :: Links.URI
+dashboardEventsGetUrl = Links.linkURI dashboardEventsGetLink
 
-eventGetUrl :: Events.Id -> Slug -> Links.URI
-eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
+eventDetailUrl :: Events.Id -> Slug -> Links.URI
+eventDetailUrl eventId slug = Links.linkURI $ dashboardEventsDetailGetLink eventId slug
 
 eventEditPostUrl :: Events.Id -> Slug -> Links.URI
-eventEditPostUrl eventId slug = Links.linkURI $ eventEditPostLink eventId slug
+eventEditPostUrl eventId slug = Links.linkURI $ dashboardEventsEditPostLink eventId slug
 
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI mediaGetLink
@@ -51,7 +51,7 @@ template :: Events.Model -> [EventTags.Model] -> UserMetadata.Model -> Lucid.Htm
 template event tags userMeta = do
   let eventId = event.emId
       eventSlug = event.emSlug
-      eventBackUrl = eventGetUrl eventId eventSlug
+      eventBackUrl = eventDetailUrl eventId eventSlug
       eventEditUrl = eventEditPostUrl eventId eventSlug
       tagsText = Text.intercalate ", " $ map (\t -> t.etmName) tags
 
@@ -89,10 +89,10 @@ renderFormHeader event userMeta eventBackUrl = do
             hxPushUrl_ "true",
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
           ]
-          "← BACK TO EVENT"
+          "<- BACK TO EVENT"
         Lucid.a_
-          [ Lucid.href_ [i|/#{eventsGetUrl}|],
-            hxGet_ [i|/#{eventsGetUrl}|],
+          [ Lucid.href_ [i|/#{dashboardEventsGetUrl}|],
+            hxGet_ [i|/#{dashboardEventsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"

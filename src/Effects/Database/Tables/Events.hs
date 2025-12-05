@@ -231,6 +231,18 @@ deleteEvent eventId =
     RETURNING id
   |]
 
+-- | Get all events for dashboard (staff/admin access - all statuses)
+getAllEvents :: Limit -> Offset -> Hasql.Statement () [Model]
+getAllEvents limit offset =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
+    FROM events
+    ORDER BY starts_at DESC
+    LIMIT #{limit} OFFSET #{offset}
+  |]
+
 -- | Get events for a specific month and year, optionally filtered by tag
 getEventsForMonth :: Maybe Text -> Year -> MonthOfYear -> Hasql.Statement () [Model]
 getEventsForMonth maybeTagName year month =

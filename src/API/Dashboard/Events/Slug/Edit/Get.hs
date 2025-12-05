@@ -2,15 +2,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Events.Edit.Get where
+module API.Dashboard.Events.Slug.Edit.Get (Route, handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardShowsGetLink, eventsGetLink, userLoginGetLink)
-import API.Events.Edit.Get.Templates.Form (template)
-import App.Common (getUserInfo, renderTemplate)
+import {-# SOURCE #-} API (dashboardEventsGetLink, rootGetLink, userLoginGetLink)
+import API.Dashboard.Events.Slug.Edit.Get.Templates.Form (template)
+import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), redirectTemplate, redirectWithBanner)
+import Component.DashboardFrame (DashboardNav (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -18,16 +19,17 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
+import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
-import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Domain.Types.Slug (Slug, matchSlug)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
@@ -42,27 +44,28 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
-eventsGetUrl :: Links.URI
-eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
+dashboardEventsGetUrl :: Links.URI
+dashboardEventsGetUrl = Links.linkURI dashboardEventsGetLink
 
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
 
-dashboardGetUrl :: Links.URI
-dashboardGetUrl = Links.linkURI dashboardShowsGetLink
+rootGetUrl :: Links.URI
+rootGetUrl = Links.linkURI rootGetLink
 
 --------------------------------------------------------------------------------
 
 type Route =
   Observability.WithSpan
-    "GET /events/:id/:slug/edit"
-    ( "events"
+    "GET /dashboard/events/:id/:slug/edit"
+    ( "dashboard"
+        :> "events"
         :> Servant.Capture "id" Events.Id
         :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+        :> Servant.Get '[HTML] (Lucid.Html ())
     )
 
 --------------------------------------------------------------------------------
@@ -82,15 +85,26 @@ handler ::
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer eventId urlSlug cookie (foldHxReq -> hxRequest) = do
+  m (Lucid.Html ())
+handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to event edit" ()
       let banner = BannerParams Error "Access Denied" "You must be logged in to edit events."
-      html <- renderTemplate hxRequest Nothing (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
-      pure $ Servant.noHeader html
+      pure $ redirectWithBanner [i|/#{userLoginGetUrl}|] banner
+    Just (_user, userMetadata)
+      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
+          let banner = BannerParams Error "Staff Access Required" "You do not have permission to edit events."
+          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
     Just (user, userMetadata) -> do
+      -- Fetch shows for sidebar (admins see all, staff see their assigned shows)
+      showsResult <-
+        if UserMetadata.isAdmin userMetadata.mUserRole
+          then execQuerySpan Shows.getAllActiveShows
+          else execQuerySpan (Shows.getShowsForUser (User.mId user))
+      let allShows = either (const []) id showsResult
+          selectedShow = listToMaybe allShows
+
       mResult <- execTransactionSpan $ runMaybeT $ do
         event <- MaybeT $ HT.statement () (Events.getEventById eventId)
         tags <- lift $ HT.statement () (Events.getEventTags event.emId)
@@ -100,33 +114,19 @@ handler _tracer eventId urlSlug cookie (foldHxReq -> hxRequest) = do
         Left err -> do
           Log.logAttention "getEventById execution error" (show err)
           let banner = BannerParams Warning "Event Not Found" "The event you're trying to edit doesn't exist."
-          html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{eventsGetUrl}|] banner)
-          pure $ Servant.noHeader html
+          pure $ redirectWithBanner [i|/#{dashboardEventsGetUrl}|] banner
         Right Nothing -> do
           Log.logInfo "No event found with id" eventId
           let banner = BannerParams Warning "Event Not Found" "The event you're trying to edit doesn't exist."
-          html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{eventsGetUrl}|] banner)
-          pure $ Servant.noHeader html
+          pure $ redirectWithBanner [i|/#{dashboardEventsGetUrl}|] banner
         Right (Just (event, tags)) -> do
-          let canonicalSlug = event.emSlug
-              eventIdText = display eventId
-              slugText = display canonicalSlug
-              canonicalUrl = [i|/events/#{eventIdText}/#{slugText}/edit|]
-
-          if matchSlug canonicalSlug (Just urlSlug)
-            then
-              if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                then do
-                  Log.logInfo "Authorized user accessing event edit form" event.emId
-                  let editTemplate = template event tags userMetadata
-                  html <- renderTemplate hxRequest (Just userMetadata) editTemplate
-                  pure $ Servant.noHeader html
-                else do
-                  Log.logInfo "User tried to edit event they don't own" event.emId
-                  let banner = BannerParams Error "Access Denied" "You can only edit events you created or have staff permissions."
-                  html <- renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{dashboardGetUrl}|] banner)
-                  pure $ Servant.noHeader html
+          -- Check authorization: must be staff/admin or the creator
+          if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+            then do
+              Log.logInfo "Authorized user accessing event edit form" event.emId
+              let editTemplate = template event tags userMetadata
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing editTemplate
             else do
-              Log.logInfo "Redirecting to canonical event edit URL" canonicalUrl
-              html <- renderTemplate hxRequest (Just userMetadata) (redirectTemplate canonicalUrl)
-              pure $ Servant.addHeader canonicalUrl html
+              Log.logInfo "User tried to edit event they don't own" event.emId
+              let banner = BannerParams Error "Access Denied" "You can only edit events you created or have staff permissions."
+              pure $ redirectWithBanner [i|/#{dashboardEventsGetUrl}|] banner

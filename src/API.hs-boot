@@ -54,13 +54,8 @@ userRegisterPostLink :: Links.Link
 privacyPolicyGetLink :: Links.Link
 termsOfServiceGetLink :: Links.Link
 eventsGetLink :: Maybe Text -> Maybe PageView -> Links.Link
-eventsNewGetLink :: Links.Link
-eventsNewPostLink :: Links.Link
 eventGetLink :: Events.Id -> Slug -> Links.Link
 eventGetLinkById :: Events.Id -> Links.Link
-eventEditGetLink :: Events.Id -> Slug -> Links.Link
-eventEditPostLink :: Events.Id -> Slug -> Links.Link
-eventDeleteLink :: Events.Id -> Slug -> Links.Link
 showsGetLink :: Maybe PageNumber -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Links.Link
 showsScheduleGetLink :: Maybe WeekOffset -> Links.Link
 showGetLink :: Slug -> Maybe Int -> Links.Link
@@ -102,3 +97,11 @@ dashboardStationBlogDetailGetLink :: BlogPosts.Id -> Slug -> Links.Link
 dashboardStationBlogEditGetLink :: BlogPosts.Id -> Slug -> Links.Link
 dashboardStationBlogEditPostLink :: BlogPosts.Id -> Slug -> Links.Link
 dashboardStationBlogDeleteLink :: BlogPosts.Id -> Slug -> Links.Link
+dashboardEventsGetLink :: Links.Link
+dashboardEventsGetLinkFull :: Maybe Int64 -> Links.Link
+dashboardEventsNewGetLink :: Links.Link
+dashboardEventsNewPostLink :: Links.Link
+dashboardEventsDetailGetLink :: Events.Id -> Slug -> Links.Link
+dashboardEventsEditGetLink :: Events.Id -> Slug -> Links.Link
+dashboardEventsEditPostLink :: Events.Id -> Slug -> Links.Link
+dashboardEventsDeleteLink :: Events.Id -> Slug -> Links.Link
