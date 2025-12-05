@@ -31,3 +31,9 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     - name: Publish 🚀
       run: nix run .#publish
+    - name: Setup Fly.io CLI 🛠️
+      uses: superfly/flyctl-actions/setup-flyctl@master
+    - name: Deploy to Fly.io 🛫
+      run: flyctl deploy --remote-only --app kpbj-fm-staging
+      env:
+        FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
