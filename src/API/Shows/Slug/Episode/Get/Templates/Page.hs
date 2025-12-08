@@ -10,7 +10,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (mediaGetLink, showGetLink)
+import API.Links (apiLinks, showsLinks)
+import API.Types
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -29,10 +30,10 @@ import Servant.Links qualified as Links
 
 -- | Helper function to convert paths to full media URL
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
+showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 --------------------------------------------------------------------------------
 

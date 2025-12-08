@@ -5,9 +5,10 @@ module API.Dashboard.Episodes.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesNewGetLink)
 import API.Dashboard.Episodes.Get.Templates.Page (template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
+import API.Links (showEpisodesLinks)
+import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
@@ -31,7 +32,6 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as Txn
 import Log qualified
@@ -40,23 +40,7 @@ import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.DayOfWeek (dayOfWeekToText)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/episodes/:slug"
-    ( "dashboard"
-        :> "episodes"
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 
@@ -145,7 +129,7 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
   where
     actionButton :: Shows.Model -> Maybe (Lucid.Html ())
     actionButton showModel =
-      let uploadUrl = Links.linkURI $ episodesNewGetLink showModel.slug
+      let uploadUrl = Links.linkURI $ showEpisodesLinks.newGet showModel.slug
        in Just $
             Lucid.a_
               [ Lucid.href_ [i|/#{uploadUrl}|],

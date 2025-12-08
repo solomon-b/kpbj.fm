@@ -24,30 +24,10 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- | Route for viewing an episode in the dashboard context
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/episodes/:show_slug/:episode_id/:slug"
-    ( "dashboard"
-        :> "episodes"
-        :> Servant.Capture "show_slug" Slug
-        :> Servant.Capture "episode_id" Episodes.Id
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 

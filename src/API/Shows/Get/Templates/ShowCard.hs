@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (mediaGetLink, showGetLink)
+import API.Links (apiLinks, showsLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Domain.Types.Slug (Slug)
@@ -20,10 +21,10 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
+showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 --------------------------------------------------------------------------------
 

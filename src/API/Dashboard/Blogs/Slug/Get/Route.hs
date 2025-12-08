@@ -1,0 +1,29 @@
+module API.Dashboard.Blogs.Slug.Get.Route where
+
+--------------------------------------------------------------------------------
+
+import Domain.Types.Cookie (Cookie)
+import Domain.Types.HxRequest (HxRequest)
+import Domain.Types.Slug (Slug)
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Observability qualified as Observability
+import Lucid qualified
+import Servant ((:>))
+import Servant qualified
+import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+type Route =
+  Observability.WithSpan
+    "GET /dashboard/blog/:show_id/:post_id/:slug"
+    ( "dashboard"
+        :> "blog"
+        :> Servant.Capture "show_id" Shows.Id
+        :> Servant.Capture "post_id" ShowBlogPosts.Id
+        :> Servant.Capture "slug" Slug
+        :> Servant.Header "Cookie" Cookie
+        :> Servant.Header "HX-Request" HxRequest
+        :> Servant.Get '[HTML] (Lucid.Html ())
+    )

@@ -23,28 +23,11 @@ import Domain.Types.WeekOffset (WeekOffset (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.DayOfWeek (fromDayOfWeek, toDayOfWeek)
-import Servant ((:>))
-import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /shows/schedule"
-    ( "shows"
-        :> "schedule"
-        :> Servant.QueryParam "week" WeekOffset
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 

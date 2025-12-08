@@ -5,16 +5,17 @@ module API.Shows.Slug.Episode.New.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesGetLink)
+import API.Links (showEpisodesLinks)
 import API.Shows.Slug.Episode.Get.Templates.Page qualified as DetailPage
 import API.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
+import API.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), TrackInfo (..))
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has (Has)
@@ -43,90 +44,16 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
-import Effects.Observability qualified as Observability
-import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.OneRow ()
-import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
-import Text.HTML (HTML)
+import Servant.Multipart (FileData, Mem)
 import Text.Read (readMaybe)
 import Utils (partitionEithers)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /shows/:show_slug/episodes/new"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
-        :> "episodes"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> MultipartForm Mem EpisodeUploadForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-    )
-
---------------------------------------------------------------------------------
--- Form Data Types
-
-data TrackInfo = TrackInfo
-  { tiTitle :: Text,
-    tiArtist :: Text,
-    tiAlbum :: Maybe Text,
-    tiYear :: Maybe Int64,
-    tiDuration :: Maybe Text,
-    tiLabel :: Maybe Text,
-    tiIsExclusive :: Bool
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving anyclass (FromJSON, ToJSON)
-
-data EpisodeUploadForm = EpisodeUploadForm
-  { -- Show and scheduling
-    eufId :: Text,
-    eufScheduledDate :: Maybe Text,
-    -- Episode metadata
-    eufTitle :: Text,
-    eufDescription :: Text,
-    eufTags :: Maybe Text,
-    eufDurationSeconds :: Maybe Text, -- Duration from browser audio detection
-    -- Publishing status
-    eufStatus :: Text, -- "draft" or "published"
-    -- Track data (JSON encoded)
-    eufTracksJson :: Maybe Text,
-    -- File uploads
-    eufAudioFile :: Maybe (FileData Mem),
-    eufArtworkFile :: Maybe (FileData Mem)
-  }
-  deriving stock (Show, Generic, Eq)
-
-instance FromMultipart Mem EpisodeUploadForm where
-  fromMultipart multipartData =
-    EpisodeUploadForm
-      <$> lookupInput "show_id" multipartData
-      <*> pure (either (const Nothing) Just (lookupInput "scheduled_date" multipartData))
-      <*> lookupInput "title" multipartData
-      <*> lookupInput "description" multipartData
-      <*> pure (either (const Nothing) Just (lookupInput "tags" multipartData))
-      <*> pure (either (const Nothing) Just (lookupInput "duration_seconds" multipartData))
-      <*> lookupInput "status" multipartData
-      <*> pure (either (const Nothing) Just (lookupInput "tracks_json" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "audio_file" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "artwork_file" multipartData))
-    where
-      -- \| Convert empty filename FileData to Nothing
-      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
-      fileDataToNothing (Just fileData)
-        | Text.null (fdFileName fileData) = Nothing
-        | otherwise = Just fileData
-      fileDataToNothing Nothing = Nothing
 
 --------------------------------------------------------------------------------
 
@@ -242,7 +169,7 @@ handleUploadSuccess hxRequest userMetadata showModel episodeId = do
       -- Fetch tracks for the episode
       tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episodeId)
       let tracks = fromRight [] tracksResult
-          detailUrl = Links.linkURI $ episodesGetLink showModel.slug episodeId episode.slug
+          detailUrl = Links.linkURI $ showEpisodesLinks.detailWithSlug showModel.slug episodeId episode.slug
           banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
       html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
         IsHxRequest -> do

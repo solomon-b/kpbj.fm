@@ -6,7 +6,8 @@ module API.Dashboard.Shows.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardShowsGetLinkFull, dashboardShowsSlugEditGetLink, dashboardShowsSlugGetLink)
+import API.Links (dashboardShowsLinks)
+import API.Types (DashboardShowsRoutes (..))
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -49,8 +50,8 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
 
 renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
 renderShowRow showInfo =
-  let showDetailUrl = Links.linkURI $ dashboardShowsSlugGetLink showInfo.swhiId showInfo.swhiSlug Nothing
-      showEditUrl = Links.linkURI $ dashboardShowsSlugEditGetLink showInfo.swhiSlug
+  let showDetailUrl = Links.linkURI $ dashboardShowsLinks.detail showInfo.swhiId showInfo.swhiSlug Nothing
+      showEditUrl = Links.linkURI $ dashboardShowsLinks.editGet showInfo.swhiSlug
       cellLinkAttrs =
         [ Lucid.class_ "p-4 cursor-pointer",
           hxGet_ [i|/#{showDetailUrl}|],
@@ -168,5 +169,5 @@ renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filte
       else
         Lucid.div_ [] mempty
   where
-    prevPageUrl = Links.linkURI $ dashboardShowsGetLinkFull (Just (currentPage - 1)) maybeQuery maybeStatusFilter
-    nextPageUrl = Links.linkURI $ dashboardShowsGetLinkFull (Just (currentPage + 1)) maybeQuery maybeStatusFilter
+    prevPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage - 1)) maybeQuery maybeStatusFilter
+    nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) maybeQuery maybeStatusFilter

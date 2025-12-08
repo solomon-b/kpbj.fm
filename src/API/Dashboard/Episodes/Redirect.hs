@@ -1,12 +1,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Episodes.Redirect (Route, handler) where
+module API.Dashboard.Episodes.Redirect (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEpisodesGetLink, hostDashboardGetLink)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
+import API.Links (dashboardEpisodesLinks, dashboardLinks)
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectTemplate, redirectWithBanner)
@@ -24,37 +25,20 @@ import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
+hostDashboardGetUrl = Links.linkURI dashboardLinks.home
 
 dashboardEpisodesGetUrl :: Shows.Model -> Links.URI
-dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesGetLink showModel.slug
-
---------------------------------------------------------------------------------
-
--- | Route for /dashboard/episodes (redirects to first show's episodes)
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/episodes"
-    ( "dashboard"
-        :> "episodes"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesLinks.list showModel.slug
 
 --------------------------------------------------------------------------------
 

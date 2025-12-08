@@ -5,9 +5,10 @@ module API.Dashboard.Blogs.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogNewGetLink)
 import API.Dashboard.Blogs.Get.Templates.Page (template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
+import API.Links (showBlogLinks)
+import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
@@ -27,30 +28,13 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as Txn
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/blogs"
-    ( "dashboard"
-        :> "blog"
-        :> Servant.Capture "show" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 
@@ -119,7 +103,7 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
 
     actionButton :: Shows.Model -> Maybe (Lucid.Html ())
     actionButton showModel =
-      let newBlogUrl = Links.linkURI $ showBlogNewGetLink showModel.slug
+      let newBlogUrl = Links.linkURI $ showBlogLinks.newGet showModel.slug
        in Just $
             Lucid.a_
               [ Lucid.href_ [i|/#{newBlogUrl}|],

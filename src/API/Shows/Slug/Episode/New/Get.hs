@@ -6,8 +6,9 @@ module API.Shows.Slug.Episode.New.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (hostDashboardGetLink, userLoginGetLink)
+import API.Links (dashboardLinks, userLinks)
 import API.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
@@ -30,38 +31,20 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /shows/:show_slug/episodes/new"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
-        :> "episodes"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+hostDashboardGetUrl = Links.linkURI dashboardLinks.home
 
 --------------------------------------------------------------------------------
 

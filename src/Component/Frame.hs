@@ -4,7 +4,8 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (aboutGetLink, archiveGetLink, blogGetLink, dashboardEpisodesRedirectLink, donateGetLink, eventsGetLink, rootGetLink, showsScheduleGetLink, userLoginGetLink, userLogoutGetLink, userRegisterGetLink)
+import API.Links (apiLinks, blogLinks, dashboardLinks, eventsLinks, showsLinks, userLinks)
+import API.Types
 import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
@@ -20,37 +21,37 @@ import Servant.Links qualified as Link
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Link.URI
-rootGetUrl = Link.linkURI rootGetLink
+rootGetUrl = Link.linkURI apiLinks.rootGet
 
 aboutGetUrl :: Link.URI
-aboutGetUrl = Link.linkURI aboutGetLink
+aboutGetUrl = Link.linkURI apiLinks.aboutGet
 
 archiveGetUrl :: Link.URI
-archiveGetUrl = Link.linkURI $ archiveGetLink Nothing Nothing Nothing Nothing
+archiveGetUrl = Link.linkURI $ apiLinks.archiveGet Nothing Nothing Nothing Nothing
 
 donateGetUrl :: Link.URI
-donateGetUrl = Link.linkURI donateGetLink
+donateGetUrl = Link.linkURI apiLinks.donateGet
 
 blogGetUrl :: Link.URI
-blogGetUrl = Link.linkURI $ blogGetLink Nothing Nothing
+blogGetUrl = Link.linkURI $ blogLinks.list Nothing Nothing
 
 eventsGetUrl :: Link.URI
-eventsGetUrl = Link.linkURI $ eventsGetLink Nothing Nothing
+eventsGetUrl = Link.linkURI $ eventsLinks.list Nothing Nothing
 
 userLoginGetUrl :: Link.URI
-userLoginGetUrl = Link.linkURI $ userLoginGetLink Nothing Nothing
+userLoginGetUrl = Link.linkURI $ userLinks.loginGet Nothing Nothing
 
 userRegisterGetUrl :: Link.URI
-userRegisterGetUrl = Link.linkURI $ userRegisterGetLink Nothing Nothing Nothing
+userRegisterGetUrl = Link.linkURI $ userLinks.registerGet Nothing Nothing Nothing
 
 userLogoutGetUrl :: Link.URI
-userLogoutGetUrl = Link.linkURI userLogoutGetLink
+userLogoutGetUrl = Link.linkURI userLinks.logoutGet
 
 dashboardGetUrl :: Link.URI
-dashboardGetUrl = Link.linkURI dashboardEpisodesRedirectLink
+dashboardGetUrl = Link.linkURI dashboardLinks.episodesRedirect
 
 showsScheduleGetUrl :: Link.URI
-showsScheduleGetUrl = Link.linkURI $ showsScheduleGetLink Nothing
+showsScheduleGetUrl = Link.linkURI $ showsLinks.schedule Nothing
 
 --------------------------------------------------------------------------------
 

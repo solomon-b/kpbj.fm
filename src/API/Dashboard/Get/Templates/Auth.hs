@@ -6,7 +6,8 @@ module API.Dashboard.Get.Templates.Auth
   )
 where
 
-import {-# SOURCE #-} API (showsGetLink, userLoginGetLink)
+import API.Links (showsLinks, userLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -37,10 +38,10 @@ notAuthorizedTemplate = do
         "LOGIN"
   where
     showsGetUrl :: Links.URI
-    showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
+    showsGetUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
 
     userLoginGetUrl :: Links.URI
-    userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+    userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 -- | Template for users not logged in
 notLoggedInTemplate :: Lucid.Html ()
@@ -58,4 +59,4 @@ notLoggedInTemplate = do
       "LOGIN"
   where
     userLoginGetUrl :: Links.URI
-    userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+    userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing

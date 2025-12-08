@@ -5,7 +5,9 @@ module API.Shows.Slug.Blog.New.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogGetLink, showBlogNewGetLink, showBlogPostGetLink, showGetLink, userLoginGetLink)
+import API.Links (showBlogLinks, showsLinks, userLinks)
+import API.Shows.Slug.Blog.New.Post.Route (NewShowBlogPostForm (..))
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad (guard, unless, void)
 import Control.Monad.Catch (MonadCatch)
@@ -14,7 +16,7 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
-import Data.Foldable (fold, traverse_)
+import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -34,51 +36,31 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm (..), parseMaybe, parseUnique)
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 showGetUrl :: Slug -> Links.URI
-showGetUrl showSlug = Links.linkURI $ showGetLink showSlug Nothing
+showGetUrl showSlug = Links.linkURI $ showsLinks.detail showSlug Nothing
 
 showBlogGetUrl :: Slug -> Links.URI
-showBlogGetUrl showSlug = Links.linkURI $ showBlogGetLink showSlug Nothing Nothing
+showBlogGetUrl showSlug = Links.linkURI $ showBlogLinks.list showSlug Nothing Nothing
 
 showBlogNewGetUrl :: Slug -> Links.URI
-showBlogNewGetUrl showSlug = Links.linkURI $ showBlogNewGetLink showSlug
+showBlogNewGetUrl showSlug = Links.linkURI $ showBlogLinks.newGet showSlug
 
 showBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-showBlogPostGetUrl showId postId postSlug = Links.linkURI $ showBlogPostGetLink showId postId postSlug
+showBlogPostGetUrl showId postId postSlug = Links.linkURI $ showBlogLinks.postWithSlug showId postId postSlug
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /shows/:show_slug/blog/new"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
-        :> "blog"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] NewShowBlogPostForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
-    )
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -176,42 +158,6 @@ permissionDeniedTemplate showSlug =
         Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
       ]
       "BACK TO SHOW"
-
---------------------------------------------------------------------------------
-
--- | Form data for creating a new show blog post
-data NewShowBlogPostForm = NewShowBlogPostForm
-  { nsbpfTitle :: Text,
-    nsbpfContent :: Text,
-    nsbpfExcerpt :: Maybe Text,
-    nsbpfStatus :: Maybe Text,
-    nsbpfTags :: [Text]
-  }
-  deriving (Show, Eq)
-
-instance FromForm NewShowBlogPostForm where
-  fromForm form = do
-    title <- parseUnique "title" form
-    content <- parseUnique "content" form
-    excerpt <- parseMaybe "excerpt" form
-    status <- parseMaybe "status" form
-    tags <- parseMaybe "tags" form
-
-    pure
-      NewShowBlogPostForm
-        { nsbpfTitle = title,
-          nsbpfContent = content,
-          nsbpfExcerpt = if maybe True Text.null excerpt then Nothing else excerpt,
-          nsbpfStatus = status,
-          nsbpfTags = parseTags $ fold tags
-        }
-
--- | Parse comma-separated tags with sanitization
-parseTags :: Text -> [Text]
-parseTags tagText =
-  filter (not . Text.null) $
-    map (Sanitize.sanitizePlainText . Text.strip) $
-      Text.splitOn "," tagText
 
 --------------------------------------------------------------------------------
 

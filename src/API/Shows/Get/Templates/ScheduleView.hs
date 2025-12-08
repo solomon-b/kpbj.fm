@@ -8,7 +8,8 @@ module API.Shows.Get.Templates.ScheduleView
   )
 where
 
-import {-# SOURCE #-} API (showGetLink, showsScheduleGetLink)
+import API.Links (showsLinks)
+import API.Types
 import Control.Monad (unless)
 import Data.List (sortBy)
 import Data.String.Interpolate (i)
@@ -25,7 +26,7 @@ import Servant.Links qualified as Links
 
 -- | Create URL for show page
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
+showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 -- | Get the next day of the week (for overnight show handling)
 succDay :: DayOfWeek -> DayOfWeek
@@ -103,7 +104,7 @@ renderWeekNavigation (WeekOffset weekOffset) weekStart = do
         "NEXT WEEK →"
   where
     showsScheduleWeekUrl :: WeekOffset -> Links.URI
-    showsScheduleWeekUrl offset = Links.linkURI $ showsScheduleGetLink (Just offset)
+    showsScheduleWeekUrl offset = Links.linkURI $ showsLinks.schedule (Just offset)
 
     formatDateRange :: Day -> Day -> Text
     formatDateRange start end =

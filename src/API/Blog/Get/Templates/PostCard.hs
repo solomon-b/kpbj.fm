@@ -7,7 +7,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink, blogPostGetLink, mediaGetLink)
+import API.Links (apiLinks, blogLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -22,13 +23,13 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 blogPostGetUrl :: BlogPosts.Id -> Slug -> Links.URI
-blogPostGetUrl postId slug = Links.linkURI $ blogPostGetLink postId slug
+blogPostGetUrl postId slug = Links.linkURI $ blogLinks.postWithSlug postId slug
 
 blogGetTagUrl :: Text -> Links.URI
-blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
+blogGetTagUrl tag = Links.linkURI $ blogLinks.list Nothing (Just tag)
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 

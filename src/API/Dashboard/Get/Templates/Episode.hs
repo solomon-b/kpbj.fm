@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEpisodeEditGetLink, dashboardEpisodeGetLink, episodesDeleteLink, episodesDiscardDraftLink, episodesPublishPostLink)
+import API.Links (dashboardEpisodesLinks, showEpisodesLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -24,19 +25,19 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 episodeGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeGetLink showSlug episodeId episodeSlug
+episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodesLinks.detail showSlug episodeId episodeSlug
 
 episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeEditGetLink showSlug episodeId episodeSlug
+episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug episodeId episodeSlug
 
 episodeArchiveUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeArchiveUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesDeleteLink showSlug episodeId episodeSlug
+episodeArchiveUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.delete showSlug episodeId episodeSlug
 
 episodeDiscardDraftUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeDiscardDraftUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesDiscardDraftLink showSlug episodeId episodeSlug
+episodeDiscardDraftUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.discardDraft showSlug episodeId episodeSlug
 
 episodePublishUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodePublishUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesPublishPostLink showSlug episodeId episodeSlug
+episodePublishUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.publish showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 

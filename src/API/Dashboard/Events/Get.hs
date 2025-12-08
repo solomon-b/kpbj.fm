@@ -2,12 +2,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Events.Get (Route, handler) where
+module API.Dashboard.Events.Get (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEventsNewGetLink, rootGetLink, userLoginGetLink)
 import API.Dashboard.Events.Get.Templates.Page (template)
+import API.Links (apiLinks, dashboardEventsLinks, userLinks)
+import API.Types (DashboardEventsRoutes (..), Routes (..), UserRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..))
@@ -31,42 +32,25 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 dashboardEventsNewGetUrl :: Links.URI
-dashboardEventsNewGetUrl = Links.linkURI dashboardEventsNewGetLink
+dashboardEventsNewGetUrl = Links.linkURI dashboardEventsLinks.newGet
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/events"
-    ( "dashboard"
-        :> "events"
-        :> Servant.QueryParam "page" Int64
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 

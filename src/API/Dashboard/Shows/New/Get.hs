@@ -2,12 +2,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Shows.New.Get (Route, handler) where
+module API.Dashboard.Shows.New.Get (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink, userLoginGetLink)
 import API.Dashboard.Shows.New.Get.Templates.Page (template)
+import API.Links (apiLinks, userLinks)
+import API.Types (Routes (..), UserRoutes (..))
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
@@ -23,36 +24,19 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/shows/new"
-    ( "dashboard"
-        :> "shows"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 

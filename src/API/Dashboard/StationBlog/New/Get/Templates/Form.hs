@@ -7,7 +7,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardStationBlogGetLink, dashboardStationBlogNewPostLink)
+import API.Links (dashboardStationBlogLinks)
+import API.Types (DashboardStationBlogRoutes (..))
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -18,10 +19,10 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardStationBlogGetUrl :: Links.URI
-dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
+dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
 
 dashboardStationBlogNewPostUrl :: Links.URI
-dashboardStationBlogNewPostUrl = Links.linkURI dashboardStationBlogNewPostLink
+dashboardStationBlogNewPostUrl = Links.linkURI dashboardStationBlogLinks.newPost
 
 --------------------------------------------------------------------------------
 

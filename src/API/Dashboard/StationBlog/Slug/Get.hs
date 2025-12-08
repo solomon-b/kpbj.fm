@@ -2,12 +2,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.StationBlog.Slug.Get (Route, handler) where
+module API.Dashboard.StationBlog.Slug.Get (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardStationBlogGetLink, dashboardStationBlogNewGetLink, rootGetLink, userLoginGetLink)
 import API.Dashboard.StationBlog.Slug.Get.Templates.Page (template)
+import API.Links (apiLinks, dashboardStationBlogLinks, userLinks)
+import API.Types (DashboardStationBlogRoutes (..), Routes (..), UserRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..))
@@ -30,45 +31,27 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as Txn
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 dashboardStationBlogNewGetUrl :: Links.URI
-dashboardStationBlogNewGetUrl = Links.linkURI dashboardStationBlogNewGetLink
+dashboardStationBlogNewGetUrl = Links.linkURI dashboardStationBlogLinks.newGet
 
 dashboardStationBlogGetUrl :: Links.URI
-dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/station-blog/:id/:slug"
-    ( "dashboard"
-        :> "station-blog"
-        :> Servant.Capture "id" BlogPosts.Id
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
 
 --------------------------------------------------------------------------------
 

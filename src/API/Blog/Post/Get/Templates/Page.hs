@@ -10,7 +10,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogGetLink, mediaGetLink)
+import API.Links (apiLinks, blogLinks)
+import API.Types
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -29,13 +30,13 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 blogGetUrl :: Links.URI
-blogGetUrl = Links.linkURI $ blogGetLink Nothing Nothing
+blogGetUrl = Links.linkURI $ blogLinks.list Nothing Nothing
 
 blogGetTagUrl :: Text -> Links.URI
-blogGetTagUrl tag = Links.linkURI $ blogGetLink Nothing (Just tag)
+blogGetTagUrl tag = Links.linkURI $ blogLinks.list Nothing (Just tag)
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 

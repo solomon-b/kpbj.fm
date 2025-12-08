@@ -6,8 +6,9 @@ module API.Blog.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink)
 import API.Blog.Get.Templates.Page (template)
+import API.Links (apiLinks)
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
@@ -30,34 +31,17 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /blog"
-    ( "blog"
-        :> Servant.QueryParam "page" Int64
-        :> Servant.QueryParam "tag" Text
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 --------------------------------------------------------------------------------
 

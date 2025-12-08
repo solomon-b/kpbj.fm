@@ -2,11 +2,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Shows.New.Post (Route, handler) where
+module API.Dashboard.Shows.New.Post (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardShowsGetLink, dashboardShowsNewGetLink, rootGetLink, showGetLink, userLoginGetLink)
+import API.Dashboard.Shows.New.Post.Route (NewShowForm (..), ScheduleSlotInfo (..))
+import API.Links (apiLinks, dashboardShowsLinks, showsLinks, userLinks)
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (forM_)
@@ -14,17 +16,13 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Aeson (FromJSON, ToJSON, (.=))
+import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Either (fromRight)
 import Data.Has (Has)
-import Data.Int (Int64)
-import Data.Maybe (mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Text.Read qualified as Text.Read
 import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Data.Vector qualified as Vector
@@ -43,108 +41,29 @@ import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
-import Effects.Observability qualified as Observability
-import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Input (..), Mem, MultipartData (..), MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
-import Text.HTML (HTML)
+import Servant.Multipart (FileData, Mem)
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
+dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
 
 dashboardShowsNewGetUrl :: Links.URI
-dashboardShowsNewGetUrl = Links.linkURI dashboardShowsNewGetLink
+dashboardShowsNewGetUrl = Links.linkURI dashboardShowsLinks.newGet
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /dashboard/shows/new"
-    ( "dashboard"
-        :> "shows"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> MultipartForm Mem NewShowForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-    )
-
---------------------------------------------------------------------------------
-
--- | Form data for creating a new show
-data NewShowForm = NewShowForm
-  { nsfTitle :: Text,
-    nsfDescription :: Text,
-    nsfGenre :: Maybe Text,
-    nsfLogoFile :: Maybe (FileData Mem),
-    nsfBannerFile :: Maybe (FileData Mem),
-    nsfStatus :: Text,
-    nsfHosts :: [User.Id],
-    nsfSchedulesJson :: Maybe Text
-  }
-  deriving (Show)
-
--- | Schedule slot info parsed from JSON form data
-data ScheduleSlotInfo = ScheduleSlotInfo
-  { dayOfWeek :: Text,
-    weeksOfMonth :: [Int64],
-    startTime :: Text,
-    endTime :: Text
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving anyclass (FromJSON, ToJSON)
-
-instance FromMultipart Mem NewShowForm where
-  fromMultipart multipartData =
-    NewShowForm
-      <$> lookupInput "title" multipartData
-      <*> lookupInput "description" multipartData
-      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "genre" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
-      <*> lookupInput "status" multipartData
-      <*> pure (parseHosts $ fromRight [] (lookupInputs "hosts" multipartData))
-      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedules_json" multipartData))
-    where
-      emptyToNothing :: Maybe Text -> Maybe Text
-      emptyToNothing (Just "") = Nothing
-      emptyToNothing (Just t) | Text.null (Text.strip t) = Nothing
-      emptyToNothing x = x
-
-      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
-      fileDataToNothing (Just fileData)
-        | Text.null (fdFileName fileData) = Nothing
-        | otherwise = Just fileData
-      fileDataToNothing Nothing = Nothing
-
-      parseHosts :: [Text] -> [User.Id]
-      parseHosts = mapMaybe parseUserId
-
-      parseUserId :: Text -> Maybe User.Id
-      parseUserId t = case Text.Read.decimal t of
-        Right (n, "") -> Just (User.Id n)
-        _ -> Nothing
-
-      -- Helper to lookup all values for a given input name (for multi-select)
-      lookupInputs :: Text -> MultipartData Mem -> Either String [Text]
-      lookupInputs name multipart =
-        Right [iValue input | input <- inputs multipart, iName input == name]
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -208,7 +127,7 @@ successTemplate :: Shows.Model -> Lucid.Html ()
 successTemplate theShow = do
   let showTitle = theShow.title
       showDescription = theShow.description
-      showDetailUrl = Links.linkURI $ showGetLink theShow.slug Nothing
+      showDetailUrl = Links.linkURI $ showsLinks.detail theShow.slug Nothing
   renderBanner Success "Show Created" [i|"#{showTitle}" has been created successfully.|]
 
   Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
@@ -398,7 +317,7 @@ handleShowCreation hxRequest userMetadata showData form = do
                   execQuerySpan (Shows.getShowById showId) >>= \case
                     Right (Just createdShow) -> do
                       Log.logInfo "Successfully created show" (Aeson.object ["title" .= Shows.siTitle finalShowData, "id" .= show showId])
-                      let detailUrl = Links.linkURI $ showGetLink createdShow.slug Nothing
+                      let detailUrl = Links.linkURI $ apiLinks.shows.detail createdShow.slug Nothing
                       html <- renderTemplate hxRequest (Just userMetadata) (successTemplate createdShow)
                       pure $ Servant.addHeader [i|/#{detailUrl}|] html
                     _ -> do

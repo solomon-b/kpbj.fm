@@ -4,7 +4,8 @@ module API.Dashboard.Users.Edit.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardUserDetailGetLink, dashboardUserEditPostLink)
+import API.Links (dashboardUsersLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
 import Effects.Database.Tables.User qualified as User
@@ -133,8 +134,8 @@ template user metadata = do
           ]
           "CANCEL"
   where
-    backUrl = Links.linkURI $ dashboardUserDetailGetLink user.mId
-    postUrl = Links.linkURI $ dashboardUserEditPostLink user.mId
+    backUrl = Links.linkURI $ dashboardUsersLinks.detail user.mId
+    postUrl = Links.linkURI $ dashboardUsersLinks.editPost user.mId
 
 renderRoleOption :: UserMetadata.UserRole -> UserMetadata.UserRole -> Lucid.Html ()
 renderRoleOption roleOption currentRole = do

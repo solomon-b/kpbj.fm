@@ -2,11 +2,12 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Events.Slug.Delete (Route, handler) where
+module API.Dashboard.Events.Slug.Delete (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEventsGetLink)
+import API.Links (dashboardEventsLinks)
+import API.Types (DashboardEventsRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.DashboardFrame (DashboardNav (..))
@@ -29,35 +30,17 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 dashboardEventsGetUrl :: Links.URI
-dashboardEventsGetUrl = Links.linkURI dashboardEventsGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "DELETE /dashboard/events/:event_id/:event_slug"
-    ( "dashboard"
-        :> "events"
-        :> Servant.Capture "event_id" Events.Id
-        :> Servant.Capture "event_slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Delete '[HTML] (Lucid.Html ())
-    )
+dashboardEventsGetUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
 
 --------------------------------------------------------------------------------
 

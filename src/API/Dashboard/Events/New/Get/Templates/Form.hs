@@ -7,7 +7,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEventsGetLink, dashboardEventsNewPostLink)
+import API.Links (dashboardEventsLinks)
+import API.Types (DashboardEventsRoutes (..))
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -18,10 +19,10 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardEventsGetUrl :: Links.URI
-dashboardEventsGetUrl = Links.linkURI dashboardEventsGetLink
+dashboardEventsGetUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
 
 dashboardEventsNewPostUrl :: Links.URI
-dashboardEventsNewPostUrl = Links.linkURI dashboardEventsNewPostLink
+dashboardEventsNewPostUrl = Links.linkURI dashboardEventsLinks.newPost
 
 --------------------------------------------------------------------------------
 

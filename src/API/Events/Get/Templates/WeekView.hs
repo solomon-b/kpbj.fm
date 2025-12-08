@@ -11,7 +11,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventGetLink, eventsGetLink)
+import API.Links (eventsLinks)
+import API.Types
 import Data.Foldable (traverse_)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -40,11 +41,11 @@ data WeekDay = WeekDay
 
 -- URL helpers
 eventGetUrl :: Events.Id -> Slug -> Links.URI
-eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
+eventGetUrl eventId slug = Links.linkURI $ eventsLinks.detailWithSlug eventId slug
 
 eventsGetWeekUrl :: Year -> Int -> Maybe Text -> Links.URI
 eventsGetWeekUrl year weekNum maybeTag =
-  Links.linkURI $ eventsGetLink maybeTag (Just $ WeekView year weekNum)
+  Links.linkURI $ eventsLinks.list maybeTag (Just $ WeekView year weekNum)
 
 formatWeekTitle :: UTCTime -> UTCTime -> Text
 formatWeekTitle startDate endDate =

@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (mediaGetLink)
+import API.Links (apiLinks)
+import API.Types
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -24,7 +25,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 -- | Render show header with info
 renderShowHeader :: Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> Lucid.Html ()

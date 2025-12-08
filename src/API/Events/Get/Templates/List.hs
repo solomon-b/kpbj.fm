@@ -9,7 +9,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventGetLink, mediaGetLink)
+import API.Links (apiLinks, eventsLinks)
+import API.Types
 import Data.Foldable (traverse_)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -24,10 +25,10 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 eventGetUrl :: Events.Id -> Slug -> Links.URI
-eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
+eventGetUrl eventId slug = Links.linkURI $ eventsLinks.detailWithSlug eventId slug
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 

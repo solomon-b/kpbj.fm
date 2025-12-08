@@ -9,7 +9,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardShowsGetLink, mediaGetLink, showGetLink)
+import API.Links (apiLinks)
+import API.Types
 import Component.Form.Builder
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
@@ -34,13 +35,13 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
+dashboardShowsGetUrl = Links.linkURI $ apiLinks.dashboard.admin.shows.list Nothing Nothing Nothing
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
+showGetUrl slug = Links.linkURI $ apiLinks.shows.detail slug Nothing
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 

@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (privacyPolicyGetLink, termsOfServiceGetLink, userLoginGetLink, userRegisterPostLink)
+import API.Links (apiLinks, userLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text
 import Data.Text.Display (display)
@@ -22,16 +23,16 @@ import Servant.Links qualified as Link
 --------------------------------------------------------------------------------
 
 userRegisterPostUrl :: Link.URI
-userRegisterPostUrl = Link.linkURI userRegisterPostLink
+userRegisterPostUrl = Link.linkURI userLinks.registerPost
 
 userLoginGetUrl :: Link.URI
-userLoginGetUrl = Link.linkURI (userLoginGetLink Nothing Nothing)
+userLoginGetUrl = Link.linkURI (userLinks.loginGet Nothing Nothing)
 
 privacyPolicyGetUrl :: Link.URI
-privacyPolicyGetUrl = Link.linkURI privacyPolicyGetLink
+privacyPolicyGetUrl = Link.linkURI apiLinks.privacyPolicyGet
 
 termsOfServiceGetUrl :: Link.URI
-termsOfServiceGetUrl = Link.linkURI termsOfServiceGetLink
+termsOfServiceGetUrl = Link.linkURI apiLinks.termsOfServiceGet
 
 --------------------------------------------------------------------------------
 

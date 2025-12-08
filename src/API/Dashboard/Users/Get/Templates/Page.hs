@@ -5,7 +5,8 @@ module API.Dashboard.Users.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardUserDeleteLink, dashboardUserDetailGetLink, dashboardUserSuspendPostLink, dashboardUserUnsuspendPostLink, dashboardUsersGetLinkFull)
+import API.Links (dashboardUsersLinks)
+import API.Types
 import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -57,16 +58,16 @@ renderUserRow now user =
       userRole = user.uwmUserRole
       createdAt = user.uwmUserCreatedAt
       suspendedAt = user.uwmSuspendedAt
-      userDetailUrl = Links.linkURI $ dashboardUserDetailGetLink userId
+      userDetailUrl = Links.linkURI $ dashboardUsersLinks.detail userId
       cellLinkAttrs =
         [ Lucid.class_ "p-4 cursor-pointer",
           hxGet_ [i|/#{userDetailUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
         ]
-      userDeleteUrl = Links.linkURI $ dashboardUserDeleteLink userId
-      userSuspendUrl = Links.linkURI $ dashboardUserSuspendPostLink userId
-      userUnsuspendUrl = Links.linkURI $ dashboardUserUnsuspendPostLink userId
+      userDeleteUrl = Links.linkURI $ dashboardUsersLinks.delete userId
+      userSuspendUrl = Links.linkURI $ dashboardUsersLinks.suspendPost userId
+      userUnsuspendUrl = Links.linkURI $ dashboardUsersLinks.unsuspendPost userId
       userIdText = display userId
       rowId = [i|user-row-#{userIdText}|]
       deleteConfirmMessage =
@@ -206,8 +207,8 @@ renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filte
         Lucid.div_ [] mempty
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
-    prevPageUrl = Links.linkURI $ dashboardUsersGetLinkFull (Just (currentPage - 1)) maybeQuery maybeRoleFilter maybeSortFilter
-    nextPageUrl = Links.linkURI $ dashboardUsersGetLinkFull (Just (currentPage + 1)) maybeQuery maybeRoleFilter maybeSortFilter
+    prevPageUrl = Links.linkURI $ dashboardUsersLinks.list (Just (currentPage - 1)) maybeQuery maybeRoleFilter maybeSortFilter
+    nextPageUrl = Links.linkURI $ dashboardUsersLinks.list (Just (currentPage + 1)) maybeQuery maybeRoleFilter maybeSortFilter
 
 formatMonthYear :: UTCTime -> String
 formatMonthYear = formatTime defaultTimeLocale "%B %Y"

@@ -5,7 +5,8 @@ module API.Dashboard.Events.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEventsDeleteLink, dashboardEventsDetailGetLink, dashboardEventsEditGetLink, dashboardEventsGetLinkFull, eventGetLink)
+import API.Links (dashboardEventsLinks, eventsLinks)
+import API.Types
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -49,10 +50,10 @@ renderEventRow event =
       status = event.emStatus
       startsAt = event.emStartsAt
       locationName = event.emLocationName
-      detailUrl = Links.linkURI $ dashboardEventsDetailGetLink eventId eventSlug
-      editUrl = Links.linkURI $ dashboardEventsEditGetLink eventId eventSlug
-      viewUrl = Links.linkURI $ eventGetLink eventId eventSlug
-      deleteUrl = Links.linkURI $ dashboardEventsDeleteLink eventId eventSlug
+      detailUrl = Links.linkURI $ dashboardEventsLinks.detail eventId eventSlug
+      editUrl = Links.linkURI $ dashboardEventsLinks.editGet eventId eventSlug
+      viewUrl = Links.linkURI $ eventsLinks.detailWithSlug eventId eventSlug
+      deleteUrl = Links.linkURI $ dashboardEventsLinks.delete eventId eventSlug
       cellLinkAttrs =
         [ Lucid.class_ "p-4 cursor-pointer",
           hxGet_ [i|/#{detailUrl}|],
@@ -162,8 +163,8 @@ renderPagination currentPage hasMore = do
       else
         Lucid.div_ [] mempty
   where
-    prevPageUrl = Links.linkURI $ dashboardEventsGetLinkFull (Just (currentPage - 1))
-    nextPageUrl = Links.linkURI $ dashboardEventsGetLinkFull (Just (currentPage + 1))
+    prevPageUrl = Links.linkURI $ dashboardEventsLinks.list (Just (currentPage - 1))
+    nextPageUrl = Links.linkURI $ dashboardEventsLinks.list (Just (currentPage + 1))
 
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"

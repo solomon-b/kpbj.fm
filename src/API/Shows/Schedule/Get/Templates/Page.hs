@@ -4,8 +4,9 @@ module API.Shows.Schedule.Get.Templates.Page (template) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showsGetLink, showsScheduleGetLink)
+import API.Links (showsLinks)
 import API.Shows.Get.Templates.ScheduleView (renderScheduleView)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (Day, DayOfWeek, TimeOfDay)
@@ -63,7 +64,7 @@ renderTabs = do
         "All Shows"
   where
     showsScheduleGetUrl :: Links.URI
-    showsScheduleGetUrl = Links.linkURI $ showsScheduleGetLink Nothing
+    showsScheduleGetUrl = Links.linkURI $ showsLinks.schedule Nothing
 
     showsGetUrl :: Links.URI
-    showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
+    showsGetUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing

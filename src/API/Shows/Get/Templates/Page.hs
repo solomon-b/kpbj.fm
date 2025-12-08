@@ -7,9 +7,10 @@ module API.Shows.Get.Templates.Page
   )
 where
 
-import {-# SOURCE #-} API (showsGetLink, showsScheduleGetLink)
+import API.Links (showsLinks)
 import API.Shows.Get.Templates.Pagination (renderPagination)
 import API.Shows.Get.Templates.ShowCard (renderShowCard)
+import API.Types
 import Control.Monad (unless)
 import Data.Maybe (isNothing)
 import Data.String.Interpolate (i)
@@ -52,8 +53,8 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
 -- | Render tabs for switching between views
 renderTabs :: Lucid.Html ()
 renderTabs =
-  let showsScheduleUrl = Links.linkURI $ showsScheduleGetLink Nothing
-      showsListUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
+  let showsScheduleUrl = Links.linkURI $ showsLinks.schedule Nothing
+      showsListUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
    in Lucid.div_ [Lucid.class_ "mb-8 w-full border-b-2 border-gray-800"] $ do
         Lucid.nav_ [Lucid.class_ "flex gap-8"] $ do
           -- Schedule tab (inactive)

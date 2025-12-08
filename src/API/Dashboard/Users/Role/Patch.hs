@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -5,7 +6,9 @@ module API.Dashboard.Users.Role.Patch where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardUserRolePatchLink)
+import API.Dashboard.Users.Role.Patch.Route (RoleUpdateForm (..))
+import API.Links (dashboardUsersLinks)
+import API.Types (DashboardUsersRoutes (..))
 import App.Common (getUserInfo)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -20,40 +23,12 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
-import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxPatch_, hxSwap_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "PATCH /dashboard/users/:id/role"
-    ( "dashboard"
-        :> "users"
-        :> Servant.Capture "id" User.Id
-        :> "role"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] RoleUpdateForm
-        :> Servant.Patch '[HTML] (Lucid.Html ())
-    )
-
---------------------------------------------------------------------------------
-
-newtype RoleUpdateForm = RoleUpdateForm
-  { role :: UserMetadata.UserRole
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (FromForm)
 
 --------------------------------------------------------------------------------
 
@@ -144,7 +119,7 @@ renderRoleDropdown userId currentRole =
       roleOption UserMetadata.Staff currentRole
       roleOption UserMetadata.Admin currentRole
   where
-    rolePatchUrl = Links.linkURI $ dashboardUserRolePatchLink userId
+    rolePatchUrl = Links.linkURI $ dashboardUsersLinks.rolePatch userId
 
     roleOption :: UserMetadata.UserRole -> UserMetadata.UserRole -> Lucid.Html ()
     roleOption role selected =

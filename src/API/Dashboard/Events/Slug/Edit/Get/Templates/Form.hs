@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEventsDetailGetLink, dashboardEventsEditPostLink, dashboardEventsGetLink, mediaGetLink)
+import API.Links (apiLinks, dashboardEventsLinks)
+import API.Types (DashboardEventsRoutes (..), Routes (..))
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -27,16 +28,16 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 dashboardEventsGetUrl :: Links.URI
-dashboardEventsGetUrl = Links.linkURI dashboardEventsGetLink
+dashboardEventsGetUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
 
 eventDetailUrl :: Events.Id -> Slug -> Links.URI
-eventDetailUrl eventId slug = Links.linkURI $ dashboardEventsDetailGetLink eventId slug
+eventDetailUrl eventId slug = Links.linkURI $ dashboardEventsLinks.detail eventId slug
 
 eventEditPostUrl :: Events.Id -> Slug -> Links.URI
-eventEditPostUrl eventId slug = Links.linkURI $ dashboardEventsEditPostLink eventId slug
+eventEditPostUrl eventId slug = Links.linkURI $ dashboardEventsLinks.editPost eventId slug
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 

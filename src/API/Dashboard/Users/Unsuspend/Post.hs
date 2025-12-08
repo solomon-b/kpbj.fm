@@ -21,29 +21,12 @@ import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Class (MonadDB, runDBTransaction)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /dashboard/users/:id/unsuspend"
-    ( "dashboard"
-        :> "users"
-        :> Servant.Capture "id" User.Id
-        :> "unsuspend"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Post '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 

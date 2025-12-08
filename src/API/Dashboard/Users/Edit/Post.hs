@@ -6,8 +6,9 @@ module API.Dashboard.Users.Edit.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardUserDetailGetLink)
 import API.Dashboard.Users.Detail.Get.Templates.Page qualified as DetailPage
+import API.Links (dashboardUsersLinks)
+import API.Types (DashboardUsersRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.DashboardFrame (DashboardNav (..))
@@ -36,32 +37,14 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (Input (..), Mem, MultipartData (..), MultipartForm, lookupFile)
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /dashboard/users/:id/edit"
-    ( "dashboard"
-        :> "users"
-        :> Servant.Capture "id" User.Id
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> MultipartForm Mem (MultipartData Mem)
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-    )
+import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile)
 
 --------------------------------------------------------------------------------
 
@@ -166,7 +149,7 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
                     Right (_, Nothing, _, _) ->
                       pure $ Servant.noHeader (renderBanner Error "Error Updating User" "User metadata not found after update.")
                     Right (Just updatedUser, Just updatedMetadata, shows', episodes) -> do
-                      let detailUrl = Links.linkURI $ dashboardUserDetailGetLink targetUserId
+                      let detailUrl = Links.linkURI $ dashboardUsersLinks.detail targetUserId
                           pageContent = do
                             DetailPage.template updatedUser updatedMetadata shows' episodes
                             renderBanner Success "User Updated" "The user's information has been updated."

@@ -26,39 +26,11 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- | Route for event with ID and slug (canonical URL)
-type RouteWithSlug =
-  Observability.WithSpan
-    "GET /events/:id/:slug"
-    ( "events"
-        :> Servant.Capture "id" Events.Id
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
-
--- | Route for event with ID only (redirects to canonical)
-type RouteWithoutSlug =
-  Observability.WithSpan
-    "GET /events/:id"
-    ( "events"
-        :> Servant.Capture "id" Events.Id
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
 
 --------------------------------------------------------------------------------
 

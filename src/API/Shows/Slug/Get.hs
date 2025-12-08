@@ -30,28 +30,11 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /shows/:slug"
-    ( "shows"
-        :> Servant.Capture "slug" Slug
-        :> Servant.QueryParam "page" Int
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 

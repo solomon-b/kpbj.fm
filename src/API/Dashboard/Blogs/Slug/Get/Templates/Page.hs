@@ -10,7 +10,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardBlogsGetLink, showBlogEditGetLink)
+import API.Links (dashboardBlogsLinks, showBlogLinks)
+import API.Types
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -28,10 +29,10 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardBlogsGetUrl :: Shows.Model -> Links.URI
-dashboardBlogsGetUrl showModel = Links.linkURI $ dashboardBlogsGetLink showModel.slug
+dashboardBlogsGetUrl showModel = Links.linkURI $ dashboardBlogsLinks.list showModel.slug
 
 blogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> ShowBlogPosts.Model -> Links.URI
-blogEditGetUrl showId postId post = Links.linkURI $ showBlogEditGetLink showId postId post.slug
+blogEditGetUrl showId postId post = Links.linkURI $ showBlogLinks.editGet showId postId post.slug
 
 --------------------------------------------------------------------------------
 

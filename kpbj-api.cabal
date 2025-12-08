@@ -92,139 +92,211 @@ library
                   , xss-sanitize
   exposed-modules:
     API
+    API.Links
     API.About.Get
+    API.About.Get.Route
     API.About.Get.Templates
     API.Archive.Get
+    API.Archive.Get.Route
     API.Archive.Get.Templates.EpisodeCard
     API.Archive.Get.Templates.Page
     API.Archive.Get.Templates.SearchFilters
     API.Blog.Get
+    API.Blog.Get.Route
     API.Blog.Get.Templates.Page
     API.Blog.Get.Templates.Pagination
     API.Blog.Get.Templates.PostCard
     API.Blog.Post.Get
+    API.Blog.Post.Get.Route
     API.Blog.Post.Get.Templates.Page
     API.Donate.Get
+    API.Donate.Get.Route
     API.Donate.Get.Templates
     API.Events.Get
+    API.Events.Get.Route
     API.Events.Get.Templates.Controls
     API.Events.Get.Templates.List
     API.Events.Get.Templates.MonthView
     API.Events.Get.Templates.Page
     API.Events.Get.Templates.WeekView
     API.Events.Event.Get
+    API.Events.Event.Get.Route
     API.Events.Event.Get.Templates.Page
     API.Get
+    API.Get.Route
     API.Get.Templates
     API.Dashboard.Blogs.Get
+    API.Dashboard.Blogs.Get.Route
     API.Dashboard.Blogs.Get.Templates.Page
     API.Dashboard.Blogs.Slug.Get
+    API.Dashboard.Blogs.Slug.Get.Route
     API.Dashboard.Blogs.Slug.Get.Templates.Page
     API.Dashboard.Events.Get
+    API.Dashboard.Events.Get.Route
     API.Dashboard.Events.Get.Templates.Page
     API.Dashboard.Events.New.Get
+    API.Dashboard.Events.New.Get.Route
     API.Dashboard.Events.New.Get.Templates.Form
     API.Dashboard.Events.New.Post
+    API.Dashboard.Events.New.Post.Route
     API.Dashboard.Events.Slug.Delete
+    API.Dashboard.Events.Slug.Delete.Route
     API.Dashboard.Events.Slug.Edit.Get
+    API.Dashboard.Events.Slug.Edit.Get.Route
     API.Dashboard.Events.Slug.Edit.Get.Templates.Form
     API.Dashboard.Events.Slug.Edit.Post
+    API.Dashboard.Events.Slug.Edit.Post.Route
     API.Dashboard.Events.Slug.Get
+    API.Dashboard.Events.Slug.Get.Route
     API.Dashboard.Events.Slug.Get.Templates.Page
     API.Dashboard.StationBlog.Get
+    API.Dashboard.StationBlog.Get.Route
     API.Dashboard.StationBlog.Get.Templates.Page
     API.Dashboard.StationBlog.New.Get
+    API.Dashboard.StationBlog.New.Get.Route
     API.Dashboard.StationBlog.New.Get.Templates.Form
     API.Dashboard.StationBlog.New.Post
+    API.Dashboard.StationBlog.New.Post.Route
     API.Dashboard.StationBlog.Slug.Delete
+    API.Dashboard.StationBlog.Slug.Delete.Route
     API.Dashboard.StationBlog.Slug.Edit.Get
+    API.Dashboard.StationBlog.Slug.Edit.Get.Route
     API.Dashboard.StationBlog.Slug.Edit.Get.Templates.Form
     API.Dashboard.StationBlog.Slug.Edit.Post
+    API.Dashboard.StationBlog.Slug.Edit.Post.Route
     API.Dashboard.StationBlog.Slug.Get
+    API.Dashboard.StationBlog.Slug.Get.Route
     API.Dashboard.StationBlog.Slug.Get.Templates.Page
     API.Dashboard.Episodes.Slug.Edit.Get
+    API.Dashboard.Episodes.Slug.Edit.Get.Route
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts
     API.Dashboard.Episodes.Slug.Edit.Post
+    API.Dashboard.Episodes.Slug.Edit.Post.Route
     API.Dashboard.Episodes.Slug.Get
+    API.Dashboard.Episodes.Slug.Get.Route
     API.Dashboard.Episodes.Slug.Get.Templates.Page
     API.Dashboard.Episodes.Get
+    API.Dashboard.Episodes.Get.Route
     API.Dashboard.Episodes.Get.Templates.Page
     API.Dashboard.Episodes.Redirect
+    API.Dashboard.Episodes.Redirect.Route
     API.Dashboard.Get
+    API.Dashboard.Get.Route
     API.Dashboard.Get.Templates.Auth
     API.Dashboard.Get.Templates.BlogPost
     API.Dashboard.Get.Templates.Episode
     API.Dashboard.Shows.Get
+    API.Dashboard.Shows.Get.Route
     API.Dashboard.Shows.Get.Templates.Page
     API.Dashboard.Shows.New.Get
+    API.Dashboard.Shows.New.Get.Route
     API.Dashboard.Shows.New.Get.Templates.Page
     API.Dashboard.Shows.New.Post
+    API.Dashboard.Shows.New.Post.Route
     API.Dashboard.Users.Get
+    API.Dashboard.Users.Get.Route
     API.Dashboard.Users.Get.Templates.Page
     API.Dashboard.Users.Delete
+    API.Dashboard.Users.Delete.Route
     API.Dashboard.Users.Detail.Get
+    API.Dashboard.Users.Detail.Get.Route
     API.Dashboard.Users.Detail.Get.Templates.Page
     API.Dashboard.Users.Edit.Get
+    API.Dashboard.Users.Edit.Get.Route
     API.Dashboard.Users.Edit.Get.Templates.Page
     API.Dashboard.Users.Edit.Post
+    API.Dashboard.Users.Edit.Post.Route
     API.Dashboard.Users.Role.Patch
+    API.Dashboard.Users.Role.Patch.Route
     API.Dashboard.Users.Suspend.Post
+    API.Dashboard.Users.Suspend.Post.Route
     API.Dashboard.Users.Unsuspend.Post
+    API.Dashboard.Users.Unsuspend.Post.Route
     API.Media.Get
+    API.Media.Get.Route
     API.PrivacyPolicy.Get
+    API.PrivacyPolicy.Get.Route
     API.PrivacyPolicy.Get.Templates
     API.Shows.Get
+    API.Shows.Get.Route
     API.Shows.Get.Templates.Page
     API.Shows.Get.Templates.Pagination
     API.Shows.Get.Templates.ScheduleView
     API.Shows.Get.Templates.ShowCard
     API.Shows.Schedule.Get
+    API.Shows.Schedule.Get.Route
     API.Shows.Schedule.Get.Templates.Page
     API.Dashboard.Shows.Slug.Edit.Get
+    API.Dashboard.Shows.Slug.Edit.Get.Route
     API.Dashboard.Shows.Slug.Edit.Get.Templates.Form
     API.Dashboard.Shows.Slug.Edit.Post
+    API.Dashboard.Shows.Slug.Edit.Post.Route
     API.Dashboard.Shows.Slug.Get
+    API.Dashboard.Shows.Slug.Get.Route
     API.Dashboard.Shows.Slug.Get.Templates.Episode
     API.Dashboard.Shows.Slug.Get.Templates.Page
     API.Dashboard.Shows.Slug.Get.Templates.ShowHeader
     API.Shows.Slug.Episode.Get
+    API.Shows.Slug.Episode.Get.Route
     API.Shows.Slug.Episode.Get.Templates.Page
     API.Shows.Slug.Episode.Delete
+    API.Shows.Slug.Episode.Delete.Route
     API.Shows.Slug.Episode.Delete.Templates.ErrorBanner
     API.Shows.Slug.Episode.DiscardDraft
+    API.Shows.Slug.Episode.DiscardDraft.Route
     API.Shows.Slug.Episode.Publish.Post
+    API.Shows.Slug.Episode.Publish.Post.Route
     API.Shows.Slug.Episode.Publish.Post.Templates.Response
     API.Shows.Slug.Episode.New.Get
+    API.Shows.Slug.Episode.New.Get.Route
     API.Shows.Slug.Episode.New.Get.Templates.Form
     API.Shows.Slug.Episode.New.Post
+    API.Shows.Slug.Episode.New.Post.Route
     API.Shows.Slug.Get
+    API.Shows.Slug.Get.Route
     API.Shows.Slug.Get.Templates.Episode
     API.Shows.Slug.Get.Templates.Page
     API.Shows.Slug.Get.Templates.ShowHeader
     API.Shows.Slug.Blog.Delete
+    API.Shows.Slug.Blog.Delete.Route
     API.Shows.Slug.Blog.Edit.Get
+    API.Shows.Slug.Blog.Edit.Get.Route
     API.Shows.Slug.Blog.Edit.Get.Templates.Page
     API.Shows.Slug.Blog.Edit.Post
+    API.Shows.Slug.Blog.Edit.Post.Route
     API.Shows.Slug.Blog.Get
+    API.Shows.Slug.Blog.Get.Route
     API.Shows.Slug.Blog.Get.Templates.Page
     API.Shows.Slug.Blog.Get.Templates.PostCard
     API.Shows.Slug.Blog.New.Get
+    API.Shows.Slug.Blog.New.Get.Route
     API.Shows.Slug.Blog.New.Get.Templates.Page
     API.Shows.Slug.Blog.New.Post
+    API.Shows.Slug.Blog.New.Post.Route
     API.Shows.Slug.Blog.Post.Get
+    API.Shows.Slug.Blog.Post.Get.Route
     API.Shows.Slug.Blog.Post.Get.Templates.Page
     API.Static.Get
+    API.Static.Get.Route
     API.TermsOfService.Get
+    API.TermsOfService.Get.Route
     API.TermsOfService.Get.Templates
+    API.Types
     API.User.Login.Get
+    API.User.Login.Get.Route
     API.User.Login.Get.Templates.Form
     API.User.Login.Post
+    API.User.Login.Post.Route
     API.User.Logout.Get
+    API.User.Logout.Get.Route
     API.User.Logout.Post
+    API.User.Logout.Post.Route
     API.User.Register.Get
+    API.User.Register.Get.Route
     API.User.Register.Get.Templates.Form
     API.User.Register.Post
+    API.User.Register.Post.Route
     App.Common
     Component.Banner
     Component.Form

@@ -5,7 +5,8 @@ module API.Dashboard.StationBlog.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (blogPostGetLink, dashboardStationBlogDeleteLink, dashboardStationBlogDetailGetLink, dashboardStationBlogEditGetLink, dashboardStationBlogGetLinkFull)
+import API.Links (blogLinks, dashboardStationBlogLinks)
+import API.Types (BlogRoutes (..), DashboardStationBlogRoutes (..))
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -50,10 +51,10 @@ renderPostRow post =
       status = post.bpmStatus
       createdAt = post.bpmCreatedAt
       publishedAt = post.bpmPublishedAt
-      detailUrl = Links.linkURI $ dashboardStationBlogDetailGetLink postId postSlug
-      editUrl = Links.linkURI $ dashboardStationBlogEditGetLink postId postSlug
-      viewUrl = Links.linkURI $ blogPostGetLink postId postSlug
-      deleteUrl = Links.linkURI $ dashboardStationBlogDeleteLink postId postSlug
+      detailUrl = Links.linkURI $ dashboardStationBlogLinks.detail postId postSlug
+      editUrl = Links.linkURI $ dashboardStationBlogLinks.editGet postId postSlug
+      viewUrl = Links.linkURI $ blogLinks.postWithSlug postId postSlug
+      deleteUrl = Links.linkURI $ dashboardStationBlogLinks.delete postId postSlug
       cellLinkAttrs =
         [ Lucid.class_ "p-4 cursor-pointer",
           hxGet_ [i|/#{detailUrl}|],
@@ -166,8 +167,8 @@ renderPagination currentPage hasMore = do
       else
         Lucid.div_ [] mempty
   where
-    prevPageUrl = Links.linkURI $ dashboardStationBlogGetLinkFull (Just (currentPage - 1))
-    nextPageUrl = Links.linkURI $ dashboardStationBlogGetLinkFull (Just (currentPage + 1))
+    prevPageUrl = Links.linkURI $ dashboardStationBlogLinks.list (Just (currentPage - 1))
+    nextPageUrl = Links.linkURI $ dashboardStationBlogLinks.list (Just (currentPage + 1))
 
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"

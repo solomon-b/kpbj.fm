@@ -10,7 +10,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEpisodeEditGetLink, dashboardEpisodesGetLink, mediaGetLink)
+import API.Links (apiLinks, dashboardEpisodesLinks)
+import API.Types
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -28,13 +29,13 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 dashboardEpisodesGetUrl :: Slug -> Links.URI
-dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesGetLink showSlug
+dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug
 
 episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeEditGetLink showSlug episodeId episodeSlug
+episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 
@@ -296,7 +297,7 @@ errorTemplate errorMsg = do
 
 notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate showSlug = do
-  let backUrl = Links.linkURI $ dashboardEpisodesGetLink showSlug
+  let backUrl = Links.linkURI $ dashboardEpisodesLinks.list showSlug
   Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
     Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-4"] "Episode Not Found"
     Lucid.p_ [Lucid.class_ "text-gray-700 mb-6"] "We couldn't find the episode you're looking for."

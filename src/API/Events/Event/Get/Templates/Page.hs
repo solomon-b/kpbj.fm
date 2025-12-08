@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Events.Event.Get.Templates.Page
@@ -10,7 +11,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventsGetLink, mediaGetLink)
+import API.Links (apiLinks, eventsLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -28,13 +30,13 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 eventsGetUrl :: Links.URI
-eventsGetUrl = Links.linkURI $ eventsGetLink Nothing Nothing
+eventsGetUrl = Links.linkURI $ eventsLinks.list Nothing Nothing
 
 eventsGetTagUrl :: Text -> Links.URI
-eventsGetTagUrl tagName = Links.linkURI $ eventsGetLink (Just tagName) Nothing
+eventsGetTagUrl tagName = Links.linkURI $ eventsLinks.list (Just tagName) Nothing
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 

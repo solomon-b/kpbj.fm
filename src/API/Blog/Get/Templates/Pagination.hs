@@ -5,7 +5,8 @@ module API.Blog.Get.Templates.Pagination
   )
 where
 
-import {-# SOURCE #-} API (blogGetLink)
+import API.Links (blogLinks)
+import API.Types
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Lucid qualified
@@ -49,4 +50,4 @@ renderPagination currentPage hasMore = do
         else Lucid.span_ [Lucid.class_ "px-3 py-1 text-gray-400"] "Next ›"
   where
     blogGetPageUrl :: Int64 -> Links.URI
-    blogGetPageUrl page = Links.linkURI $ blogGetLink (Just page) Nothing
+    blogGetPageUrl page = Links.linkURI $ blogLinks.list (Just page) Nothing

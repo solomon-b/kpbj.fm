@@ -25,39 +25,11 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- | Route for blog post with ID and slug (canonical URL)
-type RouteWithSlug =
-  Observability.WithSpan
-    "GET /blog/:id/:slug"
-    ( "blog"
-        :> Servant.Capture "id" BlogPosts.Id
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
-
--- | Route for blog post with ID only (redirects to canonical)
-type RouteWithoutSlug =
-  Observability.WithSpan
-    "GET /blog/:id"
-    ( "blog"
-        :> Servant.Capture "id" BlogPosts.Id
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
 
 --------------------------------------------------------------------------------
 

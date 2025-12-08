@@ -5,7 +5,8 @@ module API.Shows.Get.Templates.Pagination
   )
 where
 
-import {-# SOURCE #-} API (showsGetLink)
+import API.Links (showsLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
 import Domain.Types.PageNumber (PageNumber)
@@ -50,4 +51,4 @@ renderPagination currentPage hasMore = do
         else Lucid.span_ [Lucid.class_ "px-3 py-1 text-gray-400"] "Next ›"
   where
     showsGetPageUrl :: PageNumber -> Links.URI
-    showsGetPageUrl page = Links.linkURI $ showsGetLink (Just page) Nothing Nothing Nothing
+    showsGetPageUrl page = Links.linkURI $ showsLinks.list (Just page) Nothing Nothing Nothing
