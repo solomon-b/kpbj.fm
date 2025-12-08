@@ -4,32 +4,20 @@ module API.Dashboard.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEpisodesRedirectLink)
+import API.Links (dashboardLinks)
+import API.Types
 import Component.Redirect (redirectTemplate)
 import Control.Monad.IO.Class (MonadIO)
 import Data.String.Interpolate (i)
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 dashboardEpisodesRedirectUrl :: Links.URI
-dashboardEpisodesRedirectUrl = Links.linkURI dashboardEpisodesRedirectLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /dashboard"
-    ( "dashboard"
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+dashboardEpisodesRedirectUrl = Links.linkURI dashboardLinks.episodesRedirect
 
 --------------------------------------------------------------------------------
 

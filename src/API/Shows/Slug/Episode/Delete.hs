@@ -21,35 +21,10 @@ import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- | Soft delete (archive) route for episodes.
---
--- This is restricted to staff or higher roles. It sets the episode status
--- to 'deleted' but preserves the record in the database. Use this to remove
--- published episodes from public view while maintaining history.
---
--- For discarding draft episodes, hosts should use the DiscardDraft endpoint instead.
-type Route =
-  Observability.WithSpan
-    "DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
-        :> "episodes"
-        :> Servant.Capture "episode_id" Episodes.Id
-        :> Servant.Capture "episode_slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Delete '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 

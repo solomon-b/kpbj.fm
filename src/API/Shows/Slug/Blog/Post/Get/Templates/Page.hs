@@ -4,7 +4,8 @@ module API.Shows.Slug.Blog.Post.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogGetLink)
+import API.Links (showBlogLinks)
+import API.Types
 import Control.Monad (forM_, unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -24,7 +25,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 showBlogGetUrl :: Slug -> Links.URI
-showBlogGetUrl slug = Links.linkURI $ showBlogGetLink slug Nothing Nothing
+showBlogGetUrl slug = Links.linkURI $ showBlogLinks.list slug Nothing Nothing
 
 --------------------------------------------------------------------------------
 

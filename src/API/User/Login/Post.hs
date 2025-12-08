@@ -2,72 +2,34 @@ module API.User.Login.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink, userLoginGetLink)
+import API.Links (apiLinks, userLinks)
+import API.Types
+import API.User.Login.Post.Route (Login (..))
 import App.Auth qualified as Auth
 import App.Errors (InternalServerError (..), throwErr)
 import Control.Monad.Catch (MonadCatch, MonadThrow (..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Aeson (FromJSON, ToJSON, (.=))
+import Data.Aeson (ToJSON, (.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
-import Data.Password.Argon2 (Password, PasswordCheck (..), checkPassword, mkPassword)
+import Data.Password.Argon2 (PasswordCheck (..), checkPassword)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (Display (..), RecordInstance (..))
-import Deriving.Aeson qualified as Deriving
 import Domain.Types.EmailAddress
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpanThrow)
 import Effects.Database.Tables.ServerSessions qualified as Session
 import Effects.Database.Tables.User qualified as User
-import Effects.Observability qualified as Observability
-import GHC.Generics (Generic)
 import Hasql.Pool qualified
 import Log qualified
 import Network.Socket
 import OpenTelemetry.Trace qualified as OTEL
-import Servant ((:>))
 import Servant qualified
-import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm (..))
-import Web.FormUrlEncoded qualified as FormUrlEncoded
 import Web.HttpApiData qualified as Http
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /user/login"
-    ( "user"
-        :> "login"
-        :> Servant.RemoteHost
-        :> Servant.Header "User-Agent" Text
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] Login
-        :> Servant.QueryParam "redirect" Text
-        :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
-    )
-
---------------------------------------------------------------------------------
-
-data Login = Login
-  { ulEmail :: EmailAddress,
-    ulPassword :: Password
-  }
-  deriving stock (Generic)
-  deriving (Display) via (RecordInstance Login)
-  deriving
-    (FromJSON, ToJSON)
-    via Deriving.CustomJSON '[Deriving.FieldLabelModifier '[Deriving.StripPrefix "ul", Deriving.CamelToSnake]] Login
-
-instance FormUrlEncoded.FromForm Login where
-  fromForm f =
-    Login
-      <$> FormUrlEncoded.parseUnique "email" f
-      <*> fmap mkPassword (FormUrlEncoded.parseUnique "password" f)
 
 --------------------------------------------------------------------------------
 
@@ -100,7 +62,7 @@ handler _tracer sockAddr mUserAgent Login {..} redirectQueryParam = do
     Just user
       | checkPassword ulPassword (User.mPassword user) == PasswordCheckSuccess -> do
           Log.logInfo "Login Attempt" ulEmail
-          let redirectLink = fromMaybe (Http.toUrlPiece rootGetLink) redirectQueryParam
+          let redirectLink = fromMaybe (Http.toUrlPiece apiLinks.rootGet) redirectQueryParam
           attemptLogin sockAddr mUserAgent redirectLink user
     Just _user -> do
       Log.logInfo "Login Attempt" ulEmail
@@ -156,4 +118,4 @@ invalidCredentialResponse ::
     )
 invalidCredentialResponse emailAddress details = do
   Log.logInfo "Invalid Credentials" details
-  pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLoginGetLink Nothing $ Just emailAddress)) Servant.NoContent
+  pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing $ Just emailAddress)) Servant.NoContent

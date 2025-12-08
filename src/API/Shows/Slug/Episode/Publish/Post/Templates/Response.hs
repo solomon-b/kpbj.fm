@@ -9,7 +9,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEpisodeEditGetLink, episodesDeleteLink, episodesGetLink, episodesPublishPostLink)
+import API.Links (dashboardEpisodesLinks, showEpisodesLinks)
+import API.Types
 import Component.Banner (BannerType (..), renderBanner)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -26,16 +27,16 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 episodeGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
+episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
 
 episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodeEditGetLink showSlug episodeId episodeSlug
+episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug episodeId episodeSlug
 
 episodeDeleteUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeDeleteUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesDeleteLink showSlug episodeId episodeSlug
+episodeDeleteUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.delete showSlug episodeId episodeSlug
 
 episodePublishUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodePublishUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesPublishPostLink showSlug episodeId episodeSlug
+episodePublishUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.publish showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 

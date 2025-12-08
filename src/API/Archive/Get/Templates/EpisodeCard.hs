@@ -2,7 +2,8 @@ module API.Archive.Get.Templates.EpisodeCard (renderEpisodeCard) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showGetLink)
+import API.Links (showsLinks)
+import API.Types
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -92,7 +93,7 @@ renderEpisodeCard ews = do
             "NO AUDIO"
   where
     showGetUrl :: Slug -> Links.URI
-    showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
+    showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 formatDate :: UTCTime -> Text
 formatDate = Text.pack . formatTime defaultTimeLocale "%b %e, %Y"

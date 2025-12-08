@@ -9,7 +9,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesGetLink, mediaGetLink)
+import API.Links (apiLinks, showEpisodesLinks)
+import API.Types (Routes (..), ShowEpisodesRoutes (..))
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -26,11 +27,11 @@ import Servant.Links qualified as Links
 
 -- | Helper function to convert artwork path to full media URL
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 -- | Helper function to get episode detail URL
 episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
+episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
 
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()

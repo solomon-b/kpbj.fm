@@ -1,12 +1,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.StationBlog.New.Post (Route, handler) where
+module API.Dashboard.StationBlog.New.Post (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardStationBlogDetailGetLink, dashboardStationBlogGetLink, dashboardStationBlogNewGetLink, rootGetLink, userLoginGetLink)
+import API.Dashboard.StationBlog.New.Post.Route (NewBlogPostForm (..))
 import API.Dashboard.StationBlog.Slug.Get.Templates.Page qualified as DetailPage
+import API.Links (apiLinks, dashboardStationBlogLinks, userLinks)
+import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.DashboardFrame (DashboardNav (..))
@@ -18,7 +20,8 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Foldable (fold, traverse_)
+import Data.Either (fromRight)
+import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.String.Interpolate (i)
@@ -40,47 +43,28 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
-import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm (..), parseMaybe, parseUnique)
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 dashboardStationBlogGetUrl :: Links.URI
-dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
+dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
 
 dashboardStationBlogNewGetUrl :: Links.URI
-dashboardStationBlogNewGetUrl = Links.linkURI dashboardStationBlogNewGetLink
+dashboardStationBlogNewGetUrl = Links.linkURI dashboardStationBlogLinks.newGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /dashboard/station-blog/new"
-    ( "dashboard"
-        :> "station-blog"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> MultipartForm Mem NewBlogPostForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-    )
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -111,61 +95,6 @@ errorTemplate errorMsg = do
 
 --------------------------------------------------------------------------------
 
--- | Form data for creating a new blog post
-data NewBlogPostForm = NewBlogPostForm
-  { nbpfTitle :: Text,
-    nbpfContent :: Text,
-    nbpfExcerpt :: Maybe Text,
-    nbpfStatus :: Maybe Text,
-    nbpfTags :: [Text],
-    nbpfHeroImage :: Maybe (FileData Mem)
-  }
-  deriving (Show, Eq)
-
-instance FromMultipart Mem NewBlogPostForm where
-  fromMultipart multipartData =
-    NewBlogPostForm
-      <$> lookupInput "title" multipartData
-      <*> lookupInput "content" multipartData
-      <*> pure (either (const Nothing) Just (lookupInput "excerpt" multipartData))
-      <*> pure (either (const Nothing) Just (lookupInput "status" multipartData))
-      <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "hero_image" multipartData))
-    where
-      -- \| Convert empty filename FileData to Nothing
-      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
-      fileDataToNothing (Just fileData)
-        | Text.null (fdFileName fileData) = Nothing
-        | otherwise = Just fileData
-      fileDataToNothing Nothing = Nothing
-
-instance FromForm NewBlogPostForm where
-  fromForm form = do
-    title <- parseUnique "title" form
-    content <- parseUnique "content" form
-    excerpt <- parseMaybe "excerpt" form
-    status <- parseMaybe "status" form
-    tags <- parseMaybe "tags" form
-
-    pure
-      NewBlogPostForm
-        { nbpfTitle = title,
-          nbpfContent = content,
-          nbpfExcerpt = if maybe True Text.null excerpt then Nothing else excerpt,
-          nbpfStatus = status,
-          nbpfTags = parseTags $ fold tags,
-          nbpfHeroImage = Nothing
-        }
-
--- | Parse comma-separated tags
-parseTags :: Text -> [Text]
-parseTags tagText =
-  filter (not . Text.null) $
-    map Text.strip $
-      Text.splitOn "," tagText
-
---------------------------------------------------------------------------------
-
 handler ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -185,18 +114,18 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
   getUserInfo cookie >>= \case
     Nothing -> do
       let banner = BannerParams Error "Login Required" "You must be logged in to create blog posts."
-      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+      pure (Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner))
     Just (_user, userMetadata)
       | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
           let banner = BannerParams Error "Staff Access Required" "You do not have permission to create blog posts."
-          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
     Just (user, userMetadata) -> do
       -- Fetch shows for sidebar
       showsResult <-
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = either (const []) id showsResult
+      let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
       -- Process hero image upload if present
@@ -324,12 +253,12 @@ handlePostCreation hxRequest userMetadata allShows selectedShow blogPostData for
         Right (Just createdPost) -> do
           -- Get author info
           authorResult <- execQuerySpan (UserMetadata.getUserMetadata (BlogPosts.bpmAuthorId createdPost))
-          let author = either (const Nothing) id authorResult
+          let author = fromRight Nothing authorResult
           -- Get tags for the post
           tagsResult <- execQuerySpan (BlogPosts.getTagsForPost postId)
-          let tags = either (const []) id tagsResult
+          let tags = fromRight [] tagsResult
           Log.logInfo "Successfully created blog post" (Aeson.object ["title" .= BlogPosts.bpmTitle createdPost])
-          let detailUrl = Links.linkURI $ dashboardStationBlogDetailGetLink postId (BlogPosts.bpmSlug createdPost)
+          let detailUrl = Links.linkURI $ dashboardStationBlogLinks.detail postId (BlogPosts.bpmSlug createdPost)
               banner = renderBanner Success "Blog Post Created" "Your blog post has been created successfully."
           html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing $ case hxRequest of
             IsHxRequest -> do

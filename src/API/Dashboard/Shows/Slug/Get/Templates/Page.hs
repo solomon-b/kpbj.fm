@@ -10,10 +10,11 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogGetLink, showGetLink, showsGetLink)
-import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
 import API.Dashboard.Shows.Slug.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
 import API.Dashboard.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
+import API.Links (dashboardShowsLinks, showBlogLinks)
+import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
+import API.Types (DashboardShowsRoutes (..), ShowBlogRoutes (..))
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -32,7 +33,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 showsGetUrl :: Links.URI
-showsGetUrl = Links.linkURI $ showsGetLink Nothing Nothing Nothing Nothing
+showsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -142,13 +143,14 @@ renderPagination showModel currentPage episodeCount = do
   let hasNextPage = episodeCount >= episodesPerPage
       hasPrevPage = currentPage > 1
       showSlug = Shows.slug showModel
+      showId = Shows.id showModel
 
   when (hasPrevPage || hasNextPage) $ do
     Lucid.div_ [Lucid.class_ "flex justify-center gap-4 mt-6"] $ do
       -- Previous page button
       if hasPrevPage
         then do
-          let prevUrl = Links.linkURI $ showGetLink showSlug (Just (currentPage - 1))
+          let prevUrl = Links.linkURI $ dashboardShowsLinks.detail showId showSlug (Just (currentPage - 1))
           Lucid.a_
             [ Lucid.href_ [i|/#{prevUrl}|],
               hxGet_ [i|/#{prevUrl}|],
@@ -170,7 +172,7 @@ renderPagination showModel currentPage episodeCount = do
       -- Next page button
       if hasNextPage
         then do
-          let nextUrl = Links.linkURI $ showGetLink showSlug (Just (currentPage + 1))
+          let nextUrl = Links.linkURI $ dashboardShowsLinks.detail showId showSlug (Just (currentPage + 1))
           Lucid.a_
             [ Lucid.href_ [i|/#{nextUrl}|],
               hxGet_ [i|/#{nextUrl}|],
@@ -197,7 +199,7 @@ renderBlogContent showModel blogPosts = do
         mapM_ (renderPostCard showModel) blogPosts
 
       -- View all link
-      let blogUrl = Links.linkURI $ showBlogGetLink (Shows.slug showModel) Nothing Nothing
+      let blogUrl = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
       Lucid.div_ [Lucid.class_ "mt-8 text-center"] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{blogUrl}|],

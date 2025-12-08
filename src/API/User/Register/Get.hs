@@ -12,27 +12,9 @@ import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
-import Effects.Observability qualified as Observability
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace qualified as Trace
-import Servant ((:>))
-import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /user/register"
-    ( "user"
-        :> "register"
-        :> Servant.Header "HX-Request" Text
-        :> Servant.QueryParam "emailAddress" EmailAddress
-        :> Servant.QueryParam "displayName" DisplayName
-        :> Servant.QueryParam "fullName" FullName
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 

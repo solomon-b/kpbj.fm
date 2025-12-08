@@ -12,24 +12,10 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Tables.ServerSessions qualified as Session
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified
 import Log qualified
 import OpenTelemetry.Trace qualified as OTEL
-import Servant ((:>))
 import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /user/logout"
-    ( Servant.AuthProtect "cookie-auth"
-        :> "user"
-        :> "logout"
-        :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] Servant.NoContent)
-    )
 
 --------------------------------------------------------------------------------
 

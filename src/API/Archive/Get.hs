@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -5,8 +6,9 @@ module API.Archive.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink)
 import API.Archive.Get.Templates.Page (episodeCardsOnly, template)
+import API.Links (apiLinks)
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
@@ -29,36 +31,17 @@ import Effects.Clock (MonadClock (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /archive"
-    ( "archive"
-        :> Servant.QueryParam "q" Text
-        :> Servant.QueryParam "genre" Text
-        :> Servant.QueryParam "year" Int
-        :> Servant.QueryParam "page" Int64
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 --------------------------------------------------------------------------------
 

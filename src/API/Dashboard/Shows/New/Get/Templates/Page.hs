@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardShowsGetLink, dashboardShowsNewPostLink)
+import API.Links (dashboardShowsLinks)
+import API.Types (DashboardShowsRoutes (..))
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
@@ -20,10 +21,10 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
+dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
 
 dashboardShowsNewPostUrl :: Links.URI
-dashboardShowsNewPostUrl = Links.linkURI dashboardShowsNewPostLink
+dashboardShowsNewPostUrl = Links.linkURI dashboardShowsLinks.newPost
 
 --------------------------------------------------------------------------------
 

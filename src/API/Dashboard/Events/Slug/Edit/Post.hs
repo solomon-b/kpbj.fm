@@ -1,13 +1,18 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module API.Dashboard.Events.Slug.Edit.Post (Route, handler) where
+{-# HLINT ignore "Redundant <$>" #-}
+
+module API.Dashboard.Events.Slug.Edit.Post (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEventsDetailGetLink, rootGetLink, userLoginGetLink)
+import API.Dashboard.Events.Slug.Edit.Post.Route (EventEditForm (..), parseDateTime, parseStatus)
 import API.Dashboard.Events.Slug.Get.Templates.Page qualified as DetailPage
+import API.Links (apiLinks, dashboardEventsLinks, userLinks)
+import API.Types (DashboardEventsRoutes (..), Routes (..), UserRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.DashboardFrame (DashboardNav (..))
@@ -20,14 +25,13 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
-import Data.Foldable (fold, traverse_)
+import Data.Either (fromRight)
+import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (UTCTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -43,93 +47,21 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadEventPosterImage)
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /dashboard/events/:id/:slug/edit"
-    ( "dashboard"
-        :> "events"
-        :> Servant.Capture "id" Events.Id
-        :> Servant.Capture "slug" Slug
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> MultipartForm Mem EventEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-    )
-
---------------------------------------------------------------------------------
-
--- | Form data for event editing
-data EventEditForm = EventEditForm
-  { eefTitle :: Text,
-    eefDescription :: Text,
-    eefStartsAt :: Text,
-    eefEndsAt :: Text,
-    eefLocationName :: Text,
-    eefLocationAddress :: Text,
-    eefStatus :: Text,
-    eefTags :: [Text],
-    eefPosterImage :: Maybe (FileData Mem)
-  }
-  deriving (Show)
-
-instance FromMultipart Mem EventEditForm where
-  fromMultipart multipartData =
-    EventEditForm
-      <$> lookupInput "title" multipartData
-      <*> lookupInput "description" multipartData
-      <*> lookupInput "starts_at" multipartData
-      <*> lookupInput "ends_at" multipartData
-      <*> lookupInput "location_name" multipartData
-      <*> lookupInput "location_address" multipartData
-      <*> lookupInput "status" multipartData
-      <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
-      <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
-    where
-      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
-      fileDataToNothing (Just fileData)
-        | Text.null (fdFileName fileData) = Nothing
-        | otherwise = Just fileData
-      fileDataToNothing Nothing = Nothing
-
--- | Parse comma-separated tags
-parseTags :: Text -> [Text]
-parseTags tagText =
-  filter (not . Text.null) $
-    map (Sanitize.sanitizePlainText . Text.strip) $
-      Text.splitOn "," tagText
-
--- | Parse event status from text
-parseStatus :: Text -> Maybe Events.Status
-parseStatus "published" = Just Events.Published
-parseStatus "draft" = Just Events.Draft
-parseStatus _ = Nothing
-
--- | Parse datetime from HTML5 datetime-local format
-parseDateTime :: Text -> Maybe UTCTime
-parseDateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" . Text.unpack
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -166,7 +98,7 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = either (const []) id showsResult
+      let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
       mResult <- execTransactionSpan $ runMaybeT $ do
@@ -303,7 +235,7 @@ updateEvent hxRequest userMetadata allShows selectedShow event oldTags editForm 
                 Right Nothing ->
                   Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Event updated but not found.")
                 Right (Just (updatedEvent, author, newTags)) -> do
-                  let detailUrl = Links.linkURI $ dashboardEventsDetailGetLink event.emId newSlug
+                  let detailUrl = Links.linkURI $ dashboardEventsLinks.detail event.emId newSlug
                       banner = renderBanner Success "Event Updated" "Your event has been updated and saved."
                   html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing $ case hxRequest of
                     IsHxRequest -> do

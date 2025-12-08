@@ -6,7 +6,9 @@ module API.Shows.Slug.Blog.Edit.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink, showBlogEditGetLink, showBlogPostGetLink, showGetLink)
+import API.Links (apiLinks, showBlogLinks, showsLinks)
+import API.Shows.Slug.Blog.Edit.Post.Route (ShowBlogEditForm (..))
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
@@ -18,10 +20,8 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Foldable (traverse_)
 import Data.Has (Has)
-import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..))
@@ -35,51 +35,28 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm (..))
-import Web.FormUrlEncoded qualified as Form
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 showBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-showBlogPostGetUrl showId postId = Links.linkURI . showBlogPostGetLink showId postId
+showBlogPostGetUrl showId postId = Links.linkURI . showBlogLinks.postWithSlug showId postId
 
 showBlogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-showBlogEditGetUrl showId postId slug = Links.linkURI $ showBlogEditGetLink showId postId slug
+showBlogEditGetUrl showId postId slug = Links.linkURI $ showBlogLinks.editGet showId postId slug
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl showSlug = Links.linkURI $ showGetLink showSlug Nothing
+showGetUrl showSlug = Links.linkURI $ showsLinks.detail showSlug Nothing
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /shows/:show_id/blog/:post_id/:slug/edit"
-    ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
-        :> "blog"
-        :> Servant.Capture "post_id" ShowBlogPosts.Id
-        :> Servant.Capture "slug" Slug
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] ShowBlogEditForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
-    )
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 --------------------------------------------------------------------------------
 
@@ -144,45 +121,6 @@ notFoundTemplate =
     Lucid.p_ "The blog post you're trying to edit does not exist."
 
 --------------------------------------------------------------------------------
-
--- | Form data for show blog post editing
-data ShowBlogEditForm = ShowBlogEditForm
-  { sbefTitle :: Text,
-    sbefContent :: Text,
-    sbefExcerpt :: Maybe Text,
-    sbefStatus :: Text,
-    sbefTags :: [Text]
-  }
-  deriving (Show)
-
-instance FromForm ShowBlogEditForm where
-  fromForm :: Form.Form -> Either Text ShowBlogEditForm
-  fromForm form = do
-    title <- Form.parseUnique "title" form
-    content <- Form.parseUnique "content" form
-    excerpt <- Form.parseMaybe "excerpt" form
-    status <- Form.parseUnique "status" form
-    tags <- Form.parseMaybe "tags" form
-
-    pure
-      ShowBlogEditForm
-        { sbefTitle = title,
-          sbefContent = content,
-          sbefExcerpt = emptyToNothing excerpt,
-          sbefStatus = status,
-          sbefTags = parseTags $ fromMaybe "" tags
-        }
-    where
-      emptyToNothing :: Maybe Text -> Maybe Text
-      emptyToNothing (Just "") = Nothing
-      emptyToNothing x = x
-
--- | Parse comma-separated tags
-parseTags :: Text -> [Text]
-parseTags tagText =
-  filter (not . Text.null) $
-    map Text.strip $
-      Text.splitOn "," tagText
 
 -- | Parse blog post status from text
 parseStatus :: Text -> Maybe BlogPostStatus

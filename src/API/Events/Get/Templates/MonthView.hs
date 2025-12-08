@@ -10,7 +10,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventGetLink, eventsGetLink)
+import API.Links (eventsLinks)
+import API.Types
 import Data.Foldable (traverse_)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -39,11 +40,11 @@ data CalendarDay = CalendarDay
 
 -- URL helpers
 eventGetUrl :: Events.Id -> Slug -> Links.URI
-eventGetUrl eventId slug = Links.linkURI $ eventGetLink eventId slug
+eventGetUrl eventId slug = Links.linkURI $ eventsLinks.detailWithSlug eventId slug
 
 eventsGetMonthUrl :: Year -> MonthOfYear -> Maybe Text -> Links.URI
 eventsGetMonthUrl year month maybeTag =
-  Links.linkURI $ eventsGetLink maybeTag (Just $ MonthView year month)
+  Links.linkURI $ eventsLinks.list maybeTag (Just $ MonthView year month)
 
 monthName :: MonthOfYear -> Text
 monthName 1 = "JANUARY"

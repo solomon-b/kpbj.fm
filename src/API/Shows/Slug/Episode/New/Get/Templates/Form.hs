@@ -7,7 +7,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesNewPostLink)
+import API.Links (showEpisodesLinks)
+import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -24,7 +25,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 episodesNewPostUrl :: Slug -> Links.URI
-episodesNewPostUrl showSlug = Links.linkURI $ episodesNewPostLink showSlug
+episodesNewPostUrl showSlug = Links.linkURI $ showEpisodesLinks.newPost showSlug
 
 --------------------------------------------------------------------------------
 

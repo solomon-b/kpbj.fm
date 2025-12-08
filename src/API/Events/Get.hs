@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -5,11 +6,12 @@ module API.Events.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink)
 import API.Events.Get.Templates.List (renderListContent)
 import API.Events.Get.Templates.MonthView (CalendarDay (..), renderMonthContent)
 import API.Events.Get.Templates.Page (header)
 import API.Events.Get.Templates.WeekView (WeekDay (..), renderWeekContent)
+import API.Links (apiLinks)
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
@@ -36,33 +38,16 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /events"
-    ( "events"
-        :> Servant.QueryParam "tag" Text
-        :> Servant.QueryParam "view" PageView
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 --------------------------------------------------------------------------------
 -- Calendar Logic

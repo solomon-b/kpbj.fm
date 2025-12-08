@@ -5,8 +5,9 @@ module API.Shows.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (rootGetLink)
+import API.Links (apiLinks)
 import API.Shows.Get.Templates.Page (template)
+import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
@@ -32,35 +33,16 @@ import Domain.Types.Search (Search (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /shows"
-    ( "shows"
-        :> Servant.QueryParam "page" PageNumber
-        :> Servant.QueryParam "genre" Genre
-        :> Servant.QueryParam "status" Shows.Status
-        :> Servant.QueryParam "search" Search
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 --------------------------------------------------------------------------------
 

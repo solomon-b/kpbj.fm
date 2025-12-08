@@ -2,7 +2,9 @@ module API.User.Register.Post where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (userRegisterGetLink)
+import API.Links (userLinks)
+import API.Types
+import API.User.Register.Post.Route (Register (..), RegisterParsed (..))
 import App.Auth qualified as Auth
 import App.Errors (Forbidden (..), InternalServerError (..), throwErr)
 import Control.Monad (when)
@@ -11,33 +13,27 @@ import Control.Monad.Catch.Pure (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Aeson (FromJSON, ToJSON, (.=))
+import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor (first)
 import Data.Foldable (foldl')
 import Data.Has (Has)
 import Data.Maybe (isJust)
-import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword, mkPassword)
+import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display, display)
 import Data.Text.Display.Core (Display (..))
-import Data.Text.Display.Generic (RecordInstance (..))
 import Data.Text.Encoding qualified as Text
 import Data.Validation
-import Deriving.Aeson qualified as Deriving
-import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.EmailAddress qualified as EmailAddress
-import Domain.Types.FullName (FullName)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpanThrow)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
-import GHC.Generics (Generic)
 import Hasql.Interpolate (OneRow (..))
 import Hasql.Pool qualified
 import Log qualified
@@ -47,55 +43,8 @@ import Network.Socket (SockAddr)
 import OpenTelemetry.Trace qualified as OTEL
 import OrphanInstances.OneRow ()
 import OrphanInstances.Servant ()
-import Servant ((:>))
 import Servant qualified
-import Text.HTML (HTML)
-import Web.FormUrlEncoded qualified as FormUrlEncoded
 import Web.HttpApiData qualified as Http
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /user/register"
-    ( "user"
-        :> "register"
-        :> Servant.RemoteHost
-        :> Servant.Header "User-Agent" Text
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] Register
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
-    )
-
---------------------------------------------------------------------------------
-
-data Register = Register
-  { urEmail :: EmailAddress,
-    urPassword :: Password,
-    urDisplayName :: DisplayName,
-    urFullName :: FullName,
-    urNewsletter :: Maybe Bool
-  }
-  deriving stock (Generic)
-  deriving (Display) via (RecordInstance Register)
-  deriving
-    (FromJSON, ToJSON)
-    via Deriving.CustomJSON '[Deriving.FieldLabelModifier '[Deriving.StripPrefix "ur", Deriving.CamelToSnake]] Register
-
-instance FormUrlEncoded.FromForm Register where
-  fromForm f =
-    Register
-      <$> FormUrlEncoded.parseUnique "email" f
-      <*> fmap mkPassword (FormUrlEncoded.parseUnique "password" f)
-      <*> FormUrlEncoded.parseUnique "displayName" f
-      <*> FormUrlEncoded.parseUnique "fullName" f
-      <*> pure (either (pure Nothing) (const $ Just True) (FormUrlEncoded.parseMaybe @Text "newsletter" f))
-
-data RegisterParsed = RegisterParsed
-  { urpEmail :: EmailAddress,
-    urpPassword :: PasswordHash Argon2,
-    urpDisplayName :: DisplayName,
-    urpFullName :: FullName
-  }
 
 --------------------------------------------------------------------------------
 
@@ -236,4 +185,4 @@ logValidationFailure ::
     )
 logValidationFailure message req@Register {..} validationErrors = do
   Log.logInfo message (Aeson.object ["request" .= req, "validationErrors" .= display validationErrors])
-  pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userRegisterGetLink (Just urEmail) (Just urDisplayName) (Just urFullName))) Servant.NoContent
+  pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.registerGet (Just urEmail) (Just urDisplayName) (Just urFullName))) Servant.NoContent

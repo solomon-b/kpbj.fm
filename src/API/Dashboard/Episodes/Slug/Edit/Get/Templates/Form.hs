@@ -8,8 +8,9 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (episodesGetLink, hostDashboardGetLink)
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts (scripts)
+import API.Links (dashboardLinks, showEpisodesLinks)
+import API.Types
 import Component.Form qualified as Form
 import Component.Form.Builder qualified as Builder
 import Component.Form.Internal (hiddenInput)
@@ -30,10 +31,10 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI hostDashboardGetLink
+hostDashboardGetUrl = Links.linkURI dashboardLinks.home
 
 episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ episodesGetLink showSlug episodeId episodeSlug
+episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
 
 --------------------------------------------------------------------------------
 

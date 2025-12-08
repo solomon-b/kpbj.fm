@@ -27,43 +27,11 @@ import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- | Route for show blog post with show ID, post ID and slug (canonical URL)
-type RouteWithSlug =
-  Observability.WithSpan
-    "GET /shows/:show_id/blog/:post_id/:slug"
-    ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
-        :> "blog"
-        :> Servant.Capture "post_id" ShowBlogPosts.Id
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
-
--- | Route for show blog post with show ID and post ID only (redirects to canonical)
-type RouteWithoutSlug =
-  Observability.WithSpan
-    "GET /shows/:show_id/blog/:post_id"
-    ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
-        :> "blog"
-        :> Servant.Capture "post_id" ShowBlogPosts.Id
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
 
 --------------------------------------------------------------------------------
 

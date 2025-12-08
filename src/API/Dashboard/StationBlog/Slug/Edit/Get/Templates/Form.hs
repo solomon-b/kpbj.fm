@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardStationBlogDetailGetLink, dashboardStationBlogEditPostLink, dashboardStationBlogGetLink, mediaGetLink)
+import API.Links (apiLinks, dashboardStationBlogLinks)
+import API.Types (DashboardStationBlogRoutes (..), Routes (..))
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -26,16 +27,16 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 dashboardStationBlogGetUrl :: Links.URI
-dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
+dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
 
 dashboardStationBlogDetailGetUrl :: BlogPosts.Id -> Slug -> Links.URI
-dashboardStationBlogDetailGetUrl postId slug = Links.linkURI $ dashboardStationBlogDetailGetLink postId slug
+dashboardStationBlogDetailGetUrl postId slug = Links.linkURI $ dashboardStationBlogLinks.detail postId slug
 
 dashboardStationBlogEditPostUrl :: BlogPosts.Id -> Slug -> Links.URI
-dashboardStationBlogEditPostUrl postId slug = Links.linkURI $ dashboardStationBlogEditPostLink postId slug
+dashboardStationBlogEditPostUrl postId slug = Links.linkURI $ dashboardStationBlogLinks.editPost postId slug
 
 mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI mediaGetLink
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 

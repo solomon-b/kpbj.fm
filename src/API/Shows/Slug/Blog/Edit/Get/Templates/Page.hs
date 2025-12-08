@@ -10,7 +10,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogEditPostLink, showBlogGetLink, showBlogPostGetLink)
+import API.Links (showBlogLinks)
+import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -26,13 +27,13 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 showBlogGetUrl :: Shows.Model -> Links.URI
-showBlogGetUrl showModel = Links.linkURI $ showBlogGetLink (Shows.slug showModel) Nothing Nothing
+showBlogGetUrl showModel = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
 
 showBlogPostGetUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
-showBlogPostGetUrl showModel post = Links.linkURI $ showBlogPostGetLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
+showBlogPostGetUrl showModel post = Links.linkURI $ showBlogLinks.postWithSlug (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
 showBlogEditPostUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
-showBlogEditPostUrl showModel post = Links.linkURI $ showBlogEditPostLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
+showBlogEditPostUrl showModel post = Links.linkURI $ showBlogLinks.editPost (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
 --------------------------------------------------------------------------------
 

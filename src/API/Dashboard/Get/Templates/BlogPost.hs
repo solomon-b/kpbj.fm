@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardBlogPostGetLink, showBlogEditGetLink)
+import API.Links (dashboardBlogsLinks, showBlogLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -23,10 +24,10 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-dashboardBlogPostGetUrl showId postId postSlug = Links.linkURI $ dashboardBlogPostGetLink showId postId postSlug
+dashboardBlogPostGetUrl showId postId postSlug = Links.linkURI $ dashboardBlogsLinks.detail showId postId postSlug
 
 showBlogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-showBlogEditGetUrl showId postId postSlug = Links.linkURI $ showBlogEditGetLink showId postId postSlug
+showBlogEditGetUrl showId postId postSlug = Links.linkURI $ showBlogLinks.editGet showId postId postSlug
 
 --------------------------------------------------------------------------------
 

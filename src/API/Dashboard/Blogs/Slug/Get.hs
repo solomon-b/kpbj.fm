@@ -6,9 +6,10 @@ module API.Dashboard.Blogs.Slug.Get where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogNewGetLink)
 import API.Dashboard.Blogs.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
+import API.Links (showBlogLinks)
+import API.Types (ShowBlogRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
@@ -27,32 +28,12 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
--- | Route for viewing a blog post in the dashboard context
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/blog/:show_id/:post_id/:slug"
-    ( "dashboard"
-        :> "blog"
-        :> Servant.Capture "show_id" Shows.Id
-        :> Servant.Capture "post_id" ShowBlogPosts.Id
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 
@@ -141,7 +122,7 @@ handler _tracer showId postId _postSlug cookie (foldHxReq -> hxRequest) = do
 -- | Action button for creating a new blog post
 actionButton :: Shows.Model -> Maybe (Lucid.Html ())
 actionButton showModel =
-  let newBlogUrl = Links.linkURI $ showBlogNewGetLink showModel.slug
+  let newBlogUrl = Links.linkURI $ showBlogLinks.newGet showModel.slug
    in Just $
         Lucid.a_
           [ Lucid.href_ [i|/#{newBlogUrl}|],

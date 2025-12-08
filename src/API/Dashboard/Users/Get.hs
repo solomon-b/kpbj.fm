@@ -2,12 +2,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Users.Get (Route, handler) where
+module API.Dashboard.Users.Get (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardUsersGetLink, rootGetLink, userLoginGetLink)
 import API.Dashboard.Users.Get.Templates.Page (template)
+import API.Links (apiLinks, dashboardUsersLinks, userLinks)
+import API.Types (DashboardUsersRoutes (..), Routes (..), UserRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..))
@@ -34,40 +35,20 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "GET /dashboard/users"
-    ( "dashboard"
-        :> "users"
-        :> Servant.QueryParam "page" Int64
-        :> Servant.QueryParam "q" (Filter Text)
-        :> Servant.QueryParam "role" (Filter UserMetadata.UserRole)
-        :> Servant.QueryParam "sort" (Filter UserSortBy)
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -130,7 +111,7 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()
 filtersUI queryFilter roleFilter sortBy = do
-  let dashboardUsersGetUrl = Links.linkURI dashboardUsersGetLink
+  let dashboardUsersGetUrl = Links.linkURI $ dashboardUsersLinks.list Nothing Nothing Nothing Nothing
   Lucid.form_
     [ hxGet_ [i|/#{dashboardUsersGetUrl}|],
       hxTarget_ "#main-content",

@@ -9,7 +9,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogGetLink, showBlogNewPostLink, showGetLink)
+import API.Links (showBlogLinks, showsLinks)
+import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -21,13 +22,13 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 showBlogGetUrl :: Shows.Model -> Links.URI
-showBlogGetUrl showModel = Links.linkURI $ showBlogGetLink (Shows.slug showModel) Nothing Nothing
+showBlogGetUrl showModel = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
 
 showBlogNewPostUrl :: Shows.Model -> Links.URI
-showBlogNewPostUrl showModel = Links.linkURI $ showBlogNewPostLink (Shows.slug showModel)
+showBlogNewPostUrl showModel = Links.linkURI $ showBlogLinks.newPost (Shows.slug showModel)
 
 showGetUrl :: Shows.Model -> Links.URI
-showGetUrl showModel = Links.linkURI $ showGetLink (Shows.slug showModel) Nothing
+showGetUrl showModel = Links.linkURI $ showsLinks.detail (Shows.slug showModel) Nothing
 
 --------------------------------------------------------------------------------
 

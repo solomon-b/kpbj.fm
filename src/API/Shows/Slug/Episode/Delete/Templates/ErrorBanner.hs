@@ -9,7 +9,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEpisodeEditGetLink, episodesDeleteLink)
+import API.Links (dashboardEpisodesLinks, showEpisodesLinks)
+import API.Types
 import Component.Banner (BannerType (..), renderBanner)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -39,8 +40,8 @@ renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
 renderEpisodeCard showModel episode = do
   let episodeId = episode.id
       episodeCardId = [i|episode-card-#{episodeId}|]
-      episodeEditUrl = Links.linkURI $ dashboardEpisodeEditGetLink showModel.slug episode.id episode.slug
-      episodeDelUrl = Links.linkURI $ episodesDeleteLink showModel.slug episode.id episode.slug
+      episodeEditUrl = Links.linkURI $ dashboardEpisodesLinks.editGet showModel.slug episode.id episode.slug
+      episodeDelUrl = Links.linkURI $ showEpisodesLinks.delete showModel.slug episode.id episode.slug
   Lucid.div_ [Lucid.class_ "border border-gray-300 p-4", Lucid.id_ episodeCardId] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-start mb-2"] $ do
       Lucid.div_ $ do

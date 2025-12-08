@@ -1,12 +1,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Events.New.Post (Route, handler) where
+module API.Dashboard.Events.New.Post (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardEventsDetailGetLink, dashboardEventsNewGetLink, rootGetLink, userLoginGetLink)
+import API.Dashboard.Events.New.Post.Route (NewEventForm (..), parseTags)
 import API.Dashboard.Events.Slug.Get.Templates.Page qualified as DetailPage
+import API.Links (apiLinks, dashboardEventsLinks, userLinks)
+import API.Types (DashboardEventsRoutes (..), Routes (..), UserRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.DashboardFrame (DashboardNav (..))
@@ -17,7 +19,8 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Foldable (fold, traverse_)
+import Data.Either (fromRight)
+import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.List (find)
 import Data.Maybe (listToMaybe)
@@ -41,43 +44,25 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadEventPosterImage)
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 dashboardEventsNewGetUrl :: Links.URI
-dashboardEventsNewGetUrl = Links.linkURI dashboardEventsNewGetLink
+dashboardEventsNewGetUrl = Links.linkURI dashboardEventsLinks.newGet
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /dashboard/events/new"
-    ( "dashboard"
-        :> "events"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> MultipartForm Mem NewEventForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-    )
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -100,48 +85,6 @@ errorTemplate errors = do
           Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700 inline-block"
         ]
         "<- TRY AGAIN"
-
---------------------------------------------------------------------------------
-
--- | Parse and sanitize comma-separated tags
-parseTags :: Text -> [Text]
-parseTags tagText =
-  filter (not . Text.null) $
-    map (Sanitize.sanitizePlainText . Text.strip) $
-      Text.splitOn "," tagText
-
--- Form data structure
-data NewEventForm = NewEventForm
-  { nefTitle :: Text,
-    nefTags :: Text,
-    nefDescription :: Text,
-    nefStartsAt :: Text,
-    nefEndsAt :: Text,
-    nefLocationName :: Text,
-    nefLocationAddress :: Text,
-    nefStatus :: Text,
-    nefPosterImage :: Maybe (FileData Mem)
-  }
-  deriving (Show)
-
-instance FromMultipart Mem NewEventForm where
-  fromMultipart multipartData =
-    NewEventForm
-      <$> lookupInput "title" multipartData
-      <*> pure (fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
-      <*> lookupInput "description" multipartData
-      <*> lookupInput "starts_at" multipartData
-      <*> lookupInput "ends_at" multipartData
-      <*> lookupInput "location_name" multipartData
-      <*> lookupInput "location_address" multipartData
-      <*> lookupInput "status" multipartData
-      <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
-    where
-      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
-      fileDataToNothing (Just fileData)
-        | Text.null (fdFileName fileData) = Nothing
-        | otherwise = Just fileData
-      fileDataToNothing Nothing = Nothing
 
 --------------------------------------------------------------------------------
 
@@ -210,18 +153,18 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
   getUserInfo cookie >>= \case
     Nothing -> do
       let banner = BannerParams Error "Login Required" "You must be logged in to create events."
-      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+      pure (Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner))
     Just (_user, userMetadata)
       | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
           let banner = BannerParams Error "Staff Access Required" "You do not have permission to create events."
-          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
     Just (user, userMetadata) -> do
       -- Fetch shows for sidebar
       showsResult <-
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = either (const []) id showsResult
+      let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
       -- Upload poster image if provided
@@ -353,11 +296,11 @@ fetchEvent hxRequest userMetadata allShows selectedShow eventId =
     Right (Just event) -> do
       -- Get tags for the event
       tagsResult <- execQuerySpan (Events.getEventTags eventId)
-      let tags = either (const []) id tagsResult
+      let tags = fromRight [] tagsResult
       -- Get author metadata
       authorResult <- execQuerySpan (UserMetadata.getUserMetadata event.emAuthorId)
-      let mAuthor = either (const Nothing) id authorResult
-      let detailUrl = Links.linkURI $ dashboardEventsDetailGetLink eventId (Events.emSlug event)
+      let mAuthor = fromRight Nothing authorResult
+      let detailUrl = Links.linkURI $ dashboardEventsLinks.detail eventId (Events.emSlug event)
           banner = renderBanner Success "Event Created" "Your event has been created successfully."
       html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing $ case hxRequest of
         IsHxRequest -> do

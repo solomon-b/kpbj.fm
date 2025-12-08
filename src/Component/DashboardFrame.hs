@@ -10,7 +10,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardBlogsGetLink, dashboardEpisodesGetLink, dashboardEventsGetLink, dashboardShowsGetLink, dashboardStationBlogGetLink, dashboardUsersGetLink, rootGetLink, userLogoutGetLink)
+import API.Links (apiLinks, dashboardBlogsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardUsersLinks, userLinks)
+import API.Types
 import Component.Banner (bannerContainerId)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
@@ -29,28 +30,28 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLogoutGetUrl :: Links.URI
-userLogoutGetUrl = Links.linkURI userLogoutGetLink
+userLogoutGetUrl = Links.linkURI userLinks.logoutGet
 
 dashboardEpisodesGetUrl :: Slug -> Links.URI
-dashboardEpisodesGetUrl slug = Links.linkURI $ dashboardEpisodesGetLink slug
+dashboardEpisodesGetUrl slug = Links.linkURI $ dashboardEpisodesLinks.list slug
 
 dashboardBlogsGetUrl :: Slug -> Links.URI
-dashboardBlogsGetUrl mSlug = Links.linkURI $ dashboardBlogsGetLink mSlug
+dashboardBlogsGetUrl mSlug = Links.linkURI $ dashboardBlogsLinks.list mSlug
 
 dashboardUsersGetUrl :: Links.URI
-dashboardUsersGetUrl = Links.linkURI dashboardUsersGetLink
+dashboardUsersGetUrl = Links.linkURI $ dashboardUsersLinks.list Nothing Nothing Nothing Nothing
 
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
+dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
 
 dashboardStationBlogGetUrl :: Links.URI
-dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
+dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
 
 dashboardEventsGetUrl :: Links.URI
-dashboardEventsGetUrl = Links.linkURI dashboardEventsGetLink
+dashboardEventsGetUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
 
 --------------------------------------------------------------------------------
 

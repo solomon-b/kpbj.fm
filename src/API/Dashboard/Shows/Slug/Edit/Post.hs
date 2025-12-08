@@ -2,12 +2,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Shows.Slug.Edit.Post (Route, handler) where
+module API.Dashboard.Shows.Slug.Edit.Post (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardShowsGetLink, rootGetLink, showGetLink, userLoginGetLink)
 import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form qualified as EditForm
+import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..), ShowEditForm (..))
+import API.Links (apiLinks, dashboardShowsLinks, showsLinks, userLinks)
+import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..))
@@ -18,19 +20,17 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
-import Data.Text.Read qualified as Text.Read
 import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Data.Vector qualified as Vector
@@ -49,109 +49,28 @@ import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
-import Effects.Observability qualified as Observability
-import GHC.Generics (Generic)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Input (..), Mem, MultipartData (..), MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
-import Text.HTML (HTML)
+import Servant.Multipart (FileData, Mem)
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI dashboardShowsGetLink
+dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
 
 showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showGetLink slug Nothing
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /dashboard/shows/:slug/edit"
-    ( "dashboard"
-        :> "shows"
-        :> Servant.Capture "slug" Slug
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> MultipartForm Mem ShowEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
-
---------------------------------------------------------------------------------
-
--- | Form data for show editing
-data ShowEditForm = ShowEditForm
-  { sefTitle :: Text,
-    sefDescription :: Text,
-    sefGenre :: Maybe Text,
-    sefLogoFile :: Maybe (FileData Mem),
-    sefBannerFile :: Maybe (FileData Mem),
-    sefStatus :: Text,
-    sefHosts :: [User.Id],
-    sefSchedulesJson :: Maybe Text
-  }
-  deriving (Show)
-
--- | Schedule slot info parsed from JSON form data
-data ScheduleSlotInfo = ScheduleSlotInfo
-  { dayOfWeek :: Text,
-    weeksOfMonth :: [Int64],
-    startTime :: Text,
-    endTime :: Text
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving anyclass (FromJSON, ToJSON)
-
-instance FromMultipart Mem ShowEditForm where
-  fromMultipart multipartData =
-    ShowEditForm
-      <$> lookupInput "title" multipartData
-      <*> lookupInput "description" multipartData
-      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "genre" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
-      <*> lookupInput "status" multipartData
-      <*> pure (parseHosts $ fromRight [] (lookupInputs "hosts" multipartData))
-      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedules_json" multipartData))
-    where
-      emptyToNothing :: Maybe Text -> Maybe Text
-      emptyToNothing (Just "") = Nothing
-      emptyToNothing (Just t) | Text.null (Text.strip t) = Nothing
-      emptyToNothing x = x
-
-      -- \| Convert empty filename FileData to Nothing
-      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
-      fileDataToNothing (Just fileData)
-        | Text.null (fdFileName fileData) = Nothing
-        | otherwise = Just fileData
-      fileDataToNothing Nothing = Nothing
-
-      parseHosts :: [Text] -> [User.Id]
-      parseHosts = mapMaybe parseUserId
-
-      parseUserId :: Text -> Maybe User.Id
-      parseUserId t = case Text.Read.decimal t of
-        Right (n, "") -> Just (User.Id n)
-        _ -> Nothing
-
-      -- Helper to lookup all values for a given input name (for multi-select)
-      lookupInputs :: Text -> MultipartData Mem -> Either String [Text]
-      lookupInputs name multipart =
-        Right [iValue input | input <- inputs multipart, iName input == name]
+showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 -- | Parse show status from text
 parseStatus :: Text -> Maybe Shows.Status
@@ -223,41 +142,41 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
     Nothing -> do
       Log.logInfo "Unauthorized show edit attempt" slug
       let banner = BannerParams Error "Login Required" "You must be logged in to edit a show."
-      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+      pure (Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner))
     Just (_user, userMetadata)
       | isSuspended userMetadata -> do
           let banner = BannerParams Error "Account Suspended" "Your account has been suspended."
-          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
     Just (user, userMetadata) -> do
       execQuerySpan (ShowHost.isUserHostOfShowSlug user.mId slug) >>= \case
         Left err -> do
           Log.logAttention "isUserHostOfShow execution error" (show err)
           let banner = BannerParams Error "Error" "An error occurred. Please try again."
-          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
         Right isHost -> do
           let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
           if not (isHost || isStaff)
             then do
               Log.logInfo "User attempted to edit show they don't host" slug
               let banner = BannerParams Error "Access Denied" "You don't have permission to edit this show."
-              Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+              pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
             else do
               execQuerySpan (Shows.getShowBySlug slug) >>= \case
                 Left err -> do
                   Log.logAttention "getShowBySlug execution error" (show err)
                   let banner = BannerParams Error "Error" "Failed to load show. Please try again."
-                  Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+                  pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
                 Right Nothing -> do
                   Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
                   let banner = BannerParams Warning "Not Found" "The show you're trying to update doesn't exist."
-                  Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
+                  pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
                 Right (Just showModel) -> do
                   -- Fetch sidebar shows for dashboard rendering on errors
                   sidebarShowsResult <-
                     if UserMetadata.isAdmin userMetadata.mUserRole
                       then execQuerySpan Shows.getAllActiveShows
                       else execQuerySpan (Shows.getShowsForUser user.mId)
-                  let sidebarShows = either (const []) id sidebarShowsResult
+                  let sidebarShows = fromRight [] sidebarShowsResult
                       selectedShow = Just showModel
                   updateShow hxRequest user userMetadata showModel sidebarShows selectedShow editForm
 
@@ -287,7 +206,7 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
     Nothing -> do
       Log.logInfo "Invalid status in show edit form" (sefStatus editForm)
       let banner = BannerParams Error "Validation Error" "Invalid show status value."
-      Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
+      pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
     Just parsedStatus -> do
       -- If not staff, preserve original schedule/settings values
       let finalStatus = if isStaff then parsedStatus else showModel.status
@@ -302,7 +221,7 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
         Left uploadErr -> do
           Log.logInfo "Failed to upload show artwork" uploadErr
           let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
-          Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
+          pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
         Right (mLogoPath, mBannerPath) -> do
           -- Use new uploaded files if provided, otherwise keep existing values
           let finalLogoUrl = mLogoPath <|> showModel.logoUrl
@@ -324,11 +243,11 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
             Left err -> do
               Log.logInfo "Failed to update show" (showModel.id, show err)
               let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
-              Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
+              pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
             Right Nothing -> do
               Log.logInfo "Show update returned Nothing" showModel.id
               let banner = BannerParams Error "Update Failed" "Failed to update show. Please try again."
-              Servant.noHeader <$> pure (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
+              pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
             Right (Just _updatedId) -> do
               Log.logInfo "Successfully updated show" showModel.id
               -- Process schedule updates if staff

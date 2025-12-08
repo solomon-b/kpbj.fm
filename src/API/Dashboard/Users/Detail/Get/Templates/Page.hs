@@ -4,7 +4,8 @@ module API.Dashboard.Users.Detail.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardUserEditGetLink, dashboardUserRolePatchLink)
+import API.Links (dashboardUsersLinks)
+import API.Types
 import Control.Monad (unless)
 import Data.Maybe (fromMaybe, isJust)
 import Data.String.Interpolate (i)
@@ -67,7 +68,7 @@ template user metadata userShows userEpisodes = do
       Lucid.div_ [Lucid.class_ "space-y-4"] $
         mapM_ renderEpisodeCard userEpisodes
   where
-    editUrl = Links.linkURI $ dashboardUserEditGetLink user.mId
+    editUrl = Links.linkURI $ dashboardUsersLinks.editGet user.mId
 
 renderField :: String -> String -> Lucid.Html ()
 renderField label value = do
@@ -97,7 +98,7 @@ renderRoleDropdown userId currentRole =
       roleOption UserMetadata.Staff currentRole
       roleOption UserMetadata.Admin currentRole
   where
-    rolePatchUrl = Links.linkURI $ dashboardUserRolePatchLink userId
+    rolePatchUrl = Links.linkURI $ dashboardUsersLinks.rolePatch userId
 
     roleOption :: UserMetadata.UserRole -> UserMetadata.UserRole -> Lucid.Html ()
     roleOption role selected =

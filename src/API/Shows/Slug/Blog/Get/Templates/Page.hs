@@ -1,11 +1,13 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Shows.Slug.Blog.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogGetLink)
+import API.Links (apiLinks)
 import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
+import API.Types
 import Control.Monad (forM_, unless, when)
 import Data.Int (Int64)
 import Data.Maybe (isNothing)
@@ -24,7 +26,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 showBlogGetUrl :: Slug -> Maybe Int64 -> Maybe Text -> Links.URI
-showBlogGetUrl slug page tag = Links.linkURI $ showBlogGetLink slug page tag
+showBlogGetUrl slug page tag = Links.linkURI $ apiLinks.shows.blog.list slug page tag
 
 --------------------------------------------------------------------------------
 

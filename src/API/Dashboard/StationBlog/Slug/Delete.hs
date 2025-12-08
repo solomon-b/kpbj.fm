@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.StationBlog.Slug.Delete (Route, handler) where
+module API.Dashboard.StationBlog.Slug.Delete (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardStationBlogGetLink)
+import API.Links (dashboardStationBlogLinks)
+import API.Types (DashboardStationBlogRoutes (..))
 import App.Common (getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.Redirect (redirectTemplate)
@@ -24,33 +25,16 @@ import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
 import Servant.Links qualified as Links
-import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
 dashboardStationBlogGetUrl :: Links.URI
-dashboardStationBlogGetUrl = Links.linkURI dashboardStationBlogGetLink
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "DELETE /dashboard/station-blog/:id/:slug"
-    ( "dashboard"
-        :> "station-blog"
-        :> Servant.Capture "id" BlogPosts.Id
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Delete '[HTML] (Lucid.Html ())
-    )
+dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
 
 --------------------------------------------------------------------------------
 

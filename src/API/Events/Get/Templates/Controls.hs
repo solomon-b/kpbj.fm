@@ -8,7 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (eventsGetLink)
+import API.Links (eventsLinks)
+import API.Types
 import Data.Foldable (traverse_)
 import Data.Maybe (isNothing)
 import Data.String.Interpolate (i)
@@ -27,12 +28,15 @@ import Servant.Links qualified as Links
 -- URL helpers
 eventsGetWeekUrl :: Year -> Int -> Maybe Text -> Links.URI
 eventsGetWeekUrl year weekNum maybeTag =
-  Links.linkURI $ eventsGetLink maybeTag (Just $ WeekView year weekNum)
+  Links.linkURI $ eventsLinks.list maybeTag (Just $ WeekView year weekNum)
 
 utcTimeToYearWeek :: UTCTime -> (Year, Int)
 utcTimeToYearWeek utc =
   let (year, weekNum, _) = toWeekDate (utctDay utc)
    in (year, weekNum)
+
+listEventsUri :: Maybe Text -> Maybe PageView -> Links.URI
+listEventsUri maybeTagFilter = Links.linkURI . eventsLinks.list maybeTagFilter
 
 --------------------------------------------------------------------------------
 
@@ -59,8 +63,8 @@ renderViewControls currentTime currentView currentMonth maybeTagFilter eventTags
                 else "px-4 py-2 bg-white text-gray-800 font-bold hover:bg-gray-100"
         Lucid.a_
           [ Lucid.id_ "view-control",
-            Lucid.href_ [i|/#{Links.linkURI $ eventsGetLink maybeTagFilter (Just ListView)}|],
-            hxGet_ [i|/#{Links.linkURI $ eventsGetLink maybeTagFilter (Just ListView)}|],
+            Lucid.href_ [i|/#{listEventsUri maybeTagFilter (Just ListView)}|],
+            hxGet_ [i|/#{listEventsUri maybeTagFilter (Just ListView)}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ listClasses
@@ -69,8 +73,8 @@ renderViewControls currentTime currentView currentMonth maybeTagFilter eventTags
         -- For month view, we'll use current month
         Lucid.a_
           [ Lucid.id_ "view-control",
-            Lucid.href_ [i|/#{Links.linkURI $ eventsGetLink maybeTagFilter (Just (uncurry MonthView currentMonth))}|],
-            hxGet_ [i|/#{Links.linkURI $ eventsGetLink maybeTagFilter (Just (uncurry MonthView currentMonth))}|],
+            Lucid.href_ [i|/#{listEventsUri maybeTagFilter (Just (uncurry MonthView currentMonth))}|],
+            hxGet_ [i|/#{listEventsUri maybeTagFilter (Just (uncurry MonthView currentMonth))}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             Lucid.class_ monthClasses
@@ -94,7 +98,7 @@ renderViewControls currentTime currentView currentMonth maybeTagFilter eventTags
       Lucid.select_
         [ Lucid.class_ "border-2 border-gray-600 p-2 font-mono text-sm",
           Lucid.name_ "tag",
-          hxGet_ [i|/#{Links.linkURI $ eventsGetLink Nothing (Just currentView)}|],
+          hxGet_ [i|/#{listEventsUri Nothing (Just currentView)}|],
           hxTarget_ "#events-content-container",
           hxSwap_ "innerHTML",
           hxTrigger_ "change"

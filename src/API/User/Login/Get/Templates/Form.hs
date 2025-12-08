@@ -5,7 +5,8 @@ module API.User.Login.Get.Templates.Form where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (userLoginPostLink, userRegisterGetLink)
+import API.Links (userLinks)
+import API.Types
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -18,10 +19,10 @@ import Servant.Links qualified as Link
 --------------------------------------------------------------------------------
 
 userLoginPostUrl :: Text -> Link.URI
-userLoginPostUrl = Link.linkURI . userLoginPostLink . Just
+userLoginPostUrl = Link.linkURI . userLinks.loginPost . Just
 
 userRegisterGetUrl :: Link.URI
-userRegisterGetUrl = Link.linkURI (userRegisterGetLink Nothing Nothing Nothing)
+userRegisterGetUrl = Link.linkURI (userLinks.registerGet Nothing Nothing Nothing)
 
 --------------------------------------------------------------------------------
 

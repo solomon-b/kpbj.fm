@@ -2,12 +2,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.StationBlog.Slug.Edit.Post (Route, handler) where
+module API.Dashboard.StationBlog.Slug.Edit.Post (handler) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (dashboardStationBlogDetailGetLink, rootGetLink, userLoginGetLink)
+import API.Dashboard.StationBlog.Slug.Edit.Post.Route (BlogEditForm (..))
 import API.Dashboard.StationBlog.Slug.Get.Templates.Page qualified as DetailPage
+import API.Links (apiLinks, dashboardStationBlogLinks, userLinks)
+import API.Types (DashboardStationBlogRoutes (..), Routes (..), UserRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.DashboardFrame (DashboardNav (..))
@@ -20,9 +22,10 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
-import Data.Foldable (fold, traverse_)
+import Data.Either (fromRight)
+import Data.Foldable (traverse_)
 import Data.Has (Has)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -42,108 +45,23 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
-import Text.HTML (HTML)
-import Web.FormUrlEncoded (FromForm (..))
-import Web.FormUrlEncoded qualified as Form
 
 --------------------------------------------------------------------------------
 
 rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI rootGetLink
+rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLoginGetLink Nothing Nothing
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /dashboard/station-blog/:id/:slug/edit"
-    ( "dashboard"
-        :> "station-blog"
-        :> Servant.Capture "id" BlogPosts.Id
-        :> Servant.Capture "slug" Slug
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> MultipartForm Mem BlogEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-    )
-
---------------------------------------------------------------------------------
-
--- | Form data for blog post editing
-data BlogEditForm = BlogEditForm
-  { befTitle :: Text,
-    befContent :: Text,
-    befExcerpt :: Maybe Text,
-    befStatus :: Text,
-    befTags :: [Text],
-    befHeroImage :: Maybe (FileData Mem)
-  }
-  deriving (Show)
-
-instance FromMultipart Mem BlogEditForm where
-  fromMultipart multipartData =
-    BlogEditForm
-      <$> lookupInput "title" multipartData
-      <*> lookupInput "content" multipartData
-      <*> pure (emptyToNothing $ either (const Nothing) Just (lookupInput "excerpt" multipartData))
-      <*> lookupInput "status" multipartData
-      <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
-      <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "hero_image" multipartData))
-    where
-      -- \| Convert empty text to Nothing
-      emptyToNothing :: Maybe Text -> Maybe Text
-      emptyToNothing (Just "") = Nothing
-      emptyToNothing x = x
-
-      -- \| Convert empty filename FileData to Nothing
-      fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
-      fileDataToNothing (Just fileData)
-        | Text.null (fdFileName fileData) = Nothing
-        | otherwise = Just fileData
-      fileDataToNothing Nothing = Nothing
-
-instance FromForm BlogEditForm where
-  fromForm :: Form.Form -> Either Text BlogEditForm
-  fromForm form = do
-    title <- Form.parseUnique "title" form
-    content <- Form.parseUnique "content" form
-    excerpt <- Form.parseMaybe "excerpt" form
-    status <- Form.parseUnique "status" form
-    tags <- Form.parseMaybe "tags" form
-
-    pure
-      BlogEditForm
-        { befTitle = title,
-          befContent = content,
-          befExcerpt = emptyToNothing excerpt,
-          befStatus = status,
-          befTags = parseTags $ fromMaybe "" tags,
-          befHeroImage = Nothing
-        }
-    where
-      emptyToNothing :: Maybe Text -> Maybe Text
-      emptyToNothing (Just "") = Nothing
-      emptyToNothing x = x
-
--- | Parse comma-separated tags with sanitization
-parseTags :: Text -> [Text]
-parseTags tagText =
-  filter (not . Text.null) $
-    map (Sanitize.sanitizePlainText . Text.strip) $
-      Text.splitOn "," tagText
 
 -- | Parse blog post status from text
 parseStatus :: Text -> Maybe BlogPostStatus
@@ -176,19 +94,19 @@ handler _tracer blogPostId _slug cookie (foldHxReq -> hxRequest) editForm = do
     Nothing -> do
       Log.logInfo "Unauthorized blog edit attempt" blogPostId
       let banner = BannerParams Error "Login Required" "You must be logged in to edit blog posts."
-      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+      pure (Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner))
     Just (_user, userMetadata)
       | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
           Log.logInfo "Non-staff user tried to edit station blog post" blogPostId
           let banner = BannerParams Error "Staff Access Required" "You do not have permission to edit station blog posts."
-          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
     Just (user, userMetadata) -> do
       -- Fetch shows for sidebar
       showsResult <-
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = either (const []) id showsResult
+      let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
       mResult <- execTransactionSpan $ runMaybeT $ do
@@ -297,7 +215,7 @@ updateBlogPost hxRequest userMetadata allShows selectedShow blogPost oldTags edi
                 Right Nothing ->
                   Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing (renderBanner Error "Update Failed" "Post updated but not found.")
                 Right (Just (updatedPost, mAuthor, newTags)) -> do
-                  let detailUrl = Links.linkURI $ dashboardStationBlogDetailGetLink blogPost.bpmId newSlug
+                  let detailUrl = Links.linkURI $ dashboardStationBlogLinks.detail blogPost.bpmId newSlug
                       banner = renderBanner Success "Blog Post Updated" "Your blog post has been updated and saved."
                   html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing $ case hxRequest of
                     IsHxRequest -> do

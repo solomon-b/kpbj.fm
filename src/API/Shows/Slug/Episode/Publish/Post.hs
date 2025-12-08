@@ -23,29 +23,10 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Observability qualified as Observability
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant ((:>))
-import Servant qualified
-import Text.HTML (HTML)
-
---------------------------------------------------------------------------------
-
-type Route =
-  Observability.WithSpan
-    "POST /shows/:show_slug/episodes/:episode_id/:episode_slug/publish"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
-        :> "episodes"
-        :> Servant.Capture "episode_id" Episodes.Id
-        :> Servant.Capture "episode_slug" Slug
-        :> "publish"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Post '[HTML] (Lucid.Html ())
-    )
 
 --------------------------------------------------------------------------------
 

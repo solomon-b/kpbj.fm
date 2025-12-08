@@ -4,7 +4,8 @@ module API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard) where
 
 --------------------------------------------------------------------------------
 
-import {-# SOURCE #-} API (showBlogPostGetLink)
+import API.Links (showBlogLinks)
+import API.Types
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -19,7 +20,7 @@ import Servant.Links qualified as Links
 -- URL helpers
 showBlogPostGetUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
 showBlogPostGetUrl showModel post =
-  Links.linkURI $ showBlogPostGetLink (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
+  Links.linkURI $ showBlogLinks.postWithSlug (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
 
 --------------------------------------------------------------------------------
 
