@@ -15,6 +15,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display)
 import Hasql.Interpolate (DecodeValue, EncodeValue)
+import Rel8 (DBEq, DBType)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -22,6 +23,7 @@ import Servant qualified
 newtype Slug = Slug Text
   deriving stock (Show)
   deriving newtype (Eq, Display, Servant.ToHttpApiData, Servant.FromHttpApiData, IsString, EncodeValue, DecodeValue, FromJSON, ToJSON)
+  deriving newtype (DBType, DBEq)
 
 instance Semigroup Slug where
   Slug x <> Slug "" = Slug x

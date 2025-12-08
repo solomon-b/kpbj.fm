@@ -167,7 +167,7 @@ handleUploadSuccess hxRequest userMetadata showModel episodeId = do
   execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
     Right (Just episode) -> do
       -- Fetch tracks for the episode
-      tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episodeId)
+      tracksResult <- execQuerySpan (EpisodeTracks.getTracksForEpisode episodeId)
       let tracks = fromRight [] tracksResult
           detailUrl = Links.linkURI $ showEpisodesLinks.detailWithSlug showModel.slug episodeId episode.slug
           banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
@@ -450,7 +450,7 @@ insertTracks episodeId tracks = do
                 EpisodeTracks.etiIsExclusivePremiere = tiIsExclusive track
               }
 
-      result <- execQuerySpan (Episodes.insertEpisodeTrack trackInsert)
+      result <- execQuerySpan (EpisodeTracks.insertEpisodeTrack trackInsert)
       case result of
         Left err -> pure $ Left $ "Failed to insert track: " <> Text.pack (show err)
         Right trackId -> pure $ Right trackId

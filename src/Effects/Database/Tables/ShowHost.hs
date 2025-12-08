@@ -1,32 +1,87 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
-module Effects.Database.Tables.ShowHost where
+-- | Database table definition and queries for @show_hosts@.
+--
+-- Uses rel8 for simple queries and raw SQL (hasql-interpolate) for complex joins.
+module Effects.Database.Tables.ShowHost
+  ( -- * Host Role Type
+    HostRole (..),
+
+    -- * Table Definition
+    ShowHost (..),
+    showHostSchema,
+
+    -- * Model (Result alias)
+    Model,
+
+    -- * Insert Type
+    Insert (..),
+
+    -- * Result Types
+    ShowHostWithUser (..),
+
+    -- * Queries
+    getShowHosts,
+    getShowHostsWithUsers,
+    insertShowHost,
+    removeShowHost,
+    isUserHostOfShow,
+    isUserHostOfShowSlug,
+    addHostToShow,
+    removeHostFromShow,
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Functor.Contravariant ((>$<))
 import Data.Text (Text)
-import Data.Text.Display (Display, RecordInstance (..), displayBuilder)
+import Data.Text qualified as Text
+import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import GHC.Generics
+import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneColumn (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), interp, sql)
 import Hasql.Statement qualified as Hasql
+import OrphanInstances.Rel8 ()
 import OrphanInstances.UTCTime ()
+import Rel8 hiding (Insert)
 
 --------------------------------------------------------------------------------
 -- Host Role Type
 
+-- | Host role within a show.
 data HostRole = Host | CoHost | Guest
-  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
+  deriving stock (Generic, Show, Eq, Ord, Prelude.Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
+
+instance DBType HostRole where
+  typeInformation =
+    parseTypeInformation
+      ( \case
+          "host" -> Right Host
+          "co-host" -> Right CoHost
+          "guest" -> Right Guest
+          other -> Left $ "Invalid HostRole: " <> Text.unpack other
+      )
+      ( \case
+          Host -> "host"
+          CoHost -> "co-host"
+          Guest -> "guest"
+      )
+      typeInformation
+
+instance DBEq HostRole
 
 instance Display HostRole where
   displayBuilder Host = "host"
@@ -50,20 +105,71 @@ instance EncodeValue HostRole where
     Guest -> "guest"
 
 --------------------------------------------------------------------------------
--- Database Model
+-- Table Definition
 
-data Model = Model
-  { shmId :: Shows.Id,
-    shmUserId :: User.Id,
-    shmRole :: HostRole,
-    shmIsPrimary :: Bool,
-    shmJoinedAt :: UTCTime,
-    shmLeftAt :: Maybe UTCTime
+-- | The @show_hosts@ table definition using rel8's higher-kinded data pattern.
+--
+-- This is a junction table with a composite primary key (show_id, user_id).
+--
+-- The type parameter @f@ determines the context:
+--
+-- - @Expr@: SQL expressions for building queries
+-- - @Result@: Decoded Haskell values from query results
+-- - @Name@: Column names for schema definition
+data ShowHost f = ShowHost
+  { shmShowId :: Column f Shows.Id,
+    shmUserId :: Column f User.Id,
+    shmRole :: Column f HostRole,
+    shmIsPrimary :: Column f Bool,
+    shmJoinedAt :: Column f UTCTime,
+    shmLeftAt :: Column f (Maybe UTCTime)
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance Model)
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
 
+deriving stock instance (f ~ Result) => Show (ShowHost f)
+
+deriving stock instance (f ~ Result) => Eq (ShowHost f)
+
+-- | DecodeRow instance for hasql-interpolate raw SQL compatibility.
+instance DecodeRow (ShowHost Result)
+
+-- | Display instance for ShowHost Result.
+instance Display (ShowHost Result) where
+  displayBuilder sh =
+    "ShowHost { showId = "
+      <> displayBuilder (shmShowId sh)
+      <> ", userId = "
+      <> displayBuilder (shmUserId sh)
+      <> ", role = "
+      <> displayBuilder (shmRole sh)
+      <> " }"
+
+-- | Type alias for backwards compatibility.
+--
+-- @Model@ is the same as @ShowHost Result@.
+type Model = ShowHost Result
+
+-- | Table schema connecting the Haskell type to the database table.
+showHostSchema :: TableSchema (ShowHost Name)
+showHostSchema =
+  TableSchema
+    { name = "show_hosts",
+      columns =
+        ShowHost
+          { shmShowId = "show_id",
+            shmUserId = "user_id",
+            shmRole = "role",
+            shmIsPrimary = "is_primary",
+            shmJoinedAt = "joined_at",
+            shmLeftAt = "left_at"
+          }
+    }
+
+--------------------------------------------------------------------------------
+-- Insert Type
+
+-- | Insert type for adding a host to a show.
 data Insert = Insert
   { shiId :: Shows.Id,
     shiUserId :: User.Id,
@@ -71,10 +177,12 @@ data Insert = Insert
     shiIsPrimary :: Bool
   }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (EncodeRow)
   deriving (Display) via (RecordInstance Insert)
 
--- | Show host with user information (for SQL joins)
+--------------------------------------------------------------------------------
+-- Result Types
+
+-- | Show host with user information (for SQL joins).
 data ShowHostWithUser = ShowHostWithUser
   { showId :: Shows.Id,
     userId :: User.Id,
@@ -100,21 +208,23 @@ data ShowHostWithUser = ShowHostWithUser
   deriving anyclass (DecodeRow, FromJSON, ToJSON)
 
 --------------------------------------------------------------------------------
--- Database Queries
+-- Queries
 
--- | Get hosts for a show
+-- | Get hosts for a show (active hosts only).
 getShowHosts :: Shows.Id -> Hasql.Statement () [Model]
 getShowHosts showId =
-  interp
-    False
-    [sql|
-    SELECT show_id, user_id, role, is_primary, joined_at, left_at
-    FROM show_hosts
-    WHERE show_id = #{showId} AND left_at IS NULL
-    ORDER BY is_primary DESC, joined_at ASC
-  |]
+  run $
+    select $
+      orderBy ((shmIsPrimary >$< desc) <> (shmJoinedAt >$< asc)) do
+        sh <- each showHostSchema
+        where_ $ shmShowId sh ==. lit showId
+        where_ $ isNull (shmLeftAt sh)
+        pure sh
 
--- | Get show hosts with user information
+-- | Get show hosts with user information.
+--
+-- Uses raw SQL because this query involves multiple joins across users,
+-- user_metadata, and host_details tables.
 getShowHostsWithUsers :: Shows.Id -> Hasql.Statement () [ShowHostWithUser]
 getShowHostsWithUsers showId =
   interp
@@ -151,7 +261,9 @@ getShowHostsWithUsers showId =
     ORDER BY sh.is_primary DESC, sh.joined_at ASC
   |]
 
--- | Add host to show
+-- | Add host to show.
+--
+-- Uses raw SQL because of ON CONFLICT DO UPDATE clause.
 insertShowHost :: Insert -> Hasql.Statement () ()
 insertShowHost Insert {..} =
   interp
@@ -163,7 +275,9 @@ insertShowHost Insert {..} =
     DO UPDATE SET role = #{shiRole}, is_primary = #{shiIsPrimary}, left_at = NULL
   |]
 
--- | Remove host from show (set left_at timestamp)
+-- | Remove host from show (set left_at timestamp).
+--
+-- Uses raw SQL for the UPDATE with NOW() timestamp.
 removeShowHost :: Shows.Id -> User.Id -> Hasql.Statement () ()
 removeShowHost showId userId =
   interp
@@ -174,7 +288,7 @@ removeShowHost showId userId =
     WHERE show_id = #{showId} AND user_id = #{userId}
   |]
 
--- | Check if user is host of show
+-- | Check if user is host of show.
 isUserHostOfShow :: User.Id -> Shows.Id -> Hasql.Statement () Bool
 isUserHostOfShow userId showId =
   let query =
@@ -188,7 +302,7 @@ isUserHostOfShow userId showId =
       |]
    in maybe False getOneColumn <$> query
 
--- | Check if user is host of show
+-- | Check if user is host of show by slug.
 isUserHostOfShowSlug :: User.Id -> Slug -> Hasql.Statement () Bool
 isUserHostOfShowSlug userId slug =
   let query =
@@ -203,7 +317,7 @@ isUserHostOfShowSlug userId slug =
       |]
    in maybe False getOneColumn <$> query
 
--- | Add host to show (convenience function)
+-- | Add host to show (convenience function).
 addHostToShow :: Shows.Id -> User.Id -> Hasql.Statement () ()
 addHostToShow showId userId =
   insertShowHost
@@ -214,6 +328,6 @@ addHostToShow showId userId =
         shiIsPrimary = False
       }
 
--- | Remove host from show (convenience alias for removeShowHost)
+-- | Remove host from show (convenience alias for removeShowHost).
 removeHostFromShow :: Shows.Id -> User.Id -> Hasql.Statement () ()
 removeHostFromShow = removeShowHost

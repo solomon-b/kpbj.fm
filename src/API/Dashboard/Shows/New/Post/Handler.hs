@@ -25,7 +25,6 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Vector qualified as Vector
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -441,7 +440,7 @@ checkScheduleConflicts showId = go
     go (slot : rest) =
       case (parseDayOfWeek (dayOfWeek slot), parseTimeOfDay (startTime slot), parseTimeOfDay (endTime slot)) of
         (Just dow, Just start, Just end) -> do
-          let weeks = Vector.fromList (weeksOfMonth slot)
+          let weeks = map fromIntegral (weeksOfMonth slot)
           execQuerySpan (ShowSchedule.checkTimeSlotConflict showId dow weeks start end) >>= \case
             Left err -> do
               Log.logInfo "Failed to check schedule conflict" (Text.pack $ show err)
@@ -479,7 +478,7 @@ createSchedulesForShow showId slots = do
               ShowSchedule.ScheduleTemplateInsert
                 { ShowSchedule.stiShowId = showId,
                   ShowSchedule.stiDayOfWeek = Just dow,
-                  ShowSchedule.stiWeeksOfMonth = Just (Vector.fromList (weeksOfMonth slot)),
+                  ShowSchedule.stiWeeksOfMonth = Just (map fromIntegral (weeksOfMonth slot)),
                   ShowSchedule.stiStartTime = start,
                   ShowSchedule.stiEndTime = end,
                   ShowSchedule.stiTimezone = "America/Los_Angeles"

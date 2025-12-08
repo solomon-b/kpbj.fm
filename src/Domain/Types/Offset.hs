@@ -1,4 +1,4 @@
-module Domain.Types.Offset (Offset) where
+module Domain.Types.Offset (Offset (..)) where
 
 --------------------------------------------------------------------------------
 

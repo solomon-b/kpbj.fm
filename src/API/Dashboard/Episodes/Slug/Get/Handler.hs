@@ -20,6 +20,7 @@ import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -102,7 +103,7 @@ handler _tracer showSlug episodeId _episodeSlug cookie (foldHxReq -> hxRequest) 
                       renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes Nothing Nothing content
                     else do
                       -- Fetch tracks for the episode
-                      tracks <- fromRight [] <$> execQuerySpan (Episodes.getTracksForEpisode episode.id)
+                      tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
 
                       -- Get user's shows for sidebar
                       userShows <-

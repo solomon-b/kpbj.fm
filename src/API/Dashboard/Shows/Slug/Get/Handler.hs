@@ -40,6 +40,7 @@ import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
+import Rel8 (Result)
 
 --------------------------------------------------------------------------------
 
@@ -139,7 +140,7 @@ fetchShowDetails ::
   Shows.Model ->
   Limit ->
   Offset ->
-  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate], [Episodes.Model], [ShowBlogPosts.Model]))
+  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model]))
 fetchShowDetails now showModel limit offset = runDBTransaction $ do
   episodes <- TRX.statement () $ Episodes.getPublishedEpisodesForShow now showModel.id limit offset
   hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id

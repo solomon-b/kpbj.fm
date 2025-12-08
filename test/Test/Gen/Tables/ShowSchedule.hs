@@ -7,8 +7,6 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, fromGregorian)
 import Data.Time.Clock (getCurrentTime, utctDay)
-import Data.Vector (Vector)
-import Data.Vector qualified as Vector
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Hedgehog (MonadGen (..))
@@ -28,8 +26,8 @@ import Hedgehog.Range qualified as Range
 -- For N-of-month shows (e.g., "first and third Monday"), use subsets like [1,3].
 --
 -- Note: For one-time shows, BOTH dayOfWeek and weeksOfMonth must be NULL.
-allWeeksOfMonth :: Vector Int64
-allWeeksOfMonth = Vector.fromList [1, 2, 3, 4, 5]
+allWeeksOfMonth :: [Int64]
+allWeeksOfMonth = [1, 2, 3, 4, 5]
 
 -- | Generate a DayOfWeek
 genDayOfWeek :: (MonadGen m) => m DayOfWeek
@@ -52,10 +50,10 @@ genTimeRange = do
   pure (TimeOfDay startHour startMinute 0, TimeOfDay endHour endMinute 0)
 
 -- | Generate weeks of month (1-5)
-genWeeksOfMonth :: (MonadGen m) => m (Vector Int64)
+genWeeksOfMonth :: (MonadGen m) => m [Int64]
 genWeeksOfMonth = do
   weeks <- Gen.subsequence @_ @Int64 [1, 2, 3, 4, 5]
-  pure $ Vector.fromList $ map fromIntegral weeks
+  pure $ map fromIntegral weeks
 
 -- | Generate a Day value
 genDay :: (MonadGen m) => m Day

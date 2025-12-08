@@ -40,6 +40,7 @@ import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.DayOfWeek (dayOfWeekToText)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
+import Rel8 (Result)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -144,7 +145,7 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
     statsContent ::
       UserMetadata.Model ->
       [Episodes.Model] ->
-      [ShowSchedule.ScheduleTemplate] ->
+      [ShowSchedule.ScheduleTemplate Result] ->
       Maybe ShowSchedule.UpcomingShowDate ->
       Maybe (Lucid.Html ())
     statsContent userMeta episodes schedules nextShow =
@@ -165,17 +166,17 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
           else mempty
         Lucid.span_ [] $ Lucid.toHtml $ show (length episodes) <> " episodes"
 
-    renderScheduleInfo :: [ShowSchedule.ScheduleTemplate] -> Lucid.Html ()
+    renderScheduleInfo :: [ShowSchedule.ScheduleTemplate Result] -> Lucid.Html ()
     renderScheduleInfo [] = Lucid.span_ [] "Not scheduled"
     renderScheduleInfo (firstSchedule : rest) =
       let allSchedules = firstSchedule : rest
-          dayNames = mapMaybe (fmap dayOfWeekToText . (.dayOfWeek)) allSchedules
+          dayNames = mapMaybe (fmap dayOfWeekToText . (.stDayOfWeek)) allSchedules
           dayText = if null dayNames then "One-time" else Text.intercalate ", " dayNames
-          timeRange = formatTimeOfDay firstSchedule.startTime <> "-" <> formatTimeOfDay firstSchedule.endTime
+          timeRange = formatTimeOfDay firstSchedule.stStartTime <> "-" <> formatTimeOfDay firstSchedule.stEndTime
        in Lucid.span_ [] $ Lucid.toHtml $ dayText <> " " <> timeRange
 
 -- | Fetch episodes data for dashboard
-fetchEpisodesData :: Day -> Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowSchedule.ScheduleTemplate], Maybe ShowSchedule.UpcomingShowDate)
+fetchEpisodesData :: Day -> Shows.Model -> Txn.Transaction ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
 fetchEpisodesData date showModel = do
   episodes <- Txn.statement () (Episodes.getEpisodesById showModel.id)
   schedules <- Txn.statement () (ShowSchedule.getScheduleTemplatesForShow showModel.id)

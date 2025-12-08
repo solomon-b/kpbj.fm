@@ -26,6 +26,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug, mkSlug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -152,7 +153,7 @@ renderEpisode ::
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 renderEpisode hxRequest mUserInfo _cookie episode = do
   showResult <- execQuerySpan (Shows.getShowById episode.showId)
-  tracks <- fromRight [] <$> execQuerySpan (Episodes.getTracksForEpisode episode.id)
+  tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
 
   case showResult of
     Left err -> do

@@ -63,6 +63,7 @@ library
                   , hasql-interpolate
                   , hasql-pool
                   , hasql-transaction
+                  , rel8
                   , hs-opentelemetry-sdk
                   , http-api-data
                   , http-conduit
@@ -339,6 +340,7 @@ library
     Effects.MimeTypeValidation
     Lucid.Extras
     OrphanInstances.DayOfWeek
+    OrphanInstances.Rel8
     OrphanInstances.TimeOfDay
     Utils
   hs-source-dirs: src

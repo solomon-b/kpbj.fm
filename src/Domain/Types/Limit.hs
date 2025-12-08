@@ -1,4 +1,4 @@
-module Domain.Types.Limit (Limit) where
+module Domain.Types.Limit (Limit (..)) where
 
 --------------------------------------------------------------------------------
 

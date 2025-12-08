@@ -22,7 +22,6 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (DayOfWeek (..))
-import Data.Vector qualified as Vector
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -30,6 +29,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xRef_, xShow_)
+import Rel8 (Result)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -390,14 +390,14 @@ dayOfWeekToText Friday = "friday"
 dayOfWeekToText Saturday = "saturday"
 
 -- | Convert schedule templates from database to JSON for the form
-schedulesToJson :: [ShowSchedule.ScheduleTemplate] -> Text
+schedulesToJson :: [ShowSchedule.ScheduleTemplate Result] -> Text
 schedulesToJson schedules =
   let scheduleData =
         [ Aeson.object
-            [ "dayOfWeek" Aeson..= maybe ("" :: Text) dayOfWeekToText sched.dayOfWeek,
-              "weeksOfMonth" Aeson..= maybe ([] :: [Int]) (map fromIntegral . Vector.toList) sched.weeksOfMonth,
-              "startTime" Aeson..= Text.take 5 (Text.pack $ show sched.startTime),
-              "endTime" Aeson..= Text.take 5 (Text.pack $ show sched.endTime)
+            [ "dayOfWeek" Aeson..= maybe ("" :: Text) dayOfWeekToText sched.stDayOfWeek,
+              "weeksOfMonth" Aeson..= maybe ([] :: [Int]) (map fromIntegral) sched.stWeeksOfMonth,
+              "startTime" Aeson..= Text.take 5 (Text.pack $ show sched.stStartTime),
+              "endTime" Aeson..= Text.take 5 (Text.pack $ show sched.stEndTime)
             ]
           | sched <- schedules
         ]

@@ -1,37 +1,105 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
-module Effects.Database.Tables.Events where
+-- | Database table definition and queries for @events@.
+--
+-- Uses rel8 for simple queries and raw SQL (hasql-interpolate) for complex joins.
+module Effects.Database.Tables.Events
+  ( -- * Status Type
+    Status (..),
+
+    -- * Id Type
+    Id (..),
+
+    -- * Table Definition
+    Event (..),
+    eventSchema,
+
+    -- * Model (Result alias)
+    Model,
+
+    -- * Insert Type
+    Insert (..),
+
+    -- * Queries
+    getPublishedEvents,
+    getEventBySlug,
+    getEventById,
+    getEventsByAuthor,
+    insertEvent,
+    updateEvent,
+    deleteEvent,
+    getAllEvents,
+    getEventsForMonth,
+    getEventsForWeek,
+
+    -- * Junction Table Queries (event_tag_assignments)
+    getEventTags,
+    assignTagToEvent,
+    removeTagFromEvent,
+
+    -- * Result Types
+    EventWithAuthor (..),
+    EventWithTags (..),
+    EventComplete (..),
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Coerce (coerce)
+import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
-import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
+import Data.Text qualified as Text
+import Data.Text.Display (Display (..), RecordInstance (..), display)
 import Data.Time (MonthOfYear, UTCTime, Year)
-import Domain.Types.Limit (Limit)
-import Domain.Types.Offset (Offset)
-import Domain.Types.Slug (Slug)
+import Domain.Types.Limit (Limit (..))
+import Domain.Types.Offset (Offset (..))
+import Domain.Types.Slug (Slug (..))
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import GHC.Generics
+import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneRow (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
-import OrphanInstances.UTCTime ()
+import OrphanInstances.Rel8 ()
+import Rel8 hiding (Insert)
+import Rel8 qualified
+import Rel8.Expr.Time (now)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 -- Event Status Type
 
+-- | Event publication status.
 data Status = Draft | Published
-  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
+  deriving stock (Generic, Show, Eq, Ord, Prelude.Enum, Bounded, Read)
   deriving anyclass (FromJSON, ToJSON)
+
+instance DBType Status where
+  typeInformation =
+    parseTypeInformation
+      ( \case
+          "draft" -> Right Draft
+          "published" -> Right Published
+          other -> Left $ "Invalid Status: " <> Text.unpack other
+      )
+      ( \case
+          Draft -> "draft"
+          Published -> "published"
+      )
+      typeInformation
+
+instance DBEq Status
 
 instance Display Status where
   displayBuilder Draft = "draft"
@@ -60,46 +128,97 @@ instance Servant.ToHttpApiData Status where
   toUrlPiece = display
 
 --------------------------------------------------------------------------------
--- Database Model
+-- Id Type
 
-newtype Id = Id Int64
+-- | Newtype wrapper for event primary keys.
+--
+-- Provides type safety to prevent mixing up IDs from different tables.
+newtype Id = Id {unId :: Int64}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype
-    ( Show,
-      Eq,
-      Ord,
-      Num,
-      Servant.FromHttpApiData,
-      Servant.ToHttpApiData,
-      ToJSON,
-      FromJSON,
-      Display,
-      DecodeValue,
-      EncodeValue
-    )
+  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq, DBOrd)
+  deriving newtype (DecodeValue, EncodeValue)
+  deriving newtype (Servant.FromHttpApiData, Servant.ToHttpApiData)
+  deriving newtype (ToJSON, FromJSON, Display)
 
--- | Database Model for the @events@ table
-data Model = Model
-  { emId :: Id,
-    emTitle :: Text,
-    emSlug :: Slug,
-    emDescription :: Text,
-    emStartsAt :: UTCTime,
-    emEndsAt :: UTCTime,
-    emLocationName :: Text,
-    emLocationAddress :: Text,
-    emStatus :: Status,
-    emAuthorId :: User.Id,
-    emPosterImageUrl :: Maybe Text,
-    emCreatedAt :: UTCTime,
-    emUpdatedAt :: UTCTime
+--------------------------------------------------------------------------------
+-- Table Definition
+
+-- | The @events@ table definition using rel8's higher-kinded data pattern.
+--
+-- The type parameter @f@ determines the context:
+--
+-- - @Expr@: SQL expressions for building queries
+-- - @Result@: Decoded Haskell values from query results
+-- - @Name@: Column names for schema definition
+data Event f = Event
+  { emId :: Column f Id,
+    emTitle :: Column f Text,
+    emSlug :: Column f Slug,
+    emDescription :: Column f Text,
+    emStartsAt :: Column f UTCTime,
+    emEndsAt :: Column f UTCTime,
+    emLocationName :: Column f Text,
+    emLocationAddress :: Column f Text,
+    emStatus :: Column f Status,
+    emAuthorId :: Column f User.Id,
+    emPosterImageUrl :: Column f (Maybe Text),
+    emCreatedAt :: Column f UTCTime,
+    emUpdatedAt :: Column f UTCTime
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance Model)
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
 
--- | Event with author information
+deriving stock instance (f ~ Result) => Show (Event f)
+
+deriving stock instance (f ~ Result) => Eq (Event f)
+
+-- | DecodeRow instance for hasql-interpolate raw SQL compatibility.
+instance DecodeRow (Event Result)
+
+-- | Display instance for Event Result.
+instance Display (Event Result) where
+  displayBuilder event =
+    "Event { id = "
+      <> displayBuilder (emId event)
+      <> ", title = "
+      <> displayBuilder (emTitle event)
+      <> ", slug = "
+      <> displayBuilder (emSlug event)
+      <> " }"
+
+-- | Type alias for backwards compatibility.
+--
+-- @Model@ is the same as @Event Result@.
+type Model = Event Result
+
+-- | Table schema connecting the Haskell type to the database table.
+eventSchema :: TableSchema (Event Name)
+eventSchema =
+  TableSchema
+    { name = "events",
+      columns =
+        Event
+          { emId = "id",
+            emTitle = "title",
+            emSlug = "slug",
+            emDescription = "description",
+            emStartsAt = "starts_at",
+            emEndsAt = "ends_at",
+            emLocationName = "location_name",
+            emLocationAddress = "location_address",
+            emStatus = "status",
+            emAuthorId = "author_id",
+            emPosterImageUrl = "poster_image_url",
+            emCreatedAt = "created_at",
+            emUpdatedAt = "updated_at"
+          }
+    }
+
+--------------------------------------------------------------------------------
+-- Result Types
+
+-- | Event with author information.
 data EventWithAuthor = EventWithAuthor
   { ewaEvent :: Model,
     ewaAuthor :: UserMetadata.Model
@@ -107,7 +226,7 @@ data EventWithAuthor = EventWithAuthor
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventWithAuthor)
 
--- | Event with tags
+-- | Event with tags.
 data EventWithTags = EventWithTags
   { ewtEvent :: Model,
     ewtTags :: [EventTags.Model]
@@ -115,7 +234,7 @@ data EventWithTags = EventWithTags
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventWithTags)
 
--- | Event with complete information (author + tags)
+-- | Event with complete information (author + tags).
 data EventComplete = EventComplete
   { ecEvent :: Model,
     ecAuthor :: UserMetadata.Model,
@@ -124,6 +243,10 @@ data EventComplete = EventComplete
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventComplete)
 
+--------------------------------------------------------------------------------
+-- Insert Type
+
+-- | Insert type for creating new events.
 data Insert = Insert
   { eiTitle :: Text,
     eiSlug :: Slug,
@@ -137,15 +260,17 @@ data Insert = Insert
     eiPosterImageUrl :: Maybe Text
   }
   deriving stock (Generic, Show, Eq)
-  deriving (EncodeRow) via Insert
   deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
--- Database Queries
+-- Queries
 
--- | Get published events, optionally filtered by tag
+-- | Get published events, optionally filtered by tag.
+--
+-- Uses raw SQL because this query involves optional filtering
+-- with joins to the tag assignment table.
 getPublishedEvents :: Maybe Text -> Limit -> Offset -> Hasql.Statement () [Model]
-getPublishedEvents maybeTagName limit offset =
+getPublishedEvents maybeTagName (Limit lim) (Offset off) =
   interp
     False
     [sql|
@@ -156,57 +281,68 @@ getPublishedEvents maybeTagName limit offset =
     WHERE e.status = 'published'
       AND (#{maybeTagName}::text IS NULL OR et.name = #{maybeTagName}::text)
     ORDER BY e.starts_at ASC
-    LIMIT #{limit} OFFSET #{offset}
+    LIMIT #{lim} OFFSET #{off}
   |]
 
--- | Get event by slug
+-- | Get event by slug.
 getEventBySlug :: Slug -> Hasql.Statement () (Maybe Model)
-getEventBySlug slug =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
-    FROM events
-    WHERE slug = #{slug}
-  |]
+getEventBySlug slug = fmap listToMaybe $ run $ select do
+  event <- each eventSchema
+  where_ $ emSlug event ==. lit slug
+  pure event
 
--- | Get event by ID
+-- | Get event by ID.
 getEventById :: Id -> Hasql.Statement () (Maybe Model)
-getEventById eventId =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
-    FROM events
-    WHERE id = #{eventId}
-  |]
+getEventById eventId = fmap listToMaybe $ run $ select do
+  event <- each eventSchema
+  where_ $ emId event ==. lit eventId
+  pure event
 
--- | Get events by author
+-- | Get events by author.
 getEventsByAuthor :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getEventsByAuthor authorId limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
-    FROM events
-    WHERE author_id = #{authorId}
-    ORDER BY starts_at DESC
-    LIMIT #{limit} OFFSET #{offset}
-  |]
+getEventsByAuthor authorId (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (emStartsAt >$< desc) do
+            event <- each eventSchema
+            where_ $ emAuthorId event ==. lit authorId
+            pure event
 
--- | Insert a new event
+-- | Insert a new event.
 insertEvent :: Insert -> Hasql.Statement () Id
 insertEvent Insert {..} =
-  getOneRow
-    <$> interp
-      False
-      [sql|
-    INSERT INTO events(title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at)
-    VALUES (#{eiTitle}, #{eiSlug}, #{eiDescription}, #{eiStartsAt}, #{eiEndsAt}, #{eiLocationName}, #{eiLocationAddress}, #{eiStatus}, #{eiAuthorId}, #{eiPosterImageUrl}, NOW(), NOW())
-    RETURNING id
-  |]
+  fmap head $
+    run $
+      insert
+        Rel8.Insert
+          { into = eventSchema,
+            rows =
+              values
+                [ Event
+                    { emId = coerce (nextval "events_id_seq"),
+                      emTitle = lit eiTitle,
+                      emSlug = lit eiSlug,
+                      emDescription = lit eiDescription,
+                      emStartsAt = lit eiStartsAt,
+                      emEndsAt = lit eiEndsAt,
+                      emLocationName = lit eiLocationName,
+                      emLocationAddress = lit eiLocationAddress,
+                      emStatus = lit eiStatus,
+                      emAuthorId = lit eiAuthorId,
+                      emPosterImageUrl = lit eiPosterImageUrl,
+                      emCreatedAt = now,
+                      emUpdatedAt = now
+                    }
+                ],
+            onConflict = Abort,
+            returning = Returning emId
+          }
 
--- | Update an event
+-- | Update an event.
+--
+-- Uses raw SQL for consistency with update patterns.
 updateEvent :: Id -> Insert -> Hasql.Statement () (Maybe Id)
 updateEvent eventId Insert {..} =
   interp
@@ -220,30 +356,33 @@ updateEvent eventId Insert {..} =
     RETURNING id
   |]
 
--- | Delete an event
+-- | Delete an event.
 deleteEvent :: Id -> Hasql.Statement () (Maybe Id)
 deleteEvent eventId =
-  interp
-    False
-    [sql|
-    DELETE FROM events
-    WHERE id = #{eventId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      delete
+        Rel8.Delete
+          { from = eventSchema,
+            using = pure (),
+            deleteWhere = \_ event -> emId event ==. lit eventId,
+            returning = Returning emId
+          }
 
--- | Get all events for dashboard (staff/admin access - all statuses)
+-- | Get all events for dashboard (staff/admin access - all statuses).
 getAllEvents :: Limit -> Offset -> Hasql.Statement () [Model]
-getAllEvents limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
-    FROM events
-    ORDER BY starts_at DESC
-    LIMIT #{limit} OFFSET #{offset}
-  |]
+getAllEvents (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (emStartsAt >$< desc) do
+            each eventSchema
 
--- | Get events for a specific month and year, optionally filtered by tag
+-- | Get events for a specific month and year, optionally filtered by tag.
+--
+-- Uses raw SQL because this query involves date extraction functions
+-- and optional tag filtering with joins.
 getEventsForMonth :: Maybe Text -> Year -> MonthOfYear -> Hasql.Statement () [Model]
 getEventsForMonth maybeTagName year month =
   interp
@@ -260,7 +399,10 @@ getEventsForMonth maybeTagName year month =
     ORDER BY e.starts_at ASC
   |]
 
--- | Get events for a specific week (ISO week number), optionally filtered by tag
+-- | Get events for a specific week (ISO week number), optionally filtered by tag.
+--
+-- Uses raw SQL because this query involves date extraction functions
+-- and optional tag filtering with joins.
 getEventsForWeek :: Maybe Text -> Year -> Int -> Hasql.Statement () [Model]
 getEventsForWeek maybeTagName year weekNum =
   interp
@@ -279,8 +421,10 @@ getEventsForWeek maybeTagName year weekNum =
 
 --------------------------------------------------------------------------------
 -- Junction Table Queries (event_tag_assignments)
+--
+-- These use raw SQL because they involve joins with other tables.
 
--- | Get tags for a specific event
+-- | Get tags for a specific event.
 getEventTags :: Id -> Hasql.Statement () [EventTags.Model]
 getEventTags eventId =
   interp
@@ -293,7 +437,7 @@ getEventTags eventId =
     ORDER BY et.name
   |]
 
--- | Assign a tag to an event
+-- | Assign a tag to an event.
 assignTagToEvent :: Id -> EventTags.Id -> Hasql.Statement () ()
 assignTagToEvent eventId tagId =
   interp
@@ -304,7 +448,7 @@ assignTagToEvent eventId tagId =
     ON CONFLICT DO NOTHING
   |]
 
--- | Remove a tag from an event
+-- | Remove a tag from an event.
 removeTagFromEvent :: Id -> EventTags.Id -> Hasql.Statement () ()
 removeTagFromEvent eventId tagId =
   interp

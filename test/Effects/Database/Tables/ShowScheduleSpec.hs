@@ -99,13 +99,13 @@ prop_insertSelectTemplate cfg = do
       assert $ do
         (templateId, scheduleInsert, mSelected) <- assertRight result
         selectedTemplate <- assertJust mSelected
-        scheduleInsert.stiShowId === selectedTemplate.showId
-        scheduleInsert.stiDayOfWeek === selectedTemplate.dayOfWeek
-        scheduleInsert.stiWeeksOfMonth === selectedTemplate.weeksOfMonth
-        scheduleInsert.stiStartTime === selectedTemplate.startTime
-        scheduleInsert.stiEndTime === selectedTemplate.endTime
-        scheduleInsert.stiTimezone === selectedTemplate.timezone
-        templateId === selectedTemplate.id
+        scheduleInsert.stiShowId === selectedTemplate.stShowId
+        scheduleInsert.stiDayOfWeek === selectedTemplate.stDayOfWeek
+        scheduleInsert.stiWeeksOfMonth === selectedTemplate.stWeeksOfMonth
+        scheduleInsert.stiStartTime === selectedTemplate.stStartTime
+        scheduleInsert.stiEndTime === selectedTemplate.stEndTime
+        scheduleInsert.stiTimezone === selectedTemplate.stTimezone
+        templateId === selectedTemplate.stId
 
 prop_getTemplatesForShow :: TestDBConfig -> PropertyT IO ()
 prop_getTemplatesForShow cfg = do
@@ -134,7 +134,7 @@ prop_getTemplatesForShow cfg = do
         (showId, templates) <- assertRight result
         Hedgehog.assert (length templates >= 2)
         forM_ templates $ \template -> do
-          template.showId === showId
+          template.stShowId === showId
 
 prop_deleteTemplate :: TestDBConfig -> PropertyT IO ()
 prop_deleteTemplate cfg = do
@@ -188,7 +188,7 @@ prop_insertSelectValidity cfg = do
 
       assert $ do
         (validityId, validityInsert, mSelected) <- assertRight result
-        UUT.ScheduleTemplateValidity {id = selectedId, templateId = tmplId, effectiveFrom = effFrom, effectiveUntil = effUntil} <- assertJust mSelected
+        UUT.ScheduleTemplateValidity {stvId = selectedId, stvTemplateId = tmplId, stvEffectiveFrom = effFrom, stvEffectiveUntil = effUntil} <- assertJust mSelected
         validityInsert.viTemplateId === tmplId
         validityInsert.viEffectiveFrom === effFrom
         validityInsert.viEffectiveUntil === effUntil
@@ -224,7 +224,7 @@ prop_getValidityPeriods cfg = do
         (templateId, periods) <- assertRight result
         Hedgehog.assert (length periods >= 2)
         forM_ periods $ \period -> do
-          period.templateId === templateId
+          period.stvTemplateId === templateId
 
 prop_updateValidity :: TestDBConfig -> PropertyT IO ()
 prop_updateValidity cfg = do
@@ -254,7 +254,7 @@ prop_updateValidity cfg = do
 
       assert $ do
         (validityId, update, mUpdated) <- assertRight result
-        UUT.ScheduleTemplateValidity {id = updatedId, effectiveFrom = effFrom, effectiveUntil = effUntil} <- assertJust mUpdated
+        UUT.ScheduleTemplateValidity {stvId = updatedId, stvEffectiveFrom = effFrom, stvEffectiveUntil = effUntil} <- assertJust mUpdated
         update.vuEffectiveFrom === effFrom
         update.vuEffectiveUntil === effUntil
         validityId === updatedId
@@ -285,7 +285,7 @@ prop_endValidity cfg = do
       assert $ do
         (_endDate, mEnded) <- assertRight result
         ended <- assertJust mEnded
-        ended.effectiveUntil === Just endDate
+        ended.stvEffectiveUntil === Just endDate
 
 --------------------------------------------------------------------------------
 -- Active Schedule Tests
@@ -313,10 +313,10 @@ prop_getActiveTemplates cfg = do
       assert $ do
         (showId, templateId, activeTemplates) <- assertRight result
         Hedgehog.assert (not $ null activeTemplates)
-        let matchingTemplates = filter (\(UUT.ScheduleTemplate {id = tid}) -> tid == templateId) activeTemplates
+        let matchingTemplates = filter (\(UUT.ScheduleTemplate {stId = tid}) -> tid == templateId) activeTemplates
         Hedgehog.assert (not $ null matchingTemplates)
         forM_ activeTemplates $ \template -> do
-          template.showId === showId
+          template.stShowId === showId
 
 prop_getActiveRecurring :: TestDBConfig -> PropertyT IO ()
 prop_getActiveRecurring cfg = do
@@ -346,11 +346,11 @@ prop_getActiveRecurring cfg = do
       assert $ do
         (templateId, activeRecurring) <- assertRight result
         -- Should include our template
-        let matchingTemplates = filter (\(UUT.ScheduleTemplate {id = tid}) -> tid == templateId) activeRecurring
+        let matchingTemplates = filter (\(UUT.ScheduleTemplate {stId = tid}) -> tid == templateId) activeRecurring
         Hedgehog.assert (not $ null matchingTemplates)
         -- All templates should have day_of_week set (recurring only)
         forM_ activeRecurring $ \template -> do
-          Hedgehog.assert (isJust template.dayOfWeek)
+          Hedgehog.assert (isJust template.stDayOfWeek)
 
 --------------------------------------------------------------------------------
 -- Upcoming Dates Tests
@@ -597,13 +597,13 @@ prop_oneTimeShowCreation cfg = do
         (templateId, scheduleInsert, mSelected) <- assertRight result
         template <- assertJust mSelected
         -- Verify one-time show fields
-        template.id === templateId
-        template.showId === scheduleInsert.stiShowId
-        template.dayOfWeek === Nothing
-        template.weeksOfMonth === Nothing
-        template.startTime === scheduleInsert.stiStartTime
-        template.endTime === scheduleInsert.stiEndTime
-        template.timezone === scheduleInsert.stiTimezone
+        template.stId === templateId
+        template.stShowId === scheduleInsert.stiShowId
+        template.stDayOfWeek === Nothing
+        template.stWeeksOfMonth === Nothing
+        template.stStartTime === scheduleInsert.stiStartTime
+        template.stEndTime === scheduleInsert.stiEndTime
+        template.stTimezone === scheduleInsert.stiTimezone
 
 prop_oneTimeShowNotInRecurring :: TestDBConfig -> PropertyT IO ()
 prop_oneTimeShowNotInRecurring cfg = do
@@ -642,7 +642,7 @@ prop_oneTimeShowNotInRecurring cfg = do
       assert $ do
         (templateId, recurring) <- assertRight result
         -- One-time shows should NOT appear in recurring schedules
-        let matchingTemplates = filter (\t -> t.id == templateId) recurring
+        let matchingTemplates = filter (\t -> t.stId == templateId) recurring
         Hedgehog.assert (null matchingTemplates)
 
 --------------------------------------------------------------------------------
@@ -669,7 +669,7 @@ prop_timezoneStorage cfg = do
         (expectedTimezone, mSelected) <- assertRight result
         template <- assertJust mSelected
         -- Verify timezone is stored and retrieved correctly
-        template.timezone === expectedTimezone
+        template.stTimezone === expectedTimezone
 
 prop_timezoneConversion :: TestDBConfig -> PropertyT IO ()
 prop_timezoneConversion cfg = do

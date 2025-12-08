@@ -45,7 +45,7 @@ prop_insertUserWithMetadata cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UUT.uwmiEmail userWithMetadata) (UUT.uwmiPassword userWithMetadata)
-        (OneRow metadataId) <- TRX.statement () $ UUT.insertUserMetadata $ UUT.ModelInsert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
+        metadataId <- TRX.statement () $ UUT.insertUserMetadata $ UUT.Insert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
         user <- TRX.statement () (User.getUser userId)
         metadata <- TRX.statement () (UUT.getUserMetadata userId)
         pure (userId, metadataId, user, metadata)
@@ -71,7 +71,7 @@ prop_softDeleteFiltersUser cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Insert user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UUT.uwmiEmail userWithMetadata) (UUT.uwmiPassword userWithMetadata)
-        (OneRow _metadataId) <- TRX.statement () $ UUT.insertUserMetadata $ UUT.ModelInsert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
+        _metadataId <- TRX.statement () $ UUT.insertUserMetadata $ UUT.Insert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
 
         -- Verify user exists before deletion
         metadataBeforeDelete <- TRX.statement () (UUT.getUserMetadata userId)
@@ -103,7 +103,7 @@ prop_softDeleteIdempotent cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Insert user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UUT.uwmiEmail userWithMetadata) (UUT.uwmiPassword userWithMetadata)
-        (OneRow _metadataId) <- TRX.statement () $ UUT.insertUserMetadata $ UUT.ModelInsert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
+        _metadataId <- TRX.statement () $ UUT.insertUserMetadata $ UUT.Insert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
 
         -- First soft delete
         firstDelete <- TRX.statement () (UUT.softDeleteUser userId)
@@ -130,7 +130,7 @@ prop_softDeleteInvalidatesSessions cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Insert user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UUT.uwmiEmail userWithMetadata) (UUT.uwmiPassword userWithMetadata)
-        (OneRow _metadataId) <- TRX.statement () $ UUT.insertUserMetadata $ UUT.ModelInsert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
+        _metadataId <- TRX.statement () $ UUT.insertUserMetadata $ UUT.Insert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
 
         -- Create a session for the user (direct SQL insert)
         TRX.statement () $
@@ -183,7 +183,7 @@ prop_deletedUsersExcludedFromPagination cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Insert user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UUT.uwmiEmail userWithMetadata) (UUT.uwmiPassword userWithMetadata)
-        (OneRow _metadataId) <- TRX.statement () $ UUT.insertUserMetadata $ UUT.ModelInsert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
+        _metadataId <- TRX.statement () $ UUT.insertUserMetadata $ UUT.Insert userId (UUT.uwmiDisplayName userWithMetadata) (UUT.uwmiFullName userWithMetadata) (UUT.uwmiAvatarUrl userWithMetadata) (UUT.uwmiUserRole userWithMetadata)
 
         -- Get users before deletion
         usersBeforeDelete <- TRX.statement () (UUT.getAllUsersWithPagination 100 0)
