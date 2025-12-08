@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module OrphanInstances.DayOfWeek where
@@ -10,6 +11,7 @@ import Data.Time (DayOfWeek (..))
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
 import Hasql.Interpolate (DecodeValue (..), EncodeValue (..))
+import Rel8 (DBEq, DBOrd, DBType (..), parseTypeInformation)
 
 --------------------------------------------------------------------------------
 
@@ -41,6 +43,29 @@ instance EncodeValue DayOfWeek where
 
 instance DecodeValue DayOfWeek where
   decodeValue = Decoders.enum dayOfWeekFromText
+
+-- | DBType instance for DayOfWeek for rel8 queries.
+instance DBType DayOfWeek where
+  typeInformation =
+    parseTypeInformation
+      ( \case
+          "sunday" -> Right Sunday
+          "monday" -> Right Monday
+          "tuesday" -> Right Tuesday
+          "wednesday" -> Right Wednesday
+          "thursday" -> Right Thursday
+          "friday" -> Right Friday
+          "saturday" -> Right Saturday
+          other -> Left $ "Invalid DayOfWeek: " <> Text.unpack other
+      )
+      dayOfWeekToText
+      typeInformation
+
+-- | DBEq instance for DayOfWeek for rel8 queries.
+instance DBEq DayOfWeek
+
+-- | DBOrd instance for DayOfWeek for rel8 queries.
+instance DBOrd DayOfWeek
 
 --------------------------------------------------------------------------------
 

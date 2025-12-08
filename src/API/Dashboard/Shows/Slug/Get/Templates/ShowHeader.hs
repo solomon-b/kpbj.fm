@@ -20,6 +20,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
+import Rel8 (Result)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -28,7 +29,7 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 -- | Render show header with info
-renderShowHeader :: Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> Lucid.Html ()
+renderShowHeader :: Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> Lucid.Html ()
 renderShowHeader showModel hosts schedules = do
   -- Banner Image (if present)
   case showModel.bannerUrl of
@@ -70,7 +71,7 @@ renderShowHeader showModel hosts schedules = do
             Lucid.span_ [Lucid.class_ "font-bold"] "Schedule: "
             case schedules of
               [] -> "TBD"
-              (ShowSchedule.ScheduleTemplate {dayOfWeek = mDow, startTime = st, endTime = et} : _) -> do
+              (ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stStartTime = st, stEndTime = et} : _) -> do
                 case mDow of
                   Nothing -> "One-time show"
                   Just dow -> do

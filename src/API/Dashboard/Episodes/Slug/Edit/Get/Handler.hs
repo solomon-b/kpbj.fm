@@ -27,6 +27,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
@@ -75,7 +76,7 @@ handler _tracer showSlug episodeId urlSlug cookie (foldHxReq -> hxRequest) = do
       mResult <- execTransactionSpan $ runMaybeT $ do
         episode <- MaybeT $ HT.statement () (Episodes.getEpisodeById episodeId)
         showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
-        tracks <- lift $ HT.statement () (Episodes.getTracksForEpisode episode.id)
+        tracks <- lift $ HT.statement () (EpisodeTrack.getTracksForEpisode episode.id)
         -- Admins don't need explicit host check since they have access to all shows
         isHost <-
           if UserMetadata.isAdmin userMetadata.mUserRole

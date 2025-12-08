@@ -18,6 +18,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -121,7 +122,7 @@ hardDeleteEpisode showModel episode = do
 deleteEpisodeTransaction :: Episodes.Id -> Txn.Transaction (Maybe Episodes.Id)
 deleteEpisodeTransaction episodeId = do
   -- First delete all tracks for this episode
-  _ <- Txn.statement () (Episodes.deleteAllTracksForEpisode episodeId)
+  _ <- Txn.statement () (EpisodeTrack.deleteAllTracksForEpisode episodeId)
   -- Then hard delete the episode
   Txn.statement () (Episodes.hardDeleteEpisode episodeId)
 

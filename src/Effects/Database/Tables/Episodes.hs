@@ -1,37 +1,113 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
-module Effects.Database.Tables.Episodes where
+-- | Database table definition and queries for @episodes@.
+--
+-- Uses rel8 for simple queries and raw SQL (hasql-interpolate) for complex joins.
+module Effects.Database.Tables.Episodes
+  ( -- * Id Type
+    Id (..),
+
+    -- * Status Type
+    Status (..),
+
+    -- * Episode Number Type
+    EpisodeNumber (..),
+
+    -- * Table Definition
+    Episode (..),
+    episodeSchema,
+
+    -- * Model (Result alias)
+    Model,
+
+    -- * Insert Type
+    Insert (..),
+
+    -- * Update Types
+    Update (..),
+    FileUpdate (..),
+
+    -- * Queries
+    getPublishedEpisodesForShow,
+    getAllEpisodes,
+    getEpisodesById,
+    getEpisodeBySlug,
+    getEpisodeById,
+    getEpisodesByUser,
+    getRecentPublishedEpisodes,
+    insertEpisode,
+    updateEpisode,
+    updateEpisodeFiles,
+    deleteEpisode,
+    publishEpisode,
+    isUserHostOfEpisodeShow,
+    hardDeleteEpisode,
+
+    -- * Complex Queries (raw SQL)
+    getPublishedEpisodesWithFilters,
+    countPublishedEpisodesWithFilters,
+
+    -- * Result Types
+    EpisodeWithShow (..),
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
-import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
+import Data.Text qualified as Text
+import Data.Text.Display (Display (..), RecordInstance (..), display)
 import Data.Time (UTCTime)
-import Domain.Types.Limit (Limit)
-import Domain.Types.Offset (Offset)
-import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
+import Domain.Types.Limit (Limit (..))
+import Domain.Types.Offset (Offset (..))
+import Domain.Types.Slug (Slug (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import GHC.Generics
+import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneColumn (..), OneRow (..), RowsAffected, interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
-import OrphanInstances.UTCTime ()
+import OrphanInstances.Rel8 ()
+import Rel8 hiding (Enum, Insert, Update)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 -- Episode Status Type
 
+-- | Episode publication status.
 data Status = Draft | Published | Deleted
-  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
+  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded, Read)
   deriving anyclass (FromJSON, ToJSON)
+
+instance DBType Status where
+  typeInformation :: TypeInformation Status
+  typeInformation =
+    parseTypeInformation
+      ( \case
+          "draft" -> Right Draft
+          "published" -> Right Published
+          "deleted" -> Right Deleted
+          other -> Left $ "Invalid Status: " <> Text.unpack other
+      )
+      ( \case
+          Draft -> "draft"
+          Published -> "published"
+          Deleted -> "deleted"
+      )
+      typeInformation
+
+instance DBEq Status
 
 instance Display Status where
   displayBuilder Draft = "draft"
@@ -64,65 +140,117 @@ instance Servant.ToHttpApiData Status where
   toUrlPiece = display
 
 --------------------------------------------------------------------------------
--- Database Model
+-- Id Type
 
-newtype Id = Id Int64
+-- | Newtype wrapper for episode primary keys.
+--
+-- Provides type safety to prevent mixing up IDs from different tables.
+newtype Id = Id {unId :: Int64}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype
-    ( Show,
-      Eq,
-      Ord,
-      Num,
-      Servant.FromHttpApiData,
-      Servant.ToHttpApiData,
-      ToJSON,
-      FromJSON,
-      Display,
-      DecodeValue,
-      EncodeValue
-    )
+  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq, DBOrd)
+  deriving newtype (DecodeValue, EncodeValue)
+  deriving newtype (Servant.FromHttpApiData, Servant.ToHttpApiData)
+  deriving newtype (ToJSON, FromJSON, Display)
 
-data Model = Model
-  { id :: Id,
-    showId :: Shows.Id,
-    title :: Text,
-    slug :: Slug,
-    description :: Maybe Text,
-    episodeNumber :: EpisodeNumber,
-    audioFilePath :: Maybe Text,
-    audioFileSize :: Maybe Int64,
-    audioMimeType :: Maybe Text,
-    durationSeconds :: Maybe Int64,
-    artworkUrl :: Maybe Text,
-    scheduledAt :: Maybe UTCTime,
-    publishedAt :: Maybe UTCTime,
-    status :: Status,
-    createdBy :: User.Id,
-    createdAt :: UTCTime,
-    updatedAt :: UTCTime
+--------------------------------------------------------------------------------
+-- Episode Number Type
+
+-- | Episode number within a show, auto-assigned by PostgreSQL trigger.
+newtype EpisodeNumber = EpisodeNumber {unEpisodeNumber :: Int64}
+  deriving stock (Generic)
+  deriving anyclass (DecodeRow)
+  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq, DBOrd)
+  deriving newtype (DecodeValue, EncodeValue)
+  deriving newtype (Servant.FromHttpApiData, Servant.ToHttpApiData)
+  deriving newtype (ToJSON, FromJSON, Display)
+
+--------------------------------------------------------------------------------
+-- Table Definition
+
+-- | The @episodes@ table definition using rel8's higher-kinded data pattern.
+--
+-- The type parameter @f@ determines the context:
+--
+-- - @Expr@: SQL expressions for building queries
+-- - @Result@: Decoded Haskell values from query results
+-- - @Name@: Column names for schema definition
+data Episode f = Episode
+  { id :: Column f Id,
+    showId :: Column f Shows.Id,
+    title :: Column f Text,
+    slug :: Column f Slug,
+    description :: Column f (Maybe Text),
+    episodeNumber :: Column f EpisodeNumber,
+    audioFilePath :: Column f (Maybe Text),
+    audioFileSize :: Column f (Maybe Int64),
+    audioMimeType :: Column f (Maybe Text),
+    durationSeconds :: Column f (Maybe Int64),
+    artworkUrl :: Column f (Maybe Text),
+    scheduledAt :: Column f (Maybe UTCTime),
+    publishedAt :: Column f (Maybe UTCTime),
+    status :: Column f Status,
+    createdBy :: Column f User.Id,
+    createdAt :: Column f UTCTime,
+    updatedAt :: Column f UTCTime
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance Model)
-
-newtype EpisodeNumber = EpisodeNumber Int64
   deriving stock (Generic)
-  deriving anyclass (DecodeRow)
-  deriving newtype
-    ( Show,
-      Eq,
-      Ord,
-      Num,
-      Servant.FromHttpApiData,
-      Servant.ToHttpApiData,
-      ToJSON,
-      FromJSON,
-      Display,
-      DecodeValue,
-      EncodeValue
-    )
+  deriving anyclass (Rel8able)
 
+deriving stock instance (f ~ Result) => Show (Episode f)
+
+deriving stock instance (f ~ Result) => Eq (Episode f)
+
+-- | DecodeRow instance for hasql-interpolate raw SQL compatibility.
+instance DecodeRow (Episode Result)
+
+-- | Display instance for Episode Result.
+instance Display (Episode Result) where
+  displayBuilder ep =
+    "Episode { id = "
+      <> displayBuilder ep.id
+      <> ", title = "
+      <> displayBuilder ep.title
+      <> ", slug = "
+      <> displayBuilder ep.slug
+      <> " }"
+
+-- | Type alias for backwards compatibility.
+--
+-- @Model@ is the same as @Episode Result@.
+type Model = Episode Result
+
+-- | Table schema connecting the Haskell type to the database table.
+episodeSchema :: TableSchema (Episode Name)
+episodeSchema =
+  TableSchema
+    { name = "episodes",
+      columns =
+        Episode
+          { id = "id",
+            showId = "show_id",
+            title = "title",
+            slug = "slug",
+            description = "description",
+            episodeNumber = "episode_number",
+            audioFilePath = "audio_file_path",
+            audioFileSize = "audio_file_size",
+            audioMimeType = "audio_mime_type",
+            durationSeconds = "duration_seconds",
+            artworkUrl = "artwork_url",
+            scheduledAt = "scheduled_at",
+            publishedAt = "published_at",
+            status = "status",
+            createdBy = "created_by",
+            createdAt = "created_at",
+            updatedAt = "updated_at"
+          }
+    }
+
+--------------------------------------------------------------------------------
+-- Insert Type
+
+-- | Insert type for creating new episodes.
 data Insert = Insert
   { eiId :: Shows.Id,
     eiTitle :: Text,
@@ -138,133 +266,35 @@ data Insert = Insert
     eiCreatedBy :: User.Id
   }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (EncodeRow)
   deriving (Display) via (RecordInstance Insert)
 
--- | Episode Update data for partial updates
+--------------------------------------------------------------------------------
+-- Update Types
+
+-- | Episode Update data for partial updates.
 data Update = Update
   { euId :: Id,
     euTitle :: Text,
     euDescription :: Maybe Text
   }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (EncodeRow)
   deriving (Display) via (RecordInstance Update)
 
--- | Episode file update data for updating audio and artwork files
+-- | Episode file update data for updating audio and artwork files.
 data FileUpdate = FileUpdate
   { efuId :: Id,
     efuAudioFilePath :: Maybe Text,
     efuArtworkUrl :: Maybe Text
   }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (EncodeRow)
   deriving (Display) via (RecordInstance FileUpdate)
 
 --------------------------------------------------------------------------------
--- Database Queries
+-- Result Types
 
--- | Get published episodes for a show
-getPublishedEpisodesForShow :: UTCTime -> Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getPublishedEpisodesForShow now showId limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, description, episode_number,
-           audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-           artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
-    FROM episodes
-    WHERE show_id = #{showId} AND status = 'published' AND scheduled_at <= #{now}
-    ORDER BY published_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
-  |]
-
--- | Get all non-deleted episodes
-getAllEpisodes :: Hasql.Statement () [Model]
-getAllEpisodes =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, description, episode_number,
-           audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-           artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
-    FROM episodes
-    ORDER BY scheduled_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
-  |]
-
--- | Get all non-deleted episodes for a show
-getEpisodesById :: Shows.Id -> Hasql.Statement () [Model]
-getEpisodesById showId =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, description, episode_number,
-           audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-           artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
-    FROM episodes
-    WHERE show_id = #{showId} AND status != 'deleted'
-    ORDER BY scheduled_at DESC NULLS LAST, episode_number DESC NULLS LAST, created_at DESC
-  |]
-
--- | Get episode by show slug and episode slug
-getEpisodeBySlug :: Slug -> Slug -> Hasql.Statement () (Maybe Model)
-getEpisodeBySlug showSlug episodeSlug =
-  interp
-    False
-    [sql|
-    SELECT e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
-           e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-           e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by, e.created_at, e.updated_at
-    FROM episodes e
-    JOIN shows s ON e.show_id = s.id
-    WHERE s.slug = #{showSlug} AND e.slug = #{episodeSlug}
-  |]
-
--- | Get episode by ID
-getEpisodeById :: Id -> Hasql.Statement () (Maybe Model)
-getEpisodeById episodeId =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, description, episode_number,
-           audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-           artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
-    FROM episodes
-    WHERE id = #{episodeId}
-  |]
-
--- | Get non-deleted episodes by user (episodes they created)
-getEpisodesByUser :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getEpisodesByUser userId limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, description, episode_number,
-           audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-           artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
-    FROM episodes
-    WHERE created_by = #{userId} AND status != 'deleted'
-    ORDER BY created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
-  |]
-
--- | Get recent published episodes across all shows
-getRecentPublishedEpisodes :: Limit -> Offset -> Hasql.Statement () [Model]
-getRecentPublishedEpisodes limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, description, episode_number,
-           audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-           artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at
-    FROM episodes
-    WHERE status = 'published'
-    ORDER BY published_at DESC NULLS LAST, created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
-  |]
-
--- | Data type for episode archive results with show information
--- This flattens Model fields + show info for easier decoding
+-- | Data type for episode archive results with show information.
+--
+-- This flattens Model fields + show info for easier decoding.
 data EpisodeWithShow = EpisodeWithShow
   { ewsId :: Id,
     ewsShowId :: Shows.Id,
@@ -292,94 +322,93 @@ data EpisodeWithShow = EpisodeWithShow
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance EpisodeWithShow)
 
--- | Get published episodes with show details and filters for archive page
--- Returns episodes with show information, filtered by optional search, show_id, genre, and date range
-getPublishedEpisodesWithFilters ::
-  UTCTime ->
-  Maybe Text ->
-  Maybe Text ->
-  Maybe UTCTime ->
-  Maybe UTCTime ->
-  Text ->
-  Limit ->
-  Offset ->
-  Hasql.Statement () [EpisodeWithShow]
-getPublishedEpisodesWithFilters now mSearch mGenre mDateFrom mDateTo sortBy limit offset =
-  case sortBy of
-    "longest" ->
-      interp
-        False
-        [sql|
-    SELECT
-      e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
-      e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-      e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
-      e.created_at, e.updated_at,
-      s.title, s.slug, s.genre,
-      COALESCE(um.display_name, u.email)
+--------------------------------------------------------------------------------
+-- Queries
+
+-- | Get published episodes for a show.
+getPublishedEpisodesForShow :: UTCTime -> Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
+getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy ((.publishedAt) >$< nullsLast desc) do
+            ep <- each episodeSchema
+            where_ $ ep.showId ==. lit showId'
+            where_ $ ep.status ==. lit Published
+            where_ $ ep.scheduledAt <=. nullify (lit currentTime)
+            pure ep
+
+-- | Get all non-deleted episodes.
+getAllEpisodes :: Hasql.Statement () [Model]
+getAllEpisodes =
+  run $
+    select $
+      orderBy ((.scheduledAt) >$< nullsLast desc) do
+        each episodeSchema
+
+-- | Get all non-deleted episodes for a show.
+getEpisodesById :: Shows.Id -> Hasql.Statement () [Model]
+getEpisodesById showId' =
+  run $
+    select $
+      orderBy ((.scheduledAt) >$< nullsLast desc) do
+        ep <- each episodeSchema
+        where_ $ ep.showId ==. lit showId'
+        where_ $ ep.status /=. lit Deleted
+        pure ep
+
+-- | Get episode by show slug and episode slug.
+--
+-- Uses raw SQL because it requires a JOIN with the shows table.
+getEpisodeBySlug :: Slug -> Slug -> Hasql.Statement () (Maybe Model)
+getEpisodeBySlug showSlug episodeSlug =
+  interp
+    False
+    [sql|
+    SELECT e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
+           e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
+           e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by, e.created_at, e.updated_at
     FROM episodes e
     JOIN shows s ON e.show_id = s.id
-    JOIN show_hosts sh ON s.id = sh.show_id AND sh.is_primary = true AND sh.left_at IS NULL
-    JOIN users u ON sh.user_id = u.id
-    LEFT JOIN user_metadata um ON u.id = um.user_id
-    WHERE e.status = 'published'
-      AND e.scheduled_at <= #{now}
-      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
-      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
-      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
-    ORDER BY e.duration_seconds DESC NULLS LAST, e.published_at DESC
-    LIMIT #{limit} OFFSET #{offset}
-  |]
-    _ ->
-      interp
-        False
-        [sql|
-    SELECT
-      e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
-      e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-      e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
-      e.created_at, e.updated_at,
-      s.title, s.slug, s.genre,
-      COALESCE(um.display_name, u.email)
-    FROM episodes e
-    JOIN shows s ON e.show_id = s.id
-    JOIN show_hosts sh ON s.id = sh.show_id AND sh.is_primary = true AND sh.left_at IS NULL
-    JOIN users u ON sh.user_id = u.id
-    LEFT JOIN user_metadata um ON u.id = um.user_id
-    WHERE e.status = 'published'
-      AND e.scheduled_at <= #{now}
-      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
-      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
-      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
-    ORDER BY e.published_at DESC NULLS LAST, e.created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
+    WHERE s.slug = #{showSlug} AND e.slug = #{episodeSlug}
   |]
 
--- | Count published episodes with filters for pagination
-countPublishedEpisodesWithFilters ::
-  Maybe Text ->
-  Maybe Text ->
-  Maybe UTCTime ->
-  Maybe UTCTime ->
-  Hasql.Statement () Int64
-countPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo =
-  maybe 0 getOneColumn
-    <$> interp
-      False
-      [sql|
-    SELECT COUNT(*)
-    FROM episodes e
-    JOIN shows s ON e.show_id = s.id
-    WHERE e.status = 'published'
-      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
-      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
-      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
-  |]
+-- | Get episode by ID.
+getEpisodeById :: Id -> Hasql.Statement () (Maybe Model)
+getEpisodeById episodeId = fmap listToMaybe $ run $ select do
+  ep <- each episodeSchema
+  where_ $ ep.id ==. lit episodeId
+  pure ep
 
--- | Insert a new episode
+-- | Get non-deleted episodes by user (episodes they created).
+getEpisodesByUser :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
+getEpisodesByUser userId (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy ((.createdAt) >$< desc) do
+            ep <- each episodeSchema
+            where_ $ ep.createdBy ==. lit userId
+            where_ $ ep.status /=. lit Deleted
+            pure ep
+
+-- | Get recent published episodes across all shows.
+getRecentPublishedEpisodes :: Limit -> Offset -> Hasql.Statement () [Model]
+getRecentPublishedEpisodes (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy ((.publishedAt) >$< nullsLast desc) do
+            ep <- each episodeSchema
+            where_ $ ep.status ==. lit Published
+            pure ep
+
+-- | Insert a new episode.
+--
+-- Episode numbers are auto-assigned by a PostgreSQL trigger.
 insertEpisode :: Insert -> Hasql.Statement () Id
 insertEpisode Insert {..} =
   case eiStatus of
@@ -410,7 +439,9 @@ insertEpisode Insert {..} =
         RETURNING id
       |]
 
--- | Update an episode with partial data (for editing)
+-- | Update an episode with partial data (for editing).
+--
+-- Uses raw SQL because rel8's UPDATE doesn't support partial updates as cleanly.
 updateEpisode :: Update -> Hasql.Statement () (Maybe Id)
 updateEpisode Update {..} =
   interp
@@ -423,7 +454,7 @@ updateEpisode Update {..} =
     RETURNING id
   |]
 
--- | Update an episode's audio and artwork files
+-- | Update an episode's audio and artwork files.
 --
 -- Only updates fields that are provided (Just value). Nothing values are ignored
 -- and the existing values are kept.
@@ -440,7 +471,7 @@ updateEpisodeFiles FileUpdate {..} =
     RETURNING id
   |]
 
--- | Delete an episode (soft delete by setting status to deleted)
+-- | Delete an episode (soft delete by setting status to deleted).
 deleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
 deleteEpisode episodeId =
   interp
@@ -452,7 +483,7 @@ deleteEpisode episodeId =
     RETURNING id
   |]
 
--- | Publish an episode (set status to published and set published_at timestamp)
+-- | Publish an episode (set status to published and set published_at timestamp).
 publishEpisode :: Id -> Hasql.Statement () (Maybe Id)
 publishEpisode episodeId =
   interp
@@ -464,8 +495,10 @@ publishEpisode episodeId =
     RETURNING id
   |]
 
--- | Check if a user is a current host of the show for a given episode
--- Returns True if the user is a current host, False otherwise
+-- | Check if a user is a current host of the show for a given episode.
+--
+-- Returns True if the user is a current host, False otherwise.
+-- Uses raw SQL because it requires JOINs with show_hosts table.
 isUserHostOfEpisodeShow :: User.Id -> Id -> Hasql.Statement () Bool
 isUserHostOfEpisodeShow userId episodeId =
   let query =
@@ -482,75 +515,109 @@ isUserHostOfEpisodeShow userId episodeId =
       |]
    in maybe False getOneColumn <$> query
 
--- | Hard delete an episode (use with caution - prefer deleteEpisode for soft delete)
+-- | Hard delete an episode (use with caution - prefer deleteEpisode for soft delete).
 hardDeleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
 hardDeleteEpisode episodeId =
-  interp
-    False
-    [sql|
-    DELETE FROM episodes
-    WHERE id = #{episodeId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      delete
+        Rel8.Delete
+          { from = episodeSchema,
+            using = pure (),
+            deleteWhere = \_ ep -> ep.id ==. lit episodeId,
+            returning = Returning (.id)
+          }
 
 --------------------------------------------------------------------------------
--- Episode Track Queries
+-- Complex Queries (raw SQL)
+--
+-- These use raw SQL because they involve complex joins, aggregation,
+-- or dynamic filtering that would be verbose to express in rel8.
 
--- | Get tracks for an episode
-getTracksForEpisode :: Id -> Hasql.Statement () [EpisodeTrack.Model]
-getTracksForEpisode episodeId =
-  interp
-    False
-    [sql|
-    SELECT id, episode_id, track_number, title, artist, album, year, duration, label, is_exclusive_premiere, created_at
-    FROM episode_tracks
-    WHERE episode_id = #{episodeId}
-    ORDER BY track_number
+-- | Get published episodes with show details and filters for archive page.
+--
+-- Returns episodes with show information, filtered by optional search, show_id, genre, and date range.
+getPublishedEpisodesWithFilters ::
+  UTCTime ->
+  Maybe Text ->
+  Maybe Text ->
+  Maybe UTCTime ->
+  Maybe UTCTime ->
+  Text ->
+  Limit ->
+  Offset ->
+  Hasql.Statement () [EpisodeWithShow]
+getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sortBy (Limit lim) (Offset off) =
+  case sortBy of
+    "longest" ->
+      interp
+        False
+        [sql|
+    SELECT
+      e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
+      e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
+      e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
+      e.created_at, e.updated_at,
+      s.title, s.slug, s.genre,
+      COALESCE(um.display_name, u.email)
+    FROM episodes e
+    JOIN shows s ON e.show_id = s.id
+    JOIN show_hosts sh ON s.id = sh.show_id AND sh.is_primary = true AND sh.left_at IS NULL
+    JOIN users u ON sh.user_id = u.id
+    LEFT JOIN user_metadata um ON u.id = um.user_id
+    WHERE e.status = 'published'
+      AND e.scheduled_at <= #{currentTime}
+      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
+      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
+      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
+    ORDER BY e.duration_seconds DESC NULLS LAST, e.published_at DESC
+    LIMIT #{lim} OFFSET #{off}
+  |]
+    _ ->
+      interp
+        False
+        [sql|
+    SELECT
+      e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
+      e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
+      e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
+      e.created_at, e.updated_at,
+      s.title, s.slug, s.genre,
+      COALESCE(um.display_name, u.email)
+    FROM episodes e
+    JOIN shows s ON e.show_id = s.id
+    JOIN show_hosts sh ON s.id = sh.show_id AND sh.is_primary = true AND sh.left_at IS NULL
+    JOIN users u ON sh.user_id = u.id
+    LEFT JOIN user_metadata um ON u.id = um.user_id
+    WHERE e.status = 'published'
+      AND e.scheduled_at <= #{currentTime}
+      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
+      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
+      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
+    ORDER BY e.published_at DESC NULLS LAST, e.created_at DESC
+    LIMIT #{lim} OFFSET #{off}
   |]
 
--- | Insert a new episode track
-insertEpisodeTrack :: EpisodeTrack.Insert -> Hasql.Statement () EpisodeTrack.Id
-insertEpisodeTrack EpisodeTrack.Insert {..} =
-  getOneRow
+-- | Count published episodes with filters for pagination.
+countPublishedEpisodesWithFilters ::
+  Maybe Text ->
+  Maybe Text ->
+  Maybe UTCTime ->
+  Maybe UTCTime ->
+  Hasql.Statement () Int64
+countPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo =
+  maybe 0 getOneColumn
     <$> interp
       False
       [sql|
-    INSERT INTO episode_tracks(episode_id, track_number, title, artist, album, year, duration, label, is_exclusive_premiere, created_at)
-    VALUES (#{etiEpisodeId}, #{etiTrackNumber}, #{etiTitle}, #{etiArtist}, #{etiAlbum}, #{etiYear}, #{etiDuration}, #{etiLabel}, #{etiIsExclusivePremiere}, NOW())
-    RETURNING id
-  |]
-
--- | Update an episode track
-updateEpisodeTrack :: EpisodeTrack.Id -> EpisodeTrack.Insert -> Hasql.Statement () (Maybe EpisodeTrack.Id)
-updateEpisodeTrack trackId EpisodeTrack.Insert {..} =
-  interp
-    False
-    [sql|
-    UPDATE episode_tracks
-    SET track_number = #{etiTrackNumber}, title = #{etiTitle}, artist = #{etiArtist},
-        album = #{etiAlbum}, year = #{etiYear}, duration = #{etiDuration},
-        label = #{etiLabel}, is_exclusive_premiere = #{etiIsExclusivePremiere}
-    WHERE id = #{trackId}
-    RETURNING id
-  |]
-
--- | Delete an episode track
-deleteEpisodeTrack :: EpisodeTrack.Id -> Hasql.Statement () (Maybe EpisodeTrack.Id)
-deleteEpisodeTrack trackId =
-  interp
-    False
-    [sql|
-    DELETE FROM episode_tracks
-    WHERE id = #{trackId}
-    RETURNING id
-  |]
-
--- | Delete all tracks for an episode
-deleteAllTracksForEpisode :: Id -> Hasql.Statement () RowsAffected
-deleteAllTracksForEpisode episodeId =
-  interp
-    False
-    [sql|
-    DELETE FROM episode_tracks
-    WHERE episode_id = #{episodeId}
+    SELECT COUNT(*)
+    FROM episodes e
+    JOIN shows s ON e.show_id = s.id
+    WHERE e.status = 'published'
+      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
+      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
+      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
   |]

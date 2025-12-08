@@ -39,7 +39,7 @@ prop_insertSelectEvent cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.ModelInsert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata)
 
         let eventInsert = eventTemplate {UUT.eiAuthorId = userId}
 
@@ -70,7 +70,7 @@ prop_getEventById cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.ModelInsert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata)
 
         let eventInsert = eventTemplate {UUT.eiAuthorId = userId}
 
@@ -94,7 +94,7 @@ prop_getEventBySlug cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.ModelInsert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata)
 
         let eventInsert = eventTemplate {UUT.eiAuthorId = userId}
 

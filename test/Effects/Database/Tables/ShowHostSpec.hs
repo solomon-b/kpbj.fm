@@ -47,7 +47,7 @@ prop_createShowHostRelationship cfg = do
         void $
           TRX.statement () $
             UserMetadata.insertUserMetadata $
-              UserMetadata.ModelInsert
+              UserMetadata.Insert
                 userId
                 userWithMetadata.uwmiDisplayName
                 userWithMetadata.uwmiFullName
@@ -72,7 +72,7 @@ prop_createShowHostRelationship cfg = do
         let host = case hosts of
               (h : _) -> h
               [] -> error "Expected at least one host"
-        host.shmId === expectedShowId
+        host.shmShowId === expectedShowId
         host.shmUserId === expectedUserId
         host.shmRole === expectedRole
         host.shmIsPrimary === expectedIsPrimary
@@ -91,7 +91,7 @@ prop_getHostsForShow cfg = do
         void $
           TRX.statement () $
             UserMetadata.insertUserMetadata $
-              UserMetadata.ModelInsert
+              UserMetadata.Insert
                 userId
                 userWithMetadata.uwmiDisplayName
                 userWithMetadata.uwmiFullName
@@ -116,6 +116,6 @@ prop_getHostsForShow cfg = do
         let host = case hosts of
               (h : _) -> h
               [] -> error "Expected at least one host"
-        host.shmId === expectedShowId
+        host.shmShowId === expectedShowId
         host.shmUserId === expectedUserId
         host.shmRole === expectedRole

@@ -17,14 +17,14 @@ import Test.Gen.Text (genUrl)
 genUserRole :: (MonadGen m) => m UserMetadata.UserRole
 genUserRole = Gen.enumBounded
 
-userMetadataInsertGen :: (MonadIO m, MonadGen m) => User.Id -> m UserMetadata.ModelInsert
+userMetadataInsertGen :: (MonadIO m, MonadGen m) => User.Id -> m UserMetadata.Insert
 userMetadataInsertGen userId = do
-  let miUserId = userId
-  miDisplayName <- genDisplayName
-  miFullName <- genFullName
-  miAvatarUrl <- Gen.maybe genUrl
-  miUserRole <- genUserRole
-  pure UserMetadata.ModelInsert {..}
+  let iUserId = userId
+  iDisplayName <- genDisplayName
+  iFullName <- genFullName
+  iAvatarUrl <- Gen.maybe genUrl
+  iUserRole <- genUserRole
+  pure UserMetadata.Insert {..}
 
 userWithMetadataInsertGen :: (MonadIO m, MonadGen m) => m UserMetadata.UserWithMetadataInsert
 userWithMetadataInsertGen = do

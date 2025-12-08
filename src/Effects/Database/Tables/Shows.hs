@@ -1,37 +1,109 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
-module Effects.Database.Tables.Shows where
+-- | Database table definition and queries for @shows@.
+--
+-- Uses rel8 for simple queries and raw SQL (hasql-interpolate) for complex joins.
+module Effects.Database.Tables.Shows
+  ( -- * Status Type
+    Status (..),
+
+    -- * Id Type
+    Id (..),
+
+    -- * Table Definition
+    Show (..),
+    showSchema,
+
+    -- * Model (Result alias)
+    Model,
+
+    -- * Insert Type
+    Insert (..),
+
+    -- * Queries
+    getActiveShows,
+    getShowBySlug,
+    getShowById,
+    getShowsByStatus,
+    getAllShows,
+    getShowsByGenre,
+    getShowsByGenreAndStatus,
+    insertShow,
+    updateShow,
+
+    -- * Show Host Queries
+    getShowForUser,
+    getShowsForUser,
+    getAllActiveShows,
+    searchShows,
+
+    -- * Admin Queries
+    ShowWithHostInfo (..),
+    getAllShowsWithHostInfo,
+    getShowsByStatusWithHostInfo,
+    searchShowsWithHostInfo,
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Coerce (coerce)
+import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
-import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
+import Data.Text qualified as Text
+import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
-import Domain.Types.Genre (Genre)
-import Domain.Types.Limit (Limit)
-import Domain.Types.Offset (Offset)
-import Domain.Types.Search (Search)
-import Domain.Types.Slug (Slug)
+import Domain.Types.Genre (Genre (..))
+import Domain.Types.Limit (Limit (..))
+import Domain.Types.Offset (Offset (..))
+import Domain.Types.Search (Search (..))
+import Domain.Types.Slug (Slug (..))
 import Effects.Database.Tables.User qualified as User
-import GHC.Generics
+import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeRow, EncodeValue (..), OneRow (..), interp, sql)
+import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
+import OrphanInstances.Rel8 ()
 import OrphanInstances.UTCTime ()
+import Rel8 hiding (Insert)
+import Rel8 qualified
+import Rel8.Expr.Time (now)
 import Servant qualified
+import Prelude hiding (Show, id)
+import Prelude qualified
 
 --------------------------------------------------------------------------------
 -- Show Status Type
 
+-- | Show publication status.
 data Status = Active | Inactive
-  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
+  deriving stock (Generic, Prelude.Show, Eq, Ord, Prelude.Enum, Bounded)
   deriving anyclass (FromJSON, ToJSON)
+
+instance DBType Status where
+  typeInformation =
+    parseTypeInformation
+      ( \case
+          "active" -> Right Active
+          "inactive" -> Right Inactive
+          other -> Left $ "Invalid Status: " <> Text.unpack other
+      )
+      ( \case
+          Active -> "active"
+          Inactive -> "inactive"
+      )
+      typeInformation
+
+instance DBEq Status
 
 instance Servant.ToHttpApiData Status where
   toQueryParam = \case
@@ -60,41 +132,91 @@ instance EncodeValue Status where
     Inactive -> "inactive"
 
 --------------------------------------------------------------------------------
--- Database Models
+-- Id Type
 
-newtype Id = Id Int64
+-- | Newtype wrapper for show primary keys.
+--
+-- Provides type safety to prevent mixing up IDs from different tables.
+newtype Id = Id {unId :: Int64}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype
-    ( Show,
-      Eq,
-      Ord,
-      Num,
-      Servant.FromHttpApiData,
-      Servant.ToHttpApiData,
-      ToJSON,
-      FromJSON,
-      Display,
-      DecodeValue,
-      EncodeValue
-    )
+  deriving newtype (Prelude.Show, Eq, Ord, Num, DBType, DBEq, DBOrd)
+  deriving newtype (DecodeValue, EncodeValue)
+  deriving newtype (Servant.FromHttpApiData, Servant.ToHttpApiData)
+  deriving newtype (ToJSON, FromJSON, Display)
 
-data Model = Model
-  { id :: Id,
-    title :: Text,
-    slug :: Slug,
-    description :: Text,
-    genre :: Maybe Text,
-    logoUrl :: Maybe Text,
-    bannerUrl :: Maybe Text,
-    status :: Status,
-    createdAt :: UTCTime,
-    updatedAt :: UTCTime
+--------------------------------------------------------------------------------
+-- Table Definition
+
+-- | The @shows@ table definition using rel8's higher-kinded data pattern.
+--
+-- The type parameter @f@ determines the context:
+--
+-- - @Expr@: SQL expressions for building queries
+-- - @Result@: Decoded Haskell values from query results
+-- - @Name@: Column names for schema definition
+data Show f = Show
+  { id :: Column f Id,
+    title :: Column f Text,
+    slug :: Column f Slug,
+    description :: Column f Text,
+    genre :: Column f (Maybe Text),
+    logoUrl :: Column f (Maybe Text),
+    bannerUrl :: Column f (Maybe Text),
+    status :: Column f Status,
+    createdAt :: Column f UTCTime,
+    updatedAt :: Column f UTCTime
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance Model)
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
 
+deriving stock instance (f ~ Result) => Prelude.Show (Show f)
+
+deriving stock instance (f ~ Result) => Eq (Show f)
+
+-- | DecodeRow instance for hasql-interpolate raw SQL compatibility.
+instance DecodeRow (Show Result)
+
+-- | Display instance for Show Result.
+instance Display (Show Result) where
+  displayBuilder s =
+    "Show { id = "
+      <> displayBuilder (id s)
+      <> ", title = "
+      <> displayBuilder (title s)
+      <> ", slug = "
+      <> displayBuilder (slug s)
+      <> " }"
+
+-- | Type alias for backwards compatibility.
+--
+-- @Model@ is the same as @Show Result@.
+type Model = Show Result
+
+-- | Table schema connecting the Haskell type to the database table.
+showSchema :: TableSchema (Show Name)
+showSchema =
+  TableSchema
+    { name = "shows",
+      columns =
+        Show
+          { id = "id",
+            title = "title",
+            slug = "slug",
+            description = "description",
+            genre = "genre",
+            logoUrl = "logo_url",
+            bannerUrl = "banner_url",
+            status = "status",
+            createdAt = "created_at",
+            updatedAt = "updated_at"
+          }
+    }
+
+--------------------------------------------------------------------------------
+-- Insert Type
+
+-- | Insert type for creating new shows.
 data Insert = Insert
   { siTitle :: Text,
     siSlug :: Slug,
@@ -104,111 +226,114 @@ data Insert = Insert
     siBannerUrl :: Maybe Text,
     siStatus :: Status
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (EncodeRow)
+  deriving stock (Generic, Prelude.Show, Eq)
   deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
--- Database Queries
+-- Queries
 
--- | Get all active shows ordered by title
+-- | Get all active shows ordered by title.
 getActiveShows :: Hasql.Statement () [Model]
 getActiveShows =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    WHERE status = 'active'
-    ORDER BY title
-  |]
+  run $
+    select $
+      orderBy (title >$< asc) do
+        s <- each showSchema
+        where_ $ status s ==. lit Active
+        pure s
 
--- | Get show by slug
+-- | Get show by slug.
 getShowBySlug :: Slug -> Hasql.Statement () (Maybe Model)
-getShowBySlug slug =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    WHERE slug = #{slug}
-  |]
+getShowBySlug showSlug = fmap listToMaybe $ run $ select do
+  s <- each showSchema
+  where_ $ slug s ==. lit showSlug
+  pure s
 
--- | Get show by ID
+-- | Get show by ID.
 getShowById :: Id -> Hasql.Statement () (Maybe Model)
-getShowById showId =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    WHERE id = #{showId}
-  |]
+getShowById showId = fmap listToMaybe $ run $ select do
+  s <- each showSchema
+  where_ $ id s ==. lit showId
+  pure s
 
--- | Get shows by status with pagination
+-- | Get shows by status with pagination.
 getShowsByStatus :: Text -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowsByStatus status limit offset =
+getShowsByStatus statusText (Limit lim) (Offset off) =
   interp
     False
     [sql|
     SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
     FROM shows
-    WHERE status = #{status}
+    WHERE status = #{statusText}
     ORDER BY title
-    LIMIT #{limit} OFFSET #{offset}
+    LIMIT #{lim} OFFSET #{off}
   |]
 
--- | Get all shows with pagination
+-- | Get all shows with pagination.
 getAllShows :: Limit -> Offset -> Hasql.Statement () [Model]
-getAllShows limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    ORDER BY title
-    LIMIT #{limit} OFFSET #{offset}
-  |]
+getAllShows (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (title >$< asc) do
+            each showSchema
 
--- | Get shows by genre with pagination
+-- | Get shows by genre with pagination.
 getShowsByGenre :: Genre -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowsByGenre genre limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    WHERE genre = #{display genre}
-    ORDER BY title
-    LIMIT #{limit} OFFSET #{offset}
-  |]
+getShowsByGenre (Genre genreText) (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (title >$< asc) do
+            s <- each showSchema
+            where_ $ genre s ==. lit (Just genreText)
+            pure s
 
--- | Get shows by genre and status with pagination
+-- | Get shows by genre and status with pagination.
 getShowsByGenreAndStatus :: Genre -> Status -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowsByGenreAndStatus genre status limit offset =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    WHERE genre = #{genre} AND status = #{status}
-    ORDER BY title
-    LIMIT #{limit} OFFSET #{offset}
-  |]
+getShowsByGenreAndStatus (Genre genreText) showStatus (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (title >$< asc) do
+            s <- each showSchema
+            where_ $ genre s ==. lit (Just genreText)
+            where_ $ status s ==. lit showStatus
+            pure s
 
--- | Insert a new show
+-- | Insert a new show.
 insertShow :: Insert -> Hasql.Statement () Id
 insertShow Insert {..} =
-  getOneRow
-    <$> interp
-      False
-      [sql|
-    INSERT INTO shows(title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at)
-    VALUES (#{siTitle}, #{siSlug}, #{siDescription}, #{siGenre}, #{siLogoUrl}, #{siBannerUrl}, #{siStatus}, NOW(), NOW())
-    RETURNING id
-  |]
+  fmap head $
+    run $
+      insert
+        Rel8.Insert
+          { into = showSchema,
+            rows =
+              values
+                [ Show
+                    { id = coerce (nextval "shows_id_seq"),
+                      title = lit siTitle,
+                      slug = lit siSlug,
+                      description = lit siDescription,
+                      genre = lit siGenre,
+                      logoUrl = lit siLogoUrl,
+                      bannerUrl = lit siBannerUrl,
+                      status = lit siStatus,
+                      createdAt = now,
+                      updatedAt = now
+                    }
+                ],
+            onConflict = Abort,
+            returning = Returning id
+          }
 
--- | Update a show
+-- | Update a show.
+--
+-- Uses raw SQL for consistency with update patterns.
 updateShow :: Id -> Insert -> Hasql.Statement () (Maybe Id)
 updateShow showId Insert {..} =
   interp
@@ -224,9 +349,9 @@ updateShow showId Insert {..} =
   |]
 
 --------------------------------------------------------------------------------
--- Show Host Queries (Junction table queries stay here)
+-- Show Host Queries (Junction table queries - use raw SQL)
 
--- | Get show by slug
+-- | Get show for a user (first active host assignment).
 getShowForUser :: User.Id -> Hasql.Statement () (Maybe Model)
 getShowForUser userId =
   interp
@@ -239,7 +364,7 @@ getShowForUser userId =
     LIMIT 1
   |]
 
--- | Get shows for a user (active host assignments)
+-- | Get shows for a user (active host assignments).
 getShowsForUser :: User.Id -> Hasql.Statement () [Model]
 getShowsForUser userId =
   interp
@@ -252,21 +377,21 @@ getShowsForUser userId =
     ORDER BY s.title
   |]
 
--- | Get all active shows (for admin dashboard)
+-- | Get all active shows (for admin dashboard).
 getAllActiveShows :: Hasql.Statement () [Model]
 getAllActiveShows =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    WHERE status = 'active'
-    ORDER BY title
-  |]
+  run $
+    select $
+      orderBy (title >$< asc) do
+        s <- each showSchema
+        where_ $ status s ==. lit Active
+        pure s
 
--- | Search shows by text query with pagination
+-- | Search shows by text query with pagination.
+--
+-- Uses raw SQL because of ILIKE pattern matching and complex ordering.
 searchShows :: Search -> Limit -> Offset -> Hasql.Statement () [Model]
-searchShows searchTerm limit offset =
+searchShows (Search searchTerm) (Limit lim) (Offset off) =
   interp
     False
     [sql|
@@ -280,7 +405,7 @@ searchShows searchTerm limit offset =
         ELSE 3
       END,
       title
-    LIMIT #{limit + 1} OFFSET #{offset}
+    LIMIT #{lim + 1} OFFSET #{off}
   |]
   where
     searchPattern = "%" <> searchTerm <> "%"
@@ -305,7 +430,7 @@ data ShowWithHostInfo = ShowWithHostInfo
     swhiHostCount :: Int64,
     swhiHostNames :: Maybe Text
   }
-  deriving stock (Generic, Show, Eq)
+  deriving stock (Generic, Prelude.Show, Eq)
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance ShowWithHostInfo)
 
@@ -314,7 +439,7 @@ data ShowWithHostInfo = ShowWithHostInfo
 -- Returns shows with aggregated host information, ordered by creation date.
 -- Only counts active hosts (where left_at IS NULL).
 getAllShowsWithHostInfo :: Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
-getAllShowsWithHostInfo limit offset =
+getAllShowsWithHostInfo (Limit lim) (Offset off) =
   interp
     False
     [sql|
@@ -328,12 +453,12 @@ getAllShowsWithHostInfo limit offset =
     LEFT JOIN user_metadata um ON sh.user_id = um.user_id
     GROUP BY s.id
     ORDER BY s.created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
+    LIMIT #{lim} OFFSET #{off}
   |]
 
 -- | Get shows filtered by status with host info for admin listing.
 getShowsByStatusWithHostInfo :: Status -> Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
-getShowsByStatusWithHostInfo status limit offset =
+getShowsByStatusWithHostInfo showStatus (Limit lim) (Offset off) =
   interp
     False
     [sql|
@@ -345,15 +470,15 @@ getShowsByStatusWithHostInfo status limit offset =
     FROM shows s
     LEFT JOIN show_hosts sh ON s.id = sh.show_id
     LEFT JOIN user_metadata um ON sh.user_id = um.user_id
-    WHERE s.status = #{status}
+    WHERE s.status = #{showStatus}
     GROUP BY s.id
     ORDER BY s.created_at DESC
-    LIMIT #{limit} OFFSET #{offset}
+    LIMIT #{lim} OFFSET #{off}
   |]
 
 -- | Search shows with host info for admin listing.
 searchShowsWithHostInfo :: Search -> Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
-searchShowsWithHostInfo searchTerm limit offset =
+searchShowsWithHostInfo (Search searchTerm) (Limit lim) (Offset off) =
   interp
     False
     [sql|
@@ -374,7 +499,7 @@ searchShowsWithHostInfo searchTerm limit offset =
         ELSE 3
       END,
       s.title
-    LIMIT #{limit} OFFSET #{offset}
+    LIMIT #{lim} OFFSET #{off}
   |]
   where
     searchPattern = "%" <> searchTerm <> "%"

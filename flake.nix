@@ -32,6 +32,15 @@
 
               text-builder = pkgs.haskell.lib.dontCheck hfinal.text-builder_1_0_0_3;
 
+              # rel8 1.7.0.0 for hasql 1.9 compatibility
+              rel8 = pkgs.haskell.lib.dontCheck (hfinal.callHackageDirect
+                {
+                  pkg = "rel8";
+                  ver = "1.7.0.0";
+                  sha256 = "sha256-B6I+y19vWCc0xh6tzCKLzHo7TB+91E7aZHPepm23/jI=";
+                }
+                { });
+
               # Use tmp-postgres from master to match cabal.project pin
               tmp-postgres = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "tmp-postgres"
                 (pkgs.fetchgit {

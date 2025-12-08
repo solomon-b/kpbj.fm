@@ -1,159 +1,232 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
-module Effects.Database.Tables.ShowSchedule where
+-- | Database table definitions and queries for @schedule_templates@ and @schedule_template_validity@.
+--
+-- Uses rel8 for simple queries and raw SQL (hasql-interpolate) for complex queries
+-- involving CTEs, date arithmetic, and PostgreSQL-specific functions.
+module Effects.Database.Tables.ShowSchedule
+  ( -- * Schedule Template Types
+    TemplateId (..),
+    ScheduleTemplate (..),
+    scheduleTemplateSchema,
+    ScheduleTemplateInsert (..),
+
+    -- * Schedule Template Validity Types
+    ValidityId (..),
+    ScheduleTemplateValidity (..),
+    scheduleTemplateValiditySchema,
+    ValidityInsert (..),
+    ValidityUpdate (..),
+
+    -- * Schedule Template Queries
+    getScheduleTemplateById,
+    getScheduleTemplatesForShow,
+    getActiveScheduleTemplatesForShow,
+    getActiveRecurringScheduleTemplates,
+    checkTimeSlotConflict,
+    insertScheduleTemplate,
+    deleteScheduleTemplate,
+
+    -- * Schedule Template Validity Queries
+    getValidityById,
+    getValidityPeriodsForTemplate,
+    getActiveValidityPeriodsForTemplate,
+    insertValidity,
+    updateValidity,
+    deleteValidity,
+    endValidity,
+
+    -- * Scheduled Show With Details
+    ScheduledShowWithDetails (..),
+    getScheduledShowsForDate,
+
+    -- * Upcoming Show Dates
+    UpcomingShowDate (..),
+    getUpcomingShowDates,
+    getUpcomingUnscheduledShowDates,
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
-import Data.Text.Display (Display, displayBuilder)
+import Data.Text.Display (Display (..))
 import Data.Time (Day, DayOfWeek (..), TimeOfDay, UTCTime)
-import Data.Vector (Vector)
-import Domain.Types.Limit (Limit)
+import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
-import GHC.Generics
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeRow, EncodeValue (..), OneRow (..), interp, sql)
+import GHC.Generics (Generic)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.DayOfWeek ()
+import OrphanInstances.Rel8 ()
 import OrphanInstances.TimeOfDay ()
+import Rel8
 
 --------------------------------------------------------------------------------
 -- Schedule Template Types
 
-newtype TemplateId = TemplateId Int64
+-- | Newtype wrapper for schedule template primary keys.
+newtype TemplateId = TemplateId {unTemplateId :: Int64}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype
-    ( Show,
-      Eq,
-      Ord,
-      Num,
-      ToJSON,
-      FromJSON,
-      Display,
-      DecodeValue,
-      EncodeValue
-    )
+  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq)
+  deriving newtype (ToJSON, FromJSON, Display, DecodeValue, EncodeValue)
 
--- | Schedule template model
+-- | The @schedule_templates@ table definition using rel8's higher-kinded data pattern.
 --
--- Immutable schedule pattern that can be either:
+-- Schedule template model - Immutable schedule pattern that can be either:
+--
 -- - Recurring: has day_of_week and weeks_of_month
 -- - One-time: both fields are NULL (uses validity dates to define specific date)
-data ScheduleTemplate = ScheduleTemplate
-  { id :: TemplateId,
-    showId :: Shows.Id,
-    dayOfWeek :: Maybe DayOfWeek,
-    weeksOfMonth :: Maybe (Vector Int64),
-    startTime :: TimeOfDay,
-    endTime :: TimeOfDay,
-    timezone :: Text,
-    createdAt :: UTCTime
+data ScheduleTemplate f = ScheduleTemplate
+  { stId :: Column f TemplateId,
+    stShowId :: Column f Shows.Id,
+    stDayOfWeek :: Column f (Maybe DayOfWeek),
+    stWeeksOfMonth :: Column f (Maybe [Int64]),
+    stStartTime :: Column f TimeOfDay,
+    stEndTime :: Column f TimeOfDay,
+    stTimezone :: Column f Text,
+    stCreatedAt :: Column f UTCTime
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
 
-instance Display ScheduleTemplate where
+deriving stock instance (f ~ Result) => Show (ScheduleTemplate f)
+
+deriving stock instance (f ~ Result) => Eq (ScheduleTemplate f)
+
+instance DecodeRow (ScheduleTemplate Result)
+
+instance Display (ScheduleTemplate Result) where
   displayBuilder _ = "ScheduleTemplate"
 
--- | Insert type for creating new schedule templates
+-- | Table schema for schedule_templates.
+scheduleTemplateSchema :: TableSchema (ScheduleTemplate Name)
+scheduleTemplateSchema =
+  TableSchema
+    { name = "schedule_templates",
+      columns =
+        ScheduleTemplate
+          { stId = "id",
+            stShowId = "show_id",
+            stDayOfWeek = "day_of_week",
+            stWeeksOfMonth = "weeks_of_month",
+            stStartTime = "start_time",
+            stEndTime = "end_time",
+            stTimezone = "timezone",
+            stCreatedAt = "created_at"
+          }
+    }
+
+-- | Insert type for creating new schedule templates.
 data ScheduleTemplateInsert = ScheduleTemplateInsert
   { stiShowId :: Shows.Id,
     stiDayOfWeek :: Maybe DayOfWeek,
-    stiWeeksOfMonth :: Maybe (Vector Int64),
+    stiWeeksOfMonth :: Maybe [Int64],
     stiStartTime :: TimeOfDay,
     stiEndTime :: TimeOfDay,
     stiTimezone :: Text
   }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (EncodeRow)
 
 --------------------------------------------------------------------------------
 -- Schedule Template Validity Types
 
-newtype ValidityId = ValidityId Int64
+-- | Newtype wrapper for schedule template validity primary keys.
+newtype ValidityId = ValidityId {unValidityId :: Int64}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype
-    ( Show,
-      Eq,
-      Ord,
-      Num,
-      ToJSON,
-      FromJSON,
-      Display,
-      DecodeValue,
-      EncodeValue
-    )
+  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq)
+  deriving newtype (ToJSON, FromJSON, Display, DecodeValue, EncodeValue)
 
--- | Schedule template validity model
+-- | The @schedule_template_validity@ table definition using rel8's higher-kinded data pattern.
 --
--- Defines time-bounded periods when a schedule template is active
+-- Defines time-bounded periods when a schedule template is active:
+--
 -- - effective_from: Inclusive start date
 -- - effective_until: Exclusive end date (NULL = currently active)
-data ScheduleTemplateValidity = ScheduleTemplateValidity
-  { id :: ValidityId,
-    templateId :: TemplateId,
-    effectiveFrom :: Day,
-    effectiveUntil :: Maybe Day
+data ScheduleTemplateValidity f = ScheduleTemplateValidity
+  { stvId :: Column f ValidityId,
+    stvTemplateId :: Column f TemplateId,
+    stvEffectiveFrom :: Column f Day,
+    stvEffectiveUntil :: Column f (Maybe Day)
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
 
-instance Display ScheduleTemplateValidity where
+deriving stock instance (f ~ Result) => Show (ScheduleTemplateValidity f)
+
+deriving stock instance (f ~ Result) => Eq (ScheduleTemplateValidity f)
+
+instance DecodeRow (ScheduleTemplateValidity Result)
+
+instance Display (ScheduleTemplateValidity Result) where
   displayBuilder _ = "ScheduleTemplateValidity"
 
--- | Insert type for creating new validity periods
+-- | Table schema for schedule_template_validity.
+scheduleTemplateValiditySchema :: TableSchema (ScheduleTemplateValidity Name)
+scheduleTemplateValiditySchema =
+  TableSchema
+    { name = "schedule_template_validity",
+      columns =
+        ScheduleTemplateValidity
+          { stvId = "id",
+            stvTemplateId = "template_id",
+            stvEffectiveFrom = "effective_from",
+            stvEffectiveUntil = "effective_until"
+          }
+    }
+
+-- | Insert type for creating new validity periods.
 data ValidityInsert = ValidityInsert
   { viTemplateId :: TemplateId,
     viEffectiveFrom :: Day,
     viEffectiveUntil :: Maybe Day
   }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (EncodeRow)
 
--- | Update type for modifying validity periods
+-- | Update type for modifying validity periods.
 data ValidityUpdate = ValidityUpdate
   { vuEffectiveFrom :: Day,
     vuEffectiveUntil :: Maybe Day
   }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (EncodeRow)
 
 --------------------------------------------------------------------------------
 -- Schedule Template Queries
 
--- | Get a schedule template by ID
-getScheduleTemplateById :: TemplateId -> Hasql.Statement () (Maybe ScheduleTemplate)
-getScheduleTemplateById templateId =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, day_of_week, weeks_of_month, start_time, end_time, timezone, created_at
-    FROM schedule_templates
-    WHERE id = #{templateId}
-  |]
+-- | Get a schedule template by ID.
+getScheduleTemplateById :: TemplateId -> Hasql.Statement () (Maybe (ScheduleTemplate Result))
+getScheduleTemplateById templateId = fmap listToMaybe $ run $ select do
+  st <- each scheduleTemplateSchema
+  where_ $ stId st ==. lit templateId
+  pure st
 
--- | Get all schedule templates for a show
-getScheduleTemplatesForShow :: Shows.Id -> Hasql.Statement () [ScheduleTemplate]
+-- | Get all schedule templates for a show.
+getScheduleTemplatesForShow :: Shows.Id -> Hasql.Statement () [ScheduleTemplate Result]
 getScheduleTemplatesForShow showId =
-  interp
-    False
-    [sql|
-    SELECT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at
-    FROM schedule_templates st
-    WHERE st.show_id = #{showId}
-    ORDER BY st.day_of_week, st.start_time
-  |]
+  run $
+    select $
+      orderBy ((stDayOfWeek >$< nullsLast asc) <> (stStartTime >$< asc)) do
+        st <- each scheduleTemplateSchema
+        where_ $ stShowId st ==. lit showId
+        pure st
 
--- | Get currently active schedule templates for a show
+-- | Get currently active schedule templates for a show.
 --
--- Joins with schedule_template_validity to only return templates with active validity periods
-getActiveScheduleTemplatesForShow :: Shows.Id -> Hasql.Statement () [ScheduleTemplate]
+-- Joins with schedule_template_validity to only return templates with active validity periods.
+-- Uses raw SQL because of CURRENT_DATE and join conditions.
+getActiveScheduleTemplatesForShow :: Shows.Id -> Hasql.Statement () [ScheduleTemplate Result]
 getActiveScheduleTemplatesForShow showId =
   interp
     False
@@ -167,10 +240,11 @@ getActiveScheduleTemplatesForShow showId =
     ORDER BY st.day_of_week, st.start_time
   |]
 
--- | Get all currently active recurring schedule templates across all shows
+-- | Get all currently active recurring schedule templates across all shows.
 --
--- Filters out one-time shows (where day_of_week IS NULL)
-getActiveRecurringScheduleTemplates :: Hasql.Statement () [ScheduleTemplate]
+-- Filters out one-time shows (where day_of_week IS NULL).
+-- Uses raw SQL because of complex joins and CURRENT_DATE.
+getActiveRecurringScheduleTemplates :: Hasql.Statement () [ScheduleTemplate Result]
 getActiveRecurringScheduleTemplates =
   interp
     False
@@ -186,19 +260,20 @@ getActiveRecurringScheduleTemplates =
     ORDER BY st.day_of_week, st.start_time
   |]
 
--- | Wrapper for single Text result from conflict check
+-- | Wrapper for single Text result from conflict check.
 newtype ConflictingShowTitle = ConflictingShowTitle {getConflictingShowTitle :: Text}
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
 
--- | Check if a time slot conflicts with any active schedule (excluding a specific show)
+-- | Check if a time slot conflicts with any active schedule (excluding a specific show).
 --
 -- Returns the title of the conflicting show if there's a conflict, Nothing otherwise.
 -- Checks for overlapping time ranges on the same day of week with overlapping weeks.
+-- Uses raw SQL because of complex overlap logic and array operations.
 checkTimeSlotConflict ::
   Shows.Id ->
   DayOfWeek ->
-  Vector Int64 ->
+  [Int64] ->
   TimeOfDay ->
   TimeOfDay ->
   Hasql.Statement () (Maybe Text)
@@ -237,9 +312,10 @@ checkTimeSlotConflict excludeShowId dow weeks start end =
     LIMIT 1
   |]
 
--- | Insert a new schedule template
+-- | Insert a new schedule template.
 --
--- Returns the generated ID
+-- Returns the generated ID.
+-- Uses raw SQL because of NOW() and enum cast.
 insertScheduleTemplate :: ScheduleTemplateInsert -> Hasql.Statement () TemplateId
 insertScheduleTemplate ScheduleTemplateInsert {..} =
   getOneRow
@@ -251,47 +327,45 @@ insertScheduleTemplate ScheduleTemplateInsert {..} =
     RETURNING id
   |]
 
--- | Delete a schedule template
+-- | Delete a schedule template.
 --
--- CASCADE will automatically delete related validity records
+-- CASCADE will automatically delete related validity records.
 deleteScheduleTemplate :: TemplateId -> Hasql.Statement () (Maybe TemplateId)
 deleteScheduleTemplate templateId =
-  interp
-    False
-    [sql|
-    DELETE FROM schedule_templates
-    WHERE id = #{templateId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      delete
+        Delete
+          { from = scheduleTemplateSchema,
+            using = pure (),
+            deleteWhere = \_ st -> stId st ==. lit templateId,
+            returning = Returning stId
+          }
 
 --------------------------------------------------------------------------------
 -- Schedule Template Validity Queries
 
--- | Get a validity period by ID
-getValidityById :: ValidityId -> Hasql.Statement () (Maybe ScheduleTemplateValidity)
-getValidityById validityId =
-  interp
-    False
-    [sql|
-    SELECT id, template_id, effective_from, effective_until
-    FROM schedule_template_validity
-    WHERE id = #{validityId}
-  |]
+-- | Get a validity period by ID.
+getValidityById :: ValidityId -> Hasql.Statement () (Maybe (ScheduleTemplateValidity Result))
+getValidityById validityId = fmap listToMaybe $ run $ select do
+  stv <- each scheduleTemplateValiditySchema
+  where_ $ stvId stv ==. lit validityId
+  pure stv
 
--- | Get all validity periods for a template
-getValidityPeriodsForTemplate :: TemplateId -> Hasql.Statement () [ScheduleTemplateValidity]
+-- | Get all validity periods for a template.
+getValidityPeriodsForTemplate :: TemplateId -> Hasql.Statement () [ScheduleTemplateValidity Result]
 getValidityPeriodsForTemplate templateId =
-  interp
-    False
-    [sql|
-    SELECT id, template_id, effective_from, effective_until
-    FROM schedule_template_validity
-    WHERE template_id = #{templateId}
-    ORDER BY effective_from DESC
-  |]
+  run $
+    select $
+      orderBy (stvEffectiveFrom >$< desc) do
+        stv <- each scheduleTemplateValiditySchema
+        where_ $ stvTemplateId stv ==. lit templateId
+        pure stv
 
--- | Get currently active validity periods for a template
-getActiveValidityPeriodsForTemplate :: TemplateId -> Hasql.Statement () [ScheduleTemplateValidity]
+-- | Get currently active validity periods for a template.
+--
+-- Uses raw SQL because of CURRENT_DATE comparisons.
+getActiveValidityPeriodsForTemplate :: TemplateId -> Hasql.Statement () [ScheduleTemplateValidity Result]
 getActiveValidityPeriodsForTemplate templateId =
   interp
     False
@@ -304,9 +378,10 @@ getActiveValidityPeriodsForTemplate templateId =
     ORDER BY effective_from DESC
   |]
 
--- | Insert a new validity period
+-- | Insert a new validity period.
 --
--- Returns the generated ID
+-- Returns the generated ID.
+-- Uses raw SQL for consistency.
 insertValidity :: ValidityInsert -> Hasql.Statement () ValidityId
 insertValidity ValidityInsert {..} =
   getOneRow
@@ -318,9 +393,9 @@ insertValidity ValidityInsert {..} =
     RETURNING id
   |]
 
--- | Update a validity period
+-- | Update a validity period.
 --
--- Used to adjust the time bounds of when a template is active
+-- Used to adjust the time bounds of when a template is active.
 updateValidity :: ValidityId -> ValidityUpdate -> Hasql.Statement () (Maybe ValidityId)
 updateValidity validityId ValidityUpdate {..} =
   interp
@@ -332,20 +407,22 @@ updateValidity validityId ValidityUpdate {..} =
     RETURNING id
   |]
 
--- | Delete a validity period
+-- | Delete a validity period.
 deleteValidity :: ValidityId -> Hasql.Statement () (Maybe ValidityId)
 deleteValidity validityId =
-  interp
-    False
-    [sql|
-    DELETE FROM schedule_template_validity
-    WHERE id = #{validityId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      delete
+        Delete
+          { from = scheduleTemplateValiditySchema,
+            using = pure (),
+            deleteWhere = \_ stv -> stvId stv ==. lit validityId,
+            returning = Returning stvId
+          }
 
--- | End a validity period by setting effective_until to a specific date
+-- | End a validity period by setting effective_until to a specific date.
 --
--- Used to "close" a validity period when a schedule changes
+-- Used to "close" a validity period when a schedule changes.
 endValidity :: ValidityId -> Day -> Hasql.Statement () (Maybe ValidityId)
 endValidity validityId endDate =
   interp
@@ -360,9 +437,9 @@ endValidity validityId endDate =
 --------------------------------------------------------------------------------
 -- Scheduled Show With Details (for schedule views)
 
--- | Combined view of schedule templates with show and host information
+-- | Combined view of schedule templates with show and host information.
 --
--- Used for rendering schedule grids and calendars
+-- Used for rendering schedule grids and calendars.
 data ScheduledShowWithDetails = ScheduledShowWithDetails
   { sswdDate :: Day,
     sswdDayOfWeek :: DayOfWeek,
@@ -378,10 +455,11 @@ data ScheduledShowWithDetails = ScheduledShowWithDetails
 instance Display ScheduledShowWithDetails where
   displayBuilder _ = "ScheduledShowWithDetails"
 
--- | Get all scheduled shows for a specific date with show and host details
+-- | Get all scheduled shows for a specific date with show and host details.
 --
 -- Returns both recurring and one-time shows scheduled for the given date.
 -- Used for rendering actual weekly schedules (not just templates).
+-- Uses raw SQL because of complex date arithmetic and CASE expressions.
 getScheduledShowsForDate :: Day -> Hasql.Statement () [ScheduledShowWithDetails]
 getScheduledShowsForDate targetDate =
   interp
@@ -442,7 +520,7 @@ getScheduledShowsForDate targetDate =
 --------------------------------------------------------------------------------
 -- Upcoming Show Dates (for episode scheduling)
 
--- | Data type to represent an upcoming show date
+-- | Data type to represent an upcoming show date.
 data UpcomingShowDate = UpcomingShowDate
   { usdId :: Shows.Id,
     usdShowDate :: Day,
@@ -456,7 +534,7 @@ data UpcomingShowDate = UpcomingShowDate
 instance Display UpcomingShowDate where
   displayBuilder _ = "UpcomingShowDate"
 
--- | Convert from database row to UpcomingShowDate
+-- | Convert from database row to UpcomingShowDate.
 fromUpcomingShowDateRow :: (Shows.Id, Day, DayOfWeek, UTCTime, UTCTime) -> UpcomingShowDate
 fromUpcomingShowDateRow (showId, showDate, dayOfWeek, startTime, endTime) =
   UpcomingShowDate
@@ -467,12 +545,13 @@ fromUpcomingShowDateRow (showId, showDate, dayOfWeek, startTime, endTime) =
       usdEndTime = endTime
     }
 
--- | Get the next N upcoming scheduled dates for a specific show
+-- | Get the next N upcoming scheduled dates for a specific show.
 --
 -- This generates dates based on the show's schedule templates and validity periods.
 -- For N-of-month schedules, it calculates which weeks of each month the show airs.
+-- Uses raw SQL because of recursive CTEs and complex date arithmetic.
 getUpcomingShowDates :: Shows.Id -> Day -> Limit -> Hasql.Statement () [UpcomingShowDate]
-getUpcomingShowDates showId referenceDate limit =
+getUpcomingShowDates showId referenceDate (Limit limitVal) =
   fmap fromUpcomingShowDateRow
     <$> interp
       False
@@ -535,15 +614,16 @@ getUpcomingShowDates showId referenceDate limit =
     FROM schedule_instances
     WHERE show_date >= #{referenceDate}::DATE
     ORDER BY show_date
-    LIMIT #{limit}
+    LIMIT #{limitVal}
   |]
 
--- | Get the next N upcoming UNscheduled dates for a specific show
+-- | Get the next N upcoming UNscheduled dates for a specific show.
 --
 -- Like getUpcomingShowDates, but filters out dates that already have episodes scheduled.
 -- This is used in the episode upload form to prevent double-booking time slots.
+-- Uses raw SQL because of recursive CTEs and complex date arithmetic.
 getUpcomingUnscheduledShowDates :: Shows.Id -> Limit -> Hasql.Statement () [UpcomingShowDate]
-getUpcomingUnscheduledShowDates showId limit =
+getUpcomingUnscheduledShowDates showId (Limit limitVal) =
   fmap fromUpcomingShowDateRow
     <$> interp
       False
@@ -610,5 +690,5 @@ getUpcomingUnscheduledShowDates showId limit =
     SELECT show_id, show_date, day_of_week, start_time, end_time
     FROM unscheduled_instances
     ORDER BY show_date
-    LIMIT #{limit}
+    LIMIT #{limitVal}
   |]

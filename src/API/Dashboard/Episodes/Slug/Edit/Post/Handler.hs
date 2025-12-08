@@ -118,7 +118,7 @@ handler _tracer _showSlug episodeId _urlSlug cookie (foldHxReq -> hxRequest) edi
                       Log.logAttention "isUserHostOfShow execution error" (show err)
                       currentTime <- liftIO getCurrentTime
                       let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                      tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episode.id)
+                      tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
                       let tracks = fromRight [] tracksResult
                           banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
                       html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
@@ -137,7 +137,7 @@ handler _tracer _showSlug episodeId _urlSlug cookie (foldHxReq -> hxRequest) edi
                           Log.logInfo "User attempted to edit episode they don't own" episode.id
                           currentTime <- liftIO getCurrentTime
                           let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                          tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episode.id)
+                          tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
                           let tracks = fromRight [] tracksResult
                               banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
                           html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
@@ -182,7 +182,7 @@ renderFormWithError ::
 renderFormWithError hxRequest userMetadata episode showModel title message = do
   currentTime <- liftIO getCurrentTime
   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-  tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episode.id)
+  tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
   let tracks = fromRight [] tracksResult
       banner = renderBanner Error title message
   html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
@@ -299,7 +299,7 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                           -- Fetch the updated episode and tracks for the detail page
                           execQuerySpan (Episodes.getEpisodeById episode.id) >>= \case
                             Right (Just updatedEpisode) -> do
-                              tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episode.id)
+                              tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
                               let tracks = fromRight [] tracksResult
                                   detailUrl = episodesIdGetUrl showModel.slug updatedEpisode.id updatedEpisode.slug
                                   banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
@@ -314,7 +314,7 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                             _ -> do
                               -- Episode was updated but we couldn't fetch it - still show success with banner
                               Log.logInfo "Updated episode but failed to retrieve it" episode.id
-                              tracksResult <- execQuerySpan (Episodes.getTracksForEpisode episode.id)
+                              tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
                               let tracks = fromRight [] tracksResult
                                   detailUrl = episodesIdGetUrl showModel.slug episode.id episode.slug
                                   banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
@@ -425,7 +425,7 @@ processTrack episodeId track = do
   case tiId track of
     -- Update existing track
     Just trackId -> do
-      execQuerySpan (Episodes.updateEpisodeTrack trackId trackInsert) >>= \case
+      execQuerySpan (EpisodeTrack.updateEpisodeTrack trackId trackInsert) >>= \case
         Left err -> do
           Log.logInfo "Failed to update track" (trackId, show err)
           pure $ Left "Failed to update track"
@@ -435,7 +435,7 @@ processTrack episodeId track = do
         Right (Just updatedId) -> pure $ Right updatedId
     -- Insert new track
     Nothing -> do
-      execQuerySpan (Episodes.insertEpisodeTrack trackInsert) >>= \case
+      execQuerySpan (EpisodeTrack.insertEpisodeTrack trackInsert) >>= \case
         Left err -> do
           Log.logInfo "Failed to insert track" (show err)
           pure $ Left "Failed to insert track"

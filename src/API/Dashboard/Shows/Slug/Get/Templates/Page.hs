@@ -27,6 +27,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras
+import Rel8 (Result)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -68,7 +69,7 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate] -> [ShowBlogPosts.Model] -> Int -> Lucid.Html ()
+template :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowBlogPosts.Model] -> Int -> Lucid.Html ()
 template showModel episodes hosts schedules blogPosts currentPage = do
   renderShowHeader showModel hosts schedules
 

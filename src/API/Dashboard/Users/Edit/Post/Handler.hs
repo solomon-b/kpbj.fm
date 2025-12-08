@@ -105,10 +105,10 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
 
                     -- Update metadata fields
                     let metadataUpdate =
-                          UserMetadata.ModelUpdate
-                            { UserMetadata.muDisplayName = Just newDisplayName,
-                              UserMetadata.muFullName = Just newFullName,
-                              UserMetadata.muAvatarUrl = Just finalAvatarUrl
+                          UserMetadata.Update
+                            { UserMetadata.uDisplayName = Just newDisplayName,
+                              UserMetadata.uFullName = Just newFullName,
+                              UserMetadata.uAvatarUrl = Just finalAvatarUrl
                             }
                     _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
 
