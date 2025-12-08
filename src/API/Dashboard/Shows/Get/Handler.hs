@@ -20,7 +20,7 @@ import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe, isNothing, listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
@@ -143,7 +143,7 @@ filtersUI queryFilter statusFilter = do
           Lucid.class_ "px-2 py-1 text-sm border border-gray-300"
         ]
         $ do
-          Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (statusFilter == Nothing)) "All Statuses"
+          Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (isNothing statusFilter)) "All Statuses"
           Lucid.option_ ([Lucid.value_ "active"] <> selectedWhen (statusFilter == Just Shows.Active)) "Active"
           Lucid.option_ ([Lucid.value_ "inactive"] <> selectedWhen (statusFilter == Just Shows.Inactive)) "Inactive"
       -- Submit button
@@ -153,7 +153,7 @@ filtersUI queryFilter statusFilter = do
         ]
         "Filter"
   where
-    selectedWhen cond = if cond then [Lucid.selected_ "selected"] else []
+    selectedWhen cond = [Lucid.selected_ "selected" | cond]
 
 getShowsResults ::
   ( MonadUnliftIO m,

@@ -19,6 +19,7 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
@@ -84,7 +85,7 @@ handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) = do
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = either (const []) id showsResult
+      let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
       mResult <- execTransactionSpan $ runMaybeT $ do

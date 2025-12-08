@@ -17,6 +17,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, listToMaybe)
@@ -88,7 +89,7 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) = do
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = either (const []) id showsResult
+      let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
       getEventsResults limit offset >>= \case

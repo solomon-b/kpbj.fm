@@ -17,9 +17,10 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, listToMaybe, maybeToList)
+import Data.Maybe (fromMaybe, isNothing, listToMaybe, maybeToList)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (getCurrentTime)
@@ -92,7 +93,7 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = either (const []) id showsResult
+      let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
       getUsersResults limit offset queryFilter roleFilter sortBy >>= \case
@@ -133,7 +134,7 @@ filtersUI queryFilter roleFilter sortBy = do
           Lucid.class_ "px-2 py-1 text-sm border border-gray-300"
         ]
         $ do
-          Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (roleFilter == Nothing)) "All Roles"
+          Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (isNothing roleFilter)) "All Roles"
           Lucid.option_ ([Lucid.value_ "User"] <> selectedWhen (roleFilter == Just UserMetadata.User)) "User"
           Lucid.option_ ([Lucid.value_ "Host"] <> selectedWhen (roleFilter == Just UserMetadata.Host)) "Host"
           Lucid.option_ ([Lucid.value_ "Staff"] <> selectedWhen (roleFilter == Just UserMetadata.Staff)) "Staff"
@@ -156,7 +157,7 @@ filtersUI queryFilter roleFilter sortBy = do
         ]
         "Filter"
   where
-    selectedWhen cond = if cond then [Lucid.selected_ "selected"] else []
+    selectedWhen cond = [Lucid.selected_ "selected" | cond]
 
 getUsersResults ::
   ( MonadUnliftIO m,

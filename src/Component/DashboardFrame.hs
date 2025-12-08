@@ -15,6 +15,7 @@ import API.Types
 import Component.Banner (bannerContainerId)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -291,9 +292,7 @@ topBar activeNav allShows selectedShow statsContent actionButton =
           Nothing -> mempty
       -- Right side: action button and back to site link
       Lucid.div_ [Lucid.class_ "flex items-center gap-4"] $ do
-        case actionButton of
-          Just btn -> btn
-          Nothing -> mempty
+        fromMaybe mempty actionButton
         Lucid.a_
           [ Lucid.href_ [i|/#{rootGetUrl}|],
             Lucid.class_ "text-sm text-gray-500 hover:text-gray-800"
