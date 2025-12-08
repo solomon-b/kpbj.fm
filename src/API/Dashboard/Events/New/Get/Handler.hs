@@ -16,6 +16,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
@@ -72,7 +73,7 @@ handler _tracer cookie (foldHxReq -> hxRequest) = do
         if UserMetadata.isAdmin userMetadata.mUserRole
           then execQuerySpan Shows.getAllActiveShows
           else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = either (const []) id showsResult
+      let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
       renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (template userMetadata)

@@ -51,7 +51,8 @@ renderFormHeader =
     Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
       Lucid.div_ $ do
         Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "CREATE NEW SHOW"
-        Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $
+        Lucid.div_
+          [Lucid.class_ "text-gray-300 text-sm"]
           "Add a new show to the station"
       Lucid.div_ [Lucid.class_ "text-center"] $
         Lucid.a_
@@ -247,7 +248,8 @@ renderHostOption user =
 
 renderScheduleSection :: Lucid.Html ()
 renderScheduleSection = do
-  Lucid.p_ [Lucid.class_ "text-sm text-gray-600 mb-4"] $
+  Lucid.p_
+    [Lucid.class_ "text-sm text-gray-600 mb-4"]
     "Add recurring time slots when this show will air. Leave empty if no regular schedule."
 
   Lucid.div_ [Lucid.id_ "schedule-container"] $ do

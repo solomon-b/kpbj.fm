@@ -17,6 +17,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
@@ -130,7 +131,7 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
                     if UserMetadata.isAdmin userMetadata.mUserRole
                       then execQuerySpan Shows.getAllActiveShows
                       else execQuerySpan (Shows.getShowsForUser (User.mId user))
-                  let allShows = either (const []) id showsResult
+                  let allShows = fromRight [] showsResult
                       selectedShow = listToMaybe allShows
 
                   -- Fetch updated user data for detail page

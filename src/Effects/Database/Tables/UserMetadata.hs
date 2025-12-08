@@ -63,6 +63,7 @@ where
 
 --------------------------------------------------------------------------------
 
+import Control.Monad (join)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
 import Data.Int (Int64)
@@ -421,8 +422,8 @@ insertUserMetadata Insert {..} =
 -- Uses raw SQL because it involves CTE with multiple tables.
 insertUserWithMetadata :: UserWithMetadataInsert -> Hasql.Statement () User.Id
 insertUserWithMetadata UserWithMetadataInsert {..} =
-  fmap head $
-    interp
+  head
+    <$> interp
       True
       [sql|
     WITH new_user AS (
@@ -727,9 +728,7 @@ updateUserMetadata metadataId Update {..} =
     hasAvatarUpdate = case uAvatarUrl of
       Nothing -> False
       Just _ -> True
-    avatarValue = case uAvatarUrl of
-      Nothing -> Nothing
-      Just v -> v
+    avatarValue = join uAvatarUrl
 
 -- | Count total active users (excluding soft-deleted users)
 --

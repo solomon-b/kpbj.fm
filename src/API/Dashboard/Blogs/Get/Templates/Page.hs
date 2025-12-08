@@ -16,8 +16,7 @@ template ::
   Maybe Shows.Model ->
   [ShowBlogPosts.Model] ->
   Lucid.Html ()
-template selectedShow blogPosts =
-  renderBlogSection selectedShow blogPosts
+template = renderBlogSection
 
 -- | Blog posts table section
 renderBlogSection :: Maybe Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()

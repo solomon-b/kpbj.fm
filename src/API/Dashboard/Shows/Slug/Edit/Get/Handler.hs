@@ -18,6 +18,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Bool (bool)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -107,7 +108,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
                     if UserMetadata.isAdmin userMetadata.mUserRole
                       then execQuerySpan Shows.getAllActiveShows
                       else execQuerySpan (Shows.getShowsForUser user.mId)
-                  let sidebarShows = either (const []) id sidebarShowsResult
+                  let sidebarShows = fromRight [] sidebarShowsResult
                       selectedShow = Just showModel
 
                   -- Fetch staff-only data (schedules, hosts) if user is staff

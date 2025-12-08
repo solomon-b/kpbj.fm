@@ -18,8 +18,7 @@ template ::
   Maybe Shows.Model ->
   [Episodes.Model] ->
   Lucid.Html ()
-template userMeta selectedShow episodes =
-  renderEpisodesSection userMeta selectedShow episodes
+template = renderEpisodesSection
 
 -- | Episodes table section
 renderEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Lucid.Html ()
