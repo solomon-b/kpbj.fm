@@ -12,7 +12,7 @@ where
 
 import API.Links (apiLinks, dashboardEpisodesLinks)
 import API.Types
-import Control.Monad (unless, when)
+import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -260,32 +260,9 @@ renderTrackRow track = do
     Lucid.div_ [Lucid.class_ "flex-grow"] $ do
       Lucid.div_ [Lucid.class_ "font-medium"] $ do
         "\"" <> Lucid.toHtml track.title <> "\""
-        when track.isExclusivePremiere $ do
-          Lucid.span_ [Lucid.class_ "ml-2 text-xs bg-red-600 text-white px-2 py-1 font-bold"] "PREMIERE"
 
       Lucid.div_ [Lucid.class_ "text-sm text-gray-700"] $ do
         Lucid.toHtml track.artist
-        case track.album of
-          Just album -> do
-            " - "
-            Lucid.span_ [Lucid.class_ "italic"] $ Lucid.toHtml album
-          Nothing -> mempty
-
-      -- Additional metadata (label, year)
-      Lucid.div_ [Lucid.class_ "text-xs text-gray-600 mt-1"] $ do
-        case (track.label, track.year) of
-          (Just label, Just year) ->
-            Lucid.toHtml label <> " " <> Lucid.toHtml (show year)
-          (Just label, Nothing) -> Lucid.toHtml label
-          (Nothing, Just year) -> Lucid.toHtml (show year)
-          (Nothing, Nothing) -> mempty
-
-    -- Duration
-    case track.duration of
-      Just duration ->
-        Lucid.div_ [Lucid.class_ "text-sm text-gray-600 font-mono flex-shrink-0 ml-4"] $
-          Lucid.toHtml duration
-      Nothing -> mempty
 
 --------------------------------------------------------------------------------
 

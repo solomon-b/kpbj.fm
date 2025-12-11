@@ -48,12 +48,7 @@ data TrackInfo = TrackInfo
   { tiId :: Maybe EpisodeTrack.Id, -- Existing track ID (Nothing for new tracks)
     tiTrackNumber :: Int64,
     tiTitle :: Text,
-    tiArtist :: Text,
-    tiAlbum :: Maybe Text,
-    tiYear :: Maybe Int64,
-    tiDuration :: Maybe Text,
-    tiLabel :: Maybe Text,
-    tiIsExclusive :: Bool
+    tiArtist :: Text
   }
   deriving (Show)
 
@@ -123,28 +118,12 @@ parseTracksFromMultipart multipartData = parseTracksFromIndex 0
           trackNumber = getField "track_number"
           title = getField "title"
           artist = getField "artist"
-          album = getFieldMaybe "album"
-          year = getFieldMaybe "year"
-          duration = getFieldMaybe "duration"
-          label = getFieldMaybe "label"
-          isPremiere = case lookupInputSafe (prefix <> "[is_exclusive_premiere]") of
-            Just _ -> True
-            Nothing -> False
        in TrackInfo
             { tiId = trackId,
               tiTrackNumber = fromMaybe 1 (readMaybe $ Text.unpack trackNumber),
               tiTitle = title,
-              tiArtist = artist,
-              tiAlbum = emptyToNothing album,
-              tiYear = year >>= readMaybe . Text.unpack,
-              tiDuration = emptyToNothing duration,
-              tiLabel = emptyToNothing label,
-              tiIsExclusive = isPremiere
+              tiArtist = artist
             }
-
-    emptyToNothing :: Maybe Text -> Maybe Text
-    emptyToNothing (Just "") = Nothing
-    emptyToNothing x = x
 
 -- | Parse episode status from text
 parseStatus :: Text -> Maybe Episodes.Status

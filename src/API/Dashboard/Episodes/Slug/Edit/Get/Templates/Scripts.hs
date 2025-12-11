@@ -43,18 +43,6 @@ scripts = do
               />
             </div>
 
-            <div>
-              <label class="block font-bold mb-1 text-sm">Duration</label>
-              <input
-                type="text"
-                name="tracks[$${index}][duration]"
-                placeholder="e.g. 5:42"
-                pattern="[0-9]+:[0-5][0-9]"
-                title="Format: MM:SS (e.g. 5:42)"
-                class="w-full p-2 border border-gray-400 font-mono text-sm"
-              />
-            </div>
-
             <div class="col-span-2">
               <label class="block font-bold mb-1 text-sm">Title *</label>
               <input
@@ -77,49 +65,6 @@ scripts = do
                 maxlength="200"
                 class="w-full p-2 border border-gray-400 font-mono text-sm"
               />
-            </div>
-
-            <div>
-              <label class="block font-bold mb-1 text-sm">Album</label>
-              <input
-                type="text"
-                name="tracks[$${index}][album]"
-                maxlength="200"
-                class="w-full p-2 border border-gray-400 font-mono text-sm"
-              />
-            </div>
-
-            <div>
-              <label class="block font-bold mb-1 text-sm">Label</label>
-              <input
-                type="text"
-                name="tracks[$${index}][label]"
-                maxlength="200"
-                class="w-full p-2 border border-gray-400 font-mono text-sm"
-              />
-            </div>
-
-            <div>
-              <label class="block font-bold mb-1 text-sm">Year</label>
-              <input
-                type="number"
-                name="tracks[$${index}][year]"
-                min="1900"
-                max="2099"
-                class="w-full p-2 border border-gray-400 font-mono text-sm"
-              />
-            </div>
-
-            <div>
-              <label class="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  name="tracks[$${index}][is_exclusive_premiere]"
-                  value="true"
-                  class="w-4 h-4"
-                />
-                <span class="text-sm font-bold">Exclusive Premiere</span>
-              </label>
             </div>
           </div>
         `;

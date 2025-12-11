@@ -75,13 +75,6 @@ CREATE TABLE episode_tracks (
     -- Track information
     title TEXT NOT NULL,
     artist TEXT NOT NULL,
-    album TEXT, -- Album name
-    year INTEGER, -- Release year
-    duration TEXT, -- Duration as string (e.g., "4:23")
-    label TEXT, -- Record label
-
-    -- Special flags
-    is_exclusive_premiere BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

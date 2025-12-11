@@ -311,7 +311,7 @@ renderTrackManagementScript =
     const div = document.createElement('div');
     div.className = 'border border-gray-300 p-4 bg-gray-50 mb-4';
     div.innerHTML = `
-      <div class='grid grid-cols-1 md:grid-cols-3 gap-4'>
+      <div class='grid grid-cols-1 md:grid-cols-2 gap-4'>
         <div>
           <label class='block font-bold text-sm mb-1'>Track Title</label>
           <input type='text' class='w-full p-2 border border-gray-400 text-sm font-mono track-title' placeholder='Track title'>
@@ -320,30 +320,11 @@ renderTrackManagementScript =
           <label class='block font-bold text-sm mb-1'>Artist</label>
           <input type='text' class='w-full p-2 border border-gray-400 text-sm font-mono track-artist' placeholder='Artist name'>
         </div>
-        <div>
-          <label class='block font-bold text-sm mb-1'>Album/Year</label>
-          <input type='text' class='w-full p-2 border border-gray-400 text-sm font-mono track-album' placeholder='Album (Year)'>
-        </div>
       </div>
-      <div class='grid grid-cols-2 md:grid-cols-4 gap-4 mt-4'>
-        <div>
-          <label class='block font-bold text-sm mb-1'>Duration</label>
-          <input type='text' class='w-full p-2 border border-gray-400 text-sm font-mono track-duration' placeholder='4:23'>
-        </div>
-        <div>
-          <label class='block font-bold text-sm mb-1'>Label</label>
-          <input type='text' class='w-full p-2 border border-gray-400 text-sm font-mono track-label' placeholder='Record label'>
-        </div>
-        <div class='flex items-end'>
-          <label class='flex items-center text-sm'>
-            <input type='checkbox' class='mr-2 track-exclusive'> Exclusive Premiere
-          </label>
-        </div>
-        <div class='flex items-end justify-end'>
-          <button type='button' class='bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700' data-action='remove-track'>
-            REMOVE
-          </button>
-        </div>
+      <div class='flex justify-end mt-4'>
+        <button type='button' class='bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700' data-action='remove-track'>
+          REMOVE
+        </button>
       </div>
     `;
     return div;
@@ -352,12 +333,7 @@ renderTrackManagementScript =
   // Extract track data from DOM element
   const extractTrackData = (div) => ({
     tiTitle: div.querySelector('.track-title')?.value || '',
-    tiArtist: div.querySelector('.track-artist')?.value || '',
-    tiAlbum: div.querySelector('.track-album')?.value || null,
-    tiYear: null,
-    tiDuration: div.querySelector('.track-duration')?.value || null,
-    tiLabel: div.querySelector('.track-label')?.value || null,
-    tiIsExclusive: div.querySelector('.track-exclusive')?.checked || false
+    tiArtist: div.querySelector('.track-artist')?.value || ''
   });
 
   // Update hidden JSON field with current tracks

@@ -302,13 +302,8 @@ renderTrackEditor idx track = do
     hiddenInput [i|tracks[#{idx}][id]|] (display track.id)
     Lucid.div_ [Lucid.class_ "grid grid-cols-2 gap-4"] $ do
       trackNumberField idx track
-      trackDurationField idx track
       trackTitleField idx track
       trackArtistField idx track
-      trackAlbumField idx track
-      trackLabelField idx track
-      trackYearField idx track
-      trackPremiereField idx track
 
 trackEditorHeader :: Int -> Lucid.Html ()
 trackEditorHeader idx = do
@@ -331,18 +326,6 @@ trackNumberField idx track =
         Form.fniMax = Nothing,
         Form.fniHint = Nothing,
         Form.fniRequired = False
-      }
-
-trackDurationField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackDurationField idx track =
-  Form.formTextInput
-    Form.FormTextInputConfig
-      { Form.ftiName = [i|tracks[#{idx}][duration]|],
-        Form.ftiLabel = "Duration",
-        Form.ftiValue = track.duration,
-        Form.ftiPlaceholder = Just "e.g. 5:42",
-        Form.ftiHint = Nothing,
-        Form.ftiRequired = False
       }
 
 trackTitleField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
@@ -370,50 +353,3 @@ trackArtistField idx track = do
           Form.ftiHint = Nothing,
           Form.ftiRequired = True
         }
-
-trackAlbumField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackAlbumField idx track =
-  Form.formTextInput
-    Form.FormTextInputConfig
-      { Form.ftiName = [i|tracks[#{idx}][album]|],
-        Form.ftiLabel = "Album",
-        Form.ftiValue = track.album,
-        Form.ftiPlaceholder = Nothing,
-        Form.ftiHint = Nothing,
-        Form.ftiRequired = False
-      }
-
-trackLabelField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackLabelField idx track =
-  Form.formTextInput
-    Form.FormTextInputConfig
-      { Form.ftiName = [i|tracks[#{idx}][label]|],
-        Form.ftiLabel = "Label",
-        Form.ftiValue = track.label,
-        Form.ftiPlaceholder = Nothing,
-        Form.ftiHint = Nothing,
-        Form.ftiRequired = False
-      }
-
-trackYearField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackYearField idx track =
-  Form.formNumberInput
-    Form.FormNumberInputConfig
-      { Form.fniName = [i|tracks[#{idx}][year]|],
-        Form.fniLabel = "Year",
-        Form.fniValue = fmap fromIntegral track.year,
-        Form.fniMin = Just 1900,
-        Form.fniMax = Just 2099,
-        Form.fniHint = Nothing,
-        Form.fniRequired = False
-      }
-
-trackPremiereField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackPremiereField idx track =
-  Form.formCheckbox
-    Form.FormCheckboxConfig
-      { Form.fcName = [i|tracks[#{idx}][is_exclusive_premiere]|],
-        Form.fcValue = "true",
-        Form.fcLabel = "Exclusive Premiere",
-        Form.fcChecked = track.isExclusivePremiere
-      }
