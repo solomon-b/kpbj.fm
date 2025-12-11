@@ -329,12 +329,7 @@ sanitizeTrackList = map sanitizeTrack
     sanitizeTrack track =
       TrackInfo
         { tiTitle = Sanitize.sanitizePlainText (tiTitle track),
-          tiArtist = Sanitize.sanitizePlainText (tiArtist track),
-          tiAlbum = Sanitize.sanitizePlainText <$> tiAlbum track,
-          tiYear = tiYear track, -- Keep numeric values as-is
-          tiDuration = Sanitize.sanitizePlainText <$> tiDuration track,
-          tiLabel = Sanitize.sanitizePlainText <$> tiLabel track,
-          tiIsExclusive = tiIsExclusive track -- Keep boolean as-is
+          tiArtist = Sanitize.sanitizePlainText (tiArtist track)
         }
 
 data ParsedEpisodeData = ParsedEpisodeData
@@ -442,12 +437,7 @@ insertTracks episodeId tracks = do
               { EpisodeTracks.etiEpisodeId = epId,
                 EpisodeTracks.etiTrackNumber = trackNum,
                 EpisodeTracks.etiTitle = tiTitle track,
-                EpisodeTracks.etiArtist = tiArtist track,
-                EpisodeTracks.etiAlbum = tiAlbum track,
-                EpisodeTracks.etiYear = tiYear track,
-                EpisodeTracks.etiDuration = tiDuration track,
-                EpisodeTracks.etiLabel = tiLabel track,
-                EpisodeTracks.etiIsExclusivePremiere = tiIsExclusive track
+                EpisodeTracks.etiArtist = tiArtist track
               }
 
       result <- execQuerySpan (EpisodeTracks.insertEpisodeTrack trackInsert)

@@ -183,12 +183,6 @@ renderLatestEpisode showModel episode tracks = do
           Lucid.span_ [Lucid.class_ "font-medium"] $ "\"" <> Lucid.toHtml track.title <> "\""
           " - "
           Lucid.span_ $ Lucid.toHtml track.artist
-          case track.album of
-            Just album -> Lucid.span_ [Lucid.class_ "text-gray-600 ml-1"] $ " (" <> Lucid.toHtml album <> ")"
-            Nothing -> mempty
-        case track.duration of
-          Just duration -> Lucid.span_ [Lucid.class_ "text-gray-600"] $ Lucid.toHtml duration
-          Nothing -> mempty
 
 -- | Render an episode card (for previous episodes list)
 renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()

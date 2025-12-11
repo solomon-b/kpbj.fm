@@ -1054,17 +1054,12 @@ WITH track_library AS (
         ('Bitter Sweet Symphony', 'The Verve', 'Urban Hymns', 1997, '5:58', 'Hut', ARRAY['Britpop', 'Alternative', 'Eclectic', 'Variety'])
     ) AS tracks(title, artist, album, year, duration, label, genres)
 )
-INSERT INTO episode_tracks (episode_id, track_number, title, artist, album, year, duration, label, is_exclusive_premiere)
+INSERT INTO episode_tracks (episode_id, track_number, title, artist)
 SELECT
     e.id as episode_id,
     track_num as track_number,
     tl.title,
-    tl.artist,
-    tl.album,
-    tl.year,
-    tl.duration,
-    tl.label,
-    (random() < 0.05)::boolean as is_exclusive_premiere
+    tl.artist
 FROM episodes e
 JOIN shows s ON s.id = e.show_id
 CROSS JOIN LATERAL (

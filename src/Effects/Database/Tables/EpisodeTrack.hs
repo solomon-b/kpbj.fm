@@ -71,11 +71,6 @@ data EpisodeTrack f = EpisodeTrack
     trackNumber :: Column f Int64,
     title :: Column f Text,
     artist :: Column f Text,
-    album :: Column f (Maybe Text),
-    year :: Column f (Maybe Int64),
-    duration :: Column f (Maybe Text),
-    label :: Column f (Maybe Text),
-    isExclusivePremiere :: Column f Bool,
     createdAt :: Column f UTCTime
   }
   deriving stock (Generic)
@@ -116,11 +111,6 @@ episodeTrackSchema =
             trackNumber = "track_number",
             title = "title",
             artist = "artist",
-            album = "album",
-            year = "year",
-            duration = "duration",
-            label = "label",
-            isExclusivePremiere = "is_exclusive_premiere",
             createdAt = "created_at"
           }
     }
@@ -133,12 +123,7 @@ data Insert = Insert
   { etiEpisodeId :: Episodes.Id,
     etiTrackNumber :: Int64,
     etiTitle :: Text,
-    etiArtist :: Text,
-    etiAlbum :: Maybe Text,
-    etiYear :: Maybe Int64,
-    etiDuration :: Maybe Text,
-    etiLabel :: Maybe Text,
-    etiIsExclusivePremiere :: Bool
+    etiArtist :: Text
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Insert)
@@ -152,7 +137,7 @@ getTracksForEpisode episodeId =
   interp
     False
     [sql|
-    SELECT id, episode_id, track_number, title, artist, album, year, duration, label, is_exclusive_premiere, created_at
+    SELECT id, episode_id, track_number, title, artist, created_at
     FROM episode_tracks
     WHERE episode_id = #{episodeId}
     ORDER BY track_number
@@ -165,8 +150,8 @@ insertEpisodeTrack Insert {..} =
     <$> interp
       False
       [sql|
-    INSERT INTO episode_tracks(episode_id, track_number, title, artist, album, year, duration, label, is_exclusive_premiere, created_at)
-    VALUES (#{etiEpisodeId}, #{etiTrackNumber}, #{etiTitle}, #{etiArtist}, #{etiAlbum}, #{etiYear}, #{etiDuration}, #{etiLabel}, #{etiIsExclusivePremiere}, NOW())
+    INSERT INTO episode_tracks(episode_id, track_number, title, artist, created_at)
+    VALUES (#{etiEpisodeId}, #{etiTrackNumber}, #{etiTitle}, #{etiArtist}, NOW())
     RETURNING id
   |]
 
@@ -177,9 +162,7 @@ updateEpisodeTrack trackId Insert {..} =
     False
     [sql|
     UPDATE episode_tracks
-    SET track_number = #{etiTrackNumber}, title = #{etiTitle}, artist = #{etiArtist},
-        album = #{etiAlbum}, year = #{etiYear}, duration = #{etiDuration},
-        label = #{etiLabel}, is_exclusive_premiere = #{etiIsExclusivePremiere}
+    SET track_number = #{etiTrackNumber}, title = #{etiTitle}, artist = #{etiArtist}
     WHERE id = #{trackId}
     RETURNING id
   |]

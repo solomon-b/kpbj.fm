@@ -414,12 +414,7 @@ processTrack episodeId track = do
           { EpisodeTrack.etiEpisodeId = episodeId,
             EpisodeTrack.etiTrackNumber = tiTrackNumber track,
             EpisodeTrack.etiTitle = tiTitle track,
-            EpisodeTrack.etiArtist = tiArtist track,
-            EpisodeTrack.etiAlbum = tiAlbum track,
-            EpisodeTrack.etiYear = tiYear track,
-            EpisodeTrack.etiDuration = tiDuration track,
-            EpisodeTrack.etiLabel = tiLabel track,
-            EpisodeTrack.etiIsExclusivePremiere = tiIsExclusive track
+            EpisodeTrack.etiArtist = tiArtist track
           }
 
   case tiId track of

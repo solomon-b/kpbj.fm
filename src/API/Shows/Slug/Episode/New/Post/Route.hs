@@ -3,7 +3,6 @@ module API.Shows.Slug.Episode.New.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
@@ -37,12 +36,7 @@ type Route =
 
 data TrackInfo = TrackInfo
   { tiTitle :: Text,
-    tiArtist :: Text,
-    tiAlbum :: Maybe Text,
-    tiYear :: Maybe Int64,
-    tiDuration :: Maybe Text,
-    tiLabel :: Maybe Text,
-    tiIsExclusive :: Bool
+    tiArtist :: Text
   }
   deriving stock (Show, Generic, Eq)
   deriving anyclass (FromJSON, ToJSON)
