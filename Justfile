@@ -168,8 +168,8 @@ postgres-dev-start:
   echo "🟢 Starting the Development Postgres service.."
   docker run \
     --rm \
-    --name dev-postgres \
-    -d -p 5432:5432 \
+    --name kpbj-dev-postgres \
+    -d -p 5433:5432 \
     -e POSTGRES_HOST_AUTH_METHOD=trust \
     -e POSTGRES_DB=dev_db \
     -v {{HOME}}/.kpbj-dev-pg-data:/var/lib/postgresql/data \
@@ -179,35 +179,35 @@ postgres-dev-start:
 # Halt the development docker container
 postgres-dev-stop:
   echo "🔴 Stopping the Development Postgres service.."
-  docker container stop dev-postgres
+  docker container stop kpbj-dev-postgres
   echo ✨ "Success!"
 
 # Connect to the development postgres db with psql.
 postgres-dev-psql:
   echo "🌐 Connecting to the Development Postgres service.."
-  psql -h localhost -U postgres -d dev_db
+  psql -h localhost -p 5433 -U postgres -d dev_db
 
 # Build and run a test docker container
 postgres-test-start:
   echo "🟢 Starting the Test Postgres service.."
-  docker run --rm --name test-postgres -d -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=test_db -d postgres
+  docker run --rm --name kpbj-test-postgres -d -p 5434:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=test_db -d postgres
   echo "✨ Success!"
 
 # Halt the test docker container
 postgres-test-stop:
   echo "🔴 Stopping the Test Postgres service.."
-  docker container stop test-postgres
+  docker container stop kpbj-test-postgres
   echo ✨ "Success!"
 
 # Connect to the test postgres db with psql.
 postgres-test-psql:
   echo "🌐 Connecting to the Test Postgres service.."
-  psql -h localhost -U postgres -d test_db
+  psql -h localhost -p 5434 -U postgres -d test_db
 
 # Load mock data into the development database
 mock-data:
   echo "📊 Loading mock data into dev_db..."
-  PGPASSWORD=postgres psql -h localhost -U postgres -d dev_db -f mock-data.sql
+  PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d dev_db -f mock-data.sql
   echo "✨ Mock data loaded successfully!"
 
 
