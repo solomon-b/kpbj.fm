@@ -5,6 +5,7 @@ source-repository-package
   location: https://github.com/solomon-b/web-server
   tag: 16bcc47190f10bb5cea486092d833c1c63fcf783
   subdir: web-server-core
+         xmlhtml-lens
 
 -- Use tmp-postgres from master to avoid prettyprinter compatibility issues
 source-repository-package

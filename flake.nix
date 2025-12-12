@@ -51,6 +51,27 @@
                 { });
 
               web-server-core = web-server-core.packages.${system}.web-server-core;
+
+              # xmlhtml packages from web-server repo (same source as
+              # web-server-core, but these packages aren't currently in the
+              # flake output)
+              xmlhtml-qq = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "xmlhtml-qq"
+                (pkgs.fetchgit
+                  {
+                    url = "https://github.com/solomon-b/web-server";
+                    rev = "16bcc47190f10bb5cea486092d833c1c63fcf783";
+                    sha256 = "sha256-LLPOmBR39+OhY7sYZ78C9R/AYnaqE91+yFWfZyKHKFY=";
+                  } + "/xmlhtml-qq")
+                { });
+
+              xmlhtml-lens = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "xmlhtml-lens"
+                (pkgs.fetchgit
+                  {
+                    url = "https://github.com/solomon-b/web-server";
+                    rev = "16bcc47190f10bb5cea486092d833c1c63fcf783";
+                    sha256 = "sha256-LLPOmBR39+OhY7sYZ78C9R/AYnaqE91+yFWfZyKHKFY=";
+                  } + "/xmlhtml-lens")
+                { });
             };
           };
         in

@@ -22,6 +22,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -40,17 +41,9 @@ mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 
--- | Render event description with simple paragraph breaks
+-- | Render event description as markdown
 renderEventDescription :: Text -> Lucid.Html ()
-renderEventDescription description = do
-  let paragraphs = Text.splitOn "\n\n" description
-  Lucid.div_ [Lucid.class_ "prose max-w-none text-gray-700 leading-relaxed space-y-4"] $ do
-    mapM_ renderParagraph paragraphs
-  where
-    renderParagraph para =
-      if Text.null (Text.strip para)
-        then pure ()
-        else Lucid.p_ $ Lucid.toHtml para
+renderEventDescription = renderContent
 
 -- | Render a single tag
 renderTag :: EventTags.Model -> Lucid.Html ()

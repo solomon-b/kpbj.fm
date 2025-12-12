@@ -68,11 +68,14 @@ library
                   , http-api-data
                   , http-conduit
                   , http-types
+                  , lens
                   , log-base
                   , lucid2
                   , magic
                   , mtl
                   , network
+                  , pandoc
+                  , pandoc-types
                   , password
                   , random
                   , servant
@@ -90,6 +93,8 @@ library
                   , wai-extra
                   , web-server-core
                   , witherable
+                  , xmlhtml
+                  , xmlhtml-lens
                   , xss-sanitize
   exposed-modules:
     API
@@ -337,6 +342,7 @@ library
     Effects.Database.Tables.UserMetadata
     Effects.ContentSanitization
     Effects.FileUpload
+    Effects.Markdown
     Effects.MimeTypeValidation
     Lucid.Extras
     OrphanInstances.DayOfWeek
@@ -379,6 +385,7 @@ test-suite kpbj-api-test
                     , HUnit
                     , iproute
                     , log-base
+                    , lucid2
                     , mtl
                     , password
                     , postgres-options
@@ -394,6 +401,7 @@ test-suite kpbj-api-test
        Domain.Types.FileUploadSpec
        Domain.Types.SlugSpec
        Effects.ContentSanitizationSpec
+       Effects.MarkdownSpec
        Effects.Database.Tables.BlogPostsSpec
        Effects.Database.Tables.EpisodesSpec
        Effects.Database.Tables.EventsSpec
