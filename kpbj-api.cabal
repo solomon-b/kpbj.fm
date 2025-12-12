@@ -311,8 +311,10 @@ library
     Component.Form.JSArrow
     Component.DashboardFrame
     Component.Frame
+    Component.Layout
     Component.Redirect
     Component.Table
+    Design.Tokens
     Domain.Types.PostStatus
     Domain.Types.Cookie
     Domain.Types.FileStorage
@@ -345,6 +347,7 @@ library
     Effects.Markdown
     Effects.MimeTypeValidation
     Lucid.Extras
+    Lucid.Responsive
     OrphanInstances.DayOfWeek
     OrphanInstances.Rel8
     OrphanInstances.TimeOfDay

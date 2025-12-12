@@ -9,8 +9,10 @@ import API.Links (blogLinks)
 import API.Types
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
+import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 -- | Render pagination controls
@@ -26,13 +28,13 @@ renderPagination currentPage hasMore = do
               hxGet_ [i|/#{blogGetPageUrl (currentPage - 1)}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              Lucid.class_ "px-3 py-1 text-gray-800 hover:bg-gray-200"
+              Lucid.class_ paginationLink
             ]
             "‹ Previous"
-        else Lucid.span_ [Lucid.class_ "px-3 py-1 text-gray-400"] "‹ Previous"
+        else Lucid.span_ [Lucid.class_ paginationDisabled] "‹ Previous"
 
       -- Current page
-      Lucid.span_ [Lucid.class_ "px-3 py-1 bg-gray-800 text-white font-bold"] $
+      Lucid.span_ [Lucid.class_ paginationActive] $
         Lucid.toHtml $
           show currentPage
 
@@ -44,10 +46,14 @@ renderPagination currentPage hasMore = do
               hxGet_ [i|/#{blogGetPageUrl (currentPage + 1)}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              Lucid.class_ "px-3 py-1 text-gray-800 hover:bg-gray-200"
+              Lucid.class_ paginationLink
             ]
             "Next ›"
-        else Lucid.span_ [Lucid.class_ "px-3 py-1 text-gray-400"] "Next ›"
+        else Lucid.span_ [Lucid.class_ paginationDisabled] "Next ›"
   where
     blogGetPageUrl :: Int64 -> Links.URI
     blogGetPageUrl page = Links.linkURI $ blogLinks.list (Just page) Nothing
+
+    paginationLink = cls ["px-3 py-1", Tokens.textGray800, "hover:bg-gray-200"]
+    paginationDisabled = "px-3 py-1 text-gray-400"
+    paginationActive = cls ["px-3 py-1", Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold]
