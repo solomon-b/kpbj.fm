@@ -3,7 +3,6 @@
 module API.Blog.Post.Get.Templates.Page
   ( template,
     notFoundTemplate,
-    renderBlogContent,
     renderTags,
   )
 where
@@ -22,6 +21,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -39,21 +39,6 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
-
--- | Render blog post content with safe HTML and paragraph breaks
---
--- This function assumes content has already been sanitized during form submission.
--- Content is rendered using Lucid.toHtmlRaw since it has been processed through xss-sanitize.
-renderBlogContent :: Text -> Lucid.Html ()
-renderBlogContent content = do
-  let paragraphs = Text.splitOn "\n\n" content
-  Lucid.div_ [Lucid.class_ "prose max-w-none text-gray-700 leading-relaxed space-y-6"] $ do
-    mapM_ renderParagraph paragraphs
-  where
-    renderParagraph para =
-      if Text.null (Text.strip para)
-        then pure ()
-        else Lucid.p_ $ Lucid.toHtmlRaw para
 
 -- | Render tags for a blog post
 renderTags :: [BlogTags.Model] -> Lucid.Html ()
@@ -117,7 +102,7 @@ template post author tags = do
         renderTags tags
 
     -- Post Content
-    renderBlogContent (BlogPosts.bpmContent post)
+    renderContent (BlogPosts.bpmContent post)
 
     -- Post Footer
     Lucid.footer_ [Lucid.class_ "mt-8 pt-8 border-t border-gray-300"] $ do

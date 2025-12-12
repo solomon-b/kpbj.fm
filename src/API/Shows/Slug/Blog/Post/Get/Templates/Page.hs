@@ -17,6 +17,7 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Extras
 import Servant.Links qualified as Links
@@ -71,11 +72,7 @@ template showModel post author tags = do
               $ Lucid.toHtml (ShowBlogTags.sbtmName tag)
 
     -- Article content
-    Lucid.div_ [Lucid.class_ "prose prose-lg max-w-none"] $ do
-      -- Render content with basic formatting preservation
-      -- Note: In a production app, you'd want to parse markdown or HTML here
-      Lucid.div_ [Lucid.class_ "whitespace-pre-wrap"] $ do
-        Lucid.toHtml (ShowBlogPosts.content post)
+    renderContent (ShowBlogPosts.content post)
 
     -- Back to blog link
     Lucid.div_ [Lucid.class_ "mt-12 pt-6 border-t-2 border-gray-800"] $ do
