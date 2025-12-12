@@ -1,13 +1,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Slug.Episode.New.Get.Templates.Form
+module API.Dashboard.Shows.Slug.Episode.New.Get.Templates.Form
   ( episodeUploadForm,
   )
 where
 
 --------------------------------------------------------------------------------
 
-import API.Links (showEpisodesLinks)
+import API.Links (dashboardShowsLinks)
 import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
@@ -25,7 +25,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 episodesNewPostUrl :: Slug -> Links.URI
-episodesNewPostUrl showSlug = Links.linkURI $ showEpisodesLinks.newPost showSlug
+episodesNewPostUrl showSlug = Links.linkURI $ dashboardShowsLinks.episodeNewPost showSlug
 
 --------------------------------------------------------------------------------
 

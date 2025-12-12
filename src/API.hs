@@ -56,6 +56,8 @@ import API.Dashboard.Shows.New.Get.Handler qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Handler qualified as Dashboard.Shows.New.Post
 import API.Dashboard.Shows.Slug.Edit.Get.Handler qualified as Dashboard.Shows.Slug.Edit.Get
 import API.Dashboard.Shows.Slug.Edit.Post.Handler qualified as Dashboard.Shows.Slug.Edit.Post
+import API.Dashboard.Shows.Slug.Episode.New.Get.Handler qualified as Dashboard.Shows.Slug.Episode.New.Get
+import API.Dashboard.Shows.Slug.Episode.New.Post.Handler qualified as Dashboard.Shows.Slug.Episode.New.Post
 import API.Dashboard.Shows.Slug.Get.Handler qualified as Dashboard.Shows.Slug.Get
 import API.Dashboard.StationBlog.Get.Handler qualified as Dashboard.StationBlog.Get
 import API.Dashboard.StationBlog.New.Get.Handler qualified as Dashboard.StationBlog.New.Get
@@ -91,8 +93,6 @@ import API.Shows.Slug.Blog.Post.Get.Handler qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Delete.Handler qualified as Episodes.Delete
 import API.Shows.Slug.Episode.DiscardDraft.Handler qualified as Episodes.DiscardDraft
 import API.Shows.Slug.Episode.Get.Handler qualified as Episodes.Get
-import API.Shows.Slug.Episode.New.Get.Handler qualified as Episodes.New.Get
-import API.Shows.Slug.Episode.New.Post.Handler qualified as Episodes.New.Post
 import API.Shows.Slug.Episode.Publish.Post.Handler qualified as Episodes.Publish.Post
 import API.Shows.Slug.Get.Handler qualified as Show.Get
 import API.Static.Get.Handler qualified as Static.Get
@@ -191,9 +191,7 @@ server env =
 
     showEpisodesRoutes =
       ShowEpisodesRoutes
-        { newGet = Episodes.New.Get.handler,
-          newPost = Episodes.New.Post.handler,
-          detailWithSlug = Episodes.Get.handlerWithSlug,
+        { detailWithSlug = Episodes.Get.handlerWithSlug,
           detailWithoutSlug = Episodes.Get.handlerWithoutSlug,
           delete = Episodes.Delete.handler,
           discardDraft = Episodes.DiscardDraft.handler,
@@ -275,7 +273,9 @@ server env =
           newPost = Dashboard.Shows.New.Post.handler,
           detail = Dashboard.Shows.Slug.Get.handler,
           editGet = Dashboard.Shows.Slug.Edit.Get.handler,
-          editPost = Dashboard.Shows.Slug.Edit.Post.handler
+          editPost = Dashboard.Shows.Slug.Edit.Post.handler,
+          episodeNewGet = Dashboard.Shows.Slug.Episode.New.Get.handler,
+          episodeNewPost = Dashboard.Shows.Slug.Episode.New.Post.handler
         }
 
     dashboardUsersRoutes =

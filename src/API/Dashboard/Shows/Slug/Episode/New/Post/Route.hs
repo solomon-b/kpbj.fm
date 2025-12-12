@@ -1,4 +1,4 @@
-module API.Shows.Slug.Episode.New.Post.Route where
+module API.Dashboard.Shows.Slug.Episode.New.Post.Route where
 
 --------------------------------------------------------------------------------
 
@@ -20,8 +20,9 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_slug/episodes/new"
-    ( "shows"
+    "POST /dashboard/shows/:show_slug/episodes/new"
+    ( "dashboard"
+        :> "shows"
         :> Servant.Capture "show_slug" Slug
         :> "episodes"
         :> "new"
