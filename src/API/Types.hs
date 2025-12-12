@@ -29,6 +29,8 @@ import API.Dashboard.Shows.New.Get.Route qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Route qualified as Dashboard.Shows.New.Post
 import API.Dashboard.Shows.Slug.Edit.Get.Route qualified as Dashboard.Shows.Slug.Edit.Get
 import API.Dashboard.Shows.Slug.Edit.Post.Route qualified as Dashboard.Shows.Slug.Edit.Post
+import API.Dashboard.Shows.Slug.Episode.New.Get.Route qualified as Dashboard.Shows.Slug.Episode.New.Get
+import API.Dashboard.Shows.Slug.Episode.New.Post.Route qualified as Dashboard.Shows.Slug.Episode.New.Post
 import API.Dashboard.Shows.Slug.Get.Route qualified as Dashboard.Shows.Slug.Get
 import API.Dashboard.StationBlog.Get.Route qualified as Dashboard.StationBlog.Get
 import API.Dashboard.StationBlog.New.Get.Route qualified as Dashboard.StationBlog.New.Get
@@ -63,8 +65,6 @@ import API.Shows.Slug.Blog.Post.Get.Route qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Delete.Route qualified as Episodes.Delete
 import API.Shows.Slug.Episode.DiscardDraft.Route qualified as Episodes.DiscardDraft
 import API.Shows.Slug.Episode.Get.Route qualified as Episodes.Get
-import API.Shows.Slug.Episode.New.Get.Route qualified as Episodes.New.Get
-import API.Shows.Slug.Episode.New.Post.Route qualified as Episodes.New.Post
 import API.Shows.Slug.Episode.Publish.Post.Route qualified as Episodes.Publish.Post
 import API.Shows.Slug.Get.Route qualified as Show.Get
 import API.Static.Get.Route qualified as Static.Get
@@ -185,13 +185,10 @@ data ShowBlogRoutes mode = ShowBlogRoutes
 
 -- | Show episode routes under @/shows/:showSlug/episodes@.
 --
--- Allows hosts to create, view, and manage episodes for their shows.
+-- Public view and management routes for show episodes.
+-- Note: Episode creation routes are under Dashboard.
 data ShowEpisodesRoutes mode = ShowEpisodesRoutes
-  { -- | @GET /shows/:showSlug/episodes/new@ - New episode upload form
-    newGet :: mode :- Episodes.New.Get.Route,
-    -- | @POST /shows/:showSlug/episodes/new@ - Create new episode
-    newPost :: mode :- Episodes.New.Post.Route,
-    -- | @GET /shows/:showSlug/episodes/:id/:slug@ - Episode detail (canonical)
+  { -- | @GET /shows/:showSlug/episodes/:id/:slug@ - Episode detail (canonical)
     detailWithSlug :: mode :- Episodes.Get.RouteWithSlug,
     -- | @GET /shows/:showSlug/episodes/:id@ - Episode detail (redirects)
     detailWithoutSlug :: mode :- Episodes.Get.RouteWithoutSlug,
@@ -329,7 +326,7 @@ data DashboardStationBlogRoutes mode = DashboardStationBlogRoutes
 
 -- | Dashboard show management routes under @/dashboard/shows@.
 --
--- For admins to create and manage radio shows.
+-- For admins to create and manage radio shows, and hosts to create episodes.
 data DashboardShowsRoutes mode = DashboardShowsRoutes
   { -- | @GET /dashboard/shows@ - Show list
     list :: mode :- Dashboard.Shows.Get.Route,
@@ -342,7 +339,11 @@ data DashboardShowsRoutes mode = DashboardShowsRoutes
     -- | @GET /dashboard/shows/:slug/edit@ - Edit show form
     editGet :: mode :- Dashboard.Shows.Slug.Edit.Get.Route,
     -- | @POST /dashboard/shows/:slug/edit@ - Update show
-    editPost :: mode :- Dashboard.Shows.Slug.Edit.Post.Route
+    editPost :: mode :- Dashboard.Shows.Slug.Edit.Post.Route,
+    -- | @GET /dashboard/shows/:slug/episodes/new@ - New episode upload form
+    episodeNewGet :: mode :- Dashboard.Shows.Slug.Episode.New.Get.Route,
+    -- | @POST /dashboard/shows/:slug/episodes/new@ - Create new episode
+    episodeNewPost :: mode :- Dashboard.Shows.Slug.Episode.New.Post.Route
   }
   deriving stock (Generic)
 

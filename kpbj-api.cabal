@@ -233,6 +233,11 @@ library
     API.Dashboard.Shows.Slug.Edit.Get.Templates.Form
     API.Dashboard.Shows.Slug.Edit.Post.Handler
     API.Dashboard.Shows.Slug.Edit.Post.Route
+    API.Dashboard.Shows.Slug.Episode.New.Get.Handler
+    API.Dashboard.Shows.Slug.Episode.New.Get.Route
+    API.Dashboard.Shows.Slug.Episode.New.Get.Templates.Form
+    API.Dashboard.Shows.Slug.Episode.New.Post.Handler
+    API.Dashboard.Shows.Slug.Episode.New.Post.Route
     API.Dashboard.Shows.Slug.Get.Handler
     API.Dashboard.Shows.Slug.Get.Route
     API.Dashboard.Shows.Slug.Get.Templates.Episode
@@ -249,11 +254,6 @@ library
     API.Shows.Slug.Episode.Publish.Post.Handler
     API.Shows.Slug.Episode.Publish.Post.Route
     API.Shows.Slug.Episode.Publish.Post.Templates.Response
-    API.Shows.Slug.Episode.New.Get.Handler
-    API.Shows.Slug.Episode.New.Get.Route
-    API.Shows.Slug.Episode.New.Get.Templates.Form
-    API.Shows.Slug.Episode.New.Post.Handler
-    API.Shows.Slug.Episode.New.Post.Route
     API.Shows.Slug.Get.Handler
     API.Shows.Slug.Get.Route
     API.Shows.Slug.Get.Templates.Episode

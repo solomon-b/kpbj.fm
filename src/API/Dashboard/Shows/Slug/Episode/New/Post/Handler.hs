@@ -1,17 +1,18 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Slug.Episode.New.Post.Handler where
+module API.Dashboard.Shows.Slug.Episode.New.Post.Handler where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
+import API.Dashboard.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), TrackInfo (..))
 import API.Links (showEpisodesLinks)
 import API.Shows.Slug.Episode.Get.Templates.Page qualified as DetailPage
-import API.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
-import API.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), TrackInfo (..))
-import API.Types
-import App.Common (getUserInfo, renderTemplate)
+import API.Types (ShowEpisodesRoutes (..))
+import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
+import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -57,7 +58,7 @@ import Utils (partitionEithers)
 
 --------------------------------------------------------------------------------
 
--- | Helper to render the new episode form with an error banner
+-- | Helper to render the new episode form with an error banner using dashboard frame
 renderFormWithError ::
   ( MonadDB m,
     Log.MonadLog m,
@@ -69,23 +70,25 @@ renderFormWithError ::
     Has HSQL.Pool.Pool env
   ) =>
   HxRequest ->
-  Maybe UserMetadata.Model ->
+  UserMetadata.Model ->
+  [Shows.Model] ->
   Shows.Model ->
   Text ->
   Text ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-renderFormWithError hxRequest mUserMetadata showModel title message = do
+renderFormWithError hxRequest userMetadata allShows showModel title message = do
   -- Fetch upcoming dates for the form
   upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id 4)
   let upcomingDates = fromRight [] upcomingDatesResult
       banner = renderBanner Error title message
-  html <- renderTemplate hxRequest mUserMetadata $ case hxRequest of
-    IsHxRequest -> do
-      episodeUploadForm showModel upcomingDates
-      banner
-    IsNotHxRequest -> do
-      banner
-      episodeUploadForm showModel upcomingDates
+      formContent = case hxRequest of
+        IsHxRequest -> do
+          episodeUploadForm showModel upcomingDates
+          banner
+        IsNotHxRequest -> do
+          banner
+          episodeUploadForm showModel upcomingDates
+  html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing formContent
   pure $ Servant.noHeader html
 
 handler ::
@@ -110,41 +113,83 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
       let banner = renderBanner Error "Login Required" "You must be logged in to upload episodes."
       html <- renderTemplate hxRequest Nothing (banner :: Lucid.Html ())
       pure $ Servant.noHeader html
-    Just (user, userMetadata) -> do
-      -- Verify show exists and user is authorized
-      showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
-      case showResult of
-        Left _err -> do
-          Log.logInfo "Failed to fetch show" showSlug
-          let banner = renderBanner Error "Error" "Failed to load show information."
-          html <- renderTemplate hxRequest (Just userMetadata) banner
-          pure $ Servant.noHeader html
-        Right Nothing -> do
-          Log.logInfo "Show not found" showSlug
-          let banner = renderBanner Error "Error" "Show not found."
-          html <- renderTemplate hxRequest (Just userMetadata) banner
-          pure $ Servant.noHeader html
-        Right (Just showModel) -> do
-          -- Verify user is host (admins can upload to any show)
-          isAuthorized <-
-            if UserMetadata.isAdmin userMetadata.mUserRole
-              then pure (Right True) -- Admins always authorized
-              else execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
-          case isAuthorized of
+    Just (user, userMetadata)
+      | UserMetadata.isAdmin userMetadata.mUserRole -> do
+          -- Admin user - fetch all shows
+          execQuerySpan Shows.getAllActiveShows >>= \case
             Left _err -> do
-              Log.logInfo "Failed to check host permissions" showSlug
-              renderFormWithError hxRequest (Just userMetadata) showModel "Error" "Failed to verify permissions."
-            Right True | not (UserMetadata.isSuspended userMetadata) -> do
-              processEpisodeUpload userMetadata user form >>= \case
-                Left err -> do
-                  Log.logInfo "Episode upload failed" err
-                  renderFormWithError hxRequest (Just userMetadata) showModel "Upload Failed" err
-                Right episodeId -> do
-                  Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
-                  handleUploadSuccess hxRequest userMetadata showModel episodeId
-            Right _ -> do
-              Log.logInfo "User is not host of show" (user.mId, showSlug)
-              renderFormWithError hxRequest (Just userMetadata) showModel "Permission Denied" "You are not authorized to upload episodes for this show."
+              Log.logInfo "Failed to fetch shows for admin" ()
+              let banner = renderBanner Error "Error" "Failed to load shows."
+              html <- renderTemplate hxRequest (Just userMetadata) banner
+              pure $ Servant.noHeader html
+            Right allShows ->
+              processUploadForUser user userMetadata allShows showSlug hxRequest form
+    Just (user, userMetadata) -> do
+      -- Regular host - fetch their assigned shows
+      execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
+        Left _err -> do
+          Log.logInfo "Failed to fetch shows for user" (User.mId user)
+          let banner = renderBanner Error "Error" "Failed to load your shows."
+          html <- renderTemplate hxRequest (Just userMetadata) banner
+          pure $ Servant.noHeader html
+        Right userShows ->
+          processUploadForUser user userMetadata userShows showSlug hxRequest form
+
+-- | Process upload for an authenticated user with their shows list
+processUploadForUser ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  [Shows.Model] ->
+  Slug ->
+  HxRequest ->
+  EpisodeUploadForm ->
+  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
+processUploadForUser user userMetadata allShows showSlug hxRequest form = do
+  -- Verify show exists
+  showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
+  case showResult of
+    Left _err -> do
+      Log.logInfo "Failed to fetch show" showSlug
+      let banner = renderBanner Error "Error" "Failed to load show information."
+          content = banner :: Lucid.Html ()
+      html <- renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes Nothing Nothing content
+      pure $ Servant.noHeader html
+    Right Nothing -> do
+      Log.logInfo "Show not found" showSlug
+      let banner = renderBanner Error "Error" "Show not found."
+          content = banner :: Lucid.Html ()
+      html <- renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes Nothing Nothing content
+      pure $ Servant.noHeader html
+    Right (Just showModel) -> do
+      -- Verify user is host (admins can upload to any show)
+      isAuthorized <-
+        if UserMetadata.isAdmin userMetadata.mUserRole
+          then pure (Right True) -- Admins always authorized
+          else execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
+      case isAuthorized of
+        Left _err -> do
+          Log.logInfo "Failed to check host permissions" showSlug
+          renderFormWithError hxRequest userMetadata allShows showModel "Error" "Failed to verify permissions."
+        Right True | not (UserMetadata.isSuspended userMetadata) -> do
+          processEpisodeUpload userMetadata user form >>= \case
+            Left err -> do
+              Log.logInfo "Episode upload failed" err
+              renderFormWithError hxRequest userMetadata allShows showModel "Upload Failed" err
+            Right episodeId -> do
+              Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
+              handleUploadSuccess hxRequest userMetadata allShows showModel episodeId
+        Right _ -> do
+          Log.logInfo "User is not host of show" (user.mId, showSlug)
+          renderFormWithError hxRequest userMetadata allShows showModel "Permission Denied" "You are not authorized to upload episodes for this show."
 
 -- | Handle successful upload by redirecting to episode page with banner
 handleUploadSuccess ::
@@ -159,10 +204,11 @@ handleUploadSuccess ::
   ) =>
   HxRequest ->
   UserMetadata.Model ->
+  [Shows.Model] ->
   Shows.Model ->
   Episodes.Id ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handleUploadSuccess hxRequest userMetadata showModel episodeId = do
+handleUploadSuccess hxRequest userMetadata allShows showModel episodeId = do
   -- Fetch the created episode
   execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
     Right (Just episode) -> do
@@ -171,18 +217,20 @@ handleUploadSuccess hxRequest userMetadata showModel episodeId = do
       let tracks = fromRight [] tracksResult
           detailUrl = Links.linkURI $ showEpisodesLinks.detailWithSlug showModel.slug episodeId episode.slug
           banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
-      html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-        IsHxRequest -> do
-          DetailPage.template showModel episode tracks
-          banner
-        IsNotHxRequest -> do
-          banner
-          DetailPage.template showModel episode tracks
+          content = case hxRequest of
+            IsHxRequest -> do
+              DetailPage.template showModel episode tracks
+              banner
+            IsNotHxRequest -> do
+              banner
+              DetailPage.template showModel episode tracks
+      html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing content
       pure $ Servant.addHeader [i|/#{detailUrl}|] html
     _ -> do
       Log.logInfo_ "Created episode but failed to retrieve it"
       let banner = renderBanner Warning "Episode Created" "Episode was created successfully, but there was an error displaying the confirmation."
-      html <- renderTemplate hxRequest (Just userMetadata) banner
+          content = banner :: Lucid.Html ()
+      html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing content
       pure $ Servant.noHeader html
 
 -- | Process episode upload form

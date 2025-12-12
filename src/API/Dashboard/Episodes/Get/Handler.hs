@@ -7,7 +7,7 @@ module API.Dashboard.Episodes.Get.Handler where
 
 import API.Dashboard.Episodes.Get.Templates.Page (template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
-import API.Links (showEpisodesLinks)
+import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
@@ -130,7 +130,7 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
   where
     actionButton :: Shows.Model -> Maybe (Lucid.Html ())
     actionButton showModel =
-      let uploadUrl = Links.linkURI $ showEpisodesLinks.newGet showModel.slug
+      let uploadUrl = Links.linkURI $ dashboardShowsLinks.episodeNewGet showModel.slug
        in Just $
             Lucid.a_
               [ Lucid.href_ [i|/#{uploadUrl}|],
