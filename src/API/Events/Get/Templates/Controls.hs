@@ -17,10 +17,12 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (MonthOfYear, UTCTime, Year, utctDay)
 import Data.Time.Calendar.WeekDate (toWeekDate)
+import Design.Tokens qualified as Tokens
 import Domain.Types.PageView (PageView (..), isMonthView, isWeekView)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxSwap_, hxTarget_, hxTrigger_)
+import Lucid.Responsive (cls, md)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -44,23 +46,23 @@ listEventsUri maybeTagFilter = Links.linkURI . eventsLinks.list maybeTagFilter
 renderViewControls :: UTCTime -> PageView -> (Year, MonthOfYear) -> Maybe Text -> [EventTags.EventTagWithCount] -> Lucid.Html ()
 renderViewControls currentTime currentView currentMonth maybeTagFilter eventTagsWithCounts = do
   let currentWeek = utcTimeToYearWeek currentTime
-  Lucid.div_ [Lucid.class_ "flex flex-col md:flex-row md:items-center md:justify-between gap-4"] $ do
+  Lucid.div_ [Lucid.class_ $ cls ["flex", "flex-col", md "flex-row", md "items-center", md "justify-between", Tokens.gap4]] $ do
     -- View Toggle
-    Lucid.div_ [Lucid.class_ "flex items-center gap-4"] $ do
-      Lucid.span_ [Lucid.class_ "font-bold text-sm"] "VIEW:"
-      Lucid.div_ [Lucid.class_ "flex border-2 border-gray-800"] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", Tokens.gap4]] $ do
+      Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold, Tokens.textSm]] "VIEW:"
+      Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.border2, "border-gray-800"]] $ do
         let listClasses =
               if currentView == ListView
-                then "px-4 py-2 bg-gray-800 text-white font-bold"
-                else "px-4 py-2 bg-white text-gray-800 font-bold hover:bg-gray-100"
+                then cls [Tokens.px4, Tokens.py2, Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold]
+                else cls [Tokens.px4, Tokens.py2, Tokens.bgWhite, Tokens.textGray800, Tokens.fontBold, "hover:bg-gray-100"]
             monthClasses =
               if isMonthView currentView
-                then "px-4 py-2 bg-gray-800 text-white font-bold"
-                else "px-4 py-2 bg-white text-gray-800 font-bold hover:bg-gray-100"
+                then cls [Tokens.px4, Tokens.py2, Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold]
+                else cls [Tokens.px4, Tokens.py2, Tokens.bgWhite, Tokens.textGray800, Tokens.fontBold, "hover:bg-gray-100"]
             weekClasses =
               if isWeekView currentView
-                then "px-4 py-2 bg-gray-800 text-white font-bold"
-                else "px-4 py-2 bg-white text-gray-800 font-bold hover:bg-gray-100"
+                then cls [Tokens.px4, Tokens.py2, Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold]
+                else cls [Tokens.px4, Tokens.py2, Tokens.bgWhite, Tokens.textGray800, Tokens.fontBold, "hover:bg-gray-100"]
         Lucid.a_
           [ Lucid.id_ "view-control",
             Lucid.href_ [i|/#{listEventsUri maybeTagFilter (Just ListView)}|],
@@ -92,11 +94,11 @@ renderViewControls currentTime currentView currentMonth maybeTagFilter eventTags
           "WEEK"
 
     -- Filters
-    Lucid.div_ [Lucid.class_ "flex flex-wrap items-center gap-4"] $ do
-      Lucid.span_ [Lucid.class_ "font-bold text-sm"] "FILTER:"
+    Lucid.div_ [Lucid.class_ $ cls ["flex", "flex-wrap", "items-center", Tokens.gap4]] $ do
+      Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold, Tokens.textSm]] "FILTER:"
       -- Event tag filter
       Lucid.select_
-        [ Lucid.class_ "border-2 border-gray-600 p-2 font-mono text-sm",
+        [ Lucid.class_ $ cls [Tokens.border2, "border-gray-600", Tokens.p2, "font-mono", Tokens.textSm],
           Lucid.name_ "tag",
           hxGet_ [i|/#{listEventsUri Nothing (Just currentView)}|],
           hxTarget_ "#events-content-container",

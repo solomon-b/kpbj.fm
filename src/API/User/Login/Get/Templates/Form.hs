@@ -11,9 +11,11 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Design.Tokens qualified as Tokens
 import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
 import Lucid.Extras
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
@@ -63,29 +65,29 @@ template emailAddress redirectLink =
       emailValue = maybe "" display emailAddress
       redirectLink' = fromMaybe "/" redirectLink
    in Lucid.div_
-        [ Lucid.class_ "w-full max-w-md mx-auto",
+        [ Lucid.class_ $ cls [Tokens.fullWidth, "max-w-md", "mx-auto"],
           xData_ (alpineState emailValue)
         ]
         do
-          Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8"] do
-            Lucid.div_ [Lucid.class_ "text-center mb-8"] do
-              Lucid.h3_ [Lucid.class_ "text-2xl font-bold mb-2"] "🔐 LOGIN"
-              Lucid.div_ [Lucid.class_ "text-sm text-gray-600"] "Access your KPBJ community account"
+          Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, "p-8"]] do
+            Lucid.div_ [Lucid.class_ $ cls ["text-center", Tokens.mb8]] do
+              Lucid.h3_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "LOGIN"
+              Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray600]] "Access your KPBJ community account"
             Lucid.form_ [Lucid.class_ "space-y-6", hxPost_ [i|/#{userLoginPostUrl redirectLink'}|]] do
               validationNotice
               emailField
               passwordField
               lostPasswordField
               submitButton
-            Lucid.div_ [Lucid.class_ "mt-8 pt-6 border-t border-gray-300 text-center"] do
-              Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mb-4"] "Don't have an account yet?"
+            Lucid.div_ [Lucid.class_ $ cls ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center"]] do
+              Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray600, Tokens.mb4]] "Don't have an account yet?"
               Lucid.a_
-                [Lucid.href_ "#", hxGet_ [i|/#{userRegisterGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700 inline-block"]
+                [Lucid.href_ "#", hxGet_ [i|/#{userRegisterGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ $ cls ["bg-green-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-green-700", "inline-block"]]
                 "CREATE ACCOUNT"
 
-          Lucid.div_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6 mt-6"] do
-            Lucid.h3_ [Lucid.class_ "font-bold mb-3"] "🎙️ JOIN OUR COMMUNITY"
-            Lucid.div_ [Lucid.class_ "text-sm space-y-2 text-gray-700"] do
+          Lucid.div_ [Lucid.class_ $ cls [Tokens.bgGray100, Tokens.border2, "border-gray-400", Tokens.p6, "mt-6"]] do
+            Lucid.h3_ [Lucid.class_ $ cls [Tokens.fontBold, "mb-3"]] "JOIN OUR COMMUNITY"
+            Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, "space-y-2", Tokens.textGray700]] do
               Lucid.div_ "• Comment on blog posts and events"
               Lucid.div_ "• Apply to host your own show"
               Lucid.div_ "• Submit event listings"
@@ -96,13 +98,13 @@ emailField :: Lucid.Html ()
 emailField =
   Lucid.div_ do
     Lucid.label_
-      [Lucid.for_ "email", Lucid.class_ "block font-bold mb-2"]
+      [Lucid.for_ "email", Lucid.class_ $ cls ["block", Tokens.fontBold, Tokens.mb2]]
       "Email or Username *"
     Lucid.input_
       [ Lucid.type_ "email",
         Lucid.name_ "email",
         Lucid.id_ "email",
-        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600",
+        Lucid.class_ $ cls [Tokens.fullWidth, Tokens.p3, Tokens.border2, "border-gray-400", "font-mono", "focus:border-blue-600"],
         Lucid.placeholder_ "your@email.com or username",
         xModel_ "fields.email.value",
         xBindClass_ "showErrors && !fields.email.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
@@ -112,31 +114,31 @@ passwordField :: Lucid.Html ()
 passwordField =
   Lucid.div_ [] do
     Lucid.label_
-      [Lucid.for_ "password", Lucid.class_ "block font-bold mb-2"]
+      [Lucid.for_ "password", Lucid.class_ $ cls ["block", Tokens.fontBold, Tokens.mb2]]
       "Password *"
     Lucid.input_
       [ Lucid.type_ "password",
         Lucid.name_ "password",
         Lucid.id_ "password",
         Lucid.placeholder_ "Your password",
-        Lucid.class_ "w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600",
+        Lucid.class_ $ cls [Tokens.fullWidth, Tokens.p3, Tokens.border2, "border-gray-400", "font-mono", "focus:border-blue-600"],
         xModel_ "fields.password.value",
         xBindClass_ "showErrors && !fields.password.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
       ]
 
 lostPasswordField :: Lucid.Html ()
 lostPasswordField =
-  Lucid.div_ [Lucid.class_ "flex items-center justify-between text-sm"] do
-    Lucid.div_ [Lucid.class_ "flex items-center"] do
+  Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between", Tokens.textSm]] do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center"]] do
       Lucid.input_ [Lucid.type_ "checkbox", Lucid.id_ "remember", Lucid.class_ "mr-2"]
       Lucid.label_ [Lucid.for_ "remember"] "Remember me"
-    Lucid.a_ [Lucid.href_ "#", hxGet_ "/forgot-password", hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ "text-blue-600 hover:text-blue-800 hover:underline"] "Forgot password?"
+    Lucid.a_ [Lucid.href_ "#", hxGet_ "/forgot-password", hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", Lucid.class_ $ cls ["text-blue-600", "hover:text-blue-800", "hover:underline"]] "Forgot password?"
 
 submitButton :: Lucid.Html ()
 submitButton =
   Lucid.button_
     [ Lucid.type_ "submit",
-      Lucid.class_ "w-full bg-blue-600 text-white p-3 font-bold hover:bg-blue-700 transition-colors",
+      Lucid.class_ $ cls [Tokens.fullWidth, "bg-blue-600", Tokens.textWhite, Tokens.p3, Tokens.fontBold, "hover:bg-blue-700", "transition-colors"],
       xOnClick_ "validateAndSubmit($event)"
     ]
     "LOGIN"
@@ -144,5 +146,5 @@ submitButton =
 alert :: Lucid.Html ()
 alert =
   Lucid.div_
-    [Lucid.class_ "p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400", Lucid.role_ "alert"]
+    [Lucid.class_ $ cls [Tokens.p4, Tokens.mb4, Tokens.textSm, "text-red-800", "rounded-lg", "bg-red-50"], Lucid.role_ "alert"]
     "Your email address or password is invalid."

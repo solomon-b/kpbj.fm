@@ -15,21 +15,23 @@ import Control.Monad (unless)
 import Data.Maybe (isNothing)
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Responsive (cls, lg, md)
 import Servant.Links qualified as Links
 
 -- | Main shows list template
 template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
 template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
   -- Shows Header
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center w-full"] $ do
-    Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] "ALL SHOWS"
-    Lucid.p_ [Lucid.class_ "text-lg text-gray-600 mb-6"] "Browse KPBJ's diverse lineup of community radio shows"
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8, "text-center", Tokens.fullWidth]] $ do
+    Lucid.h1_ [Lucid.class_ Tokens.heading2xl] "ALL SHOWS"
+    Lucid.p_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.textGray600, Tokens.mb6]] "Browse KPBJ's diverse lineup of community radio shows"
 
   -- Content Navigation Tabs
   renderTabs
@@ -39,11 +41,11 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
 
   -- Shows Grid
   if null allShows
-    then Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-      Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "No Shows Found"
-      Lucid.p_ [Lucid.class_ "text-gray-600"] "Check back soon for new shows!"
+    then Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
+      Lucid.h2_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Shows Found"
+      Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for new shows!"
     else do
-      Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 w-full"] $ do
+      Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-1", md "grid-cols-2", lg "grid-cols-3", Tokens.gap6, Tokens.mb8, Tokens.fullWidth]] $ do
         mapM_ renderShowCard allShows
 
       -- Pagination
@@ -55,15 +57,15 @@ renderTabs :: Lucid.Html ()
 renderTabs =
   let showsScheduleUrl = Links.linkURI $ showsLinks.schedule Nothing
       showsListUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
-   in Lucid.div_ [Lucid.class_ "mb-8 w-full border-b-2 border-gray-800"] $ do
-        Lucid.nav_ [Lucid.class_ "flex gap-8"] $ do
+   in Lucid.div_ [Lucid.class_ $ cls [Tokens.mb8, Tokens.fullWidth, "border-b-2", "border-gray-800"]] $ do
+        Lucid.nav_ [Lucid.class_ $ cls ["flex", Tokens.gap8]] $ do
           -- Schedule tab (inactive)
           Lucid.a_
             [ Lucid.href_ [i|/#{showsScheduleUrl}|],
               hxGet_ [i|/#{showsScheduleUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              Lucid.class_ "py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800"
+              Lucid.class_ $ cls ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.textGray600, "hover:text-gray-800"]
             ]
             "Schedule"
 
@@ -73,43 +75,43 @@ renderTabs =
               hxGet_ [i|/#{showsListUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              Lucid.class_ "py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5"
+              Lucid.class_ $ cls ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", "border-gray-800", Tokens.bgWhite, "-mb-0.5"]
             ]
             "All Shows"
 
 -- | Render show filters
 renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
 renderFilters maybeGenre maybeStatus maybeSearch = do
-  Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8 w-full"] $ do
-    Lucid.h2_ [Lucid.class_ "text-lg font-bold mb-4 uppercase border-b border-gray-800 pb-2"] "Filter Shows"
+  Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+    Lucid.h2_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "Filter Shows"
 
     Lucid.form_ [Lucid.id_ "show-filters", Lucid.class_ "space-y-4"] $ do
       -- Search bar
       Lucid.div_ [Lucid.class_ "col-span-full"] $ do
-        Lucid.label_ [Lucid.class_ "block text-sm font-bold mb-2", Lucid.for_ "search"] "SEARCH SHOWS"
+        Lucid.label_ [Lucid.class_ $ cls ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "search"] "SEARCH SHOWS"
         Lucid.div_ [Lucid.class_ "relative"] $ do
           Lucid.input_
             [ Lucid.type_ "text",
               Lucid.id_ "search",
               Lucid.name_ "search",
-              Lucid.class_ "w-full border-2 border-gray-600 px-3 py-2 pr-10 font-mono",
+              Lucid.class_ $ cls [Tokens.fullWidth, Tokens.border2, "border-gray-600", "px-3", Tokens.py2, "pr-10", "font-mono"],
               Lucid.placeholder_ "Search by show title, description...",
               Lucid.value_ (maybe "" display maybeSearch)
             ]
           Lucid.button_
             [ Lucid.type_ "submit",
-              Lucid.class_ "absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-600 hover:text-gray-800"
+              Lucid.class_ $ cls ["absolute", "right-2", "top-1/2", "transform", "-translate-y-1/2", Tokens.textGray600, "hover:text-gray-800"]
             ]
             "🔍"
 
-      Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-3 gap-4"] $ do
+      Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-1", md "grid-cols-3", Tokens.gap4]] $ do
         -- Genre filter
         Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block text-sm font-bold mb-2", Lucid.for_ "genre"] "GENRE"
+          Lucid.label_ [Lucid.class_ $ cls ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "genre"] "GENRE"
           Lucid.select_
             [ Lucid.id_ "genre",
               Lucid.name_ "genre",
-              Lucid.class_ "w-full border-2 border-gray-600 px-3 py-2 bg-white font-mono"
+              Lucid.class_ $ cls [Tokens.fullWidth, Tokens.border2, "border-gray-600", "px-3", Tokens.py2, Tokens.bgWhite, "font-mono"]
             ]
             $ do
               Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeGenre]) "All Genres"
@@ -122,11 +124,11 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
 
         -- Status filter
         Lucid.div_ $ do
-          Lucid.label_ [Lucid.class_ "block text-sm font-bold mb-2", Lucid.for_ "status"] "STATUS"
+          Lucid.label_ [Lucid.class_ $ cls ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "status"] "STATUS"
           Lucid.select_
             [ Lucid.id_ "status",
               Lucid.name_ "status",
-              Lucid.class_ "w-full border-2 border-gray-600 px-3 py-2 bg-white font-mono"
+              Lucid.class_ $ cls [Tokens.fullWidth, Tokens.border2, "border-gray-600", "px-3", Tokens.py2, Tokens.bgWhite, "font-mono"]
             ]
             $ do
               Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeStatus]) "All Shows"
@@ -134,10 +136,10 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
               Lucid.option_ ([Lucid.value_ "hiatus"] <> [Lucid.selected_ "selected" | maybeStatus == Just Shows.Inactive]) "Inactive"
 
         -- Filter button
-        Lucid.div_ [Lucid.class_ "flex items-end"] $ do
+        Lucid.div_ [Lucid.class_ $ cls ["flex", "items-end"]] $ do
           Lucid.button_
             [ Lucid.type_ "submit",
-              Lucid.class_ "w-full bg-gray-800 text-white py-2 px-4 font-bold hover:bg-gray-700"
+              Lucid.class_ $ cls [Tokens.fullWidth, Tokens.bgGray800, Tokens.textWhite, Tokens.py2, Tokens.px4, Tokens.fontBold, "hover:bg-gray-700"]
             ]
             "FILTER"
 
@@ -161,9 +163,9 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
         <> "}\n"
 
     -- Clear filters link
-    Lucid.div_ [Lucid.class_ "mt-4 text-center"] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["mt-4", "text-center"]] $ do
       Lucid.button_
         [ Lucid.onclick_ "clearFilters()",
-          Lucid.class_ "text-sm text-gray-600 hover:text-gray-800 underline"
+          Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray600, "hover:text-gray-800", "underline"]
         ]
         "Clear All Filters"

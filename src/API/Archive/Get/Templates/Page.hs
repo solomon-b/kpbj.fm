@@ -8,9 +8,11 @@ import Control.Monad (when)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxSwapOob_, hxSwap_, hxTarget_)
+import Lucid.Responsive (cls, lg, md)
 
 --------------------------------------------------------------------------------
 
@@ -24,7 +26,7 @@ template ::
   Maybe Int ->
   Lucid.Html ()
 template episodes page hasMore totalCount mSearch mGenre mYear = do
-  Lucid.div_ [Lucid.id_ "archive-content", Lucid.class_ "w-full"] $ do
+  Lucid.div_ [Lucid.id_ "archive-content", Lucid.class_ Tokens.fullWidth] $ do
     pageHeader
     renderSearchFilters mSearch mGenre mYear totalCount
     episodeGrid episodes
@@ -35,13 +37,13 @@ template episodes page hasMore totalCount mSearch mGenre mYear = do
         Lucid.div_ [Lucid.class_ "text-center mt-8"] $ do
           let loadMoreUrl = "/archive?page=" <> Text.pack (show (page + 1)) <> buildFilterParams mSearch mGenre mYear
           Lucid.button_
-            [ Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700",
+            [ Lucid.class_ Tokens.buttonPrimary,
               hxGet_ loadMoreUrl,
               hxTarget_ "#episodes-grid",
               hxSwap_ "beforeend"
             ]
             "LOAD MORE EPISODES"
-          Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mt-3"] $ do
+          Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray600, "mt-3"]] $ do
             "Showing "
             Lucid.toHtml $ show $ min (page * 12) totalCount
             " of "
@@ -50,9 +52,9 @@ template episodes page hasMore totalCount mSearch mGenre mYear = do
 
 pageHeader :: Lucid.Html ()
 pageHeader =
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center"] $ do
-    Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] "EPISODE ARCHIVE"
-    Lucid.p_ [Lucid.class_ "text-lg text-gray-600 mb-6"] "Browse and discover episodes from all KPBJ shows"
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8, "text-center"]] $ do
+    Lucid.h1_ [Lucid.class_ Tokens.heading2xl] "EPISODE ARCHIVE"
+    Lucid.p_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.textGray600, Tokens.mb6]] "Browse and discover episodes from all KPBJ shows"
 
 episodeGrid ::
   [Episodes.EpisodeWithShow] ->
@@ -61,11 +63,11 @@ episodeGrid episodes =
   Lucid.section_ [Lucid.class_ "space-y-6"] $ do
     if null episodes
       then do
-        Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-          Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-2"] "No episodes found"
-          Lucid.p_ [Lucid.class_ "text-gray-600"] "Try adjusting your filters or search terms."
+        Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
+          Lucid.h2_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.fontBold, Tokens.mb2]] "No episodes found"
+          Lucid.p_ [Lucid.class_ Tokens.textGray600] "Try adjusting your filters or search terms."
       else do
-        Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", Lucid.id_ "episodes-grid"] $ do
+        Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-1", md "grid-cols-2", lg "grid-cols-3", Tokens.gap6], Lucid.id_ "episodes-grid"] $ do
           mapM_ renderEpisodeCard episodes
 
 buildFilterParams :: Maybe Text -> Maybe Text -> Maybe Int -> Text
@@ -103,13 +105,13 @@ episodeCardsOnly episodes page hasMore totalCount mSearch mGenre mYear = do
       Lucid.div_ [Lucid.class_ "text-center mt-8"] $ do
         let loadMoreUrl = "/archive?page=" <> Text.pack (show (page + 1)) <> buildFilterParams mSearch mGenre mYear
         Lucid.button_
-          [ Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700",
+          [ Lucid.class_ Tokens.buttonPrimary,
             hxGet_ loadMoreUrl,
             hxTarget_ "#episodes-grid",
             hxSwap_ "beforeend"
           ]
           "LOAD MORE EPISODES"
-        Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mt-3"] $ do
+        Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray600, "mt-3"]] $ do
           "Showing "
           Lucid.toHtml $ show $ min (page * 12) totalCount
           " of "

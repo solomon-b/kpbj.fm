@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module API.Dashboard.Episodes.Get.Templates.Page
   ( template,
   )
@@ -7,10 +5,12 @@ where
 
 import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
+import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Lucid.Responsive (cls)
 
 -- | Episodes dashboard template (stats are now in the top bar)
 template ::
@@ -23,12 +23,12 @@ template = renderEpisodesSection
 -- | Episodes table section
 renderEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Lucid.Html ()
 renderEpisodesSection userMeta selectedShow episodes =
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
     case episodes of
       [] ->
-        Lucid.div_ [Lucid.class_ "text-gray-600 text-center p-8"] $ do
+        Lucid.div_ [Lucid.class_ $ cls [Tokens.textGray600, "text-center", "p-8"]] $ do
           Lucid.p_ "No episodes uploaded yet."
-          Lucid.p_ [Lucid.class_ "text-sm mt-2"] "Use 'New Episode' to upload your first episode."
+          Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, "mt-2"]] "Use 'New Episode' to upload your first episode."
       _ ->
         renderTable
           TableConfig

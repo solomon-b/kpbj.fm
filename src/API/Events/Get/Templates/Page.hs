@@ -8,9 +8,11 @@ where
 import API.Events.Get.Templates.Controls (renderViewControls)
 import Data.Text (Text)
 import Data.Time (MonthOfYear, UTCTime, Year)
+import Design.Tokens qualified as Tokens
 import Domain.Types.PageView (PageView)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Lucid qualified
+import Lucid.Responsive (cls)
 
 --------------------------------------------------------------------------------
 
@@ -18,10 +20,10 @@ import Lucid qualified
 header :: UTCTime -> PageView -> Maybe Text -> (Year, MonthOfYear) -> [EventTags.EventTagWithCount] -> Lucid.Html ()
 header currentTime pageView maybeTagFilter currentMonth eventTagsWithCounts = do
   -- Events Header
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 text-center w-full"] $ do
-    Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] "COMMUNITY EVENTS"
-    Lucid.p_ [Lucid.class_ "text-lg text-gray-600 mb-6"] "Connect with the KPBJ community through live shows, fundraisers, and gatherings"
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8, "text-center", Tokens.fullWidth]] $ do
+    Lucid.h1_ [Lucid.class_ Tokens.heading2xl] "COMMUNITY EVENTS"
+    Lucid.p_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.textGray600, Tokens.mb6]] "Connect with the KPBJ community through live shows, fundraisers, and gatherings"
 
   -- View Controls & Filters
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8 w-full"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
     renderViewControls currentTime pageView currentMonth maybeTagFilter eventTagsWithCounts

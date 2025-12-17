@@ -15,10 +15,12 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..))
+import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
+import Lucid.Responsive (cls, lg)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Rel8 (Result)
 import Servant.Links qualified as Links
@@ -35,15 +37,15 @@ renderShowHeader showModel hosts schedules = do
   case showModel.bannerUrl of
     Just bannerUrl -> do
       let bannerAlt = showModel.title <> " banner"
-      Lucid.div_ [Lucid.class_ "w-full mb-8 border-2 border-gray-800 overflow-hidden"] $ do
+      Lucid.div_ [Lucid.class_ $ cls [Tokens.fullWidth, Tokens.mb8, Tokens.cardBorder, "overflow-hidden"]] $ do
         Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{bannerUrl}|], Lucid.alt_ bannerAlt, Lucid.class_ "w-full h-auto object-cover"]
     Nothing -> mempty
 
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-4 gap-8"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-1", lg "grid-cols-4", Tokens.gap8]] $ do
       -- Show Logo
-      Lucid.div_ [Lucid.class_ "lg:col-span-1"] $ do
-        Lucid.div_ [Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center text-lg"] $ do
+      Lucid.div_ [Lucid.class_ $ lg "col-span-1"] $ do
+        Lucid.div_ [Lucid.class_ $ cls [Tokens.fullWidth, "aspect-square", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
           case showModel.logoUrl of
             Just logoUrl -> do
               let logoAlt = showModel.title <> " logo"
@@ -51,13 +53,13 @@ renderShowHeader showModel hosts schedules = do
             Nothing -> "[SHOW IMAGE]"
 
       -- Show Info
-      Lucid.div_ [Lucid.class_ "lg:col-span-3"] $ do
-        Lucid.div_ [Lucid.class_ "mb-4"] $ do
-          Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-2"] $ Lucid.toHtml (Text.toUpper showModel.title)
+      Lucid.div_ [Lucid.class_ $ lg "col-span-3"] $ do
+        Lucid.div_ [Lucid.class_ Tokens.mb4] $ do
+          Lucid.h1_ [Lucid.class_ $ cls [Tokens.text3xl, Tokens.fontBold, Tokens.mb2]] $ Lucid.toHtml (Text.toUpper showModel.title)
 
-          Lucid.div_ [Lucid.class_ "text-lg text-gray-600 mb-4"] $ do
+          Lucid.div_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.textGray600, Tokens.mb4]] $ do
             -- Show host information
-            Lucid.span_ [Lucid.class_ "font-bold"] "Host: "
+            Lucid.span_ [Lucid.class_ Tokens.fontBold] "Host: "
             case hosts of
               [] -> "TBD"
               (ShowHost.ShowHostWithUser {displayName = dn} : otherHosts) -> do
@@ -68,7 +70,7 @@ renderShowHeader showModel hosts schedules = do
                   mconcat $ map (", " <>) otherNames
             " • "
             -- Show schedule information
-            Lucid.span_ [Lucid.class_ "font-bold"] "Schedule: "
+            Lucid.span_ [Lucid.class_ Tokens.fontBold] "Schedule: "
             case schedules of
               [] -> "TBD"
               (ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stStartTime = st, stEndTime = et} : _) -> do
@@ -87,10 +89,10 @@ renderShowHeader showModel hosts schedules = do
                     Lucid.toHtml $ dayName <> "s " <> formatTimeOfDay st <> " - " <> formatTimeOfDay et
             " • "
             case showModel.genre of
-              Just genre -> Lucid.span_ [Lucid.class_ "font-bold"] "Genre: " <> Lucid.toHtml genre
+              Just genre -> Lucid.span_ [Lucid.class_ Tokens.fontBold] "Genre: " <> Lucid.toHtml genre
               Nothing -> mempty
 
         -- Show Description
-        Lucid.div_ [Lucid.class_ "mb-6"] $ do
-          Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-3 uppercase border-b border-gray-800 pb-2"] "About The Show"
-          Lucid.p_ [Lucid.class_ "mb-4 leading-relaxed"] $ Lucid.toHtml showModel.description
+        Lucid.div_ [Lucid.class_ Tokens.mb6] $ do
+          Lucid.h2_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.fontBold, "mb-3", "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "About The Show"
+          Lucid.p_ [Lucid.class_ $ cls [Tokens.mb4, "leading-relaxed"]] $ Lucid.toHtml showModel.description

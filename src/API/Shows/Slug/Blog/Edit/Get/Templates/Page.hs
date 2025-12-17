@@ -16,12 +16,14 @@ import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Design.Tokens qualified as Tokens
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -56,20 +58,20 @@ editBlogPostForm showModel post tags = do
 
 renderFormHeader :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
 renderFormHeader showModel post =
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
-        Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "EDIT BLOG POST"
-        Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
+        Lucid.h1_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT BLOG POST"
+        Lucid.div_ [Lucid.class_ $ cls ["text-gray-300", Tokens.textSm]] $ do
           Lucid.strong_ "Show: "
           Lucid.toHtml (Shows.title showModel)
-      Lucid.div_ [Lucid.class_ "text-center flex gap-4"] $ do
+      Lucid.div_ [Lucid.class_ $ cls ["text-center", "flex", Tokens.gap4]] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{showBlogPostGetUrl showModel post}|],
             hxGet_ [i|/#{showBlogPostGetUrl showModel post}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            Lucid.class_ $ cls ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW POST"
         Lucid.a_
@@ -77,7 +79,7 @@ renderFormHeader showModel post =
             hxGet_ [i|/#{showBlogGetUrl showModel}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            Lucid.class_ $ cls ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW BLOG"
 
@@ -173,13 +175,13 @@ showBlogEditFormFields post tags =
 renderSubmitActions :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
 renderSubmitActions _showModel post =
   let isPublished = ShowBlogPosts.status post == Published
-   in Lucid.section_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6"] $ do
-        Lucid.div_ [Lucid.class_ "flex justify-end items-center"] $ do
-          Lucid.div_ [Lucid.class_ "flex gap-4 items-center"] $ do
+   in Lucid.section_ [Lucid.class_ $ cls [Tokens.bgGray100, Tokens.border2, "border-gray-400", Tokens.p6]] $ do
+        Lucid.div_ [Lucid.class_ $ cls ["flex", "justify-end", "items-center"]] $ do
+          Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.gap4, "items-center"]] $ do
             -- Status toggle switch
-            Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
-              Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Draft"
-              Lucid.label_ [Lucid.class_ "relative inline-flex items-center cursor-pointer"] $ do
+            Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "gap-3"]] $ do
+              Lucid.span_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.fontBold, Tokens.textGray600]] "Draft"
+              Lucid.label_ [Lucid.class_ $ cls ["relative", "inline-flex", "items-center", "cursor-pointer"]] $ do
                 Lucid.input_ $
                   [ Lucid.type_ "checkbox",
                     Lucid.id_ "status-toggle",
@@ -196,10 +198,10 @@ renderSubmitActions _showModel post =
                         <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
                   ]
                   mempty
-              Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Published"
+              Lucid.span_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.fontBold, Tokens.textGray600]] "Published"
             Lucid.button_
               [ Lucid.type_ "submit",
-                Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
+                Lucid.class_ $ cls ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
               ]
               "SUBMIT"
 
@@ -224,18 +226,18 @@ renderStatusToggleScript =
 
 notLoggedInTemplate :: Lucid.Html ()
 notLoggedInTemplate = do
-  Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Authentication Required"
-    Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You must be logged in to edit blog posts."
+  Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
+    Lucid.h2_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "Authentication Required"
+    Lucid.p_ [Lucid.class_ $ cls [Tokens.mb4, Tokens.textGray600]] "You must be logged in to edit blog posts."
 
 permissionDeniedTemplate :: Lucid.Html ()
 permissionDeniedTemplate = do
-  Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Permission Denied"
-    Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] "You are not authorized to edit this blog post."
+  Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
+    Lucid.h2_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "Permission Denied"
+    Lucid.p_ [Lucid.class_ $ cls [Tokens.mb4, Tokens.textGray600]] "You are not authorized to edit this blog post."
 
 errorTemplate :: Text -> Lucid.Html ()
 errorTemplate errorMsg = do
-  Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Error"
-    Lucid.p_ [Lucid.class_ "mb-4 text-gray-600"] $ Lucid.toHtml errorMsg
+  Lucid.div_ [Lucid.class_ $ cls [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
+    Lucid.h2_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "Error"
+    Lucid.p_ [Lucid.class_ "text-red-700"] $ Lucid.toHtml errorMsg

@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module Component.Banner
   ( BannerType (..),
     renderBanner,
@@ -9,10 +7,11 @@ where
 
 --------------------------------------------------------------------------------
 
-import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Base qualified as LucidBase
+import Lucid.Responsive (cls)
 
 --------------------------------------------------------------------------------
 
@@ -43,55 +42,55 @@ renderBanner bannerType title message =
   Lucid.div_
     [ Lucid.id_ bannerContainerId,
       LucidBase.makeAttributes "hx-swap-oob" "true",
-      Lucid.class_ "w-full"
+      Lucid.class_ Tokens.fullWidth
     ]
     $ do
       Lucid.div_
         [ Lucid.id_ "banner",
-          Lucid.class_ [i|#{bgColor} border-2 #{borderColor} p-4 mb-6 w-full|]
+          Lucid.class_ $ cls [bgColor, Tokens.border2, borderColor, Tokens.p4, Tokens.mb6, Tokens.fullWidth]
         ]
         $ do
-          Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
-            Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
-              Lucid.span_ [Lucid.class_ "text-2xl"] $ Lucid.toHtml icon
+          Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between"]] $ do
+            Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", Tokens.gap4]] $ do
+              Lucid.span_ [Lucid.class_ Tokens.text2xl] $ Lucid.toHtml icon
               Lucid.div_ $ do
-                Lucid.h3_ [Lucid.class_ [i|font-bold #{titleColor}|]] $ Lucid.toHtml title
-                Lucid.p_ [Lucid.class_ [i|text-sm #{messageColor}|]] $ Lucid.toHtml message
+                Lucid.h3_ [Lucid.class_ $ cls [Tokens.fontBold, titleColor]] $ Lucid.toHtml title
+                Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, messageColor]] $ Lucid.toHtml message
             Lucid.button_
               [ Lucid.onclick_ "this.closest('#banner').remove()",
-                Lucid.class_ [i|#{dismissColor} font-bold text-xl|]
+                Lucid.class_ $ cls [dismissColor, Tokens.fontBold, Tokens.textXl]
               ]
               "×"
   where
     (bgColor, borderColor, titleColor, messageColor, dismissColor, icon) = case bannerType of
       Success ->
-        ( "bg-green-100" :: Text,
-          "border-green-600" :: Text,
-          "text-green-800" :: Text,
+        ( Tokens.successBg,
+          Tokens.successBorder,
+          Tokens.successText,
           "text-green-700" :: Text,
           "text-green-600 hover:text-green-800" :: Text,
           "✓" :: Text
         )
       Error ->
-        ( "bg-red-100",
-          "border-red-600",
-          "text-red-800",
+        ( Tokens.errorBg,
+          Tokens.errorBorder,
+          Tokens.errorText,
           "text-red-700",
           "text-red-600 hover:text-red-800",
           "✕"
         )
       Warning ->
-        ( "bg-yellow-100",
-          "border-yellow-600",
-          "text-yellow-800",
+        ( Tokens.warningBg,
+          Tokens.warningBorder,
+          Tokens.warningText,
           "text-yellow-700",
           "text-yellow-600 hover:text-yellow-800",
           "⚠"
         )
       Info ->
-        ( "bg-blue-100",
-          "border-blue-600",
-          "text-blue-800",
+        ( Tokens.infoBg,
+          Tokens.infoBorder,
+          Tokens.infoText,
           "text-blue-700",
           "text-blue-600 hover:text-blue-800",
           "ℹ"

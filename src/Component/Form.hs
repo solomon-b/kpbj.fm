@@ -22,7 +22,9 @@ where
 
 import Component.Form.Internal
 import Data.Text (Text)
+import Design.Tokens qualified as Tokens
 import Lucid qualified
+import Lucid.Responsive (cls)
 
 --------------------------------------------------------------------------------
 -- Form configuration types
@@ -91,7 +93,7 @@ formTextInput config = do
   Lucid.div_ $ do
     -- Standard label styling (automatically add " *" if required)
     Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "block font-bold mb-2"]
+      [Lucid.for_ name, Lucid.class_ $ cls ["block", Tokens.fontBold, Tokens.mb2]]
       (Lucid.toHtml $ if required then label <> " *" else label)
     -- Standard input styling
     textInput
@@ -104,12 +106,12 @@ formTextInput config = do
       Nothing -- maxLength
       Nothing -- pattern
       Nothing -- title
-      "w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600" -- classes
+      (cls [Tokens.fullWidth, Tokens.p3, Tokens.border2, Tokens.borderGray400, "font-mono", "focus:border-blue-600"]) -- classes
       False -- disabled
       -- Optional hint text with standard styling
     case hint of
       Nothing -> mempty
-      Just h -> Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] (Lucid.toHtml h)
+      Just h -> Lucid.p_ [Lucid.class_ $ cls [Tokens.textXs, Tokens.textGray600, "mt-1"]] (Lucid.toHtml h)
 
 -- | Standard number input field with consistent styling
 -- Usage: formNumberInput FormNumberInputConfig{..}
@@ -119,7 +121,7 @@ formNumberInput config = do
   Lucid.div_ $ do
     -- Standard label styling (automatically add " *" if required)
     Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "block font-bold mb-2"]
+      [Lucid.for_ name, Lucid.class_ $ cls ["block", Tokens.fontBold, Tokens.mb2]]
       (Lucid.toHtml $ if required then label <> " *" else label)
     -- Standard number input styling
     numberInput
@@ -130,12 +132,12 @@ formNumberInput config = do
       maxVal -- max
       Nothing -- step
       required -- required
-      "w-full p-2 border border-gray-400 font-mono text-sm" -- classes
+      (cls [Tokens.fullWidth, Tokens.p2, "border", Tokens.borderGray400, "font-mono", Tokens.textSm]) -- classes
       False -- disabled
       -- Optional hint text
     case hint of
       Nothing -> mempty
-      Just h -> Lucid.p_ [Lucid.class_ "text-xs text-gray-600 mt-1"] (Lucid.toHtml h)
+      Just h -> Lucid.p_ [Lucid.class_ $ cls [Tokens.textXs, Tokens.textGray600, "mt-1"]] (Lucid.toHtml h)
 
 -- | Standard checkbox field with consistent styling
 -- Usage: formCheckbox FormCheckboxConfig{..}
@@ -143,7 +145,7 @@ formCheckbox :: FormCheckboxConfig -> Lucid.Html ()
 formCheckbox config = do
   let FormCheckboxConfig {fcName = name, fcValue = value, fcLabel = label, fcChecked = checked} = config
   Lucid.div_ $ do
-    Lucid.label_ [Lucid.class_ "flex items-center space-x-2"] $ do
+    Lucid.label_ [Lucid.class_ $ cls ["flex", "items-center", "space-x-2"]] $ do
       -- Standard checkbox styling
       checkbox
         name
@@ -153,4 +155,4 @@ formCheckbox config = do
         "w-4 h-4" -- classes
         False -- disabled
         -- Checkbox label
-      Lucid.span_ [Lucid.class_ "text-sm font-bold"] (Lucid.toHtml label)
+      Lucid.span_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.fontBold]] (Lucid.toHtml label)

@@ -19,6 +19,7 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
 import Data.Time (UTCTime)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -26,6 +27,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -161,11 +163,11 @@ template currentTime showModel episode tracks userMeta isStaff = do
 
 formHeader :: Shows.Model -> Episodes.Model -> UserMetadata.Model -> Links.URI -> Lucid.Html ()
 formHeader showModel episode userMeta episodeBackUrl = do
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
-        Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "EDIT EPISODE"
-        Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
+        Lucid.h1_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT EPISODE"
+        Lucid.div_ [Lucid.class_ $ cls ["text-gray-300", Tokens.textSm]] $ do
           Lucid.strong_ "Show: "
           Lucid.toHtml showModel.title
           " • "
@@ -180,7 +182,7 @@ formHeader showModel episode userMeta episodeBackUrl = do
             hxGet_ [i|/#{episodeBackUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            Lucid.class_ $ cls ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "<- BACK TO EPISODE"
         let dashboardUrl = hostDashboardGetUrl
@@ -189,7 +191,7 @@ formHeader showModel episode userMeta episodeBackUrl = do
                 hxGet_ [i|/#{dashboardUrl}|],
                 hxTarget_ "#main-content",
                 hxPushUrl_ "true",
-                Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+                Lucid.class_ $ cls ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
               ]
               "DASHBOARD"
 
@@ -199,11 +201,11 @@ formHeader showModel episode userMeta episodeBackUrl = do
 
 trackListingSection :: [EpisodeTrack.Model] -> Lucid.Html ()
 trackListingSection tracks = do
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4 border-b border-gray-800 pb-2"] "TRACK LISTING"
-    Lucid.div_ [Lucid.id_ "tracks-container", Lucid.class_ "space-y-4"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+    Lucid.h2_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "border-b", "border-gray-800", "pb-2"]] "TRACK LISTING"
+    Lucid.div_ [Lucid.id_ "tracks-container", Lucid.class_ $ cls ["space-y-4"]] $ do
       if null tracks
-        then Lucid.p_ [Lucid.class_ "text-gray-600 italic"] "No tracks added yet."
+        then Lucid.p_ [Lucid.class_ $ cls [Tokens.textGray600, "italic"]] "No tracks added yet."
         else forM_ (zip [(0 :: Int) ..] tracks) $ uncurry renderTrackEditor
     addTrackButton
 
@@ -230,23 +232,23 @@ formActions episode canChangeStatus = do
               <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
               <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
               <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-400"
-  Lucid.section_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6"] $ do
-    Lucid.div_ [Lucid.class_ "flex flex-col gap-4"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgGray100, "border-2", "border-gray-400", Tokens.p6]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", "flex-col", Tokens.gap4]] $ do
       -- Publishing note
       if canChangeStatus
         then
-          Lucid.p_ [Lucid.class_ "text-sm text-gray-600 italic"] $
+          Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray600, "italic"]] $
             "Note: Published episodes will not be publicly visible until the scheduled date/time. "
               <> "Once the scheduled time has passed, the episode can no longer be edited."
         else
-          Lucid.p_ [Lucid.class_ "text-sm text-yellow-700 italic"] $
+          Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, "text-yellow-700", "italic"]] $
             "Note: This episode's scheduled date has passed. Status changes are locked. "
               <> "Only staff or admin users can change the status of past episodes."
-      Lucid.div_ [Lucid.class_ "flex justify-end items-center"] $ do
-        Lucid.div_ [Lucid.class_ "flex gap-4 items-center"] $ do
+      Lucid.div_ [Lucid.class_ $ cls ["flex", "justify-end", "items-center"]] $ do
+        Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.gap4, "items-center"]] $ do
           -- Status toggle switch
-          Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
-            Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Draft"
+          Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "gap-3"]] $ do
+            Lucid.span_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.fontBold, Tokens.textGray600]] "Draft"
             Lucid.label_ [Lucid.class_ labelClass] $ do
               Lucid.input_ $
                 [ Lucid.type_ "checkbox",
@@ -256,10 +258,10 @@ formActions episode canChangeStatus = do
                   <> [Lucid.checked_ | isPublished]
                   <> [Lucid.disabled_ "disabled" | not canChangeStatus]
               Lucid.div_ [Lucid.class_ toggleClass] mempty
-            Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600"] "Published"
+            Lucid.span_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.fontBold, Tokens.textGray600]] "Published"
           Lucid.button_
             [ Lucid.type_ "submit",
-              Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
+              Lucid.class_ $ cls ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
             ]
             "SUBMIT"
   -- JavaScript to sync toggle with hidden field (only if enabled)
@@ -284,11 +286,11 @@ formActions episode canChangeStatus = do
 
 addTrackButton :: Lucid.Html ()
 addTrackButton = do
-  Lucid.div_ [Lucid.class_ "mt-4"] $ do
+  Lucid.div_ [Lucid.class_ $ cls ["mt-4"]] $ do
     Lucid.button_
       [ Lucid.type_ "button",
         Lucid.id_ "add-track-btn",
-        Lucid.class_ "bg-blue-600 text-white px-6 py-2 font-bold hover:bg-blue-700"
+        Lucid.class_ $ cls ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-2", Tokens.fontBold, "hover:bg-blue-700"]
       ]
       "+ ADD TRACK"
 
@@ -297,21 +299,21 @@ addTrackButton = do
 
 renderTrackEditor :: Int -> EpisodeTrack.Model -> Lucid.Html ()
 renderTrackEditor idx track = do
-  Lucid.div_ [Lucid.class_ "border-2 border-gray-300 p-4 track-item"] $ do
+  Lucid.div_ [Lucid.class_ $ cls ["border-2", "border-gray-300", Tokens.p4, "track-item"]] $ do
     trackEditorHeader idx
     hiddenInput [i|tracks[#{idx}][id]|] (display track.id)
-    Lucid.div_ [Lucid.class_ "grid grid-cols-2 gap-4"] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-2", Tokens.gap4]] $ do
       trackNumberField idx track
       trackTitleField idx track
       trackArtistField idx track
 
 trackEditorHeader :: Int -> Lucid.Html ()
 trackEditorHeader idx = do
-  Lucid.div_ [Lucid.class_ "flex justify-between items-center mb-3"] $ do
-    Lucid.h3_ [Lucid.class_ "font-bold"] $ "Track #" <> Lucid.toHtml (show (idx + 1))
+  Lucid.div_ [Lucid.class_ $ cls ["flex", "justify-between", "items-center", "mb-3"]] $ do
+    Lucid.h3_ [Lucid.class_ $ cls [Tokens.fontBold]] $ "Track #" <> Lucid.toHtml (show (idx + 1))
     Lucid.button_
       [ Lucid.type_ "button",
-        Lucid.class_ "text-red-600 font-bold hover:text-red-800 remove-track-btn"
+        Lucid.class_ $ cls ["text-red-600", Tokens.fontBold, "hover:text-red-800", "remove-track-btn"]
       ]
       "X REMOVE"
 
@@ -330,7 +332,7 @@ trackNumberField idx track =
 
 trackTitleField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
 trackTitleField idx track = do
-  Lucid.div_ [Lucid.class_ "col-span-2"] $
+  Lucid.div_ [Lucid.class_ $ cls ["col-span-2"]] $
     Form.formTextInput
       Form.FormTextInputConfig
         { Form.ftiName = [i|tracks[#{idx}][title]|],
@@ -343,7 +345,7 @@ trackTitleField idx track = do
 
 trackArtistField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
 trackArtistField idx track = do
-  Lucid.div_ [Lucid.class_ "col-span-2"] $
+  Lucid.div_ [Lucid.class_ $ cls ["col-span-2"]] $
     Form.formTextInput
       Form.FormTextInputConfig
         { Form.ftiName = [i|tracks[#{idx}][artist]|],

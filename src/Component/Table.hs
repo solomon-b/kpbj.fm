@@ -11,7 +11,9 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
+import Design.Tokens qualified as Tokens
 import Lucid qualified
+import Lucid.Responsive (cls)
 
 --------------------------------------------------------------------------------
 
@@ -65,14 +67,14 @@ renderTable ::
 renderTable config bodyContent =
   Lucid.div_ [Lucid.class_ config.wrapperClass] $
     Lucid.table_ [Lucid.class_ config.tableClass] $ do
-      Lucid.thead_ [Lucid.class_ "bg-gray-800 text-white"] $
+      Lucid.thead_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite]] $
         Lucid.tr_ $
           mapM_ renderHeader config.headers
       Lucid.tbody_ bodyContent
   where
     renderHeader :: ColumnHeader -> Lucid.Html ()
     renderHeader colHeader =
-      Lucid.th_ [Lucid.class_ $ "px-4 py-3 " <> alignClass colHeader.headerAlign <> " text-sm font-bold"] $
+      Lucid.th_ [Lucid.class_ $ cls [Tokens.px4, "py-3", alignClass colHeader.headerAlign, Tokens.textSm, Tokens.fontBold]] $
         Lucid.toHtml colHeader.headerText
 
     alignClass :: ColumnAlign -> Text
