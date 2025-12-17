@@ -11,9 +11,11 @@ import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
 import Component.Form.Builder
 import Data.String.Interpolate (i)
+import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -45,11 +47,11 @@ template userMeta = do
 
 renderFormHeader :: UserMetadata.Model -> Lucid.Html ()
 renderFormHeader userMeta =
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
-        Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "NEW BLOG POST"
-        Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
+        Lucid.h1_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "NEW BLOG POST"
+        Lucid.div_ [Lucid.class_ $ cls ["text-gray-300", Tokens.textSm]] $ do
           Lucid.strong_ "Author: "
           Lucid.toHtml userMeta.mDisplayName
 
@@ -160,11 +162,11 @@ blogFormFields =
 
 renderSubmitActions :: Lucid.Html ()
 renderSubmitActions =
-  Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
+  Lucid.section_ [Lucid.class_ $ cls ["bg-gray-50", Tokens.border2, "border-gray-300", Tokens.p6]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.gap4, "justify-center"]] $ do
       Lucid.button_
         [ Lucid.type_ "submit",
-          Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 transition-colors"
+          Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px8, "py-3", Tokens.fontBold, "hover:bg-gray-700", "transition-colors"]
         ]
         "SAVE POST"
       Lucid.a_
@@ -172,6 +174,6 @@ renderSubmitActions =
           hxGet_ [i|/#{dashboardStationBlogGetUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline"
+          Lucid.class_ $ cls ["bg-gray-400", Tokens.textWhite, Tokens.px8, "py-3", Tokens.fontBold, "hover:bg-gray-500", "transition-colors", "no-underline"]
         ]
         "CANCEL"

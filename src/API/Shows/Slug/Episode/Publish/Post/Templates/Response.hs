@@ -16,12 +16,14 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Base qualified as LucidBase
 import Lucid.Extras (hxDelete_, hxGet_, hxPost_, hxPushUrl_, hxSwap_, hxTarget_, xData_, xOnChange_, xRef_)
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -60,49 +62,49 @@ renderEpisodeRow showModel episode = do
       episodeEditUrl = episodeEditGetUrl showModel.slug episode.id episode.slug
       episodeDelUrl = episodeDeleteUrl showModel.slug episode.id episode.slug
       episodePubUrl = episodePublishUrl showModel.slug episode.id episode.slug
-  Lucid.tr_ [Lucid.class_ "border-b border-gray-300 hover:bg-gray-50", Lucid.id_ episodeRowId] $ do
+  Lucid.tr_ [Lucid.class_ $ cls ["border-b", "border-gray-300", "hover:bg-gray-50"], Lucid.id_ episodeRowId] $ do
     -- Episode number
-    Lucid.td_ [Lucid.class_ "px-4 py-3 font-bold text-gray-800"] $
+    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3", Tokens.fontBold, Tokens.textGray800]] $
       Lucid.toHtml $
         "#" <> Text.pack (show episode.episodeNumber)
 
     -- Title
-    Lucid.td_ [Lucid.class_ "px-4 py-3"] $ do
+    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3"]] $ do
       let episodeUrl = episodeGetUrl showModel.slug episode.id episode.slug
-      Lucid.div_ [Lucid.class_ "font-bold text-gray-900"]
+      Lucid.div_ [Lucid.class_ $ cls [Tokens.fontBold, "text-gray-900"]]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{episodeUrl}|],
             hxGet_ [i|/#{episodeUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "hover:underline text-blue-600"
+            Lucid.class_ $ cls ["hover:underline", "text-blue-600"]
           ]
         $ Lucid.toHtml episode.title
       case episode.description of
         Nothing -> mempty
         Just desc ->
-          Lucid.div_ [Lucid.class_ "text-sm text-gray-600 mt-1"] $ do
+          Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray600, "mt-1"]] $ do
             Lucid.toHtml $ Text.take 100 desc
             if Text.length desc > 100 then "..." else ""
 
     -- Scheduled date
-    Lucid.td_ [Lucid.class_ "px-4 py-3 text-sm"] $ do
+    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3", Tokens.textSm]] $ do
       case episode.scheduledAt of
         Just scheduledAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" scheduledAt
-        Nothing -> Lucid.span_ [Lucid.class_ "text-gray-500 italic"] "Not scheduled"
+        Nothing -> Lucid.span_ [Lucid.class_ $ cls ["text-gray-500", "italic"]] "Not scheduled"
 
     -- Status
-    Lucid.td_ [Lucid.class_ "px-4 py-3 text-sm"] $ do
+    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3", Tokens.textSm]] $ do
       case episode.status of
         Episodes.Draft ->
-          Lucid.span_ [Lucid.class_ "inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold"] "DRAFT"
+          Lucid.span_ [Lucid.class_ $ cls ["inline-block", "bg-yellow-100", "text-yellow-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
         Episodes.Published ->
-          Lucid.span_ [Lucid.class_ "inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold"] "PUBLISHED"
+          Lucid.span_ [Lucid.class_ $ cls ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
         Episodes.Deleted ->
-          Lucid.span_ [Lucid.class_ "inline-block bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold"] "DELETED"
+          Lucid.span_ [Lucid.class_ $ cls ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"
 
     -- Actions dropdown
-    Lucid.td_ [Lucid.class_ "px-4 py-3 text-center"] $
+    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3", "text-center"]] $
       Lucid.div_ [xData_ "{}"] $
         do
           -- Hidden link for Edit - HTMX handles history properly

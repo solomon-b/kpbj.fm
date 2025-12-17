@@ -16,12 +16,14 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -72,11 +74,11 @@ template event tags userMeta = do
 
 renderFormHeader :: Events.Model -> UserMetadata.Model -> Links.URI -> Lucid.Html ()
 renderFormHeader event userMeta eventBackUrl = do
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
-        Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "EDIT EVENT"
-        Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
+        Lucid.h1_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT EVENT"
+        Lucid.div_ [Lucid.class_ $ cls ["text-gray-300", Tokens.textSm]] $ do
           Lucid.strong_ "Event: "
           Lucid.toHtml event.emTitle
           " • "
@@ -88,7 +90,7 @@ renderFormHeader event userMeta eventBackUrl = do
             hxGet_ [i|/#{eventBackUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            Lucid.class_ $ cls ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "<- BACK TO EVENT"
         Lucid.a_
@@ -96,7 +98,7 @@ renderFormHeader event userMeta eventBackUrl = do
             hxGet_ [i|/#{dashboardEventsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            Lucid.class_ $ cls ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW EVENTS"
 
@@ -241,11 +243,11 @@ eventEditFormFields event tagsText =
 
 renderSubmitActions :: Links.URI -> Lucid.Html ()
 renderSubmitActions eventBackUrl =
-  Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
+  Lucid.section_ [Lucid.class_ $ cls ["bg-gray-50", Tokens.border2, "border-gray-300", Tokens.p6]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.gap4, "justify-center"]] $ do
       Lucid.button_
         [ Lucid.type_ "submit",
-          Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 transition-colors"
+          Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", "transition-colors"]
         ]
         "UPDATE EVENT"
       Lucid.a_
@@ -253,6 +255,6 @@ renderSubmitActions eventBackUrl =
           hxGet_ [i|/#{eventBackUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline"
+          Lucid.class_ $ cls ["bg-gray-400", Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-500", "transition-colors", "no-underline"]
         ]
         "CANCEL"

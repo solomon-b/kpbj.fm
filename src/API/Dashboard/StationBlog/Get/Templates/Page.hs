@@ -12,10 +12,12 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Design.Tokens qualified as Tokens
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Lucid qualified
 import Lucid.Extras
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 -- | Station blog posts list template
@@ -29,15 +31,15 @@ template posts currentPage hasMore = do
   if null posts
     then renderEmptyState
     else do
-      Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 overflow-hidden mb-8 w-full"] $
-        Lucid.table_ [Lucid.class_ "w-full"] $ do
-          Lucid.thead_ [Lucid.class_ "bg-gray-800 text-white"] $
+      Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
+        Lucid.table_ [Lucid.class_ $ cls [Tokens.fullWidth]] $ do
+          Lucid.thead_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite]] $
             Lucid.tr_ $ do
-              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Title"
-              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Status"
-              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Created"
-              Lucid.th_ [Lucid.class_ "p-4 text-left"] "Published"
-              Lucid.th_ [Lucid.class_ "p-4 text-center w-24"] ""
+              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Title"
+              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Status"
+              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Created"
+              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Published"
+              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-center", "w-24"]] ""
           Lucid.tbody_ $
             mapM_ renderPostRow posts
 
@@ -56,7 +58,7 @@ renderPostRow post =
       viewUrl = Links.linkURI $ blogLinks.postWithSlug postId postSlug
       deleteUrl = Links.linkURI $ dashboardStationBlogLinks.delete postId postSlug
       cellLinkAttrs =
-        [ Lucid.class_ "p-4 cursor-pointer",
+        [ Lucid.class_ $ cls [Tokens.p4, "cursor-pointer"],
           hxGet_ [i|/#{detailUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
@@ -70,27 +72,27 @@ renderPostRow post =
    in do
         Lucid.tr_
           [ Lucid.id_ rowId,
-            Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"
+            Lucid.class_ $ cls ["border-b-2", "border-gray-200", "hover:bg-gray-50"]
           ]
           $ do
             Lucid.td_ cellLinkAttrs $
-              Lucid.span_ [Lucid.class_ "font-bold"] $
+              Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold]] $
                 Lucid.toHtml title
 
             Lucid.td_ cellLinkAttrs $
               renderStatusBadge status
 
             Lucid.td_ cellLinkAttrs $ do
-              Lucid.div_ [Lucid.class_ "text-sm"] $ Lucid.toHtml (formatDateTime createdAt)
+              Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm]] $ Lucid.toHtml (formatDateTime createdAt)
 
             Lucid.td_ cellLinkAttrs $ do
               case publishedAt of
-                Just pubAt -> Lucid.div_ [Lucid.class_ "text-sm"] $ Lucid.toHtml (formatDateTime pubAt)
-                Nothing -> Lucid.span_ [Lucid.class_ "text-gray-400 text-sm"] "—"
+                Just pubAt -> Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm]] $ Lucid.toHtml (formatDateTime pubAt)
+                Nothing -> Lucid.span_ [Lucid.class_ $ cls ["text-gray-400", Tokens.textSm]] "—"
 
-            Lucid.td_ [Lucid.class_ "p-4 text-center"]
+            Lucid.td_ [Lucid.class_ $ cls [Tokens.p4, "text-center"]]
               $ Lucid.select_
-                [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
+                [ Lucid.class_ $ cls ["p-2", "border", "border-gray-400", "text-xs", Tokens.bgWhite],
                   xData_ "{}",
                   xOnChange_
                     [i|
@@ -127,13 +129,13 @@ renderStatusBadge status = do
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-12 text-center"] $ do
-    Lucid.p_ [Lucid.class_ "text-xl text-gray-600"] "No blog posts found."
-    Lucid.p_ [Lucid.class_ "text-gray-500 mt-2"] "Create a new post to get started."
+  Lucid.div_ [Lucid.class_ $ cls ["bg-gray-50", Tokens.border2, "border-gray-300", "p-12", "text-center"]] $ do
+    Lucid.p_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.textGray600]] "No blog posts found."
+    Lucid.p_ [Lucid.class_ $ cls ["text-gray-500", "mt-2"]] "Create a new post to get started."
 
 renderPagination :: Int64 -> Bool -> Lucid.Html ()
 renderPagination currentPage hasMore = do
-  Lucid.div_ [Lucid.class_ "flex justify-between items-center"] $ do
+  Lucid.div_ [Lucid.class_ $ cls ["flex", "justify-between", "items-center"]] $ do
     -- Previous button
     if currentPage > 1
       then
@@ -142,14 +144,14 @@ renderPagination currentPage hasMore = do
             hxGet_ [i|/#{prevPageUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
+            Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "<- PREVIOUS"
       else
         Lucid.div_ [] mempty
 
     -- Page indicator
-    Lucid.span_ [Lucid.class_ "text-gray-600 font-bold"] $
+    Lucid.span_ [Lucid.class_ $ cls [Tokens.textGray600, Tokens.fontBold]] $
       Lucid.toHtml $
         "Page " <> show currentPage
 
@@ -161,7 +163,7 @@ renderPagination currentPage hasMore = do
             hxGet_ [i|/#{nextPageUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
+            Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "NEXT ->"
       else

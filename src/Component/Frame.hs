@@ -10,12 +10,14 @@ import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
 import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xModel_, xOnClick_, xOnInput_, xRef_, xText_)
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
@@ -60,7 +62,7 @@ newtype UserInfo = UserInfo {userDisplayName :: DisplayName}
 musicPlayer :: Lucid.Html ()
 musicPlayer =
   Lucid.div_
-    [ Lucid.class_ "px-6 text-center",
+    [ Lucid.class_ $ cls [Tokens.px6, "text-center"],
       xData_ playerData
     ]
     $ do
@@ -69,7 +71,7 @@ musicPlayer =
           Lucid.preload_ "none"
         ]
         mempty
-      Lucid.div_ [Lucid.class_ "inline-flex items-center gap-4 text-sm font-mono"] $ do
+      Lucid.div_ [Lucid.class_ $ cls ["inline-flex", "items-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
         Lucid.a_
           [ Lucid.href_ "#",
             Lucid.class_ "hover:text-gray-600 cursor-pointer",
@@ -80,7 +82,7 @@ musicPlayer =
         Lucid.span_ [Lucid.class_ "text-gray-500"] "|"
         Lucid.div_ [xText_ "currentShow || 'NOW PLAYING: KPBJ 95.9 FM'"] "NOW PLAYING: KPBJ 95.9 FM"
         Lucid.span_ [Lucid.class_ "text-gray-500"] "|"
-        Lucid.div_ [Lucid.class_ "flex items-center gap-2"] $ do
+        Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", Tokens.gap2]] $ do
           Lucid.span_ "VOL:"
           Lucid.input_
             [ Lucid.type_ "range",
@@ -288,22 +290,22 @@ bannerFromUrlScript =
 
 authWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
 authWidget mUser =
-  Lucid.div_ [Lucid.class_ "flex gap-4 items-center text-sm text-gray-600"] $ do
+  Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.textGray600]] $ do
     case mUser of
       Nothing -> do
         Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Login"
         Lucid.a_ [Lucid.href_ [i|/#{userRegisterGetUrl}|], hxGet_ [i|/#{userRegisterGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Sign Up"
       Just user -> do
         Lucid.span_ [Lucid.class_ "text-gray-400"] "•"
-        Lucid.span_ [Lucid.class_ "text-gray-800 font-bold"] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
+        Lucid.span_ [Lucid.class_ $ cls [Tokens.textGray800, Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
         -- Dashboard uses a completely different frame layout (sidebar navigation),
         -- so we do a full page navigation instead of HTMX content swap
-        Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], Lucid.class_ "text-blue-600 hover:text-blue-800 font-bold"] "Dashboard"
+        Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], Lucid.class_ $ cls [Tokens.linkText, Tokens.fontBold]] "Dashboard"
         Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
 
 logo :: Lucid.Html ()
 logo =
-  Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "text-lg font-bold text-center whitespace-pre leading-none block hover:text-gray-600"] $ do
+  Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ $ cls [Tokens.textLg, Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "block", "hover:text-gray-600"]] $ do
     Lucid.pre_ [Lucid.style_ "margin: 0;"] $ do
       "▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.\n"
       "█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪\n"
@@ -313,26 +315,26 @@ logo =
 
 navigation :: Lucid.Html ()
 navigation =
-  Lucid.nav_ [Lucid.class_ "flex gap-8 items-center flex-wrap"] $ do
-    Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Donate"
-    -- Lucid.a_ [Lucid.id_ "nav-list", Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Listen"
-    Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsScheduleGetUrl}|], hxGet_ [i|/#{showsScheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Shows"
-    Lucid.a_ [Lucid.id_ "nav-archive", Lucid.href_ [i|/#{archiveGetUrl}|], hxGet_ [i|/#{archiveGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Archive"
-    Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Blog"
-    Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "Events"
-    -- Lucid.a_ [Lucid.id_ "nav-store", Lucid.href_ "/", Lucid.class_ "font-bold uppercase hover:underline"] "Store"
-    Lucid.a_ [Lucid.id_ "nav-about", Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "font-bold uppercase hover:underline"] "About"
-    Lucid.a_ [Lucid.id_ "nav-contact", Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ "font-bold uppercase hover:underline"] "Contact"
+  Lucid.nav_ [Lucid.class_ $ cls ["flex", Tokens.gap8, "items-center", "flex-wrap"]] $ do
+    Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Donate"
+    -- Lucid.a_ [Lucid.id_ "nav-list", Lucid.href_ "/", Lucid.class_ Tokens.navLink] "Listen"
+    Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsScheduleGetUrl}|], hxGet_ [i|/#{showsScheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Shows"
+    Lucid.a_ [Lucid.id_ "nav-archive", Lucid.href_ [i|/#{archiveGetUrl}|], hxGet_ [i|/#{archiveGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Archive"
+    Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Blog"
+    Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Events"
+    -- Lucid.a_ [Lucid.id_ "nav-store", Lucid.href_ "/", Lucid.class_ Tokens.navLink] "Store"
+    Lucid.a_ [Lucid.id_ "nav-about", Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "About"
+    Lucid.a_ [Lucid.id_ "nav-contact", Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ Tokens.navLink] "Contact"
 
 -- | Suspension warning banner displayed at the top of every page for suspended users
 suspensionBanner :: SuspensionStatus -> Lucid.Html ()
 suspensionBanner NotSuspended = mempty
 suspensionBanner Suspended =
-  Lucid.div_ [Lucid.class_ "bg-red-600 text-white px-4 py-3 text-center"] $ do
-    Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto"] $ do
-      Lucid.p_ [Lucid.class_ "font-bold text-lg"] "Account Suspended"
-      Lucid.p_ [Lucid.class_ "text-sm mt-1"] "Your account was suspended."
-      Lucid.p_ [Lucid.class_ "text-sm mt-2"] $
+  Lucid.div_ [Lucid.class_ $ cls ["bg-red-600", Tokens.textWhite, Tokens.px4, "py-3", "text-center"]] $ do
+    Lucid.div_ [Lucid.class_ $ cls [Tokens.maxWidth, "mx-auto"]] $ do
+      Lucid.p_ [Lucid.class_ $ cls [Tokens.fontBold, Tokens.textLg]] "Account Suspended"
+      Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, "mt-1"]] "Your account was suspended."
+      Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, "mt-2"]] $
         Lucid.toHtml @Text "If you believe this is an error, please contact us at contact@kpbj.fm"
 
 template :: Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
@@ -347,23 +349,23 @@ template mUser main =
       Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] playerScript
-    Lucid.body_ [Lucid.class_ "font-mono text-gray-800 min-h-screen flex flex-col"] $ do
+    Lucid.body_ [Lucid.class_ $ cls ["font-mono", Tokens.textGray800, "min-h-screen", "flex", "flex-col"]] $ do
       -- Suspension warning banner (if suspended)
       suspensionBanner $ maybe UserMetadata.NotSuspended UserMetadata.mSuspensionStatus mUser
       -- Persistent header with navigation
-      Lucid.header_ [Lucid.class_ "bg-white p-4"] $ do
-        Lucid.div_ [Lucid.class_ "max-w-6xl mx-auto flex flex-col items-center gap-4"] $ do
+      Lucid.header_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.p4]] $ do
+        Lucid.div_ [Lucid.class_ $ cls [Tokens.maxWidth, "mx-auto", "flex", "flex-col", "items-center", Tokens.gap4]] $ do
           logo
           musicPlayer
           navigation
           authWidget mUser
 
-      Lucid.div_ [Lucid.class_ "px-4 max-w-6xl mx-auto w-full"] $
-        Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ "w-full"] mempty
+      Lucid.div_ [Lucid.class_ $ cls [Tokens.px4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth]] $
+        Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
       Lucid.main_
-        [Lucid.class_ "flex-grow px-4 py-8 max-w-6xl mx-auto w-full flex flex-col items-center", Lucid.id_ "main-content"]
+        [Lucid.class_ $ cls ["flex-grow", Tokens.px4, Tokens.py8, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col", "items-center"], Lucid.id_ "main-content"]
         main
-      Lucid.footer_ [Lucid.class_ "px-4 py-8 mt-auto text-center"] $ do
+      Lucid.footer_ [Lucid.class_ $ cls [Tokens.px4, Tokens.py8, "mt-auto", "text-center"]] $ do
         Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
       -- Script to display banner from URL params (runs after DOM is ready)
       Lucid.script_ [] bannerFromUrlScript

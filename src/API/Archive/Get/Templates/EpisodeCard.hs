@@ -8,36 +8,38 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
 renderEpisodeCard :: Episodes.EpisodeWithShow -> Lucid.Html ()
 renderEpisodeCard ews = do
-  Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-4"] $ do
-    Lucid.div_ [Lucid.class_ "text-center mb-4"] $ do
+  Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p4]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["text-center", Tokens.mb4]] $ do
       -- Episode artwork
       case ews.ewsArtworkUrl of
         Just artworkUrl ->
           Lucid.div_
-            [ Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center mb-4 overflow-hidden"
+            [ Lucid.class_ $ cls [Tokens.fullWidth, "aspect-square", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.mb4, "overflow-hidden"]
             ]
             $ Lucid.img_ [Lucid.src_ ("/" <> artworkUrl), Lucid.alt_ ews.ewsTitle, Lucid.class_ "w-full h-full object-cover"]
         Nothing ->
           Lucid.div_
-            [ Lucid.class_ "w-full aspect-square bg-gray-300 border-2 border-gray-600 flex items-center justify-center mb-4"
+            [ Lucid.class_ $ cls [Tokens.fullWidth, "aspect-square", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.mb4]
             ]
             $ Lucid.toHtml ("[EPISODE IMG]" :: Text)
 
       -- Episode title
-      Lucid.h3_ [Lucid.class_ "font-bold mb-1"] $ Lucid.toHtml ews.ewsTitle
+      Lucid.h3_ [Lucid.class_ $ cls [Tokens.fontBold, "mb-1"]] $ Lucid.toHtml ews.ewsTitle
 
       -- Show link, host, date
-      Lucid.div_ [Lucid.class_ "text-xs text-gray-600 mb-2"] $ do
+      Lucid.div_ [Lucid.class_ $ cls [Tokens.textXs, Tokens.textGray600, Tokens.mb2]] $ do
         let showUrl = "/" <> Text.pack (show (showGetUrl ews.ewsShowSlug))
         Lucid.a_
           [ Lucid.href_ showUrl,
@@ -55,7 +57,7 @@ renderEpisodeCard ews = do
           Nothing -> "Draft"
 
       -- Duration metadata
-      Lucid.div_ [Lucid.class_ "text-xs text-gray-600 mb-3"] $ do
+      Lucid.div_ [Lucid.class_ $ cls [Tokens.textXs, Tokens.textGray600, "mb-3"]] $ do
         case ews.ewsDurationSeconds of
           Just duration -> Lucid.toHtml $ formatDuration duration
           Nothing -> ""
@@ -63,8 +65,8 @@ renderEpisodeCard ews = do
       -- Genre tags
       case ews.ewsShowGenre of
         Just genre ->
-          Lucid.div_ [Lucid.class_ "text-xs mb-3"] $ do
-            Lucid.span_ [Lucid.class_ "bg-gray-200 text-gray-800 px-2 py-1 font-mono"] $
+          Lucid.div_ [Lucid.class_ $ cls [Tokens.textXs, "mb-3"]] $ do
+            Lucid.span_ [Lucid.class_ $ cls ["bg-gray-200", Tokens.textGray800, "px-2", "py-1", "font-mono"]] $
               Lucid.toHtml $
                 Text.toLower genre
         Nothing -> pure ()
@@ -72,22 +74,22 @@ renderEpisodeCard ews = do
     -- Episode description
     case ews.ewsDescription of
       Just desc ->
-        Lucid.p_ [Lucid.class_ "text-sm leading-relaxed mb-4"] $
+        Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, "leading-relaxed", Tokens.mb4]] $
           Lucid.toHtml $
             truncateText 120 desc
       Nothing -> pure ()
 
     -- Action buttons
-    Lucid.div_ [Lucid.class_ "flex gap-2"] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.gap2]] $ do
       case ews.ewsAudioFilePath of
         Just _ ->
           Lucid.button_
-            [ Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700 flex-grow"
+            [ Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700", "flex-grow"]
             ]
             "▶ PLAY"
         Nothing ->
           Lucid.button_
-            [ Lucid.class_ "bg-gray-400 text-white px-4 py-2 text-sm font-bold flex-grow cursor-not-allowed",
+            [ Lucid.class_ $ cls ["bg-gray-400", Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "flex-grow", "cursor-not-allowed"],
               Lucid.disabled_ "disabled"
             ]
             "NO AUDIO"

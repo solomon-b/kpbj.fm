@@ -20,7 +20,7 @@ template blogPosts currentPage hasMore = do
   -- Blog Header
   Layout.heroSection $ do
     Lucid.h1_ [Lucid.class_ $ cls [Tokens.heading2xl, Tokens.mb4]] "KPBJ STATION BLOG"
-    Lucid.p_ [Lucid.class_ $ cls [Tokens.textLg, md "text-xl", Tokens.textGray600, Tokens.mb6]] $
+    Lucid.p_ [Lucid.class_ $ cls [Tokens.textLg, md "text-xl", Tokens.textGray600, Tokens.mb6]]
       "News, stories, and insights from the KPBJ community"
 
   -- Blog Posts

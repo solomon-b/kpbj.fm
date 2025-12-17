@@ -7,9 +7,11 @@ import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Base (makeAttributes)
 import Lucid.Extras (hxGet_, hxTarget_)
+import Lucid.Responsive (cls, lg)
 
 --------------------------------------------------------------------------------
 
@@ -20,11 +22,11 @@ renderSearchFilters ::
   Int64 ->
   Lucid.Html ()
 renderSearchFilters mSearch mGenre mYear totalCount = do
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6 mb-8"] $ do
-    Lucid.div_ [Lucid.class_ "grid grid-cols-1 lg:grid-cols-12 gap-4"] $ do
+  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb8]] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-1", lg "grid-cols-12", Tokens.gap4]] $ do
       -- Search Bar
-      Lucid.div_ [Lucid.class_ "lg:col-span-6"] $ do
-        Lucid.label_ [Lucid.class_ "block text-sm font-bold mb-2"] "SEARCH EPISODES"
+      Lucid.div_ [Lucid.class_ $ lg "col-span-6"] $ do
+        Lucid.label_ [Lucid.class_ $ cls ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2]] "SEARCH EPISODES"
         Lucid.form_
           [ Lucid.class_ "flex",
             hxGet_ "/archive",
@@ -35,7 +37,7 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
               [ Lucid.type_ "text",
                 Lucid.name_ "q",
                 Lucid.placeholder_ "Search episodes, shows, hosts...",
-                Lucid.class_ "flex-grow border-2 border-gray-600 px-3 py-2 bg-white font-mono",
+                Lucid.class_ $ cls ["flex-grow", Tokens.border2, "border-gray-600", "px-3", Tokens.py2, Tokens.bgWhite, "font-mono"],
                 Lucid.value_ (fromMaybe "" mSearch)
               ]
             -- Hidden inputs to preserve other filters
@@ -45,17 +47,17 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
               Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "year", Lucid.value_ (Text.pack $ show $ fromMaybe 0 mYear)]
             Lucid.button_
               [ Lucid.type_ "submit",
-                Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700"
+                Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
               ]
               "SEARCH"
 
       -- Genre Filter
-      Lucid.div_ [Lucid.class_ "lg:col-span-3"] $ do
-        Lucid.label_ [Lucid.class_ "block text-sm font-bold mb-2"] "GENRE"
+      Lucid.div_ [Lucid.class_ $ lg "col-span-3"] $ do
+        Lucid.label_ [Lucid.class_ $ cls ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2]] "GENRE"
         Lucid.form_
           [ hxGet_ "/archive",
             hxTarget_ "#archive-content",
-            Lucid.class_ "w-full"
+            Lucid.class_ Tokens.fullWidth
           ]
           $ do
             -- Hidden inputs to preserve other filters
@@ -65,7 +67,7 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
               Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "year", Lucid.value_ (Text.pack $ show $ fromMaybe 0 mYear)]
             Lucid.select_
               [ Lucid.name_ "genre",
-                Lucid.class_ "w-full border-2 border-gray-600 px-3 py-2 bg-white font-mono text-sm",
+                Lucid.class_ $ cls [Tokens.fullWidth, Tokens.border2, "border-gray-600", "px-3", Tokens.py2, Tokens.bgWhite, "font-mono", Tokens.textSm],
                 makeAttributes "onchange" "this.form.requestSubmit()"
               ]
               $ do
@@ -80,12 +82,12 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
                 Lucid.option_ ([Lucid.value_ "folk"] <> [Lucid.selected_ "selected" | mGenre == Just "folk"]) "Folk"
 
       -- Year Filter
-      Lucid.div_ [Lucid.class_ "lg:col-span-3"] $ do
-        Lucid.label_ [Lucid.class_ "block text-sm font-bold mb-2"] "YEAR"
+      Lucid.div_ [Lucid.class_ $ lg "col-span-3"] $ do
+        Lucid.label_ [Lucid.class_ $ cls ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2]] "YEAR"
         Lucid.form_
           [ hxGet_ "/archive",
             hxTarget_ "#archive-content",
-            Lucid.class_ "w-full"
+            Lucid.class_ Tokens.fullWidth
           ]
           $ do
             -- Hidden inputs to preserve other filters
@@ -95,7 +97,7 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
               Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "genre", Lucid.value_ (fromMaybe "" mGenre)]
             Lucid.select_
               [ Lucid.name_ "year",
-                Lucid.class_ "w-full border-2 border-gray-600 px-3 py-2 bg-white font-mono text-sm",
+                Lucid.class_ $ cls [Tokens.fullWidth, Tokens.border2, "border-gray-600", "px-3", Tokens.py2, Tokens.bgWhite, "font-mono", Tokens.textSm],
                 makeAttributes "onchange" "this.form.requestSubmit()"
               ]
               $ do
@@ -104,6 +106,6 @@ renderSearchFilters mSearch mGenre mYear totalCount = do
                 Lucid.option_ ([Lucid.value_ "2024"] <> [Lucid.selected_ "selected" | mYear == Just 2024]) "2024"
 
     -- Episode count
-    Lucid.div_ [Lucid.class_ "mt-6 pt-4 border-t border-gray-300 text-sm text-gray-600"] $ do
+    Lucid.div_ [Lucid.class_ $ cls ["mt-6", "pt-4", "border-t", "border-gray-300", Tokens.textSm, Tokens.textGray600]] $ do
       Lucid.strong_ $ Lucid.toHtml $ show totalCount
       " episodes found"

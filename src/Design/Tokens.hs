@@ -22,6 +22,7 @@ module Design.Tokens
     -- * Font Weights
     fontBold,
     fontNormal,
+    fontMedium,
 
     -- * Spacing Scale
     gap2,
@@ -33,6 +34,7 @@ module Design.Tokens
     p4,
     p6,
     p8,
+    px3,
     px4,
     px6,
     px8,
@@ -44,6 +46,7 @@ module Design.Tokens
     mb4,
     mb6,
     mb8,
+    pb2,
 
     -- * Responsive Spacing
     sectionPadding,
@@ -98,7 +101,7 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Lucid.Responsive (cls, md, lg)
+import Lucid.Responsive (cls, lg, md)
 
 --------------------------------------------------------------------------------
 -- Typography
@@ -156,6 +159,9 @@ fontBold = "font-bold"
 fontNormal :: Text
 fontNormal = "font-normal"
 
+fontMedium :: Text
+fontMedium = "font-medium"
+
 --------------------------------------------------------------------------------
 -- Spacing Scale
 
@@ -185,6 +191,9 @@ p6 = "p-6"
 
 p8 :: Text
 p8 = "p-8"
+
+px3 :: Text
+px3 = "px-3"
 
 px4 :: Text
 px4 = "px-4"
@@ -218,6 +227,9 @@ mb6 = "mb-6"
 
 mb8 :: Text
 mb8 = "mb-8"
+
+pb2 :: Text
+pb2 = "pb-2"
 
 --------------------------------------------------------------------------------
 -- Responsive Spacing
