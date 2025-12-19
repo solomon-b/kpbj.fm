@@ -5,14 +5,14 @@
 --
 -- Example:
 --
--- > import Design (styles, base, tablet, desktop)
+-- > import Design (class_, base, tablet, desktop)
 -- > import Design.Tokens qualified as T
 -- >
--- > cardStyles :: Text
--- > cardStyles = styles $ do
+-- > -- Direct attribute usage (preferred)
+-- > Lucid.div_ [class_ $ do
 -- >   base [T.bgWhite, T.cardBorder, T.p4]
 -- >   tablet [T.p6]
--- >   desktop [T.p8]
+-- >   desktop [T.p8]]
 --
 -- For design tokens (colors, spacing, typography), see "Design.Tokens".
 --
@@ -20,7 +20,8 @@
 module Design
   ( -- * StyleBuilder DSL
     StyleBuilder,
-    styles,
+    class_,
+    class_',
 
     -- * Breakpoint Declarations
     base,
@@ -63,9 +64,10 @@ import Design.StyleBuilder
   ( StyleBuilder,
     also,
     base,
+    class_,
+    class_',
     desktop,
     mobile,
-    styles,
     tablet,
     ultrawide,
     unless,

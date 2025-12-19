@@ -17,7 +17,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (MonthOfYear, Year)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_, when)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageView (PageView (..))
 import Domain.Types.Slug (Slug)
@@ -78,16 +78,16 @@ renderMonthContent year month _maybeTagFilter _eventTagsWithCounts calendarGrid 
       (nextYear, nextMonth) = if month == 12 then (year + 1, 1) else (year, month + 1)
 
   -- Calendar Month View
-  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
-    Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between", Tokens.mb6]] $ do
-      Lucid.h2_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.fontBold]] $ Lucid.toHtml $ monthName month <> " " <> Text.pack (show year)
-      Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.gap2]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.mb6]] $ do
+      Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold]] $ Lucid.toHtml $ monthName month <> " " <> Text.pack (show year)
+      Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{eventsGetMonthUrl prevYear prevMonth Nothing}|],
             hxGet_ [i|/#{eventsGetMonthUrl prevYear prevMonth Nothing}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ $ cls ["px-3", "py-1", Tokens.textGray600, "hover:text-gray-800"]
+            class_ $ base ["px-3", "py-1", Tokens.textGray600, "hover:text-gray-800"]
           ]
           $ Lucid.toHtml
           $ "‹ " <> monthName prevMonth
@@ -96,16 +96,16 @@ renderMonthContent year month _maybeTagFilter _eventTagsWithCounts calendarGrid 
             hxGet_ [i|/#{eventsGetMonthUrl nextYear nextMonth Nothing}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ $ cls ["px-3", "py-1", Tokens.textGray600, "hover:text-gray-800"]
+            class_ $ base ["px-3", "py-1", Tokens.textGray600, "hover:text-gray-800"]
           ]
           $ Lucid.toHtml
           $ monthName nextMonth <> " ›"
 
     -- Calendar Grid
-    Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-7", "gap-1", Tokens.textSm, "min-h-96"]] $ do
+    Lucid.div_ [class_ $ base ["grid", "grid-cols-7", "gap-1", Tokens.textSm, "min-h-96"]] $ do
       -- Header Row
       traverse_
-        (Lucid.div_ [Lucid.class_ $ cls [Tokens.p2, Tokens.fontBold, "text-center", "bg-gray-200"]])
+        (Lucid.div_ [class_ $ base [Tokens.p2, Tokens.fontBold, "text-center", "bg-gray-200"]])
         ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
 
       -- Calendar Days
@@ -114,18 +114,17 @@ renderMonthContent year month _maybeTagFilter _eventTagsWithCounts calendarGrid 
 -- | Render a calendar day cell
 renderCalendarDay :: CalendarDay -> Lucid.Html ()
 renderCalendarDay day = do
-  let dayClasses =
-        if cdIsCurrentMonth day
-          then cls [Tokens.p2, "h-20", "border", "border-gray-200"]
-          else cls [Tokens.p2, "h-20", "border", "border-gray-200", "text-gray-400"]
+  let dayClasses = class_ $ do
+        base [Tokens.p2, "h-20", "border", "border-gray-200"]
+        when (not $ cdIsCurrentMonth day) $ base ["text-gray-400"]
 
-  Lucid.div_ [Lucid.class_ dayClasses] $ do
+  Lucid.div_ [dayClasses] $ do
     Lucid.div_ [Lucid.class_ Tokens.fontBold] $ Lucid.toHtml $ Text.pack $ show $ cdDay day
     traverse_ renderEventInDay (take 1 $ cdEvents day) -- Only show first event
   where
     renderEventInDay :: Events.Model -> Lucid.Html ()
     renderEventInDay event =
-      Lucid.div_ [Lucid.class_ $ cls [Tokens.textXs, "truncate", "mt-1"]]
+      Lucid.div_ [class_ $ base [Tokens.textXs, "truncate", "mt-1"]]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],
             hxGet_ [i|/#{eventGetUrl (Events.emId event) (Events.emSlug event)}|],

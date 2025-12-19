@@ -13,7 +13,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, toGregorian, utctDay)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.UserSortBy (UserSortBy (..))
@@ -37,16 +37,16 @@ template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   if null users
     then renderEmptyState maybeQuery
     else do
-      Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
-        Lucid.table_ [Lucid.class_ $ cls [Tokens.fullWidth]] $ do
-          Lucid.thead_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite]] $
+      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
+        Lucid.table_ [class_ $ base [Tokens.fullWidth]] $ do
+          Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
             Lucid.tr_ $ do
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Display Name"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Email"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Role"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Status"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Member Since"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-center", "w-24"]] ""
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Display Name"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Email"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Role"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Status"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Member Since"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-center", "w-24"]] ""
           Lucid.tbody_ $
             mapM_ (renderUserRow now) users
 
@@ -62,7 +62,7 @@ renderUserRow now user =
       suspendedAt = user.uwmSuspendedAt
       userDetailUrl = Links.linkURI $ dashboardUsersLinks.detail userId
       cellLinkAttrs =
-        [ Lucid.class_ $ cls [Tokens.p4, "cursor-pointer"],
+        [ class_ $ base [Tokens.p4, "cursor-pointer"],
           hxGet_ [i|/#{userDetailUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
@@ -90,11 +90,11 @@ renderUserRow now user =
    in do
         Lucid.tr_
           [ Lucid.id_ rowId,
-            Lucid.class_ $ cls ["border-b-2", "border-gray-200", "hover:bg-gray-50"]
+            class_ $ base ["border-b-2", "border-gray-200", "hover:bg-gray-50"]
           ]
           $ do
             Lucid.td_ cellLinkAttrs $
-              Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold]] $
+              Lucid.span_ [class_ $ base [Tokens.fontBold]] $
                 Lucid.toHtml (display displayName)
 
             Lucid.td_ cellLinkAttrs $
@@ -107,12 +107,12 @@ renderUserRow now user =
               renderStatusBadge suspendedAt
 
             Lucid.td_ cellLinkAttrs $ do
-              Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm]] $ Lucid.toHtml (formatMonthYear createdAt)
-              Lucid.div_ [Lucid.class_ $ cls ["text-xs", Tokens.textGray600]] $ Lucid.toHtml (formatRelativeTime now createdAt)
+              Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatMonthYear createdAt)
+              Lucid.div_ [class_ $ base ["text-xs", Tokens.textGray600]] $ Lucid.toHtml (formatRelativeTime now createdAt)
 
-            Lucid.td_ [Lucid.class_ $ cls [Tokens.p4, "text-center"]]
+            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]]
               $ Lucid.select_
-                [ Lucid.class_ $ cls ["p-2", "border", "border-gray-400", "text-xs", Tokens.bgWhite],
+                [ class_ $ base ["p-2", "border", "border-gray-400", "text-xs", Tokens.bgWhite],
                   xData_ "{}",
                   xOnChange_
                     [i|

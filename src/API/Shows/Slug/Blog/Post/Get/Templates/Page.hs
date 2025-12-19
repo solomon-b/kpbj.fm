@@ -12,7 +12,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Design.StyleBuilder.Internal (cls, md)
+import Design (base, class_, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -34,17 +34,17 @@ showBlogGetUrl slug = Links.linkURI $ showBlogLinks.list slug Nothing Nothing
 
 template :: Shows.Model -> ShowBlogPosts.Model -> UserMetadata.Model -> [ShowBlogTags.Model] -> Lucid.Html ()
 template showModel post author tags = do
-  Lucid.article_ [Lucid.class_ $ cls ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
+  Lucid.article_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     -- Article header
-    Lucid.header_ [Lucid.class_ $ cls [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", "border-gray-800"]] $ do
+    Lucid.header_ [class_ $ base [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", "border-gray-800"]] $ do
       -- Title
-      Lucid.h1_ [Lucid.class_ $ cls ["text-4xl", md "text-5xl", Tokens.fontBold, Tokens.mb4]] $ do
+      Lucid.h1_ [class_ $ do { base ["text-4xl", Tokens.fontBold, Tokens.mb4]; tablet ["text-5xl"] }] $ do
         Lucid.toHtml (ShowBlogPosts.title post)
 
       -- Meta information
-      Lucid.div_ [Lucid.class_ $ cls ["flex", "flex-wrap", "items-center", Tokens.gap4, Tokens.textGray600]] $ do
+      Lucid.div_ [class_ $ base ["flex", "flex-wrap", "items-center", Tokens.gap4, Tokens.textGray600]] $ do
         -- Author
-        Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", Tokens.gap2]] $ do
+        Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
           Lucid.span_ [Lucid.class_ Tokens.fontBold] "By"
           Lucid.span_ $ Lucid.toHtml (UserMetadata.mDisplayName author)
 
@@ -62,14 +62,14 @@ template showModel post author tags = do
 
       -- Tags
       unless (null tags) $ do
-        Lucid.div_ [Lucid.class_ $ cls ["mt-4", "flex", "flex-wrap", Tokens.gap2]] $ do
+        Lucid.div_ [class_ $ base ["mt-4", "flex", "flex-wrap", Tokens.gap2]] $ do
           forM_ tags $ \tag -> do
             Lucid.a_
               [ Lucid.href_ [i|/#{showBlogGetUrl (Shows.slug showModel)}?tag=#{ShowBlogTags.sbtmName tag}|],
                 hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel)}?tag=#{ShowBlogTags.sbtmName tag}|],
                 hxTarget_ "#main-content",
                 hxPushUrl_ "true",
-                Lucid.class_ $ cls [Tokens.px3, "py-1", Tokens.bgGray800, Tokens.textWhite, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
+                class_ $ base [Tokens.px3, "py-1", Tokens.bgGray800, Tokens.textWhite, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
               ]
               $ Lucid.toHtml (ShowBlogTags.sbtmName tag)
 
@@ -77,13 +77,13 @@ template showModel post author tags = do
     renderContent (ShowBlogPosts.content post)
 
     -- Back to blog link
-    Lucid.div_ [Lucid.class_ $ cls ["mt-12", Tokens.p6, "pt-6", "border-t-2", "border-gray-800"]] $ do
+    Lucid.div_ [class_ $ base ["mt-12", Tokens.p6, "pt-6", "border-t-2", "border-gray-800"]] $ do
       Lucid.a_
         [ Lucid.href_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          Lucid.class_ $ cls ["text-blue-600", Tokens.fontBold, "hover:underline"]
+          class_ $ base ["text-blue-600", Tokens.fontBold, "hover:underline"]
         ]
         "← Back to blog"
 
@@ -91,12 +91,12 @@ template showModel post author tags = do
 
 notFoundTemplate :: Slug -> Slug -> Lucid.Html ()
 notFoundTemplate showSlug postSlug = do
-  Lucid.div_ [Lucid.class_ $ cls ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
+  Lucid.div_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     Lucid.div_ [Lucid.class_ "text-center"] $ do
-      Lucid.h1_ [Lucid.class_ $ cls ["text-4xl", Tokens.fontBold, Tokens.mb4]] "Blog Post Not Found"
-      Lucid.p_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.textGray600, Tokens.mb8]] $ do
+      Lucid.h1_ [class_ $ base ["text-4xl", Tokens.fontBold, Tokens.mb4]] "Blog Post Not Found"
+      Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600, Tokens.mb8]] $ do
         "We couldn't find the blog post at: "
-        Lucid.code_ [Lucid.class_ $ cls [Tokens.bgGray100, "px-2", "py-1"]] $ do
+        Lucid.code_ [class_ $ base [Tokens.bgGray100, "px-2", "py-1"]] $ do
           Lucid.toHtml $ display showSlug <> "/blog/" <> display postSlug
 
       Lucid.a_
@@ -104,13 +104,13 @@ notFoundTemplate showSlug postSlug = do
           hxGet_ [i|/#{showBlogGetUrl showSlug}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          Lucid.class_ $ cls ["inline-block", Tokens.px6, "py-3", Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.px6, "py-3", Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold, "hover:bg-gray-700"]
         ]
         "← Back to blog"
 
 errorTemplate :: Text -> Lucid.Html ()
 errorTemplate errorMsg = do
-  Lucid.div_ [Lucid.class_ $ cls ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [Lucid.class_ $ cls [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
-      Lucid.h2_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "Error"
+  Lucid.div_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
+      Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "Error"
       Lucid.p_ [Lucid.class_ "text-red-700"] $ Lucid.toHtml errorMsg
