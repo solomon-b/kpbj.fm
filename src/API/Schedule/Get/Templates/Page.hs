@@ -3,6 +3,7 @@ module API.Schedule.Get.Templates.Page (template) where
 --------------------------------------------------------------------------------
 
 import API.Schedule.Get.Templates.Components (renderScheduleView)
+import Component.PageHeader (pageHeader)
 import Data.Text (Text)
 import Data.Time (Day, DayOfWeek, TimeOfDay)
 import Design (base, tablet)
@@ -18,9 +19,7 @@ import Lucid qualified
 template :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> WeekOffset -> Day -> Maybe Text -> Lucid.Html ()
 template scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart maybeError = do
   -- Header
-  Lucid.section_ [headerStyles] $ do
-    Lucid.h1_ [class_ $ base [Tokens.heading2xl]] "SHOW SCHEDULE"
-    Lucid.p_ [subtitleStyles] "Weekly broadcast schedule for KPBJ 95.9FM"
+  pageHeader "SHOW SCHEDULE"
 
   -- Error message if present
   case maybeError of
@@ -33,18 +32,6 @@ template scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart m
 
 --------------------------------------------------------------------------------
 -- Styles
-
-headerStyles :: Lucid.Attributes
-headerStyles = class_ $ do
-  base [Tokens.bgWhite, Tokens.cardBorder, Tokens.fullWidth, "text-center"]
-  base [Tokens.p6, Tokens.mb6]
-  tablet [Tokens.p8, Tokens.mb8]
-
-subtitleStyles :: Lucid.Attributes
-subtitleStyles = class_ $ do
-  base [Tokens.textGray600, Tokens.mb4]
-  base [Tokens.textBase]
-  tablet [Tokens.textLg, Tokens.mb6]
 
 errorStyles :: Lucid.Attributes
 errorStyles = class_ $ do

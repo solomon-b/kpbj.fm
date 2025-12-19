@@ -5,9 +5,10 @@ where
 
 import API.Blog.Get.Templates.Pagination (renderPagination)
 import API.Blog.Get.Templates.PostCard (renderBlogPostCard)
+import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Int (Int64)
-import Design (base, class_, tablet)
+import Design (base, class_)
 import Design.Lucid qualified as Layout
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -18,11 +19,7 @@ import Lucid qualified
 template :: [(BlogPosts.Model, [BlogTags.Model])] -> Int64 -> Bool -> Lucid.Html ()
 template blogPosts currentPage hasMore = do
   -- Blog Header
-  Layout.heroSection $ do
-    Lucid.h1_ [class_ $ base [Tokens.heading2xl, Tokens.mb4]] "KPBJ STATION BLOG"
-    Lucid.p_
-      [class_ $ do base [Tokens.textLg, Tokens.textGray600, Tokens.mb6]; tablet ["text-xl"]]
-      "News, stories, and insights from the KPBJ community"
+  pageHeader "KPBJ STATION BLOG"
 
   -- Blog Posts
   Lucid.div_ [class_ $ base [Tokens.gap8, Tokens.fullWidth]] $ do

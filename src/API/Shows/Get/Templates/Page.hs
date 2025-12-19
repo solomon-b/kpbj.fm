@@ -6,6 +6,7 @@ where
 
 import API.Shows.Get.Templates.Pagination (renderPagination)
 import API.Shows.Get.Templates.ShowCard (renderShowCard)
+import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Maybe (isNothing)
 import Data.Text.Display (display)
@@ -21,9 +22,7 @@ import Lucid qualified
 template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
 template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
   -- Shows Header
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8, "text-center", Tokens.fullWidth]] $ do
-    Lucid.h1_ [Lucid.class_ Tokens.heading2xl] "ALL SHOWS"
-    Lucid.p_ [class_ $ base [Tokens.textLg, Tokens.textGray600, Tokens.mb6]] "Browse KPBJ's diverse lineup of community radio shows"
+  pageHeader "ALL SHOWS"
 
   -- Show Filters
   renderFilters maybeGenre maybeStatus maybeSearch

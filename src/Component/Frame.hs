@@ -555,7 +555,7 @@ template mUser main =
 
             -- Main content
             Lucid.main_
-              [class_ $ base ["flex-grow", Tokens.px4, Tokens.py8, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col", "items-center"], Lucid.id_ "main-content"]
+              [class_ $ base ["flex-grow", Tokens.px4, Tokens.py4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col", "items-center"], Lucid.id_ "main-content"]
               main
 
             -- Footer
