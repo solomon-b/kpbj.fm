@@ -22,9 +22,9 @@ where
 
 import Component.Form.Internal
 import Data.Text (Text)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Responsive (cls)
 
 --------------------------------------------------------------------------------
 -- Form configuration types

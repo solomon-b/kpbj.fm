@@ -7,11 +7,11 @@ module API.Schedule.Get.Templates.Page (template) where
 import API.Schedule.Get.Templates.Components (renderScheduleView)
 import Data.Text (Text)
 import Data.Time (Day, DayOfWeek, TimeOfDay)
+import Design.StyleBuilder (base, styles, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
-import Lucid.Styles (base, styles, tablet)
 
 --------------------------------------------------------------------------------
 

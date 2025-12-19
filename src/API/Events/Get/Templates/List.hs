@@ -15,12 +15,12 @@ import Data.Foldable (traverse_)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Design.StyleBuilder.Internal (cls, lg, md)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
-import Lucid.Responsive (cls, lg, md)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

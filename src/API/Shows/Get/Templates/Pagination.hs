@@ -9,11 +9,11 @@ import API.Links (showsLinks)
 import API.Types
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageNumber (PageNumber)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
-import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 -- | Render pagination controls

@@ -12,12 +12,12 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Lucid qualified
 import Lucid.Extras
-import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 -- | Station blog posts list template

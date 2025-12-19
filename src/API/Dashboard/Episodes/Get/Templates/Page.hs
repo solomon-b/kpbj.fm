@@ -5,12 +5,12 @@ where
 
 import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Responsive (cls)
 
 -- | Episodes dashboard template (stats are now in the top bar)
 template ::

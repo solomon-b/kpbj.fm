@@ -13,13 +13,13 @@ import API.Types
 import Data.String.Interpolate (i)
 import Data.Text
 import Data.Text.Display (display)
+import Design.StyleBuilder.Internal (cls, md)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
 import Lucid qualified
 import Lucid.Extras
-import Lucid.Responsive (cls, md)
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------

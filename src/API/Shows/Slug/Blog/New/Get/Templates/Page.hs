@@ -14,11 +14,11 @@ import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
-import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
