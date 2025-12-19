@@ -10,14 +10,14 @@ import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Design (base, class_)
+import Design (base, class_, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
 import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xModel_, xOnClick_, xOnInput_, xRef_, xText_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xModel_, xOnClickOutside_, xOnClick_, xOnInput_, xRef_, xShow_, xText_, xTransition_)
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
@@ -59,18 +59,16 @@ showsGetUrl = Link.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
 
 newtype UserInfo = UserInfo {userDisplayName :: DisplayName}
 
-musicPlayer :: Lucid.Html ()
-musicPlayer =
+-- | Desktop music player (hidden on mobile)
+-- Contains the shared audio element and Alpine state
+desktopMusicPlayer :: Lucid.Html ()
+desktopMusicPlayer =
   Lucid.div_
-    [ class_ $ base [Tokens.px6, "text-center"],
-      xData_ playerData
+    [ class_ $ do
+        base [Tokens.px6, "text-center"]
+        tablet ["block"]
     ]
     $ do
-      Lucid.audio_
-        [ xRef_ "audio",
-          Lucid.preload_ "none"
-        ]
-        mempty
       Lucid.div_ [class_ $ base ["inline-flex", "items-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
         Lucid.a_
           [ Lucid.href_ "#",
@@ -92,6 +90,41 @@ musicPlayer =
               xOnInput_ "setVolume($event.target.value)",
               Lucid.class_ "w-20 h-1"
             ]
+
+-- | Fixed mobile player at bottom of viewport
+-- Minimal UI: play/pause + show name only
+mobileMusicPlayer :: Lucid.Html ()
+mobileMusicPlayer =
+  Lucid.div_
+    [ class_ $ do
+        base ["flex", "items-center", Tokens.gap4, Tokens.textSm, "font-mono", Tokens.textWhite]
+    ]
+    $ do
+      -- Play/pause button - fixed width to prevent layout shift
+      Lucid.a_
+        [ Lucid.href_ "#",
+          xOnClick_ "toggle()",
+          class_ $ base ["hover:text-gray-300", "cursor-pointer", "w-20", "text-center"]
+        ]
+        $ do
+          -- Both rendered, visibility toggled - prevents layout shift
+          Lucid.span_ [xShow_ "!isPlaying"] "[ PLAY ]"
+          Lucid.span_ [xShow_ "isPlaying"] "[ PAUSE ]"
+      -- Show name
+      Lucid.div_ [class_ $ base ["flex", "flex-col", "uppercase"]] $ do
+        Lucid.div_ [xText_ "currentShow || 'KPBJ 95.9 FM'", class_ $ base [Tokens.fontBold]] "KPBJ 95.9 FM"
+        Lucid.div_ [class_ $ base [Tokens.textXs, "text-gray-300"]] "Live"
+
+-- | Audio element wrapper with Alpine state (shared between mobile and desktop)
+musicPlayerWrapper :: Lucid.Html () -> Lucid.Html ()
+musicPlayerWrapper content =
+  Lucid.div_ [xData_ playerData, class_ $ base ["flex", "flex-col", "flex-1"]] $ do
+    Lucid.audio_
+      [ xRef_ "audio",
+        Lucid.preload_ "none"
+      ]
+      mempty
+    content
   where
     playerData =
       [i|{
@@ -313,6 +346,140 @@ logo =
       "▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌\n"
       "·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀"
 
+-- | Compact logo for mobile header
+miniLogo :: Lucid.Html ()
+miniLogo =
+  Lucid.a_
+    [ Lucid.href_ [i|/#{rootGetUrl}|],
+      hxGet_ [i|/#{rootGetUrl}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      xOnClick_ "menuOpen = false",
+      class_ $ base [Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "hover:text-gray-600"]
+    ]
+    $ do
+      Lucid.pre_ [Lucid.style_ "margin: 0; font-size: 0.5rem;"] $ do
+        "▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.\n"
+        "█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪\n"
+        "▐▀▀▄· ██▀·▐█▀▀█▄▪▄ ██    ██▪ ▐█ ▌▐▌▐█·\n"
+        "▐█.█▌▐█▪·•██▄▪▐█▐▌▐█▌    ██▌.██ ██▌▐█▌\n"
+        "·▀  ▀.▀   ·▀▀▀▀  ▀▀▀•    ▀▀▀ ▀▀  █▪▀▀▀"
+
+--------------------------------------------------------------------------------
+-- Mobile Components
+
+-- | Mobile header bar with hamburger menu and centered logo
+-- Only visible on mobile (hidden on md+)
+mobileHeader :: Maybe UserMetadata.Model -> Lucid.Html ()
+mobileHeader _mUser =
+  Lucid.div_
+    [ class_ $ do
+        base ["flex", "items-center", Tokens.fullWidth, Tokens.p4, Tokens.bgWhite]
+        tablet ["hidden"]
+    ]
+    $ do
+      -- Hamburger button
+      Lucid.button_
+        [ xOnClick_ "menuOpen = !menuOpen",
+          class_ $ base [Tokens.p2, "hover:bg-gray-100", Tokens.fontBold, Tokens.textLg]
+        ]
+        "☰"
+      -- Centered logo (flex-1 pushes it to center)
+      Lucid.div_ [class_ $ base ["flex-1", "flex", "justify-center"]] miniLogo
+
+-- | Simplified auth widget for mobile header
+mobileAuthWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
+mobileAuthWidget mUser =
+  case mUser of
+    Nothing ->
+      Lucid.a_
+        [ Lucid.href_ [i|/#{userLoginGetUrl}|],
+          hxGet_ [i|/#{userLoginGetUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          class_ $ base [Tokens.px3, Tokens.py2, Tokens.cardBorder, Tokens.fontBold, Tokens.textSm, "hover:bg-gray-100"]
+        ]
+        "Log in"
+    Just _user ->
+      Lucid.a_
+        [ Lucid.href_ [i|/#{dashboardGetUrl}|],
+          class_ $ base [Tokens.px3, Tokens.py2, Tokens.cardBorder, Tokens.fontBold, Tokens.textSm, "hover:bg-gray-100"]
+        ]
+        "Dashboard"
+
+-- | Full-screen mobile menu overlay
+-- Appears when hamburger is tapped, smooth fade/slide transition
+mobileMenuOverlay :: Maybe UserMetadata.Model -> Lucid.Html ()
+mobileMenuOverlay mUser =
+  Lucid.div_
+    [ xShow_ "menuOpen",
+      xOnClickOutside_ "menuOpen = false",
+      xTransition_,
+      class_ $ base ["fixed", "inset-0", "z-50", Tokens.bgWhite, "flex", "flex-col", Tokens.p6]
+    ]
+    $ do
+      -- Close button row
+      Lucid.div_ [class_ $ base ["flex", "justify-end", Tokens.mb8]] $ do
+        Lucid.button_
+          [ xOnClick_ "menuOpen = false",
+            class_ $ base [Tokens.p2, "hover:bg-gray-100", Tokens.fontBold, "text-2xl"]
+          ]
+          "×"
+      -- Navigation links
+      mobileNavLinks mUser
+
+-- | Navigation links for mobile menu (vertical list)
+mobileNavLinks :: Maybe UserMetadata.Model -> Lucid.Html ()
+mobileNavLinks mUser =
+  Lucid.nav_ [class_ $ base ["flex", "flex-col", Tokens.gap6]] $ do
+    mobileNavLink "Home" rootGetUrl
+    mobileNavLink "Shows" showsGetUrl
+    mobileNavLink "Schedule" scheduleGetUrl
+    mobileNavLink "Donate" donateGetUrl
+    mobileNavLink "Events" eventsGetUrl
+    mobileNavLink "Blog" blogGetUrl
+    mobileNavLink "About" aboutGetUrl
+    Lucid.a_
+      [ Lucid.href_ "mailto:contact@kpbj.fm",
+        xOnClick_ "menuOpen = false",
+        class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600"]
+      ]
+      "Contact"
+    -- Divider
+    Lucid.hr_ [class_ $ base ["border-gray-300", "my-2"]]
+    -- Auth links
+    case mUser of
+      Nothing -> do
+        mobileNavLink "Log In" userLoginGetUrl
+        mobileNavLink "Sign Up" userRegisterGetUrl
+      Just _user -> do
+        Lucid.a_
+          [ Lucid.href_ [i|/#{dashboardGetUrl}|],
+            xOnClick_ "menuOpen = false",
+            class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600"]
+          ]
+          "Dashboard"
+        Lucid.a_
+          [ Lucid.href_ [i|/#{userLogoutGetUrl}|],
+            hxGet_ [i|/#{userLogoutGetUrl}|],
+            xOnClick_ "menuOpen = false",
+            class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600"]
+          ]
+          "Log Out"
+
+-- | Single navigation link for mobile menu
+mobileNavLink :: Lucid.Html () -> Link.URI -> Lucid.Html ()
+mobileNavLink label url =
+  Lucid.a_
+    [ Lucid.href_ [i|/#{url}|],
+      hxGet_ [i|/#{url}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      xOnClick_ "menuOpen = false",
+      class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600"]
+    ]
+    label
+
 navigation :: Lucid.Html ()
 navigation =
   Lucid.nav_ [class_ $ base ["flex", Tokens.gap8, "items-center", "flex-wrap"]] $ do
@@ -341,6 +508,7 @@ template :: Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
 template mUser main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
+      Lucid.meta_ [Lucid.name_ "viewport", Lucid.content_ "width=device-width, initial-scale=1.0"]
       Lucid.title_ "KPBJ 95.9FM"
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
       Lucid.script_ [Lucid.src_ "https://cdn.tailwindcss.com"] (mempty @Text)
@@ -349,26 +517,61 @@ template mUser main =
       Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] playerScript
-    Lucid.body_ [class_ $ base ["font-mono", Tokens.textGray800, "min-h-screen", "flex", "flex-col"]] $ do
-      -- Suspension warning banner (if suspended)
-      suspensionBanner $ maybe UserMetadata.NotSuspended UserMetadata.mSuspensionStatus mUser
-      -- Persistent header with navigation
-      Lucid.header_ [class_ $ base [Tokens.bgWhite, Tokens.p4]] $ do
-        Lucid.div_ [class_ $ base [Tokens.maxWidth, "mx-auto", "flex", "flex-col", "items-center", Tokens.gap4]] $ do
-          logo
-          musicPlayer
-          navigation
-          authWidget mUser
+    Lucid.body_
+      [ class_ $ do
+          base ["font-mono", Tokens.textGray800, "min-h-screen", "flex", "flex-col", "pb-20"]
+          tablet ["pb-0"]
+      ]
+      $ do
+        -- Suspension warning banner (if suspended)
+        suspensionBanner $ maybe UserMetadata.NotSuspended UserMetadata.mSuspensionStatus mUser
 
-      Lucid.div_ [class_ $ base [Tokens.px4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth]] $
-        Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
-      Lucid.main_
-        [class_ $ base ["flex-grow", Tokens.px4, Tokens.py8, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col", "items-center"], Lucid.id_ "main-content"]
-        main
-      Lucid.footer_ [class_ $ base [Tokens.px4, Tokens.py8, "mt-auto", "text-center"]] $ do
-        Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
-      -- Script to display banner from URL params (runs after DOM is ready)
-      Lucid.script_ [] bannerFromUrlScript
+        -- Wrap entire page in Alpine component for shared player + menu state
+        Lucid.div_ [xData_ "{ menuOpen: false }", class_ $ base ["flex", "flex-col", "flex-1"]] $ do
+          -- Mobile menu overlay (full-screen, z-50)
+          mobileMenuOverlay mUser
+
+          -- Player wrapper with Alpine state (audio element shared between desktop/mobile)
+          musicPlayerWrapper $ do
+            -- Mobile header (hamburger + mini logo + login) - visible only on mobile
+            mobileHeader mUser
+
+            -- Desktop header (hidden on mobile)
+            Lucid.header_
+              [ class_ $ do
+                  base ["hidden", Tokens.bgWhite, Tokens.p4]
+                  tablet ["block"]
+              ]
+              $ do
+                Lucid.div_ [class_ $ base [Tokens.maxWidth, "mx-auto", "flex", "flex-col", "items-center", Tokens.gap4]] $ do
+                  logo
+                  desktopMusicPlayer
+                  navigation
+                  authWidget mUser
+
+            -- Banner container
+            Lucid.div_ [class_ $ base [Tokens.px4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth]] $
+              Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
+
+            -- Main content
+            Lucid.main_
+              [class_ $ base ["flex-grow", Tokens.px4, Tokens.py8, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col", "items-center"], Lucid.id_ "main-content"]
+              main
+
+            -- Footer
+            Lucid.footer_ [class_ $ base [Tokens.px4, Tokens.py2, "mt-auto", "text-center", Tokens.textXs, Tokens.textGray600]] $ do
+              Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
+
+            -- Fixed mobile player at bottom (visible only on mobile)
+            Lucid.div_
+              [ class_ $ do
+                  base ["fixed", "bottom-0", "left-0", "right-0", "z-40", Tokens.bgGray800, Tokens.p4]
+                  tablet ["hidden"]
+              ]
+              mobileMusicPlayer
+
+        -- Script to display banner from URL params (runs after DOM is ready)
+        Lucid.script_ [] bannerFromUrlScript
 
 -- footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
 --   div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do
