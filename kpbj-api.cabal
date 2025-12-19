@@ -102,11 +102,6 @@ library
     API.About.Get.Handler
     API.About.Get.Route
     API.About.Get.Templates
-    API.Archive.Get.Handler
-    API.Archive.Get.Route
-    API.Archive.Get.Templates.EpisodeCard
-    API.Archive.Get.Templates.Page
-    API.Archive.Get.Templates.SearchFilters
     API.Blog.Get.Handler
     API.Blog.Get.Route
     API.Blog.Get.Templates.Page

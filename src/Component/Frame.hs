@@ -28,9 +28,6 @@ rootGetUrl = Link.linkURI apiLinks.rootGet
 aboutGetUrl :: Link.URI
 aboutGetUrl = Link.linkURI apiLinks.aboutGet
 
-archiveGetUrl :: Link.URI
-archiveGetUrl = Link.linkURI $ apiLinks.archiveGet Nothing Nothing Nothing Nothing
-
 donateGetUrl :: Link.URI
 donateGetUrl = Link.linkURI apiLinks.donateGet
 
@@ -323,7 +320,6 @@ navigation =
     -- Lucid.a_ [Lucid.id_ "nav-list", Lucid.href_ "/", Lucid.class_ Tokens.navLink] "Listen"
     Lucid.a_ [Lucid.id_ "nav-schedule", Lucid.href_ [i|/#{scheduleGetUrl}|], hxGet_ [i|/#{scheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Schedule"
     Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsGetUrl}|], hxGet_ [i|/#{showsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Shows"
-    Lucid.a_ [Lucid.id_ "nav-archive", Lucid.href_ [i|/#{archiveGetUrl}|], hxGet_ [i|/#{archiveGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Archive"
     Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Blog"
     Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Events"
     -- Lucid.a_ [Lucid.id_ "nav-store", Lucid.href_ "/", Lucid.class_ Tokens.navLink] "Store"
