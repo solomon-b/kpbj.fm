@@ -32,7 +32,6 @@ where
 --------------------------------------------------------------------------------
 
 import API.About.Get.Handler qualified as About.Get
-import API.Archive.Get.Handler qualified as Archive.Get
 import API.Blog.Get.Handler qualified as Blog.Get
 import API.Blog.Post.Get.Handler qualified as Blog.Post.Get
 import API.Dashboard.Blogs.Get.Handler qualified as Dashboard.Blogs.Get
@@ -142,7 +141,6 @@ server env =
       staticGet = Static.Get.handler env,
       mediaGet = Media.Get.handler,
       aboutGet = About.Get.handler,
-      archiveGet = Archive.Get.handler,
       donateGet = Donate.Get.handler,
       privacyPolicyGet = PrivacyPolicy.Get.handler,
       termsOfServiceGet = TermsOfService.Get.handler,
