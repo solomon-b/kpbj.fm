@@ -10,6 +10,7 @@ where
 
 import API.Links (apiLinks, userLinks)
 import API.Types
+import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
 import Data.Text
 import Data.Text.Display (display)
@@ -83,21 +84,16 @@ template displayName fullName emailAddress _redirectLink = do
       fullNameValue = maybe "" display fullName
       emailValue = maybe "" display emailAddress
   Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto"], xData_ (alpineState displayNameValue fullNameValue emailValue)] do
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8"]] do
-      Lucid.div_ [class_ $ base ["text-center", Tokens.mb8]] do
-        Lucid.h3_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "CREATE ACCOUNT"
-        Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] "Join the KPBJ community and unlock exclusive features"
-
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] do
+      pageHeader "CREATE ACCOUNT"
       Lucid.form_ [hxPost_ [i|/#{userRegisterPostUrl}|], Lucid.class_ "space-y-6"] do
         validationNotice
 
         Lucid.div_ [Lucid.class_ "space-y-4"] do
-          Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.textLg, "border-b", "border-gray-300", Tokens.pb2]] "Personal Information"
           fullNameField
           emailField
 
         Lucid.div_ [Lucid.class_ "space-y-4"] do
-          Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.textLg, "border-b", "border-gray-300", Tokens.pb2]] "Account Setup"
           displayNameField
           Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap4]; tablet ["grid-cols-2"] }] do
             passwordField
@@ -113,26 +109,6 @@ template displayName fullName emailAddress _redirectLink = do
       Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center"]] do
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb4]] "Already have an account?"
         Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", class_ $ base ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700", "inline-block"]] "LOGIN"
-
-    Lucid.div_ [class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-400", Tokens.p6, "mt-6"]] do
-      Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb4]] "WHAT YOU GET WITH AN ACCOUNT"
-      Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap4, Tokens.textSm]; tablet ["grid-cols-2"] }] do
-        Lucid.div_ [Lucid.class_ "space-y-2"] do
-          Lucid.div_ [Lucid.class_ Tokens.fontBold] "Community Features:"
-          Lucid.div_ "• Comment on blog posts"
-          Lucid.div_ "• Submit event listings"
-          Lucid.div_ "• Connect with other listeners"
-          Lucid.div_ "• Join discussions"
-        Lucid.div_ [Lucid.class_ "space-y-2"] do
-          Lucid.div_ [Lucid.class_ Tokens.fontBold] "Host Opportunities:"
-          Lucid.div_ "• Apply to host your own show"
-          Lucid.div_ "• Access host dashboard"
-          Lucid.div_ "• Upload episode content"
-          Lucid.div_ "• Manage show information"
-
-      Lucid.div_ [class_ $ base ["mt-4", Tokens.p3, "bg-blue-50", "border", "border-blue-400", Tokens.textSm]] do
-        Lucid.div_ [class_ $ base [Tokens.fontBold, "text-blue-800", "mb-1"]] "Interested in Hosting?"
-        Lucid.div_ [Lucid.class_ "text-blue-700"] "Create your account first, then contact our staff about hosting opportunities. We're always looking for passionate community members to join our DJ team!"
 
 displayNameField :: Lucid.Html ()
 displayNameField =

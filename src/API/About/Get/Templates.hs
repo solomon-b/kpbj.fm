@@ -5,6 +5,7 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.PageHeader (pageHeader)
 import Design (base, class_)
 import Design.Tokens (fontMedium, mb6, mb8, textGray800)
 import Lucid qualified
@@ -14,6 +15,7 @@ import Lucid qualified
 -- | About page template
 template :: Lucid.Html ()
 template = do
+  pageHeader "ABOUT KPBJ"
   Lucid.div_ [class_ $ base ["prose", "prose-lg", textGray800]] $ do
     Lucid.p_
       [class_ $ base [mb6, "leading-relaxed"]]

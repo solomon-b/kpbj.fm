@@ -7,6 +7,7 @@ module API.User.Login.Get.Templates.Form where
 
 import API.Links (userLinks)
 import API.Types
+import Component.PageHeader (pageHeader)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -69,10 +70,8 @@ template emailAddress redirectLink =
           xData_ (alpineState emailValue)
         ]
         do
-          Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8"]] do
-            Lucid.div_ [class_ $ base ["text-center", Tokens.mb8]] do
-              Lucid.h3_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "LOGIN"
-              Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] "Access your KPBJ community account"
+          Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] do
+            pageHeader "LOGIN"
             Lucid.form_ [Lucid.class_ "space-y-6", hxPost_ [i|/#{userLoginPostUrl redirectLink'}|]] do
               validationNotice
               emailField
@@ -84,15 +83,6 @@ template emailAddress redirectLink =
               Lucid.a_
                 [Lucid.href_ "#", hxGet_ [i|/#{userRegisterGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", class_ $ base ["bg-green-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-green-700", "inline-block"]]
                 "CREATE ACCOUNT"
-
-          Lucid.div_ [class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-400", Tokens.p6, "mt-6"]] do
-            Lucid.h3_ [class_ $ base [Tokens.fontBold, "mb-3"]] "JOIN OUR COMMUNITY"
-            Lucid.div_ [class_ $ base [Tokens.textSm, "space-y-2", Tokens.textGray700]] do
-              Lucid.div_ "• Comment on blog posts and events"
-              Lucid.div_ "• Apply to host your own show"
-              Lucid.div_ "• Submit event listings"
-              Lucid.div_ "• Access exclusive content"
-              Lucid.div_ "• Connect with other listeners"
 
 emailField :: Lucid.Html ()
 emailField =
