@@ -1,10 +1,10 @@
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Schedule.Get.Handler where
+module API.Schedule.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Schedule.Get.Templates.Page (template)
+import API.Schedule.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)

@@ -80,8 +80,8 @@ import API.Get.Handler qualified as Root.Get
 import API.Links
 import API.Media.Get.Handler qualified as Media.Get
 import API.PrivacyPolicy.Get.Handler qualified as PrivacyPolicy.Get
+import API.Schedule.Get.Handler qualified as Schedule.Get
 import API.Shows.Get.Handler qualified as Shows.Get
-import API.Shows.Schedule.Get.Handler qualified as Shows.Schedule.Get
 import API.Shows.Slug.Blog.Delete.Handler qualified as Show.Blog.Delete
 import API.Shows.Slug.Blog.Edit.Get.Handler qualified as Show.Blog.Edit.Get
 import API.Shows.Slug.Blog.Edit.Post.Handler qualified as Show.Blog.Edit.Post
@@ -148,6 +148,7 @@ server env =
       termsOfServiceGet = TermsOfService.Get.handler,
       blog = blogRoutes,
       events = eventsRoutes,
+      schedule = Schedule.Get.handler,
       shows = showsRoutes,
       user = userRoutes,
       dashboard = dashboardRoutes
@@ -170,7 +171,6 @@ server env =
     showsRoutes =
       ShowsRoutes
         { list = Shows.Get.handler,
-          schedule = Shows.Schedule.Get.handler,
           detail = Show.Get.handler,
           blog = showBlogRoutes,
           episodes = showEpisodesRoutes

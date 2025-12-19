@@ -53,8 +53,8 @@ import API.Events.Get.Route qualified as Events.Get
 import API.Get.Route qualified as Root.Get
 import API.Media.Get.Route qualified as Media.Get
 import API.PrivacyPolicy.Get.Route qualified as PrivacyPolicy.Get
+import API.Schedule.Get.Route qualified as Schedule
 import API.Shows.Get.Route qualified as Shows.Get
-import API.Shows.Schedule.Get.Route qualified as Shows.Schedule.Get
 import API.Shows.Slug.Blog.Delete.Route qualified as Show.Blog.Delete
 import API.Shows.Slug.Blog.Edit.Get.Route qualified as Show.Blog.Edit.Get
 import API.Shows.Slug.Blog.Edit.Post.Route qualified as Show.Blog.Edit.Post
@@ -107,6 +107,8 @@ data Routes mode = Routes
     blog :: mode :- NamedRoutes BlogRoutes,
     -- | @/events/...@ - Events routes
     events :: mode :- NamedRoutes EventsRoutes,
+    -- | @/schedule/...@ - Schedule Route
+    schedule :: mode :- Schedule.Route,
     -- | @/shows/...@ - Shows routes
     shows :: mode :- NamedRoutes ShowsRoutes,
     -- | @/user/...@ - User authentication routes
@@ -144,13 +146,11 @@ data EventsRoutes mode = EventsRoutes
 
 -- | Radio shows routes under @/shows@.
 --
--- Includes show listings, schedule, individual show pages, and nested routes
+-- Includes show listings, individual show pages, and nested routes
 -- for show-specific blog posts and episodes.
 data ShowsRoutes mode = ShowsRoutes
   { -- | @GET /shows@ - Shows listing with genre and status filtering
     list :: mode :- Shows.Get.Route,
-    -- | @GET /shows/schedule@ - Weekly show schedule
-    schedule :: mode :- Shows.Schedule.Get.Route,
     -- | @GET /shows/:slug@ - Individual show page
     detail :: mode :- Show.Get.Route,
     -- | @/shows/:slug/blog/...@ - Show-specific blog routes

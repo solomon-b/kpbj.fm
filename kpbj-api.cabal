@@ -224,15 +224,15 @@ library
     API.PrivacyPolicy.Get.Handler
     API.PrivacyPolicy.Get.Route
     API.PrivacyPolicy.Get.Templates
+    API.Schedule.Get.Handler
+    API.Schedule.Get.Route
+    API.Schedule.Get.Templates.Page
     API.Shows.Get.Handler
     API.Shows.Get.Route
     API.Shows.Get.Templates.Page
     API.Shows.Get.Templates.Pagination
-    API.Shows.Get.Templates.ScheduleView
+    API.Schedule.Get.Templates.Components
     API.Shows.Get.Templates.ShowCard
-    API.Shows.Schedule.Get.Handler
-    API.Shows.Schedule.Get.Route
-    API.Shows.Schedule.Get.Templates.Page
     API.Dashboard.Shows.Slug.Edit.Get.Handler
     API.Dashboard.Shows.Slug.Edit.Get.Route
     API.Dashboard.Shows.Slug.Edit.Get.Templates.Form
