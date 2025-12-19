@@ -1,4 +1,4 @@
-module API.Shows.Schedule.Get.Route where
+module API.Schedule.Get.Route where
 
 --------------------------------------------------------------------------------
 
@@ -15,9 +15,8 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /shows/schedule"
-    ( "shows"
-        :> "schedule"
+    "GET /schedule"
+    ( "schedule"
         :> Servant.QueryParam "week" WeekOffset
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest

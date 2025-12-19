@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, blogLinks, dashboardLinks, eventsLinks, showsLinks, userLinks)
+import API.Links (apiLinks, blogLinks, dashboardLinks, eventsLinks, scheduleLink, showsLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
@@ -52,8 +52,11 @@ userLogoutGetUrl = Link.linkURI userLinks.logoutGet
 dashboardGetUrl :: Link.URI
 dashboardGetUrl = Link.linkURI dashboardLinks.episodesRedirect
 
-showsScheduleGetUrl :: Link.URI
-showsScheduleGetUrl = Link.linkURI $ showsLinks.schedule Nothing
+scheduleGetUrl :: Link.URI
+scheduleGetUrl = Link.linkURI $ scheduleLink Nothing
+
+showsGetUrl :: Link.URI
+showsGetUrl = Link.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -318,7 +321,8 @@ navigation =
   Lucid.nav_ [Lucid.class_ $ cls ["flex", Tokens.gap8, "items-center", "flex-wrap"]] $ do
     Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Donate"
     -- Lucid.a_ [Lucid.id_ "nav-list", Lucid.href_ "/", Lucid.class_ Tokens.navLink] "Listen"
-    Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsScheduleGetUrl}|], hxGet_ [i|/#{showsScheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Shows"
+    Lucid.a_ [Lucid.id_ "nav-schedule", Lucid.href_ [i|/#{scheduleGetUrl}|], hxGet_ [i|/#{scheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Schedule"
+    Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsGetUrl}|], hxGet_ [i|/#{showsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Shows"
     Lucid.a_ [Lucid.id_ "nav-archive", Lucid.href_ [i|/#{archiveGetUrl}|], hxGet_ [i|/#{archiveGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Archive"
     Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Blog"
     Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Events"

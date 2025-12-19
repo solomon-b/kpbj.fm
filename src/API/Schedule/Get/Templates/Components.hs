@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Get.Templates.ScheduleView
+module API.Schedule.Get.Templates.Components
   ( renderScheduleView,
     renderWeekNavigation,
     renderDesktopSchedule,
@@ -8,7 +8,7 @@ module API.Shows.Get.Templates.ScheduleView
   )
 where
 
-import API.Links (showsLinks)
+import API.Links (scheduleLink, showsLinks)
 import API.Types
 import Control.Monad (unless)
 import Data.List (sortBy)
@@ -79,8 +79,8 @@ renderWeekNavigation (WeekOffset weekOffset) weekStart = do
         if weekOffset == 0
           then "CURRENT WEEK"
           else formatDateRange weekStart weekEnd
-      prevWeekUrl = showsScheduleWeekUrl (WeekOffset (weekOffset - 1))
-      nextWeekUrl = showsScheduleWeekUrl (WeekOffset (weekOffset + 1))
+      prevWeekUrl = scheduleWeekUrl (WeekOffset (weekOffset - 1))
+      nextWeekUrl = scheduleWeekUrl (WeekOffset (weekOffset + 1))
 
   Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p4, Tokens.mb6]] $ do
     Lucid.div_ [Lucid.class_ $ cls ["flex", "justify-between", "items-center"]] $ do
@@ -105,8 +105,8 @@ renderWeekNavigation (WeekOffset weekOffset) weekStart = do
         ]
         "NEXT WEEK →"
   where
-    showsScheduleWeekUrl :: WeekOffset -> Links.URI
-    showsScheduleWeekUrl offset = Links.linkURI $ showsLinks.schedule (Just offset)
+    scheduleWeekUrl :: WeekOffset -> Links.URI
+    scheduleWeekUrl offset = Links.linkURI $ scheduleLink (Just offset)
 
     formatDateRange :: Day -> Day -> Text
     formatDateRange start end =

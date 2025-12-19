@@ -21,6 +21,7 @@ module API.Links
     apiLinks,
     blogLinks,
     eventsLinks,
+    scheduleLink,
     showsLinks,
     showBlogLinks,
     showEpisodesLinks,
@@ -40,6 +41,7 @@ where
 --------------------------------------------------------------------------------
 
 import API.Types
+import Domain.Types.WeekOffset (WeekOffset)
 import Servant.Links (AsLink, Link, allFieldLinks)
 
 --------------------------------------------------------------------------------
@@ -55,6 +57,10 @@ blogLinks = apiLinks.blog
 -- | Events route links
 eventsLinks :: EventsRoutes (AsLink Link)
 eventsLinks = apiLinks.events
+
+-- | Schedule route link (top-level /schedule)
+scheduleLink :: Maybe WeekOffset -> Link
+scheduleLink = apiLinks.schedule
 
 -- | Shows route links
 showsLinks :: ShowsRoutes (AsLink Link)

@@ -3,17 +3,13 @@
 module API.Shows.Get.Templates.Page
   ( template,
     renderFilters,
-    renderTabs,
   )
 where
 
-import API.Links (showsLinks)
 import API.Shows.Get.Templates.Pagination (renderPagination)
 import API.Shows.Get.Templates.ShowCard (renderShowCard)
-import API.Types
 import Control.Monad (unless)
 import Data.Maybe (isNothing)
-import Data.String.Interpolate (i)
 import Data.Text.Display (display)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Genre (Genre)
@@ -21,9 +17,7 @@ import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Lucid.Responsive (cls, lg, md)
-import Servant.Links qualified as Links
 
 -- | Main shows list template
 template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
@@ -32,9 +26,6 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
   Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8, "text-center", Tokens.fullWidth]] $ do
     Lucid.h1_ [Lucid.class_ Tokens.heading2xl] "ALL SHOWS"
     Lucid.p_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.textGray600, Tokens.mb6]] "Browse KPBJ's diverse lineup of community radio shows"
-
-  -- Content Navigation Tabs
-  renderTabs
 
   -- Show Filters
   renderFilters maybeGenre maybeStatus maybeSearch
@@ -51,33 +42,6 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
       -- Pagination
       unless (null allShows) $
         renderPagination currentPage hasMore
-
--- | Render tabs for switching between views
-renderTabs :: Lucid.Html ()
-renderTabs =
-  let showsScheduleUrl = Links.linkURI $ showsLinks.schedule Nothing
-      showsListUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
-   in Lucid.div_ [Lucid.class_ $ cls [Tokens.mb8, Tokens.fullWidth, "border-b-2", "border-gray-800"]] $ do
-        Lucid.nav_ [Lucid.class_ $ cls ["flex", Tokens.gap8]] $ do
-          -- Schedule tab (inactive)
-          Lucid.a_
-            [ Lucid.href_ [i|/#{showsScheduleUrl}|],
-              hxGet_ [i|/#{showsScheduleUrl}|],
-              hxTarget_ "#main-content",
-              hxPushUrl_ "true",
-              Lucid.class_ $ cls ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.textGray600, "hover:text-gray-800"]
-            ]
-            "Schedule"
-
-          -- All Shows tab (active)
-          Lucid.a_
-            [ Lucid.href_ [i|/#{showsListUrl}|],
-              hxGet_ [i|/#{showsListUrl}|],
-              hxTarget_ "#main-content",
-              hxPushUrl_ "true",
-              Lucid.class_ $ cls ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", "border-gray-800", Tokens.bgWhite, "-mb-0.5"]
-            ]
-            "All Shows"
 
 -- | Render show filters
 renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
