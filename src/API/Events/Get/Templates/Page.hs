@@ -8,11 +8,11 @@ where
 import API.Events.Get.Templates.Controls (renderViewControls)
 import Data.Text (Text)
 import Data.Time (MonthOfYear, UTCTime, Year)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageView (PageView)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Lucid qualified
-import Lucid.Responsive (cls)
 
 --------------------------------------------------------------------------------
 

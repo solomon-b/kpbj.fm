@@ -5,11 +5,11 @@ where
 
 import API.Dashboard.Get.Templates.BlogPost (renderBlogPostTableRow)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Responsive (cls)
 
 -- | Blog dashboard template (stats are now in the top bar)
 template ::

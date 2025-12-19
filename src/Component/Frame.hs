@@ -10,6 +10,7 @@ import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
 import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
@@ -17,7 +18,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xModel_, xOnClick_, xOnInput_, xRef_, xText_)
-import Lucid.Responsive (cls)
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------

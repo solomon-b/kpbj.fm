@@ -15,12 +15,12 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..))
+import Design.StyleBuilder.Internal (cls, lg)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Responsive (cls, lg)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Rel8 (Result)
 import Servant.Links qualified as Links

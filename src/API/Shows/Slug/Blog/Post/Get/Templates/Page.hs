@@ -12,6 +12,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Design.StyleBuilder.Internal (cls, md)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -21,7 +22,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Extras
-import Lucid.Responsive (cls, md)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

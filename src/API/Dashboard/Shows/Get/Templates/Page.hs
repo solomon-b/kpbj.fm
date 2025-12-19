@@ -13,12 +13,12 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras
-import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

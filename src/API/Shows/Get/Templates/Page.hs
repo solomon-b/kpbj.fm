@@ -11,13 +11,13 @@ import API.Shows.Get.Templates.ShowCard (renderShowCard)
 import Control.Monad (unless)
 import Data.Maybe (isNothing)
 import Data.Text.Display (display)
+import Design.StyleBuilder.Internal (cls, lg, md)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Responsive (cls, lg, md)
 
 -- | Main shows list template
 template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()

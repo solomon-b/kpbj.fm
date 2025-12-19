@@ -5,9 +5,9 @@ where
 
 --------------------------------------------------------------------------------
 
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens (fontMedium, mb6, mb8, textGray800)
 import Lucid qualified
-import Lucid.Responsive (cls)
 
 --------------------------------------------------------------------------------
 

@@ -17,6 +17,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (MonthOfYear, Year)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageView (PageView (..))
 import Domain.Types.Slug (Slug)
@@ -24,7 +25,6 @@ import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
-import Lucid.Responsive (cls)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

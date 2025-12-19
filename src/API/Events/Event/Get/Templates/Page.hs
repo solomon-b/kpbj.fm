@@ -18,6 +18,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Design.StyleBuilder.Internal (cls, lg, md)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EventTags qualified as EventTags
@@ -26,7 +27,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
-import Lucid.Responsive (cls, lg, md)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

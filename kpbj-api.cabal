@@ -309,6 +309,14 @@ library
     Component.Layout
     Component.Redirect
     Component.Table
+    Design
+    Design.Lucid
+    Design.Lucid.Card
+    Design.Lucid.Layout
+    Design.Lucid.Visibility
+    Design.Responsive
+    Design.StyleBuilder
+    Design.StyleBuilder.Internal
     Design.Tokens
     Domain.Types.PostStatus
     Domain.Types.Cookie

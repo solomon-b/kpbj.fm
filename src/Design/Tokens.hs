@@ -101,7 +101,7 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Lucid.Responsive (cls, lg, md)
+import Design.StyleBuilder.Internal (cls, lg, md)
 
 --------------------------------------------------------------------------------
 -- Typography

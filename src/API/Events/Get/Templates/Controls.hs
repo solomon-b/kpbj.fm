@@ -17,12 +17,12 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (MonthOfYear, UTCTime, Year, utctDay)
 import Data.Time.Calendar.WeekDate (toWeekDate)
+import Design.StyleBuilder.Internal (cls, md)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageView (PageView (..), isMonthView, isWeekView)
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxSwap_, hxTarget_, hxTrigger_)
-import Lucid.Responsive (cls, md)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

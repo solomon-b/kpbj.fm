@@ -5,14 +5,14 @@ where
 
 import API.Blog.Get.Templates.Pagination (renderPagination)
 import API.Blog.Get.Templates.PostCard (renderBlogPostCard)
-import Component.Layout qualified as Layout
 import Control.Monad (unless)
 import Data.Int (Int64)
+import Design.Lucid qualified as Layout
+import Design.StyleBuilder.Internal (cls, md)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Lucid qualified
-import Lucid.Responsive (cls, md)
 
 -- | Main blog template
 template :: [(BlogPosts.Model, [BlogTags.Model])] -> Int64 -> Bool -> Lucid.Html ()

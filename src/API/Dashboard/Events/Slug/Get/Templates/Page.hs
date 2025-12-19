@@ -5,12 +5,12 @@ module API.Dashboard.Events.Slug.Get.Templates.Page where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Design.StyleBuilder.Internal (cls)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Responsive (cls)
 
 -- | Event detail template
 template ::
