@@ -5,7 +5,7 @@ where
 
 import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -23,12 +23,12 @@ template = renderEpisodesSection
 -- | Episodes table section
 renderEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Lucid.Html ()
 renderEpisodesSection userMeta selectedShow episodes =
-  Lucid.section_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
     case episodes of
       [] ->
-        Lucid.div_ [Lucid.class_ $ cls [Tokens.textGray600, "text-center", "p-8"]] $ do
+        Lucid.div_ [class_ $ base [Tokens.textGray600, "text-center", "p-8"]] $ do
           Lucid.p_ "No episodes uploaded yet."
-          Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, "mt-2"]] "Use 'New Episode' to upload your first episode."
+          Lucid.p_ [class_ $ base [Tokens.textSm, "mt-2"]] "Use 'New Episode' to upload your first episode."
       _ ->
         renderTable
           TableConfig

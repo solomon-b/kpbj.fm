@@ -18,7 +18,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -41,14 +41,14 @@ showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
 template showModel episode tracks = do
-  Lucid.div_ [Lucid.class_ $ cls ["max-w-4xl", "mx-auto", Tokens.px4, "py-8", Tokens.fullWidth]] $ do
+  Lucid.div_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-8", Tokens.fullWidth]] $ do
     -- Main episode container
-    Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder]] $ do
       -- Episode header with artwork
-      Lucid.div_ [Lucid.class_ $ cls ["border-b-2", "border-gray-800", Tokens.p6]] $ do
-        Lucid.div_ [Lucid.class_ $ cls ["flex", Tokens.gap6, Tokens.mb6]] $ do
+      Lucid.div_ [class_ $ base ["border-b-2", "border-gray-800", Tokens.p6]] $ do
+        Lucid.div_ [class_ $ base ["flex", Tokens.gap6, Tokens.mb6]] $ do
           -- Episode artwork
-          Lucid.div_ [Lucid.class_ $ cls ["w-48", "h-48", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
+          Lucid.div_ [class_ $ base ["w-48", "h-48", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
             case episode.artworkUrl of
               Just artworkUrl ->
                 Lucid.img_
@@ -60,16 +60,16 @@ template showModel episode tracks = do
 
           -- Episode metadata
           Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-            Lucid.div_ [Lucid.class_ $ cls [Tokens.textXs, "uppercase", "tracking-wide", Tokens.textGray600, Tokens.mb2]] $
+            Lucid.div_ [class_ $ base [Tokens.textXs, "uppercase", "tracking-wide", Tokens.textGray600, Tokens.mb2]] $
               "Episode " <> Lucid.toHtml (show episode.episodeNumber)
 
-            Lucid.h1_ [Lucid.class_ $ cls [Tokens.text3xl, Tokens.fontBold, Tokens.mb4]] $ Lucid.toHtml episode.title
+            Lucid.h1_ [class_ $ base [Tokens.text3xl, Tokens.fontBold, Tokens.mb4]] $ Lucid.toHtml episode.title
 
             -- Episode info grid
-            Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.mb4]] $ do
+            Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.mb4]] $ do
               -- Aired date
               Lucid.div_ $ do
-                Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold, Tokens.textGray700]] "Aired: "
+                Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700]] "Aired: "
                 case episode.publishedAt of
                   Just publishedAt -> do
                     let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" publishedAt
@@ -86,7 +86,7 @@ template showModel episode tracks = do
                   let hours = duration `div` 3600
                       minutes = (duration `mod` 3600) `div` 60
                   Lucid.div_ $ do
-                    Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold, Tokens.textGray700]] "Duration: "
+                    Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700]] "Duration: "
                     if hours > 0
                       then Lucid.toHtml (show hours) <> "h " <> Lucid.toHtml (show minutes) <> "min"
                       else Lucid.toHtml (show minutes) <> "min"
@@ -94,7 +94,7 @@ template showModel episode tracks = do
 
             -- Episode description
             case episode.description of
-              Just desc -> Lucid.p_ [Lucid.class_ $ cls [Tokens.textGray700, "leading-relaxed"]] $ Lucid.toHtml desc
+              Just desc -> Lucid.p_ [class_ $ base [Tokens.textGray700, "leading-relaxed"]] $ Lucid.toHtml desc
               Nothing -> mempty
 
       -- Audio player section
@@ -111,11 +111,11 @@ template showModel episode tracks = do
               episodeMetadata :: Text
               episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
 
-          Lucid.div_ [Lucid.class_ $ cls ["border-b-2", "border-gray-800", Tokens.p6]] $ do
-            Lucid.h2_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase"]] "Listen Now"
+          Lucid.div_ [class_ $ base ["border-b-2", "border-gray-800", Tokens.p6]] $ do
+            Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase"]] "Listen Now"
 
             Lucid.div_
-              [ Lucid.class_ $ cls [Tokens.bgGray100, Tokens.border2, "border-gray-600", Tokens.p6],
+              [ class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-600", Tokens.p6],
                 xData_
                   [i|{
                   playerId: '#{playerId}',
@@ -170,25 +170,25 @@ template showModel episode tracks = do
                 Lucid.audio_ [xRef_ "audio", Lucid.preload_ "metadata"] mempty
 
                 -- Play/pause button and progress bar
-                Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", Tokens.gap4, Tokens.mb4]] $ do
+                Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb4]] $ do
                   Lucid.button_
-                    [ Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", Tokens.textLg],
+                    [ class_ $ base [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", Tokens.textLg],
                       xOnClick_ "toggle()",
                       xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
                     ]
                     "▶ PLAY"
 
                   Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-                    Lucid.div_ [Lucid.class_ $ cls ["bg-gray-300", "h-3", "rounded", "relative"]] $ do
+                    Lucid.div_ [class_ $ base ["bg-gray-300", "h-3", "rounded", "relative"]] $ do
                       Lucid.div_
-                        [ Lucid.class_ $ cls [Tokens.bgGray800, "h-3", "rounded", "absolute", "top-0", "left-0"],
+                        [ class_ $ base [Tokens.bgGray800, "h-3", "rounded", "absolute", "top-0", "left-0"],
                           Lucid.style_ "",
                           xBindStyle_ "{ width: progress + '%' }"
                         ]
                         mempty
 
                   Lucid.span_
-                    [ Lucid.class_ $ cls [Tokens.textSm, "font-mono"],
+                    [ class_ $ base [Tokens.textSm, "font-mono"],
                       xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"
                     ]
                     "0:00 / 0:00"
@@ -197,7 +197,7 @@ template showModel episode tracks = do
       -- Track listing section
       unless (null tracks) $ do
         Lucid.div_ [Lucid.class_ Tokens.p6] $ do
-          Lucid.h2_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] $
+          Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] $
             "Track Listing (" <> Lucid.toHtml (show (length tracks)) <> " tracks)"
 
           Lucid.div_ [Lucid.class_ "space-y-1"] $ do
@@ -207,9 +207,9 @@ template showModel episode tracks = do
 
 renderTrackRow :: EpisodeTrack.Model -> Lucid.Html ()
 renderTrackRow track = do
-  Lucid.div_ [Lucid.class_ $ cls ["flex", "justify-between", "items-start", Tokens.p3, "hover:bg-gray-50", "border-b", "border-gray-200"]] $ do
+  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", Tokens.p3, "hover:bg-gray-50", "border-b", "border-gray-200"]] $ do
     -- Track number
-    Lucid.div_ [Lucid.class_ $ cls ["w-8", "flex-shrink-0", Tokens.textGray600, "font-mono", Tokens.textSm]] $
+    Lucid.div_ [class_ $ base ["w-8", "flex-shrink-0", Tokens.textGray600, "font-mono", Tokens.textSm]] $
       Lucid.toHtml (show track.trackNumber <> ".")
 
     -- Track info
@@ -217,39 +217,39 @@ renderTrackRow track = do
       Lucid.div_ [Lucid.class_ "font-medium"] $ do
         "\"" <> Lucid.toHtml track.title <> "\""
 
-      Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray700]] $ do
+      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray700]] $ do
         Lucid.toHtml track.artist
 
 --------------------------------------------------------------------------------
 
 errorTemplate :: Text -> Lucid.Html ()
 errorTemplate errorMsg = do
-  Lucid.div_ [Lucid.class_ $ cls ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [Lucid.class_ $ cls [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
-      Lucid.h1_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb4, Tokens.errorText]] "Error Loading Episode"
-      Lucid.p_ [Lucid.class_ $ cls ["text-red-700", Tokens.mb6]] $ Lucid.toHtml errorMsg
+  Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
+      Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4, Tokens.errorText]] "Error Loading Episode"
+      Lucid.p_ [class_ $ base ["text-red-700", Tokens.mb6]] $ Lucid.toHtml errorMsg
       Lucid.a_
         [ Lucid.href_ "/shows",
           hxGet_ "/shows",
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          Lucid.class_ $ cls ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
         ]
         "Back to Shows"
 
 notFoundTemplate :: Slug -> Slug -> Lucid.Html ()
 notFoundTemplate showSlug episodeSlug = do
   let showUrl = showGetUrl showSlug
-  Lucid.div_ [Lucid.class_ $ cls ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
-      Lucid.h1_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Episode Not Found"
-      Lucid.p_ [Lucid.class_ $ cls [Tokens.textGray700, Tokens.mb6]] $
+  Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
+      Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Episode Not Found"
+      Lucid.p_ [class_ $ base [Tokens.textGray700, Tokens.mb6]] $
         "We couldn't find the episode \"" <> Lucid.toHtml (display episodeSlug) <> "\" for show \"" <> Lucid.toHtml (display showSlug) <> "\"."
       Lucid.a_
         [ Lucid.href_ [i|/#{showUrl}|],
           hxGet_ [i|/#{showUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          Lucid.class_ $ cls ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
         ]
         "Back to Show"

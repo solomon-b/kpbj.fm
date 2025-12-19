@@ -5,7 +5,7 @@
 module Lucid.Styles
   ( -- * Core Builder
     StyleBuilder,
-    styles,
+    class_',
 
     -- * Breakpoint Declarations
     base,
@@ -30,9 +30,9 @@ import Design.StyleBuilder
   ( StyleBuilder,
     also,
     base,
+    class_',
     desktop,
     mobile,
-    styles,
     tablet,
     ultrawide,
     unless,

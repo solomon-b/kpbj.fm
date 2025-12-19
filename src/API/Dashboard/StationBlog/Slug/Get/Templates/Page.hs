@@ -9,7 +9,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -24,54 +24,54 @@ template ::
   Maybe UserMetadata.Model ->
   Lucid.Html ()
 template post tags mAuthor = do
-  Lucid.div_ [Lucid.class_ $ cls [Tokens.fullWidth]] $ do
+  Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Header with title
-    Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
-      Lucid.div_ [Lucid.class_ $ cls [Tokens.mb4]] $ do
-        Lucid.h2_ [Lucid.class_ $ cls [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+      Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
+        Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
           Lucid.toHtml post.bpmTitle
         renderStatusBadge post.bpmStatus
 
       -- Metadata
-      Lucid.div_ [Lucid.class_ $ cls ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.textGray600, "mt-4", "pt-4", "border-t", "border-gray-200"]] $ do
+      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.textGray600, "mt-4", "pt-4", "border-t", "border-gray-200"]] $ do
         Lucid.div_ [] $ do
-          Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold]] "Author: "
+          Lucid.span_ [class_ $ base [Tokens.fontBold]] "Author: "
           case mAuthor of
             Just author -> Lucid.toHtml author.mDisplayName
-            Nothing -> Lucid.span_ [Lucid.class_ $ cls ["text-gray-400"]] "Unknown"
+            Nothing -> Lucid.span_ [class_ $ base ["text-gray-400"]] "Unknown"
         Lucid.div_ [] $ do
-          Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold]] "Created: "
+          Lucid.span_ [class_ $ base [Tokens.fontBold]] "Created: "
           Lucid.toHtml $ formatDateTime post.bpmCreatedAt
         Lucid.div_ [] $ do
-          Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold]] "Updated: "
+          Lucid.span_ [class_ $ base [Tokens.fontBold]] "Updated: "
           Lucid.toHtml $ formatDateTime post.bpmUpdatedAt
         Lucid.div_ [] $ do
-          Lucid.span_ [Lucid.class_ $ cls [Tokens.fontBold]] "Published: "
+          Lucid.span_ [class_ $ base [Tokens.fontBold]] "Published: "
           case post.bpmPublishedAt of
             Just pubAt -> Lucid.toHtml $ formatDateTime pubAt
-            Nothing -> Lucid.span_ [Lucid.class_ $ cls ["text-gray-400"]] "Not published"
+            Nothing -> Lucid.span_ [class_ $ base ["text-gray-400"]] "Not published"
 
     -- Tags
     if null tags
       then mempty
-      else Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
-        Lucid.h3_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Tags"
-        Lucid.div_ [Lucid.class_ $ cls ["flex", "flex-wrap", Tokens.gap2]] $
+      else Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+        Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Tags"
+        Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $
           mapM_ renderTag tags
 
     -- Excerpt
     case post.bpmExcerpt of
       Just excerpt | not (Text.null excerpt) ->
-        Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
-          Lucid.h3_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Excerpt"
-          Lucid.p_ [Lucid.class_ $ cls [Tokens.textGray700]] $
+        Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+          Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Excerpt"
+          Lucid.p_ [class_ $ base [Tokens.textGray700]] $
             Lucid.toHtml excerpt
       _ -> mempty
 
     -- Content preview
-    Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
-      Lucid.h3_ [Lucid.class_ $ cls [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Content"
-      Lucid.div_ [Lucid.class_ $ cls ["prose", "prose-sm", "max-w-none", Tokens.textGray700, "whitespace-pre-wrap"]] $
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+      Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Content"
+      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.textGray700, "whitespace-pre-wrap"]] $
         Lucid.toHtml $
           truncateContent 2000 post.bpmContent
 

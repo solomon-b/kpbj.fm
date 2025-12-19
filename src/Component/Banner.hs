@@ -8,7 +8,7 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Base qualified as LucidBase
@@ -47,18 +47,18 @@ renderBanner bannerType title message =
     $ do
       Lucid.div_
         [ Lucid.id_ "banner",
-          Lucid.class_ $ cls [bgColor, Tokens.border2, borderColor, Tokens.p4, Tokens.mb6, Tokens.fullWidth]
+          class_ $ base [bgColor, Tokens.border2, borderColor, Tokens.p4, Tokens.mb6, Tokens.fullWidth]
         ]
         $ do
-          Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between"]] $ do
-            Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", Tokens.gap4]] $ do
+          Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
+            Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
               Lucid.span_ [Lucid.class_ Tokens.text2xl] $ Lucid.toHtml icon
               Lucid.div_ $ do
-                Lucid.h3_ [Lucid.class_ $ cls [Tokens.fontBold, titleColor]] $ Lucid.toHtml title
-                Lucid.p_ [Lucid.class_ $ cls [Tokens.textSm, messageColor]] $ Lucid.toHtml message
+                Lucid.h3_ [class_ $ base [Tokens.fontBold, titleColor]] $ Lucid.toHtml title
+                Lucid.p_ [class_ $ base [Tokens.textSm, messageColor]] $ Lucid.toHtml message
             Lucid.button_
               [ Lucid.onclick_ "this.closest('#banner').remove()",
-                Lucid.class_ $ cls [dismissColor, Tokens.fontBold, Tokens.textXl]
+                class_ $ base [dismissColor, Tokens.fontBold, Tokens.textXl]
               ]
               "×"
   where

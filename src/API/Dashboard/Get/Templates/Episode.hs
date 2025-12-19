@@ -13,7 +13,7 @@ import API.Types
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -52,49 +52,49 @@ renderEpisodeTableRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> 
 renderEpisodeTableRow userMeta showModel episode = do
   let episodeId = episode.id
       episodeRowId = [i|episode-row-#{episodeId}|]
-  Lucid.tr_ [Lucid.class_ $ cls ["border-b", "border-gray-300", "hover:bg-gray-50"], Lucid.id_ episodeRowId] $ do
+  Lucid.tr_ [class_ $ base ["border-b", "border-gray-300", "hover:bg-gray-50"], Lucid.id_ episodeRowId] $ do
     -- Episode number
-    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3", Tokens.fontBold, Tokens.textGray800]] $
+    Lucid.td_ [class_ $ base [Tokens.px4, "py-3", Tokens.fontBold, Tokens.textGray800]] $
       Lucid.toHtml $
         "#" <> Text.pack (show episode.episodeNumber)
 
     -- Title
-    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3"]] $ do
+    Lucid.td_ [class_ $ base [Tokens.px4, "py-3"]] $ do
       let episodeUrl = episodeGetUrl showModel.slug episode.id episode.slug
-      Lucid.div_ [Lucid.class_ $ cls [Tokens.fontBold, "text-gray-900"]]
+      Lucid.div_ [class_ $ base [Tokens.fontBold, "text-gray-900"]]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{episodeUrl}|],
             hxGet_ [i|/#{episodeUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ $ cls ["hover:underline", "text-blue-600"]
+            class_ $ base ["hover:underline", "text-blue-600"]
           ]
         $ Lucid.toHtml episode.title
       case episode.description of
         Nothing -> mempty
         Just desc ->
-          Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, Tokens.textGray600, "mt-1"]] $ do
+          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "mt-1"]] $ do
             Lucid.toHtml $ Text.take 100 desc
             if Text.length desc > 100 then "..." else ""
 
     -- Scheduled date
-    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3", Tokens.textSm]] $ do
+    Lucid.td_ [class_ $ base [Tokens.px4, "py-3", Tokens.textSm]] $ do
       case episode.scheduledAt of
         Just scheduledAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" scheduledAt
-        Nothing -> Lucid.span_ [Lucid.class_ $ cls ["text-gray-500", "italic"]] "Not scheduled"
+        Nothing -> Lucid.span_ [class_ $ base ["text-gray-500", "italic"]] "Not scheduled"
 
     -- Status
-    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3", Tokens.textSm]] $ do
+    Lucid.td_ [class_ $ base [Tokens.px4, "py-3", Tokens.textSm]] $ do
       case episode.status of
         Episodes.Draft ->
-          Lucid.span_ [Lucid.class_ $ cls ["inline-block", "bg-yellow-100", "text-yellow-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
+          Lucid.span_ [class_ $ base ["inline-block", "bg-yellow-100", "text-yellow-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
         Episodes.Published ->
-          Lucid.span_ [Lucid.class_ $ cls ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
+          Lucid.span_ [class_ $ base ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
         Episodes.Deleted ->
-          Lucid.span_ [Lucid.class_ $ cls ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"
+          Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"
 
     -- Actions dropdown
-    Lucid.td_ [Lucid.class_ $ cls [Tokens.px4, "py-3", "text-center"]] $
+    Lucid.td_ [class_ $ base [Tokens.px4, "py-3", "text-center"]] $
       Lucid.div_ [xData_ "{}"] $
         do
           -- Hidden link for Edit

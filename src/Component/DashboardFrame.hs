@@ -20,7 +20,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_, class_')
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -114,20 +114,20 @@ template userMeta allShows selectedShow activeNav statsContent actionButton main
       Lucid.script_ [Lucid.src_ "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
-    Lucid.body_ [Lucid.class_ $ cls ["font-mono", Tokens.textGray800, Tokens.bgGray100]] $ do
+    Lucid.body_ [class_ $ base ["font-mono", Tokens.textGray800, Tokens.bgGray100]] $ do
       -- Full height flex container
-      Lucid.div_ [Lucid.class_ $ cls ["min-h-screen", "flex"]] $ do
+      Lucid.div_ [class_ $ base ["min-h-screen", "flex"]] $ do
         -- Left sidebar
         sidebar userMeta activeNav selectedShow
         -- Main content area
-        Lucid.div_ [Lucid.class_ $ cls ["flex-1", "flex", "flex-col"]] $ do
+        Lucid.div_ [class_ $ base ["flex-1", "flex", "flex-col"]] $ do
           -- Top bar with page title, show selector, stats, and action button
           topBar activeNav allShows selectedShow statsContent actionButton
           -- Banner container
           Lucid.div_ [Lucid.class_ Tokens.px8] $
             Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
           -- Main content (use same ID as main site for HTMX compatibility)
-          Lucid.main_ [Lucid.class_ $ cls ["flex-1", Tokens.p8], Lucid.id_ "main-content"] main
+          Lucid.main_ [class_ $ base ["flex-1", Tokens.p8], Lucid.id_ "main-content"] main
 
 -- | Left sidebar with navigation
 sidebar ::
@@ -136,28 +136,28 @@ sidebar ::
   Maybe Shows.Model ->
   Lucid.Html ()
 sidebar userMeta activeNav selectedShow =
-  Lucid.aside_ [Lucid.class_ $ cls ["w-64", Tokens.bgGray900, Tokens.textWhite, "flex", "flex-col", "h-screen", "sticky", "top-0"]] $ do
+  Lucid.aside_ [class_ $ base ["w-64", Tokens.bgGray900, Tokens.textWhite, "flex", "flex-col", "h-screen", "sticky", "top-0"]] $ do
     -- Logo / Brand
-    Lucid.div_ [Lucid.class_ $ cls [Tokens.p4, "border-b", "border-gray-700", "shrink-0"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.p4, "border-b", "border-gray-700", "shrink-0"]] $ do
       Lucid.a_
         [ Lucid.href_ [i|/#{rootGetUrl}|],
-          Lucid.class_ $ cls [Tokens.textLg, Tokens.fontBold, "hover:text-gray-300", "block"]
+          class_ $ base [Tokens.textLg, Tokens.fontBold, "hover:text-gray-300", "block"]
         ]
         "KPBJ 95.9FM"
-      Lucid.span_ [Lucid.class_ $ cls [Tokens.textXs, "text-gray-500", "block", "mt-1"]] "Dashboard"
+      Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", "mt-1"]] "Dashboard"
 
     -- Navigation (scrollable if needed)
-    Lucid.nav_ [Lucid.class_ $ cls ["flex-1", Tokens.p4, "overflow-y-auto"]] $ do
+    Lucid.nav_ [class_ $ base ["flex-1", Tokens.p4, "overflow-y-auto"]] $ do
       Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
-        Lucid.span_ [Lucid.class_ $ cls [Tokens.textXs, "text-gray-500", "block", Tokens.px4, Tokens.mb2]] "HOST"
+        Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", Tokens.px4, Tokens.mb2]] "HOST"
         Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
           navItem "EPISODES" NavEpisodes activeNav selectedShow
           navItem "BLOG" NavBlog activeNav selectedShow
 
       -- Staff/Admin section - shown only for Staff or higher roles
       when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
-        Lucid.div_ [Lucid.class_ $ cls ["border-t", "border-gray-700", "mt-4", "pt-4"]] $ do
-          Lucid.span_ [Lucid.class_ $ cls [Tokens.textXs, "text-gray-500", "block", Tokens.px4, Tokens.mb2]] "ADMIN"
+        Lucid.div_ [class_ $ base ["border-t", "border-gray-700", "mt-4", "pt-4"]] $ do
+          Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", Tokens.px4, Tokens.mb2]] "ADMIN"
           Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
             staffNavItem "USERS" NavUsers activeNav
             staffNavItem "SHOWS" NavShows activeNav
@@ -165,16 +165,16 @@ sidebar userMeta activeNav selectedShow =
             staffNavItem "EVENTS" NavEvents activeNav
 
     -- User info at bottom (always visible)
-    Lucid.div_ [Lucid.class_ $ cls [Tokens.p4, "border-t", "border-gray-700", "shrink-0", "mt-auto"]] $ do
-      Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, "text-gray-400", Tokens.mb2]] $ do
-        Lucid.span_ [Lucid.class_ $ cls ["block", Tokens.fontBold, Tokens.textWhite]] $
+    Lucid.div_ [class_ $ base [Tokens.p4, "border-t", "border-gray-700", "shrink-0", "mt-auto"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.textSm, "text-gray-400", Tokens.mb2]] $ do
+        Lucid.span_ [class_ $ base ["block", Tokens.fontBold, Tokens.textWhite]] $
           Lucid.toHtml userMeta.mDisplayName
         Lucid.span_ [Lucid.class_ Tokens.textXs] $
           Lucid.toHtml $
             Text.pack $
               show userMeta.mUserRole
       Lucid.a_
-        [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ $ cls [Tokens.textSm, "text-gray-400", "hover:text-white"]]
+        [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"]]
         "Logout"
 
 -- | Show selector dropdown for top bar
@@ -193,7 +193,7 @@ showSelector activeNav allShows selectedShow =
       Lucid.select_
         [ Lucid.id_ "show-selector",
           Lucid.name_ "show",
-          Lucid.class_ $ cls ["px-3", "py-1", "border", "border-gray-300", Tokens.bgWhite, Tokens.textSm, "font-medium"],
+          class_ $ base ["px-3", "py-1", "border", "border-gray-300", Tokens.bgWhite, Tokens.textSm, "font-medium"],
           onchange_ "window.location.href = this.options[this.selectedIndex].dataset.url"
         ]
         $ mapM_ (renderShowOption activeNav selectedShow) allShows
@@ -220,8 +220,8 @@ renderShowOption activeNav selectedShow showModel = do
 navItem :: Text -> DashboardNav -> DashboardNav -> Maybe Shows.Model -> Lucid.Html ()
 navItem label nav activeNav mShow = do
   let isActive = nav == activeNav
-      baseClasses = cls ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
-      activeClasses = cls [Tokens.bgGray800, Tokens.textWhite]
+      baseClasses = class_' $ base ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
+      activeClasses = class_' $ base [Tokens.bgGray800, Tokens.textWhite]
       inactiveClasses = "text-gray-400 hover:text-white hover:bg-gray-800"
       disabledClasses = "text-gray-600 cursor-not-allowed"
       mUrl = navUrl nav mShow
@@ -240,8 +240,8 @@ navItem label nav activeNav mShow = do
 staffNavItem :: Text -> DashboardNav -> DashboardNav -> Lucid.Html ()
 staffNavItem label nav activeNav = do
   let isActive = nav == activeNav
-      baseClasses = cls ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
-      activeClasses = cls [Tokens.bgGray800, Tokens.textWhite]
+      baseClasses = class_' $ base ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
+      activeClasses = class_' $ base [Tokens.bgGray800, Tokens.textWhite]
       inactiveClasses = "text-gray-400 hover:text-white hover:bg-gray-800"
   case staffNavUrl nav of
     Just url ->
@@ -279,25 +279,25 @@ navUrl nav mShow =
 -- | Top bar with page title, show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
 topBar activeNav allShows selectedShow statsContent actionButton =
-  Lucid.header_ [Lucid.class_ $ cls [Tokens.bgWhite, "border-b", "border-gray-200", Tokens.px8, Tokens.py4]] $ do
-    Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", "justify-between"]] $ do
+  Lucid.header_ [class_ $ base [Tokens.bgWhite, "border-b", "border-gray-200", Tokens.px8, Tokens.py4]] $ do
+    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       -- Left side: page title and show selector
-      Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", Tokens.gap4]] $ do
-        Lucid.h1_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.fontBold]] $
+      Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
+        Lucid.h1_ [class_ $ base [Tokens.textXl, Tokens.fontBold]] $
           Lucid.toHtml (navTitle activeNav)
         -- Show selector (only for show-scoped pages)
         when (isShowScoped activeNav) $
           showSelector activeNav allShows selectedShow
         -- Stats (schedule info, counts, etc.)
         case statsContent of
-          Just stats -> Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, "text-gray-500", "border-l", "border-gray-300", "pl-4"]] stats
+          Just stats -> Lucid.div_ [class_ $ base [Tokens.textSm, "text-gray-500", "border-l", "border-gray-300", "pl-4"]] stats
           Nothing -> mempty
       -- Right side: action button and back to site link
-      Lucid.div_ [Lucid.class_ $ cls ["flex", "items-center", Tokens.gap4]] $ do
+      Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
         fromMaybe mempty actionButton
         Lucid.a_
           [ Lucid.href_ [i|/#{rootGetUrl}|],
-            Lucid.class_ $ cls [Tokens.textSm, "text-gray-500", "hover:text-gray-800"]
+            class_ $ base [Tokens.textSm, "text-gray-500", "hover:text-gray-800"]
           ]
           "Back to Site"
 

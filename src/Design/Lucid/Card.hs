@@ -26,5 +26,6 @@ cardWithHeader :: Text -> Lucid.Html () -> Lucid.Html ()
 cardWithHeader title content =
   Lucid.article_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder]] $ do
     Lucid.header_ [Lucid.class_ $ cls [Tokens.bgGray100, Tokens.p4, "border-b-2", Tokens.borderGray800]] $
-      Lucid.h3_ [Lucid.class_ Tokens.fontBold] $ Lucid.toHtml title
+      Lucid.h3_ [Lucid.class_ Tokens.fontBold] $
+        Lucid.toHtml title
     Lucid.div_ [Lucid.class_ Tokens.cardPadding] content

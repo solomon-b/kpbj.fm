@@ -12,7 +12,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
@@ -30,15 +30,15 @@ template events currentPage hasMore = do
   if null events
     then renderEmptyState
     else do
-      Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
+      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
         Lucid.table_ [Lucid.class_ Tokens.fullWidth] $ do
-          Lucid.thead_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite]] $
+          Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
             Lucid.tr_ $ do
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Title"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Status"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Start Date"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Location"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-center", "w-24"]] ""
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Title"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Status"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Start Date"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Location"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-center", "w-24"]] ""
           Lucid.tbody_ $
             mapM_ renderEventRow events
 
@@ -57,7 +57,7 @@ renderEventRow event =
       viewUrl = Links.linkURI $ eventsLinks.detailWithSlug eventId eventSlug
       deleteUrl = Links.linkURI $ dashboardEventsLinks.delete eventId eventSlug
       cellLinkAttrs =
-        [ Lucid.class_ $ cls [Tokens.p4, "cursor-pointer"],
+        [ class_ $ base [Tokens.p4, "cursor-pointer"],
           hxGet_ [i|/#{detailUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
@@ -71,7 +71,7 @@ renderEventRow event =
    in do
         Lucid.tr_
           [ Lucid.id_ rowId,
-            Lucid.class_ $ cls [Tokens.border2, "border-gray-200", "hover:bg-gray-50"]
+            class_ $ base [Tokens.border2, "border-gray-200", "hover:bg-gray-50"]
           ]
           $ do
             Lucid.td_ cellLinkAttrs $
@@ -87,9 +87,9 @@ renderEventRow event =
             Lucid.td_ cellLinkAttrs $ do
               Lucid.div_ [Lucid.class_ Tokens.textSm] $ Lucid.toHtml locationName
 
-            Lucid.td_ [Lucid.class_ $ cls [Tokens.p4, "text-center"]]
+            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]]
               $ Lucid.select_
-                [ Lucid.class_ $ cls ["p-2", "border", "border-gray-400", "text-xs", Tokens.bgWhite],
+                [ class_ $ base ["p-2", "border", "border-gray-400", "text-xs", Tokens.bgWhite],
                   xData_ "{}",
                   xOnChange_
                     [i|
@@ -120,18 +120,18 @@ renderStatusBadge status = do
         Events.Draft -> ("bg-yellow-100", "text-yellow-800", "Draft")
 
   Lucid.span_
-    [Lucid.class_ $ cls ["inline-block", "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
+    [class_ $ base ["inline-block", "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
     $ Lucid.toHtml statusText
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [Lucid.class_ $ cls ["bg-gray-50", Tokens.border2, "border-gray-300", "p-12", "text-center"]] $ do
-    Lucid.p_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.textGray600]] "No events found."
-    Lucid.p_ [Lucid.class_ $ cls ["text-gray-500", "mt-2"]] "Create a new event to get started."
+  Lucid.div_ [class_ $ base ["bg-gray-50", Tokens.border2, "border-gray-300", "p-12", "text-center"]] $ do
+    Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] "No events found."
+    Lucid.p_ [class_ $ base ["text-gray-500", "mt-2"]] "Create a new event to get started."
 
 renderPagination :: Int64 -> Bool -> Lucid.Html ()
 renderPagination currentPage hasMore = do
-  Lucid.div_ [Lucid.class_ $ cls ["flex", "justify-between", "items-center"]] $ do
+  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-center"]] $ do
     -- Previous button
     if currentPage > 1
       then
@@ -140,14 +140,14 @@ renderPagination currentPage hasMore = do
             hxGet_ [i|/#{prevPageUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "<- PREVIOUS"
       else
         Lucid.div_ [] mempty
 
     -- Page indicator
-    Lucid.span_ [Lucid.class_ $ cls [Tokens.textGray600, Tokens.fontBold]] $
+    Lucid.span_ [class_ $ base [Tokens.textGray600, Tokens.fontBold]] $
       Lucid.toHtml $
         "Page " <> show currentPage
 
@@ -159,7 +159,7 @@ renderPagination currentPage hasMore = do
             hxGet_ [i|/#{nextPageUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "NEXT ->"
       else

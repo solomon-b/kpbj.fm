@@ -5,20 +5,23 @@
 --
 -- Example usage:
 --
--- > cardStyles :: Text
--- > cardStyles = styles $ do
+-- > -- Direct attribute usage (preferred)
+-- > Lucid.div_ [className $ do
 -- >   base [bgWhite, cardBorder, p4, mb4]
 -- >   tablet [p6, mb6]
--- >   desktop [p8, mb8]
+-- >   desktop [p8, mb8]]
 -- >
--- > -- Result: "bg-white border-2 border-gray-800 p-4 mb-4 md:p-6 md:mb-6 lg:p-8 lg:mb-8"
+-- > -- Or with raw Text (for string interpolation)
+-- > cardStyles :: Text
+-- > cardStyles = class_' $ base [bgWhite, p4]
 --
 -- The DSL enforces mobile-first thinking by making the base (mobile) styles
 -- the foundation, with breakpoint-specific overrides layered on top.
 module Design.StyleBuilder
   ( -- * Core Builder
     StyleBuilder,
-    styles,
+    class_,
+    class_',
 
     -- * Breakpoint Declarations
     base,
@@ -43,6 +46,8 @@ import Control.Monad.Writer.Strict (Writer, execWriter, tell)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Design.StyleBuilder.Internal qualified as Internal
+import Lucid qualified
+import Lucid.Base (Attributes)
 
 --------------------------------------------------------------------------------
 -- Types
@@ -55,18 +60,33 @@ type StyleBuilder = Writer [Text] ()
 --------------------------------------------------------------------------------
 -- Core Builder
 
--- | Execute a style builder and produce a space-separated class string.
+-- | Execute a style builder and produce a Lucid class attribute.
+--
+-- This is the preferred way to use the style builder in templates.
 --
 -- Example:
 --
--- > styles $ do
+-- > Lucid.div_ [class_ $ do
+-- >   base ["bg-white", "p-4"]
+-- >   tablet ["p-6"]
+-- >   desktop ["p-8"]]
+class_ :: StyleBuilder -> Attributes
+class_ = Lucid.class_ . class_'
+
+-- | Execute a style builder and produce a space-separated class string.
+--
+-- Use this when you need raw Text, such as in string interpolation.
+--
+-- Example:
+--
+-- > class_' $ do
 -- >   base ["bg-white", "p-4"]
 -- >   tablet ["p-6"]
 -- >   desktop ["p-8"]
 -- >
 -- > -- Result: "bg-white p-4 md:p-6 lg:p-8"
-styles :: StyleBuilder -> Text
-styles = Text.unwords . filter (not . Text.null) . execWriter
+class_' :: StyleBuilder -> Text
+class_' = Text.unwords . filter (not . Text.null) . execWriter
 
 --------------------------------------------------------------------------------
 -- Breakpoint Declarations

@@ -13,7 +13,7 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
-import Design.StyleBuilder.Internal (cls)
+import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Effects.Database.Tables.Shows qualified as Shows
@@ -36,15 +36,15 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   if null theShowList
     then renderEmptyState maybeQuery
     else do
-      Lucid.div_ [Lucid.class_ $ cls [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
+      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
         Lucid.table_ [Lucid.class_ Tokens.fullWidth] $ do
-          Lucid.thead_ [Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite]] $
+          Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
             Lucid.tr_ $ do
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Title"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Status"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Hosts"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-left"]] "Genre"
-              Lucid.th_ [Lucid.class_ $ cls [Tokens.p4, "text-center", "w-24"]] ""
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Title"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Status"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Hosts"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Genre"
+              Lucid.th_ [class_ $ base [Tokens.p4, "text-center", "w-24"]] ""
           Lucid.tbody_ $
             mapM_ renderShowRow theShowList
 
@@ -55,7 +55,7 @@ renderShowRow showInfo =
   let showDetailUrl = Links.linkURI $ dashboardShowsLinks.detail showInfo.swhiId showInfo.swhiSlug Nothing
       showEditUrl = Links.linkURI $ dashboardShowsLinks.editGet showInfo.swhiSlug
       cellLinkAttrs =
-        [ Lucid.class_ $ cls [Tokens.p4, "cursor-pointer"],
+        [ class_ $ base [Tokens.p4, "cursor-pointer"],
           hxGet_ [i|/#{showDetailUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
@@ -67,7 +67,7 @@ renderShowRow showInfo =
             Lucid.td_ cellLinkAttrs $ do
               Lucid.span_ [Lucid.class_ Tokens.fontBold] $
                 Lucid.toHtml showInfo.swhiTitle
-              Lucid.div_ [Lucid.class_ $ cls [Tokens.textSm, "text-gray-500"]] $
+              Lucid.div_ [class_ $ base [Tokens.textSm, "text-gray-500"]] $
                 Lucid.toHtml $
                   "/" <> display showInfo.swhiSlug
 
@@ -87,7 +87,7 @@ renderShowRow showInfo =
               Lucid.toHtml $
                 fromMaybe "-" showInfo.swhiGenre
 
-            Lucid.td_ [Lucid.class_ $ cls [Tokens.p4, "text-center"]] $
+            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
               Lucid.div_ [xData_ "{}"] $
                 do
                   -- Hidden link for Edit - HTMX handles history properly
@@ -124,13 +124,13 @@ renderStatusBadge status = do
         Shows.Inactive -> (Tokens.bgGray100, Tokens.textGray800, "Inactive")
 
   Lucid.span_
-    [Lucid.class_ $ cls ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
+    [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
     $ Lucid.toHtml statusText
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do
-  Lucid.div_ [Lucid.class_ $ cls ["bg-gray-50", Tokens.border2, "border-gray-300", "p-12", "text-center"]] $ do
-    Lucid.p_ [Lucid.class_ $ cls [Tokens.textXl, Tokens.textGray600]] $
+  Lucid.div_ [class_ $ base ["bg-gray-50", Tokens.border2, "border-gray-300", "p-12", "text-center"]] $ do
+    Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] $
       case maybeQuery of
         Nothing -> "No shows found. Create your first show!"
         Just query -> Lucid.toHtml $ "No shows found matching \"" <> query <> "\"."
@@ -146,14 +146,14 @@ renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filte
             hxGet_ [i|/#{prevPageUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "<- PREVIOUS"
       else
         Lucid.div_ [] mempty
 
     -- Page indicator
-    Lucid.span_ [Lucid.class_ $ cls [Tokens.textGray600, Tokens.fontBold]] $
+    Lucid.span_ [class_ $ base [Tokens.textGray600, Tokens.fontBold]] $
       Lucid.toHtml $
         "Page " <> show currentPage
 
@@ -165,7 +165,7 @@ renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filte
             hxGet_ [i|/#{nextPageUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ $ cls [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "NEXT ->"
       else
