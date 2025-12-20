@@ -34,8 +34,6 @@ module Effects.Database.Tables.Events
     updateEvent,
     deleteEvent,
     getAllEvents,
-    getEventsForMonth,
-    getEventsForWeek,
 
     -- * Result Types
     EventWithAuthor (..),
@@ -52,7 +50,7 @@ import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..), RecordInstance (..), display)
-import Data.Time (MonthOfYear, UTCTime, Year)
+import Data.Time (UTCTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug (..))
@@ -346,36 +344,3 @@ getAllEvents (Limit lim) (Offset off) =
         Rel8.offset (fromIntegral off) $
           orderBy (emStartsAt >$< desc) do
             each eventSchema
-
--- | Get events for a specific month and year.
---
--- Uses raw SQL because this query involves date extraction functions.
-getEventsForMonth :: Year -> MonthOfYear -> Hasql.Statement () [Model]
-getEventsForMonth year month =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
-    FROM events
-    WHERE status = 'published'
-      AND EXTRACT(YEAR FROM starts_at) = #{fromIntegral year :: Int64}
-      AND EXTRACT(MONTH FROM starts_at) = #{fromIntegral month :: Int64}
-    ORDER BY starts_at ASC
-  |]
-
--- | Get events for a specific week (ISO week number).
---
--- Uses raw SQL because this query involves date extraction functions.
-getEventsForWeek :: Year -> Int -> Hasql.Statement () [Model]
-getEventsForWeek year weekNum =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
-    FROM events
-    WHERE status = 'published'
-      AND EXTRACT(YEAR FROM starts_at) = #{fromIntegral year :: Int64}
-      AND EXTRACT(WEEK FROM starts_at) = #{fromIntegral weekNum :: Int64}
-    ORDER BY starts_at ASC
-  |]
-
