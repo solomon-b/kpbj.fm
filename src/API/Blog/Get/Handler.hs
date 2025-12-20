@@ -14,7 +14,7 @@ import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad (forM)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Functor ((<&>))
@@ -23,7 +23,10 @@ import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.DisplayName (mkDisplayNameUnsafe)
+import Domain.Types.FullName (mkFullNameUnsafe)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -31,6 +34,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
@@ -69,6 +73,9 @@ handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   -- Get user info once upfront
   mUserInfo <- getUserInfo cookie <&> fmap snd
 
+  -- Get current time for relative date formatting
+  currentTime <- liftIO getCurrentTime
+
   -- Get blog posts based on filters (tag only)
   getBlogPostResults limit offset maybeTag >>= \case
     Left _err -> do
@@ -78,7 +85,7 @@ handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
     Right allPosts -> do
       let posts = take (fromIntegral limit) allPosts
           hasMore = length allPosts > fromIntegral limit
-          blogTemplate = template posts page hasMore
+          blogTemplate = template currentTime posts page hasMore
       renderTemplate hxRequest mUserInfo blogTemplate
 
 getBlogPostResults ::
@@ -91,7 +98,7 @@ getBlogPostResults ::
   Limit ->
   Offset ->
   Maybe Text ->
-  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
+  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
 getBlogPostResults limit offset maybeTag = do
   case maybeTag of
     Just tagName ->
@@ -114,13 +121,15 @@ getPostsWithTags ::
   ) =>
   Limit ->
   Offset ->
-  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
+  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
 getPostsWithTags limit offset =
   execTransactionSpan $ do
     posts <- HT.statement () $ BlogPosts.getPublishedBlogPosts limit offset
     forM posts $ \post -> do
       tags <- HT.statement () $ BlogPosts.getTagsForPost post.bpmId
-      pure (post, tags)
+      mAuthor <- HT.statement () $ UserMetadata.getUserMetadata post.bpmAuthorId
+      let author = maybe defaultAuthor id mAuthor
+      pure (post, author, tags)
 
 getPostsWithTagsFiltered ::
   ( MonadUnliftIO m,
@@ -132,10 +141,25 @@ getPostsWithTagsFiltered ::
   BlogTags.Model ->
   Limit ->
   Offset ->
-  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, [BlogTags.Model])])
+  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
 getPostsWithTagsFiltered tag limit offset =
   execTransactionSpan $ do
     posts <- HT.statement () $ BlogPosts.getPostsByTag tag.btmId limit offset
     forM posts $ \post -> do
       tags <- HT.statement () $ BlogPosts.getTagsForPost post.bpmId
-      pure (post, tags)
+      mAuthor <- HT.statement () $ UserMetadata.getUserMetadata post.bpmAuthorId
+      let author = maybe defaultAuthor id mAuthor
+      pure (post, author, tags)
+
+-- | Default author for posts with missing author metadata
+defaultAuthor :: UserMetadata.Model
+defaultAuthor =
+  UserMetadata.Model
+    { UserMetadata.mId = UserMetadata.Id 0,
+      UserMetadata.mUserId = 0,
+      UserMetadata.mDisplayName = mkDisplayNameUnsafe "Unknown Author",
+      UserMetadata.mFullName = mkFullNameUnsafe "Unknown",
+      UserMetadata.mAvatarUrl = Nothing,
+      UserMetadata.mUserRole = UserMetadata.User,
+      UserMetadata.mSuspensionStatus = UserMetadata.NotSuspended
+    }
