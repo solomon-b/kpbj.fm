@@ -26,7 +26,6 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -90,7 +89,7 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) = do
       let allShows = fromRight [] showsResult
           selectedShow = listToMaybe allShows
 
-      -- Fetch event with tags and author
+      -- Fetch event with author
       execTransactionSpan (fetchEventData eventId) >>= \case
         Left _err -> do
           Log.logInfo "Failed to fetch event from database" ()
@@ -100,8 +99,8 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) = do
           Log.logInfo "Event not found" eventId
           let banner = BannerParams Error "Not Found" "Event not found."
           pure $ redirectWithBanner [i|/#{dashboardEventsGetUrl}|] banner
-        Right (Just (event, tags, mAuthor)) -> do
-          let eventTemplate = template event tags mAuthor
+        Right (Just (event, mAuthor)) -> do
+          let eventTemplate = template event mAuthor
           renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing (Just actionButton) eventTemplate
 
 -- | Action button for creating new event
@@ -119,12 +118,11 @@ actionButton =
 -- | Fetch event data for detail view
 fetchEventData ::
   Events.Id ->
-  Txn.Transaction (Maybe (Events.Model, [EventTags.Model], Maybe UserMetadata.Model))
+  Txn.Transaction (Maybe (Events.Model, Maybe UserMetadata.Model))
 fetchEventData eventId = do
   mEvent <- Txn.statement () (Events.getEventById eventId)
   case mEvent of
     Nothing -> pure Nothing
     Just event -> do
-      tags <- Txn.statement () (Events.getEventTags eventId)
       mAuthor <- Txn.statement () (UserMetadata.getUserMetadata event.emAuthorId)
-      pure $ Just (event, tags, mAuthor)
+      pure $ Just (event, mAuthor)

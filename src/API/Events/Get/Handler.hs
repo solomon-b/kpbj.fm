@@ -21,11 +21,9 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Time (MonthOfYear, UTCTime (..), Year, addDays, fromGregorian, toGregorian, utctDay)
 import Data.Time.Calendar (gregorianMonthLength)
 import Data.Time.Calendar.WeekDate (fromWeekDate, toWeekDate)
@@ -36,7 +34,6 @@ import Domain.Types.PageView (PageView (..))
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -137,18 +134,15 @@ handler ::
     MonadClock m
   ) =>
   Tracer ->
-  -- | Tag Query Param
-  Maybe Text ->
   -- | Page View Query Param
   Maybe PageView ->
   Maybe Cookie ->
   -- | @hx-request@ header
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer (normalizeTagFilter -> tagFilter) (fromMaybe ListView -> view) cookie hxRequest = do
+handler _tracer (fromMaybe ListView -> view) cookie hxRequest = do
   getUserInfo cookie >>= \mUserInfo -> do
     now <- currentSystemTime
-    eventTagsWithCounts <- getAllEventTags
 
     let limit = 50
         offset = 0
@@ -156,14 +150,14 @@ handler _tracer (normalizeTagFilter -> tagFilter) (fromMaybe ListView -> view) c
     template <-
       case view of
         MonthView year month -> do
-          monthEvents <- execQuerySpan (Events.getEventsForMonth tagFilter year month)
-          renderMonthTemplate now year month tagFilter eventTagsWithCounts monthEvents
+          monthEvents <- execQuerySpan (Events.getEventsForMonth year month)
+          renderMonthTemplate now year month monthEvents
         WeekView year weekNum -> do
-          weekEvents <- execQuerySpan (Events.getEventsForWeek tagFilter year weekNum)
-          renderWeekTemplate now year weekNum tagFilter eventTagsWithCounts weekEvents
+          weekEvents <- execQuerySpan (Events.getEventsForWeek year weekNum)
+          renderWeekTemplate now year weekNum weekEvents
         _ -> do
-          events <- execQuerySpan (Events.getPublishedEvents tagFilter limit offset)
-          renderListTemplate now (utcTimeToYearMonth now) tagFilter eventTagsWithCounts events
+          events <- execQuerySpan (Events.getPublishedEvents limit offset)
+          renderListTemplate now (utcTimeToYearMonth now) events
 
     let hxReq = HxRequest.foldHxReq hxRequest
         mUserMetadata = fmap snd mUserInfo
@@ -194,23 +188,6 @@ weekNavigation year weekNum =
           else (year, weekNum + 1)
    in ((prevYear, prevWeek), (nextYear, nextWeek))
 
-normalizeTagFilter :: Maybe Text -> Maybe Text
-normalizeTagFilter = \case
-  Just "" -> Nothing
-  other -> other
-
-getAllEventTags ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
-  m [EventTags.EventTagWithCount]
-getAllEventTags = do
-  tags <- execQuerySpan EventTags.getEventTagsWithCounts
-  pure $ fromRight [] tags
-
 renderListTemplate ::
   ( Log.MonadLog m,
     Show err,
@@ -218,17 +195,15 @@ renderListTemplate ::
   ) =>
   UTCTime ->
   (Year, MonthOfYear) ->
-  Maybe Text ->
-  [EventTags.EventTagWithCount] ->
   Either err [Events.Model] ->
   m (Lucid.Html ())
-renderListTemplate currentTime currentMonth maybeTagFilter eventTagsWithCounts = \case
+renderListTemplate currentTime currentMonth = \case
   Left err -> do
     Log.logAttention "Failed to fetch events from database" (Aeson.object ["error" .= show err])
     let banner = BannerParams Error "Error" "Failed to load events. Please try again."
     pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
   Right events -> pure $ do
-    header currentTime ListView maybeTagFilter currentMonth eventTagsWithCounts
+    header currentTime ListView currentMonth
     Lucid.section_ [Lucid.id_ "events-content-container", Lucid.class_ "w-full"] $ do
       renderListContent events
 
@@ -240,20 +215,18 @@ renderMonthTemplate ::
   UTCTime ->
   Year ->
   MonthOfYear ->
-  Maybe Text ->
-  [EventTags.EventTagWithCount] ->
   Either err [Events.Model] ->
   m (Lucid.Html ())
-renderMonthTemplate currentTime year month maybeTagFilter eventTagsWithCounts = \case
+renderMonthTemplate currentTime year month = \case
   Left err -> do
     Log.logAttention "Failed to fetch events from database" (Aeson.object ["error" .= show err])
     let banner = BannerParams Error "Error" "Failed to load events. Please try again."
     pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
   Right events -> pure $ do
     let calendarGrid = generateCalendarGrid year month events
-    header currentTime (MonthView year month) maybeTagFilter (year, month) eventTagsWithCounts
+    header currentTime (MonthView year month) (year, month)
     Lucid.section_ [Lucid.id_ "events-content-container", Lucid.class_ "w-full"] $ do
-      renderMonthContent year month maybeTagFilter eventTagsWithCounts calendarGrid
+      renderMonthContent year month calendarGrid
 
 renderWeekTemplate ::
   ( Log.MonadLog m,
@@ -263,11 +236,9 @@ renderWeekTemplate ::
   UTCTime ->
   Year ->
   Int ->
-  Maybe Text ->
-  [EventTags.EventTagWithCount] ->
   Either err [Events.Model] ->
   m (Lucid.Html ())
-renderWeekTemplate currentTime year weekNum maybeTagFilter eventTagsWithCounts = \case
+renderWeekTemplate currentTime year weekNum = \case
   Left err -> do
     Log.logAttention "Failed to fetch events from database" (Aeson.object ["error" .= show err])
     let banner = BannerParams Error "Error" "Failed to load events. Please try again."
@@ -279,6 +250,6 @@ renderWeekTemplate currentTime year weekNum maybeTagFilter eventTagsWithCounts =
         endDate = weekEndDate year weekNum
         navigation = weekNavigation year weekNum
     pure $ do
-      header currentTime (WeekView year weekNum) maybeTagFilter currentWeek eventTagsWithCounts
+      header currentTime (WeekView year weekNum) currentWeek
       Lucid.section_ [Lucid.id_ "events-content-container", Lucid.class_ "w-full"] $ do
-        renderWeekContent year weekNum maybeTagFilter eventTagsWithCounts weekGrid startDate endDate navigation
+        renderWeekContent weekGrid startDate endDate navigation

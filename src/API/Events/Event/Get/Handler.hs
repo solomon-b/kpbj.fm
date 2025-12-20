@@ -132,8 +132,10 @@ renderEvent hxRequest mUserInfo event =
       Log.logAttention "Event author not found" (Aeson.object ["id" .= event.emAuthorId])
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (Events.emSlug event))
       pure $ Servant.noHeader html
-    Right (Just author) ->
-      fetchTags hxRequest mUserInfo event author
+    Right (Just author) -> do
+      let eventTemplate = template event author
+      html <- renderTemplate hxRequest mUserInfo eventTemplate
+      pure $ Servant.noHeader html
 
 renderRedirect ::
   (MonadReader env m, MonadUnliftIO m, MonadCatch m, Log.MonadLog m) =>
@@ -144,28 +146,3 @@ renderRedirect ::
 renderRedirect hxRequest mUserInfo url = do
   html <- renderTemplate hxRequest mUserInfo (redirectTemplate url)
   pure $ Servant.addHeader url html
-
-fetchTags ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m
-  ) =>
-  HxRequest ->
-  Maybe UserMetadata.Model ->
-  Events.Model ->
-  UserMetadata.Model ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-fetchTags hxRequest mUserInfo event author =
-  execQuerySpan (Events.getEventTags event.emId) >>= \case
-    Left err -> do
-      Log.logInfo "Failed to fetch event tags" (Aeson.object ["event" .= event.emId, "error" .= show err])
-      let eventTemplate = template event [] author
-      html <- renderTemplate hxRequest mUserInfo eventTemplate
-      pure $ Servant.noHeader html
-    Right eventTagModels -> do
-      let eventTemplate = template event eventTagModels author
-      html <- renderTemplate hxRequest mUserInfo eventTemplate
-      pure $ Servant.noHeader html

@@ -37,15 +37,8 @@ module Effects.Database.Tables.Events
     getEventsForMonth,
     getEventsForWeek,
 
-    -- * Junction Table Queries (event_tag_assignments)
-    getEventTags,
-    assignTagToEvent,
-    removeTagFromEvent,
-
     -- * Result Types
     EventWithAuthor (..),
-    EventWithTags (..),
-    EventComplete (..),
   )
 where
 
@@ -63,7 +56,6 @@ import Data.Time (MonthOfYear, UTCTime, Year)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug (..))
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.Generics (Generic)
@@ -226,23 +218,6 @@ data EventWithAuthor = EventWithAuthor
   deriving stock (Show, Generic, Eq)
   deriving (Display) via (RecordInstance EventWithAuthor)
 
--- | Event with tags.
-data EventWithTags = EventWithTags
-  { ewtEvent :: Model,
-    ewtTags :: [EventTags.Model]
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance EventWithTags)
-
--- | Event with complete information (author + tags).
-data EventComplete = EventComplete
-  { ecEvent :: Model,
-    ecAuthor :: UserMetadata.Model,
-    ecTags :: [EventTags.Model]
-  }
-  deriving stock (Show, Generic, Eq)
-  deriving (Display) via (RecordInstance EventComplete)
-
 --------------------------------------------------------------------------------
 -- Insert Type
 
@@ -265,24 +240,17 @@ data Insert = Insert
 --------------------------------------------------------------------------------
 -- Queries
 
--- | Get published events, optionally filtered by tag.
---
--- Uses raw SQL because this query involves optional filtering
--- with joins to the tag assignment table.
-getPublishedEvents :: Maybe Text -> Limit -> Offset -> Hasql.Statement () [Model]
-getPublishedEvents maybeTagName (Limit lim) (Offset off) =
-  interp
-    False
-    [sql|
-    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.poster_image_url, e.created_at, e.updated_at
-    FROM events e
-    LEFT JOIN event_tag_assignments eta ON e.id = eta.event_id
-    LEFT JOIN event_tags et ON eta.tag_id = et.id
-    WHERE e.status = 'published'
-      AND (#{maybeTagName}::text IS NULL OR et.name = #{maybeTagName}::text)
-    ORDER BY e.starts_at ASC
-    LIMIT #{lim} OFFSET #{off}
-  |]
+-- | Get published events.
+getPublishedEvents :: Limit -> Offset -> Hasql.Statement () [Model]
+getPublishedEvents (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (emStartsAt >$< asc) do
+            event <- each eventSchema
+            where_ $ emStatus event ==. lit Published
+            pure event
 
 -- | Get event by slug.
 getEventBySlug :: Slug -> Hasql.Statement () (Maybe Model)
@@ -379,81 +347,35 @@ getAllEvents (Limit lim) (Offset off) =
           orderBy (emStartsAt >$< desc) do
             each eventSchema
 
--- | Get events for a specific month and year, optionally filtered by tag.
+-- | Get events for a specific month and year.
 --
--- Uses raw SQL because this query involves date extraction functions
--- and optional tag filtering with joins.
-getEventsForMonth :: Maybe Text -> Year -> MonthOfYear -> Hasql.Statement () [Model]
-getEventsForMonth maybeTagName year month =
+-- Uses raw SQL because this query involves date extraction functions.
+getEventsForMonth :: Year -> MonthOfYear -> Hasql.Statement () [Model]
+getEventsForMonth year month =
   interp
     False
     [sql|
-    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.poster_image_url, e.created_at, e.updated_at
-    FROM events e
-    LEFT JOIN event_tag_assignments eta ON e.id = eta.event_id
-    LEFT JOIN event_tags et ON eta.tag_id = et.id
-    WHERE e.status = 'published'
-      AND EXTRACT(YEAR FROM e.starts_at) = #{fromIntegral year :: Int64}
-      AND EXTRACT(MONTH FROM e.starts_at) = #{fromIntegral month :: Int64}
-      AND (#{maybeTagName}::text IS NULL OR et.name = #{maybeTagName}::text)
-    ORDER BY e.starts_at ASC
+    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
+    FROM events
+    WHERE status = 'published'
+      AND EXTRACT(YEAR FROM starts_at) = #{fromIntegral year :: Int64}
+      AND EXTRACT(MONTH FROM starts_at) = #{fromIntegral month :: Int64}
+    ORDER BY starts_at ASC
   |]
 
--- | Get events for a specific week (ISO week number), optionally filtered by tag.
+-- | Get events for a specific week (ISO week number).
 --
--- Uses raw SQL because this query involves date extraction functions
--- and optional tag filtering with joins.
-getEventsForWeek :: Maybe Text -> Year -> Int -> Hasql.Statement () [Model]
-getEventsForWeek maybeTagName year weekNum =
+-- Uses raw SQL because this query involves date extraction functions.
+getEventsForWeek :: Year -> Int -> Hasql.Statement () [Model]
+getEventsForWeek year weekNum =
   interp
     False
     [sql|
-    SELECT DISTINCT e.id, e.title, e.slug, e.description, e.starts_at, e.ends_at, e.location_name, e.location_address, e.status, e.author_id, e.poster_image_url, e.created_at, e.updated_at
-    FROM events e
-    LEFT JOIN event_tag_assignments eta ON e.id = eta.event_id
-    LEFT JOIN event_tags et ON eta.tag_id = et.id
-    WHERE e.status = 'published'
-      AND EXTRACT(YEAR FROM e.starts_at) = #{fromIntegral year :: Int64}
-      AND EXTRACT(WEEK FROM e.starts_at) = #{fromIntegral weekNum :: Int64}
-      AND (#{maybeTagName}::text IS NULL OR et.name = #{maybeTagName}::text)
-    ORDER BY e.starts_at ASC
+    SELECT id, title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id, poster_image_url, created_at, updated_at
+    FROM events
+    WHERE status = 'published'
+      AND EXTRACT(YEAR FROM starts_at) = #{fromIntegral year :: Int64}
+      AND EXTRACT(WEEK FROM starts_at) = #{fromIntegral weekNum :: Int64}
+    ORDER BY starts_at ASC
   |]
 
---------------------------------------------------------------------------------
--- Junction Table Queries (event_tag_assignments)
---
--- These use raw SQL because they involve joins with other tables.
-
--- | Get tags for a specific event.
-getEventTags :: Id -> Hasql.Statement () [EventTags.Model]
-getEventTags eventId =
-  interp
-    False
-    [sql|
-    SELECT et.id, et.name, et.created_at
-    FROM event_tags et
-    JOIN event_tag_assignments eta ON et.id = eta.tag_id
-    WHERE eta.event_id = #{eventId}
-    ORDER BY et.name
-  |]
-
--- | Assign a tag to an event.
-assignTagToEvent :: Id -> EventTags.Id -> Hasql.Statement () ()
-assignTagToEvent eventId tagId =
-  interp
-    False
-    [sql|
-    INSERT INTO event_tag_assignments(event_id, tag_id)
-    VALUES (#{eventId}, #{tagId})
-    ON CONFLICT DO NOTHING
-  |]
-
--- | Remove a tag from an event.
-removeTagFromEvent :: Id -> EventTags.Id -> Hasql.Statement () ()
-removeTagFromEvent eventId tagId =
-  interp
-    False
-    [sql|
-    DELETE FROM event_tag_assignments
-    WHERE event_id = #{eventId} AND tag_id = #{tagId}
-  |]

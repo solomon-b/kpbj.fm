@@ -7,7 +7,6 @@ import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -15,10 +14,9 @@ import Lucid qualified
 -- | Event detail template
 template ::
   Events.Model ->
-  [EventTags.Model] ->
   Maybe UserMetadata.Model ->
   Lucid.Html ()
-template event tags mAuthor = do
+template event mAuthor = do
   Lucid.div_ [Lucid.class_ Tokens.fullWidth] $ do
     -- Header with title
     Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
@@ -61,14 +59,6 @@ template event tags mAuthor = do
         Lucid.p_ [class_ $ base [Tokens.textGray600, "mt-1"]] $
           Lucid.toHtml event.emLocationAddress
 
-    -- Tags
-    if null tags
-      then mempty
-      else Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
-        Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Tags"
-        Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $
-          mapM_ renderTag tags
-
     -- Description
     Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Description"
@@ -85,12 +75,6 @@ renderStatusBadge status = do
   Lucid.span_
     [class_ $ base ["inline-block", "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
     $ Lucid.toHtml statusText
-
-renderTag :: EventTags.Model -> Lucid.Html ()
-renderTag tag =
-  Lucid.span_
-    [class_ $ base ["px-3", "py-1", Tokens.textSm, "bg-gray-200", "rounded"]]
-    $ Lucid.toHtml tag.etmName
 
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"

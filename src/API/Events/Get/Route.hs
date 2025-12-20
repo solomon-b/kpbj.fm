@@ -2,7 +2,6 @@ module API.Events.Get.Route where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.PageView (PageView)
@@ -18,7 +17,6 @@ type Route =
   Observability.WithSpan
     "GET /events"
     ( "events"
-        :> Servant.QueryParam "tag" Text
         :> Servant.QueryParam "view" PageView
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
