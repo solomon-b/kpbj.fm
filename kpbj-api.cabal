@@ -256,7 +256,6 @@ library
     API.Shows.Slug.Episode.Publish.Post.Templates.Response
     API.Shows.Slug.Get.Handler
     API.Shows.Slug.Get.Route
-    API.Shows.Slug.Get.Templates.Episode
     API.Shows.Slug.Get.Templates.Page
     API.Shows.Slug.Get.Templates.ShowHeader
     API.Shows.Slug.Blog.Delete.Handler
@@ -301,6 +300,7 @@ library
     App.Common
     Component.ActionsDropdown
     Component.Banner
+    Component.Card.Episode
     Component.Form
     Component.Form.Builder
     Component.Form.Internal
