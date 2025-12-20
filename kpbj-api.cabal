@@ -182,6 +182,11 @@ library
     API.Dashboard.Get.Templates.Auth
     API.Dashboard.Get.Templates.BlogPost
     API.Dashboard.Get.Templates.Episode
+    API.Dashboard.Profile.Edit.Get.Handler
+    API.Dashboard.Profile.Edit.Get.Route
+    API.Dashboard.Profile.Edit.Get.Templates.Form
+    API.Dashboard.Profile.Edit.Post.Handler
+    API.Dashboard.Profile.Edit.Post.Route
     API.Dashboard.Shows.Get.Handler
     API.Dashboard.Shows.Get.Route
     API.Dashboard.Shows.Get.Templates.Page

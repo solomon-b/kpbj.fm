@@ -49,6 +49,8 @@ import API.Dashboard.Events.Slug.Edit.Get.Handler qualified as Dashboard.Events.
 import API.Dashboard.Events.Slug.Edit.Post.Handler qualified as Dashboard.Events.Slug.Edit.Post
 import API.Dashboard.Events.Slug.Get.Handler qualified as Dashboard.Events.Slug.Get
 import API.Dashboard.Get.Handler qualified as Dashboard.Get
+import API.Dashboard.Profile.Edit.Get.Handler qualified as Dashboard.Profile.Edit.Get
+import API.Dashboard.Profile.Edit.Post.Handler qualified as Dashboard.Profile.Edit.Post
 import API.Dashboard.Shows.Get.Handler qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get.Handler qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Handler qualified as Dashboard.Shows.New.Post
@@ -208,6 +210,8 @@ server env =
       DashboardRoutes
         { home = Dashboard.Get.handler,
           episodesRedirect = Dashboard.Episodes.Redirect.handler,
+          profileEditGet = Dashboard.Profile.Edit.Get.handler,
+          profileEditPost = Dashboard.Profile.Edit.Post.handler,
           host = dashboardHostRoutes,
           admin = dashboardAdminRoutes
         }
