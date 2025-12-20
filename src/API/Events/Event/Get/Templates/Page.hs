@@ -5,7 +5,6 @@ module API.Events.Event.Get.Templates.Page
   ( template,
     notFoundTemplate,
     renderEventDescription,
-    renderTag,
   )
 where
 
@@ -21,7 +20,6 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Markdown (renderContent)
@@ -33,10 +31,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 eventsGetUrl :: Links.URI
-eventsGetUrl = Links.linkURI $ eventsLinks.list Nothing Nothing
-
-eventsGetTagUrl :: Text -> Links.URI
-eventsGetTagUrl tagName = Links.linkURI $ eventsLinks.list (Just tagName) Nothing
+eventsGetUrl = Links.linkURI $ eventsLinks.list Nothing
 
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI apiLinks.mediaGet
@@ -47,21 +42,9 @@ mediaGetUrl = Links.linkURI apiLinks.mediaGet
 renderEventDescription :: Text -> Lucid.Html ()
 renderEventDescription = renderContent
 
--- | Render a single tag
-renderTag :: EventTags.Model -> Lucid.Html ()
-renderTag tag =
-  Lucid.a_
-    [ Lucid.href_ [i|/#{eventsGetTagUrl (EventTags.etmName tag)}|],
-      hxGet_ [i|/#{eventsGetTagUrl (EventTags.etmName tag)}|],
-      hxTarget_ "#main-content",
-      hxPushUrl_ "true",
-      class_ $ base ["bg-gray-200", Tokens.textGray800, "px-2", "py-1", Tokens.textSm, "font-mono", "hover:bg-gray-300", "no-underline"]
-    ]
-    $ Lucid.toHtml ("#" <> tag.etmName)
-
 -- | Main event template
-template :: Events.Model -> [EventTags.Model] -> UserMetadata.Model -> Lucid.Html ()
-template event eventTags author = do
+template :: Events.Model -> UserMetadata.Model -> Lucid.Html ()
+template event author = do
   -- Event Header Section
   Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8]] $ do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
@@ -108,11 +91,6 @@ template event eventTags author = do
               Lucid.div_ [Lucid.class_ Tokens.fontBold] "LOCATION"
               Lucid.div_ [Lucid.class_ Tokens.textGray600] $ Lucid.toHtml event.emLocationName
               Lucid.div_ [Lucid.class_ Tokens.textGray600] $ Lucid.toHtml event.emLocationAddress
-
-        -- Tags (pushed to bottom right)
-        Lucid.div_ [class_ $ base ["flex", "justify-end", "mt-auto"]] $ do
-          Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $ do
-            mapM_ renderTag eventTags
 
   -- Event Description Section (Full Width)
   Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8]] $ do

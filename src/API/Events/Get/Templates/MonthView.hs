@@ -21,7 +21,6 @@ import Design (base, class_, when)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageView (PageView (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -44,9 +43,9 @@ data CalendarDay = CalendarDay
 eventGetUrl :: Events.Id -> Slug -> Links.URI
 eventGetUrl eventId slug = Links.linkURI $ eventsLinks.detailWithSlug eventId slug
 
-eventsGetMonthUrl :: Year -> MonthOfYear -> Maybe Text -> Links.URI
-eventsGetMonthUrl year month maybeTag =
-  Links.linkURI $ eventsLinks.list maybeTag (Just $ MonthView year month)
+eventsGetMonthUrl :: Year -> MonthOfYear -> Links.URI
+eventsGetMonthUrl year month =
+  Links.linkURI $ eventsLinks.list (Just $ MonthView year month)
 
 monthName :: MonthOfYear -> Text
 monthName 1 = "JANUARY"
@@ -69,11 +68,9 @@ monthName _ = "UNKNOWN"
 renderMonthContent ::
   Year ->
   MonthOfYear ->
-  Maybe Text ->
-  [EventTags.EventTagWithCount] ->
   [[CalendarDay]] ->
   Lucid.Html ()
-renderMonthContent year month _maybeTagFilter _eventTagsWithCounts calendarGrid = do
+renderMonthContent year month calendarGrid = do
   let (prevYear, prevMonth) = if month == 1 then (year - 1, 12) else (year, month - 1)
       (nextYear, nextMonth) = if month == 12 then (year + 1, 1) else (year, month + 1)
 
@@ -83,8 +80,8 @@ renderMonthContent year month _maybeTagFilter _eventTagsWithCounts calendarGrid 
       Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold]] $ Lucid.toHtml $ monthName month <> " " <> Text.pack (show year)
       Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
         Lucid.a_
-          [ Lucid.href_ [i|/#{eventsGetMonthUrl prevYear prevMonth Nothing}|],
-            hxGet_ [i|/#{eventsGetMonthUrl prevYear prevMonth Nothing}|],
+          [ Lucid.href_ [i|/#{eventsGetMonthUrl prevYear prevMonth}|],
+            hxGet_ [i|/#{eventsGetMonthUrl prevYear prevMonth}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             class_ $ base ["px-3", "py-1", Tokens.textGray600, "hover:text-gray-800"]
@@ -92,8 +89,8 @@ renderMonthContent year month _maybeTagFilter _eventTagsWithCounts calendarGrid 
           $ Lucid.toHtml
           $ "‹ " <> monthName prevMonth
         Lucid.a_
-          [ Lucid.href_ [i|/#{eventsGetMonthUrl nextYear nextMonth Nothing}|],
-            hxGet_ [i|/#{eventsGetMonthUrl nextYear nextMonth Nothing}|],
+          [ Lucid.href_ [i|/#{eventsGetMonthUrl nextYear nextMonth}|],
+            hxGet_ [i|/#{eventsGetMonthUrl nextYear nextMonth}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             class_ $ base ["px-3", "py-1", Tokens.textGray600, "hover:text-gray-800"]

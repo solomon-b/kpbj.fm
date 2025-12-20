@@ -17,16 +17,13 @@ import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.DashboardFrame (DashboardNav (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
-import Control.Monad (unless, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
-import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
@@ -40,7 +37,6 @@ import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -103,8 +99,7 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
 
       mResult <- execTransactionSpan $ runMaybeT $ do
         event <- MaybeT $ HT.statement () (Events.getEventById eventId)
-        oldTags <- lift $ HT.statement () (Events.getEventTags event.emId)
-        MaybeT $ pure $ Just (event, oldTags)
+        MaybeT $ pure $ Just event
 
       case mResult of
         Left err -> do
@@ -113,9 +108,9 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
         Right Nothing -> do
           Log.logInfo "No event found with id" eventId
           Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Warning "Event Not Found" "The event you're trying to update doesn't exist.")
-        Right (Just (event, oldTags)) ->
+        Right (Just event) ->
           if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-            then updateEvent hxRequest userMetadata allShows selectedShow event oldTags editForm
+            then updateEvent hxRequest userMetadata allShows selectedShow event editForm
             else do
               Log.logInfo "User attempted to edit event they don't own" event.emId
               Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Access Denied" "You can only edit events you created or have staff permissions.")
@@ -133,10 +128,9 @@ updateEvent ::
   [Shows.Model] ->
   Maybe Shows.Model ->
   Events.Model ->
-  [EventTags.Model] ->
   EventEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-updateEvent hxRequest userMetadata allShows selectedShow event oldTags editForm = do
+updateEvent hxRequest userMetadata allShows selectedShow event editForm = do
   -- Parse and validate form data
   case (parseStatus (eefStatus editForm), parseDateTime (eefStartsAt editForm), parseDateTime (eefEndsAt editForm)) of
     (Nothing, _, _) -> do
@@ -203,14 +197,10 @@ updateEvent hxRequest userMetadata allShows selectedShow event oldTags editForm 
                     Events.eiPosterImageUrl = posterImagePath
                   }
 
-          -- Update the event and tags in a transaction
+          -- Update the event in a transaction
           mUpdateResult <- execTransactionSpan $ runMaybeT $ do
             -- Update event
             _ <- MaybeT $ HT.statement () (Events.updateEvent event.emId updateData)
-            -- Remove old tags
-            lift $ traverse_ (\tag -> HT.statement () (Events.removeTagFromEvent event.emId tag.etmId)) oldTags
-            -- Add new tags
-            lift $ updateEventTags event.emId editForm
             MaybeT $ pure $ Just ()
 
           case mUpdateResult of
@@ -226,49 +216,21 @@ updateEvent hxRequest userMetadata allShows selectedShow event oldTags editForm 
               updatedEventData <- execTransactionSpan $ runMaybeT $ do
                 updatedEvent <- MaybeT $ HT.statement () (Events.getEventById event.emId)
                 author <- MaybeT $ HT.statement () (UserMetadata.getUserMetadata updatedEvent.emAuthorId)
-                newTags <- lift $ HT.statement () (Events.getEventTags event.emId)
-                pure (updatedEvent, author, newTags)
+                pure (updatedEvent, author)
 
               case updatedEventData of
                 Left _err ->
                   Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Event updated but failed to load details.")
                 Right Nothing ->
                   Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Event updated but not found.")
-                Right (Just (updatedEvent, author, newTags)) -> do
+                Right (Just (updatedEvent, author)) -> do
                   let detailUrl = Links.linkURI $ dashboardEventsLinks.detail event.emId newSlug
                       banner = renderBanner Success "Event Updated" "Your event has been updated and saved."
                   html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing $ case hxRequest of
                     IsHxRequest -> do
-                      DetailPage.template updatedEvent newTags (Just author)
+                      DetailPage.template updatedEvent (Just author)
                       banner
                     IsNotHxRequest -> do
                       banner
-                      DetailPage.template updatedEvent newTags (Just author)
+                      DetailPage.template updatedEvent (Just author)
                   pure $ Servant.addHeader [i|/#{detailUrl}|] html
-
--- | Update tags for an event (add new ones)
-updateEventTags ::
-  Events.Id ->
-  EventEditForm ->
-  HT.Transaction ()
-updateEventTags eventId form = do
-  let newTags = eefTags form
-  unless (null newTags) $
-    traverse_ (createOrAssociateTag eventId) newTags
-
--- | Create a new tag or associate an existing one with an event
-createOrAssociateTag ::
-  Events.Id ->
-  Text ->
-  HT.Transaction ()
-createOrAssociateTag eventId tagName = do
-  -- Check if tag already exists
-  mExistingTags <- HT.statement () EventTags.getAllEventTags
-  case filter (\t -> t.etmName == tagName) mExistingTags of
-    (existingTag : _) -> do
-      -- If tag exists, associate it
-      void $ HT.statement () (Events.assignTagToEvent eventId (EventTags.etmId existingTag))
-    [] -> do
-      -- Otherwise, create new tag and associate it
-      newTagId <- HT.statement () (EventTags.insertEventTag (EventTags.Insert tagName))
-      void $ HT.statement () (Events.assignTagToEvent eventId newTagId)

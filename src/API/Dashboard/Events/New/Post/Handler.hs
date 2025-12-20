@@ -5,7 +5,7 @@ module API.Dashboard.Events.New.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Events.New.Post.Route (NewEventForm (..), parseTags)
+import API.Dashboard.Events.New.Post.Route (NewEventForm (..))
 import API.Dashboard.Events.Slug.Get.Templates.Page qualified as DetailPage
 import API.Links (apiLinks, dashboardEventsLinks, userLinks)
 import API.Types (DashboardEventsRoutes (..), Routes (..), UserRoutes (..))
@@ -20,9 +20,7 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
-import Data.Foldable (traverse_)
 import Data.Has (Has)
-import Data.List (find)
 import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -37,7 +35,6 @@ import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -184,8 +181,6 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
       validateForm hxRequest user userMetadata allShows selectedShow posterImagePath form $ \eventInsert ->
         insertEvent hxRequest userMetadata allShows selectedShow eventInsert $ \eventId -> do
           Log.logInfo "Event created successfully" eventId
-          traverse_ (addTag eventId) (parseTags (nefTags form))
-
           fetchEvent hxRequest userMetadata allShows selectedShow eventId
 
 validateForm ::
@@ -247,36 +242,6 @@ insertEvent hxRequest userMetadata allShows selectedShow eventInsert k =
     Right eventId ->
       k eventId
 
-addTag ::
-  ( MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env
-  ) =>
-  Events.Id ->
-  Text ->
-  m ()
-addTag eventId tagName = do
-  -- Get all existing tags to check if this one exists
-  execQuerySpan EventTags.getAllEventTags >>= \case
-    Right allTags -> do
-      case find (\tag -> tag.etmName == tagName) allTags of
-        Just existingTag -> do
-          -- Tag exists, assign it to event
-          _ <- execQuerySpan (Events.assignTagToEvent eventId existingTag.etmId)
-          pure ()
-        Nothing -> do
-          -- Tag doesn't exist, create it first then assign
-          execQuerySpan (EventTags.insertEventTag (EventTags.Insert tagName)) >>= \case
-            Right newTagId -> do
-              _ <- execQuerySpan (Events.assignTagToEvent eventId newTagId)
-              pure ()
-            Left _ ->
-              pure ()
-    Left _ ->
-      pure ()
-
 fetchEvent ::
   ( Log.MonadLog m,
     MonadDB m,
@@ -294,9 +259,6 @@ fetchEvent ::
 fetchEvent hxRequest userMetadata allShows selectedShow eventId =
   execQuerySpan (Events.getEventById eventId) >>= \case
     Right (Just event) -> do
-      -- Get tags for the event
-      tagsResult <- execQuerySpan (Events.getEventTags eventId)
-      let tags = fromRight [] tagsResult
       -- Get author metadata
       authorResult <- execQuerySpan (UserMetadata.getUserMetadata event.emAuthorId)
       let mAuthor = fromRight Nothing authorResult
@@ -304,11 +266,11 @@ fetchEvent hxRequest userMetadata allShows selectedShow eventId =
           banner = renderBanner Success "Event Created" "Your event has been created successfully."
       html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing $ case hxRequest of
         IsHxRequest -> do
-          DetailPage.template event tags mAuthor
+          DetailPage.template event mAuthor
           banner
         IsNotHxRequest -> do
           banner
-          DetailPage.template event tags mAuthor
+          DetailPage.template event mAuthor
       pure $ Servant.addHeader [i|/#{detailUrl}|] html
     _ -> do
       Log.logInfo "Failed to fetch event" (Aeson.object ["eventId" .= eventId])

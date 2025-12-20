@@ -19,7 +19,6 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -50,20 +49,19 @@ formatDateTimeLocal = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M"
 --------------------------------------------------------------------------------
 
 -- | Event edit template using FormBuilder
-template :: Events.Model -> [EventTags.Model] -> UserMetadata.Model -> Lucid.Html ()
-template event tags userMeta = do
+template :: Events.Model -> UserMetadata.Model -> Lucid.Html ()
+template event userMeta = do
   let eventId = event.emId
       eventSlug = event.emSlug
       eventBackUrl = eventDetailUrl eventId eventSlug
       eventEditUrl = eventEditPostUrl eventId eventSlug
-      tagsText = Text.intercalate ", " $ map (\t -> t.etmName) tags
 
   buildValidatedForm
     FormBuilder
       { fbAction = [i|/#{eventEditUrl}|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader event userMeta eventBackUrl),
-        fbFields = eventEditFormFields event tagsText,
+        fbFields = eventEditFormFields event,
         fbAdditionalContent = [renderSubmitActions eventBackUrl],
         fbStyles = defaultFormStyles,
         fbHtmx = Nothing
@@ -105,8 +103,8 @@ renderFormHeader event userMeta eventBackUrl = do
 --------------------------------------------------------------------------------
 -- Form Fields Definition
 
-eventEditFormFields :: Events.Model -> Text -> [FormField]
-eventEditFormFields event tagsText =
+eventEditFormFields :: Events.Model -> [FormField]
+eventEditFormFields event =
   [ -- Event Details Section
     SectionField
       { sfTitle = "EVENT DETAILS",
@@ -122,17 +120,6 @@ eventEditFormFields event tagsText =
                     { vrMinLength = Just 3,
                       vrMaxLength = Just 200,
                       vrRequired = True
-                    }
-              },
-            ValidatedTextField
-              { vfName = "tags",
-                vfLabel = "Event Tags",
-                vfInitialValue = Just tagsText,
-                vfPlaceholder = Just "live-music, concert, fundraiser, community",
-                vfHint = Just "Comma separated tags",
-                vfValidation =
-                  emptyValidation
-                    { vrMaxLength = Just 500
                     }
               },
             ValidatedTextareaField

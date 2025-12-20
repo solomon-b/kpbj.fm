@@ -17,7 +17,6 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Either (fromRight)
 import Data.Has (Has)
@@ -90,8 +89,7 @@ handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) = do
 
       mResult <- execTransactionSpan $ runMaybeT $ do
         event <- MaybeT $ HT.statement () (Events.getEventById eventId)
-        tags <- lift $ HT.statement () (Events.getEventTags event.emId)
-        MaybeT $ pure $ Just (event, tags)
+        MaybeT $ pure $ Just event
 
       case mResult of
         Left err -> do
@@ -102,12 +100,12 @@ handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) = do
           Log.logInfo "No event found with id" eventId
           let banner = BannerParams Warning "Event Not Found" "The event you're trying to edit doesn't exist."
           pure $ redirectWithBanner [i|/#{dashboardEventsGetUrl}|] banner
-        Right (Just (event, tags)) -> do
+        Right (Just event) -> do
           -- Check authorization: must be staff/admin or the creator
           if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then do
               Log.logInfo "Authorized user accessing event edit form" event.emId
-              let editTemplate = template event tags userMetadata
+              let editTemplate = template event userMetadata
               renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing editTemplate
             else do
               Log.logInfo "User tried to edit event they don't own" event.emId

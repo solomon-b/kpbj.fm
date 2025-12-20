@@ -23,7 +23,6 @@ import Design (base, class_, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageView (PageView (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.EventTags qualified as EventTags
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -45,9 +44,9 @@ data WeekDay = WeekDay
 eventGetUrl :: Events.Id -> Slug -> Links.URI
 eventGetUrl eventId slug = Links.linkURI $ eventsLinks.detailWithSlug eventId slug
 
-eventsGetWeekUrl :: Year -> Int -> Maybe Text -> Links.URI
-eventsGetWeekUrl year weekNum maybeTag =
-  Links.linkURI $ eventsLinks.list maybeTag (Just $ WeekView year weekNum)
+eventsGetWeekUrl :: Year -> Int -> Links.URI
+eventsGetWeekUrl year weekNum =
+  Links.linkURI $ eventsLinks.list (Just $ WeekView year weekNum)
 
 formatWeekTitle :: UTCTime -> UTCTime -> Text
 formatWeekTitle startDate endDate =
@@ -59,16 +58,12 @@ formatWeekTitle startDate endDate =
 
 -- | Render the week view content (for HTMX updates)
 renderWeekContent ::
-  Year ->
-  Int ->
-  Maybe Text ->
-  [EventTags.EventTagWithCount] ->
   [WeekDay] ->
   UTCTime ->
   UTCTime ->
   ((Year, Int), (Year, Int)) ->
   Lucid.Html ()
-renderWeekContent _year _weekNum _maybeTagFilter _eventTagsWithCounts weekGrid startDate endDate ((prevYear, prevWeek), (nextYear, nextWeek)) = do
+renderWeekContent weekGrid startDate endDate ((prevYear, prevWeek), (nextYear, nextWeek)) = do
   let weekTitle = formatWeekTitle startDate endDate
 
   -- Week Calendar View
@@ -77,16 +72,16 @@ renderWeekContent _year _weekNum _maybeTagFilter _eventTagsWithCounts weekGrid s
       Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold]] $ Lucid.toHtml weekTitle
       Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
         Lucid.a_
-          [ Lucid.href_ [i|/#{eventsGetWeekUrl prevYear prevWeek Nothing}|],
-            hxGet_ [i|/#{eventsGetWeekUrl prevYear prevWeek Nothing}|],
+          [ Lucid.href_ [i|/#{eventsGetWeekUrl prevYear prevWeek}|],
+            hxGet_ [i|/#{eventsGetWeekUrl prevYear prevWeek}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             class_ $ base ["px-3", "py-1", Tokens.textGray600, "hover:text-gray-800"]
           ]
           "‹ Previous Week"
         Lucid.a_
-          [ Lucid.href_ [i|/#{eventsGetWeekUrl nextYear nextWeek Nothing}|],
-            hxGet_ [i|/#{eventsGetWeekUrl nextYear nextWeek Nothing}|],
+          [ Lucid.href_ [i|/#{eventsGetWeekUrl nextYear nextWeek}|],
+            hxGet_ [i|/#{eventsGetWeekUrl nextYear nextWeek}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             class_ $ base ["px-3", "py-1", Tokens.textGray600, "hover:text-gray-800"]

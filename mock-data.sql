@@ -3,7 +3,7 @@
 -- Password for all users: "password"
 
 -- First, clear existing data
-TRUNCATE TABLE schedule_template_validity, schedule_templates, show_hosts, episode_tracks, episodes, shows, event_tag_assignments, event_tags, events, blog_post_tags, blog_tags, blog_posts RESTART IDENTITY CASCADE;
+TRUNCATE TABLE schedule_template_validity, schedule_templates, show_hosts, episode_tracks, episodes, shows, events, blog_post_tags, blog_tags, blog_posts RESTART IDENTITY CASCADE;
 
 -- Create admin user (password: "password")
 INSERT INTO users (email, password) VALUES
@@ -605,18 +605,6 @@ INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
 SELECT u.id, 'MidnightListener', 'Casey Park', 'User'
 FROM users u WHERE u.email = 'nightowl@example.com';
 
--- Create event tags
-INSERT INTO event_tags (name) VALUES
-  ('Live Music'),
-  ('DJ Night'),
-  ('Fundraiser'),
-  ('Community'),
-  ('All Ages'),
-  ('21+'),
-  ('Free'),
-  ('Ticketed')
-ON CONFLICT (name) DO NOTHING;
-
 -- Create mock events (1 per week for past 2 months on Fridays/Saturdays)
 INSERT INTO events (title, slug, description, starts_at, ends_at, location_name, location_address, status, author_id)
 SELECT * FROM (VALUES
@@ -753,53 +741,6 @@ SELECT * FROM (VALUES
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   )
 ) AS events_data;
-
--- Assign tags to events
-INSERT INTO event_tag_assignments (event_id, tag_id)
-SELECT e.id, t.id
-FROM events e
-JOIN event_tags t ON t.name IN (
-  CASE e.slug
-    WHEN 'summer-block-party-2025-08-08' THEN 'Live Music'
-    WHEN 'summer-block-party-2025-08-08' THEN 'Community'
-    WHEN 'summer-block-party-2025-08-08' THEN 'All Ages'
-    WHEN 'summer-block-party-2025-08-08' THEN 'Free'
-    WHEN 'late-night-techno-dj-aurelia-2025-08-16' THEN 'DJ Night'
-    WHEN 'late-night-techno-dj-aurelia-2025-08-16' THEN '21+'
-    WHEN 'late-night-techno-dj-aurelia-2025-08-16' THEN 'Ticketed'
-    WHEN 'record-fair-swap-meet-2025-08-22' THEN 'Community'
-    WHEN 'record-fair-swap-meet-2025-08-22' THEN 'All Ages'
-    WHEN 'record-fair-swap-meet-2025-08-22' THEN 'Free'
-    WHEN 'indie-rock-showcase-2025-08-30' THEN 'Live Music'
-    WHEN 'indie-rock-showcase-2025-08-30' THEN 'Ticketed'
-    WHEN 'kpbj-fundraiser-jazz-night-2025-09-05' THEN 'Live Music'
-    WHEN 'kpbj-fundraiser-jazz-night-2025-09-05' THEN 'Fundraiser'
-    WHEN 'kpbj-fundraiser-jazz-night-2025-09-05' THEN 'Ticketed'
-    WHEN 'all-ages-punk-matinee-2025-09-13' THEN 'Live Music'
-    WHEN 'all-ages-punk-matinee-2025-09-13' THEN 'All Ages'
-    WHEN 'all-ages-punk-matinee-2025-09-13' THEN 'Ticketed'
-    WHEN 'open-mic-night-2025-09-19' THEN 'Live Music'
-    WHEN 'open-mic-night-2025-09-19' THEN 'Community'
-    WHEN 'open-mic-night-2025-09-19' THEN 'All Ages'
-    WHEN 'open-mic-night-2025-09-19' THEN 'Free'
-    WHEN 'autumn-dj-showcase-2025-09-27' THEN 'DJ Night'
-    WHEN 'autumn-dj-showcase-2025-09-27' THEN 'Community'
-    WHEN 'autumn-dj-showcase-2025-09-27' THEN 'Free'
-    WHEN 'halloween-costume-party-dance-night-2025-10-04' THEN 'DJ Night'
-    WHEN 'halloween-costume-party-dance-night-2025-10-04' THEN '21+'
-    WHEN 'halloween-costume-party-dance-night-2025-10-04' THEN 'Ticketed'
-    WHEN 'local-legends-portland-music-history-panel-2025-10-11' THEN 'Community'
-    WHEN 'local-legends-portland-music-history-panel-2025-10-11' THEN 'All Ages'
-    WHEN 'local-legends-portland-music-history-panel-2025-10-11' THEN 'Free'
-    WHEN 'acoustic-songwriter-circle-2025-10-18' THEN 'Live Music'
-    WHEN 'acoustic-songwriter-circle-2025-10-18' THEN 'All Ages'
-    WHEN 'acoustic-songwriter-circle-2025-10-18' THEN 'Ticketed'
-    WHEN 'kpbj-fall-fundraiser-silent-auction-2025-10-25' THEN 'Live Music'
-    WHEN 'kpbj-fall-fundraiser-silent-auction-2025-10-25' THEN 'Fundraiser'
-    WHEN 'kpbj-fall-fundraiser-silent-auction-2025-10-25' THEN 'Ticketed'
-    WHEN 'kpbj-fall-fundraiser-silent-auction-2025-10-25' THEN 'Community'
-  END
-);
 
 -- Create blog tags
 INSERT INTO blog_tags (name) VALUES
@@ -1114,11 +1055,6 @@ SELECT
     'Events' as metric,
     COUNT(*) as count
 FROM events
-UNION ALL
-SELECT
-    'Event Tags' as metric,
-    COUNT(*) as count
-FROM event_tags
 UNION ALL
 SELECT
     'Blog Posts' as metric,
