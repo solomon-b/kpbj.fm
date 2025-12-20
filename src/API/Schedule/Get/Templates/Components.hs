@@ -2,7 +2,6 @@
 
 module API.Schedule.Get.Templates.Components
   ( renderScheduleView,
-    renderWeekNavigation,
     renderDesktopSchedule,
     renderMobileSchedule,
   )
@@ -10,20 +9,20 @@ where
 
 import API.Links (scheduleLink, showsLinks)
 import API.Types
-import Control.Monad (unless)
 import Data.List (sortBy)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, defaultTimeLocale, formatTime)
-import Design (also, base, class_, desktop, tablet, when)
+import Design (also, base, class_, desktop, when)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.WeekOffset (WeekOffset (..))
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.Base (Attributes)
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xOnClick_, xShow_)
+import OrphanInstances.DayOfWeek (fromDayOfWeek)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links
 
@@ -63,16 +62,13 @@ isShowLive mCurrentDay mCurrentTime showDay startTime endTime =
 -- | Main schedule view template
 renderScheduleView :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> WeekOffset -> Day -> Lucid.Html ()
 renderScheduleView scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart = do
-  -- Week Navigation
-  renderWeekNavigation weekOffset weekStart
+  -- Desktop Schedule Grid (hidden on mobile) - includes week navigation
+  renderDesktopSchedule scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart
 
-  -- Desktop Schedule Grid (hidden on mobile)
-  renderDesktopSchedule scheduledShows currentDayOfWeek currentTimeOfDay
-
-  -- Mobile Schedule (hidden on desktop)
+  -- Mobile Schedule (hidden on desktop) - has its own day navigation
   renderMobileSchedule scheduledShows currentDayOfWeek currentTimeOfDay
 
--- | Week navigation component
+-- | Week navigation component (desktop only)
 renderWeekNavigation :: WeekOffset -> Day -> Lucid.Html ()
 renderWeekNavigation (WeekOffset weekOffset) weekStart = do
   let weekEnd = addDays 6 weekStart
@@ -116,35 +112,32 @@ renderWeekNavigation (WeekOffset weekOffset) weekStart = do
        in startStr <> " - " <> endStr
 
 --------------------------------------------------------------------------------
--- Week Navigation Styles
+-- Week Navigation Styles (desktop only)
 
 weekNavContainerStyles :: Attributes
 weekNavContainerStyles = class_ $ do
-  base [Tokens.bgWhite, Tokens.cardBorder]
-  base [Tokens.p3, Tokens.mb4]
-  tablet [Tokens.p4, Tokens.mb6]
+  base ["hidden"]
+  desktop [Tokens.bgWhite, Tokens.cardBorder, Tokens.p4, Tokens.mb6, "block"]
 
 weekNavFlexStyles :: Attributes
 weekNavFlexStyles = class_ $ do
-  base ["flex", "justify-between", "items-center", Tokens.gap2]
-  tablet [Tokens.gap4]
+  base ["flex", "justify-between", "items-center", Tokens.gap4]
 
 weekNavButtonStyles :: Attributes
 weekNavButtonStyles = class_ $ do
-  base [Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold]
-  base [Tokens.px3, Tokens.py2, Tokens.textSm]
-  tablet [Tokens.px4, Tokens.textBase]
+  base [Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold, Tokens.px4, Tokens.py2]
   also ["hover:bg-gray-700"]
 
 weekLabelStyles :: Attributes
 weekLabelStyles = class_ $ do
-  base [Tokens.fontBold, "text-center"]
-  base [Tokens.textBase]
-  tablet [Tokens.textXl]
+  base [Tokens.fontBold, "text-center", Tokens.textXl]
 
 -- | Render desktop schedule grid (Google Calendar style with spanning shows)
-renderDesktopSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
-renderDesktopSchedule scheduledShows currentDayOfWeek currentTimeOfDay = do
+renderDesktopSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> WeekOffset -> Day -> Lucid.Html ()
+renderDesktopSchedule scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart = do
+  -- Week navigation (desktop only)
+  renderWeekNavigation weekOffset weekStart
+
   Lucid.div_ [desktopContainerStyles] $ do
     Lucid.div_ [desktopGridWrapperStyles] $ do
       -- Schedule Header (fixed row outside the grid)
@@ -331,16 +324,43 @@ showTimeStyles :: Attributes
 showTimeStyles = class_ $ do
   base ["text-[10px]", "text-gray-500", "mt-1"]
 
--- | Render mobile schedule (day by day)
+-- | Render mobile schedule (single day view with day navigation)
 renderMobileSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
 renderMobileSchedule scheduledShows currentDayOfWeek currentTimeOfDay = do
-  Lucid.div_ [mobileContainerStyles] $ do
-    -- Group shows by day
-    let daysOfWeek = [(Monday, "MONDAY"), (Tuesday, "TUESDAY"), (Wednesday, "WEDNESDAY"), (Thursday, "THURSDAY"), (Friday, "FRIDAY"), (Saturday, "SATURDAY"), (Sunday, "SUNDAY")]
-    mapM_ (renderMobileDay scheduledShows currentDayOfWeek currentTimeOfDay) daysOfWeek
+  let daysOfWeek = [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+      -- Default to current day, or Monday if not viewing current week
+      initialDayIndex :: Int
+      initialDayIndex = maybe 0 (fromIntegral . fromDayOfWeek) currentDayOfWeek
+      alpineData = [i|{ currentDay: #{initialDayIndex} }|]
 
-    Lucid.div_ [Lucid.class_ "text-center"] $ do
-      Lucid.p_ [mobileFooterStyles] "Showing current week's schedule"
+  Lucid.div_ [mobileContainerStyles, xData_ alpineData] $ do
+    -- Mobile header row: "Schedule" on left, day nav on right
+    Lucid.div_ [mobileHeaderRowStyles] $ do
+      -- Title on left
+      Lucid.h1_ [mobileHeaderTitleStyles] "Schedule"
+
+      -- Day navigation on right
+      Lucid.div_ [mobileDayNavStyles] $ do
+        -- Previous day button
+        Lucid.button_
+          [ mobileDayNavButtonStyles,
+            xOnClick_ "currentDay = currentDay > 0 ? currentDay - 1 : 6"
+          ]
+          "←"
+
+        -- Current day label
+        Lucid.span_ [mobileDayLabelStyles] $ do
+          mapM_ (renderDayLabel currentDayOfWeek) (zip [0 ..] daysOfWeek)
+
+        -- Next day button
+        Lucid.button_
+          [ mobileDayNavButtonStyles,
+            xOnClick_ "currentDay = currentDay < 6 ? currentDay + 1 : 0"
+          ]
+          "→"
+
+    -- Day content panels (one per day, shown/hidden by Alpine)
+    mapM_ (renderMobileDayPanel scheduledShows currentDayOfWeek currentTimeOfDay) (zip [0 ..] daysOfWeek)
 
 --------------------------------------------------------------------------------
 -- Mobile Schedule Styles
@@ -350,74 +370,152 @@ mobileContainerStyles = class_ $ do
   base ["space-y-4"]
   desktop ["hidden"]
 
-mobileFooterStyles :: Attributes
-mobileFooterStyles = class_ $ do
-  base [Tokens.textGray600, "italic"]
+mobileHeaderRowStyles :: Attributes
+mobileHeaderRowStyles = class_ $ do
+  base ["flex", "justify-between", "items-center", Tokens.mb4]
 
-mobileDayCardStyles :: Attributes
-mobileDayCardStyles = class_ $ do
-  base [Tokens.bgWhite, Tokens.cardBorder]
-  base [Tokens.p3]
-  tablet [Tokens.p4]
+mobileHeaderTitleStyles :: Attributes
+mobileHeaderTitleStyles = class_ $ do
+  base [Tokens.text2xl, Tokens.fontBold]
 
-mobileDayHeaderStyles :: Bool -> Attributes
-mobileDayHeaderStyles isCurrentDay = class_ $ do
-  base [Tokens.fontBold, "mb-3", "text-center", Tokens.py2, "border"]
-  when isCurrentDay $ base [Tokens.bgGray800, Tokens.textWhite, "border-gray-800"]
-  when (not isCurrentDay) $ base [Tokens.bgGray100, "border-gray-300"]
+mobileDayNavStyles :: Attributes
+mobileDayNavStyles = class_ $ do
+  base ["flex", "items-center"]
 
-mobileShowItemStyles :: Attributes
-mobileShowItemStyles = class_ $ do
-  base ["flex", "justify-between", "items-center", "border", "border-gray-300"]
-  base [Tokens.p2]
-  tablet [Tokens.p3]
+mobileDayNavButtonStyles :: Attributes
+mobileDayNavButtonStyles = class_ $ do
+  base [Tokens.textXl, "font-black", Tokens.px3, Tokens.py2]
+  also ["hover:text-gray-600", "cursor-pointer"]
+
+mobileDayLabelStyles :: Attributes
+mobileDayLabelStyles = class_ $ do
+  base [Tokens.fontBold, Tokens.textLg]
+
+-- | Render a day label that shows/hides based on Alpine state
+renderDayLabel :: Maybe DayOfWeek -> (Int, DayOfWeek) -> Lucid.Html ()
+renderDayLabel currentDayOfWeek (idx, day) = do
+  let isToday = Just day == currentDayOfWeek
+      dayText = if isToday then "Today" else dayOfWeekName day
+      showCondition = [i|currentDay === #{idx :: Int}|]
+  Lucid.span_ [xShow_ showCondition] $ Lucid.toHtml dayText
+
+-- | Get display name for day of week
+dayOfWeekName :: DayOfWeek -> Text
+dayOfWeekName Monday = "Monday"
+dayOfWeekName Tuesday = "Tuesday"
+dayOfWeekName Wednesday = "Wednesday"
+dayOfWeekName Thursday = "Thursday"
+dayOfWeekName Friday = "Friday"
+dayOfWeekName Saturday = "Saturday"
+dayOfWeekName Sunday = "Sunday"
+
+-- | Render a day panel (shown/hidden by Alpine based on currentDay)
+renderMobileDayPanel :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> (Int, DayOfWeek) -> Lucid.Html ()
+renderMobileDayPanel scheduledShows currentDayOfWeek currentTimeOfDay (idx, dayOfWeek) = do
+  let showsForDay = filter (\s -> ShowSchedule.sswdDayOfWeek s == dayOfWeek) scheduledShows
+      sortedShows = sortBy (\a b -> compare (ShowSchedule.sswdStartTime a) (ShowSchedule.sswdStartTime b)) showsForDay
+      showCondition = [i|currentDay === #{idx :: Int}|]
+
+  Lucid.div_ [xShow_ showCondition, Lucid.class_ "space-y-3"] $ do
+    if null sortedShows
+      then Lucid.p_ [mobileEmptyStyles] "No shows scheduled"
+      else mapM_ (renderMobileShowCard currentDayOfWeek currentTimeOfDay dayOfWeek) sortedShows
+
+mobileEmptyStyles :: Attributes
+mobileEmptyStyles = class_ $ do
+  base [Tokens.textGray600, "text-center", Tokens.py4, "italic"]
+
+-- | Render a single show card for mobile (wireframe style)
+renderMobileShowCard :: Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
+renderMobileShowCard currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
+  let showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
+      startTimeText = formatTimeOfDay (ShowSchedule.sswdStartTime show')
+      isLiveShow = isShowLive currentDayOfWeek currentTimeOfDay dayOfWeek (ShowSchedule.sswdStartTime show') (ShowSchedule.sswdEndTime show')
+      -- Calculate show duration in minutes for dynamic height
+      durationMins = calculateDurationMinutes (ShowSchedule.sswdStartTime show') (ShowSchedule.sswdEndTime show')
+      -- Scale: 1.5px per minute (1 hour = 90px, 2 hours = 180px)
+      cardHeight = (durationMins * 3) `div` 2
+      heightStyle = [i|min-height: #{cardHeight}px|]
+
+  Lucid.div_ [mobileShowRowStyles] $ do
+    -- Time label on left (with LIVE indicator below if applicable)
+    Lucid.div_ [mobileTimeContainerStyles] $ do
+      Lucid.div_ [mobileTimeStyles] $ Lucid.toHtml startTimeText
+      if isLiveShow
+        then Lucid.div_ [mobileLiveBadgeStyles] "*ON AIR*"
+        else mempty
+
+    -- Show card on right (with dynamic height based on duration)
+    Lucid.a_
+      [ Lucid.href_ [i|/#{showUrl}|],
+        hxGet_ [i|/#{showUrl}|],
+        hxTarget_ "#main-content",
+        hxPushUrl_ "true",
+        mobileShowCardStyles isLiveShow,
+        Lucid.style_ heightStyle
+      ]
+      $ do
+        -- Show title
+        Lucid.div_ [mobileShowTitleStyles] $ Lucid.toHtml (ShowSchedule.sswdShowTitle show')
+
+        -- Genre tags
+        case ShowSchedule.sswdShowGenre show' of
+          Just genre -> Lucid.div_ [mobileTagContainerStyles] $ do
+            renderGenreTags genre
+          Nothing -> mempty
+
+-- | Calculate duration in minutes between two times (handles overnight shows)
+calculateDurationMinutes :: TimeOfDay -> TimeOfDay -> Int
+calculateDurationMinutes (TimeOfDay startH startM _) (TimeOfDay endH endM _) =
+  let startMins = startH * 60 + startM
+      endMins = endH * 60 + endM
+      -- Handle overnight shows (e.g., 11PM to 1AM)
+      duration = if endMins <= startMins
+                 then (24 * 60 - startMins) + endMins
+                 else endMins - startMins
+  in duration
+
+mobileShowRowStyles :: Attributes
+mobileShowRowStyles = class_ $ do
+  base ["flex", "items-start", "gap-3"]
+
+mobileTimeContainerStyles :: Attributes
+mobileTimeContainerStyles = class_ $ do
+  base ["w-20", "flex-shrink-0", "pt-3"]
+
+mobileTimeStyles :: Attributes
+mobileTimeStyles = class_ $ do
+  base [Tokens.textSm, Tokens.textGray600]
+
+mobileShowCardStyles :: Bool -> Attributes
+mobileShowCardStyles isLive = class_ $ do
+  base [Tokens.bgWhite, "rounded-xl", Tokens.p3, "flex-grow", "block"]
+  base ["border", "border-gray-300"]
+  when isLive $ base [Tokens.border2, "border-gray-800"]
+  also ["hover:bg-gray-50"]
+
+mobileShowTitleStyles :: Attributes
+mobileShowTitleStyles = class_ $ do
+  base [Tokens.fontBold, Tokens.mb2]
+
+mobileTagContainerStyles :: Attributes
+mobileTagContainerStyles = class_ $ do
+  base ["flex", "flex-wrap", "gap-1"]
+
+-- | Render genre tags from comma-separated string
+renderGenreTags :: Text -> Lucid.Html ()
+renderGenreTags genreText = do
+  let tags = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," genreText
+  mapM_ renderGenreTag tags
+
+renderGenreTag :: Text -> Lucid.Html ()
+renderGenreTag tagText = do
+  Lucid.span_ [genreTagStyles] $ Lucid.toHtml tagText
+
+genreTagStyles :: Attributes
+genreTagStyles = class_ $ do
+  base [Tokens.textXs, "px-2", "py-1", "rounded-full", "border", "border-gray-300", Tokens.textGray600]
 
 mobileLiveBadgeStyles :: Attributes
 mobileLiveBadgeStyles = class_ $ do
-  base [Tokens.fontBold, "uppercase", Tokens.textXs, "mb-1", Tokens.textGray800, "animate-pulse"]
-
--- | Render a single day for mobile view
-renderMobileDay :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> (DayOfWeek, Text) -> Lucid.Html ()
-renderMobileDay scheduledShows currentDayOfWeek currentTimeOfDay (dayOfWeek, dayName) = do
-  let showsForDay = filter (\s -> ShowSchedule.sswdDayOfWeek s == dayOfWeek) scheduledShows
-      sortedShows = sortBy (\a b -> compare (ShowSchedule.sswdStartTime a) (ShowSchedule.sswdStartTime b)) showsForDay
-      isCurrentDay = Just dayOfWeek == currentDayOfWeek
-      dayLabel = if isCurrentDay then dayName <> " - TODAY" else dayName
-
-  unless (null sortedShows) $ do
-    Lucid.div_ [mobileDayCardStyles] $ do
-      Lucid.h3_ [mobileDayHeaderStyles isCurrentDay] $
-        Lucid.toHtml dayLabel
-      Lucid.div_ [Lucid.class_ "space-y-3"] $ do
-        mapM_ (renderMobileShowItem currentDayOfWeek currentTimeOfDay dayOfWeek) sortedShows
-
--- | Render a single show item for mobile
-renderMobileShowItem :: Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
-renderMobileShowItem currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
-  let showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
-      startTimeText = formatTimeOfDay (ShowSchedule.sswdStartTime show')
-      -- Check if this show is currently airing (using helper that handles overnight shows)
-      isLiveShow = isShowLive currentDayOfWeek currentTimeOfDay dayOfWeek (ShowSchedule.sswdStartTime show') (ShowSchedule.sswdEndTime show')
-  Lucid.div_ [mobileShowItemStyles] $ do
-    Lucid.div_ $ do
-      -- Add "ON AIR" badge for live shows with blink animation
-      if isLiveShow
-        then Lucid.div_ [mobileLiveBadgeStyles] "● LIVE NOW"
-        else mempty
-      Lucid.div_ [Lucid.class_ Tokens.fontBold] $ do
-        Lucid.a_
-          [ Lucid.href_ [i|/#{showUrl}|],
-            hxGet_ [i|/#{showUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "hover:underline"
-          ]
-          $ Lucid.toHtml (startTimeText <> " - " <> ShowSchedule.sswdShowTitle show')
-      Lucid.div_ [mobileShowHostStyles] $
-        Lucid.toHtml (ShowSchedule.sswdHostName show')
-
-mobileShowHostStyles :: Attributes
-mobileShowHostStyles = class_ $ do
-  base [Tokens.textGray600]
-  base [Tokens.textXs]
-  tablet [Tokens.textSm]
+  base [Tokens.fontBold, Tokens.textXs, Tokens.textGray800, "animate-pulse"]
