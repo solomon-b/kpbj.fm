@@ -42,6 +42,33 @@ spec = describe "Domain.Types.FileUpload" $ do
         isImageFile "video/mp4" `shouldBe` False
         isImageFile "text/plain" `shouldBe` False
 
+  describe "Filename sanitization" $ do
+    describe "sanitizeFileName" $ do
+      it "leaves valid filenames unchanged" $ do
+        sanitizeFileName "episode-1.mp3" `shouldBe` "episode-1.mp3"
+        sanitizeFileName "my-show-artwork.jpg" `shouldBe` "my-show-artwork.jpg"
+        sanitizeFileName "test123.wav" `shouldBe` "test123.wav"
+
+      it "replaces colons with underscores" $ do
+        sanitizeFileName "2025-12-19:10:52:1766170360.png" `shouldBe` "2025-12-19_10_52_1766170360.png"
+
+      it "replaces other invalid characters with underscores" $ do
+        sanitizeFileName "episode*1.mp3" `shouldBe` "episode_1.mp3"
+        sanitizeFileName "episode?1.mp3" `shouldBe` "episode_1.mp3"
+        sanitizeFileName "episode\"1.mp3" `shouldBe` "episode_1.mp3"
+        sanitizeFileName "episode<1.mp3" `shouldBe` "episode_1.mp3"
+        sanitizeFileName "episode>1.mp3" `shouldBe` "episode_1.mp3"
+        sanitizeFileName "episode|1.mp3" `shouldBe` "episode_1.mp3"
+
+      it "extracts base filename from paths" $ do
+        sanitizeFileName "/path/to/file.mp3" `shouldBe` "file.mp3"
+        sanitizeFileName "C:\\Users\\test\\file.mp3" `shouldBe` "file.mp3"
+        sanitizeFileName "episode/1.mp3" `shouldBe` "1.mp3"
+
+      it "returns 'unnamed' for empty result" $ do
+        sanitizeFileName "" `shouldBe` "unnamed"
+        sanitizeFileName "/" `shouldBe` "unnamed"
+
   describe "File validation" $ do
     describe "validateFileName" $ do
       it "accepts valid filenames" $ do
@@ -52,16 +79,10 @@ spec = describe "Domain.Types.FileUpload" $ do
       it "rejects empty filename" $ do
         validateFileName "" `shouldBe` Left (InvalidFileName "Empty filename")
 
-      it "rejects filename with invalid characters" $ do
-        validateFileName "episode/1.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
-        validateFileName "episode\\1.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
-        validateFileName "episode:1.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
-        validateFileName "episode*.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
-        validateFileName "episode?.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
-        validateFileName "episode\"1.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
-        validateFileName "episode<1.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
-        validateFileName "episode>1.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
-        validateFileName "episode|1.mp3" `shouldBe` Left (InvalidFileName "Filename contains invalid characters")
+      it "accepts filenames with special characters (they get sanitized before use)" $ do
+        -- These are now accepted because we sanitize before using
+        validateFileName "episode:1.mp3" `shouldBe` Right ()
+        validateFileName "2025-12-19:10:52:1766170360.png" `shouldBe` Right ()
 
       it "rejects filename that's too long" $ do
         let longFilename = Text.replicate 300 "a"

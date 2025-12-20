@@ -26,6 +26,7 @@ import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.FileStorage
 import Domain.Types.FileUpload
+import Domain.Types.FileUpload qualified as FileUpload
 import Domain.Types.Slug (Slug)
 import Effects.MimeTypeValidation qualified as MimeValidation
 import Log qualified
@@ -354,10 +355,14 @@ uploadUserAvatar userId fileData = runExceptT $ do
 -- to a temporary file that can be processed by validation and storage functions.
 --
 -- The temporary file is created in @\/tmp\/@ with a prefix to avoid conflicts.
+-- The filename is sanitized to remove any invalid characters (colons, slashes, etc.)
+-- that might cause issues with the filesystem.
 convertFileDataToTempFile :: (MonadIO m) => FileData Mem -> m (Either UploadError FilePath)
 convertFileDataToTempFile fileData = liftIO $ do
   let content = BSL.toStrict $ fdPayload fileData
-      tempName = "/tmp/kpbj-upload-" <> Text.unpack (fdFileName fileData)
+      -- Sanitize the filename to avoid issues with special characters (e.g., colons in timestamps)
+      sanitizedName = FileUpload.sanitizeFileName (fdFileName fileData)
+      tempName = "/tmp/kpbj-upload-" <> Text.unpack sanitizedName
   -- Write directly to temp file
   BS.writeFile tempName content
   pure $ Right tempName
