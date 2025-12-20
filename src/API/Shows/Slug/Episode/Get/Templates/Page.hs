@@ -11,8 +11,8 @@ where
 --------------------------------------------------------------------------------
 
 import API.Links (showsLinks)
-import Component.Card.Episode (renderEpisodeCard)
 import API.Types
+import Component.Card.Episode (renderEpisodeCard)
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -34,16 +34,17 @@ showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 --------------------------------------------------------------------------------
 
-template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
-template showModel episode tracks = do
+template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Bool -> Lucid.Html ()
+template showModel episode tracks canViewDrafts = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Episode card (reuses the same component from show page)
-    renderEpisodeCard showModel episode
+    renderEpisodeCard showModel canViewDrafts episode
 
     -- Track listing section
     unless (null tracks) $ do
       Lucid.div_ [class_ $ base [Tokens.bgWhite, "mt-6"]] $ do
-        Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]]
+        Lucid.h2_
+          [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]]
           "Track Listing"
 
         Lucid.div_ [Lucid.class_ "space-y-1"] $ do

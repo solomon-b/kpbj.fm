@@ -12,6 +12,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
@@ -30,6 +31,8 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
@@ -63,6 +66,11 @@ handler ::
 handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
   userInfoResult <- getUserInfo cookie
   let mUserInfo = fmap snd userInfoResult
+      mUserId = fmap (User.mId . fst) userInfoResult
+      -- Staff and Admin can see drafts on any show
+      isStaffOrAdmin = case mUserInfo of
+        Just metadata -> UserMetadata.isStaffOrHigher (UserMetadata.mUserRole metadata)
+        Nothing -> False
       page = fromMaybe 1 mPage
       limit = fromIntegral episodesPerPage
       offset = fromIntegral (page - 1) * fromIntegral episodesPerPage
@@ -74,14 +82,22 @@ handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
       Log.logInfo ("Show not found: " <> display slug) ()
       renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
     Right (Just showModel) -> do
+      -- Check if the logged-in user is a host of this show
+      isHost <- case mUserId of
+        Nothing -> pure False
+        Just userId -> do
+          result <- execQuerySpan (ShowHost.isUserHostOfShow userId showModel.id)
+          pure $ fromRight False result
+      -- User can see drafts if they are a host of this show, or if they are Staff/Admin
+      let canViewDrafts = isHost || isStaffOrAdmin
       now <- currentSystemTime
-      fetchShowDetails now showModel limit offset >>= \case
+      fetchShowDetails now showModel limit offset canViewDrafts >>= \case
         Left err -> do
           Log.logAttention "Failed to fetch show details from database" (show err)
-          let showTemplate = template showModel [] [] [] [] page
+          let showTemplate = template showModel [] [] [] [] page canViewDrafts
           renderTemplate hxRequest mUserInfo showTemplate
         Right (hosts, schedule, episodes, blogPosts) -> do
-          let showTemplate = template showModel episodes hosts schedule blogPosts page
+          let showTemplate = template showModel episodes hosts schedule blogPosts page canViewDrafts
           renderTemplate hxRequest mUserInfo showTemplate
 
 fetchShowDetails ::
@@ -90,9 +106,15 @@ fetchShowDetails ::
   Shows.Model ->
   Limit ->
   Offset ->
+  -- | Can the current user view draft episodes? (host/staff/admin)
+  Bool ->
   m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model]))
-fetchShowDetails now showModel limit offset = runDBTransaction $ do
-  episodes <- TRX.statement () $ Episodes.getPublishedEpisodesForShow now showModel.id limit offset
+fetchShowDetails now showModel limit offset canViewDrafts = runDBTransaction $ do
+  -- If user can view drafts (host/staff/admin), show all episodes including drafts; otherwise only published
+  episodes <-
+    if canViewDrafts
+      then TRX.statement () $ Episodes.getEpisodesForShowIncludingDrafts showModel.id limit offset
+      else TRX.statement () $ Episodes.getPublishedEpisodesForShow now showModel.id limit offset
   hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id
   blogPosts <- TRX.statement () $ ShowBlogPosts.getPublishedShowBlogPosts showModel.id 3 0
   schedule <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showModel.id
