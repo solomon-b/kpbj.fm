@@ -66,7 +66,7 @@ renderBlogPostCard card = do
     $ do
       Lucid.article_ [class_ $ base [Tokens.cardBase, Tokens.mb6]] $ do
         -- Post title
-        Lucid.h2_ [class_ $ base [Tokens.fontBold, "text-xl", Tokens.mb4]] $
+        Lucid.h2_ [class_ $ base [Tokens.heading2xl, Tokens.mb4, "leading-tight"]] $
           Lucid.toHtml card.cardTitle
 
         -- Hero image (if present)
