@@ -299,6 +299,7 @@ library
     API.User.Register.Post.Handler
     API.User.Register.Post.Route
     App.Common
+    Component.ActionsDropdown
     Component.Banner
     Component.Form
     Component.Form.Builder

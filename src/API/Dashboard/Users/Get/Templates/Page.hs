@@ -7,6 +7,7 @@ module API.Dashboard.Users.Get.Templates.Page where
 
 import API.Links (dashboardUsersLinks)
 import API.Types
+import Component.ActionsDropdown qualified as ActionsDropdown
 import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -87,6 +88,29 @@ renderUserRow now user =
           <> display displayName
           <> "\"? They will regain full access to their account."
       isSuspended = isJust suspendedAt
+      rowTarget = "#" <> rowId
+      suspendAction =
+        if isSuspended
+          then
+            [ ActionsDropdown.htmxPostAction
+                "unsuspend"
+                "Unsuspend"
+                [i|/#{userUnsuspendUrl}|]
+                rowTarget
+                ActionsDropdown.SwapOuterHTML
+                (Just unsuspendConfirmMessage)
+                []
+            ]
+          else
+            [ ActionsDropdown.htmxPostAction
+                "suspend"
+                "Suspend"
+                [i|/#{userSuspendUrl}|]
+                rowTarget
+                ActionsDropdown.SwapOuterHTML
+                (Just suspendConfirmMessage)
+                [("reason", "Suspended by admin")]
+            ]
    in do
         Lucid.tr_
           [ Lucid.id_ rowId,
@@ -110,36 +134,17 @@ renderUserRow now user =
               Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatMonthYear createdAt)
               Lucid.div_ [class_ $ base ["text-xs", Tokens.textGray600]] $ Lucid.toHtml (formatRelativeTime now createdAt)
 
-            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]]
-              $ Lucid.select_
-                [ class_ $ base ["p-2", "border", "border-gray-400", "text-xs", Tokens.bgWhite],
-                  xData_ "{}",
-                  xOnChange_
-                    [i|
-                    const action = $el.value;
-                    $el.value = '';
-                    if (action === 'suspend') {
-                      if (confirm('#{suspendConfirmMessage}')) {
-                        htmx.ajax('POST', '/#{userSuspendUrl}', {target: '\##{rowId}', swap: 'outerHTML', values: {reason: 'Suspended by admin'}});
-                      }
-                    } else if (action === 'unsuspend') {
-                      if (confirm('#{unsuspendConfirmMessage}')) {
-                        htmx.ajax('POST', '/#{userUnsuspendUrl}', {target: '\##{rowId}', swap: 'outerHTML'});
-                      }
-                    } else if (action === 'delete') {
-                      if (confirm('#{deleteConfirmMessage}')) {
-                        htmx.ajax('DELETE', '/#{userDeleteUrl}', {target: '\##{rowId}', swap: 'outerHTML'});
-                      }
-                    }
-                  |],
-                  xOnClick_ "event.stopPropagation()"
-                ]
-              $ do
-                Lucid.option_ [Lucid.value_ ""] "Actions..."
-                if isSuspended
-                  then Lucid.option_ [Lucid.value_ "unsuspend"] "Unsuspend"
-                  else Lucid.option_ [Lucid.value_ "suspend"] "Suspend"
-                Lucid.option_ [Lucid.value_ "delete"] "Delete"
+            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
+              ActionsDropdown.render $
+                suspendAction
+                  <> [ ActionsDropdown.htmxDeleteAction
+                         "delete"
+                         "Delete"
+                         [i|/#{userDeleteUrl}|]
+                         rowTarget
+                         ActionsDropdown.SwapOuterHTML
+                         deleteConfirmMessage
+                     ]
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
 renderRoleBadge role = do

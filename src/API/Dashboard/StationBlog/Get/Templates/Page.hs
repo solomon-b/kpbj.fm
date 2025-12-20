@@ -7,6 +7,7 @@ module API.Dashboard.StationBlog.Get.Templates.Page where
 
 import API.Links (blogLinks, dashboardStationBlogLinks)
 import API.Types (BlogRoutes (..), DashboardStationBlogRoutes (..))
+import Component.ActionsDropdown qualified as ActionsDropdown
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -90,31 +91,18 @@ renderPostRow post =
                 Just pubAt -> Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatDateTime pubAt)
                 Nothing -> Lucid.span_ [class_ $ base ["text-gray-400", Tokens.textSm]] "—"
 
-            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]]
-              $ Lucid.select_
-                [ class_ $ base ["p-2", "border", "border-gray-400", "text-xs", Tokens.bgWhite],
-                  xData_ "{}",
-                  xOnChange_
-                    [i|
-                    const action = $el.value;
-                    $el.value = '';
-                    if (action === 'edit') {
-                      window.location.href = '/#{editUrl}';
-                    } else if (action === 'view') {
-                      window.location.href = '/#{viewUrl}';
-                    } else if (action === 'delete') {
-                      if (confirm('#{deleteConfirmMessage}')) {
-                        htmx.ajax('DELETE', '/#{deleteUrl}', {target: '\#main-content', swap: 'innerHTML'});
-                      }
-                    }
-                  |],
-                  xOnClick_ "event.stopPropagation()"
+            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
+              ActionsDropdown.render
+                [ ActionsDropdown.navigateAction "edit" "Edit" [i|/#{editUrl}|],
+                  ActionsDropdown.navigateAction "view" "View" [i|/#{viewUrl}|],
+                  ActionsDropdown.htmxDeleteAction
+                    "delete"
+                    "Delete"
+                    [i|/#{deleteUrl}|]
+                    "#main-content"
+                    ActionsDropdown.SwapInnerHTML
+                    deleteConfirmMessage
                 ]
-              $ do
-                Lucid.option_ [Lucid.value_ ""] "Actions..."
-                Lucid.option_ [Lucid.value_ "edit"] "Edit"
-                Lucid.option_ [Lucid.value_ "view"] "View"
-                Lucid.option_ [Lucid.value_ "delete"] "Delete"
 
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
 renderStatusBadge status = do
