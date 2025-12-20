@@ -6,8 +6,8 @@ module API.Shows.Slug.Blog.Get.Templates.Page where
 --------------------------------------------------------------------------------
 
 import API.Links (apiLinks)
-import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
 import API.Types
+import Component.Card.BlogPost (renderShowBlogPostCard)
 import Control.Monad (forM_, unless, when)
 import Data.Int (Int64)
 import Data.Maybe (isNothing)
@@ -97,7 +97,7 @@ template showModel posts tags maybeTag currentPage totalPages = do
       else do
         Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6, Tokens.mb8]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
           forM_ posts $ \post -> do
-            renderPostCard showModel post
+            renderShowBlogPostCard showModel post
 
         -- Pagination
         when (totalPages > 1) $ do

@@ -4,7 +4,7 @@ module API.Blog.Get.Templates.Page
 where
 
 import API.Blog.Get.Templates.Pagination (renderPagination)
-import API.Blog.Get.Templates.PostCard (renderBlogPostCard)
+import Component.Card.BlogPost (renderStationBlogPostCard)
 import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Int (Int64)
@@ -31,7 +31,7 @@ template currentTime blogPosts currentPage hasMore = do
           Lucid.div_ [Lucid.class_ "text-center"] $ do
             Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4]] "No Blog Posts Yet"
             Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for updates from the KPBJ community!"
-        else mapM_ (renderBlogPostCard currentTime) blogPosts
+        else mapM_ (renderStationBlogPostCard currentTime) blogPosts
 
       -- Pagination
       unless (null blogPosts) $

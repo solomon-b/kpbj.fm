@@ -13,8 +13,8 @@ where
 import API.Dashboard.Shows.Slug.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
 import API.Dashboard.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
 import API.Links (dashboardShowsLinks, showBlogLinks)
-import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
 import API.Types (DashboardShowsRoutes (..), ShowBlogRoutes (..))
+import Component.Card.BlogPost (renderShowBlogPostCard)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -199,7 +199,7 @@ renderBlogContent showModel blogPosts = do
         Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any blog posts yet. Check back soon!"
     else do
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-        mapM_ (renderPostCard showModel) blogPosts
+        mapM_ (renderShowBlogPostCard showModel) blogPosts
 
       -- View all link
       let blogUrl = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing

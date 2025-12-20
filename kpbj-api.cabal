@@ -106,7 +106,6 @@ library
     API.Blog.Get.Route
     API.Blog.Get.Templates.Page
     API.Blog.Get.Templates.Pagination
-    API.Blog.Get.Templates.PostCard
     API.Blog.Post.Get.Handler
     API.Blog.Post.Get.Route
     API.Blog.Post.Get.Templates.Page
@@ -227,7 +226,6 @@ library
     API.Shows.Get.Route
     API.Shows.Get.Templates.Page
     API.Shows.Get.Templates.Pagination
-    API.Shows.Get.Templates.ShowCard
     API.Dashboard.Shows.Slug.Edit.Get.Handler
     API.Dashboard.Shows.Slug.Edit.Get.Route
     API.Dashboard.Shows.Slug.Edit.Get.Templates.Form
@@ -268,7 +266,6 @@ library
     API.Shows.Slug.Blog.Get.Handler
     API.Shows.Slug.Blog.Get.Route
     API.Shows.Slug.Blog.Get.Templates.Page
-    API.Shows.Slug.Blog.Get.Templates.PostCard
     API.Shows.Slug.Blog.New.Get.Handler
     API.Shows.Slug.Blog.New.Get.Route
     API.Shows.Slug.Blog.New.Get.Templates.Page
@@ -300,7 +297,9 @@ library
     App.Common
     Component.ActionsDropdown
     Component.Banner
+    Component.Card.BlogPost
     Component.Card.Episode
+    Component.Card.Show
     Component.Form
     Component.Form.Builder
     Component.Form.Internal

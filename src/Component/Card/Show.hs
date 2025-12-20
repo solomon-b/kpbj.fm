@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Get.Templates.ShowCard
+module Component.Card.Show
   ( renderShowCard,
   )
 where

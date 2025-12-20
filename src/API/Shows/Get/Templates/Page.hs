@@ -5,7 +5,7 @@ module API.Shows.Get.Templates.Page
 where
 
 import API.Shows.Get.Templates.Pagination (renderPagination)
-import API.Shows.Get.Templates.ShowCard (renderShowCard)
+import Component.Card.Show (renderShowCard)
 import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Maybe (isNothing)
@@ -30,7 +30,7 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
       -- Mobile-only filter toggle button
       Lucid.button_
         [ xOnClick_ "filterOpen = !filterOpen",
-          class_ $ do { base ["flex", "items-center", Tokens.gap2, Tokens.px3, Tokens.py2]; desktop ["hidden"] }
+          class_ $ do base ["flex", "items-center", Tokens.gap2, Tokens.px3, Tokens.py2]; desktop ["hidden"]
         ]
         $ do
           Lucid.span_ [Lucid.class_ "text-sm"] "≡"
@@ -45,7 +45,7 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
           xTransitionLeave_ "transition ease-in duration-150 origin-top",
           xTransitionLeaveStart_ "opacity-100 scale-y-100",
           xTransitionLeaveEnd_ "opacity-0 scale-y-0",
-          class_ $ do { base ["absolute", "left-1/2", "-translate-x-1/2", "w-screen", "top-full", "z-20", Tokens.bgWhite, "shadow-lg"]; desktop ["hidden"] }
+          class_ $ do base ["absolute", "left-1/2", "-translate-x-1/2", "w-screen", "top-full", "z-20", Tokens.bgWhite, "shadow-lg"]; desktop ["hidden"]
         ]
         $ do
           renderFilters maybeGenre maybeStatus maybeSearch
@@ -120,13 +120,13 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
       Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
         Lucid.button_
           [ Lucid.type_ "submit",
-            class_ $ do { base ["flex-1", Tokens.bgGray800, Tokens.textWhite, Tokens.py2, Tokens.fontBold]; desktop ["flex-none", Tokens.px4] }
+            class_ $ do base ["flex-1", Tokens.bgGray800, Tokens.textWhite, Tokens.py2, Tokens.fontBold]; desktop ["flex-none", Tokens.px4]
           ]
           "Apply"
         Lucid.button_
           [ Lucid.type_ "button",
             Lucid.onclick_ "clearFilters()",
-            class_ $ do { base ["flex-1", "border", "border-gray-400", Tokens.py2]; desktop ["flex-none", Tokens.px4] }
+            class_ $ do base ["flex-1", "border", "border-gray-400", Tokens.py2]; desktop ["flex-none", Tokens.px4]
           ]
           "Clear"
 
