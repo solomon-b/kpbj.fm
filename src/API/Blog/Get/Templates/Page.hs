@@ -8,18 +8,20 @@ import API.Blog.Get.Templates.PostCard (renderBlogPostCard)
 import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Int (Int64)
+import Data.Time (UTCTime)
 import Design (base, class_)
 import Design.Lucid qualified as Layout
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 
 -- | Main blog template
-template :: [(BlogPosts.Model, [BlogTags.Model])] -> Int64 -> Bool -> Lucid.Html ()
-template blogPosts currentPage hasMore = do
+template :: UTCTime -> [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])] -> Int64 -> Bool -> Lucid.Html ()
+template currentTime blogPosts currentPage hasMore = do
   -- Blog Header
-  pageHeader "KPBJ STATION BLOG"
+  pageHeader "BLOG"
 
   -- Blog Posts
   Lucid.div_ [class_ $ base [Tokens.gap8, Tokens.fullWidth]] $ do
@@ -29,7 +31,7 @@ template blogPosts currentPage hasMore = do
           Lucid.div_ [Lucid.class_ "text-center"] $ do
             Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4]] "No Blog Posts Yet"
             Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for updates from the KPBJ community!"
-        else mapM_ renderBlogPostCard blogPosts
+        else mapM_ (renderBlogPostCard currentTime) blogPosts
 
       -- Pagination
       unless (null blogPosts) $

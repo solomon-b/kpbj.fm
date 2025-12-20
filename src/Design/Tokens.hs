@@ -46,6 +46,7 @@ module Design.Tokens
     mb4,
     mb6,
     mb8,
+    mt4,
     pb2,
 
     -- * Responsive Spacing
@@ -228,6 +229,9 @@ mb6 = "mb-6"
 mb8 :: Text
 mb8 = "mb-8"
 
+mt4 :: Text
+mt4 = "mt-4"
+
 pb2 :: Text
 pb2 = "pb-2"
 
@@ -348,7 +352,7 @@ fullWidth = "w-full"
 
 -- | Base card styling (white bg, border, padding).
 cardBase :: Text
-cardBase = cls [bgWhite, cardBorder, cardPadding]
+cardBase = cls [bgWhite, cardPadding]
 
 -- | Base section styling (white bg, border, padding, margin).
 sectionBase :: Text
