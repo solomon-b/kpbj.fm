@@ -8,6 +8,7 @@ module API.Dashboard.Users.Get.Templates.Page where
 import API.Links (dashboardUsersLinks)
 import API.Types
 import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
 import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -35,23 +36,26 @@ template ::
   Lucid.Html ()
 template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   -- User table or empty state
-  if null users
-    then renderEmptyState maybeQuery
-    else do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
-        Lucid.table_ [class_ $ base [Tokens.fullWidth]] $ do
-          Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
-            Lucid.tr_ $ do
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Display Name"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Email"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Role"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Status"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Member Since"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-center", "w-24"]] ""
-          Lucid.tbody_ $
-            mapM_ (renderUserRow now) users
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+    if null users
+      then renderEmptyState maybeQuery
+      else
+        renderTable
+          TableConfig
+            { headers =
+                [ ColumnHeader "Display Name" AlignLeft,
+                  ColumnHeader "Email" AlignLeft,
+                  ColumnHeader "Role" AlignLeft,
+                  ColumnHeader "Status" AlignLeft,
+                  ColumnHeader "Member Since" AlignLeft,
+                  ColumnHeader "" AlignCenter
+                ],
+              wrapperClass = "overflow-x-auto",
+              tableClass = "w-full"
+            }
+          $ mapM_ (renderUserRow now) users
 
-      renderPagination currentPage hasMore maybeQuery maybeRoleFilter sortBy
+  renderPagination currentPage hasMore maybeQuery maybeRoleFilter sortBy
 
 renderUserRow :: UTCTime -> UserMetadata.UserWithMetadata -> Lucid.Html ()
 renderUserRow now user =
@@ -68,6 +72,7 @@ renderUserRow now user =
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
         ]
+      userEditUrl = Links.linkURI $ dashboardUsersLinks.editGet userId
       userDeleteUrl = Links.linkURI $ dashboardUsersLinks.delete userId
       userSuspendUrl = Links.linkURI $ dashboardUsersLinks.suspendPost userId
       userUnsuspendUrl = Links.linkURI $ dashboardUsersLinks.unsuspendPost userId
@@ -136,7 +141,12 @@ renderUserRow now user =
 
             Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
               ActionsDropdown.render $
-                suspendAction
+                [ ActionsDropdown.navigateAction
+                    "edit"
+                    "Edit"
+                    [i|/#{userEditUrl}|]
+                ]
+                  <> suspendAction
                   <> [ ActionsDropdown.htmxDeleteAction
                          "delete"
                          "Delete"

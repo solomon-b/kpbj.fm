@@ -8,6 +8,7 @@ module API.Dashboard.StationBlog.Get.Templates.Page where
 import API.Links (blogLinks, dashboardStationBlogLinks)
 import API.Types (BlogRoutes (..), DashboardStationBlogRoutes (..))
 import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -29,22 +30,25 @@ template ::
   Lucid.Html ()
 template posts currentPage hasMore = do
   -- Blog posts table or empty state
-  if null posts
-    then renderEmptyState
-    else do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
-        Lucid.table_ [class_ $ base [Tokens.fullWidth]] $ do
-          Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
-            Lucid.tr_ $ do
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Title"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Status"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Created"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Published"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-center", "w-24"]] ""
-          Lucid.tbody_ $
-            mapM_ renderPostRow posts
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+    if null posts
+      then renderEmptyState
+      else
+        renderTable
+          TableConfig
+            { headers =
+                [ ColumnHeader "Title" AlignLeft,
+                  ColumnHeader "Status" AlignLeft,
+                  ColumnHeader "Created" AlignLeft,
+                  ColumnHeader "Published" AlignLeft,
+                  ColumnHeader "" AlignCenter
+                ],
+              wrapperClass = "overflow-x-auto",
+              tableClass = "w-full"
+            }
+          $ mapM_ renderPostRow posts
 
-      renderPagination currentPage hasMore
+  renderPagination currentPage hasMore
 
 renderPostRow :: BlogPosts.Model -> Lucid.Html ()
 renderPostRow post =

@@ -8,6 +8,7 @@ module API.Dashboard.Events.Get.Templates.Page where
 import API.Links (dashboardEventsLinks, eventsLinks)
 import API.Types
 import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -28,22 +29,25 @@ template ::
   Lucid.Html ()
 template events currentPage hasMore = do
   -- Events table or empty state
-  if null events
-    then renderEmptyState
-    else do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
-        Lucid.table_ [Lucid.class_ Tokens.fullWidth] $ do
-          Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
-            Lucid.tr_ $ do
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Title"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Status"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Start Date"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Location"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-center", "w-24"]] ""
-          Lucid.tbody_ $
-            mapM_ renderEventRow events
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+    if null events
+      then renderEmptyState
+      else
+        renderTable
+          TableConfig
+            { headers =
+                [ ColumnHeader "Title" AlignLeft,
+                  ColumnHeader "Status" AlignLeft,
+                  ColumnHeader "Start Date" AlignLeft,
+                  ColumnHeader "Location" AlignLeft,
+                  ColumnHeader "" AlignCenter
+                ],
+              wrapperClass = "overflow-x-auto",
+              tableClass = "w-full"
+            }
+          $ mapM_ renderEventRow events
 
-      renderPagination currentPage hasMore
+  renderPagination currentPage hasMore
 
 renderEventRow :: Events.Model -> Lucid.Html ()
 renderEventRow event =
@@ -72,7 +76,7 @@ renderEventRow event =
    in do
         Lucid.tr_
           [ Lucid.id_ rowId,
-            class_ $ base [Tokens.border2, "border-gray-200", "hover:bg-gray-50"]
+            class_ $ base ["border-b-2", "border-gray-200", "hover:bg-gray-50"]
           ]
           $ do
             Lucid.td_ cellLinkAttrs $

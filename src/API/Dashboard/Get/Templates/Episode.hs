@@ -52,19 +52,18 @@ renderEpisodeTableRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> 
 renderEpisodeTableRow userMeta showModel episode = do
   let episodeId = episode.id
       episodeRowId = [i|episode-row-#{episodeId}|]
-  Lucid.tr_ [class_ $ base ["border-b", "border-gray-300", "hover:bg-gray-50"], Lucid.id_ episodeRowId] $ do
+      detailUrl = episodeGetUrl showModel.slug epNum
+      cellLinkAttrs =
+        [ class_ $ base [Tokens.p4, "cursor-pointer"],
+          hxGet_ [i|/#{detailUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true"
+        ]
+  Lucid.tr_ [class_ $ base ["border-b-2", "border-gray-200", "hover:bg-gray-50"], Lucid.id_ episodeRowId] $ do
     -- Episode number and description
-    Lucid.td_ [class_ $ base [Tokens.px4, "py-3"]] $ do
-      let episodeUrl = episodeGetUrl showModel.slug epNum
-      Lucid.div_ [class_ $ base [Tokens.fontBold, "text-gray-900"]]
-        $ Lucid.a_
-          [ Lucid.href_ [i|/#{episodeUrl}|],
-            hxGet_ [i|/#{episodeUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base ["hover:underline", "text-blue-600"]
-          ]
-        $ Lucid.toHtml ("#" <> show epNum)
+    Lucid.td_ cellLinkAttrs $ do
+      Lucid.span_ [class_ $ base [Tokens.fontBold]] $
+        Lucid.toHtml ("#" <> show epNum)
       case episode.description of
         Nothing -> mempty
         Just desc ->
@@ -73,13 +72,13 @@ renderEpisodeTableRow userMeta showModel episode = do
             if Text.length desc > 100 then "..." else ""
 
     -- Scheduled date
-    Lucid.td_ [class_ $ base [Tokens.px4, "py-3", Tokens.textSm]] $ do
+    Lucid.td_ cellLinkAttrs $
       case episode.scheduledAt of
         Just scheduledAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" scheduledAt
         Nothing -> Lucid.span_ [class_ $ base ["text-gray-500", "italic"]] "Not scheduled"
 
     -- Status
-    Lucid.td_ [class_ $ base [Tokens.px4, "py-3", Tokens.textSm]] $ do
+    Lucid.td_ cellLinkAttrs $
       case episode.status of
         Episodes.Draft ->
           Lucid.span_ [class_ $ base ["inline-block", "bg-yellow-100", "text-yellow-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
@@ -89,7 +88,7 @@ renderEpisodeTableRow userMeta showModel episode = do
           Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"
 
     -- Actions dropdown
-    Lucid.td_ [class_ $ base [Tokens.px4, "py-3", "text-center"]] $
+    Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
       Lucid.div_ [xData_ "{}"] $
         do
           -- Hidden link for Edit

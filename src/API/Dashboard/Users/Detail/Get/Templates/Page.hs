@@ -36,16 +36,6 @@ template user metadata userShows userEpisodes = do
         Lucid.p_ [Lucid.class_ "text-gray-600 text-lg"] $
           Lucid.toHtml (display user.mEmail)
 
-      -- Edit button
-      Lucid.a_
-        [ Lucid.href_ [i|/#{editUrl}|],
-          hxGet_ [i|/#{editUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-        ]
-        "EDIT USER"
-
     -- User metadata grid
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t-2 border-gray-200"] $ do
       renderField "Full Name" (Text.unpack $ display metadata.mFullName)
@@ -67,8 +57,6 @@ template user metadata userShows userEpisodes = do
       Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4"] "RECENT EPISODES"
       Lucid.div_ [Lucid.class_ "space-y-4"] $
         mapM_ renderEpisodeCard userEpisodes
-  where
-    editUrl = Links.linkURI $ dashboardUsersLinks.editGet user.mId
 
 renderField :: String -> String -> Lucid.Html ()
 renderField label value = do

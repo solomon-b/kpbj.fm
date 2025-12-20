@@ -36,9 +36,6 @@ mediaGetUrl = Links.linkURI apiLinks.mediaGet
 dashboardEpisodesGetUrl :: Slug -> Links.URI
 dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug
 
-episodeEditGetUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodeEditGetUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug epNum
-
 --------------------------------------------------------------------------------
 
 -- | Dashboard episode detail template
@@ -76,23 +73,11 @@ template _userMeta showModel episode tracks = do
 
         -- Episode metadata
         Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-          Lucid.div_ [class_ $ base ["flex", "items-start", "justify-between"]] $ do
-            Lucid.div_ $ do
-              let epNum = episode.episodeNumber
-              Lucid.div_ [class_ $ base ["text-xs", "uppercase", "tracking-wide", Tokens.textGray600, Tokens.mb2]] $
-                "Episode " <> Lucid.toHtml (show epNum)
-              Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] $ Lucid.toHtml (show epNum)
-
-            -- Edit button
-            let editUrl = episodeEditGetUrl showModel.slug episode.episodeNumber
-            Lucid.a_
-              [ Lucid.href_ [i|/#{editUrl}|],
-                hxGet_ [i|/#{editUrl}|],
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, "py-2", Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
-              ]
-              "Edit Episode"
+          Lucid.div_ $ do
+            let epNum = episode.episodeNumber
+            Lucid.div_ [class_ $ base ["text-xs", "uppercase", "tracking-wide", Tokens.textGray600, Tokens.mb2]] $
+              "Episode " <> Lucid.toHtml (show epNum)
+            Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] $ Lucid.toHtml (show epNum)
 
           -- Episode info grid
           Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.mb4]] $ do

@@ -23,7 +23,7 @@ template = renderEpisodesSection
 -- | Episodes table section
 renderEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Lucid.Html ()
 renderEpisodesSection userMeta selectedShow episodes =
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden"]] $ do
     case episodes of
       [] ->
         Lucid.div_ [class_ $ base [Tokens.textGray600, "text-center", "p-8"]] $ do
