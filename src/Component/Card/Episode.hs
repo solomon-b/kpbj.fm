@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module Component.Card.Episode
-  ( renderEpisode,
+  ( renderEpisodeCard,
   )
 where
 
@@ -39,8 +39,8 @@ episodeDetailUrl showSlug episodeId episodeSlug =
 -- Main Render Function
 
 -- | Render an episode card with artwork (with play button overlay) and date.
-renderEpisode :: Shows.Model -> Episodes.Model -> Lucid.Html ()
-renderEpisode showModel episode = do
+renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisodeCard showModel episode = do
   let epUrl = episodeDetailUrl showModel.slug episode.id episode.slug
       showTitle = showModel.title
       episodeTitle = episode.title
@@ -81,7 +81,7 @@ renderArtworkWithPlayer epUrl mArtworkUrl =
         hxGet_ [i|/#{epUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "block"]
+        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "flex", "items-center", "justify-center", Tokens.textXs, "block"]
       ]
       $ case mArtworkUrl of
         Just artworkUrl ->

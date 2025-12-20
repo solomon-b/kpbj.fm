@@ -11,10 +11,10 @@ where
 --------------------------------------------------------------------------------
 
 import API.Links (showBlogLinks, showsLinks)
-import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
-import Component.Card.Episode (renderEpisode)
 import API.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
 import API.Types
+import Component.Card.BlogPost (renderShowBlogPostCard)
+import Component.Card.Episode (renderEpisodeCard)
 import Control.Monad (when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -94,7 +94,7 @@ renderEpisodesContent showModel episodes currentPage = do
     else do
       -- Grid layout: 1 column on mobile, 2 on tablet, 3 on desktop
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-        mapM_ (renderEpisode showModel) episodes
+        mapM_ (renderEpisodeCard showModel) episodes
       renderPagination showModel currentPage (length episodes)
 
 -- | Render pagination controls
@@ -155,7 +155,7 @@ _renderBlogContent showModel blogPosts = do
         Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any blog posts yet. Check back soon!"
     else do
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-        mapM_ (renderPostCard showModel) blogPosts
+        mapM_ (renderShowBlogPostCard showModel) blogPosts
 
       -- View all link
       let blogUrl = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
