@@ -28,6 +28,29 @@ data UploadError
   deriving (Show, Eq)
 
 --------------------------------------------------------------------------------
+-- Filename sanitization
+
+-- | Sanitize a filename for safe storage and temp file creation.
+--
+-- This function:
+-- 1. Extracts just the base filename (removes any path components)
+-- 2. Replaces invalid characters with underscores
+-- 3. Returns a safe filename that can be used in file paths
+--
+-- Invalid characters that are replaced: \/ \\ : * ? " < > |
+sanitizeFileName :: Text -> Text
+sanitizeFileName filename =
+  let -- Extract just the filename part (after last / or \)
+      baseName = Text.takeWhileEnd (`notElem` ['/', '\\']) filename
+      -- Replace invalid characters with underscores
+      sanitized = Text.map replaceInvalid baseName
+   in if Text.null sanitized then "unnamed" else sanitized
+  where
+    replaceInvalid c
+      | c `elem` [':', '*', '?', '"', '<', '>', '|'] = '_'
+      | otherwise = c
+
+--------------------------------------------------------------------------------
 -- File validation
 
 isAudioFile :: Text -> Bool
@@ -72,12 +95,15 @@ validateUpload bucketType filename mimeType fileSize = do
   validateFileType bucketType mimeType
   validateFileSize bucketType fileSize
 
+-- | Validate a filename.
+--
+-- Note: This function does NOT reject filenames with special characters because
+-- we sanitize filenames before using them (via 'sanitizeFileName'). This validation
+-- only checks for empty or excessively long filenames.
 validateFileName :: Text -> Either UploadError ()
 validateFileName filename
   | Text.null filename = Left $ InvalidFileName "Empty filename"
   | Text.length filename > 255 = Left $ InvalidFileName "Filename too long"
-  | Text.any (`elem` ['/', '\\', ':', '*', '?', '"', '<', '>', '|']) filename =
-      Left $ InvalidFileName "Filename contains invalid characters"
   | otherwise = Right ()
 
 validateFileType :: BucketType -> Text -> Either UploadError ()
