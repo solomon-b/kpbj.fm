@@ -4,7 +4,7 @@ module API.Shows.Slug.Episode.Publish.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Episode.Publish.Post.Templates.Response (renderErrorBannerWithRow, renderSuccessRow)
+import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import App.Common (getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
@@ -14,6 +14,7 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
+import Data.Text (Text)
 import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
@@ -78,7 +79,7 @@ handler _tracer showSlug episodeNumber cookie = do
               if episode.status == Episodes.Published
                 then do
                   Log.logInfo "Publish failed: Episode already published" (Aeson.object ["episodeId" .= episode.id])
-                  pure $ renderErrorBannerWithRow showModel episode "This episode is already published."
+                  pure $ renderErrorWithRow userMeta showModel episode "This episode is already published."
                 else do
                   -- Check authorization: staff, creator, or host
                   let isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole
@@ -93,13 +94,13 @@ handler _tracer showSlug episodeNumber cookie = do
                   if isPast && not isStaff
                     then do
                       Log.logInfo "Publish failed: Past episode, user not staff" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
-                      pure $ renderErrorBannerWithRow showModel episode "This episode's scheduled date has passed. Only staff or admin users can publish past episodes."
+                      pure $ renderErrorWithRow userMeta showModel episode "This episode's scheduled date has passed. Only staff or admin users can publish past episodes."
                     else
                       if isStaff || ((isCreator || isHost) && not (UserMetadata.isSuspended userMeta))
-                        then publishEpisode showModel episode
+                        then publishEpisode userMeta showModel episode
                         else do
                           Log.logInfo "Publish failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
-                          pure $ renderErrorBannerWithRow showModel episode "You don't have permission to publish this episode."
+                          pure $ renderErrorWithRow userMeta showModel episode "You don't have permission to publish this episode."
 
 publishEpisode ::
   ( Has Tracer env,
@@ -111,22 +112,29 @@ publishEpisode ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  UserMetadata.Model ->
   Shows.Model ->
   Episodes.Model ->
   m (Lucid.Html ())
-publishEpisode showModel episode = do
+publishEpisode userMeta showModel episode = do
   execQuerySpan (Episodes.publishEpisode episode.id) >>= \case
     Left err -> do
       Log.logInfo "Publish failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
-      pure $ renderErrorBannerWithRow showModel episode "Failed to publish episode due to a database error."
+      pure $ renderErrorWithRow userMeta showModel episode "Failed to publish episode due to a database error."
     Right Nothing -> do
       Log.logInfo "Publish failed: Episode not found during publish" (Aeson.object ["episodeId" .= episode.id])
-      pure $ renderErrorBannerWithRow showModel episode "Episode not found during publish operation."
+      pure $ renderErrorWithRow userMeta showModel episode "Episode not found during publish operation."
     Right (Just _) -> do
       Log.logInfo "Episode published successfully" (Aeson.object ["episodeId" .= episode.id])
       -- Return the updated row with Published status
       let publishedEpisode = episode {Episodes.status = Episodes.Published}
-      pure $ renderSuccessRow showModel publishedEpisode
+      pure $ renderEpisodeTableRow userMeta showModel publishedEpisode
+
+-- | Render an error banner AND the episode row (to prevent row removal on error)
+renderErrorWithRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()
+renderErrorWithRow userMeta showModel episode errorMsg = do
+  renderEpisodeTableRow userMeta showModel episode
+  renderBanner Error "Publish Failed" errorMsg
 
 checkIfHost ::
   ( Has Tracer env,

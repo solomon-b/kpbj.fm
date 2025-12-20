@@ -4,7 +4,7 @@ module API.Shows.Slug.Episode.DiscardDraft.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Episode.Delete.Templates.ErrorBanner (emptyResponse, renderErrorBannerWithCard)
+import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import App.Common (getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
@@ -14,6 +14,7 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
+import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
@@ -77,7 +78,7 @@ handler _tracer showSlug episodeNumber cookie = do
               if episode.status /= Episodes.Draft
                 then do
                   Log.logInfo "Discard draft failed: Episode is not a draft" (Aeson.object ["episodeId" .= episode.id, "status" .= show episode.status])
-                  pure $ renderErrorBannerWithCard showModel episode "Only draft episodes can be discarded. Published episodes must be archived by staff."
+                  pure $ renderErrorWithRow userMeta showModel episode "Only draft episodes can be discarded. Published episodes must be archived by staff."
                 else do
                   -- Check authorization: staff, creator, or host
                   let isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole
@@ -86,10 +87,10 @@ handler _tracer showSlug episodeNumber cookie = do
                   isHost <- if isStaff || isCreator then pure True else checkIfHost user episode
 
                   if (isStaff || isCreator || isHost) && not (UserMetadata.isSuspended userMeta)
-                    then hardDeleteEpisode showModel episode
+                    then hardDeleteEpisode userMeta showModel episode
                     else do
                       Log.logInfo "Discard draft failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
-                      pure $ renderErrorBannerWithCard showModel episode "You don't have permission to discard this episode."
+                      pure $ renderErrorWithRow userMeta showModel episode "You don't have permission to discard this episode."
 
 hardDeleteEpisode ::
   ( Has Tracer env,
@@ -101,21 +102,33 @@ hardDeleteEpisode ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  UserMetadata.Model ->
   Shows.Model ->
   Episodes.Model ->
   m (Lucid.Html ())
-hardDeleteEpisode showModel episode = do
+hardDeleteEpisode userMeta showModel episode = do
   -- Delete tracks and episode in a single transaction
   execTransactionSpan (deleteEpisodeTransaction episode.id) >>= \case
     Left err -> do
       Log.logInfo "Discard draft failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
-      pure $ renderErrorBannerWithCard showModel episode "Failed to discard episode due to a database error."
+      pure $ renderErrorWithRow userMeta showModel episode "Failed to discard episode due to a database error."
     Right Nothing -> do
       Log.logInfo "Discard draft failed: Episode not found during delete" (Aeson.object ["episodeId" .= episode.id])
-      pure $ renderErrorBannerWithCard showModel episode "Episode not found during discard operation."
+      pure $ renderErrorWithRow userMeta showModel episode "Episode not found during discard operation."
     Right (Just _) -> do
       Log.logInfo "Draft episode discarded successfully" (Aeson.object ["episodeId" .= episode.id])
+      -- Return empty response to remove the row
       pure emptyResponse
+
+-- | Render an error banner AND the episode row (to prevent row removal on error)
+renderErrorWithRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()
+renderErrorWithRow userMeta showModel episode errorMsg = do
+  renderEpisodeTableRow userMeta showModel episode
+  renderBanner Error "Discard Failed" errorMsg
+
+-- | Empty response for successful deletes (row is removed by HTMX)
+emptyResponse :: Lucid.Html ()
+emptyResponse = ""
 
 -- | Transaction to delete episode tracks and then the episode itself.
 deleteEpisodeTransaction :: Episodes.Id -> Txn.Transaction (Maybe Episodes.Id)
