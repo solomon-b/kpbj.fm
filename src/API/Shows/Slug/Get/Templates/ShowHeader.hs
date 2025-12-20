@@ -41,7 +41,7 @@ renderShowHeader showModel hosts schedules = do
         Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{bannerUrl}|], Lucid.alt_ bannerAlt, Lucid.class_ "w-full h-auto object-cover"]
     Nothing -> mempty
 
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
@@ -94,5 +94,5 @@ renderShowHeader showModel hosts schedules = do
 
         -- Show Description
         Lucid.div_ [Lucid.class_ Tokens.mb6] $ do
-          Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, "mb-3", "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "About The Show"
+          Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, "mb-3", "uppercase", "border-b", "border-gray-800", Tokens.pb2]] ""
           Lucid.p_ [class_ $ base [Tokens.mb4, "leading-relaxed"]] $ Lucid.toHtml showModel.description
