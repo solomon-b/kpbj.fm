@@ -22,12 +22,11 @@ import Text.HTML (HTML)
 -- For discarding draft episodes, hosts should use the DiscardDraft endpoint instead.
 type Route =
   Observability.WithSpan
-    "DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug"
+    "DELETE /shows/:show_slug/episodes/:episode_number"
     ( "shows"
         :> Servant.Capture "show_slug" Slug
         :> "episodes"
-        :> Servant.Capture "episode_id" Episodes.Id
-        :> Servant.Capture "episode_slug" Slug
+        :> Servant.Capture "episode_number" Episodes.EpisodeNumber
         :> Servant.Header "Cookie" Cookie
         :> Servant.Delete '[HTML] (Lucid.Html ())
     )

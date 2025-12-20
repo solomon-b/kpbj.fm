@@ -32,8 +32,8 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 -- | Helper function to get episode detail URL
-episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
+episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
 
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
@@ -49,7 +49,8 @@ renderLatestEpisode showModel episode tracks = do
           Nothing -> "[EP IMG]"
 
       Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-        let epUrl = episodesIdGetUrl showModel.slug episode.id episode.slug
+        let epNum = episode.episodeNumber
+            epUrl = episodeDetailUrl showModel.slug epNum
         Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb2]] $ do
           Lucid.a_
             [ Lucid.href_ [i|/#{epUrl}|],
@@ -58,7 +59,7 @@ renderLatestEpisode showModel episode tracks = do
               hxPushUrl_ "true",
               Lucid.class_ "hover:underline"
             ]
-            $ Lucid.toHtml episode.title
+            $ Lucid.toHtml (show epNum)
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
           case episode.scheduledAt of
             Just scheduledAt -> do
@@ -83,7 +84,6 @@ renderLatestEpisode showModel episode tracks = do
     case episode.audioFilePath of
       Just audioPath -> do
         let showTitle = showModel.title
-            episodeTitle = episode.title
             episodeNum = episode.episodeNumber
             episodeId = episode.id
             audioUrl :: Text.Text
@@ -91,7 +91,7 @@ renderLatestEpisode showModel episode tracks = do
             playerId :: Text.Text
             playerId = [i|episode-#{episodeId}|]
             episodeMetadata :: Text.Text
-            episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
+            episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
         Lucid.div_
           [ class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-600", Tokens.p4, Tokens.mb4],
             xData_
@@ -198,7 +198,8 @@ renderEpisodeCard showModel episode = do
 
     -- Episode info
     Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-      let epUrl = episodesIdGetUrl showModel.slug episode.id episode.slug
+      let epNum = episode.episodeNumber
+          epUrl = episodeDetailUrl showModel.slug epNum
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb2]] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{epUrl}|],
@@ -207,7 +208,7 @@ renderEpisodeCard showModel episode = do
             hxPushUrl_ "true",
             Lucid.class_ "hover:underline"
           ]
-          $ Lucid.toHtml episode.title
+          $ Lucid.toHtml (show epNum)
 
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
         case episode.scheduledAt of
@@ -233,7 +234,6 @@ renderEpisodeCard showModel episode = do
       case episode.audioFilePath of
         Just audioPath -> do
           let showTitle = showModel.title
-              episodeTitle = episode.title
               episodeNum = episode.episodeNumber
               episodeId = episode.id
               audioUrl :: Text.Text
@@ -241,7 +241,7 @@ renderEpisodeCard showModel episode = do
               playerId :: Text.Text
               playerId = [i|episode-#{episodeId}|]
               episodeMetadata :: Text.Text
-              episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
+              episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
           Lucid.div_
             [ Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-4 mb-4",
               xData_

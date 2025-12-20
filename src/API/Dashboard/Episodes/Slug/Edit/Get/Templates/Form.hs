@@ -35,8 +35,8 @@ import Servant.Links qualified as Links
 hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI dashboardLinks.home
 
-episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
+episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
 
 --------------------------------------------------------------------------------
 
@@ -54,10 +54,9 @@ isScheduledInFuture now episode = case episode.scheduledAt of
 template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
 template currentTime showModel episode tracks userMeta isStaff = do
   let showSlugText = display showModel.slug
-      episodeSlug = episode.slug
-      episodeIdText = display episode.id
-      episodeBackUrl = episodesIdGetUrl showModel.slug episode.id episodeSlug
-      titleValue = episode.title
+      episodeNum = episode.episodeNumber
+      episodeNumText = display episodeNum
+      episodeBackUrl = episodeDetailUrl showModel.slug episodeNum
       descriptionValue = fromMaybe "" episode.description
       allowFileUpload = isScheduledInFuture currentTime episode
       -- Status can be changed if the scheduled date is in the future OR user is staff/admin
@@ -65,7 +64,7 @@ template currentTime showModel episode tracks userMeta isStaff = do
 
   Builder.buildValidatedForm
     Builder.FormBuilder
-      { Builder.fbAction = [i|/dashboard/episodes/#{showSlugText}/#{episodeIdText}/#{display episodeSlug}/edit|],
+      { Builder.fbAction = [i|/dashboard/episodes/#{showSlugText}/#{episodeNumText}/edit|],
         Builder.fbMethod = "post",
         Builder.fbHeader = Just (formHeader showModel episode userMeta episodeBackUrl),
         Builder.fbHtmx = Nothing,
@@ -79,22 +78,7 @@ template currentTime showModel episode tracks userMeta isStaff = do
             Builder.SectionField
               { Builder.sfTitle = "BASIC INFORMATION",
                 Builder.sfFields =
-                  [ Builder.ValidatedTextField
-                      { Builder.vfName = "title",
-                        Builder.vfLabel = "Episode Title",
-                        Builder.vfInitialValue = Just titleValue,
-                        Builder.vfPlaceholder = Just "e.g. Deep Dive into Techno",
-                        Builder.vfHint = Just "3-200 characters (URL slug will be auto-generated from title)",
-                        Builder.vfValidation =
-                          Builder.ValidationRules
-                            { Builder.vrMinLength = Just 3,
-                              Builder.vrMaxLength = Just 200,
-                              Builder.vrPattern = Nothing,
-                              Builder.vrRequired = True,
-                              vrCustomValidation = Nothing
-                            }
-                      },
-                    Builder.ValidatedTextareaField
+                  [ Builder.ValidatedTextareaField
                       { Builder.vtName = "description",
                         Builder.vtLabel = "Description",
                         Builder.vtInitialValue = Just descriptionValue,

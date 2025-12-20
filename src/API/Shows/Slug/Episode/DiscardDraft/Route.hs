@@ -20,12 +20,11 @@ import Text.HTML (HTML)
 -- by staff instead.
 type Route =
   Observability.WithSpan
-    "DELETE /shows/:show_slug/episodes/:episode_id/:episode_slug/draft"
+    "DELETE /shows/:show_slug/episodes/:episode_number/draft"
     ( "shows"
         :> Servant.Capture "show_slug" Slug
         :> "episodes"
-        :> Servant.Capture "episode_id" Episodes.Id
-        :> Servant.Capture "episode_slug" Slug
+        :> Servant.Capture "episode_number" Episodes.EpisodeNumber
         :> "draft"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Delete '[HTML] (Lucid.Html ())

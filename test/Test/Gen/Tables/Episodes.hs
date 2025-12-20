@@ -8,7 +8,6 @@ import Effects.Database.Tables.User qualified as User
 import Hedgehog (MonadGen (..))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
-import Test.Gen.DomainTypes (genSlug)
 import Test.Gen.Text (genText, genUrl)
 import Test.Gen.Time (genUTCTime)
 
@@ -20,8 +19,6 @@ genEpisodeStatus = Gen.enumBounded
 episodeInsertGen :: (MonadGen m) => Shows.Id -> User.Id -> m Episodes.Insert
 episodeInsertGen showId userId = do
   let eiId = showId
-  eiTitle <- genText
-  eiSlug <- genSlug
   eiDescription <- Gen.maybe genText
   eiAudioFilePath <- Gen.maybe genUrl
   eiAudioFileSize <- Gen.maybe $ Gen.integral (Range.linear 1000 100000000)

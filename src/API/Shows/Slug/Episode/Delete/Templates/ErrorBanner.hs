@@ -41,13 +41,14 @@ renderErrorBannerWithCard showModel episode errorMsg = do
 renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
 renderEpisodeCard showModel episode = do
   let episodeId = episode.id
+      episodeNum = episode.episodeNumber
       episodeCardId = [i|episode-card-#{episodeId}|]
-      episodeEditUrl = Links.linkURI $ dashboardEpisodesLinks.editGet showModel.slug episode.id episode.slug
-      episodeDelUrl = Links.linkURI $ showEpisodesLinks.delete showModel.slug episode.id episode.slug
+      episodeEditUrl = Links.linkURI $ dashboardEpisodesLinks.editGet showModel.slug episodeNum
+      episodeDelUrl = Links.linkURI $ showEpisodesLinks.delete showModel.slug episodeNum
   Lucid.div_ [class_ $ base ["border", "border-gray-300", Tokens.p4], Lucid.id_ episodeCardId] $ do
     Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", Tokens.mb2]] $ do
       Lucid.div_ $ do
-        Lucid.h3_ [Lucid.class_ Tokens.fontBold] $ Lucid.toHtml episode.title
+        Lucid.h3_ [Lucid.class_ Tokens.fontBold] $ Lucid.toHtml ([i|Episode #{episodeNum}|] :: Text)
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] $ do
           case episode.scheduledAt of
             Just scheduledAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%B %d, %Y at %l:%M %p" scheduledAt

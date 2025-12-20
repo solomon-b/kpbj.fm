@@ -85,22 +85,7 @@ episodeFormFields showModel upcomingDates =
     SectionField
       { sfTitle = "EPISODE DETAILS",
         sfFields =
-          [ ValidatedTextField
-              { vfName = "title",
-                vfLabel = "Episode Title",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "e.g., Industrial Depths #088",
-                vfHint = Nothing,
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 200,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextareaField
+          [ ValidatedTextareaField
               { vtName = "description",
                 vtLabel = "Episode Description",
                 vtInitialValue = Nothing,

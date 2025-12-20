@@ -33,8 +33,7 @@ import Text.Read (readMaybe)
 
 -- | Form data for episode editing
 data EpisodeEditForm = EpisodeEditForm
-  { eefTitle :: Text,
-    eefDescription :: Maybe Text,
+  { eefDescription :: Maybe Text,
     eefStatus :: Text,
     eefTracks :: [TrackInfo],
     -- File uploads (optional - only present if scheduled date is in the future)
@@ -54,7 +53,6 @@ data TrackInfo = TrackInfo
 
 instance FromMultipart Mem EpisodeEditForm where
   fromMultipart multipartData = do
-    title <- lookupInput "title" multipartData
     let description = either (const Nothing) Just (lookupInput "description" multipartData)
     status <- lookupInput "status" multipartData
     -- Parse tracks - using safe parsing that handles multipart correctly
@@ -65,8 +63,7 @@ instance FromMultipart Mem EpisodeEditForm where
 
     pure
       EpisodeEditForm
-        { eefTitle = title,
-          eefDescription = emptyToNothing description,
+        { eefDescription = emptyToNothing description,
           eefStatus = status,
           eefTracks = tracks,
           eefAudioFile = audioFile,
@@ -136,12 +133,11 @@ parseStatus _ = Nothing
 
 type Route =
   Observability.WithSpan
-    "POST /dashboard/episodes/:show_slug/:episode_id/:slug/edit"
+    "POST /dashboard/episodes/:show_slug/:episode_number/edit"
     ( "dashboard"
         :> "episodes"
         :> Servant.Capture "show_slug" Slug
-        :> Servant.Capture "episode_id" Episodes.Id
-        :> Servant.Capture "slug" Slug
+        :> Servant.Capture "episode_number" Episodes.EpisodeNumber
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest

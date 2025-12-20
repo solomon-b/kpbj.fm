@@ -33,8 +33,7 @@ renderEpisodesSection userMeta selectedShow episodes =
         renderTable
           TableConfig
             { headers =
-                [ ColumnHeader "#" AlignLeft,
-                  ColumnHeader "TITLE" AlignLeft,
+                [ ColumnHeader "EPISODE" AlignLeft,
                   ColumnHeader "SCHEDULED" AlignLeft,
                   ColumnHeader "STATUS" AlignLeft,
                   ColumnHeader "ACTIONS" AlignRight

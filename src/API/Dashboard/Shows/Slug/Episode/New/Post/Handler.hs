@@ -27,7 +27,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -215,7 +215,7 @@ handleUploadSuccess hxRequest userMetadata allShows showModel episodeId = do
       -- Fetch tracks for the episode
       tracksResult <- execQuerySpan (EpisodeTracks.getTracksForEpisode episodeId)
       let tracks = fromRight [] tracksResult
-          detailUrl = Links.linkURI $ showEpisodesLinks.detailWithSlug showModel.slug episodeId episode.slug
+          detailUrl = Links.linkURI $ showEpisodesLinks.detail showModel.slug episode.episodeNumber
           banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
           -- Dashboard users (hosts/staff/admin) can always view drafts
           canViewDrafts = True
@@ -284,10 +284,11 @@ processEpisodeUpload userMetadata user form = do
                   if not isHost
                     then pure $ Left "You are not authorized to create episodes for this show"
                     else do
-                      -- Generate episode slug for filename
-                      let episodeSlug = Slug.mkSlug episodeData.title
+                      -- Generate a unique identifier for file naming (based on timestamp)
+                      currentTime <- liftIO getCurrentTime
+                      let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
                       -- Handle file uploads (pass scheduled date for file organization)
-                      uploadResults <- processFileUploads episodeData.showSlug episodeSlug episodeData.scheduledAt episodeData.status (eufAudioFile form) (eufArtworkFile form)
+                      uploadResults <- processFileUploads episodeData.showSlug fileId episodeData.scheduledAt episodeData.status (eufAudioFile form) (eufArtworkFile form)
 
                       case uploadResults of
                         Left uploadErr -> pure $ Left uploadErr
@@ -296,8 +297,6 @@ processEpisodeUpload userMetadata user form = do
                           let episodeInsert =
                                 Episodes.Insert
                                   { Episodes.eiId = Shows.Id episodeData.showId,
-                                    Episodes.eiTitle = episodeData.title,
-                                    Episodes.eiSlug = Slug.mkSlug episodeData.title,
                                     Episodes.eiDescription = episodeData.description,
                                     Episodes.eiAudioFilePath = audioPath,
                                     Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
@@ -340,11 +339,9 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
     _ -> Left $ Sanitize.ContentInvalid "Invalid status value"
 
   -- Sanitize and validate episode metadata
-  let sanitizedTitle = Sanitize.sanitizeTitle (eufTitle form)
-      sanitizedDescription = Sanitize.sanitizeUserContent (eufDescription form)
+  let sanitizedDescription = Sanitize.sanitizeUserContent (eufDescription form)
 
   -- Validate content lengths
-  validTitle <- Sanitize.validateContentLength 200 sanitizedTitle
   validDescription <- Sanitize.validateContentLength 10000 sanitizedDescription
 
   -- Parse and sanitize tracks JSON
@@ -364,7 +361,6 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
     ParsedEpisodeData
       { showId = showId,
         showSlug = showSlug,
-        title = validTitle,
         description = Just validDescription,
         scheduledAt = scheduledAt,
         status = status,
@@ -385,7 +381,6 @@ sanitizeTrackList = map sanitizeTrack
 data ParsedEpisodeData = ParsedEpisodeData
   { showId :: Int64,
     showSlug :: Slug,
-    title :: Text,
     description :: Maybe Text,
     scheduledAt :: Maybe UTCTime,
     status :: Episodes.Status,

@@ -47,11 +47,10 @@ handler ::
   ) =>
   Tracer ->
   Slug ->
-  Episodes.Id ->
-  Slug ->
+  Episodes.EpisodeNumber ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer showSlug episodeId _episodeSlug cookie = do
+handler _tracer showSlug episodeNumber cookie = do
   -- Fetch the show by slug
   execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
     Left err -> do
@@ -66,18 +65,18 @@ handler _tracer showSlug episodeId _episodeSlug cookie = do
           Log.logInfo_ "No user session"
           pure $ renderBanner Error "Discard Failed" "You must be logged in to discard episodes."
         Just (user, userMeta) -> do
-          execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+          execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
             Left err -> do
               Log.logInfo "Discard draft failed: Failed to fetch episode" (Aeson.object ["error" .= show err])
               pure $ renderBanner Error "Discard Failed" "Database error. Please try again or contact support."
             Right Nothing -> do
-              Log.logInfo "Discard draft failed: Episode not found" (Aeson.object ["episodeId" .= episodeId])
+              Log.logInfo "Discard draft failed: Episode not found" (Aeson.object ["episodeNumber" .= episodeNumber])
               pure $ renderBanner Error "Discard Failed" "Episode not found."
             Right (Just episode) -> do
               -- Check that episode is a draft
               if episode.status /= Episodes.Draft
                 then do
-                  Log.logInfo "Discard draft failed: Episode is not a draft" (Aeson.object ["episodeId" .= episodeId, "status" .= show episode.status])
+                  Log.logInfo "Discard draft failed: Episode is not a draft" (Aeson.object ["episodeId" .= episode.id, "status" .= show episode.status])
                   pure $ renderErrorBannerWithCard showModel episode "Only draft episodes can be discarded. Published episodes must be archived by staff."
                 else do
                   -- Check authorization: staff, creator, or host
