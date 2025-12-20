@@ -28,17 +28,17 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-episodeGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
+episodeGetUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeGetUrl showSlug episodeNumber = Links.linkURI $ showEpisodesLinks.detail showSlug episodeNumber
 
-episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug episodeId episodeSlug
+episodeEditGetUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeEditGetUrl showSlug episodeNumber = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug episodeNumber
 
-episodeDeleteUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeDeleteUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.delete showSlug episodeId episodeSlug
+episodeDeleteUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeDeleteUrl showSlug episodeNumber = Links.linkURI $ showEpisodesLinks.delete showSlug episodeNumber
 
-episodePublishUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodePublishUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.publish showSlug episodeId episodeSlug
+episodePublishUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodePublishUrl showSlug episodeNumber = Links.linkURI $ showEpisodesLinks.publish showSlug episodeNumber
 
 --------------------------------------------------------------------------------
 
@@ -58,19 +58,20 @@ renderSuccessRow = renderEpisodeRow
 renderEpisodeRow :: Shows.Model -> Episodes.Model -> Lucid.Html ()
 renderEpisodeRow showModel episode = do
   let episodeId = episode.id
+      episodeNum = episode.episodeNumber
       episodeRowId = [i|episode-row-#{episodeId}|]
-      episodeEditUrl = episodeEditGetUrl showModel.slug episode.id episode.slug
-      episodeDelUrl = episodeDeleteUrl showModel.slug episode.id episode.slug
-      episodePubUrl = episodePublishUrl showModel.slug episode.id episode.slug
+      episodeEditUrl = episodeEditGetUrl showModel.slug episodeNum
+      episodeDelUrl = episodeDeleteUrl showModel.slug episodeNum
+      episodePubUrl = episodePublishUrl showModel.slug episodeNum
   Lucid.tr_ [class_ $ base ["border-b", "border-gray-300", "hover:bg-gray-50"], Lucid.id_ episodeRowId] $ do
     -- Episode number
     Lucid.td_ [class_ $ base [Tokens.px4, "py-3", Tokens.fontBold, Tokens.textGray800]] $
       Lucid.toHtml $
-        "#" <> Text.pack (show episode.episodeNumber)
+        "#" <> Text.pack (show episodeNum)
 
-    -- Title
+    -- Episode link
     Lucid.td_ [class_ $ base [Tokens.px4, "py-3"]] $ do
-      let episodeUrl = episodeGetUrl showModel.slug episode.id episode.slug
+      let episodeUrl = episodeGetUrl showModel.slug episodeNum
       Lucid.div_ [class_ $ base [Tokens.fontBold, "text-gray-900"]]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{episodeUrl}|],
@@ -79,7 +80,7 @@ renderEpisodeRow showModel episode = do
             hxPushUrl_ "true",
             class_ $ base ["hover:underline", "text-blue-600"]
           ]
-        $ Lucid.toHtml episode.title
+        $ Lucid.toHtml ([i|Episode #{episodeNum}|] :: Text)
       case episode.description of
         Nothing -> mempty
         Just desc ->

@@ -26,20 +26,20 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-episodeGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodesLinks.detail showSlug episodeId episodeSlug
+episodeGetUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeGetUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.detail showSlug epNum
 
-episodeEditGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeEditGetUrl showSlug episodeId episodeSlug = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug episodeId episodeSlug
+episodeEditGetUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeEditGetUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug epNum
 
-episodeArchiveUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeArchiveUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.delete showSlug episodeId episodeSlug
+episodeArchiveUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeArchiveUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.delete showSlug epNum
 
-episodeDiscardDraftUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeDiscardDraftUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.discardDraft showSlug episodeId episodeSlug
+episodeDiscardDraftUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeDiscardDraftUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.discardDraft showSlug epNum
 
-episodePublishUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodePublishUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.publish showSlug episodeId episodeSlug
+episodePublishUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodePublishUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.publish showSlug epNum
 
 --------------------------------------------------------------------------------
 
@@ -53,14 +53,9 @@ renderEpisodeTableRow userMeta showModel episode = do
   let episodeId = episode.id
       episodeRowId = [i|episode-row-#{episodeId}|]
   Lucid.tr_ [class_ $ base ["border-b", "border-gray-300", "hover:bg-gray-50"], Lucid.id_ episodeRowId] $ do
-    -- Episode number
-    Lucid.td_ [class_ $ base [Tokens.px4, "py-3", Tokens.fontBold, Tokens.textGray800]] $
-      Lucid.toHtml $
-        "#" <> Text.pack (show episode.episodeNumber)
-
-    -- Title
+    -- Episode number and description
     Lucid.td_ [class_ $ base [Tokens.px4, "py-3"]] $ do
-      let episodeUrl = episodeGetUrl showModel.slug episode.id episode.slug
+      let episodeUrl = episodeGetUrl showModel.slug epNum
       Lucid.div_ [class_ $ base [Tokens.fontBold, "text-gray-900"]]
         $ Lucid.a_
           [ Lucid.href_ [i|/#{episodeUrl}|],
@@ -69,7 +64,7 @@ renderEpisodeTableRow userMeta showModel episode = do
             hxPushUrl_ "true",
             class_ $ base ["hover:underline", "text-blue-600"]
           ]
-        $ Lucid.toHtml episode.title
+        $ Lucid.toHtml ("#" <> show epNum)
       case episode.description of
         Nothing -> mempty
         Just desc ->
@@ -170,8 +165,9 @@ renderEpisodeTableRow userMeta showModel episode = do
                 then Lucid.option_ [Lucid.value_ "archive"] "Archive"
                 else mempty
   where
-    episodeEditUrl = episodeEditGetUrl showModel.slug episode.id episode.slug
-    discardDraftUrl = episodeDiscardDraftUrl showModel.slug episode.id episode.slug
-    archiveUrl = episodeArchiveUrl showModel.slug episode.id episode.slug
-    episodePubUrl = episodePublishUrl showModel.slug episode.id episode.slug
+    epNum = episode.episodeNumber
+    episodeEditUrl = episodeEditGetUrl showModel.slug epNum
+    discardDraftUrl = episodeDiscardDraftUrl showModel.slug epNum
+    archiveUrl = episodeArchiveUrl showModel.slug epNum
+    episodePubUrl = episodePublishUrl showModel.slug epNum
     isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole

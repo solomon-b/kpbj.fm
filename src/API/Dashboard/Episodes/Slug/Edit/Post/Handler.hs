@@ -26,10 +26,12 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime, getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
+import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -51,8 +53,8 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 -- URL helpers
-episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
+episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
 
 --------------------------------------------------------------------------------
 
@@ -68,29 +70,28 @@ handler ::
   ) =>
   Tracer ->
   Slug ->
-  Episodes.Id ->
-  Slug ->
+  Episodes.EpisodeNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
   EpisodeEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handler _tracer _showSlug episodeId _urlSlug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
-      Log.logInfo "Unauthorized episode edit attempt" episodeId
+      Log.logInfo "Unauthorized episode edit attempt" episodeNumber
       let banner = renderBanner Error "Access Denied" "You must be logged in to edit episodes."
       html <- renderTemplate hxRequest Nothing (banner :: Lucid.Html ())
       pure $ Servant.noHeader html
     Just (user, userMetadata) -> do
       -- Fetch the episode to verify it exists and check authorization
-      execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+      execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
         Left err -> do
-          Log.logAttention "getEpisodeById execution error" (show err)
+          Log.logAttention "getEpisodeByShowAndNumber execution error" (show err)
           let banner = renderBanner Error "Episode Not Found" "The episode you're trying to update doesn't exist."
           html <- renderTemplate hxRequest (Just userMetadata) banner
           pure $ Servant.noHeader html
         Right Nothing -> do
-          Log.logInfo_ $ "No episode with ID: '" <> display episodeId <> "'"
+          Log.logInfo_ $ "No episode: show='" <> display showSlug <> "' number=" <> display episodeNumber
           let banner = renderBanner Error "Episode Not Found" "The episode you're trying to update doesn't exist."
           html <- renderTemplate hxRequest (Just userMetadata) banner
           pure $ Servant.noHeader html
@@ -231,23 +232,18 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
           renderFormWithError hxRequest userMetadata episode showModel "Status Change Not Allowed" "This episode's scheduled date has passed. Only staff or admin users can change the status of past episodes."
         else do
           -- Sanitize user input to prevent XSS attacks
-          let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
-              sanitizedDescription = maybe "" Sanitize.sanitizeUserContent (eefDescription editForm)
+          let sanitizedDescription = maybe "" Sanitize.sanitizeUserContent (eefDescription editForm)
 
           -- Validate content lengths
-          case (Sanitize.validateContentLength 200 sanitizedTitle, Sanitize.validateContentLength 10000 sanitizedDescription) of
-            (Left titleError, _) -> do
-              let errorMsg = Sanitize.displayContentValidationError titleError
-              renderFormWithError hxRequest userMetadata episode showModel "Validation Error" errorMsg
-            (_, Left descError) -> do
+          case Sanitize.validateContentLength 10000 sanitizedDescription of
+            Left descError -> do
               let errorMsg = Sanitize.displayContentValidationError descError
               renderFormWithError hxRequest userMetadata episode showModel "Validation Error" errorMsg
-            (Right validTitle, Right validDescription) -> do
+            Right validDescription -> do
               -- Update episode metadata (basic update, doesn't change audio/artwork)
               let updateData =
                     Episodes.Update
                       { euId = episode.id,
-                        euTitle = validTitle,
                         euDescription = Just validDescription
                       }
 
@@ -301,7 +297,7 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                             Right (Just updatedEpisode) -> do
                               tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
                               let tracks = fromRight [] tracksResult
-                                  detailUrl = episodesIdGetUrl showModel.slug updatedEpisode.id updatedEpisode.slug
+                                  detailUrl = episodeDetailUrl showModel.slug updatedEpisode.episodeNumber
                                   banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
                               -- Dashboard users (hosts/staff/admin) can always view drafts
                               let canViewDrafts = True
@@ -318,7 +314,7 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                               Log.logInfo "Updated episode but failed to retrieve it" episode.id
                               tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
                               let tracks = fromRight [] tracksResult
-                                  detailUrl = episodesIdGetUrl showModel.slug episode.id episode.slug
+                                  detailUrl = episodeDetailUrl showModel.slug episode.episodeNumber
                                   banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
                                   -- Dashboard users (hosts/staff/admin) can always view drafts
                                   canViewDrafts = True
@@ -341,11 +337,15 @@ processFileUploads ::
   EpisodeEditForm ->
   m (Either Text (Maybe Text, Maybe Text))
 processFileUploads showModel episode editForm = do
+  -- Generate a unique identifier for file naming (based on timestamp)
+  currentTime <- liftIO getCurrentTime
+  let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
+
   -- Process audio file if provided
   audioResult <- case eefAudioFile editForm of
     Nothing -> pure $ Right Nothing
     Just audioFile -> do
-      result <- FileUpload.uploadEpisodeAudio showModel.slug episode.slug episode.scheduledAt audioFile
+      result <- FileUpload.uploadEpisodeAudio showModel.slug fileId episode.scheduledAt audioFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
@@ -357,7 +357,7 @@ processFileUploads showModel episode editForm = do
   artworkResult <- case eefArtworkFile editForm of
     Nothing -> pure $ Right Nothing
     Just artworkFile -> do
-      result <- FileUpload.uploadEpisodeArtwork showModel.slug episode.slug episode.scheduledAt artworkFile
+      result <- FileUpload.uploadEpisodeArtwork showModel.slug fileId episode.scheduledAt artworkFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)

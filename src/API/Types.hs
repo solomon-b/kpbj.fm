@@ -185,15 +185,13 @@ data ShowBlogRoutes mode = ShowBlogRoutes
 -- Public view and management routes for show episodes.
 -- Note: Episode creation routes are under Dashboard.
 data ShowEpisodesRoutes mode = ShowEpisodesRoutes
-  { -- | @GET /shows/:showSlug/episodes/:id/:slug@ - Episode detail (canonical)
-    detailWithSlug :: mode :- Episodes.Get.RouteWithSlug,
-    -- | @GET /shows/:showSlug/episodes/:id@ - Episode detail (redirects)
-    detailWithoutSlug :: mode :- Episodes.Get.RouteWithoutSlug,
-    -- | @DELETE /shows/:showSlug/episodes/:id@ - Delete episode
+  { -- | @GET /shows/:showSlug/episodes/:episodeNumber@ - Episode detail
+    detail :: mode :- Episodes.Get.Route,
+    -- | @DELETE /shows/:showSlug/episodes/:episodeNumber@ - Delete episode
     delete :: mode :- Episodes.Delete.Route,
-    -- | @POST /shows/:showSlug/episodes/:id/discard-draft@ - Discard draft episode
+    -- | @DELETE /shows/:showSlug/episodes/:episodeNumber/draft@ - Discard draft episode
     discardDraft :: mode :- Episodes.DiscardDraft.Route,
-    -- | @POST /shows/:showSlug/episodes/:id/publish@ - Publish draft episode
+    -- | @POST /shows/:showSlug/episodes/:episodeNumber/publish@ - Publish draft episode
     publish :: mode :- Episodes.Publish.Post.Route
   }
   deriving stock (Generic)
@@ -263,11 +261,11 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
 data DashboardEpisodesRoutes mode = DashboardEpisodesRoutes
   { -- | @GET /dashboard/episodes/:showSlug@ - Episode list for a show
     list :: mode :- Dashboard.Episodes.Get.Route,
-    -- | @GET /dashboard/episodes/:showSlug/:episodeSlug@ - Episode detail
+    -- | @GET /dashboard/episodes/:showSlug/:episodeNumber@ - Episode detail
     detail :: mode :- Dashboard.Episodes.Slug.Get.Route,
-    -- | @GET /dashboard/episodes/:showSlug/:episodeSlug/edit@ - Edit episode form
+    -- | @GET /dashboard/episodes/:showSlug/:episodeNumber/edit@ - Edit episode form
     editGet :: mode :- Dashboard.Episodes.Slug.Edit.Get.Route,
-    -- | @POST /dashboard/episodes/:showSlug/:episodeSlug/edit@ - Update episode
+    -- | @POST /dashboard/episodes/:showSlug/:episodeNumber/edit@ - Update episode
     editPost :: mode :- Dashboard.Episodes.Slug.Edit.Post.Route
   }
   deriving stock (Generic)

@@ -32,9 +32,9 @@ import Servant.Links qualified as Links
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
-episodeDetailUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodeDetailUrl showSlug episodeId episodeSlug =
-  Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
+episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeDetailUrl showSlug episodeNumber =
+  Links.linkURI $ showEpisodesLinks.detail showSlug episodeNumber
 
 --------------------------------------------------------------------------------
 -- Main Render Function
@@ -44,9 +44,8 @@ episodeDetailUrl showSlug episodeId episodeSlug =
 -- When canViewDrafts is True and the episode is a draft, a "DRAFT" badge is displayed.
 renderEpisodeCard :: Shows.Model -> Bool -> Episodes.Model -> Lucid.Html ()
 renderEpisodeCard showModel canViewDrafts episode = do
-  let epUrl = episodeDetailUrl showModel.slug episode.id episode.slug
+  let epUrl = episodeDetailUrl showModel.slug episode.episodeNumber
       showTitle = showModel.title
-      episodeTitle = episode.title
       episodeNum = episode.episodeNumber
       episodeId = episode.id
       mAudioPath = episode.audioFilePath
@@ -54,7 +53,7 @@ renderEpisodeCard showModel canViewDrafts episode = do
       playerId = [i|episode-#{episodeId}|] :: Text
       audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) mAudioPath
       hasAudio = if isJust mAudioPath then "true" else "false" :: Text
-      episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|] :: Text
+      episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|] :: Text
       isDraft = episode.status == Episodes.Draft
 
   -- Container with Alpine.js state for audio player

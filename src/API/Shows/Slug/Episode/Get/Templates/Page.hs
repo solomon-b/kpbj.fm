@@ -84,14 +84,14 @@ errorTemplate errorMsg = do
         ]
         "Back to Shows"
 
-notFoundTemplate :: Slug -> Slug -> Lucid.Html ()
-notFoundTemplate showSlug episodeSlug = do
+notFoundTemplate :: Slug -> Episodes.EpisodeNumber -> Lucid.Html ()
+notFoundTemplate showSlug episodeNumber = do
   let showUrl = showGetUrl showSlug
   Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
       Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Episode Not Found"
       Lucid.p_ [class_ $ base [Tokens.textGray700, Tokens.mb6]] $
-        "We couldn't find the episode \"" <> Lucid.toHtml (display episodeSlug) <> "\" for show \"" <> Lucid.toHtml (display showSlug) <> "\"."
+        "We couldn't find Episode " <> Lucid.toHtml (display episodeNumber) <> " for show \"" <> Lucid.toHtml (display showSlug) <> "\"."
       Lucid.a_
         [ Lucid.href_ [i|/#{showUrl}|],
           hxGet_ [i|/#{showUrl}|],

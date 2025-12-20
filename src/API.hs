@@ -188,8 +188,7 @@ server env =
 
     showEpisodesRoutes =
       ShowEpisodesRoutes
-        { detailWithSlug = Episodes.Get.handlerWithSlug,
-          detailWithoutSlug = Episodes.Get.handlerWithoutSlug,
+        { detail = Episodes.Get.handler,
           delete = Episodes.Delete.handler,
           discardDraft = Episodes.DiscardDraft.handler,
           publish = Episodes.Publish.Post.handler

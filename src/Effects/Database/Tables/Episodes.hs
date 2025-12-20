@@ -38,7 +38,7 @@ module Effects.Database.Tables.Episodes
     getEpisodesForShowIncludingDrafts,
     getAllEpisodes,
     getEpisodesById,
-    getEpisodeBySlug,
+    getEpisodeByShowAndNumber,
     getEpisodeById,
     getEpisodesByUser,
     getRecentPublishedEpisodes,
@@ -71,7 +71,7 @@ import Data.Text.Display (Display (..), RecordInstance (..), display)
 import Data.Time (UTCTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
-import Domain.Types.Slug (Slug (..))
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
@@ -179,8 +179,6 @@ newtype EpisodeNumber = EpisodeNumber {unEpisodeNumber :: Int64}
 data Episode f = Episode
   { id :: Column f Id,
     showId :: Column f Shows.Id,
-    title :: Column f Text,
-    slug :: Column f Slug,
     description :: Column f (Maybe Text),
     episodeNumber :: Column f EpisodeNumber,
     audioFilePath :: Column f (Maybe Text),
@@ -210,10 +208,8 @@ instance Display (Episode Result) where
   displayBuilder ep =
     "Episode { id = "
       <> displayBuilder ep.id
-      <> ", title = "
-      <> displayBuilder ep.title
-      <> ", slug = "
-      <> displayBuilder ep.slug
+      <> ", episodeNumber = "
+      <> displayBuilder ep.episodeNumber
       <> " }"
 
 -- | Type alias for backwards compatibility.
@@ -230,8 +226,6 @@ episodeSchema =
         Episode
           { id = "id",
             showId = "show_id",
-            title = "title",
-            slug = "slug",
             description = "description",
             episodeNumber = "episode_number",
             audioFilePath = "audio_file_path",
@@ -254,8 +248,6 @@ episodeSchema =
 -- | Insert type for creating new episodes.
 data Insert = Insert
   { eiId :: Shows.Id,
-    eiTitle :: Text,
-    eiSlug :: Slug,
     eiDescription :: Maybe Text,
     eiAudioFilePath :: Maybe Text,
     eiAudioFileSize :: Maybe Int64,
@@ -275,8 +267,8 @@ data Insert = Insert
 -- | Episode Update data for partial updates.
 data Update = Update
   { euId :: Id,
-    euTitle :: Text,
-    euDescription :: Maybe Text
+    euDescription :: Maybe Text,
+    euStatus :: Maybe Status
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Update)
@@ -299,8 +291,6 @@ data FileUpdate = FileUpdate
 data EpisodeWithShow = EpisodeWithShow
   { ewsId :: Id,
     ewsShowId :: Shows.Id,
-    ewsTitle :: Text,
-    ewsSlug :: Slug,
     ewsDescription :: Maybe Text,
     ewsEpisodeNumber :: EpisodeNumber,
     ewsAudioFilePath :: Maybe Text,
@@ -375,20 +365,20 @@ getEpisodesById showId' =
         where_ $ ep.status /=. lit Deleted
         pure ep
 
--- | Get episode by show slug and episode slug.
+-- | Get episode by show slug and episode number.
 --
 -- Uses raw SQL because it requires a JOIN with the shows table.
-getEpisodeBySlug :: Slug -> Slug -> Hasql.Statement () (Maybe Model)
-getEpisodeBySlug showSlug episodeSlug =
+getEpisodeByShowAndNumber :: Slug -> EpisodeNumber -> Hasql.Statement () (Maybe Model)
+getEpisodeByShowAndNumber showSlug episodeNumber =
   interp
     False
     [sql|
-    SELECT e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
+    SELECT e.id, e.show_id, e.description, e.episode_number,
            e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
            e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by, e.created_at, e.updated_at
     FROM episodes e
     JOIN shows s ON e.show_id = s.id
-    WHERE s.slug = #{showSlug} AND e.slug = #{episodeSlug}
+    WHERE s.slug = #{showSlug} AND e.episode_number = #{episodeNumber}
   |]
 
 -- | Get episode by ID.
@@ -434,10 +424,10 @@ insertEpisode Insert {..} =
         <$> interp
           False
           [sql|
-        INSERT INTO episodes(show_id, title, slug, description,
+        INSERT INTO episodes(show_id, description,
                             audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
                             artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at)
-        VALUES (#{eiId}, #{eiTitle}, #{eiSlug}, #{eiDescription},
+        VALUES (#{eiId}, #{eiDescription},
                 #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
                 #{eiArtworkUrl}, #{eiScheduledAt}, NOW(), #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
         RETURNING id
@@ -447,10 +437,10 @@ insertEpisode Insert {..} =
         <$> interp
           False
           [sql|
-        INSERT INTO episodes(show_id, title, slug, description,
+        INSERT INTO episodes(show_id, description,
                             audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
                             artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at)
-        VALUES (#{eiId}, #{eiTitle}, #{eiSlug}, #{eiDescription},
+        VALUES (#{eiId}, #{eiDescription},
                 #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
                 #{eiArtworkUrl}, #{eiScheduledAt}, NULL, #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
         RETURNING id
@@ -459,13 +449,15 @@ insertEpisode Insert {..} =
 -- | Update an episode with partial data (for editing).
 --
 -- Uses raw SQL because rel8's UPDATE doesn't support partial updates as cleanly.
+-- Uses COALESCE to only update status when provided (Nothing keeps existing value).
 updateEpisode :: Update -> Hasql.Statement () (Maybe Id)
 updateEpisode Update {..} =
   interp
     False
     [sql|
     UPDATE episodes
-    SET title = #{euTitle}, description = #{euDescription},
+    SET description = #{euDescription},
+        status = COALESCE(#{euStatus}, status),
         updated_at = NOW()
     WHERE id = #{euId}
     RETURNING id
@@ -571,7 +563,7 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
         False
         [sql|
     SELECT
-      e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
+      e.id, e.show_id, e.description, e.episode_number,
       e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
       e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
       e.created_at, e.updated_at,
@@ -584,7 +576,7 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
     LEFT JOIN user_metadata um ON u.id = um.user_id
     WHERE e.status = 'published'
       AND e.scheduled_at <= #{currentTime}
-      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
       AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
       AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
@@ -596,7 +588,7 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
         False
         [sql|
     SELECT
-      e.id, e.show_id, e.title, e.slug, e.description, e.episode_number,
+      e.id, e.show_id, e.description, e.episode_number,
       e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
       e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
       e.created_at, e.updated_at,
@@ -609,7 +601,7 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
     LEFT JOIN user_metadata um ON u.id = um.user_id
     WHERE e.status = 'published'
       AND e.scheduled_at <= #{currentTime}
-      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
       AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
       AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
@@ -633,7 +625,7 @@ countPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo =
     FROM episodes e
     JOIN shows s ON e.show_id = s.id
     WHERE e.status = 'published'
-      AND (#{mSearch}::text IS NULL OR e.title ILIKE '%' || #{mSearch}::text || '%' OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
+      AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
       AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
       AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)

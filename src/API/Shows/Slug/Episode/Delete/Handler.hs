@@ -45,11 +45,10 @@ handler ::
   ) =>
   Tracer ->
   Slug ->
-  Episodes.Id ->
-  Slug ->
+  Episodes.EpisodeNumber ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer showSlug episodeId _episodeSlug cookie = do
+handler _tracer showSlug episodeNumber cookie = do
   -- Fetch the show by slug
   execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
     Left err -> do
@@ -66,12 +65,12 @@ handler _tracer showSlug episodeId _episodeSlug cookie = do
           -- Can't render card without episode, return simple error
           pure $ renderBanner Error "Archive Failed" "You must be logged in to archive episodes."
         Just (_user, userMeta) -> do
-          execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+          execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
             Left err -> do
               Log.logInfo "Archive failed: Failed to fetch episode" (Aeson.object ["error" .= show err])
               pure $ renderBanner Error "Archive Failed" "Database error. Please try again or contact support."
             Right Nothing -> do
-              Log.logInfo "Archive failed: Episode not found" (Aeson.object ["episodeId" .= episodeId])
+              Log.logInfo "Archive failed: Episode not found" (Aeson.object ["episodeNumber" .= episodeNumber])
               pure $ renderBanner Error "Archive Failed" "Episode not found."
             Right (Just episode) -> do
               -- Only staff or higher can archive episodes

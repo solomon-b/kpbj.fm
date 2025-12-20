@@ -122,7 +122,7 @@ renderShowCard showModel = do
 renderEpisodeCard :: Episodes.Model -> Lucid.Html ()
 renderEpisodeCard episode = do
   Lucid.div_ [Lucid.class_ "border-2 border-gray-200 p-4 hover:bg-gray-50"] $ do
-    Lucid.h3_ [Lucid.class_ "font-bold text-lg"] $ Lucid.toHtml episode.title
+    Lucid.h3_ [Lucid.class_ "font-bold text-lg"] $ Lucid.toHtml (("Episode " <> show episode.episodeNumber) :: String)
     Lucid.p_ [Lucid.class_ "text-gray-600 text-sm mt-1"] $
       Lucid.toHtml $
         "Status: " <> renderStatus episode.status

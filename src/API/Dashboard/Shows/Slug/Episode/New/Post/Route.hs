@@ -47,7 +47,6 @@ data EpisodeUploadForm = EpisodeUploadForm
     eufId :: Text,
     eufScheduledDate :: Maybe Text,
     -- Episode metadata
-    eufTitle :: Text,
     eufDescription :: Text,
     eufTags :: Maybe Text,
     eufDurationSeconds :: Maybe Text, -- Duration from browser audio detection
@@ -66,7 +65,6 @@ instance FromMultipart Mem EpisodeUploadForm where
     EpisodeUploadForm
       <$> lookupInput "show_id" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "scheduled_date" multipartData))
-      <*> lookupInput "title" multipartData
       <*> lookupInput "description" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) Just (lookupInput "duration_seconds" multipartData))

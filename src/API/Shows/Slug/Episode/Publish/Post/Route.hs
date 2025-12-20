@@ -15,12 +15,11 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_slug/episodes/:episode_id/:episode_slug/publish"
+    "POST /shows/:show_slug/episodes/:episode_number/publish"
     ( "shows"
         :> Servant.Capture "show_slug" Slug
         :> "episodes"
-        :> Servant.Capture "episode_id" Episodes.Id
-        :> Servant.Capture "episode_slug" Slug
+        :> Servant.Capture "episode_number" Episodes.EpisodeNumber
         :> "publish"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Post '[HTML] (Lucid.Html ())

@@ -44,12 +44,11 @@ handler ::
   ) =>
   Tracer ->
   Slug ->
-  Episodes.Id ->
-  Slug ->
+  Episodes.EpisodeNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer showSlug episodeId _episodeSlug cookie (foldHxReq -> hxRequest) = do
+handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to dashboard episode" ()
@@ -59,57 +58,50 @@ handler _tracer showSlug episodeId _episodeSlug cookie (foldHxReq -> hxRequest) 
           Log.logInfo "User without Host role tried to access dashboard episode" userMetadata.mDisplayName
           renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
     Just (user, userMetadata) -> do
-      -- Fetch the show
-      execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+      -- Fetch the show and episode together
+      execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
         Left _err -> do
-          Log.logInfo "Failed to fetch show from database" showSlug
-          let content = errorTemplate "Failed to load show. Please try again."
+          Log.logInfo "Failed to fetch episode from database" (showSlug, episodeNumber)
+          let content = errorTemplate "Failed to load episode. Please try again."
           renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
         Right Nothing -> do
-          Log.logInfo "Show not found" showSlug
+          Log.logInfo "Episode not found" (showSlug, episodeNumber)
           let content = notFoundTemplate showSlug
           renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
-        Right (Just showModel) -> do
-          -- Verify user has access to this show (unless admin)
-          hasAccess <-
-            if UserMetadata.isAdmin userMetadata.mUserRole
-              then pure True
-              else do
-                execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
-                  Left _ -> pure False
-                  Right userShows -> pure $ any (\s -> s.id == showModel.id) userShows
+        Right (Just episode) -> do
+          -- Fetch the show
+          execQuerySpan (Shows.getShowById episode.showId) >>= \case
+            Left _err -> do
+              Log.logInfo "Failed to fetch show from database" showSlug
+              let content = errorTemplate "Failed to load show. Please try again."
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
+            Right Nothing -> do
+              Log.logInfo "Show not found" showSlug
+              let content = notFoundTemplate showSlug
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
+            Right (Just showModel) -> do
+              -- Verify user has access to this show (unless admin)
+              hasAccess <-
+                if UserMetadata.isAdmin userMetadata.mUserRole
+                  then pure True
+                  else do
+                    execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
+                      Left _ -> pure False
+                      Right userShows -> pure $ any (\s -> s.id == showModel.id) userShows
 
-          if not hasAccess
-            then do
-              Log.logInfo "User tried to access episode for show they don't have access to" (userMetadata.mDisplayName, showSlug)
-              renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
-            else do
-              -- Fetch the episode
-              execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
-                Left _err -> do
-                  Log.logInfo "Failed to fetch episode from database" episodeId
-                  let content = errorTemplate "Failed to load episode. Please try again."
-                  renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes Nothing Nothing content
-                Right Nothing -> do
-                  Log.logInfo "Episode not found" episodeId
-                  let content = notFoundTemplate showSlug
-                  renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes Nothing Nothing content
-                Right (Just episode) -> do
-                  -- Verify episode belongs to the show
-                  if episode.showId /= showModel.id
-                    then do
-                      Log.logInfo "Episode does not belong to show" (showSlug, episodeId)
-                      let content = errorTemplate "Episode not found in this show."
-                      renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavEpisodes Nothing Nothing content
-                    else do
-                      -- Fetch tracks for the episode
-                      tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+              if not hasAccess
+                then do
+                  Log.logInfo "User tried to access episode for show they don't have access to" (userMetadata.mDisplayName, showSlug)
+                  renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
+                else do
+                  -- Fetch tracks for the episode
+                  tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
 
-                      -- Get user's shows for sidebar
-                      userShows <-
-                        if UserMetadata.isAdmin userMetadata.mUserRole
-                          then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-                          else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+                  -- Get user's shows for sidebar
+                  userShows <-
+                    if UserMetadata.isAdmin userMetadata.mUserRole
+                      then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
+                      else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
 
-                      let content = template userMetadata showModel episode tracks
-                      renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes Nothing Nothing content
+                  let content = template userMetadata showModel episode tracks
+                  renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes Nothing Nothing content

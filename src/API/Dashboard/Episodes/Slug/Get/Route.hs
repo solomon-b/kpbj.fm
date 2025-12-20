@@ -16,12 +16,11 @@ import Text.HTML (HTML)
 
 type Route =
   Observability.WithSpan
-    "GET /dashboard/episodes/:show_slug/:episode_id/:slug"
+    "GET /dashboard/episodes/:show_slug/:episode_number"
     ( "dashboard"
         :> "episodes"
         :> Servant.Capture "show_slug" Slug
-        :> Servant.Capture "episode_id" Episodes.Id
-        :> Servant.Capture "slug" Slug
+        :> Servant.Capture "episode_number" Episodes.EpisodeNumber
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())
