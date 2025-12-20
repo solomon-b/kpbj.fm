@@ -350,6 +350,7 @@ library
     Effects.FileUpload
     Effects.Markdown
     Effects.MimeTypeValidation
+    Helpers.RelativeTime
     Lucid.Extras
     Lucid.Responsive
     Lucid.Styles
