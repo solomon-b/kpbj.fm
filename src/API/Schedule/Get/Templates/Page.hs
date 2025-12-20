@@ -5,7 +5,7 @@ module API.Schedule.Get.Templates.Page (template) where
 import API.Schedule.Get.Templates.Components (renderScheduleView)
 import Data.Text (Text)
 import Data.Time (Day, DayOfWeek, TimeOfDay)
-import Design (base, desktop, tablet)
+import Design (base, tablet)
 import Design.StyleBuilder (class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.WeekOffset (WeekOffset)
@@ -15,11 +15,11 @@ import Lucid qualified
 --------------------------------------------------------------------------------
 
 -- | Schedule page template
+--
+-- Note: This page has its own header in the Components file for mobile,
+-- and no header on desktop.
 template :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> WeekOffset -> Day -> Maybe Text -> Lucid.Html ()
 template scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart maybeError = do
-  -- Header (desktop only - mobile has its own in the schedule component)
-  Lucid.h1_ [desktopHeaderStyles] "Schedule"
-
   -- Error message if present
   case maybeError of
     Just errorMsg -> Lucid.div_ [errorStyles] $ do
@@ -47,8 +47,3 @@ sectionStyles = class_ $ do
   base [Tokens.fullWidth]
   base [Tokens.mb6]
   tablet [Tokens.mb8]
-
-desktopHeaderStyles :: Lucid.Attributes
-desktopHeaderStyles = class_ $ do
-  base ["hidden"]
-  desktop [Tokens.fullWidth, Tokens.text2xl, Tokens.fontBold, Tokens.mb8, "block"]
