@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardBlogsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardUsersLinks, userLinks)
+import API.Links (apiLinks, dashboardBlogsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardUsersLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
 import Control.Monad (when)
@@ -37,6 +37,9 @@ rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLogoutGetUrl :: Links.URI
 userLogoutGetUrl = Links.linkURI userLinks.logoutGet
+
+dashboardProfileEditUrl :: Links.URI
+dashboardProfileEditUrl = Links.linkURI dashboardLinks.profileEditGet
 
 dashboardEpisodesGetUrl :: Slug -> Links.URI
 dashboardEpisodesGetUrl slug = Links.linkURI $ dashboardEpisodesLinks.list slug
@@ -173,9 +176,14 @@ sidebar userMeta activeNav selectedShow =
           Lucid.toHtml $
             Text.pack $
               show userMeta.mUserRole
-      Lucid.a_
-        [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"]]
-        "Logout"
+      -- Edit Profile and Logout buttons
+      Lucid.div_ [class_ $ base ["flex", "flex-col", Tokens.gap4, "mt-2"]] $ do
+        Lucid.a_
+          [Lucid.href_ [i|/#{dashboardProfileEditUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"]]
+          "Settings"
+        Lucid.a_
+          [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"]]
+          "Logout"
 
 -- | Show selector dropdown for top bar
 --

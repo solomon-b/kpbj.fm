@@ -23,6 +23,8 @@ import API.Dashboard.Events.Slug.Edit.Get.Route qualified as Dashboard.Events.Sl
 import API.Dashboard.Events.Slug.Edit.Post.Route qualified as Dashboard.Events.Slug.Edit.Post
 import API.Dashboard.Events.Slug.Get.Route qualified as Dashboard.Events.Slug.Get
 import API.Dashboard.Get.Route qualified as Dashboard.Get
+import API.Dashboard.Profile.Edit.Get.Route qualified as Dashboard.Profile.Edit.Get
+import API.Dashboard.Profile.Edit.Post.Route qualified as Dashboard.Profile.Edit.Post
 import API.Dashboard.Shows.Get.Route qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get.Route qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Route qualified as Dashboard.Shows.New.Post
@@ -224,6 +226,10 @@ data DashboardRoutes mode = DashboardRoutes
     home :: mode :- Dashboard.Get.Route,
     -- | @GET /dashboard/episodes@ - Redirect to episodes list
     episodesRedirect :: mode :- Dashboard.Episodes.Redirect.Route,
+    -- | @GET /dashboard/profile/edit@ - Edit own profile form
+    profileEditGet :: mode :- Dashboard.Profile.Edit.Get.Route,
+    -- | @POST /dashboard/profile/edit@ - Update own profile
+    profileEditPost :: mode :- Dashboard.Profile.Edit.Post.Route,
     -- | Host-accessible dashboard routes (episodes, blogs, events)
     host :: mode :- NamedRoutes DashboardHostRoutes,
     -- | Admin-only dashboard routes (station blog, shows, users)
