@@ -29,7 +29,7 @@ template currentTime blogPosts currentPage hasMore = do
   pageHeader "BLOG"
 
   Lucid.section_ [Lucid.id_ "blog-posts-content-container", Lucid.class_ "w-full"] $ do
-    Lucid.div_ [class_ $ base ["max-w-lg", "mx-auto", "space-y-8"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.fullWidth, "space-y-8"]] $ do
       if null blogPosts
         then Layout.cardSection $ do
           Lucid.div_ [Lucid.class_ "text-center"] $ do
