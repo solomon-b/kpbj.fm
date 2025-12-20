@@ -38,46 +38,23 @@ episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLi
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
 renderLatestEpisode showModel episode tracks = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb8]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.p6, Tokens.mb8]] $ do
     Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "Latest Episode"
 
     -- Episode header with image and info
-    Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
-      Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
+    Lucid.div_ [class_ $ base ["flex", "flex-col", Tokens.gap4, Tokens.mb6]] $ do
+      Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
         case episode.artworkUrl of
           Just artworkUrl -> Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|], Lucid.alt_ "Episode artwork", Lucid.class_ "w-full h-full object-cover"]
           Nothing -> "[EP IMG]"
 
-      Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-        let epUrl = episodesIdGetUrl showModel.slug episode.id episode.slug
-        Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb2]] $ do
-          Lucid.a_
-            [ Lucid.href_ [i|/#{epUrl}|],
-              hxGet_ [i|/#{epUrl}|],
-              hxTarget_ "#main-content",
-              hxPushUrl_ "true",
-              Lucid.class_ "hover:underline"
-            ]
-            $ Lucid.toHtml episode.title
+      Lucid.div_ [Lucid.class_ "flex flex-grow justify-end"] $ do
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
           case episode.scheduledAt of
             Just scheduledAt -> do
               let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
-              "Aired: " <> Lucid.toHtml dateStr
-            Nothing -> "Draft"
-
-          case episode.durationSeconds of
-            Just duration ->
-              let hours = duration `div` 3600
-                  minutes = (duration `mod` 3600) `div` 60
-               in if hours > 0
-                    then " • Duration: " <> Lucid.toHtml (show hours) <> "h " <> Lucid.toHtml (show minutes) <> "min"
-                    else " • Duration: " <> Lucid.toHtml (show minutes) <> "min"
-            Nothing -> mempty
-
-        case episode.description of
-          Just desc -> Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.mb4]] $ Lucid.toHtml desc
-          Nothing -> mempty
+              Lucid.toHtml dateStr
+            Nothing -> ""
 
     -- Audio player (if audio file path exists)
     case episode.audioFilePath of

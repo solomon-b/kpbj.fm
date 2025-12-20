@@ -127,12 +127,12 @@ renderEpisodesContent showModel episodes currentPage = do
             then do
               renderLatestEpisode showModel latestEpisode []
               unless (null otherEpisodes) $ do
-                Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+                Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.p6]] $ do
                   Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "Previous Episodes"
                   mapM_ (renderEpisodeCard showModel) otherEpisodes
             else do
               -- On subsequent pages, show all episodes as cards
-              Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+              Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.p6]] $ do
                 Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "Episodes"
                 mapM_ (renderEpisodeCard showModel) episodes
 
