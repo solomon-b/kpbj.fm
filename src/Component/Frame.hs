@@ -374,7 +374,7 @@ mobileHeader :: Maybe UserMetadata.Model -> Lucid.Html ()
 mobileHeader _mUser =
   Lucid.div_
     [ class_ $ do
-        base ["flex", "items-center", Tokens.fullWidth, Tokens.p4, Tokens.bgWhite]
+        base ["flex", "items-center", Tokens.fullWidth, Tokens.px4, "py-3", Tokens.bgWhite]
         tablet ["hidden"]
     ]
     $ do
@@ -555,7 +555,11 @@ template mUser main =
 
             -- Main content
             Lucid.main_
-              [class_ $ base ["flex-grow", Tokens.px4, Tokens.py4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col", "items-center"], Lucid.id_ "main-content"]
+              [ class_ $ do
+                  base ["flex-grow", Tokens.px4, Tokens.py4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col"]
+                  tablet [Tokens.px4, "items-center"],
+                Lucid.id_ "main-content"
+              ]
               main
 
             -- Footer
@@ -565,7 +569,7 @@ template mUser main =
             -- Fixed mobile player at bottom (visible only on mobile)
             Lucid.div_
               [ class_ $ do
-                  base ["fixed", "bottom-0", "left-0", "right-0", "z-40", Tokens.bgGray800, Tokens.p4]
+                  base ["fixed", "bottom-0", "left-0", "right-0", "z-40", Tokens.bgGray800, Tokens.px4, "py-3"]
                   tablet ["hidden"]
               ]
               mobileMusicPlayer

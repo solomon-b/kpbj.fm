@@ -11,7 +11,6 @@ where
 import API.Links (apiLinks, showsLinks)
 import API.Types
 import Data.String.Interpolate (i)
-import Data.Text qualified as Text
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
@@ -30,64 +29,48 @@ showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 --------------------------------------------------------------------------------
 
--- | Render a show card for the list view
+-- | Render a show card for the mobile list view.
+--
+-- Displays a large image (or gray placeholder), show title, and genre tags.
 renderShowCard :: Shows.Model -> Lucid.Html ()
 renderShowCard s = do
   let showSlug = s.slug
       showTitle = s.title
-      showDescription = s.description
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
-    -- Show Image
-    Lucid.div_ [class_ $ base ["text-center", Tokens.mb4]] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
-          hxGet_ [i|/#{showGetUrl showSlug}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "block"
-        ]
-        $ Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-square", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.mb4, Tokens.textLg]]
-        $ case s.logoUrl of
+  Lucid.a_
+    [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
+      hxGet_ [i|/#{showGetUrl showSlug}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      Lucid.class_ "block"
+    ]
+    $ do
+      -- Show Image (or gray placeholder)
+      Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "overflow-hidden", Tokens.mb2]] $ do
+        case s.logoUrl of
           Just logoUrl -> do
             let logoAlt = showTitle <> " logo"
-            Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{logoUrl}|], Lucid.alt_ logoAlt, Lucid.class_ "w-full h-full object-cover"]
-          Nothing -> "[SHOW IMG]"
+            Lucid.img_
+              [ Lucid.src_ [i|/#{mediaGetUrl}/#{logoUrl}|],
+                Lucid.alt_ logoAlt,
+                Lucid.class_ "w-full h-full object-cover"
+              ]
+          Nothing ->
+            Lucid.div_ [class_ $ base [Tokens.fullWidth, "h-full", "bg-gray-200"]] mempty
 
-      -- Show Title and Basic Info
-      Lucid.h3_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb2]]
-        $ Lucid.a_
-          [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
-            hxGet_ [i|/#{showGetUrl showSlug}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "hover:underline"
-          ]
-        $ Lucid.toHtml showTitle
+      -- Show Title
+      Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2]] $
+        Lucid.toHtml showTitle
 
-      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "mb-3"]] $ do
-        -- Schedule info would come from show_schedules table
-        "Schedule info here" -- TODO: Join with schedule data
-
-      -- Genre tag
+      -- Genre tags
       case s.genre of
         Just genre ->
-          Lucid.div_ [class_ $ base [Tokens.textXs, "bg-gray-200", Tokens.textGray800, "px-2", "py-1", "font-mono", "mb-3"]] $
-            "#" <> Lucid.toHtml genre
+          Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $ do
+            renderTag genre
         Nothing -> mempty
 
-    -- Description
-    Lucid.p_ [class_ $ base [Tokens.textSm, "leading-relaxed", Tokens.mb4]] $ do
-      let truncatedDesc = Text.take 150 showDescription
-      Lucid.toHtml $ truncatedDesc <> if Text.length showDescription > 150 then "..." else ""
-
-    -- Actions
-    Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
-          hxGet_ [i|/#{showGetUrl showSlug}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700", "flex-grow", "text-center"]
-        ]
-        "VIEW"
-      Lucid.button_ [class_ $ base ["border", "border-gray-800", Tokens.px3, Tokens.py2, Tokens.textSm, "hover:bg-gray-100"]] "♡"
+-- | Render a genre tag pill.
+renderTag :: (Lucid.ToHtml a) => a -> Lucid.Html ()
+renderTag tag =
+  Lucid.span_
+    [class_ $ base [Tokens.textSm, "border", "border-gray-400", "rounded", "px-3", "py-1"]]
+    $ Lucid.toHtml tag
