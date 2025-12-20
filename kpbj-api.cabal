@@ -295,6 +295,7 @@ library
     Component.Banner
     Component.Card.BlogPost
     Component.Card.Episode
+    Component.Card.Event
     Component.Card.Show
     Component.Form
     Component.Form.Builder
