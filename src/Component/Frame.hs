@@ -403,6 +403,8 @@ mobileHeader _mUser =
         "☰"
       -- Centered logo (flex-1 pushes it to center)
       Lucid.div_ [class_ $ base ["flex-1", "flex", "justify-center"]] miniLogo
+      -- Invisible spacer to balance hamburger button (same size)
+      Lucid.div_ [class_ $ base [Tokens.p2, Tokens.textLg, "invisible"]] $ Lucid.toHtml @Text "☰"
 
 -- | Simplified auth widget for mobile header
 mobileAuthWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
