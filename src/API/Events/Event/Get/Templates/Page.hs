@@ -31,7 +31,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 eventsGetUrl :: Links.URI
-eventsGetUrl = Links.linkURI $ eventsLinks.list Nothing
+eventsGetUrl = Links.linkURI eventsLinks.list
 
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI apiLinks.mediaGet

@@ -35,7 +35,7 @@ blogGetUrl :: Link.URI
 blogGetUrl = Link.linkURI $ blogLinks.list Nothing Nothing
 
 eventsGetUrl :: Link.URI
-eventsGetUrl = Link.linkURI $ eventsLinks.list Nothing
+eventsGetUrl = Link.linkURI eventsLinks.list
 
 userLoginGetUrl :: Link.URI
 userLoginGetUrl = Link.linkURI $ userLinks.loginGet Nothing Nothing

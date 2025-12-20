@@ -114,11 +114,7 @@ library
     API.Donate.Get.Templates
     API.Events.Get.Handler
     API.Events.Get.Route
-    API.Events.Get.Templates.Controls
-    API.Events.Get.Templates.List
-    API.Events.Get.Templates.MonthView
     API.Events.Get.Templates.Page
-    API.Events.Get.Templates.WeekView
     API.Events.Event.Get.Handler
     API.Events.Event.Get.Route
     API.Events.Event.Get.Templates.Page
@@ -329,7 +325,6 @@ library
     Domain.Types.Limit
     Domain.Types.Offset
     Domain.Types.PageNumber
-    Domain.Types.PageView
     Domain.Types.Search
     Domain.Types.Slug
     Domain.Types.UserSortBy
