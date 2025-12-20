@@ -6,10 +6,10 @@ module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Episodes.Get.Templates.Page qualified as EpisodesListPage
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form qualified as EditForm
 import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackInfo (..), parseStatus)
-import API.Links (showEpisodesLinks)
-import API.Shows.Slug.Episode.Get.Templates.Page qualified as DetailPage
+import API.Links (dashboardEpisodesLinks)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
@@ -30,6 +30,8 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Limit (Limit (..))
+import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
@@ -53,8 +55,8 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 -- URL helpers
-episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
+dashboardEpisodesUrl :: Slug -> Links.URI
+dashboardEpisodesUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug
 
 --------------------------------------------------------------------------------
 
@@ -244,7 +246,8 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
               let updateData =
                     Episodes.Update
                       { euId = episode.id,
-                        euDescription = Just validDescription
+                        euDescription = Just validDescription,
+                        euStatus = Just parsedStatus
                       }
 
               -- Update the episode
@@ -290,42 +293,21 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                           Log.logInfo "Failed to update tracks" (episode.id, trackErr)
                           renderFormWithError hxRequest userMetadata episode showModel "Track Update Failed" ("Episode updated but track update failed: " <> trackErr)
                         Right _ -> do
-                          -- Success! Redirect to episode detail page with success banner
+                          -- Success! Redirect to dashboard episodes list with success banner
                           Log.logInfo "Successfully updated episode and tracks" episode.id
-                          -- Fetch the updated episode and tracks for the detail page
-                          execQuerySpan (Episodes.getEpisodeById episode.id) >>= \case
-                            Right (Just updatedEpisode) -> do
-                              tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
-                              let tracks = fromRight [] tracksResult
-                                  detailUrl = episodeDetailUrl showModel.slug updatedEpisode.episodeNumber
-                                  banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
-                              -- Dashboard users (hosts/staff/admin) can always view drafts
-                              let canViewDrafts = True
-                              html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                                IsHxRequest -> do
-                                  DetailPage.template showModel updatedEpisode tracks canViewDrafts
-                                  banner
-                                IsNotHxRequest -> do
-                                  banner
-                                  DetailPage.template showModel updatedEpisode tracks canViewDrafts
-                              pure $ Servant.addHeader [i|/#{detailUrl}|] html
-                            _ -> do
-                              -- Episode was updated but we couldn't fetch it - still show success with banner
-                              Log.logInfo "Updated episode but failed to retrieve it" episode.id
-                              tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
-                              let tracks = fromRight [] tracksResult
-                                  detailUrl = episodeDetailUrl showModel.slug episode.episodeNumber
-                                  banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
-                                  -- Dashboard users (hosts/staff/admin) can always view drafts
-                                  canViewDrafts = True
-                              html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                                IsHxRequest -> do
-                                  DetailPage.template showModel episode tracks canViewDrafts
-                                  banner
-                                IsNotHxRequest -> do
-                                  banner
-                                  DetailPage.template showModel episode tracks canViewDrafts
-                              pure $ Servant.addHeader [i|/#{detailUrl}|] html
+                          -- Fetch all episodes for the show to display in the list
+                          episodesResult <- execQuerySpan (Episodes.getEpisodesForShowIncludingDrafts showModel.id (Limit 100) (Offset 0))
+                          let episodes = fromRight [] episodesResult
+                              listUrl = dashboardEpisodesUrl showModel.slug
+                              banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
+                          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+                            IsHxRequest -> do
+                              EpisodesListPage.template userMetadata (Just showModel) episodes
+                              banner
+                            IsNotHxRequest -> do
+                              banner
+                              EpisodesListPage.template userMetadata (Just showModel) episodes
+                          pure $ Servant.addHeader [i|/#{listUrl}|] html
 
 -- | Process file uploads for episode editing
 processFileUploads ::

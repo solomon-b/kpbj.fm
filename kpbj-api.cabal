@@ -242,12 +242,10 @@ library
     API.Shows.Slug.Episode.Get.Templates.Page
     API.Shows.Slug.Episode.Delete.Handler
     API.Shows.Slug.Episode.Delete.Route
-    API.Shows.Slug.Episode.Delete.Templates.ErrorBanner
     API.Shows.Slug.Episode.DiscardDraft.Handler
     API.Shows.Slug.Episode.DiscardDraft.Route
     API.Shows.Slug.Episode.Publish.Post.Handler
     API.Shows.Slug.Episode.Publish.Post.Route
-    API.Shows.Slug.Episode.Publish.Post.Templates.Response
     API.Shows.Slug.Get.Handler
     API.Shows.Slug.Get.Route
     API.Shows.Slug.Get.Templates.Page

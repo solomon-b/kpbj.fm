@@ -4,7 +4,7 @@ module API.Shows.Slug.Episode.Delete.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Episode.Delete.Templates.ErrorBanner (emptyResponse, renderErrorBannerWithCard)
+import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
 import App.Common (getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
@@ -14,6 +14,7 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
+import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
@@ -77,10 +78,10 @@ handler _tracer showSlug episodeNumber cookie = do
               let isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole
 
               if isStaff && not (UserMetadata.isSuspended userMeta)
-                then softDeleteEpisode showModel episode
+                then softDeleteEpisode userMeta showModel episode
                 else do
                   Log.logInfo "Archive failed: Not authorized (staff+ required)" (Aeson.object ["userId" .= userMeta.mUserId, "episodeId" .= episode.id])
-                  pure $ renderErrorBannerWithCard showModel episode "Only staff members can archive episodes. Hosts can discard draft episodes instead."
+                  pure $ renderErrorWithRow userMeta showModel episode "Only staff members can archive episodes. Hosts can discard draft episodes instead."
 
 softDeleteEpisode ::
   ( Has Tracer env,
@@ -92,17 +93,29 @@ softDeleteEpisode ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
+  UserMetadata.Model ->
   Shows.Model ->
   Episodes.Model ->
   m (Lucid.Html ())
-softDeleteEpisode showModel episode = do
+softDeleteEpisode userMeta showModel episode = do
   execQuerySpan (Episodes.deleteEpisode episode.id) >>= \case
     Left err -> do
       Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
-      pure $ renderErrorBannerWithCard showModel episode "Failed to archive episode due to a database error."
+      pure $ renderErrorWithRow userMeta showModel episode "Failed to archive episode due to a database error."
     Right Nothing -> do
       Log.logInfo "Archive failed: Episode not found during archive" (Aeson.object ["episodeId" .= episode.id])
-      pure $ renderErrorBannerWithCard showModel episode "Episode not found during archive operation."
+      pure $ renderErrorWithRow userMeta showModel episode "Episode not found during archive operation."
     Right (Just _) -> do
       Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
+      -- Return empty response to remove the row
       pure emptyResponse
+
+-- | Render an error banner AND the episode row (to prevent row removal on error)
+renderErrorWithRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()
+renderErrorWithRow userMeta showModel episode errorMsg = do
+  renderEpisodeTableRow userMeta showModel episode
+  renderBanner Error "Archive Failed" errorMsg
+
+-- | Empty response for successful deletes (row is removed by HTMX)
+emptyResponse :: Lucid.Html ()
+emptyResponse = ""
