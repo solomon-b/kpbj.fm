@@ -97,7 +97,7 @@ mobileMusicPlayer :: Lucid.Html ()
 mobileMusicPlayer =
   Lucid.div_
     [ class_ $ do
-        base ["flex", "items-center", Tokens.gap4, Tokens.textSm, "font-mono", Tokens.textWhite]
+        base ["flex", "items-center", "justify-around", Tokens.gap4, Tokens.textSm, "font-mono", Tokens.textWhite]
     ]
     $ do
       -- Play/pause button - fixed width to prevent layout shift
