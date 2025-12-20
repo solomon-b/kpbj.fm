@@ -87,6 +87,24 @@ xOnHtmxPushedIntoHistory_ = Lucid.makeAttributes "x-on:htmx:pushed-into-history.
 xTransition_ :: Lucid.Attributes
 xTransition_ = Lucid.makeAttributesRaw "x-transition" ""
 
+xTransitionEnter_ :: Text -> Lucid.Attributes
+xTransitionEnter_ = Lucid.makeAttributes "x-transition:enter"
+
+xTransitionEnterStart_ :: Text -> Lucid.Attributes
+xTransitionEnterStart_ = Lucid.makeAttributes "x-transition:enter-start"
+
+xTransitionEnterEnd_ :: Text -> Lucid.Attributes
+xTransitionEnterEnd_ = Lucid.makeAttributes "x-transition:enter-end"
+
+xTransitionLeave_ :: Text -> Lucid.Attributes
+xTransitionLeave_ = Lucid.makeAttributes "x-transition:leave"
+
+xTransitionLeaveStart_ :: Text -> Lucid.Attributes
+xTransitionLeaveStart_ = Lucid.makeAttributes "x-transition:leave-start"
+
+xTransitionLeaveEnd_ :: Text -> Lucid.Attributes
+xTransitionLeaveEnd_ = Lucid.makeAttributes "x-transition:leave-end"
+
 dataDropdownToggle_ :: Text -> Lucid.Attributes
 dataDropdownToggle_ = Lucid.makeAttributes "data-dropdown-toggle"
 
