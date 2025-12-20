@@ -352,7 +352,7 @@ fullWidth = "w-full"
 
 -- | Base card styling (white bg, border, padding).
 cardBase :: Text
-cardBase = cls [bgWhite, cardPadding]
+cardBase = cls [bgWhite]
 
 -- | Base section styling (white bg, border, padding, margin).
 sectionBase :: Text

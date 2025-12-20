@@ -3,10 +3,13 @@ module API.Blog.Get.Templates.Page
   )
 where
 
+--------------------------------------------------------------------------------
+
 import API.Blog.Get.Templates.Pagination (renderPagination)
 import Component.Card.BlogPost (renderStationBlogPostCard)
 import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
+import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Time (UTCTime)
 import Design (base, class_)
@@ -17,21 +20,22 @@ import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 
--- | Main blog template
+--------------------------------------------------------------------------------
+
+-- | Main blog posts template
 template :: UTCTime -> [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])] -> Int64 -> Bool -> Lucid.Html ()
 template currentTime blogPosts currentPage hasMore = do
   -- Blog Header
   pageHeader "BLOG"
 
-  -- Blog Posts
-  Lucid.div_ [class_ $ base [Tokens.gap8, Tokens.fullWidth]] $ do
-    Lucid.div_ [Lucid.class_ "space-y-6"] $ do
+  Lucid.section_ [Lucid.id_ "blog-posts-content-container", Lucid.class_ "w-full"] $ do
+    Lucid.div_ [class_ $ base ["max-w-lg", "mx-auto", "space-y-8"]] $ do
       if null blogPosts
         then Layout.cardSection $ do
           Lucid.div_ [Lucid.class_ "text-center"] $ do
             Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4]] "No Blog Posts Yet"
             Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for updates from the KPBJ community!"
-        else mapM_ (renderStationBlogPostCard currentTime) blogPosts
+        else traverse_ (renderStationBlogPostCard currentTime) blogPosts
 
       -- Pagination
       unless (null blogPosts) $
