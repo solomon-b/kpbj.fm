@@ -35,6 +35,7 @@ module Effects.Database.Tables.Episodes
 
     -- * Queries
     getPublishedEpisodesForShow,
+    getEpisodesForShowIncludingDrafts,
     getAllEpisodes,
     getEpisodesById,
     getEpisodeBySlug,
@@ -337,6 +338,22 @@ getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
             where_ $ ep.showId ==. lit showId'
             where_ $ ep.status ==. lit Published
             where_ $ ep.scheduledAt <=. nullify (lit currentTime)
+            pure ep
+
+-- | Get episodes for a show including drafts (for hosts viewing their own show).
+--
+-- Returns both published and draft episodes, ordered by scheduled date descending.
+-- Excludes deleted episodes.
+getEpisodesForShowIncludingDrafts :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
+getEpisodesForShowIncludingDrafts showId' (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy ((.scheduledAt) >$< nullsLast desc) do
+            ep <- each episodeSchema
+            where_ $ ep.showId ==. lit showId'
+            where_ $ ep.status /=. lit Deleted
             pure ep
 
 -- | Get all non-deleted episodes.

@@ -217,13 +217,15 @@ handleUploadSuccess hxRequest userMetadata allShows showModel episodeId = do
       let tracks = fromRight [] tracksResult
           detailUrl = Links.linkURI $ showEpisodesLinks.detailWithSlug showModel.slug episodeId episode.slug
           banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
+          -- Dashboard users (hosts/staff/admin) can always view drafts
+          canViewDrafts = True
           content = case hxRequest of
             IsHxRequest -> do
-              DetailPage.template showModel episode tracks
+              DetailPage.template showModel episode tracks canViewDrafts
               banner
             IsNotHxRequest -> do
               banner
-              DetailPage.template showModel episode tracks
+              DetailPage.template showModel episode tracks canViewDrafts
       html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing content
       pure $ Servant.addHeader [i|/#{detailUrl}|] html
     _ -> do

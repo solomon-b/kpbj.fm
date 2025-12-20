@@ -303,13 +303,15 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                               let tracks = fromRight [] tracksResult
                                   detailUrl = episodesIdGetUrl showModel.slug updatedEpisode.id updatedEpisode.slug
                                   banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
+                              -- Dashboard users (hosts/staff/admin) can always view drafts
+                              let canViewDrafts = True
                               html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                                 IsHxRequest -> do
-                                  DetailPage.template showModel updatedEpisode tracks
+                                  DetailPage.template showModel updatedEpisode tracks canViewDrafts
                                   banner
                                 IsNotHxRequest -> do
                                   banner
-                                  DetailPage.template showModel updatedEpisode tracks
+                                  DetailPage.template showModel updatedEpisode tracks canViewDrafts
                               pure $ Servant.addHeader [i|/#{detailUrl}|] html
                             _ -> do
                               -- Episode was updated but we couldn't fetch it - still show success with banner
@@ -318,13 +320,15 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                               let tracks = fromRight [] tracksResult
                                   detailUrl = episodesIdGetUrl showModel.slug episode.id episode.slug
                                   banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
+                                  -- Dashboard users (hosts/staff/admin) can always view drafts
+                                  canViewDrafts = True
                               html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                                 IsHxRequest -> do
-                                  DetailPage.template showModel episode tracks
+                                  DetailPage.template showModel episode tracks canViewDrafts
                                   banner
                                 IsNotHxRequest -> do
                                   banner
-                                  DetailPage.template showModel episode tracks
+                                  DetailPage.template showModel episode tracks canViewDrafts
                               pure $ Servant.addHeader [i|/#{detailUrl}|] html
 
 -- | Process file uploads for episode editing
