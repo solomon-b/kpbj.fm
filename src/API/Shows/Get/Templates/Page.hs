@@ -6,6 +6,7 @@ where
 
 import API.Shows.Get.Templates.Pagination (renderPagination)
 import API.Shows.Get.Templates.ShowCard (renderShowCard)
+import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Maybe (isNothing)
 import Data.Text.Display (display)
@@ -16,27 +17,41 @@ import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (xData_, xOnClick_, xShow_)
+import Lucid.Extras (xData_, xOnClick_, xShow_, xTransitionEnterEnd_, xTransitionEnterStart_, xTransitionEnter_, xTransitionLeaveEnd_, xTransitionLeaveStart_, xTransitionLeave_)
 
 -- | Main shows list template
 template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
 template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
   -- Page container with Alpine state for filter panel
   Lucid.div_ [xData_ "{ filterOpen: false }", class_ $ base [Tokens.fullWidth]] $ do
-    -- Header: Title + Filter button
-    Lucid.div_ [class_ $ base ["flex", "justify-between", "items-center", Tokens.mb6]] $ do
-      Lucid.h1_ [class_ $ base [Tokens.textXl, Tokens.fontBold]] "Shows"
+    -- Header row with filter button on mobile
+    Lucid.div_ [class_ $ base ["relative", "flex", "justify-between", "items-start"]] $ do
+      pageHeader "SHOWS"
+      -- Mobile-only filter toggle button
       Lucid.button_
         [ xOnClick_ "filterOpen = !filterOpen",
-          class_ $ base ["flex", "items-center", Tokens.gap2, "border", "border-gray-400", "rounded", Tokens.px3, Tokens.py2]
+          class_ $ do { base ["flex", "items-center", Tokens.gap2, Tokens.px3, Tokens.py2]; desktop ["hidden"] }
         ]
         $ do
-          -- Filter icon (using Unicode character)
           Lucid.span_ [Lucid.class_ "text-sm"] "≡"
           "Filter"
 
-    -- Collapsible Filter Panel
-    Lucid.div_ [xShow_ "filterOpen", class_ $ base [Tokens.mb6]] $ do
+      -- Mobile: Collapsible Filter Panel - overlays content below
+      Lucid.div_
+        [ xShow_ "filterOpen",
+          xTransitionEnter_ "transition ease-out duration-200 origin-top",
+          xTransitionEnterStart_ "opacity-0 scale-y-0",
+          xTransitionEnterEnd_ "opacity-100 scale-y-100",
+          xTransitionLeave_ "transition ease-in duration-150 origin-top",
+          xTransitionLeaveStart_ "opacity-100 scale-y-100",
+          xTransitionLeaveEnd_ "opacity-0 scale-y-0",
+          class_ $ do { base ["absolute", "left-1/2", "-translate-x-1/2", "w-screen", "top-full", "z-20", Tokens.bgWhite, "shadow-lg"]; desktop ["hidden"] }
+        ]
+        $ do
+          renderFilters maybeGenre maybeStatus maybeSearch
+
+    -- Desktop: Always-visible filters (hidden on mobile)
+    Lucid.div_ [class_ $ do { base ["hidden", Tokens.mb6]; desktop ["block"] }] $ do
       renderFilters maybeGenre maybeStatus maybeSearch
 
     -- Shows Grid
@@ -56,10 +71,11 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
 -- | Render show filters (displayed in collapsible panel)
 renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
 renderFilters maybeGenre maybeStatus maybeSearch = do
-  Lucid.div_ [class_ $ base ["border", "border-gray-400", Tokens.p4]] $ do
-    Lucid.form_ [Lucid.id_ "show-filters", Lucid.class_ "space-y-4"] $ do
+  Lucid.div_ [class_ $ base [Tokens.p4]] $ do
+    -- Stacked on mobile, horizontal row on desktop
+    Lucid.form_ [Lucid.id_ "show-filters", class_ $ do { base ["space-y-4"]; desktop ["space-y-0", "flex", "items-end", Tokens.gap4] }] $ do
       -- Search bar
-      Lucid.div_ $ do
+      Lucid.div_ [class_ $ do { base []; desktop ["flex-1"] }] $ do
         Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "search"] "Search"
         Lucid.input_
           [ Lucid.type_ "text",
@@ -71,7 +87,7 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
           ]
 
       -- Genre filter
-      Lucid.div_ $ do
+      Lucid.div_ [class_ $ do { base []; desktop ["flex-1"] }] $ do
         Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "genre"] "Genre"
         Lucid.select_
           [ Lucid.id_ "genre",
@@ -88,7 +104,7 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
             Lucid.option_ ([Lucid.value_ "rock"] <> [Lucid.selected_ "selected" | maybeGenre == Just "rock"]) "Rock"
 
       -- Status filter
-      Lucid.div_ $ do
+      Lucid.div_ [class_ $ do { base []; desktop ["flex-1"] }] $ do
         Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "status"] "Status"
         Lucid.select_
           [ Lucid.id_ "status",
@@ -104,13 +120,13 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
       Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
         Lucid.button_
           [ Lucid.type_ "submit",
-            class_ $ base ["flex-1", Tokens.bgGray800, Tokens.textWhite, Tokens.py2, Tokens.fontBold]
+            class_ $ do { base ["flex-1", Tokens.bgGray800, Tokens.textWhite, Tokens.py2, Tokens.fontBold]; desktop ["flex-none", Tokens.px4] }
           ]
           "Apply"
         Lucid.button_
           [ Lucid.type_ "button",
             Lucid.onclick_ "clearFilters()",
-            class_ $ base ["flex-1", "border", "border-gray-400", Tokens.py2]
+            class_ $ do { base ["flex-1", "border", "border-gray-400", Tokens.py2]; desktop ["flex-none", Tokens.px4] }
           ]
           "Clear"
 
