@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Slug.Get.Templates.Episode
+module Component.Card.Episode
   ( renderEpisode,
   )
 where

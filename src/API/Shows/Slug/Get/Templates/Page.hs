@@ -12,7 +12,7 @@ where
 
 import API.Links (showBlogLinks, showsLinks)
 import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
-import API.Shows.Slug.Get.Templates.Episode (renderEpisode)
+import Component.Card.Episode (renderEpisode)
 import API.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
 import API.Types
 import Control.Monad (when)
