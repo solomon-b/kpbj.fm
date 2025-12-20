@@ -6,7 +6,10 @@ import Data.Text (Text)
 import Lucid.Base qualified as Lucid
 
 --------------------------------------------------------------------------------
--- HTML5
+-- HTML5/SVG
+
+svg_ :: [Lucid.Attributes] -> Lucid.Html () -> Lucid.Html ()
+svg_ = Lucid.term "svg"
 
 path_ :: [Lucid.Attributes] -> Lucid.Html () -> Lucid.Html ()
 path_ = Lucid.term "path"

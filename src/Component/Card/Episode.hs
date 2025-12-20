@@ -23,7 +23,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xOnClick_, xRef_, xShow_)
+import Lucid.Extras (d_, hxGet_, hxPushUrl_, hxTarget_, path_, svg_, viewBox_, xData_, xOnClick_, xRef_, xShow_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -115,9 +115,13 @@ renderPlayButton =
     ]
     $ do
       -- Play icon (shown when not playing)
-      Lucid.span_ [xShow_ "!isPlaying", Lucid.class_ "text-xl pl-1"] "▶"
+      Lucid.span_ [xShow_ "!isPlaying", Lucid.class_ "pl-1"] $
+        svg_ [Lucid.class_ "w-7 h-7 fill-current", viewBox_ "0 0 24 24"] $
+          path_ [d_ "M8 5v14l11-7z"] mempty
       -- Pause icon (shown when playing)
-      Lucid.span_ [xShow_ "isPlaying", Lucid.class_ "text-xl"] "⏸"
+      Lucid.span_ [xShow_ "isPlaying"] $
+        svg_ [Lucid.class_ "w-7 h-7 fill-current", viewBox_ "0 0 24 24"] $
+          path_ [d_ "M6 19h4V5H6v14zm8-14v14h4V5h-4z"] mempty
 
 -- | Render episode date.
 renderEpisodeDate :: Maybe UTCTime -> Lucid.Html ()
