@@ -80,6 +80,9 @@ xShow_ = Lucid.makeAttributes "x-show"
 xText_ :: Text -> Lucid.Attributes
 xText_ = Lucid.makeAttributes "x-text"
 
+xInit_ :: Text -> Lucid.Attributes
+xInit_ = Lucid.makeAttributes "x-init"
+
 xOnClickOutside_ :: Text -> Lucid.Attributes
 xOnClickOutside_ = Lucid.makeAttributes "x-on:click.outside"
 

@@ -17,7 +17,7 @@ import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xModel_, xOnClickOutside_, xOnClick_, xOnInput_, xRef_, xShow_, xText_, xTransition_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xInit_, xModel_, xOnClickOutside_, xOnClick_, xOnInput_, xRef_, xShow_, xText_, xTransition_)
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
@@ -70,15 +70,23 @@ desktopMusicPlayer =
     ]
     $ do
       Lucid.div_ [class_ $ base ["inline-flex", "items-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
-        Lucid.a_
-          [ Lucid.href_ "#",
-            Lucid.class_ "hover:text-gray-600 cursor-pointer",
+        Lucid.button_
+          [ Lucid.class_ "hover:text-gray-600 cursor-pointer bg-transparent border-none",
             xOnClick_ "toggle()",
             xText_ "isPlaying ? '[ PAUSE ]' : '[ PLAY ]'"
           ]
           "[ PLAY ]"
         Lucid.span_ [Lucid.class_ "text-gray-500"] "|"
+        -- Now playing info
         Lucid.div_ [xText_ "currentShow || 'NOW PLAYING: KPBJ 95.9 FM'"] "NOW PLAYING: KPBJ 95.9 FM"
+        -- Back to Live button (only visible when in episode mode)
+        Lucid.span_ [xShow_ "mode === 'episode'", Lucid.class_ "text-gray-500"] "|"
+        Lucid.button_
+          [ xShow_ "mode === 'episode'",
+            xOnClick_ "playStream()",
+            Lucid.class_ "hover:text-gray-600 text-xs uppercase cursor-pointer bg-transparent border-none"
+          ]
+          "[ BACK TO LIVE ]"
         Lucid.span_ [Lucid.class_ "text-gray-500"] "|"
         Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
           Lucid.span_ "VOL:"
@@ -100,20 +108,51 @@ mobileMusicPlayer =
         base ["flex", "items-center", "justify-around", Tokens.gap4, Tokens.textSm, "font-mono", Tokens.textWhite]
     ]
     $ do
-      -- Play/pause button - fixed width to prevent layout shift
-      Lucid.a_
-        [ Lucid.href_ "#",
-          xOnClick_ "toggle()",
-          class_ $ base ["hover:text-gray-300", "cursor-pointer", "w-20", "text-center"]
+      -- Play/pause button (using button element to avoid page jump from href="#")
+      Lucid.button_
+        [ xOnClick_ "toggle()",
+          class_ $ base ["hover:text-gray-300", "cursor-pointer", "text-center", "flex-shrink-0", "whitespace-nowrap", "bg-transparent", "border-none"]
         ]
         $ do
           -- Both rendered, visibility toggled - prevents layout shift
           Lucid.span_ [xShow_ "!isPlaying"] "[ PLAY ]"
           Lucid.span_ [xShow_ "isPlaying"] "[ PAUSE ]"
-      -- Show name
-      Lucid.div_ [class_ $ base ["flex", "flex-col", "uppercase"]] $ do
-        Lucid.div_ [xText_ "currentShow || 'KPBJ 95.9 FM'", class_ $ base [Tokens.fontBold]] "KPBJ 95.9 FM"
-        Lucid.div_ [class_ $ base [Tokens.textXs, "text-gray-300"]] "Live"
+      -- Show name (scrolling marquee only when text overflows)
+      Lucid.div_
+        [ xData_ "{ needsScroll: false }",
+          xInit_ "const observer = new ResizeObserver(() => { needsScroll = $refs.text && $refs.container ? $refs.text.scrollWidth > $refs.container.clientWidth : false; }); if ($refs.text) observer.observe($refs.text);",
+          xRef_ "container",
+          class_ $ base ["flex-1", "min-w-0", "text-center", "uppercase", "marquee-container"]
+        ]
+        $ do
+          Lucid.div_ [Lucid.class_ "marquee-track", xBindClass_ "{ 'scrolling': needsScroll }"] $ do
+            -- First copy of text
+            Lucid.span_
+              [ xRef_ "text",
+                xText_ "currentShow || 'KPBJ 95.9 FM'",
+                class_ $ base [Tokens.fontBold, "marquee-text"]
+              ]
+              "KPBJ 95.9 FM"
+            -- Second copy (only visible when scrolling)
+            Lucid.span_
+              [ xShow_ "needsScroll",
+                xText_ "currentShow || 'KPBJ 95.9 FM'",
+                class_ $ base [Tokens.fontBold, "marquee-text"]
+              ]
+              "KPBJ 95.9 FM"
+
+-- | Banner above mobile player when playing archived episode (entire banner is clickable)
+mobileArchiveBanner :: Lucid.Html ()
+mobileArchiveBanner =
+  Lucid.button_
+    [ xShow_ "mode === 'episode'",
+      xOnClick_ "playStream()",
+      class_ $ do
+        base ["flex", "items-center", "justify-center", Tokens.gap4, "bg-gray-600", Tokens.textWhite, Tokens.px4, "py-2", Tokens.textXs, "font-mono", "w-full", "border-none", "cursor-pointer", "hover:bg-gray-500"]
+    ]
+    $ do
+      Lucid.span_ "Playing archived episode"
+      Lucid.span_ [class_ $ base ["bg-white", "text-gray-800", "px-3", "py-1", Tokens.fontBold]] "GO LIVE"
 
 -- | Audio element wrapper with Alpine state (shared between mobile and desktop)
 musicPlayerWrapper :: Lucid.Html () -> Lucid.Html ()
@@ -134,7 +173,12 @@ musicPlayerWrapper content =
       streamUrl: 'https://kpbj.hasnoskills.com/listen/kpbj_test_station/radio.mp3',
       metadataUrl: 'https://kpbj.hasnoskills.com/listen/kpbj_test_station/status-json.xsl',
 
-      // Metadata
+      // Playback mode: 'stream' for live radio, 'episode' for on-demand episodes
+      mode: 'stream',
+      episodeUrl: '',
+      episodeTitle: '',
+
+      // Metadata (for live stream)
       currentShow: '',
       currentTrack: '',
       currentArtist: '',
@@ -158,22 +202,28 @@ musicPlayerWrapper content =
 
         const audio = this.$refs.audio;
 
+        // Use current mode's source
+        const sourceUrl = this.mode === 'episode' ? this.episodeUrl : this.streamUrl;
+
         // Load source if needed
         if (!audio.src || audio.src === '') {
-          audio.src = this.streamUrl;
+          audio.src = sourceUrl;
         }
 
         audio.volume = this.volume / 100;
 
         audio.play()
           .then(() => {
-            console.log('Navbar player: Playing');
+            console.log('Navbar player: Playing in ' + this.mode + ' mode');
             this.isPlaying = true;
-            this.startMetadataPolling();
+            // Only poll metadata for live stream
+            if (this.mode === 'stream') {
+              this.startMetadataPolling();
+            }
           })
           .catch((error) => {
             console.error('Navbar player failed:', error);
-            this.errorMessage = 'Failed to start stream: ' + error.message;
+            this.errorMessage = 'Failed to start: ' + error.message;
             setTimeout(() => this.errorMessage = '', 5000);
           });
       },
@@ -183,6 +233,50 @@ musicPlayerWrapper content =
         const audio = this.$refs.audio;
         audio.pause();
         this.isPlaying = false;
+        this.stopMetadataPolling();
+      },
+
+      // Play an episode (called from episode cards via playInNavbar global function)
+      playEpisode(url, title) {
+        console.log('Navbar player: Switching to episode mode', title);
+
+        // Stop current playback
+        this.pause();
+
+        // Switch to episode mode
+        this.mode = 'episode';
+        this.episodeUrl = url;
+        this.episodeTitle = title;
+        this.currentShow = title;
+
+        // Clear and reload audio source
+        const audio = this.$refs.audio;
+        audio.src = url;
+
+        // Start playing
+        this.play();
+      },
+
+      // Return to livestream playback
+      playStream() {
+        console.log('Navbar player: Switching to stream mode');
+
+        // Stop current playback
+        this.pause();
+
+        // Switch to stream mode
+        this.mode = 'stream';
+        this.episodeUrl = '';
+        this.episodeTitle = '';
+        this.currentShow = '';
+
+        // Clear and reload audio source
+        const audio = this.$refs.audio;
+        audio.src = this.streamUrl;
+
+        // Start playing and fetch metadata
+        this.fetchMetadata();
+        this.play();
       },
 
       setVolume(value) {
@@ -275,6 +369,70 @@ playerScript =
           data.pause();
         }
       });
+    }
+
+    // Play an episode in the navbar player (called by episode cards)
+    function playInNavbar(episodeAudioUrl, episodeTitle) {
+      // Find navbar player component
+      const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
+      if (navbarPlayerEl) {
+        const navbarPlayer = Alpine.$data(navbarPlayerEl);
+        if (navbarPlayer && typeof navbarPlayer.playEpisode === 'function') {
+          navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle);
+        }
+      }
+    }
+
+    // Check if navbar is currently playing a specific episode URL
+    function isNavbarPlayingEpisode(episodeAudioUrl) {
+      const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
+      if (navbarPlayerEl) {
+        const navbarPlayer = Alpine.$data(navbarPlayerEl);
+        return navbarPlayer &&
+               navbarPlayer.isPlaying &&
+               navbarPlayer.mode === 'episode' &&
+               navbarPlayer.episodeUrl === episodeAudioUrl;
+      }
+      return false;
+    }
+
+    // Toggle episode playback in navbar (pause if playing this episode, play if not)
+    function toggleEpisodeInNavbar(episodeAudioUrl, episodeTitle) {
+      const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
+      if (navbarPlayerEl) {
+        const navbarPlayer = Alpine.$data(navbarPlayerEl);
+        if (navbarPlayer) {
+          if (isNavbarPlayingEpisode(episodeAudioUrl)) {
+            navbarPlayer.pause();
+          } else {
+            navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle);
+          }
+        }
+      }
+    }
+  |]
+
+-- | CSS for marquee scrolling text animation (only scrolls when text overflows)
+marqueeStyles :: Text
+marqueeStyles =
+  [i|
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .marquee-container {
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .marquee-track {
+      display: inline-block;
+    }
+    .marquee-track.scrolling {
+      animation: marquee 10s linear infinite;
+    }
+    .marquee-text {
+      display: inline-block;
+      padding-right: 2rem;
     }
   |]
 
@@ -535,6 +693,7 @@ template mUser main =
       Lucid.script_ [] ("tailwind.config = { theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] playerScript
       Lucid.script_ [] activeNavScript
+      Lucid.style_ [] marqueeStyles
     Lucid.body_
       [ class_ $ do
           base ["font-mono", Tokens.textGray800, "min-h-screen", "flex", "flex-col", "pb-20"]
@@ -587,10 +746,14 @@ template mUser main =
             -- Fixed mobile player at bottom (visible only on mobile)
             Lucid.div_
               [ class_ $ do
-                  base ["fixed", "bottom-0", "left-0", "right-0", "z-40", Tokens.bgGray800, Tokens.px4, "py-3"]
+                  base ["fixed", "bottom-0", "left-0", "right-0", "z-40"]
                   tablet ["hidden"]
               ]
-              mobileMusicPlayer
+              $ do
+                -- Banner above player when playing archived episode
+                mobileArchiveBanner
+                -- Main player bar
+                Lucid.div_ [class_ $ base [Tokens.bgGray800, Tokens.px4, "py-3"]] mobileMusicPlayer
 
         -- Script to display banner from URL params (runs after DOM is ready)
         Lucid.script_ [] bannerFromUrlScript
