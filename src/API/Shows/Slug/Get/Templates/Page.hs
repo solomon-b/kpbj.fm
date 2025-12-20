@@ -12,10 +12,10 @@ where
 
 import API.Links (showBlogLinks, showsLinks)
 import API.Shows.Slug.Blog.Get.Templates.PostCard (renderPostCard)
-import API.Shows.Slug.Get.Templates.Episode (renderEpisodeCard, renderLatestEpisode)
+import API.Shows.Slug.Get.Templates.Episode (renderEpisode)
 import API.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
 import API.Types
-import Control.Monad (unless, when)
+import Control.Monad (when)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -72,39 +72,12 @@ errorTemplate errorMsg = do
 
 -- | Main show page template
 template :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowBlogPosts.Model] -> Int -> Lucid.Html ()
-template showModel episodes hosts schedules blogPosts currentPage = do
+template showModel episodes hosts schedules _blogPosts currentPage = do
   renderShowHeader showModel hosts schedules
 
-  -- Tabbed Content with Alpine.js
-  Lucid.div_
-    [ xData_ "{ activeTab: 'episodes' }",
-      Lucid.class_ Tokens.fullWidth
-    ]
-    $ do
-      -- Content Tabs Navigation
-      Lucid.div_ [class_ $ base [Tokens.mb8, Tokens.fullWidth]] $ do
-        Lucid.div_ [class_ $ base [Tokens.border2, "border-b-2", "border-gray-800"]] $ do
-          Lucid.nav_ [class_ $ base ["flex", Tokens.gap8]] $ do
-            Lucid.button_
-              [ xOnClick_ "activeTab = 'episodes'",
-                xBindClass_ "activeTab === 'episodes' ? 'py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5' : 'py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800'",
-                Lucid.type_ "button"
-              ]
-              "Episodes"
-            Lucid.button_
-              [ xOnClick_ "activeTab = 'blog'",
-                xBindClass_ "activeTab === 'blog' ? 'py-3 px-4 font-bold uppercase border-b-2 border-gray-800 bg-white -mb-0.5' : 'py-3 px-4 font-bold uppercase text-gray-600 hover:text-gray-800'",
-                Lucid.type_ "button"
-              ]
-              "Blog"
-
-      -- Episodes Tab Content
-      Lucid.section_ [Lucid.class_ Tokens.fullWidth, xShow_ "activeTab === 'episodes'"] $ do
-        renderEpisodesContent showModel episodes currentPage
-
-      -- Blog Tab Content
-      Lucid.section_ [Lucid.class_ Tokens.fullWidth, xShow_ "activeTab === 'blog'"] $ do
-        renderBlogContent showModel blogPosts
+  -- Episodes content
+  Lucid.section_ [Lucid.class_ Tokens.fullWidth] $ do
+    renderEpisodesContent showModel episodes currentPage
 
 -- | Number of episodes per page (should match handler)
 episodesPerPage :: Int
@@ -119,26 +92,10 @@ renderEpisodesContent showModel episodes currentPage = do
         Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Episodes Yet"
         Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any episodes yet. Check back soon!"
     else do
-      -- Featured/Latest Episode with tracks (only on page 1)
-      case episodes of
-        (latestEpisode : otherEpisodes) -> do
-          -- Only show featured episode on first page
-          if currentPage == 1
-            then do
-              renderLatestEpisode showModel latestEpisode []
-              unless (null otherEpisodes) $ do
-                Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.p6]] $ do
-                  Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "Previous Episodes"
-                  mapM_ (renderEpisodeCard showModel) otherEpisodes
-            else do
-              -- On subsequent pages, show all episodes as cards
-              Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.p6]] $ do
-                Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "Episodes"
-                mapM_ (renderEpisodeCard showModel) episodes
-
-          -- Pagination controls
-          renderPagination showModel currentPage (length episodes)
-        _ -> mempty
+      -- Grid layout: 1 column on mobile, 2 on tablet, 3 on desktop
+      Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
+        mapM_ (renderEpisode showModel) episodes
+      renderPagination showModel currentPage (length episodes)
 
 -- | Render pagination controls
 renderPagination :: Shows.Model -> Int -> Int -> Lucid.Html ()
@@ -188,9 +145,9 @@ renderPagination showModel currentPage episodeCount = do
             [class_ $ base ["bg-gray-300", "text-gray-500", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Next"
 
--- Helper function to render blog content
-renderBlogContent :: Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
-renderBlogContent showModel blogPosts = do
+-- Helper function to render blog content (kept for future show blogs feature)
+_renderBlogContent :: Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
+_renderBlogContent showModel blogPosts = do
   if null blogPosts
     then do
       Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
