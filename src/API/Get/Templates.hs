@@ -16,7 +16,7 @@ template = do
   Lucid.a_ [Lucid.href_ "https://fccdata.org/?call=kpbj&facid=&city=&state=&ccode=1&country=US"] $ do
     Lucid.img_ [Lucid.src_ "/static/range.png"]
 
-  Lucid.section_ [Lucid.class_ "mt-12 text-center"] $ do
+  Lucid.section_ [Lucid.class_ "mt-auto mb-4 text-center"] $ do
     Lucid.h3_ [Lucid.class_ "text-2xl font-bold mb-4"] "Stay in the Loop"
 
     Lucid.iframe_ [Lucid.name_ "hidden_iframe", Lucid.id_ "hidden_iframe", Lucid.style_ "display:none;"] ""
