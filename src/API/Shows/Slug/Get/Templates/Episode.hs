@@ -2,8 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Shows.Slug.Get.Templates.Episode
-  ( renderLatestEpisode,
-    renderEpisodeCard,
+  ( renderEpisode,
   )
 where
 
@@ -11,278 +10,143 @@ where
 
 import API.Links (apiLinks, showEpisodesLinks)
 import API.Types
-import Control.Monad (unless, when)
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindStyle_, xData_, xOnClick_, xRef_, xText_)
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xOnClick_, xRef_, xShow_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
+-- URL Helpers
 
--- | Helper function to convert artwork path to full media URL
 mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
--- | Helper function to get episode detail URL
-episodesIdGetUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
-episodesIdGetUrl showSlug episodeId episodeSlug = Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
+episodeDetailUrl :: Slug -> Episodes.Id -> Slug -> Links.URI
+episodeDetailUrl showSlug episodeId episodeSlug =
+  Links.linkURI $ showEpisodesLinks.detailWithSlug showSlug episodeId episodeSlug
 
--- | Render a featured "Latest Episode" section with full details
-renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
-renderLatestEpisode showModel episode tracks = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.p6, Tokens.mb8]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]] "Latest Episode"
+--------------------------------------------------------------------------------
+-- Main Render Function
 
-    -- Episode header with image and info
-    Lucid.div_ [class_ $ base ["flex", "flex-col", Tokens.gap4, Tokens.mb6]] $ do
-      Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
-        case episode.artworkUrl of
-          Just artworkUrl -> Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|], Lucid.alt_ "Episode artwork", Lucid.class_ "w-full h-full object-cover"]
-          Nothing -> "[EP IMG]"
+-- | Render an episode card with artwork (with play button overlay) and date.
+renderEpisode :: Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisode showModel episode = do
+  let epUrl = episodeDetailUrl showModel.slug episode.id episode.slug
+      showTitle = showModel.title
+      episodeTitle = episode.title
+      episodeNum = episode.episodeNumber
+      episodeId = episode.id
+      mAudioPath = episode.audioFilePath
+      mArtworkUrl = episode.artworkUrl
+      playerId = [i|episode-#{episodeId}|] :: Text
+      audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) mAudioPath
+      hasAudio = if isJust mAudioPath then "true" else "false" :: Text
+      episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|] :: Text
 
-      Lucid.div_ [Lucid.class_ "flex flex-grow justify-end"] $ do
-        Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
-          case episode.scheduledAt of
-            Just scheduledAt -> do
-              let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
-              Lucid.toHtml dateStr
-            Nothing -> ""
+  -- Container with Alpine.js state for audio player
+  Lucid.div_
+    [ class_ $ base [Tokens.bgWhite],
+      xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata
+    ]
+    $ do
+      -- Hidden audio element
+      Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
 
-    -- Audio player (if audio file path exists)
-    case episode.audioFilePath of
-      Just audioPath -> do
-        let showTitle = showModel.title
-            episodeTitle = episode.title
-            episodeNum = episode.episodeNumber
-            episodeId = episode.id
-            audioUrl :: Text.Text
-            audioUrl = [i|/#{mediaGetUrl}/#{audioPath}|]
-            playerId :: Text.Text
-            playerId = [i|episode-#{episodeId}|]
-            episodeMetadata :: Text.Text
-            episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
-        Lucid.div_
-          [ class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-600", Tokens.p4, Tokens.mb4],
-            xData_
-              [i|{
-              playerId: '#{playerId}',
-              isPlaying: false,
-              audioUrl: '#{audioUrl}',
-              title: '#{episodeMetadata}',
-              currentTime: 0,
-              duration: 0,
-              init() {
-                const audio = this.$refs.audio;
-                audio.addEventListener('loadedmetadata', () => {
-                  this.duration = audio.duration;
-                });
-                audio.addEventListener('timeupdate', () => {
-                  this.currentTime = audio.currentTime;
-                });
-              },
-              toggle() {
-                this.isPlaying ? this.pause() : this.play();
-              },
-              play() {
-                pauseOtherPlayers(this.playerId);
-                const audio = this.$refs.audio;
-                if (!audio.src) audio.src = this.audioUrl;
-                audio.play().then(() => { this.isPlaying = true; });
-              },
-              pause() {
-                const audio = this.$refs.audio;
-                audio.pause();
-                this.isPlaying = false;
-              },
-              formatTime(seconds) {
-                if (!seconds || isNaN(seconds)) return '0:00';
-                const hours = Math.floor(seconds / 3600);
-                const mins = Math.floor((seconds % 3600) / 60);
-                const secs = Math.floor(seconds % 60);
-                if (hours > 0) {
-                  return hours + ':' + (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
-                }
-                return mins + ':' + (secs < 10 ? '0' : '') + secs;
-              },
-              get progress() {
-                if (!this.duration) return 0;
-                return (this.currentTime / this.duration) * 100;
-              }
-            }|]
-          ]
-          $ do
-            Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
-            Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb2]] $ do
-              Lucid.button_
-                [ class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"],
-                  xOnClick_ "toggle()",
-                  xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
-                ]
-                "▶ PLAY"
-              Lucid.div_ [class_ $ base ["flex-grow", "bg-gray-300", "h-2", "rounded", "relative"]] $ do
-                Lucid.div_
-                  [ class_ $ base [Tokens.bgGray800, "h-2", "rounded", "absolute", "top-0", "left-0"],
-                    Lucid.style_ "",
-                    xBindStyle_ "{ width: progress + '%' }"
-                  ]
-                  mempty
-              Lucid.span_ [class_ $ base [Tokens.textSm, "font-mono"], xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
-            Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.textGray600]] $ do
-              "Now Playing"
-      Nothing -> mempty
+      -- Artwork with play button overlay
+      renderArtworkWithPlayer epUrl mArtworkUrl
 
-    -- Track Listing
-    unless (null tracks) $ do
-      Lucid.div_ [Lucid.class_ Tokens.mb6] $ do
-        Lucid.h4_ [class_ $ base [Tokens.fontBold, "mb-3", Tokens.textSm, "uppercase"]] "Track Listing"
-        Lucid.div_ [class_ $ base ["space-y-2", Tokens.textSm]] $ do
-          mapM_ renderTrack (take 4 tracks)
+      -- Episode date
+      renderEpisodeDate episode.scheduledAt
 
-          when (length tracks > 4) $ do
-            Lucid.button_
-              [ class_ $ base [Tokens.textXs, Tokens.textGray600, "hover:text-gray-800", "mt-2"],
-                Lucid.onclick_ "document.getElementById('all-tracks').classList.toggle('hidden')"
-              ]
-              $ "+ Show all " <> Lucid.toHtml (show (length tracks)) <> " tracks"
-            Lucid.div_ [Lucid.id_ "all-tracks", class_ $ base ["hidden", "space-y-2", "mt-2"]] $ do
-              mapM_ renderTrack (drop 4 tracks)
-  where
-    renderTrack :: EpisodeTrack.Model -> Lucid.Html ()
-    renderTrack track = do
-      Lucid.div_ [class_ $ base ["flex", "justify-between", Tokens.p2, "hover:bg-gray-50"]] $ do
-        Lucid.div_ $ do
-          Lucid.span_ [Lucid.class_ "font-medium"] $ "\"" <> Lucid.toHtml track.title <> "\""
-          " - "
-          Lucid.span_ $ Lucid.toHtml track.artist
+--------------------------------------------------------------------------------
+-- Component Functions
 
--- | Render an episode card (for previous episodes list)
-renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
-renderEpisodeCard showModel episode = do
-  Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
-    -- Episode thumbnail
-    Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
-      case episode.artworkUrl of
-        Just artworkUrl -> Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|], Lucid.alt_ "Episode artwork", Lucid.class_ "w-full h-full object-cover"]
+-- | Render artwork with play button overlayed on bottom-left corner.
+renderArtworkWithPlayer :: Links.URI -> Maybe Text -> Lucid.Html ()
+renderArtworkWithPlayer epUrl mArtworkUrl =
+  Lucid.div_ [class_ $ base ["relative", Tokens.mb4]] $ do
+    -- Clickable artwork image
+    Lucid.a_
+      [ Lucid.href_ [i|/#{epUrl}|],
+        hxGet_ [i|/#{epUrl}|],
+        hxTarget_ "#main-content",
+        hxPushUrl_ "true",
+        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "block"]
+      ]
+      $ case mArtworkUrl of
+        Just artworkUrl ->
+          Lucid.img_
+            [ Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|],
+              Lucid.alt_ "Episode artwork",
+              Lucid.class_ "w-full h-full object-cover"
+            ]
         Nothing -> "[EP IMG]"
 
-    -- Episode info
-    Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-      let epUrl = episodesIdGetUrl showModel.slug episode.id episode.slug
-      Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb2]] $ do
-        Lucid.a_
-          [ Lucid.href_ [i|/#{epUrl}|],
-            hxGet_ [i|/#{epUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "hover:underline"
-          ]
-          $ Lucid.toHtml episode.title
+    -- Play button overlay (bottom-left corner)
+    renderPlayButton
 
-      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
-        case episode.scheduledAt of
-          Just scheduledAt -> do
-            let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
-            "Aired: " <> Lucid.toHtml dateStr
-          Nothing -> "Draft"
+-- | Render the play/pause button overlay.
+renderPlayButton :: Lucid.Html ()
+renderPlayButton =
+  Lucid.button_
+    [ xOnClick_ "toggle()",
+      class_ $ base ["absolute", "bottom-2", "left-2", "w-12", "h-12", "bg-black/70", "hover:bg-black/90", Tokens.textWhite, "rounded-full", "flex", "items-center", "justify-center", "transition-colors"]
+    ]
+    $ do
+      -- Play icon (shown when not playing)
+      Lucid.span_ [xShow_ "!isPlaying", Lucid.class_ "text-xl pl-1"] "▶"
+      -- Pause icon (shown when playing)
+      Lucid.span_ [xShow_ "isPlaying", Lucid.class_ "text-xl"] "⏸"
 
-        case episode.durationSeconds of
-          Just duration -> " • Duration: " <> Lucid.toHtml (show (duration `div` 60)) <> "min"
-          Nothing -> mempty
+-- | Render episode date.
+renderEpisodeDate :: Maybe UTCTime -> Lucid.Html ()
+renderEpisodeDate mScheduledAt =
+  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] $
+    case mScheduledAt of
+      Just scheduledAt -> do
+        let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
+        Lucid.toHtml dateStr
+      Nothing -> mempty
 
-      -- Episode description
-      case episode.description of
-        Just desc -> do
-          let truncatedDesc = Text.take 200 desc
-          Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.mb4]] $
-            Lucid.toHtml $
-              truncatedDesc <> if Text.length desc > 200 then "..." else ""
-        Nothing -> mempty
+--------------------------------------------------------------------------------
+-- Alpine.js Script
 
-      -- Audio player (if audio file path exists)
-      case episode.audioFilePath of
-        Just audioPath -> do
-          let showTitle = showModel.title
-              episodeTitle = episode.title
-              episodeNum = episode.episodeNumber
-              episodeId = episode.id
-              audioUrl :: Text.Text
-              audioUrl = [i|/#{mediaGetUrl}/#{audioPath}|]
-              playerId :: Text.Text
-              playerId = [i|episode-#{episodeId}|]
-              episodeMetadata :: Text.Text
-              episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}: #{episodeTitle}|]
-          Lucid.div_
-            [ class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-600", Tokens.p4, Tokens.mb4],
-              xData_
-                [i|{
-                playerId: '#{playerId}',
-                isPlaying: false,
-                audioUrl: '#{audioUrl}',
-                title: '#{episodeMetadata}',
-                currentTime: 0,
-                duration: 0,
-                init() {
-                  const audio = this.$refs.audio;
-                  audio.addEventListener('loadedmetadata', () => {
-                    this.duration = audio.duration;
-                  });
-                  audio.addEventListener('timeupdate', () => {
-                    this.currentTime = audio.currentTime;
-                  });
-                },
-                toggle() {
-                  this.isPlaying ? this.pause() : this.play();
-                },
-                play() {
-                  pauseOtherPlayers(this.playerId);
-                  const audio = this.$refs.audio;
-                  if (!audio.src) audio.src = this.audioUrl;
-                  audio.play().then(() => { this.isPlaying = true; });
-                },
-                pause() {
-                  const audio = this.$refs.audio;
-                  audio.pause();
-                  this.isPlaying = false;
-                },
-                formatTime(seconds) {
-                  if (!seconds || isNaN(seconds)) return '0:00';
-                  const hours = Math.floor(seconds / 3600);
-                  const mins = Math.floor((seconds % 3600) / 60);
-                  const secs = Math.floor(seconds % 60);
-                  if (hours > 0) {
-                    return hours + ':' + (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
-                  }
-                  return mins + ':' + (secs < 10 ? '0' : '') + secs;
-                },
-                get progress() {
-                  if (!this.duration) return 0;
-                  return (this.currentTime / this.duration) * 100;
-                }
-              }|]
-            ]
-            $ do
-              Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
-              Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb2]] $ do
-                Lucid.button_
-                  [ class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"],
-                    xOnClick_ "toggle()",
-                    xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
-                  ]
-                  "▶ PLAY"
-                Lucid.div_ [class_ $ base ["flex-grow", "bg-gray-300", "h-2", "rounded", "relative"]] $ do
-                  Lucid.div_
-                    [ class_ $ base [Tokens.bgGray800, "h-2", "rounded", "absolute", "top-0", "left-0"],
-                      Lucid.style_ "",
-                      xBindStyle_ "{ width: progress + '%' }"
-                    ]
-                    mempty
-                Lucid.span_ [class_ $ base [Tokens.textSm, "font-mono"], xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
-        Nothing -> mempty
+-- | Generate Alpine.js data object for the audio player.
+audioPlayerScript :: Text -> Text -> Text -> Text -> Text
+audioPlayerScript playerId hasAudio audioUrl episodeMetadata =
+  [i|{
+  playerId: '#{playerId}',
+  isPlaying: false,
+  hasAudio: #{hasAudio},
+  audioUrl: '#{audioUrl}',
+  title: '#{episodeMetadata}',
+
+  toggle() {
+    if (!this.hasAudio) return;
+    this.isPlaying ? this.pause() : this.play();
+  },
+
+  play() {
+    if (!this.hasAudio) return;
+    pauseOtherPlayers(this.playerId);
+    const audio = this.$refs.audio;
+    if (!audio.src) audio.src = this.audioUrl;
+    audio.play().then(() => { this.isPlaying = true; });
+  },
+
+  pause() {
+    const audio = this.$refs.audio;
+    audio.pause();
+    this.isPlaying = false;
+  }
+}|]

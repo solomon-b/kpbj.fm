@@ -41,11 +41,11 @@ renderShowHeader showModel hosts schedules = do
         Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{bannerUrl}|], Lucid.alt_ bannerAlt, Lucid.class_ "w-full h-auto object-cover"]
     Nothing -> mempty
 
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
+  Lucid.section_ [class_ $ do { base [Tokens.bgWhite, Tokens.mb8, Tokens.fullWidth]; desktop [Tokens.p8] }] $ do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
-        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-square", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
           case showModel.logoUrl of
             Just logoUrl -> do
               let logoAlt = showModel.title <> " logo"
@@ -57,42 +57,41 @@ renderShowHeader showModel hosts schedules = do
         Lucid.div_ [Lucid.class_ Tokens.mb4] $ do
           Lucid.h1_ [class_ $ base [Tokens.text3xl, Tokens.fontBold, Tokens.mb2]] $ Lucid.toHtml (Text.toUpper showModel.title)
 
-          Lucid.div_ [class_ $ base [Tokens.textLg, Tokens.textGray600, Tokens.mb4]] $ do
-            -- Show host information
-            Lucid.span_ [Lucid.class_ Tokens.fontBold] "Host: "
-            case hosts of
-              [] -> "TBD"
-              (ShowHost.ShowHostWithUser {displayName = dn} : otherHosts) -> do
-                Lucid.toHtml dn
-                unless (null otherHosts) $ do
-                  ", "
-                  let otherNames = map (\(ShowHost.ShowHostWithUser {displayName = n}) -> Lucid.toHtml n) otherHosts
-                  mconcat $ map (", " <>) otherNames
-            " • "
-            -- Show schedule information
-            Lucid.span_ [Lucid.class_ Tokens.fontBold] "Schedule: "
-            case schedules of
-              [] -> "TBD"
-              (ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stStartTime = st, stEndTime = et} : _) -> do
-                case mDow of
-                  Nothing -> "One-time show"
-                  Just dow -> do
-                    let dayName :: Text
-                        dayName = case dow of
-                          Sunday -> "Sunday"
-                          Monday -> "Monday"
-                          Tuesday -> "Tuesday"
-                          Wednesday -> "Wednesday"
-                          Thursday -> "Thursday"
-                          Friday -> "Friday"
-                          Saturday -> "Saturday"
-                    Lucid.toHtml $ dayName <> "s " <> formatTimeOfDay st <> " - " <> formatTimeOfDay et
-            " • "
+          -- Show metadata: vertical on mobile, horizontal on desktop
+          Lucid.div_ [class_ $ do { base ["flex", "flex-col", "gap-1", Tokens.textGray600, Tokens.mb4]; desktop ["flex-row", "items-center", Tokens.gap6, Tokens.textLg] }] $ do
+            -- Host (bolder and bigger on mobile)
+            Lucid.div_ [class_ $ do { base [Tokens.textLg, Tokens.fontBold, Tokens.textGray800]; desktop ["font-normal", Tokens.textGray600] }] $
+              case hosts of
+                [] -> "TBD"
+                (ShowHost.ShowHostWithUser {displayName = dn} : otherHosts) -> do
+                  Lucid.toHtml dn
+                  unless (null otherHosts) $ do
+                    ", "
+                    let otherNames = map (\(ShowHost.ShowHostWithUser {displayName = n}) -> Lucid.toHtml n) otherHosts
+                    mconcat $ map (", " <>) otherNames
+            -- Schedule
+            Lucid.div_ $
+              case schedules of
+                [] -> "TBD"
+                (ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stStartTime = st, stEndTime = et} : _) ->
+                  case mDow of
+                    Nothing -> "One-time show"
+                    Just dow -> do
+                      let dayName :: Text
+                          dayName = case dow of
+                            Sunday -> "Sunday"
+                            Monday -> "Monday"
+                            Tuesday -> "Tuesday"
+                            Wednesday -> "Wednesday"
+                            Thursday -> "Thursday"
+                            Friday -> "Friday"
+                            Saturday -> "Saturday"
+                      Lucid.toHtml $ dayName <> "s " <> formatTimeOfDay st <> " - " <> formatTimeOfDay et
+            -- Genre
             case showModel.genre of
-              Just genre -> Lucid.span_ [Lucid.class_ Tokens.fontBold] "Genre: " <> Lucid.toHtml genre
+              Just genre -> Lucid.div_ $ Lucid.toHtml genre
               Nothing -> mempty
 
         -- Show Description
-        Lucid.div_ [Lucid.class_ Tokens.mb6] $ do
-          Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, "mb-3", "uppercase", "border-b", "border-gray-800", Tokens.pb2]] ""
-          Lucid.p_ [class_ $ base [Tokens.mb4, "leading-relaxed"]] $ Lucid.toHtml showModel.description
+        Lucid.div_ [class_ $ do { base [Tokens.mb6, "pb-4", "border-b", "border-gray-800"]; desktop ["border-b-0", "pb-0"] }] $ do
+          Lucid.p_ [class_ $ base ["leading-relaxed"]] $ Lucid.toHtml showModel.description
