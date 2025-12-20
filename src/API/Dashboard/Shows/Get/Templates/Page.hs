@@ -8,11 +8,11 @@ module API.Dashboard.Shows.Get.Templates.Page where
 
 import API.Links (dashboardShowsLinks)
 import API.Types (DashboardShowsRoutes (..))
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
@@ -33,22 +33,25 @@ template ::
   Lucid.Html ()
 template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   -- Shows table or empty state
-  if null theShowList
-    then renderEmptyState maybeQuery
-    else do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8, Tokens.fullWidth]] $
-        Lucid.table_ [Lucid.class_ Tokens.fullWidth] $ do
-          Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
-            Lucid.tr_ $ do
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Title"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Status"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Hosts"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left"]] "Genre"
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-center", "w-24"]] ""
-          Lucid.tbody_ $
-            mapM_ renderShowRow theShowList
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+    if null theShowList
+      then renderEmptyState maybeQuery
+      else
+        renderTable
+          TableConfig
+            { headers =
+                [ ColumnHeader "Title" AlignLeft,
+                  ColumnHeader "Status" AlignLeft,
+                  ColumnHeader "Hosts" AlignLeft,
+                  ColumnHeader "Genre" AlignLeft,
+                  ColumnHeader "" AlignCenter
+                ],
+              wrapperClass = "overflow-x-auto",
+              tableClass = "w-full"
+            }
+          $ mapM_ renderShowRow theShowList
 
-      renderPagination currentPage hasMore maybeQuery maybeStatusFilter
+  renderPagination currentPage hasMore maybeQuery maybeStatusFilter
 
 renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
 renderShowRow showInfo =
@@ -64,12 +67,9 @@ renderShowRow showInfo =
         Lucid.tr_
           [Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"]
           $ do
-            Lucid.td_ cellLinkAttrs $ do
+            Lucid.td_ cellLinkAttrs $
               Lucid.span_ [Lucid.class_ Tokens.fontBold] $
                 Lucid.toHtml showInfo.swhiTitle
-              Lucid.div_ [class_ $ base [Tokens.textSm, "text-gray-500"]] $
-                Lucid.toHtml $
-                  "/" <> display showInfo.swhiSlug
 
             Lucid.td_ cellLinkAttrs $
               renderStatusBadge showInfo.swhiStatus

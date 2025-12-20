@@ -149,7 +149,7 @@ filtersUI queryFilter statusFilter = do
       -- Submit button
       Lucid.button_
         [ Lucid.type_ "submit",
-          Lucid.class_ "px-3 py-1 text-sm bg-gray-800 text-white font-bold hover:bg-gray-700"
+          Lucid.class_ "px-4 py-2 text-sm bg-gray-800 text-white font-bold hover:bg-gray-700"
         ]
         "Filter"
   where

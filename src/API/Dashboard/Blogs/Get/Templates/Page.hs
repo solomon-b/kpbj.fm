@@ -21,7 +21,7 @@ template = renderBlogSection
 -- | Blog posts table section
 renderBlogSection :: Maybe Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
 renderBlogSection selectedShow blogPosts =
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden"]] $ do
     case blogPosts of
       [] ->
         Lucid.div_ [class_ $ base [Tokens.textGray600, "text-center", Tokens.p8]] $ do

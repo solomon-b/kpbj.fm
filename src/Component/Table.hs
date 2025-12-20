@@ -74,7 +74,7 @@ renderTable config bodyContent =
   where
     renderHeader :: ColumnHeader -> Lucid.Html ()
     renderHeader colHeader =
-      Lucid.th_ [class_ $ base [Tokens.px4, "py-3", alignClass colHeader.headerAlign, Tokens.textSm, Tokens.fontBold]] $
+      Lucid.th_ [class_ $ base [Tokens.p4, alignClass colHeader.headerAlign]] $
         Lucid.toHtml colHeader.headerText
 
     alignClass :: ColumnAlign -> Text
