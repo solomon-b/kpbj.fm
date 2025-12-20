@@ -23,7 +23,7 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (d_, hxGet_, hxPushUrl_, hxTarget_, path_, svg_, viewBox_, xData_, xOnClick_, xRef_, xShow_)
+import Lucid.Extras (d_, hxGet_, hxPushUrl_, hxTarget_, path_, svg_, viewBox_, xData_, xOnClick_, xShow_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -58,14 +58,13 @@ renderEpisodeCard showModel canViewDrafts episode = do
       isDraft = episode.status == Episodes.Draft
 
   -- Container with Alpine.js state for audio player
+  -- Note: Audio playback is delegated to the persistent navbar player,
+  -- so no local audio element is needed here.
   Lucid.div_
     [ class_ $ base [Tokens.bgWhite],
       xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata
     ]
     $ do
-      -- Hidden audio element
-      Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
-
       -- Artwork with play button overlay and optional draft badge
       renderArtworkWithPlayer epUrl mArtworkUrl (canViewDrafts && isDraft)
 
@@ -137,31 +136,31 @@ renderEpisodeDate mScheduledAt =
 -- Alpine.js Script
 
 -- | Generate Alpine.js data object for the audio player.
+--
+-- Instead of playing audio locally, delegates playback to the persistent
+-- navbar player. This allows audio to continue playing across page navigation.
 audioPlayerScript :: Text -> Text -> Text -> Text -> Text
 audioPlayerScript playerId hasAudio audioUrl episodeMetadata =
   [i|{
   playerId: '#{playerId}',
-  isPlaying: false,
   hasAudio: #{hasAudio},
   audioUrl: '#{audioUrl}',
   title: '#{episodeMetadata}',
 
+  // Check if navbar player is currently playing this episode
+  get isPlaying() {
+    return isNavbarPlayingEpisode(this.audioUrl);
+  },
+
   toggle() {
     if (!this.hasAudio) return;
-    this.isPlaying ? this.pause() : this.play();
+    // Delegate playback to the navbar player
+    toggleEpisodeInNavbar(this.audioUrl, this.title);
   },
 
-  play() {
-    if (!this.hasAudio) return;
-    pauseOtherPlayers(this.playerId);
-    const audio = this.$refs.audio;
-    if (!audio.src) audio.src = this.audioUrl;
-    audio.play().then(() => { this.isPlaying = true; });
-  },
-
+  // Keep pause() method for global coordination (pauseOtherPlayers may call this)
   pause() {
-    const audio = this.$refs.audio;
-    audio.pause();
-    this.isPlaying = false;
+    // No-op since we're not playing locally, but update local state
+    // The navbar player handles actual pausing
   }
 }|]
