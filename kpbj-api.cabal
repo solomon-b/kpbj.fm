@@ -295,6 +295,7 @@ library
     API.User.Register.Post.Route
     App.Common
     Component.ActionsDropdown
+    Component.AudioPlayer.Waveform
     Component.Banner
     Component.Card.BlogPost
     Component.Card.Episode
