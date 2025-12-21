@@ -104,12 +104,13 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
                     -- Determine final avatar URL (use new upload or keep existing)
                     let finalAvatarUrl = maybeAvatarPath <|> currentMetadata.mAvatarUrl
 
-                    -- Update metadata fields
+                    -- Update metadata fields (color scheme is not editable by admins, users set it themselves)
                     let metadataUpdate =
                           UserMetadata.Update
                             { UserMetadata.uDisplayName = Just newDisplayName,
                               UserMetadata.uFullName = Just newFullName,
-                              UserMetadata.uAvatarUrl = Just finalAvatarUrl
+                              UserMetadata.uAvatarUrl = Just finalAvatarUrl,
+                              UserMetadata.uColorScheme = Nothing
                             }
                     _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
 

@@ -17,6 +17,9 @@ import Test.Gen.Text (genUrl)
 genUserRole :: (MonadGen m) => m UserMetadata.UserRole
 genUserRole = Gen.enumBounded
 
+genColorScheme :: (MonadGen m) => m UserMetadata.ColorScheme
+genColorScheme = Gen.enumBounded
+
 userMetadataInsertGen :: (MonadIO m, MonadGen m) => User.Id -> m UserMetadata.Insert
 userMetadataInsertGen userId = do
   let iUserId = userId
@@ -24,6 +27,7 @@ userMetadataInsertGen userId = do
   iFullName <- genFullName
   iAvatarUrl <- Gen.maybe genUrl
   iUserRole <- genUserRole
+  iColorScheme <- genColorScheme
   pure UserMetadata.Insert {..}
 
 userWithMetadataInsertGen :: (MonadIO m, MonadGen m) => m UserMetadata.UserWithMetadataInsert
@@ -34,4 +38,5 @@ userWithMetadataInsertGen = do
   uwmiFullName <- genFullName
   uwmiAvatarUrl <- Gen.maybe genUrl
   uwmiUserRole <- genUserRole
+  uwmiColorScheme <- genColorScheme
   pure UserMetadata.UserWithMetadataInsert {..}

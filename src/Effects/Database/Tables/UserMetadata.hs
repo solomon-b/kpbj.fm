@@ -20,6 +20,9 @@ module Effects.Database.Tables.UserMetadata
     SuspensionStatus (..),
     isSuspended,
 
+    -- * Color Scheme
+    ColorScheme (..),
+
     -- * Id Type
     Id (..),
 
@@ -67,7 +70,7 @@ import Control.Monad (join)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
 import Data.Int (Int64)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Password.Argon2 (Argon2, PasswordHash)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -212,6 +215,39 @@ instance EncodeValue SuspensionStatus where
     NotSuspended -> "NotSuspended"
 
 --------------------------------------------------------------------------------
+-- Color Scheme
+
+-- | User's preferred color scheme for the UI
+data ColorScheme = Automatic | LightMode | DarkMode
+  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
+  deriving anyclass (FromJSON, ToJSON)
+  deriving (DBType) via (Rel8.Enum ColorScheme)
+
+-- | DBEnum instance for ColorScheme to map to PostgreSQL color_scheme enum type
+instance Rel8.DBEnum ColorScheme where
+  enumTypeName = Rel8.QualifiedName {Rel8.name = "color_scheme", Rel8.schema = Nothing}
+
+instance DBEq ColorScheme
+
+instance Display ColorScheme where
+  displayBuilder Automatic = "Automatic"
+  displayBuilder LightMode = "LightMode"
+  displayBuilder DarkMode = "DarkMode"
+
+instance DecodeValue ColorScheme where
+  decodeValue = Decoders.enum $ \case
+    "Automatic" -> Just Automatic
+    "LightMode" -> Just LightMode
+    "DarkMode" -> Just DarkMode
+    _ -> Nothing
+
+instance EncodeValue ColorScheme where
+  encodeValue = Encoders.enum $ \case
+    Automatic -> "Automatic"
+    LightMode -> "LightMode"
+    DarkMode -> "DarkMode"
+
+--------------------------------------------------------------------------------
 -- Id Type
 
 -- | Newtype wrapper for user_metadata primary keys.
@@ -245,6 +281,7 @@ data UserMetadata f = UserMetadata
     umFullName :: Column f FullName,
     umAvatarUrl :: Column f (Maybe Text),
     umUserRole :: Column f UserRole,
+    umColorScheme :: Column f ColorScheme,
     umCreatedAt :: Column f UTCTime,
     umUpdatedAt :: Column f UTCTime
   }
@@ -282,6 +319,7 @@ userMetadataSchema =
             umFullName = "full_name",
             umAvatarUrl = "avatar_url",
             umUserRole = "user_role",
+            umColorScheme = "color_scheme",
             umCreatedAt = "created_at",
             umUpdatedAt = "updated_at"
           }
@@ -301,6 +339,7 @@ data Model = Model
     mFullName :: FullName,
     mAvatarUrl :: Maybe Text,
     mUserRole :: UserRole,
+    mColorScheme :: ColorScheme,
     mSuspensionStatus :: SuspensionStatus
   }
   deriving stock (Generic, Show, Eq)
@@ -320,7 +359,8 @@ data Insert = Insert
     iDisplayName :: DisplayName,
     iFullName :: FullName,
     iAvatarUrl :: Maybe Text,
-    iUserRole :: UserRole
+    iUserRole :: UserRole,
+    iColorScheme :: ColorScheme
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Insert)
@@ -332,7 +372,8 @@ data Insert = Insert
 data Update = Update
   { uDisplayName :: Maybe DisplayName,
     uFullName :: Maybe FullName,
-    uAvatarUrl :: Maybe (Maybe Text)
+    uAvatarUrl :: Maybe (Maybe Text),
+    uColorScheme :: Maybe ColorScheme
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Update)
@@ -366,7 +407,8 @@ data UserWithMetadataInsert = UserWithMetadataInsert
     uwmiDisplayName :: DisplayName,
     uwmiFullName :: FullName,
     uwmiAvatarUrl :: Maybe Text,
-    uwmiUserRole :: UserRole
+    uwmiUserRole :: UserRole,
+    uwmiColorScheme :: ColorScheme
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance UserWithMetadataInsert)
@@ -385,7 +427,7 @@ getUserMetadata userId =
   interp
     False
     [sql|
-    SELECT um.id, um.user_id, um.display_name, um.full_name, um.avatar_url, um.user_role, u.suspension_status
+    SELECT um.id, um.user_id, um.display_name, um.full_name, um.avatar_url, um.user_role, um.color_scheme, u.suspension_status
     FROM user_metadata um
     INNER JOIN users u ON um.user_id = u.id
     WHERE um.user_id = #{userId}
@@ -409,6 +451,7 @@ insertUserMetadata Insert {..} =
                       umFullName = lit iFullName,
                       umAvatarUrl = lit iAvatarUrl,
                       umUserRole = lit iUserRole,
+                      umColorScheme = lit iColorScheme,
                       umCreatedAt = now,
                       umUpdatedAt = now
                     }
@@ -432,8 +475,8 @@ insertUserWithMetadata UserWithMetadataInsert {..} =
       RETURNING id
     )
     , new_metadata AS (
-      INSERT INTO user_metadata(user_id, display_name, full_name, avatar_url, user_role, created_at, updated_at)
-      SELECT id, #{uwmiDisplayName}, #{uwmiFullName}, #{uwmiAvatarUrl}, #{uwmiUserRole}, NOW(), NOW()
+      INSERT INTO user_metadata(user_id, display_name, full_name, avatar_url, user_role, color_scheme, created_at, updated_at)
+      SELECT id, #{uwmiDisplayName}, #{uwmiFullName}, #{uwmiAvatarUrl}, #{uwmiUserRole}, #{uwmiColorScheme}::color_scheme, NOW(), NOW()
       FROM new_user
       RETURNING user_id
     )
@@ -720,6 +763,10 @@ updateUserMetadata metadataId Update {..} =
           WHEN #{hasAvatarUpdate} THEN #{avatarValue}
           ELSE avatar_url
         END,
+        color_scheme = CASE
+          WHEN #{hasColorSchemeUpdate} THEN #{colorSchemeValue}::color_scheme
+          ELSE color_scheme
+        END,
         updated_at = NOW()
       WHERE id = #{metadataId}
       RETURNING id
@@ -729,6 +776,12 @@ updateUserMetadata metadataId Update {..} =
       Nothing -> False
       Just _ -> True
     avatarValue = join uAvatarUrl
+    hasColorSchemeUpdate = case uColorScheme of
+      Nothing -> False
+      Just _ -> True
+    -- When hasColorSchemeUpdate is True, uColorScheme is guaranteed to be Just
+    -- We use a default that won't be used due to the CASE WHEN guard
+    colorSchemeValue = fromMaybe Automatic uColorScheme
 
 -- | Count total active users (excluding soft-deleted users)
 --

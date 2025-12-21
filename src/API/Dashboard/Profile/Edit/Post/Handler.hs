@@ -76,7 +76,7 @@ handler _tracer cookie (foldHxReq -> hxRequest) multipartData = do
       case extractFormFields formInputs of
         Left errorMsg ->
           pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" errorMsg)
-        Right (newDisplayName, newFullName) -> do
+        Right (newDisplayName, newFullName, newColorScheme) -> do
           -- Handle avatar upload if provided
           avatarUploadResult <- case lookupFile "avatar" multipartData of
             Left _ -> pure (Right Nothing)
@@ -107,15 +107,16 @@ handler _tracer cookie (foldHxReq -> hxRequest) multipartData = do
                           UserMetadata.Update
                             { UserMetadata.uDisplayName = Just newDisplayName,
                               UserMetadata.uFullName = Just newFullName,
-                              UserMetadata.uAvatarUrl = Just finalAvatarUrl
+                              UserMetadata.uAvatarUrl = Just finalAvatarUrl,
+                              UserMetadata.uColorScheme = Just newColorScheme
                             }
                     _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
 
                     pure $ Just ()
 
               case updateResult of
-                Left _err -> do
-                  Log.logInfo "Failed to update profile" ()
+                Left err -> do
+                  Log.logInfo "Failed to update profile" (show err)
                   pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" "Failed to update profile. Please try again.")
                 Right Nothing ->
                   pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" "User metadata not found.")
@@ -145,7 +146,7 @@ handler _tracer cookie (foldHxReq -> hxRequest) multipartData = do
                       html <- renderDashboardTemplate hxRequest updatedMetadata allShows selectedShow NavSettings Nothing Nothing pageContent
                       pure $ Servant.addHeader [i|/#{editUrl}|] html
 
-extractFormFields :: [Input] -> Either Text (DisplayName, FullName)
+extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.ColorScheme)
 extractFormFields formInputs = do
   -- Convert Input to (Text, Text) for lookup
   let inputPairs = [(iName input, iValue input) | input <- formInputs]
@@ -153,6 +154,7 @@ extractFormFields formInputs = do
   -- Extract text fields
   displayNameText <- maybe (Left "Missing display_name") Right $ lookup "display_name" inputPairs
   fullNameText <- maybe (Left "Missing full_name") Right $ lookup "full_name" inputPairs
+  colorSchemeText <- maybe (Left "Missing color_scheme") Right $ lookup "color_scheme" inputPairs
 
   -- Parse display name
   displayName <- case DisplayName.mkDisplayName displayNameText of
@@ -164,4 +166,11 @@ extractFormFields formInputs = do
     Nothing -> Left "Invalid full name"
     Just fn -> Right fn
 
-  pure (displayName, fullName)
+  -- Parse color scheme
+  colorScheme <- case colorSchemeText of
+    "Automatic" -> Right UserMetadata.Automatic
+    "LightMode" -> Right UserMetadata.LightMode
+    "DarkMode" -> Right UserMetadata.DarkMode
+    _ -> Left "Invalid color scheme"
+
+  pure (displayName, fullName, colorScheme)
