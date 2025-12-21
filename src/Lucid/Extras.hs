@@ -80,6 +80,9 @@ xHtml_ = Lucid.makeAttributes "x-html"
 xShow_ :: Text -> Lucid.Attributes
 xShow_ = Lucid.makeAttributes "x-show"
 
+xIf_ :: Text -> Lucid.Attributes
+xIf_ = Lucid.makeAttributes "x-if"
+
 xText_ :: Text -> Lucid.Attributes
 xText_ = Lucid.makeAttributes "x-text"
 
