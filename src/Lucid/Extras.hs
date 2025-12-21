@@ -68,6 +68,9 @@ xBindDisabled_ = Lucid.makeAttributes "x-bind:disabled"
 xBindStyle_ :: Text -> Lucid.Attributes
 xBindStyle_ = Lucid.makeAttributes "x-bind:style"
 
+xBindSrc_ :: Text -> Lucid.Attributes
+xBindSrc_ = Lucid.makeAttributes "x-bind:src"
+
 xRef_ :: Text -> Lucid.Attributes
 xRef_ = Lucid.makeAttributes "x-ref"
 

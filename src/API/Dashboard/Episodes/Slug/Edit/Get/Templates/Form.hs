@@ -9,7 +9,7 @@ where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts (scripts)
-import API.Links (dashboardLinks, showEpisodesLinks)
+import API.Links (apiLinks, dashboardLinks, showEpisodesLinks)
 import API.Types
 import Component.Form qualified as Form
 import Component.Form.Builder qualified as Builder
@@ -37,6 +37,9 @@ hostDashboardGetUrl = Links.linkURI dashboardLinks.home
 
 episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
+
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 
@@ -123,7 +126,7 @@ template currentTime showModel episode tracks userMeta isStaff = do
                                 Builder.vffValidation = Builder.emptyValidation, -- Optional
                                 Builder.vffButtonText = "CHOOSE IMAGE",
                                 Builder.vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
-                                Builder.vffCurrentValue = episode.artworkUrl
+                                Builder.vffCurrentValue = fmap (\url -> [i|/#{mediaGetUrl}/#{url}|]) episode.artworkUrl
                               }
                           ]
                       }
