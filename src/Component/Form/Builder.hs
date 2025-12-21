@@ -36,7 +36,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Lucid qualified
 import Lucid.Base (makeAttributes)
-import Lucid.Extras (hxPost_, hxSwap_, hxTarget_, xBindClass_, xData_, xModel_, xOnChange_, xOnSubmit_, xShow_, xText_)
+import Lucid.Extras (hxPost_, hxSwap_, hxTarget_, xBindClass_, xBindSrc_, xData_, xModel_, xOnChange_, xOnClick_, xOnSubmit_, xShow_, xText_)
 
 --------------------------------------------------------------------------------
 
@@ -354,8 +354,12 @@ generateFieldInit (ValidatedTextField {vfName = name, vfInitialValue = val}) =
 generateFieldInit (ValidatedTextareaField {vtName = name, vtInitialValue = val}) =
   let v = escapeJsString (fromMaybe "" val)
    in [i|#{name}: { value: `#{v}`, isValid: true }|]
-generateFieldInit (ValidatedFileField {vffName = name}) =
-  [i|#{name}: { fileName: '', fileSize: 0, isValid: true, error: '' }|]
+generateFieldInit (ValidatedFileField {vffName = name, vffCurrentValue = currentValue}) =
+  let hasCurrentFile :: Text
+      hasCurrentFile = case currentValue of
+        Just _ -> "false"
+        Nothing -> "true" -- No current file, so effectively already "cleared"
+   in [i|#{name}: { fileName: '', fileSize: 0, isValid: true, error: '', previewUrl: '', currentCleared: #{hasCurrentFile} }|]
 generateFieldInit (ValidatedDateTimeField {vdtName = name, vdtInitialValue = val}) =
   let v = escapeJsString (fromMaybe "" val)
    in [i|#{name}: { value: `#{v}`, isValid: true }|]
@@ -416,7 +420,7 @@ generateValidator (ValidatedFileField {vffName = name, vffMaxSizeMB = maxSize, v
     const acceptedTypes = '#{acceptTypes}'.split(',').map(t => t.trim());
     const fileType = file.type;
     const isAccepted = acceptedTypes.some(type => {
-      if (type.endsWith('/*')) {
+      if (type.endsWith('/' + '*')) {
         const prefix = type.slice(0, -2);
         return fileType.startsWith(prefix + '/');
       }
@@ -436,13 +440,40 @@ generateValidator (ValidatedFileField {vffName = name, vffMaxSizeMB = maxSize, v
 
   handle#{capitalizedName}Change(event) {
     const file = event.target.files?.[0];
+    // Revoke old preview URL to prevent memory leaks
+    if (this.fields.#{name}.previewUrl) {
+      URL.revokeObjectURL(this.fields.#{name}.previewUrl);
+      this.fields.#{name}.previewUrl = '';
+    }
     if (file) {
       this.fields.#{name}.fileName = file.name;
       this.fields.#{name}.fileSize = file.size;
+      // Create preview URL for image files
+      if (file.type.startsWith('image/')) {
+        this.fields.#{name}.previewUrl = URL.createObjectURL(file);
+      }
     } else {
       this.fields.#{name}.fileName = '';
       this.fields.#{name}.fileSize = 0;
     }
+    if (this.showErrors) {
+      this.validate#{capitalizedName}();
+    }
+  },
+
+  clear#{capitalizedName}() {
+    const input = document.getElementById('#{name}-input');
+    if (input) {
+      input.value = '';
+    }
+    // Revoke preview URL to prevent memory leaks
+    if (this.fields.#{name}.previewUrl) {
+      URL.revokeObjectURL(this.fields.#{name}.previewUrl);
+    }
+    this.fields.#{name}.fileName = '';
+    this.fields.#{name}.fileSize = 0;
+    this.fields.#{name}.previewUrl = '';
+    this.fields.#{name}.currentCleared = true;
     if (this.showErrors) {
       this.validate#{capitalizedName}();
     }
@@ -622,14 +653,33 @@ renderField styles (ValidatedFileField {vffName = name, vffLabel = label, vffAcc
     Lucid.label_
       [Lucid.for_ [i|#{name}-input|], Lucid.class_ (fsLabelClasses styles)]
       (Lucid.toHtml $ if vrRequired rules then label <> " *" else label)
-    -- Show current file if one exists
+    -- Show current file if one exists (hidden when cleared via Alpine.js)
     case currentValue of
       Nothing -> mempty
       Just currentFile ->
-        Lucid.div_ [Lucid.class_ "mb-2 p-2 bg-gray-100 border border-gray-300 text-sm"] $ do
-          Lucid.span_ [Lucid.class_ "font-bold text-gray-700"] "Current: "
-          Lucid.a_ [Lucid.href_ currentFile, Lucid.target_ "_blank", Lucid.class_ "text-blue-600 hover:underline"] $
-            Lucid.toHtml currentFile
+        Lucid.div_ [xShow_ [i|!fields.#{name}.currentCleared|], Lucid.class_ "mb-3 p-3 bg-gray-100 border border-gray-300"] $ do
+          Lucid.div_ [Lucid.class_ "text-sm mb-2 flex items-center justify-between"] $ do
+            Lucid.div_ $ do
+              Lucid.span_ [Lucid.class_ "font-bold text-gray-700"] "Current: "
+              Lucid.a_ [Lucid.href_ currentFile, Lucid.target_ "_blank", Lucid.class_ "text-blue-600 hover:underline"] $
+                Lucid.toHtml currentFile
+            Lucid.button_
+              [ Lucid.type_ "button",
+                xOnClick_ [i|fields.#{name}.currentCleared = true|],
+                Lucid.class_ "px-2 py-0.5 text-xs bg-gray-200 hover:bg-gray-300 border border-gray-400 text-gray-700 font-normal"
+              ]
+              "Clear"
+          -- Show image preview for current image files (hides on load error for non-images)
+          case accept of
+            Just a
+              | "image" `Text.isInfixOf` a ->
+                  Lucid.img_
+                    [ Lucid.src_ currentFile,
+                      Lucid.class_ "max-w-xs max-h-32 border border-gray-400 object-contain mt-2",
+                      Lucid.alt_ "Current image",
+                      makeAttributes "onerror" "this.style.display='none'"
+                    ]
+            _ -> mempty
     Lucid.div_
       [ xBindClass_ [i|showErrors && !fields.#{name}.isValid ? '#{fsFileUploadErrorClasses styles}' : '#{fsFileUploadClasses styles}'|]
       ]
@@ -652,12 +702,31 @@ renderField styles (ValidatedFileField {vffName = name, vffLabel = label, vffAcc
           case hint of
             Nothing -> mempty
             Just h -> Lucid.div_ [Lucid.class_ "mt-2 text-sm text-gray-600"] (Lucid.toHtml h)
-          Lucid.div_ [xShow_ [i|fields.#{name}.fileName|], Lucid.class_ "mt-2 text-sm font-bold text-gray-800"] $ do
+          Lucid.div_ [xShow_ [i|fields.#{name}.fileName|], Lucid.class_ "mt-2 text-sm font-bold text-gray-800 flex items-center gap-2 flex-wrap", Lucid.style_ "display: none;"] $ do
             Lucid.span_ [xText_ [i|fields.#{name}.fileName|]] ""
-            Lucid.span_ [Lucid.class_ "text-gray-600 ml-2"] $ do
+            Lucid.span_ [Lucid.class_ "text-gray-600"] $ do
               "("
               Lucid.span_ [xText_ [i|formatFileSize(fields.#{name}.fileSize)|]] ""
               ")"
+            Lucid.button_
+              [ Lucid.type_ "button",
+                xOnClick_ [i|clear#{capitalizeFirst name}()|],
+                Lucid.class_ "ml-2 px-2 py-0.5 text-xs bg-gray-200 hover:bg-gray-300 border border-gray-400 text-gray-700 font-normal"
+              ]
+              "Clear"
+    -- Image preview for newly selected files
+    Lucid.div_
+      [ xShow_ [i|fields.#{name}.previewUrl|],
+        Lucid.class_ "mt-4",
+        Lucid.style_ "display: none;"
+      ]
+      $ do
+        Lucid.p_ [Lucid.class_ "text-sm font-bold text-gray-700 mb-2"] "Preview:"
+        Lucid.img_
+          [ xBindSrc_ [i|fields.#{name}.previewUrl|],
+            Lucid.class_ "max-w-xs max-h-48 border-2 border-gray-400 object-contain",
+            Lucid.alt_ "Image preview"
+          ]
     Lucid.div_
       [ xShow_ [i|!fields.#{name}.isValid && showErrors|],
         Lucid.class_ (fsErrorMessageClasses styles),

@@ -128,7 +128,7 @@ getPostsWithTags limit offset =
     forM posts $ \post -> do
       tags <- HT.statement () $ BlogPosts.getTagsForPost post.bpmId
       mAuthor <- HT.statement () $ UserMetadata.getUserMetadata post.bpmAuthorId
-      let author = maybe defaultAuthor id mAuthor
+      let author = fromMaybe defaultAuthor mAuthor
       pure (post, author, tags)
 
 getPostsWithTagsFiltered ::
@@ -148,7 +148,7 @@ getPostsWithTagsFiltered tag limit offset =
     forM posts $ \post -> do
       tags <- HT.statement () $ BlogPosts.getTagsForPost post.bpmId
       mAuthor <- HT.statement () $ UserMetadata.getUserMetadata post.bpmAuthorId
-      let author = maybe defaultAuthor id mAuthor
+      let author = fromMaybe defaultAuthor mAuthor
       pure (post, author, tags)
 
 -- | Default author for posts with missing author metadata
