@@ -61,7 +61,8 @@ template currentTime showModel episode tracks userMeta isStaff = do
       episodeNumText = display episodeNum
       episodeBackUrl = episodeDetailUrl showModel.slug episodeNum
       descriptionValue = fromMaybe "" episode.description
-      allowFileUpload = isScheduledInFuture currentTime episode
+      -- File uploads allowed if scheduled date is in the future OR user is staff/admin
+      allowFileUpload = isScheduledInFuture currentTime episode || isStaff
       -- Status can be changed if the scheduled date is in the future OR user is staff/admin
       canChangeStatus = allowFileUpload || isStaff
 

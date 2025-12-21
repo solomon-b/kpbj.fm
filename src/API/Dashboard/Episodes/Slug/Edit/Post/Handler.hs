@@ -259,8 +259,8 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                   Log.logInfo "Episode update returned Nothing" episode.id
                   renderFormWithError hxRequest userMetadata episode showModel "Update Failed" "Failed to update episode. Please try again."
                 Right (Just _updatedId) -> do
-                  -- Check if file uploads are allowed (scheduled date is in the future)
-                  let allowFileUpload = isScheduledInFuture currentTime episode
+                  -- Check if file uploads are allowed (scheduled date is in the future OR user is staff/admin)
+                  let allowFileUpload = isScheduledInFuture currentTime episode || isStaffOrAdmin
 
                   -- Process file uploads if allowed and provided
                   fileUpdateResult <-
