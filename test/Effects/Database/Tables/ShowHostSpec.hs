@@ -53,6 +53,7 @@ prop_createShowHostRelationship cfg = do
                 userWithMetadata.uwmiFullName
                 userWithMetadata.uwmiAvatarUrl
                 userWithMetadata.uwmiUserRole
+                userWithMetadata.uwmiColorScheme
 
         -- Create show
         showId <- TRX.statement () $ Shows.insertShow showInsert
@@ -97,6 +98,7 @@ prop_getHostsForShow cfg = do
                 userWithMetadata.uwmiFullName
                 userWithMetadata.uwmiAvatarUrl
                 userWithMetadata.uwmiUserRole
+                userWithMetadata.uwmiColorScheme
 
         -- Create show
         showId <- TRX.statement () $ Shows.insertShow showInsert

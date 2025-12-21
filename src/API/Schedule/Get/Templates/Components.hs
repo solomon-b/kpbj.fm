@@ -470,10 +470,11 @@ calculateDurationMinutes (TimeOfDay startH startM _) (TimeOfDay endH endM _) =
   let startMins = startH * 60 + startM
       endMins = endH * 60 + endM
       -- Handle overnight shows (e.g., 11PM to 1AM)
-      duration = if endMins <= startMins
-                 then (24 * 60 - startMins) + endMins
-                 else endMins - startMins
-  in duration
+      duration =
+        if endMins <= startMins
+          then (24 * 60 - startMins) + endMins
+          else endMins - startMins
+   in duration
 
 mobileShowRowStyles :: Attributes
 mobileShowRowStyles = class_ $ do

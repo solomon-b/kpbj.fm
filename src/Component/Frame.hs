@@ -71,23 +71,23 @@ desktopMusicPlayer =
     $ do
       Lucid.div_ [class_ $ base ["inline-flex", "items-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
         Lucid.button_
-          [ Lucid.class_ "hover:text-gray-600 cursor-pointer bg-transparent border-none",
+          [ Lucid.class_ "hover:text-gray-600 dark:hover:text-gray-400 cursor-pointer bg-transparent border-none",
             xOnClick_ "toggle()",
             xText_ "isPlaying ? '[ PAUSE ]' : '[ PLAY ]'"
           ]
           "[ PLAY ]"
-        Lucid.span_ [Lucid.class_ "text-gray-500"] "|"
+        Lucid.span_ [Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
         -- Now playing info
         Lucid.div_ [xText_ "currentShow || 'NOW PLAYING: KPBJ 95.9 FM'"] "NOW PLAYING: KPBJ 95.9 FM"
         -- Back to Live button (only visible when in episode mode)
-        Lucid.span_ [xShow_ "mode === 'episode'", Lucid.class_ "text-gray-500"] "|"
+        Lucid.span_ [xShow_ "mode === 'episode'", Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
         Lucid.button_
           [ xShow_ "mode === 'episode'",
             xOnClick_ "playStream()",
-            Lucid.class_ "hover:text-gray-600 text-xs uppercase cursor-pointer bg-transparent border-none"
+            Lucid.class_ "hover:text-gray-600 dark:hover:text-gray-400 text-xs uppercase cursor-pointer bg-transparent border-none"
           ]
           "[ BACK TO LIVE ]"
-        Lucid.span_ [Lucid.class_ "text-gray-500"] "|"
+        Lucid.span_ [Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
         Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
           Lucid.span_ "VOL:"
           Lucid.input_
@@ -412,6 +412,45 @@ playerScript =
     }
   |]
 
+-- | Dark mode script that applies theme based on user's color scheme setting
+-- ColorScheme values: "Automatic" (follow system), "LightMode", "DarkMode"
+darkModeScript :: Maybe UserMetadata.ColorScheme -> Text
+darkModeScript mColorScheme =
+  let colorSchemeJs = case mColorScheme of
+        Nothing -> "Automatic" :: Text
+        Just UserMetadata.Automatic -> "Automatic"
+        Just UserMetadata.LightMode -> "LightMode"
+        Just UserMetadata.DarkMode -> "DarkMode"
+   in [i|
+    (function() {
+      const colorScheme = '#{colorSchemeJs}';
+
+      function applyTheme() {
+        if (colorScheme === 'DarkMode') {
+          document.documentElement.classList.add('dark');
+        } else if (colorScheme === 'LightMode') {
+          document.documentElement.classList.remove('dark');
+        } else {
+          // Automatic - follow system preference
+          if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        }
+      }
+
+      // Apply theme immediately
+      applyTheme();
+
+      // Listen for system preference changes (only matters for Automatic mode)
+      if (colorScheme === 'Automatic') {
+        window.matchMedia('(prefers-color-scheme: dark)')
+          .addEventListener('change', applyTheme);
+      }
+    })();
+  |]
+
 -- | CSS for marquee scrolling text animation (only scrolls when text overflows)
 marqueeStyles :: Text
 marqueeStyles =
@@ -498,22 +537,22 @@ bannerFromUrlScript =
 
 authWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
 authWidget mUser =
-  Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.textGray600]] $ do
+  Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.textGray600, "dark:text-gray-400"]] $ do
     case mUser of
       Nothing -> do
-        Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Login"
-        Lucid.a_ [Lucid.href_ [i|/#{userRegisterGetUrl}|], hxGet_ [i|/#{userRegisterGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800"] "Sign Up"
+        Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200"] "Login"
+        Lucid.a_ [Lucid.href_ [i|/#{userRegisterGetUrl}|], hxGet_ [i|/#{userRegisterGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200"] "Sign Up"
       Just user -> do
-        Lucid.span_ [Lucid.class_ "text-gray-400"] "•"
-        Lucid.span_ [class_ $ base [Tokens.textGray800, Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
+        Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500"] "•"
+        Lucid.span_ [class_ $ base [Tokens.textGray800, "dark:text-gray-200", Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
         -- Dashboard uses a completely different frame layout (sidebar navigation),
         -- so we do a full page navigation instead of HTMX content swap
-        Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], class_ $ base [Tokens.linkText, Tokens.fontBold]] "Dashboard"
-        Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
+        Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], class_ $ base [Tokens.linkText, "dark:text-blue-400", Tokens.fontBold]] "Dashboard"
+        Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
 
 logo :: Lucid.Html ()
 logo =
-  Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", class_ $ base [Tokens.textLg, Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "block", "hover:text-gray-600"]] $ do
+  Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", class_ $ base [Tokens.textLg, Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "block", "hover:text-gray-600", "dark:hover:text-gray-400"]] $ do
     Lucid.pre_ [Lucid.style_ "margin: 0;"] $ do
       "▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.\n"
       "█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪\n"
@@ -530,7 +569,7 @@ miniLogo =
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
       xOnClick_ "menuOpen = false",
-      class_ $ base [Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "hover:text-gray-600"]
+      class_ $ base [Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "hover:text-gray-600", "dark:hover:text-gray-400"]
     ]
     $ do
       Lucid.pre_ [Lucid.style_ "margin: 0; font-size: 0.5rem;"] $ do
@@ -549,14 +588,14 @@ mobileHeader :: Maybe UserMetadata.Model -> Lucid.Html ()
 mobileHeader _mUser =
   Lucid.div_
     [ class_ $ do
-        base ["flex", "items-center", Tokens.fullWidth, Tokens.px4, "py-3", Tokens.bgWhite]
+        base ["flex", "items-center", Tokens.fullWidth, Tokens.px4, "py-3", Tokens.bgWhite, "dark:bg-gray-800"]
         tablet ["hidden"]
     ]
     $ do
       -- Hamburger button
       Lucid.button_
         [ xOnClick_ "menuOpen = !menuOpen",
-          class_ $ base [Tokens.p2, "hover:bg-gray-100", Tokens.fontBold, Tokens.textLg]
+          class_ $ base [Tokens.p2, "hover:bg-gray-100", "dark:hover:bg-gray-700", Tokens.fontBold, Tokens.textLg]
         ]
         "☰"
       -- Centered logo (flex-1 pushes it to center)
@@ -574,13 +613,13 @@ mobileAuthWidget mUser =
           hxGet_ [i|/#{userLoginGetUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base [Tokens.px3, Tokens.py2, Tokens.cardBorder, Tokens.fontBold, Tokens.textSm, "hover:bg-gray-100"]
+          class_ $ base [Tokens.px3, Tokens.py2, Tokens.cardBorder, "dark:border-gray-600", Tokens.fontBold, Tokens.textSm, "hover:bg-gray-100", "dark:hover:bg-gray-700"]
         ]
         "Log in"
     Just _user ->
       Lucid.a_
         [ Lucid.href_ [i|/#{dashboardGetUrl}|],
-          class_ $ base [Tokens.px3, Tokens.py2, Tokens.cardBorder, Tokens.fontBold, Tokens.textSm, "hover:bg-gray-100"]
+          class_ $ base [Tokens.px3, Tokens.py2, Tokens.cardBorder, "dark:border-gray-600", Tokens.fontBold, Tokens.textSm, "hover:bg-gray-100", "dark:hover:bg-gray-700"]
         ]
         "Dashboard"
 
@@ -592,14 +631,14 @@ mobileMenuOverlay mUser =
     [ xShow_ "menuOpen",
       xOnClickOutside_ "menuOpen = false",
       xTransition_,
-      class_ $ base ["fixed", "inset-0", "z-50", Tokens.bgWhite, "flex", "flex-col", Tokens.p6]
+      class_ $ base ["fixed", "inset-0", "z-50", Tokens.bgWhite, "dark:bg-gray-900", "flex", "flex-col", Tokens.p6]
     ]
     $ do
       -- Close button row
-      Lucid.div_ [class_ $ base ["flex", "justify-end", Tokens.mb8]] $ do
+      Lucid.div_ [class_ $ base ["flex", "justify-end", "items-center", Tokens.mb8]] $ do
         Lucid.button_
           [ xOnClick_ "menuOpen = false",
-            class_ $ base [Tokens.p2, "hover:bg-gray-100", Tokens.fontBold, "text-2xl"]
+            class_ $ base [Tokens.p2, "hover:bg-gray-100", "dark:hover:bg-gray-700", Tokens.fontBold, "text-2xl", "dark:text-gray-200"]
           ]
           "×"
       -- Navigation links
@@ -619,11 +658,11 @@ mobileNavLinks mUser =
     Lucid.a_
       [ Lucid.href_ "mailto:contact@kpbj.fm",
         xOnClick_ "menuOpen = false",
-        class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600"]
+        class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
       ]
       "Contact"
     -- Divider
-    Lucid.hr_ [class_ $ base ["border-gray-300", "my-2"]]
+    Lucid.hr_ [class_ $ base ["border-gray-300", "dark:border-gray-600", "my-2"]]
     -- Auth links
     case mUser of
       Nothing -> do
@@ -633,14 +672,14 @@ mobileNavLinks mUser =
         Lucid.a_
           [ Lucid.href_ [i|/#{dashboardGetUrl}|],
             xOnClick_ "menuOpen = false",
-            class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600"]
+            class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
           ]
           "Dashboard"
         Lucid.a_
           [ Lucid.href_ [i|/#{userLogoutGetUrl}|],
             hxGet_ [i|/#{userLogoutGetUrl}|],
             xOnClick_ "menuOpen = false",
-            class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600"]
+            class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
           ]
           "Log Out"
 
@@ -653,20 +692,24 @@ mobileNavLink label url =
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
       xOnClick_ "menuOpen = false",
-      class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600"]
+      class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
     ]
     label
+
+-- | Navigation link classes with dark mode support
+navLinkDark :: Text
+navLinkDark = Tokens.navLink <> " dark:text-gray-300 dark:hover:text-white"
 
 navigation :: Lucid.Html ()
 navigation =
   Lucid.nav_ [class_ $ base ["flex", Tokens.gap8, "items-center", "flex-wrap"]] $ do
-    Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsGetUrl}|], hxGet_ [i|/#{showsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Shows"
-    Lucid.a_ [Lucid.id_ "nav-schedule", Lucid.href_ [i|/#{scheduleGetUrl}|], hxGet_ [i|/#{scheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Schedule"
-    Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Donate"
-    Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Events"
-    Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "Blog"
-    Lucid.a_ [Lucid.id_ "nav-about", Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ Tokens.navLink] "About"
-    Lucid.a_ [Lucid.id_ "nav-contact", Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ Tokens.navLink] "Contact"
+    Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsGetUrl}|], hxGet_ [i|/#{showsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Shows"
+    Lucid.a_ [Lucid.id_ "nav-schedule", Lucid.href_ [i|/#{scheduleGetUrl}|], hxGet_ [i|/#{scheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Schedule"
+    Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Donate"
+    Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Events"
+    Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Blog"
+    Lucid.a_ [Lucid.id_ "nav-about", Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "About"
+    Lucid.a_ [Lucid.id_ "nav-contact", Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ navLinkDark] "Contact"
 
 -- | Suspension warning banner displayed at the top of every page for suspended users
 suspensionBanner :: SuspensionStatus -> Lucid.Html ()
@@ -690,13 +733,14 @@ template mUser main =
       Lucid.script_ [Lucid.src_ "https://unpkg.com/htmx.org@2.0.0"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
-      Lucid.script_ [] ("tailwind.config = { theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
+      Lucid.script_ [] ("tailwind.config = { darkMode: 'class', theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] playerScript
+      Lucid.script_ [] (darkModeScript (UserMetadata.mColorScheme <$> mUser))
       Lucid.script_ [] activeNavScript
       Lucid.style_ [] marqueeStyles
     Lucid.body_
       [ class_ $ do
-          base ["font-mono", Tokens.textGray800, "min-h-screen", "flex", "flex-col", "pb-20"]
+          base ["font-mono", Tokens.textGray800, "dark:text-gray-200", "dark:bg-gray-900", "min-h-screen", "flex", "flex-col", "pb-20"]
           tablet ["pb-0"]
       ]
       $ do
@@ -716,7 +760,7 @@ template mUser main =
             -- Desktop header (hidden on mobile)
             Lucid.header_
               [ class_ $ do
-                  base ["hidden", Tokens.bgWhite, Tokens.p4]
+                  base ["hidden", Tokens.bgWhite, "dark:bg-gray-800", Tokens.p4]
                   tablet ["block"]
               ]
               $ do
@@ -740,7 +784,7 @@ template mUser main =
               main
 
             -- Footer
-            Lucid.footer_ [class_ $ base [Tokens.px4, Tokens.py2, "mt-auto", "text-center", Tokens.textXs, Tokens.textGray600]] $ do
+            Lucid.footer_ [class_ $ base [Tokens.px4, Tokens.py2, "mt-auto", "text-center", Tokens.textXs, Tokens.textGray600, "dark:text-gray-400"]] $ do
               Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
 
             -- Fixed mobile player at bottom (visible only on mobile)
