@@ -12,6 +12,7 @@ where
 import API.Links (apiLinks)
 import API.Types
 import Component.Form.Builder
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.Set (Set)
@@ -195,27 +196,11 @@ showEditFormFields showModel isStaff eligibleHosts currentHostIds =
     SectionField
       { sfTitle = "ARTWORK & BRANDING",
         sfFields =
-          [ ValidatedFileField
-              { vffName = "logo_file",
-                vffLabel = "Logo Image",
-                vffAccept = Just "image/jpeg,image/png,image/webp,image/gif",
-                vffHint = Just "JPG, PNG, WebP, GIF accepted • Max 10MB • Recommended: 300x300px",
-                vffMaxSizeMB = Just 10,
-                vffValidation = emptyValidation, -- Optional
-                vffButtonText = "CHOOSE LOGO IMAGE",
-                vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
-                vffCurrentValue = fmap (\url -> [i|/#{mediaGetUrl}/#{url}|]) showModel.logoUrl
+          [ PlainField
+              { pfHtml = logoImageField showModel
               },
-            ValidatedFileField
-              { vffName = "banner_file",
-                vffLabel = "Banner Image",
-                vffAccept = Just "image/jpeg,image/png,image/webp,image/gif",
-                vffHint = Just "JPG, PNG, WebP, GIF accepted • Max 10MB • Recommended: 1200x300px",
-                vffMaxSizeMB = Just 10,
-                vffValidation = emptyValidation, -- Optional
-                vffButtonText = "CHOOSE BANNER IMAGE",
-                vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
-                vffCurrentValue = fmap (\url -> [i|/#{mediaGetUrl}/#{url}|]) showModel.bannerUrl
+            PlainField
+              { pfHtml = bannerImageField showModel
               }
           ]
       },
@@ -250,6 +235,37 @@ showEditFormFields showModel isStaff eligibleHosts currentHostIds =
         cfFalseFields = []
       }
   ]
+
+--------------------------------------------------------------------------------
+-- Image Fields
+
+-- | Render logo image field with integrated preview.
+logoImageField :: Shows.Model -> Lucid.Html ()
+logoImageField showModel =
+  let imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) showModel.logoUrl
+   in ImageFilePicker.render
+        ImageFilePicker.Config
+          { ImageFilePicker.fieldName = "logo_file",
+            ImageFilePicker.label = "Logo Image",
+            ImageFilePicker.existingImageUrl = imageUrl,
+            ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
+            ImageFilePicker.maxSizeMB = 10,
+            ImageFilePicker.isRequired = False
+          }
+
+-- | Render banner image field with integrated preview.
+bannerImageField :: Shows.Model -> Lucid.Html ()
+bannerImageField showModel =
+  let imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) showModel.bannerUrl
+   in ImageFilePicker.render
+        ImageFilePicker.Config
+          { ImageFilePicker.fieldName = "banner_file",
+            ImageFilePicker.label = "Banner Image",
+            ImageFilePicker.existingImageUrl = imageUrl,
+            ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
+            ImageFilePicker.maxSizeMB = 10,
+            ImageFilePicker.isRequired = False
+          }
 
 --------------------------------------------------------------------------------
 -- Form Submit Actions (rendered inside <form>)

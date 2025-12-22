@@ -11,6 +11,7 @@ where
 import API.Links (apiLinks, dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..), Routes (..))
 import Component.Form.Builder
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -135,18 +136,8 @@ blogEditFormFields blogPost tagsText =
                       vrCustomValidation = Nothing
                     }
               },
-            ValidatedFileField
-              { vffName = "hero_image",
-                vffLabel = "Hero Image",
-                vffAccept = Just "image/*",
-                vffHint = Just "Banner image displayed at top of post. Recommended: 1200x630px or larger. Leave empty to keep current image.",
-                vffMaxSizeMB = Just 10,
-                vffValidation = emptyValidation {vrRequired = False},
-                vffButtonText = "Choose New Image",
-                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700",
-                vffCurrentValue = case blogPost.bpmHeroImageUrl of
-                  Just imageUrl -> Just [i|/#{mediaGetUrl}/#{imageUrl}|]
-                  Nothing -> Nothing
+            PlainField
+              { pfHtml = heroImageField blogPost
               },
             ValidatedTextField
               { vfName = "tags",
@@ -198,6 +189,23 @@ blogEditFormFields blogPost tagsText =
           ]
       }
   ]
+
+--------------------------------------------------------------------------------
+-- Helper Functions
+
+-- | Render hero image field with integrated preview.
+heroImageField :: BlogPosts.Model -> Lucid.Html ()
+heroImageField blogPost =
+  let imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) blogPost.bpmHeroImageUrl
+   in ImageFilePicker.render
+        ImageFilePicker.Config
+          { ImageFilePicker.fieldName = "hero_image",
+            ImageFilePicker.label = "Hero Image",
+            ImageFilePicker.existingImageUrl = imageUrl,
+            ImageFilePicker.accept = "image/*",
+            ImageFilePicker.maxSizeMB = 10,
+            ImageFilePicker.isRequired = False
+          }
 
 --------------------------------------------------------------------------------
 -- Form Submit Actions (rendered inside <form>)

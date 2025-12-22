@@ -11,6 +11,7 @@ where
 import API.Links (apiLinks, dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..), Routes (..))
 import Component.Form.Builder
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -136,18 +137,8 @@ eventEditFormFields event =
                       vrRequired = True
                     }
               },
-            ValidatedFileField
-              { vffName = "poster_image",
-                vffLabel = "Event Poster Image",
-                vffAccept = Just "image/*",
-                vffHint = Just "Optional poster image for the event. Recommended: 1200x630px or larger. Leave empty to keep current image.",
-                vffMaxSizeMB = Just 10,
-                vffValidation = emptyValidation {vrRequired = False},
-                vffButtonText = "Choose New Poster Image",
-                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700",
-                vffCurrentValue = case event.emPosterImageUrl of
-                  Just imageUrl -> Just [i|/#{mediaGetUrl}/#{imageUrl}|]
-                  Nothing -> Nothing
+            PlainField
+              { pfHtml = posterImageField event
               }
           ]
       },
@@ -224,6 +215,23 @@ eventEditFormFields event =
           ]
       }
   ]
+
+--------------------------------------------------------------------------------
+-- Helper Functions
+
+-- | Render poster image field with integrated preview.
+posterImageField :: Events.Model -> Lucid.Html ()
+posterImageField event =
+  let imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) event.emPosterImageUrl
+   in ImageFilePicker.render
+        ImageFilePicker.Config
+          { ImageFilePicker.fieldName = "poster_image",
+            ImageFilePicker.label = "Event Poster Image",
+            ImageFilePicker.existingImageUrl = imageUrl,
+            ImageFilePicker.accept = "image/*",
+            ImageFilePicker.maxSizeMB = 10,
+            ImageFilePicker.isRequired = False
+          }
 
 --------------------------------------------------------------------------------
 -- Form Submit Actions (rendered inside <form>)

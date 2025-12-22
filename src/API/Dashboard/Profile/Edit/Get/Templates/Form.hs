@@ -16,6 +16,7 @@ import Component.Form.Builder
     defaultFormStyles,
     emptyValidation,
   )
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -113,38 +114,18 @@ emailField user =
       ]
     Lucid.p_ [class_ $ base [T.textSm, "text-gray-500", "mt-1"]] "Email cannot be changed"
 
--- | Avatar upload field with current avatar preview
+-- | Avatar upload field using ImageFilePicker component
 avatarField :: UserMetadata.Model -> Lucid.Html ()
 avatarField metadata =
-  Lucid.div_ $ do
-    Lucid.label_ [Lucid.for_ "avatar", class_ $ base ["block", T.fontBold, T.mb2]] "Avatar Image"
-    -- Show current avatar or placeholder
-    case metadata.mAvatarUrl of
-      Just avatarUrl ->
-        Lucid.div_ [class_ $ base [T.mb4]] $ do
-          Lucid.p_ [class_ $ base [T.textSm, T.textGray600, T.mb2]] "Current avatar:"
-          Lucid.img_
-            [ Lucid.src_ [i|/#{avatarUrl}|],
-              Lucid.alt_ "Current avatar",
-              class_ $ base ["w-24", "h-24", "object-cover", T.cardBorder, "rounded-full"]
-            ]
-      Nothing ->
-        Lucid.div_ [class_ $ base [T.mb4]] $ do
-          Lucid.p_ [class_ $ base [T.textSm, T.textGray600, T.mb2]] "No avatar uploaded"
-          Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-200", T.cardBorder, "rounded-full", "flex", "items-center", "justify-center"]] $
-            Lucid.span_ [class_ $ base ["text-gray-500", T.text3xl, T.fontBold]] $
-              Lucid.toHtml $
-                take 1 $
-                  show metadata.mDisplayName
-    -- File input
-    Lucid.input_
-      [ Lucid.type_ "file",
-        Lucid.name_ "avatar",
-        Lucid.id_ "avatar",
-        class_ $ base [T.fullWidth, T.p3, T.cardBorder],
-        Lucid.accept_ "image/jpeg,image/jpg,image/png,image/webp,image/gif"
-      ]
-    Lucid.p_ [class_ $ base [T.textSm, "text-gray-500", "mt-1"]] "Upload a new avatar image (JPEG, PNG, WebP, or GIF, max 10MB)"
+  ImageFilePicker.render
+    ImageFilePicker.Config
+      { fieldName = "avatar",
+        label = "Avatar Image",
+        existingImageUrl = maybe "" (\url -> [i|/#{url}|]) metadata.mAvatarUrl,
+        accept = "image/jpeg,image/jpg,image/png,image/webp,image/gif",
+        maxSizeMB = 10,
+        isRequired = False
+      }
 
 -- | Role display field (read-only)
 roleField :: UserMetadata.Model -> Lucid.Html ()
