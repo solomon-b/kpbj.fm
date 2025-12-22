@@ -86,7 +86,7 @@ formFields user metadata =
         vfValidation = emptyValidation {vrRequired = True}
       },
     -- Avatar Upload
-    PlainField {pfHtml = avatarField metadata},
+    PlainFileField {pffHtml = avatarField metadata},
     -- Role (read-only)
     PlainField {pfHtml = roleField metadata},
     -- Color Scheme

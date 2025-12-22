@@ -197,11 +197,11 @@ showEditFormFields showModel isStaff eligibleHosts currentHostIds existingTags =
     SectionField
       { sfTitle = "ARTWORK & BRANDING",
         sfFields =
-          [ PlainField
-              { pfHtml = logoImageField showModel
+          [ PlainFileField
+              { pffHtml = logoImageField showModel
               },
-            PlainField
-              { pfHtml = bannerImageField showModel
+            PlainFileField
+              { pffHtml = bannerImageField showModel
               }
           ]
       },

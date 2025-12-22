@@ -137,8 +137,8 @@ eventEditFormFields event =
                       vrRequired = True
                     }
               },
-            PlainField
-              { pfHtml = posterImageField event
+            PlainFileField
+              { pffHtml = posterImageField event
               }
           ]
       },

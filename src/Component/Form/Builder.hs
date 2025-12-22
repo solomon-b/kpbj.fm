@@ -143,6 +143,11 @@ data FormField
   | PlainField
       { pfHtml :: Lucid.Html ()
       }
+  | -- | Like PlainField but indicates the HTML contains file inputs.
+    -- This ensures the form gets multipart/form-data encoding.
+    PlainFileField
+      { pffHtml :: Lucid.Html ()
+      }
   | ConditionalField
       { cfCondition :: Bool,
         cfTrueFields :: [FormField],
@@ -236,6 +241,7 @@ getFieldName (ValidatedRadioField {vrfName = name}) = Just name
 getFieldName (HiddenField {hfName = name}) = Just name
 getFieldName (SectionField {}) = Nothing
 getFieldName (PlainField {}) = Nothing
+getFieldName (PlainFileField {}) = Nothing
 getFieldName (ConditionalField {}) = Nothing
 
 -- | Validate all field names in a form
@@ -322,6 +328,7 @@ isValidated (ValidatedSelectField {}) = False -- Selects typically don't need Al
 isValidated (HiddenField {}) = False
 isValidated (SectionField {}) = False
 isValidated (PlainField {}) = False
+isValidated (PlainFileField {}) = False
 isValidated (ConditionalField {}) = False
 isValidated (ValidatedFileField {}) = True
 isValidated (ValidatedDateTimeField {}) = True
@@ -329,6 +336,7 @@ isValidated (ValidatedRadioField {}) = False -- Radio groups are validated via H
 
 isFileField :: FormField -> Bool
 isFileField (ValidatedFileField {}) = True
+isFileField (PlainFileField {}) = True
 isFileField (SectionField {sfFields = fields}) = any isFileField fields
 isFileField (ConditionalField {cfTrueFields = trueFields, cfFalseFields = falseFields}) =
   any isFileField trueFields || any isFileField falseFields
@@ -344,6 +352,7 @@ capitalizeFieldName (ValidatedRadioField {vrfName = name}) = capitalizeFirst nam
 capitalizeFieldName (HiddenField {}) = ""
 capitalizeFieldName (SectionField {}) = ""
 capitalizeFieldName (PlainField {}) = ""
+capitalizeFieldName (PlainFileField {}) = ""
 capitalizeFieldName (ConditionalField {}) = ""
 
 -- | Generate field initialization JavaScript
@@ -368,6 +377,7 @@ generateFieldInit (ValidatedSelectField {}) = ""
 generateFieldInit (HiddenField {}) = ""
 generateFieldInit (SectionField {}) = ""
 generateFieldInit (PlainField {}) = ""
+generateFieldInit (PlainFileField {}) = ""
 generateFieldInit (ConditionalField {}) = ""
 
 -- | Generate validator JavaScript functions
@@ -492,6 +502,7 @@ generateValidator (ValidatedSelectField {}) = ""
 generateValidator (HiddenField {}) = ""
 generateValidator (SectionField {}) = ""
 generateValidator (PlainField {}) = ""
+generateValidator (PlainFileField {}) = ""
 generateValidator (ConditionalField {}) = ""
 
 generateValidationConditions :: Text -> ValidationRules -> Text
@@ -648,6 +659,7 @@ renderField styles (SectionField {sfTitle = title, sfFields = fields}) = do
     Lucid.div_ [Lucid.class_ (fsSectionContentClasses styles)] $ do
       mapM_ (renderField styles) fields
 renderField _ (PlainField {pfHtml = html}) = html
+renderField _ (PlainFileField {pffHtml = html}) = html
 renderField styles (ConditionalField {cfCondition = cond, cfTrueFields = trueFields, cfFalseFields = falseFields}) = do
   mapM_ (renderField styles) $ if cond then trueFields else falseFields
 renderField styles (ValidatedFileField {vffName = name, vffLabel = label, vffAccept = accept, vffHint = hint, vffValidation = rules, vffButtonText = buttonText, vffButtonClasses = buttonClasses, vffCurrentValue = currentValue}) = do

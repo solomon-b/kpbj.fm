@@ -120,8 +120,8 @@ eventFormFields =
                       vrCustomValidation = Nothing
                     }
               },
-            PlainField
-              { pfHtml = posterImageField
+            PlainFileField
+              { pffHtml = posterImageField
               }
           ]
       },
