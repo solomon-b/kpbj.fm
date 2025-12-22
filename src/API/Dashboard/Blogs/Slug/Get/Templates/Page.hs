@@ -31,7 +31,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardBlogsGetUrl :: Shows.Model -> Links.URI
-dashboardBlogsGetUrl showModel = Links.linkURI $ dashboardBlogsLinks.list showModel.slug
+dashboardBlogsGetUrl showModel = Links.linkURI $ dashboardBlogsLinks.list showModel.slug Nothing
 
 blogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> ShowBlogPosts.Model -> Links.URI
 blogEditGetUrl showId postId post = Links.linkURI $ showBlogLinks.editGet showId postId post.slug

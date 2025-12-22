@@ -6,6 +6,7 @@ module API.Blog.Get.Handler where
 
 --------------------------------------------------------------------------------
 
+import API.Blog.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Blog.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
@@ -69,6 +70,8 @@ handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       limit = 10 :: Limit
       offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+      -- Infinite scroll request = HTMX request for page > 1
+      isAppendRequest = hxRequest == IsHxRequest && page > 1
 
   -- Get user info once upfront
   mUserInfo <- getUserInfo cookie <&> fmap snd
@@ -85,8 +88,15 @@ handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
     Right allPosts -> do
       let posts = take (fromIntegral limit) allPosts
           hasMore = length allPosts > fromIntegral limit
-          blogTemplate = template currentTime posts page hasMore
-      renderTemplate hxRequest mUserInfo blogTemplate
+
+      if isAppendRequest
+        then
+          -- Infinite scroll: return only new items + sentinel (no page wrapper)
+          pure $ renderItemsFragment currentTime posts page hasMore maybeTag
+        else do
+          -- Full page: render with header, items, sentinel, and noscript pagination
+          let blogTemplate = template currentTime posts page hasMore maybeTag
+          renderTemplate hxRequest mUserInfo blogTemplate
 
 getBlogPostResults ::
   ( MonadUnliftIO m,

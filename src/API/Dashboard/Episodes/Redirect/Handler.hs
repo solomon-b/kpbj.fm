@@ -38,7 +38,7 @@ hostDashboardGetUrl :: Links.URI
 hostDashboardGetUrl = Links.linkURI dashboardLinks.home
 
 dashboardEpisodesGetUrl :: Shows.Model -> Links.URI
-dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesLinks.list showModel.slug
+dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesLinks.list showModel.slug Nothing
 
 --------------------------------------------------------------------------------
 

@@ -5,6 +5,7 @@ module API.Dashboard.Blogs.Get.Handler where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Blogs.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Blogs.Get.Templates.Page (template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import API.Links (showBlogLinks)
@@ -16,11 +17,14 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Limit (Limit)
+import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
@@ -50,10 +54,17 @@ handler ::
   ) =>
   Tracer ->
   Slug ->
+  Maybe Int64 ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
+handler _tracer showSlug maybePage cookie (foldHxReq -> hxRequest) = do
+  let page = fromMaybe 1 maybePage
+      limit = 20 :: Limit
+      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+      -- Infinite scroll request = HTMX request for page > 1
+      isAppendRequest = hxRequest == IsHxRequest && page > 1
+
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to dashboard blog" ()
@@ -68,31 +79,57 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
           Log.logInfo "Admin accessing dashboard blog" userMetadata.mDisplayName
           execQuerySpan Shows.getAllActiveShows >>= \case
             Left _err -> do
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [])
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [] page False)
             Right [] -> do
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [])
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [] page False)
             Right allShows@(firstShow : _) -> do
               let showToFetch = findShow firstShow allShows (Just showSlug)
-              execTransactionSpan (fetchBlogData showToFetch) >>= \case
-                Left _err -> do
-                  renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavBlog (statsContent []) (actionButton showToFetch) (template (Just showToFetch) [])
-                Right blogPosts -> do
-                  renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavBlog (statsContent blogPosts) (actionButton showToFetch) (template (Just showToFetch) blogPosts)
+              renderShowBlog isAppendRequest hxRequest userMetadata allShows showToFetch limit offset page
     Just (user, userMetadata) -> do
       Log.logInfo "Host accessing dashboard blog" userMetadata.mDisplayName
       execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
         Left _err -> do
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [])
+          renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [] page False)
         Right [] -> do
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [])
+          renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [] page False)
         Right userShows@(firstShow : _) -> do
           let showToFetch = findShow firstShow userShows (Just showSlug)
-          execTransactionSpan (fetchBlogData showToFetch) >>= \case
-            Left _err -> do
-              renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavBlog (statsContent []) (actionButton showToFetch) (template (Just showToFetch) [])
-            Right blogPosts -> do
-              renderDashboardTemplate hxRequest userMetadata userShows (Just showToFetch) NavBlog (statsContent blogPosts) (actionButton showToFetch) (template (Just showToFetch) blogPosts)
+          renderShowBlog isAppendRequest hxRequest userMetadata userShows showToFetch limit offset page
   where
+    -- \| Render blog posts for a specific show with pagination support
+    renderShowBlog ::
+      ( Log.MonadLog m,
+        MonadUnliftIO m,
+        MonadCatch m,
+        MonadDB m,
+        MonadReader env m,
+        Has Tracer env
+      ) =>
+      Bool ->
+      HxRequest ->
+      UserMetadata.Model ->
+      [Shows.Model] ->
+      Shows.Model ->
+      Limit ->
+      Offset ->
+      Int64 ->
+      m (Lucid.Html ())
+    renderShowBlog isAppendRequest' hxReq userMeta allShows showToFetch lim off pg = do
+      execTransactionSpan (fetchBlogData showToFetch lim off) >>= \case
+        Left _err -> do
+          renderDashboardTemplate hxReq userMeta allShows (Just showToFetch) NavBlog (statsContent []) (actionButton showToFetch) (template (Just showToFetch) [] pg False)
+        Right allPosts -> do
+          let posts = take (fromIntegral lim) allPosts
+              hasMore = length allPosts > fromIntegral lim
+
+          if isAppendRequest'
+            then
+              -- Infinite scroll: return only new rows + sentinel
+              pure $ renderItemsFragment showToFetch posts pg hasMore
+            else do
+              -- Full page: render with table, sentinel, and noscript pagination
+              renderDashboardTemplate hxReq userMeta allShows (Just showToFetch) NavBlog (statsContent posts) (actionButton showToFetch) (template (Just showToFetch) posts pg hasMore)
+
     -- \| Build stats content for top bar
     statsContent :: [ShowBlogPosts.Model] -> Maybe (Lucid.Html ())
     statsContent blogPosts =
@@ -114,10 +151,11 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
               ]
               "New Post"
 
--- | Fetch blog data for dashboard
-fetchBlogData :: Shows.Model -> Txn.Transaction [ShowBlogPosts.Model]
-fetchBlogData showModel =
-  Txn.statement () (ShowBlogPosts.getShowBlogPosts showModel.id 50 0)
+-- | Fetch blog data for dashboard with pagination
+fetchBlogData :: Shows.Model -> Limit -> Offset -> Txn.Transaction [ShowBlogPosts.Model]
+fetchBlogData showModel lim off =
+  -- Fetch limit + 1 to check if there are more results
+  Txn.statement () (ShowBlogPosts.getShowBlogPosts showModel.id (lim + 1) off)
 
 -- | Select show based on 'Slug' query parameter or default to first show
 findShow :: Shows.Model -> [Shows.Model] -> Maybe Slug -> Shows.Model

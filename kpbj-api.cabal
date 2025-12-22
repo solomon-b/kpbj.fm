@@ -104,6 +104,7 @@ library
     API.About.Get.Templates
     API.Blog.Get.Handler
     API.Blog.Get.Route
+    API.Blog.Get.Templates.ItemsFragment
     API.Blog.Get.Templates.Page
     API.Blog.Get.Templates.Pagination
     API.Blog.Post.Get.Handler
@@ -123,12 +124,14 @@ library
     API.Get.Templates
     API.Dashboard.Blogs.Get.Handler
     API.Dashboard.Blogs.Get.Route
+    API.Dashboard.Blogs.Get.Templates.ItemsFragment
     API.Dashboard.Blogs.Get.Templates.Page
     API.Dashboard.Blogs.Slug.Get.Handler
     API.Dashboard.Blogs.Slug.Get.Route
     API.Dashboard.Blogs.Slug.Get.Templates.Page
     API.Dashboard.Events.Get.Handler
     API.Dashboard.Events.Get.Route
+    API.Dashboard.Events.Get.Templates.ItemsFragment
     API.Dashboard.Events.Get.Templates.Page
     API.Dashboard.Events.New.Get.Handler
     API.Dashboard.Events.New.Get.Route
@@ -147,6 +150,7 @@ library
     API.Dashboard.Events.Slug.Get.Templates.Page
     API.Dashboard.StationBlog.Get.Handler
     API.Dashboard.StationBlog.Get.Route
+    API.Dashboard.StationBlog.Get.Templates.ItemsFragment
     API.Dashboard.StationBlog.Get.Templates.Page
     API.Dashboard.StationBlog.New.Get.Handler
     API.Dashboard.StationBlog.New.Get.Route
@@ -174,6 +178,7 @@ library
     API.Dashboard.Episodes.Slug.Get.Templates.Page
     API.Dashboard.Episodes.Get.Handler
     API.Dashboard.Episodes.Get.Route
+    API.Dashboard.Episodes.Get.Templates.ItemsFragment
     API.Dashboard.Episodes.Get.Templates.Page
     API.Dashboard.Episodes.Redirect.Handler
     API.Dashboard.Episodes.Redirect.Route
@@ -189,6 +194,7 @@ library
     API.Dashboard.Profile.Edit.Post.Route
     API.Dashboard.Shows.Get.Handler
     API.Dashboard.Shows.Get.Route
+    API.Dashboard.Shows.Get.Templates.ItemsFragment
     API.Dashboard.Shows.Get.Templates.Page
     API.Dashboard.Shows.New.Get.Handler
     API.Dashboard.Shows.New.Get.Route
@@ -197,6 +203,7 @@ library
     API.Dashboard.Shows.New.Post.Route
     API.Dashboard.Users.Get.Handler
     API.Dashboard.Users.Get.Route
+    API.Dashboard.Users.Get.Templates.ItemsFragment
     API.Dashboard.Users.Get.Templates.Page
     API.Dashboard.Users.Delete.Handler
     API.Dashboard.Users.Delete.Route
@@ -225,6 +232,7 @@ library
     API.Schedule.Get.Templates.Page
     API.Shows.Get.Handler
     API.Shows.Get.Route
+    API.Shows.Get.Templates.ItemsFragment
     API.Shows.Get.Templates.Page
     API.Shows.Get.Templates.Pagination
     API.Dashboard.Shows.Slug.Edit.Get.Handler
@@ -298,6 +306,7 @@ library
     Component.AudioFilePicker
     Component.AudioPlayer.Waveform
     Component.ImageFilePicker
+    Component.InfiniteScroll
     Component.Banner
     Component.Card.BlogPost
     Component.Card.Episode

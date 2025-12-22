@@ -2,13 +2,18 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Shows.Get.Templates.Page where
+module API.Dashboard.Shows.Get.Templates.Page
+  ( template,
+    renderShowRow,
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import API.Links (dashboardShowsLinks)
 import API.Types (DashboardShowsRoutes (..))
-import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
+import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -36,22 +41,41 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
     if null theShowList
       then renderEmptyState maybeQuery
-      else
-        renderTable
-          TableConfig
-            { headers =
-                [ ColumnHeader "Title" AlignLeft,
-                  ColumnHeader "Status" AlignLeft,
-                  ColumnHeader "Hosts" AlignLeft,
-                  ColumnHeader "Genre" AlignLeft,
-                  ColumnHeader "" AlignCenter
-                ],
-              wrapperClass = "overflow-x-auto",
-              tableClass = "w-full"
-            }
-          $ mapM_ renderShowRow theShowList
+      else renderTableWithBodyId
+        "shows-table-body"
+        TableConfig
+          { headers =
+              [ ColumnHeader "Title" AlignLeft,
+                ColumnHeader "Status" AlignLeft,
+                ColumnHeader "Hosts" AlignLeft,
+                ColumnHeader "Genre" AlignLeft,
+                ColumnHeader "" AlignCenter
+              ],
+            wrapperClass = "overflow-x-auto",
+            tableClass = "w-full"
+          }
+        $ do
+          mapM_ renderShowRow theShowList
+          -- Sentinel row for infinite scroll
+          if hasMore
+            then
+              Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
+                Lucid.td_ [Lucid.colspan_ "5"] $
+                  renderSentinel [i|/#{nextPageUrl}|] "#shows-table-body"
+            else
+              Lucid.tr_ [] $
+                Lucid.td_ [Lucid.colspan_ "5"] $
+                  renderEndOfContent
 
-  renderPagination currentPage hasMore maybeQuery maybeStatusFilter
+  -- Loading indicator (hidden by default, shown during HTMX requests)
+  renderLoadingIndicator
+
+  -- Fallback pagination for browsers without JavaScript
+  Lucid.noscript_ $
+    renderPagination currentPage hasMore maybeQuery maybeStatusFilter
+  where
+    nextPageUrl :: Links.URI
+    nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))
 
 renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
 renderShowRow showInfo =

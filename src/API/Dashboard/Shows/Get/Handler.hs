@@ -6,6 +6,7 @@ module API.Dashboard.Shows.Get.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Shows.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Shows.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardShowsLinks, userLinks)
 import API.Types (DashboardShowsRoutes (..), Routes (..), UserRoutes (..))
@@ -75,6 +76,8 @@ handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -
       offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
       statusFilter = getFilter =<< statusFilterParam
       queryFilter = getFilter =<< queryFilterParam
+      -- Infinite scroll request = HTMX request for page > 1
+      isAppendRequest = hxRequest == IsHxRequest && page > 1
 
   getUserInfo cookie >>= \case
     Nothing -> do
@@ -98,12 +101,19 @@ handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -
           Log.logInfo "Failed to fetch shows from database" ()
           let banner = BannerParams Error "Error" "Failed to load shows. Please try again."
           pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-        Right allShows -> do
-          let theShows = take (fromIntegral limit) allShows
-              hasMore = length allShows > fromIntegral limit
-              showsTemplate = template theShows page hasMore queryFilter statusFilter
-              filtersContent = Just $ filtersUI queryFilter statusFilter
-          renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows filtersContent newShowButton showsTemplate
+        Right allShowsResult -> do
+          let theShows = take (fromIntegral limit) allShowsResult
+              hasMore = length allShowsResult > fromIntegral limit
+
+          if isAppendRequest
+            then
+              -- Infinite scroll: return only new rows + sentinel (no page wrapper)
+              pure $ renderItemsFragment theShows page hasMore queryFilter statusFilter
+            else do
+              -- Full page: render with table, sentinel, and noscript pagination
+              let showsTemplate = template theShows page hasMore queryFilter statusFilter
+                  filtersContent = Just $ filtersUI queryFilter statusFilter
+              renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows filtersContent newShowButton showsTemplate
   where
     newShowButton :: Maybe (Lucid.Html ())
     newShowButton =

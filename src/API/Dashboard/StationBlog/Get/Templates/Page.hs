@@ -1,14 +1,19 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.StationBlog.Get.Templates.Page where
+module API.Dashboard.StationBlog.Get.Templates.Page
+  ( template,
+    renderPostRow,
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import API.Links (blogLinks, dashboardStationBlogLinks)
-import API.Types (BlogRoutes (..), DashboardStationBlogRoutes (..))
+import API.Types
 import Component.ActionsDropdown qualified as ActionsDropdown
-import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
+import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -33,22 +38,41 @@ template posts currentPage hasMore = do
   Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
     if null posts
       then renderEmptyState
-      else
-        renderTable
-          TableConfig
-            { headers =
-                [ ColumnHeader "Title" AlignLeft,
-                  ColumnHeader "Status" AlignLeft,
-                  ColumnHeader "Created" AlignLeft,
-                  ColumnHeader "Published" AlignLeft,
-                  ColumnHeader "" AlignCenter
-                ],
-              wrapperClass = "overflow-x-auto",
-              tableClass = "w-full"
-            }
-          $ mapM_ renderPostRow posts
+      else renderTableWithBodyId
+        "station-blog-table-body"
+        TableConfig
+          { headers =
+              [ ColumnHeader "Title" AlignLeft,
+                ColumnHeader "Status" AlignLeft,
+                ColumnHeader "Created" AlignLeft,
+                ColumnHeader "Published" AlignLeft,
+                ColumnHeader "" AlignCenter
+              ],
+            wrapperClass = "overflow-x-auto",
+            tableClass = "w-full"
+          }
+        $ do
+          mapM_ renderPostRow posts
+          -- Sentinel row for infinite scroll
+          if hasMore
+            then
+              Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
+                Lucid.td_ [Lucid.colspan_ "5"] $
+                  renderSentinel [i|/#{nextPageUrl}|] "#station-blog-table-body"
+            else
+              Lucid.tr_ [] $
+                Lucid.td_ [Lucid.colspan_ "5"] $
+                  renderEndOfContent
 
-  renderPagination currentPage hasMore
+  -- Loading indicator (hidden by default, shown during HTMX requests)
+  renderLoadingIndicator
+
+  -- Fallback pagination for browsers without JavaScript
+  Lucid.noscript_ $
+    renderPagination currentPage hasMore
+  where
+    nextPageUrl :: Links.URI
+    nextPageUrl = Links.linkURI $ dashboardStationBlogLinks.list (Just (currentPage + 1))
 
 renderPostRow :: BlogPosts.Model -> Lucid.Html ()
 renderPostRow post =

@@ -8,7 +8,7 @@ import Servant qualified
 --------------------------------------------------------------------------------
 
 data HxRequest = IsHxRequest | IsNotHxRequest
-  deriving (Show)
+  deriving (Show, Eq)
 
 instance Servant.FromHttpApiData HxRequest where
   parseQueryParam = \case

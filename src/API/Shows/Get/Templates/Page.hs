@@ -1,14 +1,20 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module API.Shows.Get.Templates.Page
   ( template,
     renderFilters,
   )
 where
 
+import API.Links (showsLinks)
 import API.Shows.Get.Templates.Pagination (renderPagination)
+import API.Types
 import Component.Card.Show (renderShowCard)
+import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
 import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Maybe (isNothing)
+import Data.String.Interpolate (i)
 import Data.Text.Display (display)
 import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
@@ -19,6 +25,7 @@ import Domain.Types.ShowSortBy (ShowSortBy (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (xData_, xOnClick_, xShow_, xTransitionEnterEnd_, xTransitionEnterStart_, xTransitionEnter_, xTransitionLeaveEnd_, xTransitionLeaveStart_, xTransitionLeave_)
+import Servant.Links qualified as Links
 
 -- | Main shows list template
 template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
@@ -62,12 +69,26 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSo
         Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for new shows!"
       else do
         -- Single column on mobile, expand on larger screens
-        Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6, Tokens.mb8]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
+        -- Items container with stable ID for HTMX appending
+        Lucid.div_ [Lucid.id_ "shows-list", class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6, Tokens.mb8]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
           mapM_ renderShowCard allShows
 
-        -- Pagination
+        -- Loading indicator (hidden by default, shown during HTMX requests)
+        renderLoadingIndicator
+
+        -- Sentinel for infinite scroll or end indicator
         unless (null allShows) $
-          renderPagination currentPage hasMore maybeSortBy
+          if hasMore
+            then renderSentinel [i|/#{nextPageUrl}|] "#shows-list"
+            else renderEndOfContent
+
+        -- Fallback pagination for browsers without JavaScript
+        Lucid.noscript_ $
+          unless (null allShows) $
+            renderPagination currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSortBy
+  where
+    nextPageUrl :: Links.URI
+    nextPageUrl = Links.linkURI $ showsLinks.list (Just (currentPage + 1)) maybeGenre maybeStatus maybeSearch maybeSortBy
 
 -- | Render show filters (displayed in collapsible panel)
 renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()

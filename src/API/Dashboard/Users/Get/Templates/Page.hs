@@ -1,14 +1,19 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Users.Get.Templates.Page where
+module API.Dashboard.Users.Get.Templates.Page
+  ( template,
+    renderUserRow,
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import API.Links (dashboardUsersLinks)
 import API.Types
 import Component.ActionsDropdown qualified as ActionsDropdown
-import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTable)
+import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId)
 import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -39,23 +44,49 @@ template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
     if null users
       then renderEmptyState maybeQuery
-      else
-        renderTable
-          TableConfig
-            { headers =
-                [ ColumnHeader "Display Name" AlignLeft,
-                  ColumnHeader "Email" AlignLeft,
-                  ColumnHeader "Role" AlignLeft,
-                  ColumnHeader "Status" AlignLeft,
-                  ColumnHeader "Member Since" AlignLeft,
-                  ColumnHeader "" AlignCenter
-                ],
-              wrapperClass = "overflow-x-auto",
-              tableClass = "w-full"
-            }
-          $ mapM_ (renderUserRow now) users
+      else renderTableWithBodyId
+        "users-table-body"
+        TableConfig
+          { headers =
+              [ ColumnHeader "Display Name" AlignLeft,
+                ColumnHeader "Email" AlignLeft,
+                ColumnHeader "Role" AlignLeft,
+                ColumnHeader "Status" AlignLeft,
+                ColumnHeader "Member Since" AlignLeft,
+                ColumnHeader "" AlignCenter
+              ],
+            wrapperClass = "overflow-x-auto",
+            tableClass = "w-full"
+          }
+        $ do
+          mapM_ (renderUserRow now) users
+          -- Sentinel row for infinite scroll
+          if hasMore
+            then
+              Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
+                Lucid.td_ [Lucid.colspan_ "6"] $
+                  renderSentinel [i|/#{nextPageUrl}|] "#users-table-body"
+            else
+              Lucid.tr_ [] $
+                Lucid.td_ [Lucid.colspan_ "6"] $
+                  renderEndOfContent
 
-  renderPagination currentPage hasMore maybeQuery maybeRoleFilter sortBy
+  -- Loading indicator (hidden by default, shown during HTMX requests)
+  renderLoadingIndicator
+
+  -- Fallback pagination for browsers without JavaScript
+  Lucid.noscript_ $
+    renderPagination currentPage hasMore maybeQuery maybeRoleFilter sortBy
+  where
+    maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
+    nextPageUrl :: Links.URI
+    nextPageUrl =
+      Links.linkURI $
+        dashboardUsersLinks.list
+          (Just (currentPage + 1))
+          (Just . Filter $ maybeQuery)
+          (Just . Filter $ maybeRoleFilter)
+          maybeSortFilter
 
 renderUserRow :: UTCTime -> UserMetadata.UserWithMetadata -> Lucid.Html ()
 renderUserRow now user =

@@ -6,6 +6,7 @@ module API.Shows.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Links (apiLinks)
+import API.Shows.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Shows.Get.Templates.Page (template)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
@@ -71,6 +72,8 @@ handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch maybeSo
     let limit = 12 :: Limit
         offset = fromIntegral $ ((coerce page :: Int64) - 1) * fromIntegral limit :: Offset
         sortBy = fromMaybe NameAZ maybeSortBy
+        -- Infinite scroll request = HTMX request for page > 1
+        isAppendRequest = htmxRequest == IsHxRequest && page > 1
 
     -- Fetch limit + 1 to check if there are more results
     getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus sortBy >>= \case
@@ -81,8 +84,15 @@ handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch maybeSo
       Right allShows -> do
         let someShows = take (fromIntegral limit) allShows
             hasMore = length allShows > fromIntegral limit
-            showsTemplate = template someShows page hasMore maybeGenre maybeStatus maybeSearch maybeSortBy
-        renderTemplate htmxRequest mUserInfo showsTemplate
+
+        if isAppendRequest
+          then
+            -- Infinite scroll: return only new items + sentinel (no page wrapper)
+            pure $ renderItemsFragment someShows page hasMore maybeGenre maybeStatus maybeSearch maybeSortBy
+          else do
+            -- Full page: render with header, items, sentinel, and noscript pagination
+            let showsTemplate = template someShows page hasMore maybeGenre maybeStatus maybeSearch maybeSortBy
+            renderTemplate htmxRequest mUserInfo showsTemplate
 
 getShows ::
   ( MonadUnliftIO m,
