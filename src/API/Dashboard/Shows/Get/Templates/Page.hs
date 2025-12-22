@@ -15,7 +15,6 @@ import API.Types (DashboardShowsRoutes (..))
 import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_)
@@ -48,7 +47,6 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
               [ ColumnHeader "Title" AlignLeft,
                 ColumnHeader "Status" AlignLeft,
                 ColumnHeader "Hosts" AlignLeft,
-                ColumnHeader "Genre" AlignLeft,
                 ColumnHeader "" AlignCenter
               ],
             wrapperClass = "overflow-x-auto",
@@ -60,11 +58,12 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
           if hasMore
             then
               Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-                Lucid.td_ [Lucid.colspan_ "5"] $
+                Lucid.td_ [Lucid.colspan_ "4"] $
                   renderSentinel [i|/#{nextPageUrl}|] "#shows-table-body"
             else
               Lucid.tr_ [] $
-                Lucid.td_ [Lucid.colspan_ "5"] $
+                Lucid.td_
+                  [Lucid.colspan_ "4"]
                   renderEndOfContent
 
   -- Loading indicator (hidden by default, shown during HTMX requests)
@@ -106,10 +105,6 @@ renderShowRow showInfo =
                   Lucid.span_ [Lucid.class_ "text-gray-500 ml-2"] $
                     Lucid.toHtml $
                       "(" <> show showInfo.swhiHostCount <> ")"
-
-            Lucid.td_ cellLinkAttrs $
-              Lucid.toHtml $
-                fromMaybe "-" showInfo.swhiGenre
 
             Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
               Lucid.div_ [xData_ "{}"] $

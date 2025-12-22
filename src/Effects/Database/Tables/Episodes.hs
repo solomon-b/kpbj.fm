@@ -306,7 +306,6 @@ data EpisodeWithShow = EpisodeWithShow
     ewsUpdatedAt :: UTCTime,
     ewsShowTitle :: Text,
     ewsShowSlug :: Slug,
-    ewsShowGenre :: Maybe Text,
     ewsHostDisplayName :: Text
   }
   deriving stock (Generic, Show, Eq)
@@ -545,10 +544,9 @@ hardDeleteEpisode episodeId =
 
 -- | Get published episodes with show details and filters for archive page.
 --
--- Returns episodes with show information, filtered by optional search, show_id, genre, and date range.
+-- Returns episodes with show information, filtered by optional search, show_id, and date range.
 getPublishedEpisodesWithFilters ::
   UTCTime ->
-  Maybe Text ->
   Maybe Text ->
   Maybe UTCTime ->
   Maybe UTCTime ->
@@ -556,7 +554,7 @@ getPublishedEpisodesWithFilters ::
   Limit ->
   Offset ->
   Hasql.Statement () [EpisodeWithShow]
-getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sortBy (Limit lim) (Offset off) =
+getPublishedEpisodesWithFilters currentTime mSearch mDateFrom mDateTo sortBy (Limit lim) (Offset off) =
   case sortBy of
     "longest" ->
       interp
@@ -567,7 +565,7 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
       e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
       e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
       e.created_at, e.updated_at,
-      s.title, s.slug, s.genre,
+      s.title, s.slug,
       COALESCE(um.display_name, u.email)
     FROM episodes e
     JOIN shows s ON e.show_id = s.id
@@ -577,7 +575,6 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
     WHERE e.status = 'published'
       AND e.scheduled_at <= #{currentTime}
       AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
       AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
     ORDER BY e.duration_seconds DESC NULLS LAST, e.published_at DESC
@@ -592,7 +589,7 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
       e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
       e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
       e.created_at, e.updated_at,
-      s.title, s.slug, s.genre,
+      s.title, s.slug,
       COALESCE(um.display_name, u.email)
     FROM episodes e
     JOIN shows s ON e.show_id = s.id
@@ -602,7 +599,6 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
     WHERE e.status = 'published'
       AND e.scheduled_at <= #{currentTime}
       AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
       AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
     ORDER BY e.published_at DESC NULLS LAST, e.created_at DESC
@@ -612,11 +608,10 @@ getPublishedEpisodesWithFilters currentTime mSearch mGenre mDateFrom mDateTo sor
 -- | Count published episodes with filters for pagination.
 countPublishedEpisodesWithFilters ::
   Maybe Text ->
-  Maybe Text ->
   Maybe UTCTime ->
   Maybe UTCTime ->
   Hasql.Statement () Int64
-countPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo =
+countPublishedEpisodesWithFilters mSearch mDateFrom mDateTo =
   maybe 0 getOneColumn
     <$> interp
       False
@@ -626,7 +621,6 @@ countPublishedEpisodesWithFilters mSearch mGenre mDateFrom mDateTo =
     JOIN shows s ON e.show_id = s.id
     WHERE e.status = 'published'
       AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mGenre}::text IS NULL OR s.genre ILIKE #{mGenre}::text)
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
       AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
   |]

@@ -30,6 +30,7 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -94,10 +95,10 @@ handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
       fetchShowDetails now showModel limit offset canViewDrafts >>= \case
         Left err -> do
           Log.logAttention "Failed to fetch show details from database" (show err)
-          let showTemplate = template showModel [] [] [] [] page canViewDrafts
+          let showTemplate = template showModel [] [] [] [] [] page canViewDrafts
           renderTemplate hxRequest mUserInfo showTemplate
-        Right (hosts, schedule, episodes, blogPosts) -> do
-          let showTemplate = template showModel episodes hosts schedule blogPosts page canViewDrafts
+        Right (hosts, schedule, episodes, blogPosts, tags) -> do
+          let showTemplate = template showModel episodes hosts schedule blogPosts tags page canViewDrafts
           renderTemplate hxRequest mUserInfo showTemplate
 
 fetchShowDetails ::
@@ -108,7 +109,7 @@ fetchShowDetails ::
   Offset ->
   -- | Can the current user view draft episodes? (host/staff/admin)
   Bool ->
-  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model]))
+  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model], [ShowTags.Model]))
 fetchShowDetails now showModel limit offset canViewDrafts = runDBTransaction $ do
   -- If user can view drafts (host/staff/admin), show all episodes including drafts; otherwise only published
   episodes <-
@@ -118,4 +119,5 @@ fetchShowDetails now showModel limit offset canViewDrafts = runDBTransaction $ d
   hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id
   blogPosts <- TRX.statement () $ ShowBlogPosts.getPublishedShowBlogPosts showModel.id 3 0
   schedule <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showModel.id
-  pure (hosts, schedule, episodes, blogPosts)
+  tags <- TRX.statement () $ Shows.getTagsForShow showModel.id
+  pure (hosts, schedule, episodes, blogPosts, tags)

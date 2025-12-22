@@ -24,6 +24,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -32,6 +33,7 @@ import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
@@ -111,6 +113,12 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
                   let sidebarShows = fromRight [] sidebarShowsResult
                       selectedShow = Just showModel
 
+                  -- Fetch existing tags for this show
+                  existingTagsResult <- execQuerySpan (Shows.getTagsForShow showModel.id)
+                  let existingTags = case existingTagsResult of
+                        Left _ -> ""
+                        Right tags -> Text.intercalate ", " $ map ShowTags.stName tags
+
                   -- Fetch staff-only data (schedules, hosts) if user is staff
                   bool (pure (Right ("[]", [], Set.empty))) (fetchStaffData showModel.id) isStaff >>= \case
                     Left err -> do
@@ -118,7 +126,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) = do
                       let banner = BannerParams Error "Error" "An error occurred fetching show data."
                       pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
                     Right (schedulesJson, eligibleHosts, currentHostIds) -> do
-                      let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds
+                      let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds existingTags
                       renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows Nothing Nothing editTemplate
 
 -- | Fetch staff-only data for the edit form (schedules and hosts)

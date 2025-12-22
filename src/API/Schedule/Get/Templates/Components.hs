@@ -14,7 +14,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, defaultTimeLocale, formatTime)
-import Design (also, base, class_, desktop, when)
+import Design (also, base, class_, desktop, unless, when)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.WeekOffset (WeekOffset (..))
@@ -305,7 +305,7 @@ calendarShowStyles :: Bool -> Attributes
 calendarShowStyles isLive = class_ $ do
   base [Tokens.bgWhite, Tokens.p2, "m-1", "rounded", "overflow-hidden", "block", "cursor-pointer"]
   when isLive $ base [Tokens.border2, "border-gray-800"]
-  when (not isLive) $ base ["border", "border-gray-400"]
+  unless isLive $ base ["border", "border-gray-400"]
   also ["hover:bg-gray-50"]
 
 liveIndicatorStyles :: Attributes
@@ -458,12 +458,6 @@ renderMobileShowCard currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
         -- Show title
         Lucid.div_ [mobileShowTitleStyles] $ Lucid.toHtml (ShowSchedule.sswdShowTitle show')
 
-        -- Genre tags
-        case ShowSchedule.sswdShowGenre show' of
-          Just genre -> Lucid.div_ [mobileTagContainerStyles] $ do
-            renderGenreTags genre
-          Nothing -> mempty
-
 -- | Calculate duration in minutes between two times (handles overnight shows)
 calculateDurationMinutes :: TimeOfDay -> TimeOfDay -> Int
 calculateDurationMinutes (TimeOfDay startH startM _) (TimeOfDay endH endM _) =
@@ -498,24 +492,6 @@ mobileShowCardStyles isLive = class_ $ do
 mobileShowTitleStyles :: Attributes
 mobileShowTitleStyles = class_ $ do
   base [Tokens.fontBold, Tokens.mb2]
-
-mobileTagContainerStyles :: Attributes
-mobileTagContainerStyles = class_ $ do
-  base ["flex", "flex-wrap", "gap-1"]
-
--- | Render genre tags from comma-separated string
-renderGenreTags :: Text -> Lucid.Html ()
-renderGenreTags genreText = do
-  let tags = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," genreText
-  mapM_ renderGenreTag tags
-
-renderGenreTag :: Text -> Lucid.Html ()
-renderGenreTag tagText = do
-  Lucid.span_ [genreTagStyles] $ Lucid.toHtml tagText
-
-genreTagStyles :: Attributes
-genreTagStyles = class_ $ do
-  base [Tokens.textXs, "px-2", "py-1", "rounded-full", "border", "border-gray-300", Tokens.textGray600]
 
 mobileLiveBadgeStyles :: Attributes
 mobileLiveBadgeStyles = class_ $ do

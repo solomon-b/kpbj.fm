@@ -100,12 +100,6 @@ renderShowCard :: Shows.Model -> Lucid.Html ()
 renderShowCard showModel = do
   Lucid.div_ [Lucid.class_ "border-2 border-gray-200 p-4 hover:bg-gray-50"] $ do
     Lucid.h3_ [Lucid.class_ "font-bold text-lg"] $ Lucid.toHtml showModel.title
-    when (isJust showModel.genre) $
-      Lucid.p_ [Lucid.class_ "text-gray-600 text-sm mt-1"] $
-        Lucid.toHtml $
-          "Genre: " <> fromMaybe "" showModel.genre
-  where
-    when cond action = if cond then action else mempty
 
 renderEpisodeCard :: Episodes.Model -> Lucid.Html ()
 renderEpisodeCard episode = do

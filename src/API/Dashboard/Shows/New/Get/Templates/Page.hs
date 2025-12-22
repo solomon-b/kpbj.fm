@@ -106,15 +106,15 @@ showFormFields eligibleHosts =
                     }
               },
             ValidatedTextField
-              { vfName = "genre",
-                vfLabel = "Genre",
+              { vfName = "tags",
+                vfLabel = "Tags",
                 vfInitialValue = Nothing,
                 vfPlaceholder = Just "e.g. Techno, Ambient, Experimental, Hip-Hop",
-                vfHint = Just "Primary genre or style of music",
+                vfHint = Just "Comma-separated tags for categorization and filtering",
                 vfValidation =
                   ValidationRules
                     { vrMinLength = Nothing,
-                      vrMaxLength = Just 100,
+                      vrMaxLength = Just 500,
                       vrPattern = Nothing,
                       vrRequired = False,
                       vrCustomValidation = Nothing

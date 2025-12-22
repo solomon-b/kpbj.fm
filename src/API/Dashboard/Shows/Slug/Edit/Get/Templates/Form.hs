@@ -53,8 +53,9 @@ mediaGetUrl = Links.linkURI apiLinks.mediaGet
 --
 -- The eligibleHosts parameter is all users who can be assigned as hosts.
 -- The currentHostIds parameter is the set of user IDs currently hosting this show.
-template :: Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Lucid.Html ()
-template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds = do
+-- The existingTags parameter is a comma-separated string of current tags.
+template :: Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> Lucid.Html ()
+template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds existingTags = do
   let showSlug = showModel.slug
       additionalContent =
         if isStaff
@@ -65,7 +66,7 @@ template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds =
       { fbAction = [i|/dashboard/shows/#{display showSlug}/edit|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader userMeta showModel),
-        fbFields = showEditFormFields showModel isStaff eligibleHosts currentHostIds,
+        fbFields = showEditFormFields showModel isStaff eligibleHosts currentHostIds existingTags,
         fbAdditionalContent = additionalContent,
         fbStyles = defaultFormStyles,
         fbHtmx = Nothing
@@ -108,8 +109,8 @@ renderFormHeader userMeta showModel = do
 --------------------------------------------------------------------------------
 -- Form Fields Definition
 
-showEditFormFields :: Shows.Model -> Bool -> [UserMetadata.UserWithMetadata] -> Set User.Id -> [FormField]
-showEditFormFields showModel isStaff eligibleHosts currentHostIds =
+showEditFormFields :: Shows.Model -> Bool -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> [FormField]
+showEditFormFields showModel isStaff eligibleHosts currentHostIds existingTags =
   [ -- Basic Information Section
     SectionField
       { sfTitle = "BASIC INFORMATION",
@@ -146,15 +147,15 @@ showEditFormFields showModel isStaff eligibleHosts currentHostIds =
                     }
               },
             ValidatedTextField
-              { vfName = "genre",
-                vfLabel = "Genre",
-                vfInitialValue = fmap display showModel.genre,
+              { vfName = "tags",
+                vfLabel = "Tags",
+                vfInitialValue = if Text.null existingTags then Nothing else Just existingTags,
                 vfPlaceholder = Just "e.g. Techno, Ambient, Experimental, Hip-Hop",
-                vfHint = Just "Primary genre or style of music",
+                vfHint = Just "Comma-separated tags for categorization and filtering",
                 vfValidation =
                   ValidationRules
                     { vrMinLength = Nothing,
-                      vrMaxLength = Just 100,
+                      vrMaxLength = Just 500,
                       vrPattern = Nothing,
                       vrRequired = False,
                       vrCustomValidation = Nothing

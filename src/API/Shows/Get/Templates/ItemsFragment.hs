@@ -16,10 +16,11 @@ import API.Types
 import Component.Card.Show (renderShowCard)
 import Component.InfiniteScroll (renderEndOfContent, renderSentinel)
 import Data.String.Interpolate (i)
-import Domain.Types.Genre (Genre)
+import Domain.Types.Filter (Filter (..))
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
 import Domain.Types.ShowSortBy (ShowSortBy)
+import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Servant.Links qualified as Links
@@ -34,12 +35,12 @@ renderItemsFragment ::
   [Shows.Model] ->
   PageNumber ->
   Bool ->
-  Maybe Genre ->
+  Maybe ShowTags.Id ->
   Maybe Shows.Status ->
   Maybe Search ->
   Maybe ShowSortBy ->
   Lucid.Html ()
-renderItemsFragment allShows currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSortBy = do
+renderItemsFragment allShows currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy = do
   -- Render each new show
   mapM_ renderShowCard allShows
 
@@ -49,4 +50,4 @@ renderItemsFragment allShows currentPage hasMore maybeGenre maybeStatus maybeSea
     else renderEndOfContent
   where
     nextPageUrl :: Links.URI
-    nextPageUrl = Links.linkURI $ showsLinks.list (Just (currentPage + 1)) maybeGenre maybeStatus maybeSearch maybeSortBy
+    nextPageUrl = Links.linkURI $ showsLinks.list (Just (currentPage + 1)) (fmap (Filter . Just) maybeTagId) (fmap (Filter . Just) maybeStatus) (fmap (Filter . Just) maybeSearch) (fmap (Filter . Just) maybeSortBy)
