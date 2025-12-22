@@ -124,7 +124,8 @@ avatarField metadata =
         existingImageUrl = maybe "" (\url -> [i|/#{url}|]) metadata.mAvatarUrl,
         accept = "image/jpeg,image/jpg,image/png,image/webp,image/gif",
         maxSizeMB = 10,
-        isRequired = False
+        isRequired = False,
+        aspectRatio = (1, 1)
       }
 
 -- | Role display field (read-only)

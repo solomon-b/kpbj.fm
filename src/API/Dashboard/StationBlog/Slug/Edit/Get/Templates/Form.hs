@@ -204,7 +204,8 @@ heroImageField blogPost =
             ImageFilePicker.existingImageUrl = imageUrl,
             ImageFilePicker.accept = "image/*",
             ImageFilePicker.maxSizeMB = 10,
-            ImageFilePicker.isRequired = False
+            ImageFilePicker.isRequired = False,
+            ImageFilePicker.aspectRatio = (16, 9)
           }
 
 --------------------------------------------------------------------------------
