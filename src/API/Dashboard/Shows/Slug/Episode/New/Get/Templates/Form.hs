@@ -215,7 +215,8 @@ artworkFileField =
         ImageFilePicker.existingImageUrl = "",
         ImageFilePicker.accept = "image/jpeg,image/png",
         ImageFilePicker.maxSizeMB = 5,
-        ImageFilePicker.isRequired = False
+        ImageFilePicker.isRequired = False,
+        ImageFilePicker.aspectRatio = (1, 1)
       }
 
 -- | Show info section (read-only display)

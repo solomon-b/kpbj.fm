@@ -200,7 +200,8 @@ artworkFileField episode =
             ImageFilePicker.existingImageUrl = artworkUrl,
             ImageFilePicker.accept = "image/jpeg,image/png",
             ImageFilePicker.maxSizeMB = 5,
-            ImageFilePicker.isRequired = False
+            ImageFilePicker.isRequired = False,
+            ImageFilePicker.aspectRatio = (1, 1)
           }
 
 trackListingSection :: [EpisodeTrack.Model] -> Lucid.Html ()

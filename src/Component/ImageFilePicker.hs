@@ -10,10 +10,11 @@ where
 
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras (xBindClass_, xBindSrc_, xData_, xOnChange_, xOnClick_, xShow_, xText_)
+import Lucid.Extras (xBindClass_, xBindSrc_, xData_, xOnChange_, xOnClick_, xOnDragover_, xOnDragleave_, xOnDrop_, xShow_, xText_)
 
 --------------------------------------------------------------------------------
 
@@ -30,21 +31,52 @@ data Config = Config
     -- | Maximum file size in MB
     maxSizeMB :: Int,
     -- | Whether this field is required
-    isRequired :: Bool
+    isRequired :: Bool,
+    -- | Aspect ratio as (width, height), e.g., (1, 1) for square, (16, 9) for widescreen
+    aspectRatio :: (Int, Int)
   }
+
+--------------------------------------------------------------------------------
+
+-- | Convert MIME types to human-readable format
+-- e.g., "image/jpeg,image/png,image/webp" -> "JPG, PNG, WEBP"
+humanReadableTypes :: Text -> Text
+humanReadableTypes accept
+  | accept == "image/*" = "All image types"
+  | otherwise =
+      let types = Text.splitOn "," accept
+          toHuman t = case Text.strip t of
+            "image/jpeg" -> "JPG"
+            "image/jpg" -> "JPG"
+            "image/png" -> "PNG"
+            "image/webp" -> "WEBP"
+            "image/gif" -> "GIF"
+            "image/svg+xml" -> "SVG"
+            other -> Text.toUpper $ Text.replace "image/" "" other
+       in Text.intercalate ", " $ map toHuman types
 
 --------------------------------------------------------------------------------
 
 -- | Render an image file picker with integrated preview.
 --
--- Combines a file input and image preview in one dashed border box.
--- The preview shows the existing image (if any) or updates when a new file is selected.
+-- Features:
+-- - Drag-and-drop support with visual feedback
+-- - Click anywhere in the drop zone to select
+-- - Aspect ratio preview
+-- - Human-readable file type display
+-- - Clear file action with confirmation
 render :: Config -> Lucid.Html ()
 render Config {..} = do
   let labelText :: Text
       labelText = if isRequired then label <> " *" else label
       inputId = fieldName <> "-input"
-      hasExisting = not (existingImageUrl == "")
+      hasExisting = existingImageUrl /= ""
+      (ratioW, ratioH) = aspectRatio
+      aspectRatioStyle :: Text
+      aspectRatioStyle = [i|aspect-ratio: #{ratioW} / #{ratioH}|]
+      ratioText :: Text
+      ratioText = [i|#{ratioW}:#{ratioH}|]
+      friendlyTypes = humanReadableTypes accept
 
   -- Alpine.js state for this picker
   Lucid.div_
@@ -56,9 +88,27 @@ render Config {..} = do
   currentCleared: false,
   isValid: true,
   error: '',
+  isDragging: false,
 
   handleFileChange(event) {
     const file = event.target.files?.[0];
+    this.processFile(file);
+  },
+
+  handleDrop(event) {
+    this.isDragging = false;
+    const file = event.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      // Update the actual input element
+      const input = document.getElementById('#{inputId}');
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      this.processFile(file);
+    }
+  },
+
+  processFile(file) {
     if (this.previewUrl) {
       URL.revokeObjectURL(this.previewUrl);
       this.previewUrl = '';
@@ -66,6 +116,7 @@ render Config {..} = do
     if (file) {
       this.fileName = file.name;
       this.fileSize = file.size;
+      this.currentCleared = false;
       if (file.type.startsWith('image/')) {
         this.previewUrl = URL.createObjectURL(file);
       }
@@ -84,7 +135,7 @@ render Config {..} = do
     }
     if (file && file.size > #{maxSizeMB * 1024 * 1024}) {
       this.isValid = false;
-      this.error = 'File size must be less than #{maxSizeMB}MB';
+      this.error = 'File exceeds #{maxSizeMB}MB limit';
       return;
     }
     this.isValid = true;
@@ -95,7 +146,6 @@ render Config {..} = do
     const input = document.getElementById('#{inputId}');
     if (input) {
       input.value = '';
-      input.dispatchEvent(new Event('change', { bubbles: true }));
     }
     if (this.previewUrl) {
       URL.revokeObjectURL(this.previewUrl);
@@ -104,14 +154,19 @@ render Config {..} = do
     this.fileSize = 0;
     this.previewUrl = '';
     this.currentCleared = true;
+    this.validate(null);
+  },
+
+  triggerInput() {
+    document.getElementById('#{inputId}').click();
   },
 
   formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + sizes[i];
   }
 }|]
     ]
@@ -123,76 +178,141 @@ render Config {..} = do
         ]
         (Lucid.toHtml labelText)
 
-      -- Dashed border container with preview and file picker
+      -- Hidden file input
+      Lucid.input_ $
+        [ Lucid.type_ "file",
+          Lucid.name_ fieldName,
+          Lucid.id_ inputId,
+          Lucid.accept_ accept,
+          Lucid.class_ "hidden",
+          xOnChange_ "handleFileChange($event)"
+        ]
+          <> [Lucid.required_ "" | isRequired]
+
+      -- Drop zone container (entire area is clickable)
       Lucid.div_
-        [ xBindClass_ [i|!isValid ? 'border-2 border-dashed border-red-500 p-6 text-center' : 'border-2 border-dashed border-gray-400 p-6 text-center'|]
+        [ xBindClass_ [i|{
+            'border-2 border-dashed p-6 cursor-pointer transition-all duration-150': true,
+            'border-red-500 bg-red-50': !isValid,
+            'border-purple-500 bg-purple-50': isDragging && isValid,
+            'border-gray-300 hover:border-gray-400 hover:bg-gray-50': !isDragging && isValid
+          }|],
+          xOnClick_ "triggerInput()",
+          xOnDragover_ "isDragging = true",
+          xOnDragleave_ "isDragging = false",
+          xOnDrop_ "handleDrop($event)"
         ]
         $ do
-          -- Image preview area
-          Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
-            -- Current/existing image (shown when not cleared and no new file)
+          -- Preview area
+          Lucid.div_ [class_ $ base ["flex", "flex-col", "items-center"]] $ do
+            -- Empty/placeholder state
+            let emptyCondition =
+                  if hasExisting
+                    then "currentCleared && !previewUrl"
+                    else "!previewUrl"
+                emptyStyle = if hasExisting then "display: none;" else ""
+
+            Lucid.div_ [xShow_ emptyCondition, Lucid.style_ emptyStyle, class_ $ base ["flex", "flex-col", "items-center"]] $ do
+              -- Aspect ratio preview box
+              Lucid.div_
+                [ class_ $ base ["w-40", "border-2", "border-dashed", "border-gray-300", "bg-white", "flex", "items-center", "justify-center", "mb-4", "relative", "overflow-hidden"],
+                  Lucid.style_ aspectRatioStyle
+                ]
+                $ do
+                  -- Decorative corner markers to indicate crop area
+                  Lucid.div_ [Lucid.class_ "absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-gray-400"] mempty
+                  Lucid.div_ [Lucid.class_ "absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-gray-400"] mempty
+                  Lucid.div_ [Lucid.class_ "absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-gray-400"] mempty
+                  Lucid.div_ [Lucid.class_ "absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-gray-400"] mempty
+                  -- Center icon
+                  Lucid.div_ [class_ $ base ["text-gray-300", "text-3xl"]] $
+                    Lucid.toHtmlRaw ("&#x1F5BC;" :: Text) -- framed picture icon
+
+              -- Call to action
+              Lucid.div_ [class_ $ base ["text-center"]] $ do
+                Lucid.p_ [class_ $ base [Tokens.fontBold, "text-gray-700", "mb-1"]] $
+                  Lucid.span_ [xShow_ "!isDragging"] "Drop image here or click to browse"
+                Lucid.p_ [class_ $ base [Tokens.fontBold, "text-purple-600", "mb-1"], xShow_ "isDragging", Lucid.style_ "display: none;"] "Drop to upload"
+                -- Requirements in a subtle format
+                Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] $ do
+                  Lucid.toHtml ([i|#{ratioText}|] :: Text)
+                  Lucid.span_ [class_ $ base ["mx-2", "text-gray-300"]] "·"
+                  Lucid.toHtml ([i|Max #{maxSizeMB}MB|] :: Text)
+                  Lucid.span_ [class_ $ base ["mx-2", "text-gray-300"]] "·"
+                  Lucid.toHtml friendlyTypes
+
+            -- Current/existing image
             if hasExisting
               then
                 Lucid.div_ [xShow_ "!currentCleared && !previewUrl", class_ $ base ["flex", "flex-col", "items-center"]] $ do
-                  Lucid.img_
-                    [ Lucid.src_ existingImageUrl,
-                      Lucid.class_ "max-w-xs max-h-48 border-2 border-gray-400 object-contain mb-2",
-                      Lucid.alt_ "Current image"
+                  Lucid.div_
+                    [ class_ $ base ["w-40", "border-2", "border-gray-300", "bg-gray-100", "mb-3", "relative", "group", "overflow-hidden"],
+                      Lucid.style_ aspectRatioStyle
                     ]
-                  Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] "Current image"
-              else
-                Lucid.div_ [xShow_ "!previewUrl", class_ $ base ["py-8", Tokens.textGray600]] $ do
-                  Lucid.div_ [class_ $ base ["text-4xl", Tokens.mb2]] "🖼️"
-                  Lucid.p_ [class_ $ base [Tokens.textSm]] "No image selected"
+                    $ do
+                      Lucid.img_
+                        [ Lucid.src_ existingImageUrl,
+                          Lucid.class_ "w-full h-full object-cover",
+                          Lucid.alt_ "Current image"
+                        ]
+                      -- Hover overlay
+                      Lucid.div_ [Lucid.class_ "absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"] $
+                        Lucid.span_ [Lucid.class_ "text-white text-sm font-bold"] "Click to change"
+                  Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] "Current image"
+                  -- Clear button (stop propagation to prevent triggering file input)
+                  Lucid.button_
+                    [ Lucid.type_ "button",
+                      xOnClick_ "$event.stopPropagation(); clearFile()",
+                      class_ $ base [Tokens.textSm, "text-red-600", "hover:text-red-800", "underline"]
+                    ]
+                    "Remove image"
+              else mempty
 
-            -- New file preview (shown when a new file is selected)
+            -- New file preview
             Lucid.div_ [xShow_ "previewUrl", Lucid.style_ "display: none;", class_ $ base ["flex", "flex-col", "items-center"]] $ do
-              Lucid.img_
-                [ xBindSrc_ "previewUrl",
-                  Lucid.class_ "max-w-xs max-h-48 border-2 border-gray-400 object-contain mb-2",
-                  Lucid.alt_ "New image preview"
+              Lucid.div_
+                [ class_ $ base ["w-40", "border-2", "border-purple-400", "bg-gray-100", "mb-3", "relative", "group", "overflow-hidden"],
+                  Lucid.style_ aspectRatioStyle
                 ]
-              Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] "New image selected"
+                $ do
+                  Lucid.img_
+                    [ xBindSrc_ "previewUrl",
+                      Lucid.class_ "w-full h-full object-cover",
+                      Lucid.alt_ "New image preview"
+                    ]
+                  -- Hover overlay
+                  Lucid.div_ [Lucid.class_ "absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"] $
+                    Lucid.span_ [Lucid.class_ "text-white text-sm font-bold"] "Click to change"
 
-          -- Hidden file input
-          Lucid.input_ $
-            [ Lucid.type_ "file",
-              Lucid.name_ fieldName,
-              Lucid.id_ inputId,
-              Lucid.accept_ accept,
-              Lucid.class_ "hidden",
-              xOnChange_ "handleFileChange($event)"
-            ]
-              <> [Lucid.required_ "" | isRequired]
-
-          -- File picker button and info
-          Lucid.label_ [Lucid.for_ inputId, Lucid.class_ "cursor-pointer"] $ do
-            Lucid.div_ [class_ $ base ["bg-purple-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-purple-700", "inline-block"]] $
-              "CHOOSE IMAGE"
-            Lucid.div_ [class_ $ base ["mt-2", Tokens.textSm, Tokens.textGray600]] $
-              if isRequired
-                then Lucid.toHtml ([i|#{accept} accepted • Max #{maxSizeMB}MB|] :: Text)
-                else Lucid.toHtml ([i|#{accept} accepted • Max #{maxSizeMB}MB • Leave empty to keep current|] :: Text)
-
-          -- Selected file info
-          Lucid.div_ [xShow_ "fileName", Lucid.class_ "mt-3 text-sm font-bold text-gray-800 flex items-center justify-center gap-2 flex-wrap", Lucid.style_ "display: none;"] $ do
-            Lucid.span_ [xText_ "fileName"] ""
-            Lucid.span_ [Lucid.class_ "text-gray-600"] $ do
-              "("
-              Lucid.span_ [xText_ "formatFileSize(fileSize)"] ""
-              ")"
-            Lucid.button_
-              [ Lucid.type_ "button",
-                xOnClick_ "clearFile()",
-                Lucid.class_ "ml-2 px-2 py-0.5 text-xs bg-gray-200 hover:bg-gray-300 border border-gray-400 text-gray-700 font-normal"
-              ]
-              "Clear"
+              -- File info chip
+              Lucid.div_ [class_ $ base ["flex", "items-center", "gap-2", "px-3", "py-1.5", "bg-purple-100", "border", "border-purple-300", "text-purple-800", Tokens.textSm, "mb-2"]] $ do
+                Lucid.span_ [class_ $ base [Tokens.fontBold], xText_ "fileName"] ""
+                Lucid.span_ [class_ $ base ["text-purple-600"]] $ do
+                  "("
+                  Lucid.span_ [xText_ "formatFileSize(fileSize)"] ""
+                  ")"
+              -- Clear button
+              Lucid.button_
+                [ Lucid.type_ "button",
+                  xOnClick_ "$event.stopPropagation(); clearFile()",
+                  class_ $ base [Tokens.textSm, "text-red-600", "hover:text-red-800", "underline"]
+                ]
+                "Remove"
 
       -- Error message
       Lucid.div_
         [ xShow_ "!isValid",
-          Lucid.class_ "mt-1 text-sm text-red-600",
-          xText_ "error",
+          class_ $ base ["mt-2", "flex", "items-center", "gap-2", Tokens.textSm, "text-red-600"],
           Lucid.style_ "display: none;"
         ]
-        ""
+        $ do
+          -- Error icon
+          Lucid.span_ [class_ $ base [Tokens.fontBold]] "!"
+          Lucid.span_ [xText_ "error"] ""
+
+      -- Optional hint for non-required fields with existing images
+      if not isRequired && hasExisting
+        then
+          Lucid.p_ [class_ $ base ["mt-2", Tokens.textSm, Tokens.textGray600]] $
+            "Leave unchanged to keep the current image"
+        else mempty

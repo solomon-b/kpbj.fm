@@ -251,7 +251,8 @@ logoImageField showModel =
             ImageFilePicker.existingImageUrl = imageUrl,
             ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
             ImageFilePicker.maxSizeMB = 10,
-            ImageFilePicker.isRequired = False
+            ImageFilePicker.isRequired = False,
+            ImageFilePicker.aspectRatio = (4, 3)
           }
 
 -- | Render banner image field with integrated preview.
@@ -265,7 +266,8 @@ bannerImageField showModel =
             ImageFilePicker.existingImageUrl = imageUrl,
             ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
             ImageFilePicker.maxSizeMB = 10,
-            ImageFilePicker.isRequired = False
+            ImageFilePicker.isRequired = False,
+            ImageFilePicker.aspectRatio = (3, 1)
           }
 
 --------------------------------------------------------------------------------

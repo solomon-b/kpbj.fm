@@ -216,7 +216,8 @@ posterImageField =
         ImageFilePicker.existingImageUrl = "",
         ImageFilePicker.accept = "image/*",
         ImageFilePicker.maxSizeMB = 10,
-        ImageFilePicker.isRequired = False
+        ImageFilePicker.isRequired = False,
+        ImageFilePicker.aspectRatio = (2, 3)
       }
 
 --------------------------------------------------------------------------------

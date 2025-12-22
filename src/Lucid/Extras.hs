@@ -92,6 +92,20 @@ xInit_ = Lucid.makeAttributes "x-init"
 xOnClickOutside_ :: Text -> Lucid.Attributes
 xOnClickOutside_ = Lucid.makeAttributes "x-on:click.outside"
 
+-- | Generic x-on handler for custom events
+-- Usage: xOn_ "dragover.prevent" "isDragging = true"
+xOn_ :: Text -> Text -> Lucid.Attributes
+xOn_ event = Lucid.makeAttributes ("x-on:" <> event)
+
+xOnDragover_ :: Text -> Lucid.Attributes
+xOnDragover_ = Lucid.makeAttributes "x-on:dragover.prevent"
+
+xOnDragleave_ :: Text -> Lucid.Attributes
+xOnDragleave_ = Lucid.makeAttributes "x-on:dragleave.prevent"
+
+xOnDrop_ :: Text -> Lucid.Attributes
+xOnDrop_ = Lucid.makeAttributes "x-on:drop.prevent"
+
 -- | Listen for HTMX's pushedIntoHistory event (fired after hx-push-url updates history)
 xOnHtmxPushedIntoHistory_ :: Text -> Lucid.Attributes
 xOnHtmxPushedIntoHistory_ = Lucid.makeAttributes "x-on:htmx:pushed-into-history.window"
