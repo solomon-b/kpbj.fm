@@ -14,8 +14,8 @@ import API.Types
 import Component.AudioFilePicker qualified as AudioFilePicker
 import Component.Form qualified as Form
 import Component.Form.Builder qualified as Builder
-import Component.ImageFilePicker qualified as ImageFilePicker
 import Component.Form.Internal (hiddenInput)
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)

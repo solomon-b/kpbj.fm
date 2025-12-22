@@ -736,7 +736,9 @@ template mUser main =
       Lucid.meta_ [Lucid.name_ "viewport", Lucid.content_ "width=device-width, initial-scale=1.0"]
       Lucid.title_ "KPBJ 95.9FM"
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
+      Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"]
       Lucid.script_ [Lucid.src_ "https://cdn.tailwindcss.com"] (mempty @Text)
+      Lucid.script_ [Lucid.src_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "https://unpkg.com/htmx.org@2.0.0"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)

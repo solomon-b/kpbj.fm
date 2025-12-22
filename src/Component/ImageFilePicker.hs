@@ -14,7 +14,7 @@ import Data.Text qualified as Text
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras (xBindClass_, xBindSrc_, xData_, xOnChange_, xOnClick_, xOnDragover_, xOnDragleave_, xOnDrop_, xShow_, xText_)
+import Lucid.Extras (xBindClass_, xBindSrc_, xData_, xOnChange_, xOnClick_, xOnDragleave_, xOnDragover_, xOnDrop_, xRef_, xShow_, xText_)
 
 --------------------------------------------------------------------------------
 
@@ -57,14 +57,13 @@ humanReadableTypes accept
 
 --------------------------------------------------------------------------------
 
--- | Render an image file picker with integrated preview.
+-- | Render an image file picker with integrated preview and cropping.
 --
 -- Features:
 -- - Drag-and-drop support with visual feedback
 -- - Click anywhere in the drop zone to select
--- - Aspect ratio preview
+-- - Cropper.js integration for aspect ratio cropping
 -- - Human-readable file type display
--- - Clear file action with confirmation
 render :: Config -> Lucid.Html ()
 render Config {..} = do
   let labelText :: Text
@@ -76,6 +75,8 @@ render Config {..} = do
       aspectRatioStyle = [i|aspect-ratio: #{ratioW} / #{ratioH}|]
       ratioText :: Text
       ratioText = [i|#{ratioW}:#{ratioH}|]
+      ratioDecimal :: Text
+      ratioDecimal = [i|#{(fromIntegral ratioW :: Double) / (fromIntegral ratioH :: Double)}|]
       friendlyTypes = humanReadableTypes accept
 
   -- Alpine.js state for this picker
@@ -90,63 +91,124 @@ render Config {..} = do
   error: '',
   isDragging: false,
 
+  // Cropper state
+  showCropper: false,
+  cropper: null,
+  originalFile: null,
+  cropImageUrl: '',
+
   handleFileChange(event) {
     const file = event.target.files?.[0];
-    this.processFile(file);
+    if (file && file.type.startsWith('image/')) {
+      this.openCropper(file);
+    }
   },
 
   handleDrop(event) {
     this.isDragging = false;
     const file = event.dataTransfer?.files?.[0];
     if (file && file.type.startsWith('image/')) {
-      // Update the actual input element
-      const input = document.getElementById('#{inputId}');
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      input.files = dt.files;
-      this.processFile(file);
+      this.openCropper(file);
     }
   },
 
-  processFile(file) {
-    if (this.previewUrl) {
-      URL.revokeObjectURL(this.previewUrl);
-      this.previewUrl = '';
-    }
-    if (file) {
-      this.fileName = file.name;
-      this.fileSize = file.size;
-      this.currentCleared = false;
-      if (file.type.startsWith('image/')) {
-        this.previewUrl = URL.createObjectURL(file);
-      }
-      this.validate(file);
-    } else {
-      this.fileName = '';
-      this.fileSize = 0;
-    }
-  },
-
-  validate(file) {
-    if (!file && #{if isRequired then "true" else "false" :: Text} && this.currentCleared) {
-      this.isValid = false;
-      this.error = 'This field is required';
-      return;
-    }
-    if (file && file.size > #{maxSizeMB * 1024 * 1024}) {
+  openCropper(file) {
+    // Validate file size first
+    if (file.size > #{maxSizeMB * 1024 * 1024}) {
       this.isValid = false;
       this.error = 'File exceeds #{maxSizeMB}MB limit';
       return;
     }
+
+    this.originalFile = file;
+    this.cropImageUrl = URL.createObjectURL(file);
+    this.showCropper = true;
+
+    // Initialize cropper after DOM updates
+    this.$nextTick(() => {
+      const img = this.$refs.cropperImage;
+      if (img && typeof Cropper !== 'undefined') {
+        this.cropper = new Cropper(img, {
+          aspectRatio: #{ratioDecimal},
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 1,
+          restore: false,
+          guides: true,
+          center: true,
+          highlight: false,
+          cropBoxMovable: true,
+          cropBoxResizable: true,
+          toggleDragModeOnDblclick: false,
+        });
+      }
+    });
+  },
+
+  async confirmCrop() {
+    if (!this.cropper) return;
+
+    const canvas = this.cropper.getCroppedCanvas({
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
+    });
+
+    // Convert canvas to blob
+    const blob = await new Promise(resolve => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.92);
+    });
+
+    // Create a new File from the blob
+    const croppedFile = new File([blob], this.originalFile.name, {
+      type: 'image/jpeg',
+      lastModified: Date.now(),
+    });
+
+    // Update the file input
+    const input = document.getElementById('#{inputId}');
+    const dt = new DataTransfer();
+    dt.items.add(croppedFile);
+    input.files = dt.files;
+
+    // Update preview
+    if (this.previewUrl) {
+      URL.revokeObjectURL(this.previewUrl);
+    }
+    this.previewUrl = URL.createObjectURL(croppedFile);
+    this.fileName = croppedFile.name;
+    this.fileSize = croppedFile.size;
+    this.currentCleared = false;
     this.isValid = true;
     this.error = '';
+
+    this.closeCropper();
+  },
+
+  cancelCrop() {
+    // Clear the file input
+    const input = document.getElementById('#{inputId}');
+    if (input) input.value = '';
+    this.closeCropper();
+  },
+
+  closeCropper() {
+    if (this.cropper) {
+      this.cropper.destroy();
+      this.cropper = null;
+    }
+    if (this.cropImageUrl) {
+      URL.revokeObjectURL(this.cropImageUrl);
+      this.cropImageUrl = '';
+    }
+    this.showCropper = false;
+    this.originalFile = null;
   },
 
   clearFile() {
     const input = document.getElementById('#{inputId}');
-    if (input) {
-      input.value = '';
-    }
+    if (input) input.value = '';
     if (this.previewUrl) {
       URL.revokeObjectURL(this.previewUrl);
     }
@@ -154,7 +216,17 @@ render Config {..} = do
     this.fileSize = 0;
     this.previewUrl = '';
     this.currentCleared = true;
-    this.validate(null);
+    this.validate();
+  },
+
+  validate() {
+    if (#{if isRequired then "true" else "false" :: Text} && this.currentCleared && !this.previewUrl) {
+      this.isValid = false;
+      this.error = 'This field is required';
+      return;
+    }
+    this.isValid = true;
+    this.error = '';
   },
 
   triggerInput() {
@@ -191,7 +263,8 @@ render Config {..} = do
 
       -- Drop zone container (entire area is clickable)
       Lucid.div_
-        [ xBindClass_ [i|{
+        [ xBindClass_
+            [i|{
             'border-2 border-dashed p-6 cursor-pointer transition-all duration-150': true,
             'border-red-500 bg-red-50': !isValid,
             'border-purple-500 bg-purple-50': isDragging && isValid,
@@ -243,29 +316,28 @@ render Config {..} = do
 
             -- Current/existing image
             if hasExisting
-              then
-                Lucid.div_ [xShow_ "!currentCleared && !previewUrl", class_ $ base ["flex", "flex-col", "items-center"]] $ do
-                  Lucid.div_
-                    [ class_ $ base ["w-40", "border-2", "border-gray-300", "bg-gray-100", "mb-3", "relative", "group", "overflow-hidden"],
-                      Lucid.style_ aspectRatioStyle
-                    ]
-                    $ do
-                      Lucid.img_
-                        [ Lucid.src_ existingImageUrl,
-                          Lucid.class_ "w-full h-full object-cover",
-                          Lucid.alt_ "Current image"
-                        ]
-                      -- Hover overlay
-                      Lucid.div_ [Lucid.class_ "absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"] $
-                        Lucid.span_ [Lucid.class_ "text-white text-sm font-bold"] "Click to change"
-                  Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] "Current image"
-                  -- Clear button (stop propagation to prevent triggering file input)
-                  Lucid.button_
-                    [ Lucid.type_ "button",
-                      xOnClick_ "$event.stopPropagation(); clearFile()",
-                      class_ $ base [Tokens.textSm, "text-red-600", "hover:text-red-800", "underline"]
-                    ]
-                    "Remove image"
+              then Lucid.div_ [xShow_ "!currentCleared && !previewUrl", class_ $ base ["flex", "flex-col", "items-center"]] $ do
+                Lucid.div_
+                  [ class_ $ base ["w-40", "border-2", "border-gray-300", "bg-gray-100", "mb-3", "relative", "group", "overflow-hidden"],
+                    Lucid.style_ aspectRatioStyle
+                  ]
+                  $ do
+                    Lucid.img_
+                      [ Lucid.src_ existingImageUrl,
+                        Lucid.class_ "w-full h-full object-cover",
+                        Lucid.alt_ "Current image"
+                      ]
+                    -- Hover overlay
+                    Lucid.div_ [Lucid.class_ "absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"] $
+                      Lucid.span_ [Lucid.class_ "text-white text-sm font-bold"] "Click to change"
+                Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] "Current image"
+                -- Clear button (stop propagation to prevent triggering file input)
+                Lucid.button_
+                  [ Lucid.type_ "button",
+                    xOnClick_ "$event.stopPropagation(); clearFile()",
+                    class_ $ base [Tokens.textSm, "text-red-600", "hover:text-red-800", "underline"]
+                  ]
+                  "Remove image"
               else mempty
 
             -- New file preview
@@ -306,7 +378,6 @@ render Config {..} = do
           Lucid.style_ "display: none;"
         ]
         $ do
-          -- Error icon
           Lucid.span_ [class_ $ base [Tokens.fontBold]] "!"
           Lucid.span_ [xText_ "error"] ""
 
@@ -316,3 +387,74 @@ render Config {..} = do
           Lucid.p_ [class_ $ base ["mt-2", Tokens.textSm, Tokens.textGray600]] $
             "Leave unchanged to keep the current image"
         else mempty
+
+      -- Cropper Modal
+      Lucid.div_
+        [ xShow_ "showCropper",
+          Lucid.style_ "display: none;",
+          class_ $ base ["fixed", "inset-0", "z-50", "flex", "items-center", "justify-center", "p-4"]
+        ]
+        $ do
+          -- Backdrop
+          Lucid.div_
+            [ xOnClick_ "cancelCrop()",
+              class_ $ base ["absolute", "inset-0", "bg-black/70"]
+            ]
+            mempty
+
+          -- Modal content
+          Lucid.div_ [class_ $ base ["relative", "bg-white", "max-w-2xl", "w-full", "max-h-[90vh]", "flex", "flex-col", "shadow-xl"]] $ do
+            -- Header
+            Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", "px-4", "py-3", "border-b", "border-gray-200"]] $ do
+              Lucid.h3_ [class_ $ base [Tokens.fontBold, "text-gray-800"]] $ do
+                "Crop Image"
+                Lucid.span_ [class_ $ base ["font-normal", Tokens.textSm, Tokens.textGray600, "ml-2"]] $
+                  Lucid.toHtml ([i|(#{ratioText} ratio)|] :: Text)
+              Lucid.button_
+                [ Lucid.type_ "button",
+                  xOnClick_ "cancelCrop()",
+                  class_ $ base ["text-gray-400", "hover:text-gray-600", "text-xl", Tokens.fontBold]
+                ]
+                "×"
+
+            -- Cropper container
+            Lucid.div_ [class_ $ base ["flex-1", "overflow-hidden", "bg-gray-900", "min-h-[300px]", "max-h-[60vh]"]] $
+              Lucid.img_
+                [ xRef_ "cropperImage",
+                  xBindSrc_ "cropImageUrl",
+                  Lucid.class_ "max-w-full",
+                  Lucid.alt_ "Image to crop"
+                ]
+
+            -- Footer with actions
+            Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", "px-4", "py-3", "border-t", "border-gray-200", "bg-gray-50"]] $ do
+              -- Zoom controls
+              Lucid.div_ [class_ $ base ["flex", "items-center", "gap-2"]] $ do
+                Lucid.button_
+                  [ Lucid.type_ "button",
+                    xOnClick_ "cropper?.zoom(-0.1)",
+                    class_ $ base ["px-3", "py-1", "bg-gray-200", "hover:bg-gray-300", Tokens.textSm, Tokens.fontBold]
+                  ]
+                  "−"
+                Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] "Zoom"
+                Lucid.button_
+                  [ Lucid.type_ "button",
+                    xOnClick_ "cropper?.zoom(0.1)",
+                    class_ $ base ["px-3", "py-1", "bg-gray-200", "hover:bg-gray-300", Tokens.textSm, Tokens.fontBold]
+                  ]
+                  "+"
+
+              -- Action buttons
+              Lucid.div_ [class_ $ base ["flex", "items-center", "gap-3"]] $ do
+                Lucid.button_
+                  [ Lucid.type_ "button",
+                    xOnClick_ "cancelCrop()",
+                    class_ $ base ["px-4", "py-2", "bg-gray-300", "hover:bg-gray-400", Tokens.fontBold, Tokens.textSm]
+                  ]
+                  "Cancel"
+                Lucid.button_
+                  [ Lucid.type_ "button",
+                    xOnClick_ "confirmCrop()",
+                    class_ $ base ["px-4", "py-2", "bg-purple-600", "hover:bg-purple-700", Tokens.textWhite, Tokens.fontBold, Tokens.textSm]
+                  ]
+                  "Apply Crop"
