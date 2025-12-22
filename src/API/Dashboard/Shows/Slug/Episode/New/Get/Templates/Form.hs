@@ -145,11 +145,11 @@ episodeFormFields showModel upcomingDates =
       { sfTitle = "AUDIO FILES",
         sfFields =
           [ -- Audio file with integrated player
-            PlainField
-              { pfHtml = audioFileField showModel
+            PlainFileField
+              { pffHtml = audioFileField showModel
               },
-            PlainField
-              { pfHtml = artworkFileField
+            PlainFileField
+              { pffHtml = artworkFileField
               }
           ]
       }

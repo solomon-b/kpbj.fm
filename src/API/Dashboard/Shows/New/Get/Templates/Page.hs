@@ -142,11 +142,11 @@ showFormFields eligibleHosts =
     SectionField
       { sfTitle = "ARTWORK & BRANDING",
         sfFields =
-          [ PlainField
-              { pfHtml = logoImageField
+          [ PlainFileField
+              { pffHtml = logoImageField
               },
-            PlainField
-              { pfHtml = bannerImageField
+            PlainFileField
+              { pffHtml = bannerImageField
               }
           ]
       },

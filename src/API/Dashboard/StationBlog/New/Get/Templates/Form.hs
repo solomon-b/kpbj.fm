@@ -96,8 +96,8 @@ blogFormFields =
                       vrCustomValidation = Nothing
                     }
               },
-            PlainField
-              { pfHtml = heroImageField
+            PlainFileField
+              { pffHtml = heroImageField
               },
             ValidatedTextField
               { vfName = "tags",

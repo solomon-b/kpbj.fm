@@ -110,11 +110,11 @@ template currentTime showModel episode tracks userMeta isStaff = do
                       { Builder.sfTitle = "MEDIA FILES",
                         Builder.sfFields =
                           [ -- Audio file with integrated player
-                            Builder.PlainField
-                              { Builder.pfHtml = audioFileField showModel episode
+                            Builder.PlainFileField
+                              { Builder.pffHtml = audioFileField showModel episode
                               },
-                            Builder.PlainField
-                              { Builder.pfHtml = artworkFileField episode
+                            Builder.PlainFileField
+                              { Builder.pffHtml = artworkFileField episode
                               }
                           ]
                       }
