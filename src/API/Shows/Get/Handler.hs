@@ -30,6 +30,7 @@ import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
+import Domain.Types.ShowSortBy (ShowSortBy (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -61,16 +62,18 @@ handler ::
   Maybe Genre ->
   Maybe Shows.Status ->
   Maybe Search ->
+  Maybe ShowSortBy ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
+handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch maybeSortBy (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
   getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do
     let limit = 12 :: Limit
         offset = fromIntegral $ ((coerce page :: Int64) - 1) * fromIntegral limit :: Offset
+        sortBy = fromMaybe NameAZ maybeSortBy
 
     -- Fetch limit + 1 to check if there are more results
-    getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus >>= \case
+    getShows (limit + 1) offset maybeSearch maybeGenre maybeStatus sortBy >>= \case
       Left err -> do
         Log.logInfo "Failed to fetch shows from database" (Aeson.object ["error" .= show err])
         let banner = BannerParams Error "Error" "Failed to load shows. Please try again."
@@ -78,7 +81,7 @@ handler _tracer (fromMaybe 1 -> page) maybeGenre maybeStatus maybeSearch (coerce
       Right allShows -> do
         let someShows = take (fromIntegral limit) allShows
             hasMore = length allShows > fromIntegral limit
-            showsTemplate = template someShows page hasMore maybeGenre maybeStatus maybeSearch
+            showsTemplate = template someShows page hasMore maybeGenre maybeStatus maybeSearch maybeSortBy
         renderTemplate htmxRequest mUserInfo showsTemplate
 
 getShows ::
@@ -93,25 +96,14 @@ getShows ::
   Maybe Search ->
   Maybe Genre ->
   Maybe Shows.Status ->
+  ShowSortBy ->
   m (Either HSQL.Pool.UsageError [Shows.Model])
-getShows limit offset maybeSearch maybeGenre maybeStatus = do
+getShows limit offset maybeSearch maybeGenre maybeStatus sortBy = do
   case maybeSearch of
     Just (Search searchTerm)
       | not (Text.null $ Text.strip searchTerm) ->
-          -- If search term is provided, use search function
+          -- If search term is provided, use search function (search has its own relevance-based sorting)
           execQuerySpan (Shows.searchShows (Search $ Text.strip searchTerm) limit offset)
     _ ->
-      -- No search term, use existing filter logic
-      case (maybeGenre, maybeStatus) of
-        (Just genre, Nothing) ->
-          execQuerySpan (Shows.getShowsByGenre genre limit offset)
-        (Nothing, Just status) ->
-          case status of
-            Shows.Active ->
-              execQuerySpan Shows.getActiveShows
-            Shows.Inactive ->
-              execQuerySpan (Shows.getAllShows limit offset)
-        (Just genre, Just status) ->
-          execQuerySpan (Shows.getShowsByGenreAndStatus genre status limit offset)
-        (Nothing, Nothing) ->
-          execQuerySpan (Shows.getAllShows limit offset)
+      -- No search term, use filter and sort logic
+      execQuerySpan (Shows.getShowsFiltered maybeGenre maybeStatus sortBy limit offset)

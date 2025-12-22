@@ -36,7 +36,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 showsGetUrl :: Links.URI
-showsGetUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
+showsGetUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Nothing
 
 --------------------------------------------------------------------------------
 

@@ -40,7 +40,7 @@ notAuthorizedTemplate = do
         "LOGIN"
   where
     showsGetUrl :: Links.URI
-    showsGetUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
+    showsGetUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Nothing
 
     userLoginGetUrl :: Links.URI
     userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing

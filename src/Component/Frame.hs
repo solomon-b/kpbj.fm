@@ -53,7 +53,7 @@ scheduleGetUrl :: Link.URI
 scheduleGetUrl = Link.linkURI $ scheduleLink Nothing
 
 showsGetUrl :: Link.URI
-showsGetUrl = Link.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing
+showsGetUrl = Link.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Nothing
 
 --------------------------------------------------------------------------------
 
