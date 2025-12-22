@@ -6,9 +6,10 @@ module API.Dashboard.Events.Get.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Events.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Events.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardEventsLinks, userLinks)
-import API.Types (DashboardEventsRoutes (..), Routes (..), UserRoutes (..))
+import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..))
@@ -74,6 +75,8 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       limit = 20 :: Limit
       offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+      -- Infinite scroll request = HTMX request for page > 1
+      isAppendRequest = hxRequest == IsHxRequest && page > 1
 
   getUserInfo cookie >>= \case
     Nothing -> do
@@ -100,8 +103,15 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) = do
         Right allEvents -> do
           let events = take (fromIntegral limit) allEvents
               hasMore = length allEvents > fromIntegral limit
-              eventsTemplate = template events page hasMore
-          renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing (Just actionButton) eventsTemplate
+
+          if isAppendRequest
+            then
+              -- Infinite scroll: return only new rows + sentinel (no page wrapper)
+              pure $ renderItemsFragment events page hasMore
+            else do
+              -- Full page: render with table, sentinel, and noscript pagination
+              let eventsTemplate = template events page hasMore
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing (Just actionButton) eventsTemplate
 
 -- | Action button for creating new event
 actionButton :: Lucid.Html ()

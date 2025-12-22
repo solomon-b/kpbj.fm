@@ -2,6 +2,7 @@ module API.Dashboard.Blogs.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import Data.Int (Int64)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
@@ -19,6 +20,7 @@ type Route =
     ( "dashboard"
         :> "blog"
         :> Servant.Capture "show" Slug
+        :> Servant.QueryParam "page" Int64
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())

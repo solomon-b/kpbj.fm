@@ -6,9 +6,10 @@ module API.Dashboard.StationBlog.Get.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.StationBlog.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.StationBlog.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardStationBlogLinks, userLinks)
-import API.Types (DashboardStationBlogRoutes (..), Routes (..), UserRoutes (..))
+import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..))
@@ -74,6 +75,8 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       limit = 20 :: Limit
       offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+      -- Infinite scroll request = HTMX request for page > 1
+      isAppendRequest = hxRequest == IsHxRequest && page > 1
 
   getUserInfo cookie >>= \case
     Nothing -> do
@@ -100,8 +103,15 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) = do
         Right allPosts -> do
           let posts = take (fromIntegral limit) allPosts
               hasMore = length allPosts > fromIntegral limit
-              postsTemplate = template posts page hasMore
-          renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing (Just actionButton) postsTemplate
+
+          if isAppendRequest
+            then
+              -- Infinite scroll: return only new rows + sentinel (no page wrapper)
+              pure $ renderItemsFragment posts page hasMore
+            else do
+              -- Full page: render with table, sentinel, and noscript pagination
+              let postsTemplate = template posts page hasMore
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing (Just actionButton) postsTemplate
 
 -- | Action button for creating new blog post
 actionButton :: Lucid.Html ()

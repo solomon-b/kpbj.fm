@@ -6,9 +6,10 @@ module API.Dashboard.Users.Get.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Users.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Users.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardUsersLinks, userLinks)
-import API.Types (DashboardUsersRoutes (..), Routes (..), UserRoutes (..))
+import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..))
@@ -78,6 +79,8 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
       roleFilter = getFilter =<< roleFilterParam
       queryFilter = getFilter =<< queryFilterParam
       sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
+      -- Infinite scroll request = HTMX request for page > 1
+      isAppendRequest = hxRequest == IsHxRequest && page > 1
 
   getUserInfo cookie >>= \case
     Nothing -> do
@@ -105,9 +108,16 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
           now <- liftIO getCurrentTime
           let users = take (fromIntegral limit) allUsers
               hasMore = length allUsers > fromIntegral limit
-              usersTemplate = template now users page hasMore queryFilter roleFilter sortBy
-              filtersContent = Just $ filtersUI queryFilter roleFilter sortBy
-          renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers filtersContent Nothing usersTemplate
+
+          if isAppendRequest
+            then
+              -- Infinite scroll: return only new rows + sentinel (no page wrapper)
+              pure $ renderItemsFragment now users page hasMore queryFilter roleFilter sortBy
+            else do
+              -- Full page: render with filters, table, sentinel, and noscript pagination
+              let usersTemplate = template now users page hasMore queryFilter roleFilter sortBy
+                  filtersContent = Just $ filtersUI queryFilter roleFilter sortBy
+              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers filtersContent Nothing usersTemplate
 
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()

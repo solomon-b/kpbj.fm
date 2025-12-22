@@ -9,16 +9,17 @@ import API.Links (blogLinks)
 import API.Types
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
--- | Render pagination controls
-renderPagination :: Int64 -> Bool -> Lucid.Html ()
-renderPagination currentPage hasMore = do
-  Lucid.div_ [class_ $ base ["flex", "justify-center", "mt-8"]] $ do
+-- | Render pagination controls (used as noscript fallback for infinite scroll)
+renderPagination :: Int64 -> Bool -> Maybe Text -> Lucid.Html ()
+renderPagination currentPage hasMore maybeTag = do
+  Lucid.div_ [Lucid.id_ "pagination-controls", class_ $ base ["flex", "justify-center", "mt-8"]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "space-x-2"]] $ do
       -- Previous button
       if currentPage > 1
@@ -52,7 +53,7 @@ renderPagination currentPage hasMore = do
         else Lucid.span_ [paginationDisabled] "Next ›"
   where
     blogGetPageUrl :: Int64 -> Links.URI
-    blogGetPageUrl page = Links.linkURI $ blogLinks.list (Just page) Nothing
+    blogGetPageUrl page = Links.linkURI $ blogLinks.list (Just page) maybeTag
 
     paginationLink = class_ $ base ["px-3 py-1", Tokens.textGray800, "hover:bg-gray-200"]
     paginationDisabled = class_ $ base ["px-3 py-1", "text-gray-400"]

@@ -2,6 +2,7 @@
 
 module Component.Table
   ( renderTable,
+    renderTableWithBodyId,
     TableConfig (..),
     ColumnHeader (..),
     ColumnAlign (..),
@@ -71,6 +72,35 @@ renderTable config bodyContent =
         Lucid.tr_ $
           mapM_ renderHeader config.headers
       Lucid.tbody_ bodyContent
+  where
+    renderHeader :: ColumnHeader -> Lucid.Html ()
+    renderHeader colHeader =
+      Lucid.th_ [class_ $ base [Tokens.p4, alignClass colHeader.headerAlign]] $
+        Lucid.toHtml colHeader.headerText
+
+    alignClass :: ColumnAlign -> Text
+    alignClass AlignLeft = "text-left"
+    alignClass AlignRight = "text-right"
+    alignClass AlignCenter = "text-center"
+
+-- | Render a table with a specific tbody ID for HTMX targeting
+--
+-- Same as 'renderTable' but adds an ID to the tbody for infinite scroll support.
+renderTableWithBodyId ::
+  -- | ID for the tbody element
+  Text ->
+  -- | Table configuration
+  TableConfig ->
+  -- | Table body content (rows)
+  Lucid.Html () ->
+  Lucid.Html ()
+renderTableWithBodyId bodyId config bodyContent =
+  Lucid.div_ [Lucid.class_ config.wrapperClass] $
+    Lucid.table_ [Lucid.class_ config.tableClass] $ do
+      Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
+        Lucid.tr_ $
+          mapM_ renderHeader config.headers
+      Lucid.tbody_ [Lucid.id_ bodyId] bodyContent
   where
     renderHeader :: ColumnHeader -> Lucid.Html ()
     renderHeader colHeader =

@@ -42,10 +42,10 @@ dashboardProfileEditUrl :: Links.URI
 dashboardProfileEditUrl = Links.linkURI dashboardLinks.profileEditGet
 
 dashboardEpisodesGetUrl :: Slug -> Links.URI
-dashboardEpisodesGetUrl slug = Links.linkURI $ dashboardEpisodesLinks.list slug
+dashboardEpisodesGetUrl slug = Links.linkURI $ dashboardEpisodesLinks.list slug Nothing
 
 dashboardBlogsGetUrl :: Slug -> Links.URI
-dashboardBlogsGetUrl mSlug = Links.linkURI $ dashboardBlogsLinks.list mSlug
+dashboardBlogsGetUrl mSlug = Links.linkURI $ dashboardBlogsLinks.list mSlug Nothing
 
 dashboardUsersGetUrl :: Links.URI
 dashboardUsersGetUrl = Links.linkURI $ dashboardUsersLinks.list Nothing Nothing Nothing Nothing

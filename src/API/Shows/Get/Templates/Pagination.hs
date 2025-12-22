@@ -11,16 +11,19 @@ import Data.String.Interpolate (i)
 import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
+import Domain.Types.Search (Search)
 import Domain.Types.ShowSortBy (ShowSortBy)
+import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
--- | Render pagination controls
-renderPagination :: PageNumber -> Bool -> Maybe ShowSortBy -> Lucid.Html ()
-renderPagination currentPage hasMore maybeSortBy = do
-  Lucid.div_ [class_ $ base ["flex", "justify-center", "mt-8"]] $ do
+-- | Render pagination controls (used as noscript fallback for infinite scroll)
+renderPagination :: PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
+renderPagination currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSortBy = do
+  Lucid.div_ [Lucid.id_ "pagination-controls", class_ $ base ["flex", "justify-center", "mt-8"]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "space-x-2"]] $ do
       -- Previous button
       if currentPage > 1
@@ -54,4 +57,4 @@ renderPagination currentPage hasMore maybeSortBy = do
         else Lucid.span_ [class_ $ base ["px-3", "py-1", "text-gray-400"]] "Next ›"
   where
     showsGetPageUrl :: PageNumber -> Links.URI
-    showsGetPageUrl page = Links.linkURI $ showsLinks.list (Just page) Nothing Nothing Nothing maybeSortBy
+    showsGetPageUrl page = Links.linkURI $ showsLinks.list (Just page) maybeGenre maybeStatus maybeSearch maybeSortBy

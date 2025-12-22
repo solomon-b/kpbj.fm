@@ -35,7 +35,7 @@ mediaGetUrl :: Links.URI
 mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 dashboardEpisodesGetUrl :: Slug -> Links.URI
-dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug
+dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
 
 --------------------------------------------------------------------------------
 
@@ -188,7 +188,7 @@ errorTemplate errorMsg = do
 
 notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate showSlug = do
-  let backUrl = Links.linkURI $ dashboardEpisodesLinks.list showSlug
+  let backUrl = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
   Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
     Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Episode Not Found"
     Lucid.p_ [class_ $ base [Tokens.textGray700, "mb-6"]] "We couldn't find the episode you're looking for."

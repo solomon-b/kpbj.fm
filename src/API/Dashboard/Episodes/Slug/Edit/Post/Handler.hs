@@ -56,7 +56,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 dashboardEpisodesUrl :: Slug -> Links.URI
-dashboardEpisodesUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug
+dashboardEpisodesUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
 
 --------------------------------------------------------------------------------
 
@@ -302,11 +302,11 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                               banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
                           html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                             IsHxRequest -> do
-                              EpisodesListPage.template userMetadata (Just showModel) episodes
+                              EpisodesListPage.template userMetadata (Just showModel) episodes 1 False
                               banner
                             IsNotHxRequest -> do
                               banner
-                              EpisodesListPage.template userMetadata (Just showModel) episodes
+                              EpisodesListPage.template userMetadata (Just showModel) episodes 1 False
                           pure $ Servant.addHeader [i|/#{listUrl}|] html
 
 -- | Process file uploads for episode editing

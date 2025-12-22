@@ -475,6 +475,13 @@ marqueeStyles =
     }
   |]
 
+-- | CSS for HTMX infinite scroll loading indicators
+htmxIndicatorStyles :: Text
+htmxIndicatorStyles =
+  ".htmx-indicator { display: none; } \
+  \.htmx-request .htmx-indicator { display: flex; } \
+  \.htmx-request #load-more-sentinel { visibility: hidden; }"
+
 -- | JavaScript to highlight the active navigation link based on current URL
 activeNavScript :: Text
 activeNavScript =
@@ -738,6 +745,7 @@ template mUser main =
       Lucid.script_ [] (darkModeScript (UserMetadata.mColorScheme <$> mUser))
       Lucid.script_ [] activeNavScript
       Lucid.style_ [] marqueeStyles
+      Lucid.style_ [] htmxIndicatorStyles
     Lucid.body_
       [ class_ $ do
           base ["font-mono", Tokens.textGray800, "dark:text-gray-200", "dark:bg-gray-900", "min-h-screen", "flex", "flex-col", "pb-20"]
