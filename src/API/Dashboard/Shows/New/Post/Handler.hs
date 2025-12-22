@@ -11,7 +11,7 @@ import API.Links (apiLinks, dashboardShowsLinks, showsLinks, userLinks)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..), renderBanner)
-import Control.Monad (forM_)
+import Control.Monad (forM_, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -34,6 +34,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
@@ -190,7 +191,6 @@ validateNewShow form = do
       -- Sanitize user input
       sanitizedTitle = Sanitize.sanitizeTitle (nsfTitle form)
       sanitizedDescription = Sanitize.sanitizeUserContent (nsfDescription form)
-      sanitizedGenre = Sanitize.sanitizeTitle <$> nsfGenre form
 
       status = case nsfStatus form of
         "active" -> Shows.Active
@@ -209,7 +209,6 @@ validateNewShow form = do
               { Shows.siTitle = sanitizedTitle,
                 Shows.siSlug = slug,
                 Shows.siDescription = sanitizedDescription,
-                Shows.siGenre = sanitizedGenre,
                 Shows.siLogoUrl = Nothing, -- Will be set after file upload
                 Shows.siBannerUrl = Nothing, -- Will be set after file upload
                 Shows.siStatus = status
@@ -309,6 +308,9 @@ handleShowCreation hxRequest userMetadata showData form = do
                   -- Assign hosts to the show
                   assignHostsToShow showId (nsfHosts form)
 
+                  -- Process tags
+                  processShowTags showId (nsfTags form)
+
                   -- Create schedules (already validated for conflicts)
                   createSchedulesForShow showId schedules
 
@@ -392,6 +394,36 @@ promoteUserToHostIfNeeded userId = do
         _ ->
           -- User already has Host, Staff, or Admin role - no promotion needed
           pure ()
+
+-- | Process comma-separated tags and associate them with a show
+processShowTags ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadDB m
+  ) =>
+  Shows.Id ->
+  Maybe Text ->
+  m ()
+processShowTags _ Nothing = pure ()
+processShowTags showId (Just tagsText) = do
+  let tagNames = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," tagsText
+  forM_ tagNames $ \tagName -> do
+    -- Get or create the tag
+    execQuerySpan (ShowTags.getShowTagByName tagName) >>= \case
+      Right (Just existingTag) -> do
+        -- Tag exists, associate it with the show
+        void $ execQuerySpan (Shows.addTagToShow showId (ShowTags.stId existingTag))
+        Log.logInfo "Associated existing tag with show" (Aeson.object ["tag" .= tagName, "showId" .= show showId])
+      _ -> do
+        -- Tag doesn't exist, create it and associate
+        execQuerySpan (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
+          Right newTagId -> do
+            void $ execQuerySpan (Shows.addTagToShow showId newTagId)
+            Log.logInfo "Created and associated new tag with show" (Aeson.object ["tag" .= tagName, "showId" .= show showId])
+          Left dbError ->
+            Log.logInfo "Failed to create tag" (Aeson.object ["tag" .= tagName, "error" .= Text.pack (show dbError)])
 
 --------------------------------------------------------------------------------
 -- Schedule Creation Helpers

@@ -32,6 +32,7 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -128,10 +129,10 @@ renderShowDetails hxRequest userMetadata allShows showModel mPage = do
   fetchShowDetails now showModel limit offset >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch show details from database" (show err)
-      let content = template showModel [] [] [] [] page
+      let content = template showModel [] [] [] [] [] page
       renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
-    Right (hosts, schedule, episodes, blogPosts) -> do
-      let content = template showModel episodes hosts schedule blogPosts page
+    Right (hosts, schedule, episodes, blogPosts, tags) -> do
+      let content = template showModel episodes hosts schedule blogPosts tags page
       renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
 
 fetchShowDetails ::
@@ -140,10 +141,11 @@ fetchShowDetails ::
   Shows.Model ->
   Limit ->
   Offset ->
-  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model]))
+  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model], [ShowTags.Model]))
 fetchShowDetails now showModel limit offset = runDBTransaction $ do
   episodes <- TRX.statement () $ Episodes.getPublishedEpisodesForShow now showModel.id limit offset
   hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id
   blogPosts <- TRX.statement () $ ShowBlogPosts.getPublishedShowBlogPosts showModel.id 3 0
   schedule <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showModel.id
-  pure (hosts, schedule, episodes, blogPosts)
+  tags <- TRX.statement () $ Shows.getTagsForShow showModel.id
+  pure (hosts, schedule, episodes, blogPosts, tags)

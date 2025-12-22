@@ -31,7 +31,8 @@ showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 -- | Render a show card for the mobile list view.
 --
--- Displays a large image (or gray placeholder), show title, and genre tags.
+-- Displays a large image (or gray placeholder) and show title.
+-- Tags are displayed on the individual show page.
 renderShowCard :: Shows.Model -> Lucid.Html ()
 renderShowCard s = do
   let showSlug = s.slug
@@ -57,21 +58,6 @@ renderShowCard s = do
           Nothing ->
             Lucid.div_ [class_ $ base [Tokens.fullWidth, "h-full", "bg-gray-200", "dark:bg-gray-700"]] mempty
 
-      Lucid.div_ [class_ $ base [Tokens.fullWidth, "flex", "justify-between"]] $ do
-        -- Show Title
-        Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2]] $
-          Lucid.toHtml showTitle
-
-        -- Genre tags
-        case s.genre of
-          Just genre ->
-            Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $ do
-              renderTag genre
-          Nothing -> mempty
-
--- | Render a genre tag pill.
-renderTag :: (Lucid.ToHtml a) => a -> Lucid.Html ()
-renderTag tag =
-  Lucid.span_
-    [class_ $ base [Tokens.textSm, "px-3", "py-1"]]
-    $ Lucid.toHtml tag
+      -- Show Title
+      Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2]] $
+        Lucid.toHtml showTitle

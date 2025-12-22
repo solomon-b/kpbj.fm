@@ -38,7 +38,7 @@ import Text.HTML (HTML)
 data ShowEditForm = ShowEditForm
   { sefTitle :: Text,
     sefDescription :: Text,
-    sefGenre :: Maybe Text,
+    sefTags :: Maybe Text, -- Comma-separated tag names
     sefLogoFile :: Maybe (FileData Mem),
     sefBannerFile :: Maybe (FileData Mem),
     sefStatus :: Text,
@@ -62,7 +62,7 @@ instance FromMultipart Mem ShowEditForm where
     ShowEditForm
       <$> lookupInput "title" multipartData
       <*> lookupInput "description" multipartData
-      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "genre" multipartData))
+      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData

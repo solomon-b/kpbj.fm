@@ -42,6 +42,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
@@ -231,7 +232,6 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
                   { siTitle = sefTitle editForm,
                     siSlug = generatedSlug,
                     siDescription = sefDescription editForm,
-                    siGenre = sefGenre editForm,
                     siLogoUrl = finalLogoUrl,
                     siBannerUrl = finalBannerUrl,
                     siStatus = finalStatus
@@ -249,20 +249,23 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
               pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
             Right (Just _updatedId) -> do
               Log.logInfo "Successfully updated show" showModel.id
+              -- Process tags: clear existing and add new ones
+              processShowTags showModel.id (sefTags editForm)
               -- Process schedule updates if staff
               if isStaff
                 then case parseSchedules (sefSchedulesJson editForm) of
                   Left err -> do
                     Log.logInfo "Schedule validation failed" err
                     -- Re-render form with error banner, preserving user's submitted schedules
-                    let updatedShowModel = showModel {Shows.title = sefTitle editForm, Shows.description = sefDescription editForm, Shows.genre = sefGenre editForm, Shows.slug = generatedSlug, Shows.status = finalStatus, Shows.logoUrl = finalLogoUrl, Shows.bannerUrl = finalBannerUrl}
+                    let updatedShowModel = showModel {Shows.title = sefTitle editForm, Shows.description = sefDescription editForm, Shows.slug = generatedSlug, Shows.status = finalStatus, Shows.logoUrl = finalLogoUrl, Shows.bannerUrl = finalBannerUrl}
                         -- Use the submitted JSON so user sees what they tried to submit
                         submittedSchedulesJson = fromMaybe "[]" (sefSchedulesJson editForm)
                         submittedHostIds = Set.fromList (sefHosts editForm)
+                        submittedTags = fromMaybe "" (sefTags editForm)
                         banner = BannerParams Error "Schedule Error" err
                     -- Refetch eligible hosts for the form
                     eligibleHosts <- fetchEligibleHosts
-                    let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds
+                    let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds submittedTags
                     html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows Nothing Nothing (renderBannerHtml banner <> editTemplate)
                     pure $ Servant.noHeader html
                   Right schedules -> do
@@ -272,14 +275,15 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
                       Left conflictErr -> do
                         Log.logInfo "Schedule conflict with other show" conflictErr
                         -- Re-render form with error banner, preserving user's submitted schedules
-                        let updatedShowModel = showModel {Shows.title = sefTitle editForm, Shows.description = sefDescription editForm, Shows.genre = sefGenre editForm, Shows.slug = generatedSlug, Shows.status = finalStatus, Shows.logoUrl = finalLogoUrl, Shows.bannerUrl = finalBannerUrl}
+                        let updatedShowModel = showModel {Shows.title = sefTitle editForm, Shows.description = sefDescription editForm, Shows.slug = generatedSlug, Shows.status = finalStatus, Shows.logoUrl = finalLogoUrl, Shows.bannerUrl = finalBannerUrl}
                             -- Use the submitted JSON so user sees what they tried to submit
                             submittedSchedulesJson = fromMaybe "[]" (sefSchedulesJson editForm)
                             submittedHostIds = Set.fromList (sefHosts editForm)
+                            submittedTags = fromMaybe "" (sefTags editForm)
                             banner = BannerParams Error "Schedule Conflict" conflictErr
                         -- Refetch eligible hosts for the form
                         eligibleHosts <- fetchEligibleHosts
-                        let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds
+                        let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds submittedTags
                         html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows Nothing Nothing (renderBannerHtml banner <> editTemplate)
                         pure $ Servant.noHeader html
                       Right () -> do
@@ -619,3 +623,46 @@ updateHostsForShow showId newHostIds = do
           Log.logInfo "Promoted user to Host role" (show hostId)
 
   Log.logInfo "Host update complete" (show showId, "removed" :: Text, length hostsToRemove, "added" :: Text, length hostsToAdd)
+
+--------------------------------------------------------------------------------
+-- Tag Processing Helpers
+
+-- | Process tags for a show
+--
+-- Clears all existing tags and re-adds tags from the comma-separated input.
+-- Uses a create-or-reuse pattern: if a tag exists, it's reused; otherwise created.
+processShowTags ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadDB m
+  ) =>
+  Shows.Id ->
+  Maybe Text ->
+  m ()
+processShowTags showId mTagsText = do
+  -- First, remove all existing tags from this show
+  _ <- execQuerySpan (Shows.removeAllTagsFromShow showId)
+  Log.logInfo "Cleared existing tags for show" (show showId)
+
+  -- Then add new tags
+  case mTagsText of
+    Nothing -> pure ()
+    Just tagsText -> do
+      let tagNames = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," tagsText
+      forM_ tagNames $ \tagName -> do
+        -- Check if tag already exists
+        execQuerySpan (ShowTags.getShowTagByName tagName) >>= \case
+          Right (Just existingTag) -> do
+            -- Tag exists, just associate it with the show
+            _ <- execQuerySpan (Shows.addTagToShow showId (ShowTags.stId existingTag))
+            Log.logInfo "Associated existing tag with show" (show showId, tagName)
+          _ -> do
+            -- Tag doesn't exist, create it and associate
+            execQuerySpan (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
+              Right newTagId -> do
+                _ <- execQuerySpan (Shows.addTagToShow showId newTagId)
+                Log.logInfo "Created and associated new tag with show" (show showId, tagName)
+              Left err ->
+                Log.logInfo "Failed to create tag" (tagName, show err)

@@ -12,24 +12,26 @@ import API.Types
 import Component.Card.Show (renderShowCard)
 import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
 import Component.PageHeader (pageHeader)
-import Control.Monad (unless)
+import Control.Monad (forM_, unless)
 import Data.Maybe (isNothing)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text.Display (display)
 import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Genre (Genre)
+import Domain.Types.Filter (Filter (..))
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
 import Domain.Types.ShowSortBy (ShowSortBy (..))
+import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (xData_, xOnClick_, xShow_, xTransitionEnterEnd_, xTransitionEnterStart_, xTransitionEnter_, xTransitionLeaveEnd_, xTransitionLeaveStart_, xTransitionLeave_)
 import Servant.Links qualified as Links
 
 -- | Main shows list template
-template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
-template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSortBy = do
+template :: [Shows.Model] -> [ShowTags.ShowTagWithCount] -> PageNumber -> Bool -> Maybe ShowTags.Id -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
+template allShows allTags currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy = do
   -- Page container with Alpine state for filter panel
   Lucid.div_ [xData_ "{ filterOpen: false }", class_ $ base [Tokens.fullWidth]] $ do
     -- Header row with filter button on mobile
@@ -56,11 +58,11 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSo
           class_ $ do base ["absolute", "left-1/2", "-translate-x-1/2", "w-screen", "top-full", "z-20", Tokens.bgWhite, "shadow-lg"]; desktop ["hidden"]
         ]
         $ do
-          renderFilters maybeGenre maybeStatus maybeSearch maybeSortBy
+          renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy
 
     -- Desktop: Always-visible filters (hidden on mobile)
     Lucid.div_ [class_ $ do { base ["hidden", Tokens.mb6]; desktop ["block"] }] $ do
-      renderFilters maybeGenre maybeStatus maybeSearch maybeSortBy
+      renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy
 
     -- Shows Grid
     if null allShows
@@ -85,14 +87,14 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSo
         -- Fallback pagination for browsers without JavaScript
         Lucid.noscript_ $
           unless (null allShows) $
-            renderPagination currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSortBy
+            renderPagination currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
   where
     nextPageUrl :: Links.URI
-    nextPageUrl = Links.linkURI $ showsLinks.list (Just (currentPage + 1)) maybeGenre maybeStatus maybeSearch maybeSortBy
+    nextPageUrl = Links.linkURI $ showsLinks.list (Just (currentPage + 1)) (fmap (Filter . Just) maybeTagId) (fmap (Filter . Just) maybeStatus) (fmap (Filter . Just) maybeSearch) (fmap (Filter . Just) maybeSortBy)
 
 -- | Render show filters (displayed in collapsible panel)
-renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
-renderFilters maybeGenre maybeStatus maybeSearch maybeSortBy = do
+renderFilters :: [ShowTags.ShowTagWithCount] -> Maybe ShowTags.Id -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
+renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
   Lucid.div_ [class_ $ base [Tokens.p4]] $ do
     -- Stacked on mobile, horizontal row on desktop
     Lucid.form_ [Lucid.id_ "show-filters", class_ $ do { base ["space-y-4"]; desktop ["space-y-0", "flex", "items-end", Tokens.gap4, "flex-wrap"] }] $ do
@@ -108,22 +110,25 @@ renderFilters maybeGenre maybeStatus maybeSearch maybeSortBy = do
             Lucid.value_ (maybe "" display maybeSearch)
           ]
 
-      -- Genre filter
-      Lucid.div_ [class_ $ do { base []; desktop ["flex-1", "min-w-[140px]"] }] $ do
-        Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "genre"] "Genre"
-        Lucid.select_
-          [ Lucid.id_ "genre",
-            Lucid.name_ "genre",
-            class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgWhite]
-          ]
-          $ do
-            Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeGenre]) "All Genres"
-            Lucid.option_ ([Lucid.value_ "ambient"] <> [Lucid.selected_ "selected" | maybeGenre == Just "ambient"]) "Ambient"
-            Lucid.option_ ([Lucid.value_ "electronic"] <> [Lucid.selected_ "selected" | maybeGenre == Just "electronic"]) "Electronic"
-            Lucid.option_ ([Lucid.value_ "punk"] <> [Lucid.selected_ "selected" | maybeGenre == Just "punk"]) "Punk"
-            Lucid.option_ ([Lucid.value_ "jazz"] <> [Lucid.selected_ "selected" | maybeGenre == Just "jazz"]) "Jazz"
-            Lucid.option_ ([Lucid.value_ "hip-hop"] <> [Lucid.selected_ "selected" | maybeGenre == Just "hip-hop"]) "Hip Hop"
-            Lucid.option_ ([Lucid.value_ "rock"] <> [Lucid.selected_ "selected" | maybeGenre == Just "rock"]) "Rock"
+      -- Tag filter (dropdown from database)
+      unless (null allTags) $ do
+        Lucid.div_ [class_ $ do { base []; desktop ["flex-1", "min-w-[150px]"] }] $ do
+          Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "tag"] "Tag"
+          Lucid.select_
+            [ Lucid.id_ "tag",
+              Lucid.name_ "tag",
+              class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgWhite]
+            ]
+            $ do
+              Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeTagId]) "All Tags"
+              forM_ allTags $ \tag -> do
+                let isSelected = Just (ShowTags.stwcId tag) == maybeTagId
+                    tagIdText = display (ShowTags.stwcId tag)
+                    tagLabel :: Text
+                    tagLabel = ShowTags.stwcName tag <> " (" <> display (ShowTags.stwcCount tag) <> ")"
+                Lucid.option_
+                  ([Lucid.value_ tagIdText] <> [Lucid.selected_ "selected" | isSelected])
+                  $ Lucid.toHtml tagLabel
 
       -- Status filter
       Lucid.div_ [class_ $ do { base []; desktop ["flex-1", "min-w-[120px]"] }] $ do
@@ -136,7 +141,7 @@ renderFilters maybeGenre maybeStatus maybeSearch maybeSortBy = do
           $ do
             Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeStatus]) "All Shows"
             Lucid.option_ ([Lucid.value_ "active"] <> [Lucid.selected_ "selected" | maybeStatus == Just Shows.Active]) "Active"
-            Lucid.option_ ([Lucid.value_ "hiatus"] <> [Lucid.selected_ "selected" | maybeStatus == Just Shows.Inactive]) "Inactive"
+            Lucid.option_ ([Lucid.value_ "inactive"] <> [Lucid.selected_ "selected" | maybeStatus == Just Shows.Inactive]) "Inactive"
 
       -- Sort By filter
       Lucid.div_ [class_ $ do { base []; desktop ["flex-1", "min-w-[160px]"] }] $ do

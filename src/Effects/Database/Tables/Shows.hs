@@ -31,8 +31,6 @@ module Effects.Database.Tables.Shows
     getShowById,
     getShowsByStatus,
     getAllShows,
-    getShowsByGenre,
-    getShowsByGenreAndStatus,
     getShowsFiltered,
     insertShow,
     updateShow,
@@ -48,6 +46,11 @@ module Effects.Database.Tables.Shows
     getAllShowsWithHostInfo,
     getShowsByStatusWithHostInfo,
     searchShowsWithHostInfo,
+
+    -- * Tag Junction Queries
+    getTagsForShow,
+    addTagToShow,
+    removeAllTagsFromShow,
   )
 where
 
@@ -62,12 +65,12 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
-import Domain.Types.Genre (Genre (..))
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.Search (Search (..))
 import Domain.Types.ShowSortBy (ShowSortBy (..))
 import Domain.Types.Slug (Slug (..))
+import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
@@ -162,7 +165,6 @@ data Show f = Show
     title :: Column f Text,
     slug :: Column f Slug,
     description :: Column f Text,
-    genre :: Column f (Maybe Text),
     logoUrl :: Column f (Maybe Text),
     bannerUrl :: Column f (Maybe Text),
     status :: Column f Status,
@@ -181,13 +183,13 @@ instance DecodeRow (Show Result)
 
 -- | Display instance for Show Result.
 instance Display (Show Result) where
-  displayBuilder s =
+  displayBuilder showRec =
     "Show { id = "
-      <> displayBuilder (id s)
+      <> displayBuilder (id showRec {- HLINT ignore "Redundant id" -})
       <> ", title = "
-      <> displayBuilder (title s)
+      <> displayBuilder (title showRec)
       <> ", slug = "
-      <> displayBuilder (slug s)
+      <> displayBuilder (slug showRec)
       <> " }"
 
 -- | Type alias for backwards compatibility.
@@ -206,7 +208,6 @@ showSchema =
             title = "title",
             slug = "slug",
             description = "description",
-            genre = "genre",
             logoUrl = "logo_url",
             bannerUrl = "banner_url",
             status = "status",
@@ -223,7 +224,6 @@ data Insert = Insert
   { siTitle :: Text,
     siSlug :: Slug,
     siDescription :: Text,
-    siGenre :: Maybe Text,
     siLogoUrl :: Maybe Text,
     siBannerUrl :: Maybe Text,
     siStatus :: Status
@@ -254,9 +254,9 @@ getShowBySlug showSlug = fmap listToMaybe $ run $ select do
 -- | Get show by ID.
 getShowById :: Id -> Hasql.Statement () (Maybe Model)
 getShowById showId = fmap listToMaybe $ run $ select do
-  s <- each showSchema
-  where_ $ id s ==. lit showId
-  pure s
+  showRec <- each showSchema
+  where_ $ id showRec ==. lit showId {- HLINT ignore "Redundant id" -}
+  pure showRec
 
 -- | Get shows by status with pagination.
 getShowsByStatus :: Text -> Limit -> Offset -> Hasql.Statement () [Model]
@@ -264,7 +264,7 @@ getShowsByStatus statusText (Limit lim) (Offset off) =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
+    SELECT id, title, slug, description, logo_url, banner_url, status, created_at, updated_at
     FROM shows
     WHERE status = #{statusText}
     ORDER BY title
@@ -281,54 +281,32 @@ getAllShows (Limit lim) (Offset off) =
           orderBy (title >$< asc) do
             each showSchema
 
--- | Get shows by genre with pagination.
-getShowsByGenre :: Genre -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowsByGenre (Genre genreText) (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy (title >$< asc) do
-            s <- each showSchema
-            where_ $ genre s ==. lit (Just genreText)
-            pure s
-
--- | Get shows by genre and status with pagination.
-getShowsByGenreAndStatus :: Genre -> Status -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowsByGenreAndStatus (Genre genreText) showStatus (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy (title >$< asc) do
-            s <- each showSchema
-            where_ $ genre s ==. lit (Just genreText)
-            where_ $ status s ==. lit showStatus
-            pure s
-
--- | Get shows with optional genre/status filters and configurable sorting.
+-- | Get shows with optional tag/status filters and configurable sorting.
 --
 -- This is the primary query for the public shows listing page.
 -- Supports sorting by name (A-Z, Z-A) or creation date (newest, oldest).
-getShowsFiltered :: Maybe Genre -> Maybe Status -> ShowSortBy -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowsFiltered maybeGenre maybeStatus sortBy (Limit lim) (Offset off) =
+-- When a tag filter is provided, uses JOIN to filter by tag assignment.
+getShowsFiltered :: Maybe ShowTags.Id -> Maybe Status -> ShowSortBy -> Limit -> Offset -> Hasql.Statement () [Model]
+getShowsFiltered maybeTagId maybeStatus sortBy (Limit lim) (Offset off) =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    WHERE (#{maybeGenreText}::text IS NULL OR genre = #{maybeGenreText}::text)
-      AND (#{maybeStatusText}::show_status IS NULL OR status = #{maybeStatusText}::show_status)
+    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url, s.status, s.created_at, s.updated_at
+    FROM shows s
+    WHERE (#{maybeTagIdInt}::bigint IS NULL OR EXISTS (
+      SELECT 1 FROM show_tag_assignments sta WHERE sta.show_id = s.id AND sta.tag_id = #{maybeTagIdInt}::bigint
+    ))
+      AND (#{maybeStatusText}::show_status IS NULL OR s.status = #{maybeStatusText}::show_status)
     ORDER BY
-      CASE WHEN #{sortOrder} = 'name_az' THEN title END ASC,
-      CASE WHEN #{sortOrder} = 'name_za' THEN title END DESC,
-      CASE WHEN #{sortOrder} = 'created_newest' THEN created_at END DESC,
-      CASE WHEN #{sortOrder} = 'created_oldest' THEN created_at END ASC
+      CASE WHEN #{sortOrder} = 'name_az' THEN s.title END ASC,
+      CASE WHEN #{sortOrder} = 'name_za' THEN s.title END DESC,
+      CASE WHEN #{sortOrder} = 'created_newest' THEN s.created_at END DESC,
+      CASE WHEN #{sortOrder} = 'created_oldest' THEN s.created_at END ASC
     LIMIT #{lim} OFFSET #{off}
   |]
   where
-    maybeGenreText :: Maybe Text
-    maybeGenreText = fmap (\(Genre g) -> g) maybeGenre
+    maybeTagIdInt :: Maybe Int64
+    maybeTagIdInt = fmap (\(ShowTags.Id tid) -> tid) maybeTagId
 
     maybeStatusText :: Maybe Text
     maybeStatusText = fmap statusToText maybeStatus
@@ -359,7 +337,6 @@ insertShow Insert {..} =
                       title = lit siTitle,
                       slug = lit siSlug,
                       description = lit siDescription,
-                      genre = lit siGenre,
                       logoUrl = lit siLogoUrl,
                       bannerUrl = lit siBannerUrl,
                       status = lit siStatus,
@@ -381,7 +358,7 @@ updateShow showId Insert {..} =
     [sql|
     UPDATE shows
     SET title = #{siTitle}, slug = #{siSlug}, description = #{siDescription},
-        genre = #{siGenre}, logo_url = #{siLogoUrl}, banner_url = #{siBannerUrl},
+        logo_url = #{siLogoUrl}, banner_url = #{siBannerUrl},
         status = #{siStatus},
         updated_at = NOW()
     WHERE id = #{showId}
@@ -397,7 +374,7 @@ getShowForUser userId =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
+    SELECT id, title, slug, description, logo_url, banner_url, status, created_at, updated_at
     FROM shows s
     JOIN show_hosts sh ON s.id = sh.show_id
     WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
@@ -410,7 +387,7 @@ getShowsForUser userId =
   interp
     False
     [sql|
-    SELECT s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url, s.status, s.created_at, s.updated_at
+    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url, s.status, s.created_at, s.updated_at
     FROM shows s
     JOIN show_hosts sh ON s.id = sh.show_id
     WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
@@ -430,14 +407,15 @@ getAllActiveShows =
 -- | Search shows by text query with pagination.
 --
 -- Uses raw SQL because of ILIKE pattern matching and complex ordering.
+-- Searches title and description fields.
 searchShows :: Search -> Limit -> Offset -> Hasql.Statement () [Model]
 searchShows (Search searchTerm) (Limit lim) (Offset off) =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
+    SELECT id, title, slug, description, logo_url, banner_url, status, created_at, updated_at
     FROM shows
-    WHERE (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern} OR genre ILIKE #{searchPattern})
+    WHERE (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern})
     ORDER BY
       CASE
         WHEN title ILIKE #{searchPattern} THEN 1
@@ -461,7 +439,6 @@ data ShowWithHostInfo = ShowWithHostInfo
     swhiTitle :: Text,
     swhiSlug :: Slug,
     swhiDescription :: Text,
-    swhiGenre :: Maybe Text,
     swhiLogoUrl :: Maybe Text,
     swhiBannerUrl :: Maybe Text,
     swhiStatus :: Status,
@@ -484,7 +461,7 @@ getAllShowsWithHostInfo (Limit lim) (Offset off) =
     False
     [sql|
     SELECT
-      s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
+      s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url,
       s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
@@ -503,7 +480,7 @@ getShowsByStatusWithHostInfo showStatus (Limit lim) (Offset off) =
     False
     [sql|
     SELECT
-      s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
+      s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url,
       s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
@@ -523,14 +500,14 @@ searchShowsWithHostInfo (Search searchTerm) (Limit lim) (Offset off) =
     False
     [sql|
     SELECT
-      s.id, s.title, s.slug, s.description, s.genre, s.logo_url, s.banner_url,
+      s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url,
       s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
     FROM shows s
     LEFT JOIN show_hosts sh ON s.id = sh.show_id
     LEFT JOIN user_metadata um ON sh.user_id = um.user_id
-    WHERE (s.title ILIKE #{searchPattern} OR s.description ILIKE #{searchPattern} OR s.genre ILIKE #{searchPattern})
+    WHERE (s.title ILIKE #{searchPattern} OR s.description ILIKE #{searchPattern})
     GROUP BY s.id
     ORDER BY
       CASE
@@ -543,3 +520,44 @@ searchShowsWithHostInfo (Search searchTerm) (Limit lim) (Offset off) =
   |]
   where
     searchPattern = "%" <> searchTerm <> "%"
+
+--------------------------------------------------------------------------------
+-- Tag Junction Queries
+
+-- | Get all tags for a show.
+getTagsForShow :: Id -> Hasql.Statement () [ShowTags.Model]
+getTagsForShow showId =
+  interp
+    False
+    [sql|
+    SELECT st.id, st.name, st.created_at
+    FROM show_tags st
+    INNER JOIN show_tag_assignments sta ON st.id = sta.tag_id
+    WHERE sta.show_id = #{showId}
+    ORDER BY st.name
+  |]
+
+-- | Add a tag to a show.
+--
+-- Uses ON CONFLICT DO NOTHING for idempotent behavior.
+addTagToShow :: Id -> ShowTags.Id -> Hasql.Statement () ()
+addTagToShow showId tagId =
+  interp
+    False
+    [sql|
+    INSERT INTO show_tag_assignments (show_id, tag_id)
+    VALUES (#{showId}, #{tagId})
+    ON CONFLICT DO NOTHING
+  |]
+
+-- | Remove all tag assignments from a show.
+--
+-- Used when updating a show's tags (clear all, then re-add).
+removeAllTagsFromShow :: Id -> Hasql.Statement () ()
+removeAllTagsFromShow showId =
+  interp
+    False
+    [sql|
+    DELETE FROM show_tag_assignments
+    WHERE show_id = #{showId}
+  |]

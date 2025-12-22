@@ -148,7 +148,7 @@ data EventsRoutes mode = EventsRoutes
 -- Includes show listings, individual show pages, and nested routes
 -- for show-specific blog posts and episodes.
 data ShowsRoutes mode = ShowsRoutes
-  { -- | @GET /shows@ - Shows listing with genre and status filtering
+  { -- | @GET /shows@ - Shows listing with tag and status filtering
     list :: mode :- Shows.Get.Route,
     -- | @GET /shows/:slug@ - Individual show page
     detail :: mode :- Show.Get.Route,

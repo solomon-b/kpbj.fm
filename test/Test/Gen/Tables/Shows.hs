@@ -18,7 +18,6 @@ showInsertGen = do
   siTitle <- genText
   siSlug <- genSlug
   siDescription <- genText
-  siGenre <- Gen.maybe genText
   siLogoUrl <- Gen.maybe genUrl
   siBannerUrl <- Gen.maybe genUrl
   siStatus <- genShowStatus

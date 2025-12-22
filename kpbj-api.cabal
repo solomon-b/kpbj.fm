@@ -336,7 +336,6 @@ library
     Domain.Types.FileStorage
     Domain.Types.FileUpload
     Domain.Types.Filter
-    Domain.Types.Genre
     Domain.Types.HxRequest
     Domain.Types.Limit
     Domain.Types.Offset
@@ -356,6 +355,7 @@ library
     Effects.Database.Tables.ShowBlogTags
     Effects.Database.Tables.ShowHost
     Effects.Database.Tables.ShowSchedule
+    Effects.Database.Tables.ShowTags
     Effects.Database.Tables.UserMetadata
     Effects.ContentSanitization
     Effects.FileUpload

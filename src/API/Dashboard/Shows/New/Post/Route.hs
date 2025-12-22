@@ -36,7 +36,7 @@ import Text.HTML (HTML)
 data NewShowForm = NewShowForm
   { nsfTitle :: Text,
     nsfDescription :: Text,
-    nsfGenre :: Maybe Text,
+    nsfTags :: Maybe Text, -- Comma-separated tag names
     nsfLogoFile :: Maybe (FileData Mem),
     nsfBannerFile :: Maybe (FileData Mem),
     nsfStatus :: Text,
@@ -60,7 +60,7 @@ instance FromMultipart Mem NewShowForm where
     NewShowForm
       <$> lookupInput "title" multipartData
       <*> lookupInput "description" multipartData
-      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "genre" multipartData))
+      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData
