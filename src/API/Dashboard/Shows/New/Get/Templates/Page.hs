@@ -11,6 +11,7 @@ where
 import API.Links (dashboardShowsLinks)
 import API.Types (DashboardShowsRoutes (..))
 import Component.Form.Builder
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -141,27 +142,11 @@ showFormFields eligibleHosts =
     SectionField
       { sfTitle = "ARTWORK & BRANDING",
         sfFields =
-          [ ValidatedFileField
-              { vffName = "logo_file",
-                vffLabel = "Logo Image",
-                vffAccept = Just "image/jpeg,image/png,image/webp,image/gif",
-                vffHint = Just "JPG, PNG, WebP, GIF accepted • Max 10MB • Recommended: 300x300px",
-                vffMaxSizeMB = Just 10,
-                vffValidation = emptyValidation,
-                vffButtonText = "CHOOSE LOGO IMAGE",
-                vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
-                vffCurrentValue = Nothing
+          [ PlainField
+              { pfHtml = logoImageField
               },
-            ValidatedFileField
-              { vffName = "banner_file",
-                vffLabel = "Banner Image",
-                vffAccept = Just "image/jpeg,image/png,image/webp,image/gif",
-                vffHint = Just "JPG, PNG, WebP, GIF accepted • Max 10MB • Recommended: 1200x300px",
-                vffMaxSizeMB = Just 10,
-                vffValidation = emptyValidation,
-                vffButtonText = "CHOOSE BANNER IMAGE",
-                vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
-                vffCurrentValue = Nothing
+            PlainField
+              { pfHtml = bannerImageField
               }
           ]
       },
@@ -184,6 +169,35 @@ showFormFields eligibleHosts =
           ]
       }
   ]
+
+--------------------------------------------------------------------------------
+-- Image Fields
+
+-- | Render logo image field with integrated preview.
+logoImageField :: Lucid.Html ()
+logoImageField =
+  ImageFilePicker.render
+    ImageFilePicker.Config
+      { ImageFilePicker.fieldName = "logo_file",
+        ImageFilePicker.label = "Logo Image",
+        ImageFilePicker.existingImageUrl = "",
+        ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
+        ImageFilePicker.maxSizeMB = 10,
+        ImageFilePicker.isRequired = False
+      }
+
+-- | Render banner image field with integrated preview.
+bannerImageField :: Lucid.Html ()
+bannerImageField =
+  ImageFilePicker.render
+    ImageFilePicker.Config
+      { ImageFilePicker.fieldName = "banner_file",
+        ImageFilePicker.label = "Banner Image",
+        ImageFilePicker.existingImageUrl = "",
+        ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
+        ImageFilePicker.maxSizeMB = 10,
+        ImageFilePicker.isRequired = False
+      }
 
 --------------------------------------------------------------------------------
 -- Searchable Multi-Select for Hosts

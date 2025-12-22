@@ -465,6 +465,8 @@ generateValidator (ValidatedFileField {vffName = name, vffMaxSizeMB = maxSize, v
     const input = document.getElementById('#{name}-input');
     if (input) {
       input.value = '';
+      // Dispatch change event so other components (like audio player) can react
+      input.dispatchEvent(new Event('change', { bubbles: true }));
     }
     // Revoke preview URL to prevent memory leaks
     if (this.fields.#{name}.previewUrl) {

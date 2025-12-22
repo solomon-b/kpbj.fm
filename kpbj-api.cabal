@@ -295,7 +295,9 @@ library
     API.User.Register.Post.Route
     App.Common
     Component.ActionsDropdown
+    Component.AudioFilePicker
     Component.AudioPlayer.Waveform
+    Component.ImageFilePicker
     Component.Banner
     Component.Card.BlogPost
     Component.Card.Episode

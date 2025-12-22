@@ -13,70 +13,68 @@ import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras (xBindStyle_, xData_, xIf_, xOnClick_, xRef_, xText_)
+import Lucid.Extras (xBindStyle_, xData_, xOnClick_, xRef_, xText_)
 
 --------------------------------------------------------------------------------
 
--- | Configuration for the waveform audio player component.
+-- | Configuration for the audio player component.
+--
+-- NOTE: Waveform visualization is not yet implemented. Radio episodes are
+-- typically 1-2 hours long, and client-side waveform generation is too slow.
+-- See docs/feature-notes/staged-uploads-and-waveforms.md for the planned
+-- server-side waveform generation approach.
 data Config = Config
   { -- | Unique identifier for this player instance (used for pauseOtherPlayers coordination)
     playerId :: Text,
-    -- | Full URL to the audio file
+    -- | Full URL to the audio file (used as initial/fallback source)
     audioUrl :: Text,
     -- | Display title (e.g., "Show Name - Episode 42")
-    title :: Text
+    title :: Text,
+    -- | Optional file input name to watch for new file selections.
+    -- When a file is selected, the player will switch to preview that file instead.
+    fileInputName :: Maybe Text
   }
 
 --------------------------------------------------------------------------------
 
--- | Render a waveform audio player with play/pause, seek, and time display.
+-- | Render an audio player with play/pause, seek, and time display.
 --
--- The player generates a waveform visualization from the audio file using the
--- Web Audio API and displays it on a canvas. Users can click on the waveform
--- to seek to different positions.
+-- If 'fileInputName' is provided, the player will watch that file input and
+-- automatically switch to previewing newly selected files.
 render :: Config -> Lucid.Html ()
 render Config {..} = do
+  let fileInputSelector = maybe "" (\name -> [i|input[name="#{name}"]|]) fileInputName
   Lucid.div_
     [ class_ $ base [Tokens.bgGray100, "border-2", "border-gray-600", Tokens.p6],
-      xData_ (alpineScript playerId audioUrl title)
+      xData_ (alpineScript playerId audioUrl title fileInputSelector)
     ]
     $ do
       Lucid.audio_ [xRef_ "audio", Lucid.preload_ "metadata"] mempty
 
-      -- Play/pause button and waveform
-      Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb4]] $ do
+      -- Play/pause button and progress bar
+      Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
         Lucid.button_
-          [ class_ $ base [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", Tokens.textLg],
+          [ Lucid.type_ "button",
+            class_ $ base [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", Tokens.textLg],
             xOnClick_ "toggle()",
             xText_ "isPlaying ? 'PAUSE' : 'PLAY'"
           ]
           "PLAY"
 
-        -- Waveform container
-        Lucid.div_ [Lucid.class_ "flex-grow relative"] $ do
-          -- Loading state
-          Lucid.template_ [xIf_ "waveformLoading"] $ do
-            Lucid.div_ [class_ $ base ["bg-gray-300", "h-16", "rounded", "flex", "items-center", "justify-center"]] $ do
-              Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] "Loading waveform..."
-
-          -- Error state - fallback to simple progress bar
-          Lucid.template_ [xIf_ "waveformError"] $ do
-            Lucid.div_ [class_ $ base ["bg-gray-300", "h-16", "rounded", "relative", "cursor-pointer"], xOnClick_ "seek($event)"] $ do
-              Lucid.div_
-                [ class_ $ base [Tokens.bgGray800, "h-16", "rounded", "absolute", "top-0", "left-0"],
-                  xBindStyle_ "{ width: progress + '%' }"
-                ]
-                mempty
-
-          -- Waveform canvas
-          Lucid.template_ [xIf_ "!waveformLoading && !waveformError"] $ do
-            Lucid.canvas_
-              [ xRef_ "waveformCanvas",
-                class_ $ base [Tokens.fullWidth, "h-16", "cursor-pointer", "rounded"],
-                xOnClick_ "seek($event)"
+        -- Progress bar container
+        Lucid.div_
+          [ class_ $ base ["flex-grow", "bg-gray-300", "h-8", "relative", "cursor-pointer", "rounded"],
+            xOnClick_ "seek($event)"
+          ]
+          $ do
+            -- Progress fill
+            Lucid.div_
+              [ class_ $ base [Tokens.bgGray800, "h-8", "rounded", "absolute", "top-0", "left-0", "transition-all", "duration-100"],
+                xBindStyle_ "{ width: progress + '%' }"
               ]
               mempty
 
+        -- Time display
         Lucid.span_
           [ class_ $ base [Tokens.textSm, "font-mono", "w-28", "text-right"],
             xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"
@@ -86,18 +84,18 @@ render Config {..} = do
 --------------------------------------------------------------------------------
 -- Alpine.js Script
 
-alpineScript :: Text -> Text -> Text -> Text
-alpineScript playerId' audioUrl' title' =
+alpineScript :: Text -> Text -> Text -> Text -> Text
+alpineScript playerId' audioUrl' title' fileInputSelector =
   [i|{
   playerId: '#{playerId'}',
   isPlaying: false,
+  originalUrl: '#{audioUrl'}',
   audioUrl: '#{audioUrl'}',
   title: '#{title'}',
   currentTime: 0,
   duration: 0,
-  waveformData: [],
-  waveformLoading: true,
-  waveformError: false,
+  blobUrl: null,
+  fileInputSelector: '#{fileInputSelector}',
   init() {
     const audio = this.$refs.audio;
     audio.addEventListener('loadedmetadata', () => {
@@ -105,72 +103,58 @@ alpineScript playerId' audioUrl' title' =
     });
     audio.addEventListener('timeupdate', () => {
       this.currentTime = audio.currentTime;
-      this.drawWaveform();
     });
     audio.addEventListener('ended', () => {
       this.isPlaying = false;
     });
-    this.loadWaveform();
-  },
-  async loadWaveform() {
-    try {
-      const response = await fetch(this.audioUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-      const rawData = audioBuffer.getChannelData(0);
-      const samples = 500;
-      const blockSize = Math.floor(rawData.length / samples);
-      const peaks = [];
-
-      for (let i = 0; i < samples; i++) {
-        let sum = 0;
-        for (let j = 0; j < blockSize; j++) {
-          sum += Math.abs(rawData[(i * blockSize) + j]);
-        }
-        peaks.push(sum / blockSize);
+    // Watch file input for changes if selector provided
+    if (this.fileInputSelector) {
+      const fileInput = document.querySelector(this.fileInputSelector);
+      if (fileInput) {
+        fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
       }
+    }
 
-      const maxPeak = Math.max(...peaks);
-      this.waveformData = peaks.map(p => p / maxPeak);
-      this.waveformLoading = false;
-      this.$nextTick(() => this.drawWaveform());
-      audioContext.close();
-    } catch (e) {
-      console.error('Failed to load waveform:', e);
-      this.waveformError = true;
-      this.waveformLoading = false;
+    // Load audio metadata if we have a URL
+    if (this.audioUrl) {
+      audio.src = this.audioUrl;
     }
   },
-  drawWaveform() {
-    const canvas = this.$refs.waveformCanvas;
-    if (!canvas || this.waveformData.length === 0) return;
+  handleFileSelect(event) {
+    const file = event.target.files[0];
 
-    const ctx = canvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
+    // Clean up old blob URL
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = null;
+    }
 
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    // If no file selected (cleared), reset to original URL
+    if (!file) {
+      this.pause();
+      this.audioUrl = this.originalUrl;
+      const audio = this.$refs.audio;
+      if (this.originalUrl) {
+        audio.src = this.originalUrl;
+      } else {
+        audio.removeAttribute('src');
+      }
+      this.currentTime = 0;
+      this.duration = 0;
+      return;
+    }
 
-    const width = rect.width;
-    const height = rect.height;
-    const barWidth = width / this.waveformData.length;
-    const progressPercent = this.duration ? this.currentTime / this.duration : 0;
-    const progressX = width * progressPercent;
+    // Create new blob URL for the selected file
+    this.blobUrl = URL.createObjectURL(file);
+    this.audioUrl = this.blobUrl;
 
-    ctx.clearRect(0, 0, width, height);
-
-    this.waveformData.forEach((peak, i) => {
-      const x = i * barWidth;
-      const barHeight = Math.max(2, peak * (height * 0.9));
-      const y = (height - barHeight) / 2;
-
-      ctx.fillStyle = x < progressX ? 'rgb(31, 41, 55)' : 'rgb(156, 163, 175)';
-      ctx.fillRect(x, y, Math.max(1, barWidth - 0.5), barHeight);
-    });
+    // Reset player state
+    this.pause();
+    const audio = this.$refs.audio;
+    audio.src = this.audioUrl;
+    this.currentTime = 0;
+    this.duration = 0;
   },
   toggle() {
     this.isPlaying ? this.pause() : this.play();
@@ -180,7 +164,6 @@ alpineScript playerId' audioUrl' title' =
       pauseOtherPlayers(this.playerId);
     }
     const audio = this.$refs.audio;
-    if (!audio.src) audio.src = this.audioUrl;
     audio.play().then(() => { this.isPlaying = true; });
   },
   pause() {
@@ -189,8 +172,8 @@ alpineScript playerId' audioUrl' title' =
     this.isPlaying = false;
   },
   seek(event) {
-    const canvas = this.$refs.waveformCanvas;
-    const rect = canvas.getBoundingClientRect();
+    const bar = event.currentTarget;
+    const rect = bar.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const percent = x / rect.width;
     const audio = this.$refs.audio;

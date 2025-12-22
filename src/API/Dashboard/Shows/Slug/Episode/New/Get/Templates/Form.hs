@@ -9,7 +9,9 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types
+import Component.AudioFilePicker qualified as AudioFilePicker
 import Component.Form.Builder
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -142,27 +144,12 @@ episodeFormFields showModel upcomingDates =
     SectionField
       { sfTitle = "AUDIO FILES",
         sfFields =
-          [ ValidatedFileField
-              { vffName = "audio_file",
-                vffLabel = "Main Episode File",
-                vffAccept = Just "audio/*",
-                vffHint = Just "MP3, WAV, FLAC accepted • Max 500MB",
-                vffMaxSizeMB = Just 500,
-                vffValidation = emptyValidation {vrRequired = True},
-                vffButtonText = "📁 CHOOSE AUDIO FILE",
-                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block",
-                vffCurrentValue = Nothing -- New episode, no current file
+          [ -- Audio file with integrated player
+            PlainField
+              { pfHtml = audioFileField showModel
               },
-            ValidatedFileField
-              { vffName = "artwork_file",
-                vffLabel = "Episode Image",
-                vffAccept = Just "image/jpeg,image/png",
-                vffHint = Just "JPG, PNG accepted • Max 5MB • Recommended: 800x800px",
-                vffMaxSizeMB = Just 5,
-                vffValidation = emptyValidation, -- Optional
-                vffButtonText = "🖼️ CHOOSE IMAGE",
-                vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
-                vffCurrentValue = Nothing -- New episode, no current file
+            PlainField
+              { pfHtml = artworkFileField
               }
           ]
       }
@@ -206,6 +193,30 @@ renderUpcomingDateOption (ShowSchedule.UpcomingShowDate {usdShowDate = showDate,
 
 --------------------------------------------------------------------------------
 -- Custom HTML Sections (PlainField content)
+
+-- | Render audio file field with integrated player.
+audioFileField :: Shows.Model -> Lucid.Html ()
+audioFileField showModel =
+  AudioFilePicker.render
+    AudioFilePicker.Config
+      { AudioFilePicker.playerId = "new-episode-audio",
+        AudioFilePicker.title = [i|#{Shows.title showModel} - New Episode|],
+        AudioFilePicker.existingAudioUrl = "",
+        AudioFilePicker.isRequired = True
+      }
+
+-- | Render artwork file field with integrated preview.
+artworkFileField :: Lucid.Html ()
+artworkFileField =
+  ImageFilePicker.render
+    ImageFilePicker.Config
+      { ImageFilePicker.fieldName = "artwork_file",
+        ImageFilePicker.label = "Episode Image",
+        ImageFilePicker.existingImageUrl = "",
+        ImageFilePicker.accept = "image/jpeg,image/png",
+        ImageFilePicker.maxSizeMB = 5,
+        ImageFilePicker.isRequired = False
+      }
 
 -- | Show info section (read-only display)
 showInfoSection :: Shows.Model -> Lucid.Html ()

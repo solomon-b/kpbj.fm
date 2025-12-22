@@ -11,8 +11,10 @@ where
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts (scripts)
 import API.Links (apiLinks, dashboardLinks, showEpisodesLinks)
 import API.Types
+import Component.AudioFilePicker qualified as AudioFilePicker
 import Component.Form qualified as Form
 import Component.Form.Builder qualified as Builder
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Component.Form.Internal (hiddenInput)
 import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
@@ -107,27 +109,12 @@ template currentTime showModel episode tracks userMeta isStaff = do
                   [ Builder.SectionField
                       { Builder.sfTitle = "MEDIA FILES",
                         Builder.sfFields =
-                          [ Builder.ValidatedFileField
-                              { Builder.vffName = "audio_file",
-                                Builder.vffLabel = "Audio File",
-                                Builder.vffAccept = Just "audio/*",
-                                Builder.vffHint = Just "MP3, WAV, FLAC accepted • Max 500MB • Leave empty to keep current file",
-                                Builder.vffMaxSizeMB = Just 500,
-                                Builder.vffValidation = Builder.emptyValidation, -- Optional for edits
-                                Builder.vffButtonText = "CHOOSE AUDIO FILE",
-                                Builder.vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block",
-                                Builder.vffCurrentValue = episode.audioFilePath
+                          [ -- Audio file with integrated player
+                            Builder.PlainField
+                              { Builder.pfHtml = audioFileField showModel episode
                               },
-                            Builder.ValidatedFileField
-                              { Builder.vffName = "artwork_file",
-                                Builder.vffLabel = "Episode Artwork",
-                                Builder.vffAccept = Just "image/jpeg,image/png",
-                                Builder.vffHint = Just "JPG, PNG accepted • Max 5MB • Recommended: 800x800px • Leave empty to keep current",
-                                Builder.vffMaxSizeMB = Just 5,
-                                Builder.vffValidation = Builder.emptyValidation, -- Optional
-                                Builder.vffButtonText = "CHOOSE IMAGE",
-                                Builder.vffButtonClasses = "bg-purple-600 text-white px-6 py-3 font-bold hover:bg-purple-700 inline-block",
-                                Builder.vffCurrentValue = fmap (\url -> [i|/#{mediaGetUrl}/#{url}|]) episode.artworkUrl
+                            Builder.PlainField
+                              { Builder.pfHtml = artworkFileField episode
                               }
                           ]
                       }
@@ -186,6 +173,35 @@ formHeader showModel episode userMeta episodeBackUrl = do
 --------------------------------------------------------------------------------
 -- FORM SECTIONS
 --------------------------------------------------------------------------------
+
+-- | Render audio file field with integrated player.
+audioFileField :: Shows.Model -> Episodes.Model -> Lucid.Html ()
+audioFileField showModel episode =
+  let episodeId = episode.id
+      showTitle = showModel.title
+      episodeNum = episode.episodeNumber
+      audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.audioFilePath
+   in AudioFilePicker.render
+        AudioFilePicker.Config
+          { AudioFilePicker.playerId = [i|edit-episode-#{episodeId}|],
+            AudioFilePicker.title = [i|#{showTitle} - Episode #{episodeNum}|],
+            AudioFilePicker.existingAudioUrl = audioUrl,
+            AudioFilePicker.isRequired = False
+          }
+
+-- | Render artwork file field with integrated preview.
+artworkFileField :: Episodes.Model -> Lucid.Html ()
+artworkFileField episode =
+  let artworkUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.artworkUrl
+   in ImageFilePicker.render
+        ImageFilePicker.Config
+          { ImageFilePicker.fieldName = "artwork_file",
+            ImageFilePicker.label = "Episode Artwork",
+            ImageFilePicker.existingImageUrl = artworkUrl,
+            ImageFilePicker.accept = "image/jpeg,image/png",
+            ImageFilePicker.maxSizeMB = 5,
+            ImageFilePicker.isRequired = False
+          }
 
 trackListingSection :: [EpisodeTrack.Model] -> Lucid.Html ()
 trackListingSection tracks = do

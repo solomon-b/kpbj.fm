@@ -10,6 +10,7 @@ where
 import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
 import Component.Form.Builder
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -95,16 +96,8 @@ blogFormFields =
                       vrCustomValidation = Nothing
                     }
               },
-            ValidatedFileField
-              { vffName = "hero_image",
-                vffLabel = "Hero Image (Optional)",
-                vffAccept = Just "image/*",
-                vffHint = Just "Banner image displayed at top of post. Recommended: 1200x630px or larger",
-                vffMaxSizeMB = Just 10,
-                vffValidation = emptyValidation {vrRequired = False},
-                vffButtonText = "Choose Image",
-                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700",
-                vffCurrentValue = Nothing
+            PlainField
+              { pfHtml = heroImageField
               },
             ValidatedTextField
               { vfName = "tags",
@@ -156,6 +149,22 @@ blogFormFields =
           ]
       }
   ]
+
+--------------------------------------------------------------------------------
+-- Helper Functions
+
+-- | Render hero image field with integrated preview.
+heroImageField :: Lucid.Html ()
+heroImageField =
+  ImageFilePicker.render
+    ImageFilePicker.Config
+      { ImageFilePicker.fieldName = "hero_image",
+        ImageFilePicker.label = "Hero Image (Optional)",
+        ImageFilePicker.existingImageUrl = "",
+        ImageFilePicker.accept = "image/*",
+        ImageFilePicker.maxSizeMB = 10,
+        ImageFilePicker.isRequired = False
+      }
 
 --------------------------------------------------------------------------------
 -- Form Submit Actions (rendered inside <form>)

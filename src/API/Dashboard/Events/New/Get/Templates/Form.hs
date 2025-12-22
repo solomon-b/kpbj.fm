@@ -10,6 +10,7 @@ where
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
 import Component.Form.Builder
+import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -119,16 +120,8 @@ eventFormFields =
                       vrCustomValidation = Nothing
                     }
               },
-            ValidatedFileField
-              { vffName = "poster_image",
-                vffLabel = "Event Poster Image",
-                vffAccept = Just "image/*",
-                vffHint = Just "Optional poster image for the event. Recommended: 1200x630px or larger.",
-                vffMaxSizeMB = Just 10,
-                vffValidation = emptyValidation {vrRequired = False},
-                vffButtonText = "Choose Poster Image",
-                vffButtonClasses = "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700",
-                vffCurrentValue = Nothing
+            PlainField
+              { pfHtml = posterImageField
               }
           ]
       },
@@ -209,6 +202,22 @@ eventFormFields =
           ]
       }
   ]
+
+--------------------------------------------------------------------------------
+-- Helper Functions
+
+-- | Render poster image field with integrated preview.
+posterImageField :: Lucid.Html ()
+posterImageField =
+  ImageFilePicker.render
+    ImageFilePicker.Config
+      { ImageFilePicker.fieldName = "poster_image",
+        ImageFilePicker.label = "Event Poster Image",
+        ImageFilePicker.existingImageUrl = "",
+        ImageFilePicker.accept = "image/*",
+        ImageFilePicker.maxSizeMB = 10,
+        ImageFilePicker.isRequired = False
+      }
 
 --------------------------------------------------------------------------------
 -- Form Submit Actions (rendered inside <form>)
