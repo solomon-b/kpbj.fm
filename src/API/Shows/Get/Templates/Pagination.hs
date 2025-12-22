@@ -12,13 +12,14 @@ import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageNumber (PageNumber)
+import Domain.Types.ShowSortBy (ShowSortBy)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 -- | Render pagination controls
-renderPagination :: PageNumber -> Bool -> Lucid.Html ()
-renderPagination currentPage hasMore = do
+renderPagination :: PageNumber -> Bool -> Maybe ShowSortBy -> Lucid.Html ()
+renderPagination currentPage hasMore maybeSortBy = do
   Lucid.div_ [class_ $ base ["flex", "justify-center", "mt-8"]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "space-x-2"]] $ do
       -- Previous button
@@ -53,4 +54,4 @@ renderPagination currentPage hasMore = do
         else Lucid.span_ [class_ $ base ["px-3", "py-1", "text-gray-400"]] "Next ›"
   where
     showsGetPageUrl :: PageNumber -> Links.URI
-    showsGetPageUrl page = Links.linkURI $ showsLinks.list (Just page) Nothing Nothing Nothing
+    showsGetPageUrl page = Links.linkURI $ showsLinks.list (Just page) Nothing Nothing Nothing maybeSortBy

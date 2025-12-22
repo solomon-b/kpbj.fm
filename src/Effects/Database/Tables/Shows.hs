@@ -33,6 +33,7 @@ module Effects.Database.Tables.Shows
     getAllShows,
     getShowsByGenre,
     getShowsByGenreAndStatus,
+    getShowsFiltered,
     insertShow,
     updateShow,
 
@@ -65,6 +66,7 @@ import Domain.Types.Genre (Genre (..))
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.Search (Search (..))
+import Domain.Types.ShowSortBy (ShowSortBy (..))
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
@@ -303,6 +305,44 @@ getShowsByGenreAndStatus (Genre genreText) showStatus (Limit lim) (Offset off) =
             where_ $ genre s ==. lit (Just genreText)
             where_ $ status s ==. lit showStatus
             pure s
+
+-- | Get shows with optional genre/status filters and configurable sorting.
+--
+-- This is the primary query for the public shows listing page.
+-- Supports sorting by name (A-Z, Z-A) or creation date (newest, oldest).
+getShowsFiltered :: Maybe Genre -> Maybe Status -> ShowSortBy -> Limit -> Offset -> Hasql.Statement () [Model]
+getShowsFiltered maybeGenre maybeStatus sortBy (Limit lim) (Offset off) =
+  interp
+    False
+    [sql|
+    SELECT id, title, slug, description, genre, logo_url, banner_url, status, created_at, updated_at
+    FROM shows
+    WHERE (#{maybeGenreText}::text IS NULL OR genre = #{maybeGenreText}::text)
+      AND (#{maybeStatusText}::show_status IS NULL OR status = #{maybeStatusText}::show_status)
+    ORDER BY
+      CASE WHEN #{sortOrder} = 'name_az' THEN title END ASC,
+      CASE WHEN #{sortOrder} = 'name_za' THEN title END DESC,
+      CASE WHEN #{sortOrder} = 'created_newest' THEN created_at END DESC,
+      CASE WHEN #{sortOrder} = 'created_oldest' THEN created_at END ASC
+    LIMIT #{lim} OFFSET #{off}
+  |]
+  where
+    maybeGenreText :: Maybe Text
+    maybeGenreText = fmap (\(Genre g) -> g) maybeGenre
+
+    maybeStatusText :: Maybe Text
+    maybeStatusText = fmap statusToText maybeStatus
+
+    statusToText :: Status -> Text
+    statusToText Active = "active"
+    statusToText Inactive = "inactive"
+
+    sortOrder :: Text
+    sortOrder = case sortBy of
+      NameAZ -> "name_az"
+      NameZA -> "name_za"
+      CreatedNewest -> "created_newest"
+      CreatedOldest -> "created_oldest"
 
 -- | Insert a new show.
 insertShow :: Insert -> Hasql.Statement () Id

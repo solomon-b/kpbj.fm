@@ -7,6 +7,7 @@ import Domain.Types.Genre (Genre)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
+import Domain.Types.ShowSortBy (ShowSortBy)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Observability qualified as Observability
 import Lucid qualified
@@ -24,6 +25,7 @@ type Route =
         :> Servant.QueryParam "genre" Genre
         :> Servant.QueryParam "status" Shows.Status
         :> Servant.QueryParam "search" Search
+        :> Servant.QueryParam "sortBy" ShowSortBy
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
         :> Servant.Get '[HTML] (Lucid.Html ())

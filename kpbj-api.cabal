@@ -333,6 +333,7 @@ library
     Domain.Types.Offset
     Domain.Types.PageNumber
     Domain.Types.Search
+    Domain.Types.ShowSortBy
     Domain.Types.Slug
     Domain.Types.UserSortBy
     Domain.Types.WeekOffset

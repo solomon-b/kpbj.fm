@@ -15,13 +15,14 @@ import Design.Tokens qualified as Tokens
 import Domain.Types.Genre (Genre)
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
+import Domain.Types.ShowSortBy (ShowSortBy (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (xData_, xOnClick_, xShow_, xTransitionEnterEnd_, xTransitionEnterStart_, xTransitionEnter_, xTransitionLeaveEnd_, xTransitionLeaveStart_, xTransitionLeave_)
 
 -- | Main shows list template
-template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
-template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
+template :: [Shows.Model] -> PageNumber -> Bool -> Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
+template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch maybeSortBy = do
   -- Page container with Alpine state for filter panel
   Lucid.div_ [xData_ "{ filterOpen: false }", class_ $ base [Tokens.fullWidth]] $ do
     -- Header row with filter button on mobile
@@ -48,11 +49,11 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
           class_ $ do base ["absolute", "left-1/2", "-translate-x-1/2", "w-screen", "top-full", "z-20", Tokens.bgWhite, "shadow-lg"]; desktop ["hidden"]
         ]
         $ do
-          renderFilters maybeGenre maybeStatus maybeSearch
+          renderFilters maybeGenre maybeStatus maybeSearch maybeSortBy
 
     -- Desktop: Always-visible filters (hidden on mobile)
     Lucid.div_ [class_ $ do { base ["hidden", Tokens.mb6]; desktop ["block"] }] $ do
-      renderFilters maybeGenre maybeStatus maybeSearch
+      renderFilters maybeGenre maybeStatus maybeSearch maybeSortBy
 
     -- Shows Grid
     if null allShows
@@ -66,16 +67,16 @@ template allShows currentPage hasMore maybeGenre maybeStatus maybeSearch = do
 
         -- Pagination
         unless (null allShows) $
-          renderPagination currentPage hasMore
+          renderPagination currentPage hasMore maybeSortBy
 
 -- | Render show filters (displayed in collapsible panel)
-renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Lucid.Html ()
-renderFilters maybeGenre maybeStatus maybeSearch = do
+renderFilters :: Maybe Genre -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
+renderFilters maybeGenre maybeStatus maybeSearch maybeSortBy = do
   Lucid.div_ [class_ $ base [Tokens.p4]] $ do
     -- Stacked on mobile, horizontal row on desktop
-    Lucid.form_ [Lucid.id_ "show-filters", class_ $ do { base ["space-y-4"]; desktop ["space-y-0", "flex", "items-end", Tokens.gap4] }] $ do
+    Lucid.form_ [Lucid.id_ "show-filters", class_ $ do { base ["space-y-4"]; desktop ["space-y-0", "flex", "items-end", Tokens.gap4, "flex-wrap"] }] $ do
       -- Search bar
-      Lucid.div_ [class_ $ do { base []; desktop ["flex-1"] }] $ do
+      Lucid.div_ [class_ $ do { base []; desktop ["flex-1", "min-w-[200px]"] }] $ do
         Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "search"] "Search"
         Lucid.input_
           [ Lucid.type_ "text",
@@ -87,7 +88,7 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
           ]
 
       -- Genre filter
-      Lucid.div_ [class_ $ do { base []; desktop ["flex-1"] }] $ do
+      Lucid.div_ [class_ $ do { base []; desktop ["flex-1", "min-w-[140px]"] }] $ do
         Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "genre"] "Genre"
         Lucid.select_
           [ Lucid.id_ "genre",
@@ -104,7 +105,7 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
             Lucid.option_ ([Lucid.value_ "rock"] <> [Lucid.selected_ "selected" | maybeGenre == Just "rock"]) "Rock"
 
       -- Status filter
-      Lucid.div_ [class_ $ do { base []; desktop ["flex-1"] }] $ do
+      Lucid.div_ [class_ $ do { base []; desktop ["flex-1", "min-w-[120px]"] }] $ do
         Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "status"] "Status"
         Lucid.select_
           [ Lucid.id_ "status",
@@ -115,6 +116,20 @@ renderFilters maybeGenre maybeStatus maybeSearch = do
             Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeStatus]) "All Shows"
             Lucid.option_ ([Lucid.value_ "active"] <> [Lucid.selected_ "selected" | maybeStatus == Just Shows.Active]) "Active"
             Lucid.option_ ([Lucid.value_ "hiatus"] <> [Lucid.selected_ "selected" | maybeStatus == Just Shows.Inactive]) "Inactive"
+
+      -- Sort By filter
+      Lucid.div_ [class_ $ do { base []; desktop ["flex-1", "min-w-[160px]"] }] $ do
+        Lucid.label_ [class_ $ base ["block", Tokens.textSm, Tokens.fontBold, Tokens.mb2], Lucid.for_ "sortBy"] "Sort By"
+        Lucid.select_
+          [ Lucid.id_ "sortBy",
+            Lucid.name_ "sortBy",
+            class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgWhite]
+          ]
+          $ do
+            Lucid.option_ ([Lucid.value_ "name_az"] <> [Lucid.selected_ "selected" | maybeSortBy == Just NameAZ || isNothing maybeSortBy]) "Name (A-Z)"
+            Lucid.option_ ([Lucid.value_ "name_za"] <> [Lucid.selected_ "selected" | maybeSortBy == Just NameZA]) "Name (Z-A)"
+            Lucid.option_ ([Lucid.value_ "created_newest"] <> [Lucid.selected_ "selected" | maybeSortBy == Just CreatedNewest]) "Newest First"
+            Lucid.option_ ([Lucid.value_ "created_oldest"] <> [Lucid.selected_ "selected" | maybeSortBy == Just CreatedOldest]) "Oldest First"
 
       -- Action buttons
       Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
