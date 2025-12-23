@@ -3,14 +3,22 @@
 module Component.AudioPlayer.Waveform
   ( Config (..),
     render,
+
+    -- * Default Styles
+    defaultContainerClasses,
+    defaultButtonClasses,
+    defaultProgressBarClasses,
+    defaultProgressFillClasses,
+    defaultTimeDisplayClasses,
   )
 where
 
 --------------------------------------------------------------------------------
 
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Design (base, class_)
+import Design (base, class_, class_')
 import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Extras (xBindStyle_, xData_, xOnClick_, xRef_, xText_)
@@ -32,10 +40,28 @@ data Config = Config
     title :: Text,
     -- | Optional file input name to watch for new file selections.
     -- When a file is selected, the player will switch to preview that file instead.
-    fileInputName :: Maybe Text
+    fileInputName :: Maybe Text,
+    -- | Optional CSS classes for the outer container (default: gray background with border)
+    containerClasses :: Maybe Text,
+    -- | Optional CSS classes for the play/pause button
+    buttonClasses :: Maybe Text,
+    -- | Optional CSS classes for the progress bar container
+    progressBarClasses :: Maybe Text,
+    -- | Optional CSS classes for the progress bar fill
+    progressFillClasses :: Maybe Text,
+    -- | Optional CSS classes for the time display
+    timeDisplayClasses :: Maybe Text
   }
 
 --------------------------------------------------------------------------------
+
+-- | Default CSS classes for each element.
+defaultContainerClasses, defaultButtonClasses, defaultProgressBarClasses, defaultProgressFillClasses, defaultTimeDisplayClasses :: Text
+defaultContainerClasses = class_' $ base [Tokens.bgGray100, "border-2", "border-gray-600", Tokens.p6]
+defaultButtonClasses = class_' $ base [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", Tokens.textLg]
+defaultProgressBarClasses = class_' $ base ["flex-grow", "bg-gray-300", "h-8", "relative", "cursor-pointer", "rounded"]
+defaultProgressFillClasses = class_' $ base [Tokens.bgGray800, "h-8", "rounded", "absolute", "top-0", "left-0", "transition-all", "duration-100"]
+defaultTimeDisplayClasses = class_' $ base [Tokens.textSm, "font-mono", "w-28", "text-right"]
 
 -- | Render an audio player with play/pause, seek, and time display.
 --
@@ -44,8 +70,14 @@ data Config = Config
 render :: Config -> Lucid.Html ()
 render Config {..} = do
   let fileInputSelector = maybe "" (\name -> [i|input[name="#{name}"]|]) fileInputName
+      containerCls = fromMaybe defaultContainerClasses containerClasses
+      buttonCls = fromMaybe defaultButtonClasses buttonClasses
+      progressBarCls = fromMaybe defaultProgressBarClasses progressBarClasses
+      progressFillCls = fromMaybe defaultProgressFillClasses progressFillClasses
+      timeDisplayCls = fromMaybe defaultTimeDisplayClasses timeDisplayClasses
+
   Lucid.div_
-    [ class_ $ base [Tokens.bgGray100, "border-2", "border-gray-600", Tokens.p6],
+    [ Lucid.class_ containerCls,
       xData_ (alpineScript playerId audioUrl title fileInputSelector)
     ]
     $ do
@@ -55,7 +87,7 @@ render Config {..} = do
       Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
         Lucid.button_
           [ Lucid.type_ "button",
-            class_ $ base [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", Tokens.textLg],
+            Lucid.class_ buttonCls,
             xOnClick_ "toggle()",
             xText_ "isPlaying ? 'PAUSE' : 'PLAY'"
           ]
@@ -63,20 +95,20 @@ render Config {..} = do
 
         -- Progress bar container
         Lucid.div_
-          [ class_ $ base ["flex-grow", "bg-gray-300", "h-8", "relative", "cursor-pointer", "rounded"],
+          [ Lucid.class_ progressBarCls,
             xOnClick_ "seek($event)"
           ]
           $ do
             -- Progress fill
             Lucid.div_
-              [ class_ $ base [Tokens.bgGray800, "h-8", "rounded", "absolute", "top-0", "left-0", "transition-all", "duration-100"],
+              [ Lucid.class_ progressFillCls,
                 xBindStyle_ "{ width: progress + '%' }"
               ]
               mempty
 
         -- Time display
         Lucid.span_
-          [ class_ $ base [Tokens.textSm, "font-mono", "w-28", "text-right"],
+          [ Lucid.class_ timeDisplayCls,
             xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"
           ]
           "0:00 / 0:00"

@@ -54,7 +54,12 @@ render Config {..} = do
             { WaveformPlayer.playerId = playerId,
               WaveformPlayer.audioUrl = existingAudioUrl,
               WaveformPlayer.title = title,
-              WaveformPlayer.fileInputName = Just "audio_file"
+              WaveformPlayer.fileInputName = Just "audio_file",
+              WaveformPlayer.containerClasses = Nothing,
+              WaveformPlayer.buttonClasses = Nothing,
+              WaveformPlayer.progressBarClasses = Nothing,
+              WaveformPlayer.progressFillClasses = Nothing,
+              WaveformPlayer.timeDisplayClasses = Nothing
             }
 
       -- Hidden file input
