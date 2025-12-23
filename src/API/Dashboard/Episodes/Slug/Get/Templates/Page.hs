@@ -148,7 +148,12 @@ template _userMeta showModel episode tracks = do
               { WaveformPlayer.playerId = playerId,
                 WaveformPlayer.audioUrl = audioUrl,
                 WaveformPlayer.title = episodeMetadata,
-                WaveformPlayer.fileInputName = Nothing
+                WaveformPlayer.fileInputName = Nothing,
+                WaveformPlayer.containerClasses = Nothing,
+                WaveformPlayer.buttonClasses = Nothing,
+                WaveformPlayer.progressBarClasses = Nothing,
+                WaveformPlayer.progressFillClasses = Nothing,
+                WaveformPlayer.timeDisplayClasses = Nothing
               }
       Nothing -> mempty
 
