@@ -10,10 +10,8 @@ where
 
 import API.Links (apiLinks, dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..), Routes (..))
-import Component.Form.Builder
-import Component.ImageFilePicker qualified as ImageFilePicker
+import Component.Form.V2
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -43,25 +41,81 @@ mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 
--- | Blog post edit template using FormBuilder
+-- | Blog post edit template using V2 FormBuilder
 template :: BlogPosts.Model -> [BlogTags.Model] -> UserMetadata.Model -> Lucid.Html ()
 template blogPost tags userMeta = do
-  let postId = blogPost.bpmId
-      postSlug = blogPost.bpmSlug
-      postBackUrl = dashboardStationBlogDetailGetUrl postId postSlug
-      postEditUrl = dashboardStationBlogEditPostUrl postId postSlug
-      tagsText = Text.intercalate ", " $ map (\t -> t.btmName) tags
+  renderFormHeader blogPost userMeta postBackUrl
+  renderForm config form
+  where
+    postId = blogPost.bpmId
+    postSlug = blogPost.bpmSlug
+    postBackUrl = dashboardStationBlogDetailGetUrl postId postSlug
+    postEditUrl = dashboardStationBlogEditPostUrl postId postSlug
+    tagsText = Text.intercalate ", " $ map (\t -> t.btmName) tags
+    imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) blogPost.bpmHeroImageUrl
 
-  buildValidatedForm
-    FormBuilder
-      { fbAction = [i|/#{postEditUrl}|],
-        fbMethod = "post",
-        fbHeader = Just (renderFormHeader blogPost userMeta postBackUrl),
-        fbFields = blogEditFormFields blogPost tagsText,
-        fbAdditionalContent = [renderSubmitActions postBackUrl],
-        fbStyles = defaultFormStyles,
-        fbHtmx = Nothing
-      }
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = [i|/#{postEditUrl}|],
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
+      -- Post Details Section
+      section "POST DETAILS" $ do
+        textField "title" $ do
+          label "Post Title"
+          placeholder "e.g. The Evolution of Industrial Ambient"
+          value blogPost.bpmTitle
+          required
+          minLength 3
+          maxLength 200
+
+        textareaField "content" 12 $ do
+          label "Post Content"
+          placeholder "Write your blog post content here..."
+          value blogPost.bpmContent
+          required
+          minLength 10
+          maxLength 50000
+
+        imageField "hero_image" $ do
+          label "Hero Image"
+          maxSize 10
+          aspectRatio (16, 9)
+          currentFile imageUrl
+
+        textField "tags" $ do
+          label "Tags"
+          placeholder "industrial, ambient, interview, chrome-valley"
+          hint "Comma separated tags"
+          unless (Text.null tagsText) $ value tagsText
+          maxLength 500
+
+      -- Publishing Options Section
+      section "PUBLISHING OPTIONS" $ do
+        toggleField "status" $ do
+          offLabel "Draft"
+          onLabel "Published"
+          offValue "draft"
+          onValue "published"
+          when (blogPost.bpmStatus == Published) checked
+          hint "Toggle to publish immediately"
+
+        textareaField "excerpt" 3 $ do
+          label "Excerpt (Optional)"
+          placeholder "Short preview of your post (optional - will auto-generate if left blank)"
+          case blogPost.bpmExcerpt of
+            Just excerptText -> value excerptText
+            Nothing -> pure ()
+          maxLength 500
+
+      submitButton "UPDATE POST"
+      cancelButton [i|/#{postBackUrl}|] "CANCEL"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)
@@ -95,136 +149,3 @@ renderFormHeader blogPost userMeta postBackUrl =
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW ALL POSTS"
-
---------------------------------------------------------------------------------
--- Form Fields Definition
-
-blogEditFormFields :: BlogPosts.Model -> Text -> [FormField]
-blogEditFormFields blogPost tagsText =
-  [ -- Post Details Section
-    SectionField
-      { sfTitle = "POST DETAILS",
-        sfFields =
-          [ ValidatedTextField
-              { vfName = "title",
-                vfLabel = "Post Title",
-                vfInitialValue = Just blogPost.bpmTitle,
-                vfPlaceholder = Just "e.g. The Evolution of Industrial Ambient",
-                vfHint = Nothing,
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 200,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextareaField
-              { vtName = "content",
-                vtLabel = "Post Content",
-                vtInitialValue = Just blogPost.bpmContent,
-                vtRows = 12,
-                vtPlaceholder = Just "Write your blog post content here...",
-                vtHint = Nothing,
-                vtValidation =
-                  ValidationRules
-                    { vrMinLength = Just 10,
-                      vrMaxLength = Just 50000,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            PlainFileField
-              { pffHtml = heroImageField blogPost
-              },
-            ValidatedTextField
-              { vfName = "tags",
-                vfLabel = "Tags",
-                vfInitialValue = Just tagsText,
-                vfPlaceholder = Just "industrial, ambient, interview, chrome-valley",
-                vfHint = Just "Comma separated tags",
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Nothing,
-                      vrMaxLength = Just 500,
-                      vrPattern = Nothing,
-                      vrRequired = False,
-                      vrCustomValidation = Nothing
-                    }
-              }
-          ]
-      },
-    -- Publishing Options Section
-    SectionField
-      { sfTitle = "PUBLISHING OPTIONS",
-        sfFields =
-          [ ValidatedSelectField
-              { vsName = "status",
-                vsLabel = "Publication Status",
-                vsOptions =
-                  [ SelectOption "published" "Publish Immediately" (blogPost.bpmStatus == Published) Nothing,
-                    SelectOption "draft" "Save as Draft" (blogPost.bpmStatus == Draft) Nothing
-                  ],
-                vsHint = Nothing,
-                vsValidation = emptyValidation {vrRequired = True}
-              },
-            ValidatedTextareaField
-              { vtName = "excerpt",
-                vtLabel = "Excerpt (Optional)",
-                vtInitialValue = blogPost.bpmExcerpt,
-                vtRows = 3,
-                vtPlaceholder = Just "Short preview of your post (optional - will auto-generate if left blank)",
-                vtHint = Nothing,
-                vtValidation =
-                  ValidationRules
-                    { vrMinLength = Nothing,
-                      vrMaxLength = Just 500,
-                      vrPattern = Nothing,
-                      vrRequired = False,
-                      vrCustomValidation = Nothing
-                    }
-              }
-          ]
-      }
-  ]
-
---------------------------------------------------------------------------------
--- Helper Functions
-
--- | Render hero image field with integrated preview.
-heroImageField :: BlogPosts.Model -> Lucid.Html ()
-heroImageField blogPost =
-  let imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) blogPost.bpmHeroImageUrl
-   in ImageFilePicker.render
-        ImageFilePicker.Config
-          { ImageFilePicker.fieldName = "hero_image",
-            ImageFilePicker.label = "Hero Image",
-            ImageFilePicker.existingImageUrl = imageUrl,
-            ImageFilePicker.accept = "image/*",
-            ImageFilePicker.maxSizeMB = 10,
-            ImageFilePicker.isRequired = False,
-            ImageFilePicker.aspectRatio = (16, 9)
-          }
-
---------------------------------------------------------------------------------
--- Form Submit Actions (rendered inside <form>)
-
-renderSubmitActions :: Links.URI -> Lucid.Html ()
-renderSubmitActions postBackUrl =
-  Lucid.section_ [class_ $ base ["bg-gray-50", Tokens.border2, "border-gray-300", Tokens.p6]] $ do
-    Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "justify-center"]] $ do
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px8, "py-3", Tokens.fontBold, "hover:bg-gray-700", "transition-colors"]
-        ]
-        "UPDATE POST"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{postBackUrl}|],
-          hxGet_ [i|/#{postBackUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base ["bg-gray-400", Tokens.textWhite, Tokens.px8, "py-3", Tokens.fontBold, "hover:bg-gray-500", "transition-colors", "no-underline"]
-        ]
-        "CANCEL"

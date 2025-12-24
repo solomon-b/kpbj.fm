@@ -10,8 +10,7 @@ where
 
 import API.Links (apiLinks, dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..), Routes (..))
-import Component.Form.Builder
-import Component.ImageFilePicker qualified as ImageFilePicker
+import Component.Form.V2
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -49,24 +48,99 @@ formatDateTimeLocal = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M"
 
 --------------------------------------------------------------------------------
 
--- | Event edit template using FormBuilder
+-- | Event edit template using V2 FormBuilder
 template :: Events.Model -> UserMetadata.Model -> Lucid.Html ()
 template event userMeta = do
-  let eventId = event.emId
-      eventSlug = event.emSlug
-      eventBackUrl = eventDetailUrl eventId eventSlug
-      eventEditUrl = eventEditPostUrl eventId eventSlug
+  renderFormHeader event userMeta eventBackUrl
+  renderForm config form
+  where
+    eventId = event.emId
+    eventSlug = event.emSlug
+    eventBackUrl = eventDetailUrl eventId eventSlug
+    eventEditUrl = eventEditPostUrl eventId eventSlug
+    imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) event.emPosterImageUrl
+    startsAtValue = formatDateTimeLocal event.emStartsAt
+    endsAtValue = formatDateTimeLocal event.emEndsAt
 
-  buildValidatedForm
-    FormBuilder
-      { fbAction = [i|/#{eventEditUrl}|],
-        fbMethod = "post",
-        fbHeader = Just (renderFormHeader event userMeta eventBackUrl),
-        fbFields = eventEditFormFields event,
-        fbAdditionalContent = [renderSubmitActions eventBackUrl],
-        fbStyles = defaultFormStyles,
-        fbHtmx = Nothing
-      }
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = [i|/#{eventEditUrl}|],
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
+      -- Event Details Section
+      section "EVENT DETAILS" $ do
+        textField "title" $ do
+          label "Event Title"
+          placeholder "e.g. KPBJ Spring Concert"
+          value event.emTitle
+          required
+          minLength 3
+          maxLength 200
+
+        textareaField "description" 8 $ do
+          label "Event Description"
+          placeholder "Describe your event. Include any special details, what attendees should expect, what to bring, etc."
+          value event.emDescription
+          required
+          minLength 10
+          maxLength 5000
+
+        imageField "poster_image" $ do
+          label "Event Poster Image"
+          maxSize 10
+          aspectRatio (2, 3)
+          currentFile imageUrl
+
+      -- Date & Time Section
+      section "DATE & TIME" $ do
+        dateTimeField "starts_at" $ do
+          label "Start Date & Time"
+          value startsAtValue
+          required
+
+        dateTimeField "ends_at" $ do
+          label "End Date & Time"
+          hint "Must be after start time"
+          value endsAtValue
+          required
+          customValidation "new Date(this.fields.ends_at.value) > new Date(this.fields.starts_at.value)" "End time must be after start time"
+
+      -- Location Section
+      section "LOCATION" $ do
+        textField "location_name" $ do
+          label "Venue Name"
+          placeholder "e.g. Shadow Hills Community Center"
+          value event.emLocationName
+          required
+          minLength 3
+          maxLength 200
+
+        textField "location_address" $ do
+          label "Address"
+          placeholder "e.g. 1247 Underground Ave, Shadow Hills, CA"
+          value event.emLocationAddress
+          required
+          minLength 3
+          maxLength 500
+
+      -- Publishing Section
+      section "PUBLISHING" $ do
+        toggleField "status" $ do
+          offLabel "Draft"
+          onLabel "Published"
+          offValue "draft"
+          onValue "published"
+          when (event.emStatus == Events.Published) checked
+          hint "Toggle to publish immediately"
+
+      submitButton "UPDATE EVENT"
+      cancelButton [i|/#{eventBackUrl}|] "CANCEL"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)
@@ -100,157 +174,3 @@ renderFormHeader event userMeta eventBackUrl = do
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW EVENTS"
-
---------------------------------------------------------------------------------
--- Form Fields Definition
-
-eventEditFormFields :: Events.Model -> [FormField]
-eventEditFormFields event =
-  [ -- Event Details Section
-    SectionField
-      { sfTitle = "EVENT DETAILS",
-        sfFields =
-          [ ValidatedTextField
-              { vfName = "title",
-                vfLabel = "Event Title",
-                vfInitialValue = Just event.emTitle,
-                vfPlaceholder = Just "e.g. KPBJ Spring Concert",
-                vfHint = Nothing,
-                vfValidation =
-                  emptyValidation
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 200,
-                      vrRequired = True
-                    }
-              },
-            ValidatedTextareaField
-              { vtName = "description",
-                vtLabel = "Event Description",
-                vtInitialValue = Just event.emDescription,
-                vtRows = 8,
-                vtPlaceholder = Just "Describe your event. Include any special details, what attendees should expect, what to bring, etc.",
-                vtHint = Nothing,
-                vtValidation =
-                  emptyValidation
-                    { vrMinLength = Just 10,
-                      vrMaxLength = Just 5000,
-                      vrRequired = True
-                    }
-              },
-            PlainFileField
-              { pffHtml = posterImageField event
-              }
-          ]
-      },
-    -- Date & Time Section
-    SectionField
-      { sfTitle = "DATE & TIME",
-        sfFields =
-          [ ValidatedDateTimeField
-              { vdtName = "starts_at",
-                vdtLabel = "Start Date & Time",
-                vdtInitialValue = Just (formatDateTimeLocal event.emStartsAt),
-                vdtHint = Nothing,
-                vdtValidation = emptyValidation {vrRequired = True}
-              },
-            ValidatedDateTimeField
-              { vdtName = "ends_at",
-                vdtLabel = "End Date & Time",
-                vdtInitialValue = Just (formatDateTimeLocal event.emEndsAt),
-                vdtHint = Just "Must be after start time",
-                vdtValidation =
-                  emptyValidation
-                    { vrRequired = True,
-                      vrCustomValidation = Just "new Date(this.fields.ends_at.value) > new Date(this.fields.starts_at.value)"
-                    }
-              }
-          ]
-      },
-    -- Location Section
-    SectionField
-      { sfTitle = "LOCATION",
-        sfFields =
-          [ ValidatedTextField
-              { vfName = "location_name",
-                vfLabel = "Venue Name",
-                vfInitialValue = Just event.emLocationName,
-                vfPlaceholder = Just "e.g. Shadow Hills Community Center",
-                vfHint = Nothing,
-                vfValidation =
-                  emptyValidation
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 200,
-                      vrRequired = True
-                    }
-              },
-            ValidatedTextField
-              { vfName = "location_address",
-                vfLabel = "Address",
-                vfInitialValue = Just event.emLocationAddress,
-                vfPlaceholder = Just "e.g. 1247 Underground Ave, Shadow Hills, CA",
-                vfHint = Nothing,
-                vfValidation =
-                  emptyValidation
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 500,
-                      vrRequired = True
-                    }
-              }
-          ]
-      },
-    -- Publishing Section
-    SectionField
-      { sfTitle = "PUBLISHING",
-        sfFields =
-          [ ValidatedRadioField
-              { vrfName = "status",
-                vrfLabel = "",
-                vrfOptions =
-                  [ SelectOption "draft" "Save as Draft" (event.emStatus == Events.Draft) (Just "Keep private until you're ready to publish"),
-                    SelectOption "published" "Publish Immediately" (event.emStatus == Events.Published) (Just "Make visible to the public right away")
-                  ],
-                vrfHint = Nothing,
-                vrfValidation = emptyValidation {vrRequired = True}
-              }
-          ]
-      }
-  ]
-
---------------------------------------------------------------------------------
--- Helper Functions
-
--- | Render poster image field with integrated preview.
-posterImageField :: Events.Model -> Lucid.Html ()
-posterImageField event =
-  let imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) event.emPosterImageUrl
-   in ImageFilePicker.render
-        ImageFilePicker.Config
-          { ImageFilePicker.fieldName = "poster_image",
-            ImageFilePicker.label = "Event Poster Image",
-            ImageFilePicker.existingImageUrl = imageUrl,
-            ImageFilePicker.accept = "image/*",
-            ImageFilePicker.maxSizeMB = 10,
-            ImageFilePicker.isRequired = False,
-            ImageFilePicker.aspectRatio = (2, 3)
-          }
-
---------------------------------------------------------------------------------
--- Form Submit Actions (rendered inside <form>)
-
-renderSubmitActions :: Links.URI -> Lucid.Html ()
-renderSubmitActions eventBackUrl =
-  Lucid.section_ [class_ $ base ["bg-gray-50", Tokens.border2, "border-gray-300", Tokens.p6]] $ do
-    Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "justify-center"]] $ do
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $ base [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", "transition-colors"]
-        ]
-        "UPDATE EVENT"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{eventBackUrl}|],
-          hxGet_ [i|/#{eventBackUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base ["bg-gray-400", Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-500", "transition-colors", "no-underline"]
-        ]
-        "CANCEL"
