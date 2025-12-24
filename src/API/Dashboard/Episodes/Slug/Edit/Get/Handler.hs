@@ -8,7 +8,8 @@ module API.Dashboard.Episodes.Slug.Edit.Get.Handler where
 
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (template)
 import API.Get.Templates qualified as HomeTemplate
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
+import Component.DashboardFrame (DashboardNav (..))
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -24,7 +25,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -101,9 +102,14 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
               Log.logInfo "Episode scheduled_at" (show episode.scheduledAt)
               Log.logInfo "Current time" (show currentTime)
               Log.logInfo "Is scheduled in future?" (show $ case episode.scheduledAt of Nothing -> True; Just s -> s > currentTime)
+              -- Fetch shows for dashboard sidebar
+              allShows <-
+                if UserMetadata.isAdmin userMetadata.mUserRole
+                  then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
+                  else either (const []) id <$> execQuerySpan (Shows.getShowsForUser user.mId)
               let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
                   editTemplate = template currentTime showModel episode tracks userMetadata isStaff
-              html <- renderTemplate hxRequest (Just userMetadata) editTemplate
+              html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing editTemplate
               pure $ Servant.noHeader $ Servant.noHeader html
             else do
               Log.logInfo "User tried to edit episode they don't own" episode.id

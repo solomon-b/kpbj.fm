@@ -7,7 +7,8 @@ module API.Shows.Slug.Blog.Edit.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Shows.Slug.Blog.Edit.Get.Templates.Page (editBlogPostForm, errorTemplate, notLoggedInTemplate, permissionDeniedTemplate)
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
+import Component.DashboardFrame (DashboardNav (..))
 import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -23,7 +24,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
@@ -95,7 +96,12 @@ handler _tracer showId postId urlSlug cookie (foldHxReq -> hxRequest) = do
               if isHost || User.mId user == post.authorId
                 then do
                   Log.logInfo "Authorized user accessing blog post edit form" post.id
-                  html <- renderTemplate hxRequest (Just userMetadata) $ editBlogPostForm showModel post tags
+                  -- Fetch shows for dashboard sidebar
+                  allShows <-
+                    if UserMetadata.isAdmin userMetadata.mUserRole
+                      then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
+                      else either (const []) id <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+                  html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ editBlogPostForm showModel post tags
                   pure $ Servant.noHeader html
                 else do
                   Log.logInfo "User not authorized to edit this blog post" (User.mId user, post.id)

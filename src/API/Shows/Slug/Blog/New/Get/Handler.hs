@@ -6,7 +6,8 @@ module API.Shows.Slug.Blog.New.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Shows.Slug.Blog.New.Get.Templates.Page (errorTemplate, newBlogPostForm, notLoggedInTemplate)
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
+import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad (guard, unless)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -19,7 +20,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -71,4 +72,9 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
           renderTemplate hxRequest (Just userMetadata) $ errorTemplate "You are not authorized to create blog posts for this show."
         Right (Just showModel) -> do
           Log.logInfo "Authorized user accessing new blog post form" showModel.id
-          renderTemplate hxRequest (Just userMetadata) $ newBlogPostForm showModel
+          -- Fetch shows for dashboard sidebar
+          allShows <-
+            if UserMetadata.isAdmin userMetadata.mUserRole
+              then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
+              else either (const []) id <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+          renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ newBlogPostForm showModel
