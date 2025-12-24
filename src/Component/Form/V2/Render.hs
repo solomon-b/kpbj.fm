@@ -147,18 +147,22 @@ renderFormElement config state allFields hasFileFields styles = do
       forM_ (fsHiddenFields state) $ \(name, val) ->
         Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ name, Lucid.value_ val]
 
-      -- Sections
-      forM_ (fsSections state) $ \sec ->
-        renderSection styles sec
-
-      -- Top-level fields (not in sections)
-      forM_ (fsFields state) $ \field ->
-        renderField styles field
+      -- Form elements (sections and fields in order)
+      forM_ (fsElements state) $ \element ->
+        renderElement styles element
 
       -- Buttons (from builder state, or fallback to config footer)
       case fsButtons state of
         [] -> fromMaybe mempty (fcFooter config)
         buttons -> renderButtons styles buttons
+
+--------------------------------------------------------------------------------
+-- Element Rendering
+
+-- | Render a form element (section or field).
+renderElement :: FormStyles -> FormElement -> Lucid.Html ()
+renderElement styles (SectionElement sec) = renderSection styles sec
+renderElement styles (FieldElement field) = renderField styles field
 
 --------------------------------------------------------------------------------
 -- Section Rendering

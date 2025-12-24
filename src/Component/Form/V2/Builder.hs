@@ -87,11 +87,11 @@ runFormBuilder = execWriter
 
 -- | Add a field to the current form state.
 tellField :: Field -> FormBuilder
-tellField f = tell $ emptyFormState {fsFields = [f]}
+tellField f = tell $ emptyFormState {fsElements = [FieldElement f]}
 
 -- | Add a section to the current form state.
 tellSection :: Section -> FormBuilder
-tellSection s = tell $ emptyFormState {fsSections = [s]}
+tellSection s = tell $ emptyFormState {fsElements = [SectionElement s]}
 
 -- | Add a hidden field to the current form state.
 tellHidden :: Text -> Text -> FormBuilder
@@ -272,10 +272,14 @@ hidden = tellHidden
 section :: Text -> FormBuilder -> FormBuilder
 section title builder =
   let state = runFormBuilder builder
+      -- Extract fields from elements (sections within sections become flattened)
+      extractFields :: FormElement -> [Field]
+      extractFields (FieldElement f) = [f]
+      extractFields (SectionElement s) = secFields s
       sec =
         Section
           { secTitle = title,
-            secFields = fsFields state,
+            secFields = concatMap extractFields (fsElements state),
             secCondition = Nothing
           }
    in tellSection sec

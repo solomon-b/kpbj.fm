@@ -89,7 +89,11 @@ isFileField field = case fType field of
 -- | Collect all fields from a form state, including those in sections.
 collectAllFields :: FormState -> [Field]
 collectAllFields state =
-  fsFields state <> concatMap secFields (fsSections state)
+  concatMap collectFromElement (fsElements state)
+  where
+    collectFromElement :: FormElement -> [Field]
+    collectFromElement (SectionElement sec) = secFields sec
+    collectFromElement (FieldElement field) = [field]
 
 --------------------------------------------------------------------------------
 -- Field Initialization
