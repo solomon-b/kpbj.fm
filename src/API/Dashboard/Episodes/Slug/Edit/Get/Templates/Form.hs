@@ -9,13 +9,11 @@ where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts (scripts)
-import API.Links (apiLinks, dashboardLinks, showEpisodesLinks)
+import API.Links (apiLinks, showEpisodesLinks)
 import API.Types
-import Component.AudioFilePicker qualified as AudioFilePicker
 import Component.Form qualified as Form
-import Component.Form.Builder qualified as Builder
 import Component.Form.Internal (hiddenInput)
-import Component.ImageFilePicker qualified as ImageFilePicker
+import Component.Form.V2
 import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -29,13 +27,9 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
-
-hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI dashboardLinks.home
 
 episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
@@ -57,237 +51,90 @@ isScheduledInFuture now episode = case episode.scheduledAt of
 -- If the scheduled date is in the future, file upload fields are shown.
 -- The isStaff parameter indicates if the user has staff-level permissions or higher.
 template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template currentTime showModel episode tracks userMeta isStaff = do
-  let showSlugText = display showModel.slug
-      episodeNum = episode.episodeNumber
-      episodeNumText = display episodeNum
-      episodeBackUrl = episodeDetailUrl showModel.slug episodeNum
-      descriptionValue = fromMaybe "" episode.description
-      -- File uploads allowed if scheduled date is in the future OR user is staff/admin
-      allowFileUpload = isScheduledInFuture currentTime episode || isStaff
-      -- Status can be changed if the scheduled date is in the future OR user is staff/admin
-      canChangeStatus = allowFileUpload || isStaff
-
-  Builder.buildValidatedForm
-    Builder.FormBuilder
-      { Builder.fbAction = [i|/dashboard/episodes/#{showSlugText}/#{episodeNumText}/edit|],
-        Builder.fbMethod = "post",
-        Builder.fbHeader = Just (formHeader showModel episode userMeta episodeBackUrl),
-        Builder.fbHtmx = Nothing,
-        Builder.fbFields =
-          [ -- Hidden status field (controlled by toggle)
-            Builder.HiddenField
-              { Builder.hfName = "status",
-                Builder.hfValue = display episode.status
-              },
-            -- Basic Information Section with validated fields
-            Builder.SectionField
-              { Builder.sfTitle = "BASIC INFORMATION",
-                Builder.sfFields =
-                  [ Builder.ValidatedTextareaField
-                      { Builder.vtName = "description",
-                        Builder.vtLabel = "Description",
-                        Builder.vtInitialValue = Just descriptionValue,
-                        Builder.vtRows = 6,
-                        Builder.vtPlaceholder = Just "Describe this episode. What tracks did you play? Any special guests or themes?",
-                        Builder.vtHint = Just "Up to 5000 characters",
-                        Builder.vtValidation =
-                          Builder.ValidationRules
-                            { Builder.vrMinLength = Nothing,
-                              Builder.vrMaxLength = Just 5000,
-                              Builder.vrPattern = Nothing,
-                              Builder.vrRequired = False,
-                              vrCustomValidation = Nothing
-                            }
-                      }
-                  ]
-              },
-            -- File Upload Section (only shown if scheduled date is in the future)
-            Builder.ConditionalField
-              { Builder.cfCondition = allowFileUpload,
-                Builder.cfTrueFields =
-                  [ Builder.SectionField
-                      { Builder.sfTitle = "MEDIA FILES",
-                        Builder.sfFields =
-                          [ -- Audio file with integrated player
-                            Builder.PlainFileField
-                              { Builder.pffHtml = audioFileField showModel episode
-                              },
-                            Builder.PlainFileField
-                              { Builder.pffHtml = artworkFileField episode
-                              }
-                          ]
-                      }
-                  ],
-                Builder.cfFalseFields = [] -- No file upload fields when scheduled date has passed
-              },
-            -- Track Listing Section
-            Builder.PlainField
-              { Builder.pfHtml = trackListingSection tracks
-              }
-          ],
-        Builder.fbAdditionalContent = [formActions episode canChangeStatus],
-        Builder.fbStyles = Builder.defaultFormStyles
-      }
-
+template currentTime showModel episode tracks _userMeta isStaff = do
+  renderForm config form
   scripts
+  where
+    showSlugText = display showModel.slug
+    episodeNum = episode.episodeNumber
+    episodeNumText = display episodeNum
+    episodeBackUrl = episodeDetailUrl showModel.slug episodeNum
+    descriptionValue = fromMaybe "" episode.description
+    -- File uploads allowed if scheduled date is in the future OR user is staff/admin
+    allowFileUpload = isScheduledInFuture currentTime episode || isStaff
+    -- Status can be changed if the scheduled date is in the future OR user is staff/admin
+    canChangeStatus = allowFileUpload || isStaff
+    audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.audioFilePath
+    artworkUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.artworkUrl
+    isPublished = episode.status == Episodes.Published
+    showTitle = showModel.title
+
+    postUrl = [i|/dashboard/episodes/#{showSlugText}/#{episodeNumText}/edit|]
+
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = postUrl,
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
+      formTitle "EDIT EPISODE"
+      formSubtitle [i|Show: #{showTitle} • Episode \##{episodeNumText}|]
+
+      section "BASIC INFORMATION" $ do
+        textareaField "description" 6 $ do
+          label "Description"
+          placeholder "Describe this episode. What tracks did you play? Any special guests or themes?"
+          hint "Up to 5000 characters"
+          value descriptionValue
+          maxLength 5000
+
+      when allowFileUpload $ do
+        section "MEDIA FILES" $ do
+          audioField "episode_audio" $ do
+            label "Episode Audio"
+            maxSize 500
+            currentFile audioUrl
+
+          imageField "episode_artwork" $ do
+            label "Episode Artwork"
+            maxSize 5
+            aspectRatio (1, 1)
+            currentFile artworkUrl
+
+      section "TRACK LISTING" $ do
+        plain $ trackListingContent tracks
+
+      section "PUBLISHING" $ do
+        toggleField "status" $ do
+          offLabel "Draft"
+          onLabel "Published"
+          offValue "draft"
+          onValue "published"
+          when isPublished checked
+          unless canChangeStatus disabled
+          hint $
+            if canChangeStatus
+              then "Published episodes will be visible after their scheduled date"
+              else "Status locked - scheduled date has passed"
+
+      submitButton "SAVE CHANGES"
+      cancelButton [i|/#{episodeBackUrl}|] "CANCEL"
 
 --------------------------------------------------------------------------------
--- HELPER FUNCTIONS
---------------------------------------------------------------------------------
+-- Track listing
 
-formHeader :: Shows.Model -> Episodes.Model -> UserMetadata.Model -> Links.URI -> Lucid.Html ()
-formHeader showModel episode userMeta episodeBackUrl = do
-  Lucid.section_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
-    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
-      Lucid.div_ $ do
-        Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT EPISODE"
-        Lucid.div_ [class_ $ base ["text-gray-300", Tokens.textSm]] $ do
-          Lucid.strong_ "Show: "
-          Lucid.toHtml showModel.title
-          " • "
-          Lucid.strong_ "Episode #"
-          Lucid.toHtml (display episode.episodeNumber)
-          " • "
-          Lucid.strong_ "Editor: "
-          Lucid.toHtml userMeta.mDisplayName
-      Lucid.div_ [Lucid.class_ "space-x-4"] $ do
-        Lucid.a_
-          [ Lucid.href_ [i|/#{episodeBackUrl}|],
-            hxGet_ [i|/#{episodeBackUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
-          ]
-          "<- BACK TO EPISODE"
-        let dashboardUrl = hostDashboardGetUrl
-         in Lucid.a_
-              [ Lucid.href_ [i|/#{dashboardUrl}|],
-                hxGet_ [i|/#{dashboardUrl}|],
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
-              ]
-              "DASHBOARD"
-
---------------------------------------------------------------------------------
--- FORM SECTIONS
---------------------------------------------------------------------------------
-
--- | Render audio file field with integrated player.
-audioFileField :: Shows.Model -> Episodes.Model -> Lucid.Html ()
-audioFileField showModel episode =
-  let episodeId = episode.id
-      showTitle = showModel.title
-      episodeNum = episode.episodeNumber
-      audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.audioFilePath
-   in AudioFilePicker.render
-        AudioFilePicker.Config
-          { AudioFilePicker.playerId = [i|edit-episode-#{episodeId}|],
-            AudioFilePicker.title = [i|#{showTitle} - Episode #{episodeNum}|],
-            AudioFilePicker.existingAudioUrl = audioUrl,
-            AudioFilePicker.isRequired = False
-          }
-
--- | Render artwork file field with integrated preview.
-artworkFileField :: Episodes.Model -> Lucid.Html ()
-artworkFileField episode =
-  let artworkUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.artworkUrl
-   in ImageFilePicker.render
-        ImageFilePicker.Config
-          { ImageFilePicker.fieldName = "artwork_file",
-            ImageFilePicker.label = "Episode Artwork",
-            ImageFilePicker.existingImageUrl = artworkUrl,
-            ImageFilePicker.accept = "image/jpeg,image/png",
-            ImageFilePicker.maxSizeMB = 5,
-            ImageFilePicker.isRequired = False,
-            ImageFilePicker.aspectRatio = (1, 1)
-          }
-
-trackListingSection :: [EpisodeTrack.Model] -> Lucid.Html ()
-trackListingSection tracks = do
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "border-b", "border-gray-800", "pb-2"]] "TRACK LISTING"
-    Lucid.div_ [Lucid.id_ "tracks-container", class_ $ base ["space-y-4"]] $ do
-      if null tracks
-        then Lucid.p_ [class_ $ base [Tokens.textGray600, "italic"]] "No tracks added yet."
-        else forM_ (zip [(0 :: Int) ..] tracks) $ uncurry renderTrackEditor
-    addTrackButton
-
-formActions :: Episodes.Model -> Bool -> Lucid.Html ()
-formActions episode canChangeStatus = do
-  let isPublished = episode.status == Episodes.Published
-      -- Style classes for disabled state
-      labelClass =
-        if canChangeStatus
-          then "relative inline-flex items-center cursor-pointer"
-          else "relative inline-flex items-center cursor-not-allowed opacity-50"
-      toggleClass =
-        if canChangeStatus
-          then
-            "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 "
-              <> "peer-focus:ring-blue-300 rounded-full peer "
-              <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
-              <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
-              <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
-              <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
-          else
-            "w-11 h-6 bg-gray-300 rounded-full "
-              <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
-              <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
-              <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
-              <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-400"
-  Lucid.section_ [class_ $ base [Tokens.bgGray100, "border-2", "border-gray-400", Tokens.p6]] $ do
-    Lucid.div_ [class_ $ base ["flex", "flex-col", Tokens.gap4]] $ do
-      -- Publishing note
-      if canChangeStatus
-        then
-          Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "italic"]] $
-            "Note: Published episodes will not be publicly visible until the scheduled date/time. "
-              <> "Once the scheduled time has passed, the episode can no longer be edited."
-        else
-          Lucid.p_ [class_ $ base [Tokens.textSm, "text-yellow-700", "italic"]] $
-            "Note: This episode's scheduled date has passed. Status changes are locked. "
-              <> "Only staff or admin users can change the status of past episodes."
-      Lucid.div_ [class_ $ base ["flex", "justify-end", "items-center"]] $ do
-        Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center"]] $ do
-          -- Status toggle switch
-          Lucid.div_ [class_ $ base ["flex", "items-center", "gap-3"]] $ do
-            Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.textGray600]] "Draft"
-            Lucid.label_ [Lucid.class_ labelClass] $ do
-              Lucid.input_ $
-                [ Lucid.type_ "checkbox",
-                  Lucid.id_ "status-toggle",
-                  Lucid.class_ "sr-only peer"
-                ]
-                  <> [Lucid.checked_ | isPublished]
-                  <> [Lucid.disabled_ "disabled" | not canChangeStatus]
-              Lucid.div_ [Lucid.class_ toggleClass] mempty
-            Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.textGray600]] "Published"
-          Lucid.button_
-            [ Lucid.type_ "submit",
-              class_ $ base ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
-            ]
-            "SUBMIT"
-  -- JavaScript to sync toggle with hidden field (only if enabled)
-  Lucid.script_
-    [i|
-(function() {
-  const statusToggle = document.getElementById('status-toggle');
-  const statusField = document.querySelector('input[name="status"]');
-  if (statusToggle && !statusToggle.disabled) {
-    statusToggle.addEventListener('change', () => {
-      if (statusField) {
-        statusField.value = statusToggle.checked ? 'published' : 'draft';
-      }
-    });
-  }
-})();
-|]
-
---------------------------------------------------------------------------------
--- TRACK EDITOR COMPONENTS
---------------------------------------------------------------------------------
+trackListingContent :: [EpisodeTrack.Model] -> Lucid.Html ()
+trackListingContent tracks = do
+  Lucid.div_ [Lucid.id_ "tracks-container", class_ $ base ["space-y-4"]] $ do
+    if null tracks
+      then Lucid.p_ [class_ $ base [Tokens.textGray600, "italic"]] "No tracks added yet."
+      else forM_ (zip [(0 :: Int) ..] tracks) $ uncurry renderTrackEditor
+  addTrackButton
 
 addTrackButton :: Lucid.Html ()
 addTrackButton = do
@@ -298,9 +145,6 @@ addTrackButton = do
         class_ $ base ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-2", Tokens.fontBold, "hover:bg-blue-700"]
       ]
       "+ ADD TRACK"
-
---------------------------------------------------------------------------------
--- TRACK EDITOR COMPONENT
 
 renderTrackEditor :: Int -> EpisodeTrack.Model -> Lucid.Html ()
 renderTrackEditor idx track = do
