@@ -67,7 +67,6 @@ template currentTime showModel episode tracks _userMeta isStaff = do
     audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.audioFilePath
     artworkUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.artworkUrl
     isPublished = episode.status == Episodes.Published
-    showTitle = showModel.title
 
     postUrl = [i|/dashboard/episodes/#{showSlugText}/#{episodeNumText}/edit|]
 
@@ -82,9 +81,6 @@ template currentTime showModel episode tracks _userMeta isStaff = do
 
     form :: FormBuilder
     form = do
-      formTitle "EDIT EPISODE"
-      formSubtitle [i|Show: #{showTitle} • Episode \##{episodeNumText}|]
-
       section "BASIC INFORMATION" $ do
         textareaField "description" 6 $ do
           label "Description"
