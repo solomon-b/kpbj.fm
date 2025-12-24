@@ -59,15 +59,18 @@ import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
 import Data.Time (Day, DayOfWeek (..), TimeOfDay, UTCTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.LocalTime (hoursToTimeZone, utcToLocalTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
-import OrphanInstances.DayOfWeek ()
+import OrphanInstances.DayOfWeek (dayOfWeekName)
 import OrphanInstances.Rel8 ()
 import OrphanInstances.TimeOfDay ()
 import Rel8
@@ -532,7 +535,20 @@ data UpcomingShowDate = UpcomingShowDate
   deriving anyclass (FromJSON, ToJSON)
 
 instance Display UpcomingShowDate where
-  displayBuilder _ = "UpcomingShowDate"
+  displayBuilder usd =
+    let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
+        startTimePacific = utcToLocalTime pacificTz (usdStartTime usd)
+        endTimePacific = utcToLocalTime pacificTz (usdEndTime usd)
+        formatTimeOfDay = Text.pack . formatTime defaultTimeLocale "%l:%M %p"
+     in displayBuilder $
+          dayOfWeekName (usdDayOfWeek usd)
+            <> ", "
+            <> Text.pack (show (usdShowDate usd))
+            <> " ("
+            <> formatTimeOfDay startTimePacific
+            <> " - "
+            <> formatTimeOfDay endTimePacific
+            <> " PT)"
 
 -- | Convert from database row to UpcomingShowDate.
 fromUpcomingShowDateRow :: (Shows.Id, Day, DayOfWeek, UTCTime, UTCTime) -> UpcomingShowDate

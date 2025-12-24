@@ -9,15 +9,10 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types
-import Component.AudioFilePicker qualified as AudioFilePicker
-import Component.Form.Builder
-import Component.ImageFilePicker qualified as ImageFilePicker
+import Component.Form.V2
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, DayOfWeek (..), UTCTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (hoursToTimeZone, utcToLocalTime)
+import Data.Text.Display (display)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -29,213 +24,103 @@ import Servant.Links qualified as Links
 episodesNewPostUrl :: Slug -> Links.URI
 episodesNewPostUrl showSlug = Links.linkURI $ dashboardShowsLinks.episodeNewPost showSlug
 
+dashboardShowDetailUrl :: Shows.Id -> Slug -> Links.URI
+dashboardShowDetailUrl showId showSlug = Links.linkURI $ dashboardShowsLinks.detail showId showSlug Nothing
+
 --------------------------------------------------------------------------------
 
--- | Episode upload form using Component.Form.Builder
+-- | Episode upload form using V2 FormBuilder
 episodeUploadForm :: Shows.Model -> [ShowSchedule.UpcomingShowDate] -> Lucid.Html ()
 episodeUploadForm showModel upcomingDates = do
-  buildValidatedForm
-    FormBuilder
-      { fbAction = [i|/#{episodesNewPostUrl (Shows.slug showModel)}|],
-        fbMethod = "post",
-        fbHeader = Just (renderFormHeader showModel),
-        fbFields = episodeFormFields showModel upcomingDates,
-        fbAdditionalContent = [renderSubmitActions, renderTrackManagementScript],
-        fbStyles = defaultFormStyles,
-        fbHtmx = Nothing
-      }
-
---------------------------------------------------------------------------------
--- Form Header (rendered OUTSIDE <form>)
-
-renderFormHeader :: Shows.Model -> Lucid.Html ()
-renderFormHeader showModel =
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
-      Lucid.div_ $ do
-        Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "UPLOAD EPISODE"
-        Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
-          "Create a new episode for: "
-          Lucid.strong_ $ Lucid.toHtml (Shows.title showModel)
-      Lucid.div_ [Lucid.class_ "text-center"] $ do
-        Lucid.div_ [Lucid.class_ "w-16 h-16 bg-gray-300 mx-auto mb-2 flex items-center justify-center border-2 border-gray-600"] $ do
-          Lucid.span_ [Lucid.class_ "text-2xl"] "🎵"
-
---------------------------------------------------------------------------------
--- Form Fields Definition (The Polynomial Structure!)
-
-episodeFormFields :: Shows.Model -> [ShowSchedule.UpcomingShowDate] -> [FormField]
-episodeFormFields showModel upcomingDates =
-  [ -- Hidden fields
-    HiddenField
-      { hfName = "show_id",
-        hfValue = [i|#{Shows.id showModel}|]
-      },
-    HiddenField
-      { hfName = "duration_seconds",
-        hfValue = ""
-      },
-    HiddenField
-      { hfName = "status",
-        hfValue = "draft"
-      },
-    -- Show Info Section (read-only display)
-    PlainField
-      { pfHtml = showInfoSection showModel
-      },
-    -- Episode Details Section
-    SectionField
-      { sfTitle = "EPISODE DETAILS",
-        sfFields =
-          [ ValidatedTextareaField
-              { vtName = "description",
-                vtLabel = "Episode Description",
-                vtInitialValue = Nothing,
-                vtRows = 4,
-                vtPlaceholder = Just "Describe what listeners can expect from this episode...",
-                vtHint = Nothing,
-                vtValidation =
-                  ValidationRules
-                    { vrMinLength = Just 10,
-                      vrMaxLength = Just 5000,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            -- Scheduled date field (conditional on upcomingDates)
-            ConditionalField
-              { cfCondition = not (null upcomingDates),
-                cfTrueFields =
-                  [ ValidatedSelectField
-                      { vsName = "scheduled_date",
-                        vsLabel = "Scheduled Date",
-                        vsOptions = SelectOption "" "-- Select Date --" False Nothing : map renderUpcomingDateOption upcomingDates,
-                        vsHint = Just "Choose when this episode will air",
-                        vsValidation = emptyValidation
-                      }
-                  ],
-                cfFalseFields =
-                  [ PlainField
-                      { pfHtml =
-                          Lucid.div_ $ do
-                            Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
-                            Lucid.div_
-                              [Lucid.class_ "w-full p-3 border-2 border-yellow-400 bg-yellow-50 font-mono text-sm"]
-                              "No upcoming scheduled dates"
-                      }
-                  ]
-              },
-            ValidatedTextField
-              { vfName = "tags",
-                vfLabel = "Tags",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "industrial, ambient, glitch, experimental (comma separated)",
-                vfHint = Just "Optional. Comma-separated list of genres/themes",
-                vfValidation = emptyValidation {vrMaxLength = Just 500}
-              }
-          ]
-      },
-    -- Tracklist Section (custom JavaScript management via PlainField)
-    PlainField
-      { pfHtml = tracklistSection
-      },
-    -- Audio Upload Section
-    SectionField
-      { sfTitle = "AUDIO FILES",
-        sfFields =
-          [ -- Audio file with integrated player
-            PlainFileField
-              { pffHtml = audioFileField showModel
-              },
-            PlainFileField
-              { pffHtml = artworkFileField
-              }
-          ]
-      }
-  ]
-
---------------------------------------------------------------------------------
--- Helper: Convert UpcomingShowDate to SelectOption
-
-renderUpcomingDateOption :: ShowSchedule.UpcomingShowDate -> SelectOption
-renderUpcomingDateOption (ShowSchedule.UpcomingShowDate {usdShowDate = showDate, usdDayOfWeek = dow, usdStartTime = startTime, usdEndTime = endTime}) =
-  SelectOption
-    { soValue = Text.pack $ Prelude.show startTime, -- Send full UTC timestamp (show start time)
-      soLabel = formatUpcomingDate dow showDate startTime endTime,
-      soSelected = False,
-      soDescription = Nothing
-    }
+  renderForm config form
+  renderTrackManagementScript
   where
-    formatUpcomingDate :: DayOfWeek -> Day -> UTCTime -> UTCTime -> Text
-    formatUpcomingDate d sd st et =
-      let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
-          startTimePacific = utcToLocalTime pacificTz st
-          endTimePacific = utcToLocalTime pacificTz et
-          formatTimeOfDay = Text.pack . formatTime defaultTimeLocale "%l:%M %p"
-       in dayOfWeekName d
-            <> ", "
-            <> Text.pack (Prelude.show sd)
-            <> " ("
-            <> formatTimeOfDay startTimePacific
-            <> " - "
-            <> formatTimeOfDay endTimePacific
-            <> " PT)"
+    postUrl = [i|/#{episodesNewPostUrl (Shows.slug showModel)}|]
+    cancelUrl = [i|/#{dashboardShowDetailUrl (Shows.id showModel) (Shows.slug showModel)}|]
 
-    dayOfWeekName :: DayOfWeek -> Text
-    dayOfWeekName Sunday = "Sunday"
-    dayOfWeekName Monday = "Monday"
-    dayOfWeekName Tuesday = "Tuesday"
-    dayOfWeekName Wednesday = "Wednesday"
-    dayOfWeekName Thursday = "Thursday"
-    dayOfWeekName Friday = "Friday"
-    dayOfWeekName Saturday = "Saturday"
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = postUrl,
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
+      -- Hidden fields
+      hidden "show_id" [i|#{Shows.id showModel}|]
+      hidden "duration_seconds" ""
+
+      -- Episode Details Section
+      section "EPISODE DETAILS" $ do
+        -- Scheduled date field (conditional on upcomingDates)
+        if not (null upcomingDates)
+          then
+            selectField "scheduled_date" $ do
+              label "Scheduled Date"
+              hint "Choose when this episode will air"
+              addOption "" "-- Select Date --"
+              mapM_ (\usd -> addOption (Text.pack $ show $ ShowSchedule.usdStartTime usd) (display usd)) upcomingDates
+          else
+            plain $
+              Lucid.div_ $ do
+                Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+                Lucid.div_
+                  [Lucid.class_ "w-full p-3 border-2 border-yellow-400 bg-yellow-50 font-mono text-sm"]
+                  "No upcoming scheduled dates"
+
+        textareaField "description" 6 $ do
+          label "Episode Description"
+          placeholder "Describe what listeners can expect from this episode..."
+          hint "Up to 5000 characters"
+          required
+          maxLength 5000
+
+        textField "tags" $ do
+          label "Tags"
+          placeholder "industrial, ambient, glitch, experimental (comma separated)"
+          hint "Optional. Comma-separated list of genres/themes"
+          maxLength 500
+
+      -- Audio Upload Section
+      section "AUDIO FILES" $ do
+        audioField "audio_file" $ do
+          label "Episode Audio"
+          maxSize 500
+
+        imageField "artwork_file" $ do
+          label "Episode Image"
+          maxSize 5
+          aspectRatio (1, 1)
+
+      -- Tracklist Section (custom JavaScript management)
+      section "TRACKLIST" $ plain tracklistSection
+
+      -- Publishing Section
+      section "PUBLISHING" $ do
+        plain $
+          Lucid.p_ [Lucid.class_ "text-sm text-gray-600 italic mb-4"] $
+            "Note: Published episodes will not be publicly visible until the scheduled date/time. "
+              <> "Once the scheduled time has passed, the episode can no longer be edited."
+
+        toggleField "status" $ do
+          offLabel "Draft"
+          onLabel "Published"
+          offValue "draft"
+          onValue "published"
+
+      submitButton "SUBMIT"
+      cancelButton cancelUrl "CANCEL"
 
 --------------------------------------------------------------------------------
--- Custom HTML Sections (PlainField content)
-
--- | Render audio file field with integrated player.
-audioFileField :: Shows.Model -> Lucid.Html ()
-audioFileField showModel =
-  AudioFilePicker.render
-    AudioFilePicker.Config
-      { AudioFilePicker.playerId = "new-episode-audio",
-        AudioFilePicker.title = [i|#{Shows.title showModel} - New Episode|],
-        AudioFilePicker.existingAudioUrl = "",
-        AudioFilePicker.isRequired = True
-      }
-
--- | Render artwork file field with integrated preview.
-artworkFileField :: Lucid.Html ()
-artworkFileField =
-  ImageFilePicker.render
-    ImageFilePicker.Config
-      { ImageFilePicker.fieldName = "artwork_file",
-        ImageFilePicker.label = "Episode Image",
-        ImageFilePicker.existingImageUrl = "",
-        ImageFilePicker.accept = "image/jpeg,image/png",
-        ImageFilePicker.maxSizeMB = 5,
-        ImageFilePicker.isRequired = False,
-        ImageFilePicker.aspectRatio = (1, 1)
-      }
-
--- | Show info section (read-only display)
-showInfoSection :: Shows.Model -> Lucid.Html ()
-showInfoSection showModel =
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "SHOW"
-    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Show"
-    Lucid.div_ [Lucid.class_ "w-full p-3 border-2 border-gray-400 bg-gray-100 font-mono"] $
-      Lucid.toHtml (Shows.title showModel)
+-- Custom HTML Sections
 
 -- | Tracklist section with custom JavaScript management
--- NOTE: This remains as custom HTML because the Form Builder doesn't support
--- dynamic lists with add/remove functionality yet. This is a good example
--- of using PlainField as an escape hatch for complex interactions.
 tracklistSection :: Lucid.Html ()
 tracklistSection =
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-6"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "TRACKLIST"
+  Lucid.div_ [] $ do
     Lucid.p_
       [Lucid.class_ "text-sm text-gray-600 mb-4"]
       "Add tracks in the order they will be played during the episode."
@@ -253,50 +138,8 @@ tracklistSection =
     Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "tracks_json", Lucid.id_ "tracks-json", Lucid.value_ "[]"]
 
 --------------------------------------------------------------------------------
--- Form Submit Actions (rendered inside <form>)
+-- Track Management JavaScript
 
-renderSubmitActions :: Lucid.Html ()
-renderSubmitActions =
-  Lucid.section_ [Lucid.class_ "bg-gray-100 border-2 border-gray-400 p-6"] $ do
-    Lucid.div_ [Lucid.class_ "flex flex-col gap-4"] $ do
-      -- Publishing note
-      Lucid.p_ [Lucid.class_ "text-sm text-gray-600 italic"] $
-        "Note: Published episodes will not be publicly visible until the scheduled date/time. "
-          <> "Once the scheduled time has passed, the episode can no longer be edited."
-      Lucid.div_ [Lucid.class_ "flex justify-end items-center"] $ do
-        Lucid.div_ [Lucid.class_ "flex gap-4 items-center"] $ do
-          -- Status toggle switch
-          Lucid.div_ [Lucid.class_ "flex items-center gap-3"] $ do
-            Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600", Lucid.id_ "status-label-draft"] "Draft"
-            Lucid.label_ [Lucid.class_ "relative inline-flex items-center cursor-pointer"] $ do
-              Lucid.input_
-                [ Lucid.type_ "checkbox",
-                  Lucid.id_ "status-toggle",
-                  Lucid.class_ "sr-only peer"
-                ]
-              Lucid.div_
-                [ Lucid.class_ $
-                    "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 "
-                      <> "peer-focus:ring-blue-300 rounded-full peer "
-                      <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
-                      <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
-                      <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
-                      <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
-                ]
-                mempty
-            Lucid.span_ [Lucid.class_ "text-sm font-bold text-gray-600", Lucid.id_ "status-label-published"] "Published"
-          Lucid.button_
-            [ Lucid.type_ "submit",
-              Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-            ]
-            "SUBMIT"
-
---------------------------------------------------------------------------------
--- Track Management JavaScript (injected via fbAdditionalContent)
-
--- | Render JavaScript for track management
--- This script is exactly like the original from Scripts.hs, but injected
--- as additional form content rather than a separate script tag.
 renderTrackManagementScript :: Lucid.Html ()
 renderTrackManagementScript =
   Lucid.script_
@@ -369,7 +212,7 @@ renderTrackManagementScript =
     audio.preload = 'metadata';
 
     audio.onloadedmetadata = () => {
-      const durationField = document.getElementById('duration-seconds');
+      const durationField = document.querySelector('input[name="duration_seconds"]');
       if (durationField) {
         durationField.value = Math.round(audio.duration);
       }
@@ -396,20 +239,14 @@ renderTrackManagementScript =
     });
   }
 
-  // Audio file duration extraction
-  const audioInput = document.getElementById('audio_file-input');
-  audioInput?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) extractAudioDuration(file);
-  });
-
-  // Status toggle - update hidden field
-  const statusToggle = document.getElementById('status-toggle');
-  const statusField = document.querySelector('input[name="status"]');
-  statusToggle?.addEventListener('change', () => {
-    if (statusField) {
-      statusField.value = statusToggle.checked ? 'published' : 'draft';
-    }
-  });
+  // Audio file duration extraction - listen for the V2 FormBuilder audio field
+  const audioContainer = document.querySelector('[data-field-name="audio_file"]');
+  if (audioContainer) {
+    const audioInput = audioContainer.querySelector('input[type="file"]');
+    audioInput?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) extractAudioDuration(file);
+    });
+  }
 })();
 |]
