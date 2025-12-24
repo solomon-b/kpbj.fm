@@ -90,3 +90,14 @@ fromDayOfWeek = \case
   Friday -> 4
   Saturday -> 5
   Sunday -> 6
+
+-- | Convert DayOfWeek to display text (capitalized)
+dayOfWeekName :: DayOfWeek -> Text
+dayOfWeekName = \case
+  Sunday -> "Sunday"
+  Monday -> "Monday"
+  Tuesday -> "Tuesday"
+  Wednesday -> "Wednesday"
+  Thursday -> "Thursday"
+  Friday -> "Friday"
+  Saturday -> "Saturday"
