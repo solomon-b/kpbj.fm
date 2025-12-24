@@ -7,6 +7,9 @@ module Component.Form.V2.Types
     FormState (..),
     emptyFormState,
 
+    -- * Form Elements
+    FormElement (..),
+
     -- * Form Buttons
     FormButton (..),
 
@@ -41,10 +44,8 @@ import Lucid qualified
 --
 -- This is what the 'FormBuilder' Writer monad accumulates.
 data FormState = FormState
-  { -- | Top-level fields (not in sections)
-    fsFields :: [Field],
-    -- | Form sections with titles
-    fsSections :: [Section],
+  { -- | Form elements (sections and fields) in order
+    fsElements :: [FormElement],
     -- | Hidden fields as (name, value) pairs
     fsHiddenFields :: [(Text, Text)],
     -- | Form title (rendered as h1)
@@ -57,8 +58,8 @@ data FormState = FormState
   deriving stock (Show)
 
 instance Semigroup FormState where
-  FormState f1 s1 h1 t1 st1 b1 <> FormState f2 s2 h2 t2 st2 b2 =
-    FormState (f1 <> f2) (s1 <> s2) (h1 <> h2) (t2 <|> t1) (st2 <|> st1) (b1 <> b2)
+  FormState e1 h1 t1 st1 b1 <> FormState e2 h2 t2 st2 b2 =
+    FormState (e1 <> e2) (h1 <> h2) (t2 <|> t1) (st2 <|> st1) (b1 <> b2)
     where
       (<|>) :: Maybe a -> Maybe a -> Maybe a
       Nothing <|> y = y
@@ -69,7 +70,20 @@ instance Monoid FormState where
 
 -- | Empty form state.
 emptyFormState :: FormState
-emptyFormState = FormState [] [] [] Nothing Nothing []
+emptyFormState = FormState [] [] Nothing Nothing []
+
+--------------------------------------------------------------------------------
+-- Form Elements
+
+-- | A form element - either a section or a standalone field.
+--
+-- This allows sections and fields to be interleaved in the order they were defined.
+data FormElement
+  = -- | A section with title and grouped fields
+    SectionElement Section
+  | -- | A standalone field (not in a section)
+    FieldElement Field
+  deriving stock (Show)
 
 --------------------------------------------------------------------------------
 -- Form Buttons
