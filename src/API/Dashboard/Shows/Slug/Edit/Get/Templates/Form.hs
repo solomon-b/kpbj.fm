@@ -11,8 +11,7 @@ where
 
 import API.Links (apiLinks)
 import API.Types
-import Component.Form.Builder
-import Component.ImageFilePicker qualified as ImageFilePicker
+import Component.Form.V2
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.Set (Set)
@@ -23,6 +22,8 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (DayOfWeek (..))
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -46,31 +47,102 @@ mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 
--- | Show edit template using FormBuilder
---
--- The schedulesJson parameter should be a JSON array of schedule slot objects.
--- Use 'schedulesToJson' to convert from database models.
---
--- The eligibleHosts parameter is all users who can be assigned as hosts.
--- The currentHostIds parameter is the set of user IDs currently hosting this show.
--- The existingTags parameter is a comma-separated string of current tags.
+-- | Show edit template using V2 FormBuilder
 template :: Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> Lucid.Html ()
 template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds existingTags = do
-  let showSlug = showModel.slug
-      additionalContent =
-        if isStaff
-          then [renderSubmitActions showSlug, renderScheduleManagementScript schedulesJson]
-          else [renderSubmitActions showSlug]
-  buildValidatedForm
-    FormBuilder
-      { fbAction = [i|/dashboard/shows/#{display showSlug}/edit|],
-        fbMethod = "post",
-        fbHeader = Just (renderFormHeader userMeta showModel),
-        fbFields = showEditFormFields showModel isStaff eligibleHosts currentHostIds existingTags,
-        fbAdditionalContent = additionalContent,
-        fbStyles = defaultFormStyles,
-        fbHtmx = Nothing
-      }
+  renderFormHeader userMeta showModel
+  renderForm config form
+  when isStaff $ renderScheduleManagementScript schedulesJson
+  where
+    showSlug = showModel.slug
+    showBackUrl = showGetUrl showSlug
+    postUrl = [i|/dashboard/shows/#{display showSlug}/edit|]
+    logoUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) showModel.logoUrl
+    bannerUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) showModel.bannerUrl
+
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = postUrl,
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
+      -- Basic Information Section
+      section "BASIC INFORMATION" $ do
+        textField "title" $ do
+          label "Show Title"
+          placeholder "e.g. Industrial Depths"
+          value showModel.title
+          required
+          minLength 3
+          maxLength 200
+
+        textareaField "description" 6 $ do
+          label "Description"
+          placeholder "Describe your show. What kind of music do you play? What's your show's vibe?"
+          value showModel.description
+          required
+          minLength 10
+          maxLength 5000
+
+        textField "tags" $ do
+          label "Tags"
+          placeholder "e.g. Techno, Ambient, Experimental, Hip-Hop"
+          hint "Comma-separated tags for categorization and filtering"
+          unless (Text.null existingTags) $ value existingTags
+          maxLength 500
+
+      -- Schedule & Settings Section (staff only)
+      when isStaff $ do
+        section "SCHEDULE & SETTINGS" $ do
+          selectField "status" $ do
+            label "Show Status"
+            hint "Active shows appear on the shows page"
+            required
+            if showModel.status == Shows.Active
+              then do
+                addOptionSelected "active" "Active"
+                addOption "inactive" "Inactive"
+              else do
+                addOption "active" "Active"
+                addOptionSelected "inactive" "Inactive"
+
+      -- Hidden status for non-staff
+      unless isStaff $ do
+        hidden "status" $ case showModel.status of
+          Shows.Active -> "active"
+          Shows.Inactive -> "inactive"
+
+      -- Artwork & Branding Section
+      section "ARTWORK & BRANDING" $ do
+        imageField "logo_file" $ do
+          label "Logo Image"
+          maxSize 10
+          aspectRatio (4, 3)
+          currentFile logoUrl
+
+        imageField "banner_file" $ do
+          label "Banner Image"
+          maxSize 10
+          aspectRatio (3, 1)
+          currentFile bannerUrl
+
+      -- Hosts Section (staff only)
+      when isStaff $ do
+        section "HOSTS" $ do
+          plain $ renderHostsMultiSelect eligibleHosts currentHostIds
+
+      -- Schedule Section (staff only)
+      when isStaff $ do
+        section "SCHEDULE" $ do
+          plain renderScheduleSection
+
+      submitButton "UPDATE SHOW"
+      cancelButton [i|/#{showBackUrl}|] "CANCEL"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)
@@ -78,11 +150,11 @@ template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds e
 renderFormHeader :: UserMetadata.Model -> Shows.Model -> Lucid.Html ()
 renderFormHeader userMeta showModel = do
   let showBackUrl = showGetUrl showModel.slug
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
-        Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "EDIT SHOW"
-        Lucid.div_ [Lucid.class_ "text-gray-300 text-sm"] $ do
+        Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT SHOW"
+        Lucid.div_ [class_ $ base ["text-gray-300", Tokens.textSm]] $ do
           Lucid.strong_ "Show: "
           Lucid.toHtml showModel.title
           " • "
@@ -94,7 +166,7 @@ renderFormHeader userMeta showModel = do
             hxGet_ [i|/#{showBackUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW SHOW"
         Lucid.a_
@@ -102,206 +174,16 @@ renderFormHeader userMeta showModel = do
             hxGet_ [i|/#{dashboardShowsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "ALL SHOWS"
-
---------------------------------------------------------------------------------
--- Form Fields Definition
-
-showEditFormFields :: Shows.Model -> Bool -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> [FormField]
-showEditFormFields showModel isStaff eligibleHosts currentHostIds existingTags =
-  [ -- Basic Information Section
-    SectionField
-      { sfTitle = "BASIC INFORMATION",
-        sfFields =
-          [ ValidatedTextField
-              { vfName = "title",
-                vfLabel = "Show Title",
-                vfInitialValue = Just showModel.title,
-                vfPlaceholder = Just "e.g. Industrial Depths",
-                vfHint = Nothing,
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 200,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextareaField
-              { vtName = "description",
-                vtLabel = "Description",
-                vtInitialValue = Just showModel.description,
-                vtRows = 6,
-                vtPlaceholder = Just "Describe your show. What kind of music do you play? What's your show's vibe?",
-                vtHint = Nothing,
-                vtValidation =
-                  ValidationRules
-                    { vrMinLength = Just 10,
-                      vrMaxLength = Just 5000,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextField
-              { vfName = "tags",
-                vfLabel = "Tags",
-                vfInitialValue = if Text.null existingTags then Nothing else Just existingTags,
-                vfPlaceholder = Just "e.g. Techno, Ambient, Experimental, Hip-Hop",
-                vfHint = Just "Comma-separated tags for categorization and filtering",
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Nothing,
-                      vrMaxLength = Just 500,
-                      vrPattern = Nothing,
-                      vrRequired = False,
-                      vrCustomValidation = Nothing
-                    }
-              }
-          ]
-      },
-    -- Schedule & Settings Section (conditional on isStaff)
-    ConditionalField
-      { cfCondition = isStaff,
-        cfTrueFields =
-          [ SectionField
-              { sfTitle = "SCHEDULE & SETTINGS",
-                sfFields =
-                  [ ValidatedSelectField
-                      { vsName = "status",
-                        vsLabel = "Show Status",
-                        vsOptions =
-                          [ SelectOption "active" "Active" (showModel.status == Shows.Active) Nothing,
-                            SelectOption "inactive" "Inactive" (showModel.status == Shows.Inactive) Nothing
-                          ],
-                        vsHint = Just "Active shows appear on the shows page",
-                        vsValidation = emptyValidation {vrRequired = True}
-                      }
-                  ]
-              }
-          ],
-        cfFalseFields =
-          [ -- Hidden fields to preserve existing values for non-staff
-            HiddenField
-              { hfName = "status",
-                hfValue = case showModel.status of
-                  Shows.Active -> "active"
-                  Shows.Inactive -> "inactive"
-              }
-          ]
-      },
-    -- Artwork & Branding Section
-    SectionField
-      { sfTitle = "ARTWORK & BRANDING",
-        sfFields =
-          [ PlainFileField
-              { pffHtml = logoImageField showModel
-              },
-            PlainFileField
-              { pffHtml = bannerImageField showModel
-              }
-          ]
-      },
-    -- Hosts Section (staff/admin only)
-    ConditionalField
-      { cfCondition = isStaff,
-        cfTrueFields =
-          [ SectionField
-              { sfTitle = "HOSTS",
-                sfFields =
-                  [ PlainField
-                      { pfHtml = renderHostsMultiSelect eligibleHosts currentHostIds
-                      }
-                  ]
-              }
-          ],
-        cfFalseFields = []
-      },
-    -- Schedule Section (staff/admin only)
-    ConditionalField
-      { cfCondition = isStaff,
-        cfTrueFields =
-          [ SectionField
-              { sfTitle = "SCHEDULE",
-                sfFields =
-                  [ PlainField
-                      { pfHtml = renderScheduleSection
-                      }
-                  ]
-              }
-          ],
-        cfFalseFields = []
-      }
-  ]
-
---------------------------------------------------------------------------------
--- Image Fields
-
--- | Render logo image field with integrated preview.
-logoImageField :: Shows.Model -> Lucid.Html ()
-logoImageField showModel =
-  let imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) showModel.logoUrl
-   in ImageFilePicker.render
-        ImageFilePicker.Config
-          { ImageFilePicker.fieldName = "logo_file",
-            ImageFilePicker.label = "Logo Image",
-            ImageFilePicker.existingImageUrl = imageUrl,
-            ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
-            ImageFilePicker.maxSizeMB = 10,
-            ImageFilePicker.isRequired = False,
-            ImageFilePicker.aspectRatio = (4, 3)
-          }
-
--- | Render banner image field with integrated preview.
-bannerImageField :: Shows.Model -> Lucid.Html ()
-bannerImageField showModel =
-  let imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) showModel.bannerUrl
-   in ImageFilePicker.render
-        ImageFilePicker.Config
-          { ImageFilePicker.fieldName = "banner_file",
-            ImageFilePicker.label = "Banner Image",
-            ImageFilePicker.existingImageUrl = imageUrl,
-            ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
-            ImageFilePicker.maxSizeMB = 10,
-            ImageFilePicker.isRequired = False,
-            ImageFilePicker.aspectRatio = (3, 1)
-          }
-
---------------------------------------------------------------------------------
--- Form Submit Actions (rendered inside <form>)
-
-renderSubmitActions :: Slug -> Lucid.Html ()
-renderSubmitActions showSlug = do
-  let showBackUrl = showGetUrl showSlug
-  Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 transition-colors"
-        ]
-        "UPDATE SHOW"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showBackUrl}|],
-          hxGet_ [i|/#{showBackUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline inline-block"
-        ]
-        "CANCEL"
 
 --------------------------------------------------------------------------------
 -- Searchable Multi-Select for Hosts
 
 -- | Render a searchable multi-select for host assignment.
---
--- Current hosts are displayed at the top of the list with their checkboxes pre-checked.
--- Other eligible hosts are shown below.
 renderHostsMultiSelect :: [UserMetadata.UserWithMetadata] -> Set User.Id -> Lucid.Html ()
 renderHostsMultiSelect eligibleHosts currentHostIds = do
-  -- Partition into current hosts and other hosts
   let (currentHosts, otherHosts) = partitionHosts eligibleHosts currentHostIds
       sortedHosts = currentHosts <> otherHosts
   Lucid.div_ [xData_ "{ search: '' }"] $ do
@@ -342,7 +224,6 @@ renderHostOption currentHostIds user =
       roleText = display user.uwmUserRole
       userIdText = display userId
       isCurrentHost = Set.member userId currentHostIds
-      -- Alpine.js filter condition - check if search matches name or email
       filterCondition =
         [i|search === '' || '#{displayName}'.toLowerCase().includes(search.toLowerCase()) || '#{email}'.toLowerCase().includes(search.toLowerCase())|]
    in Lucid.div_
@@ -377,7 +258,6 @@ renderScheduleSection = do
     "Manage recurring time slots when this show will air. Changes will take effect immediately."
 
   Lucid.div_ [Lucid.id_ "schedule-container"] $ do
-    -- Schedule entries will be inserted here by JavaScript
     Lucid.div_ [Lucid.class_ "border-2 border-dashed border-gray-400 p-8 text-center text-gray-600", Lucid.id_ "schedule-add-btn-container"] $ do
       Lucid.button_
         [ Lucid.type_ "button",
@@ -493,8 +373,6 @@ renderScheduleManagementScript schedulesJson =
       const weekCheckboxes = div.querySelectorAll('.schedule-week');
       weekCheckboxes.forEach(cb => {
         const weekNum = parseInt(cb.value, 10);
-        // If weeksOfMonth is empty or contains all weeks, check all
-        // Otherwise, only check the specified weeks
         if (data.weeksOfMonth && data.weeksOfMonth.length > 0) {
           cb.checked = data.weeksOfMonth.includes(weekNum);
         }

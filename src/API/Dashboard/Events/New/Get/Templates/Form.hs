@@ -9,8 +9,7 @@ where
 
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
-import Component.Form.Builder
-import Component.ImageFilePicker qualified as ImageFilePicker
+import Component.Form.V2
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -29,19 +28,92 @@ dashboardEventsNewPostUrl = Links.linkURI dashboardEventsLinks.newPost
 
 --------------------------------------------------------------------------------
 
--- | New event form template using FormBuilder
+-- | New event form template using V2 FormBuilder
 template :: UserMetadata.Model -> Lucid.Html ()
 template userMeta = do
-  buildValidatedForm
-    FormBuilder
-      { fbAction = [i|/#{dashboardEventsNewPostUrl}|],
-        fbMethod = "post",
-        fbHeader = Just (renderFormHeader userMeta),
-        fbFields = eventFormFields,
-        fbAdditionalContent = [renderSubmitActions],
-        fbStyles = defaultFormStyles,
-        fbHtmx = Nothing
-      }
+  renderFormHeader userMeta
+  renderForm config form
+  where
+    postUrl = [i|/#{dashboardEventsNewPostUrl}|]
+    cancelUrl = [i|/#{dashboardEventsGetUrl}|]
+
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = postUrl,
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
+      -- Event Details Section
+      section "EVENT DETAILS" $ do
+        textField "title" $ do
+          label "Event Title"
+          placeholder "e.g. KPBJ Spring Concert"
+          required
+          minLength 3
+          maxLength 200
+
+        textField "tags" $ do
+          label "Event Tags"
+          placeholder "live-music, concert, fundraiser, community"
+          hint "Comma separated tags"
+          maxLength 500
+
+        textareaField "description" 8 $ do
+          label "Event Description"
+          placeholder "Describe your event. Include any special details, what attendees should expect, what to bring, etc."
+          required
+          minLength 10
+          maxLength 5000
+
+        imageField "poster_image" $ do
+          label "Event Poster Image"
+          maxSize 10
+          aspectRatio (2, 3)
+
+      -- Date & Time Section
+      section "DATE & TIME" $ do
+        dateTimeField "starts_at" $ do
+          label "Start Date & Time"
+          required
+
+        dateTimeField "ends_at" $ do
+          label "End Date & Time"
+          hint "Must be after start time"
+          required
+          customValidation "new Date(this.fields.ends_at.value) > new Date(this.fields.starts_at.value)" "End time must be after start time"
+
+      -- Location Section
+      section "LOCATION" $ do
+        textField "location_name" $ do
+          label "Venue Name"
+          placeholder "e.g. Shadow Hills Community Center"
+          required
+          minLength 3
+          maxLength 200
+
+        textField "location_address" $ do
+          label "Address"
+          placeholder "e.g. 1247 Underground Ave, Shadow Hills, CA"
+          required
+          minLength 3
+          maxLength 500
+
+      -- Publishing Section
+      section "PUBLISHING" $ do
+        toggleField "status" $ do
+          offLabel "Draft"
+          onLabel "Published"
+          offValue "draft"
+          onValue "published"
+          hint "Toggle to publish immediately"
+
+      submitButton "CREATE EVENT"
+      cancelButton cancelUrl "CANCEL"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)
@@ -64,179 +136,3 @@ renderFormHeader userMeta =
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW EVENTS"
-
---------------------------------------------------------------------------------
--- Form Fields Definition
-
-eventFormFields :: [FormField]
-eventFormFields =
-  [ -- Event Details Section
-    SectionField
-      { sfTitle = "EVENT DETAILS",
-        sfFields =
-          [ ValidatedTextField
-              { vfName = "title",
-                vfLabel = "Event Title",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "e.g. KPBJ Spring Concert",
-                vfHint = Nothing,
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 200,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextField
-              { vfName = "tags",
-                vfLabel = "Event Tags",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "live-music, concert, fundraiser, community",
-                vfHint = Just "Comma separated tags",
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Nothing,
-                      vrMaxLength = Just 500,
-                      vrPattern = Nothing,
-                      vrRequired = False,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextareaField
-              { vtName = "description",
-                vtLabel = "Event Description",
-                vtInitialValue = Nothing,
-                vtRows = 8,
-                vtPlaceholder = Just "Describe your event. Include any special details, what attendees should expect, what to bring, etc.",
-                vtHint = Nothing,
-                vtValidation =
-                  ValidationRules
-                    { vrMinLength = Just 10,
-                      vrMaxLength = Just 5000,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            PlainFileField
-              { pffHtml = posterImageField
-              }
-          ]
-      },
-    -- Date & Time Section
-    SectionField
-      { sfTitle = "DATE & TIME",
-        sfFields =
-          [ ValidatedDateTimeField
-              { vdtName = "starts_at",
-                vdtLabel = "Start Date & Time",
-                vdtInitialValue = Nothing,
-                vdtHint = Nothing,
-                vdtValidation = emptyValidation {vrRequired = True}
-              },
-            ValidatedDateTimeField
-              { vdtName = "ends_at",
-                vdtLabel = "End Date & Time",
-                vdtInitialValue = Nothing,
-                vdtHint = Just "Must be after start time",
-                vdtValidation =
-                  emptyValidation
-                    { vrRequired = True,
-                      vrCustomValidation = Just "new Date(this.fields.ends_at.value) > new Date(this.fields.starts_at.value)"
-                    }
-              }
-          ]
-      },
-    -- Location Section
-    SectionField
-      { sfTitle = "LOCATION",
-        sfFields =
-          [ ValidatedTextField
-              { vfName = "location_name",
-                vfLabel = "Venue Name",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "e.g. Shadow Hills Community Center",
-                vfHint = Nothing,
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 200,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextField
-              { vfName = "location_address",
-                vfLabel = "Address",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "e.g. 1247 Underground Ave, Shadow Hills, CA",
-                vfHint = Nothing,
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 500,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              }
-          ]
-      },
-    -- Publishing Section
-    SectionField
-      { sfTitle = "PUBLISHING",
-        sfFields =
-          [ ValidatedRadioField
-              { vrfName = "status",
-                vrfLabel = "",
-                vrfOptions =
-                  [ SelectOption "draft" "Save as Draft" True (Just "Keep private until you're ready to publish"),
-                    SelectOption "published" "Publish Immediately" False (Just "Make visible to the public right away")
-                  ],
-                vrfHint = Nothing,
-                vrfValidation = emptyValidation {vrRequired = True}
-              }
-          ]
-      }
-  ]
-
---------------------------------------------------------------------------------
--- Helper Functions
-
--- | Render poster image field with integrated preview.
-posterImageField :: Lucid.Html ()
-posterImageField =
-  ImageFilePicker.render
-    ImageFilePicker.Config
-      { ImageFilePicker.fieldName = "poster_image",
-        ImageFilePicker.label = "Event Poster Image",
-        ImageFilePicker.existingImageUrl = "",
-        ImageFilePicker.accept = "image/*",
-        ImageFilePicker.maxSizeMB = 10,
-        ImageFilePicker.isRequired = False,
-        ImageFilePicker.aspectRatio = (2, 3)
-      }
-
---------------------------------------------------------------------------------
--- Form Submit Actions (rendered inside <form>)
-
-renderSubmitActions :: Lucid.Html ()
-renderSubmitActions =
-  Lucid.section_ [class_ $ base ["bg-gray-50", Tokens.border2, "border-gray-300", Tokens.p6]] $ do
-    Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "justify-center"]] $ do
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $ base [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", "transition-colors"]
-        ]
-        "CREATE EVENT"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardEventsGetUrl}|],
-          hxGet_ [i|/#{dashboardEventsGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base ["bg-gray-400", Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-500", "transition-colors", "no-underline"]
-        ]
-        "CANCEL"
