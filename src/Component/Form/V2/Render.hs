@@ -134,7 +134,7 @@ renderFormElement config state allFields hasFileFields styles = do
   Lucid.form_
     ( [ Lucid.action_ (fcAction config),
         Lucid.method_ (fcMethod config),
-        Lucid.class_ (fsFormClasses styles)
+        Lucid.class_ "w-full"
       ]
         <> [Lucid.enctype_ "multipart/form-data" | hasFileFields]
         <> htmxAttrs
@@ -143,18 +143,20 @@ renderFormElement config state allFields hasFileFields styles = do
           else []
     )
     $ do
-      -- Hidden fields
+      -- Hidden fields (outside spaced container so they don't affect layout)
       forM_ (fsHiddenFields state) $ \(name, val) ->
         Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ name, Lucid.value_ val]
 
-      -- Form elements (sections and fields in order)
-      forM_ (fsElements state) $ \element ->
-        renderElement styles element
+      -- Visible form elements in a spaced container
+      Lucid.div_ [Lucid.class_ (fsFormClasses styles)] $ do
+        -- Form elements (sections and fields in order)
+        forM_ (fsElements state) $ \element ->
+          renderElement styles element
 
-      -- Buttons (from builder state, or fallback to config footer)
-      case fsButtons state of
-        [] -> fromMaybe mempty (fcFooter config)
-        buttons -> renderButtons styles buttons
+        -- Buttons (from builder state, or fallback to config footer)
+        case fsButtons state of
+          [] -> fromMaybe mempty (fcFooter config)
+          buttons -> renderButtons styles buttons
 
 --------------------------------------------------------------------------------
 -- Element Rendering
