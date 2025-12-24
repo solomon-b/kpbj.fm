@@ -109,7 +109,8 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
                   else either (const []) id <$> execQuerySpan (Shows.getShowsForUser user.mId)
               let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
                   editTemplate = template currentTime showModel episode tracks userMetadata isStaff
-              html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing editTemplate
+                  statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
+              html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate
               pure $ Servant.noHeader $ Servant.noHeader html
             else do
               Log.logInfo "User tried to edit episode they don't own" episode.id
