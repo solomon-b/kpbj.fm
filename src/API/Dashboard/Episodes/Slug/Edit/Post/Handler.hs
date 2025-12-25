@@ -146,11 +146,11 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) editForm 
                           banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
                       html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                         IsHxRequest -> do
-                          EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
+                          EditForm.template currentTime showModel episode tracks [] upcomingDates userMetadata isStaff
                           banner
                         IsNotHxRequest -> do
                           banner
-                          EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
+                          EditForm.template currentTime showModel episode tracks [] upcomingDates userMetadata isStaff
                       pure $ Servant.noHeader html
                     Right True -> updateEpisode hxRequest user userMetadata episode showModel editForm
                     Right False ->
@@ -167,11 +167,11 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) editForm 
                               banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
                           html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                             IsHxRequest -> do
-                              EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
+                              EditForm.template currentTime showModel episode tracks [] upcomingDates userMetadata isStaff
                               banner
                             IsNotHxRequest -> do
                               banner
-                              EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
+                              EditForm.template currentTime showModel episode tracks [] upcomingDates userMetadata isStaff
                           pure $ Servant.noHeader html
 
 -- | Check if the episode's scheduled date is in the future (allowing file uploads)
@@ -204,17 +204,19 @@ renderFormWithError hxRequest userMetadata episode showModel title message = do
   currentTime <- liftIO getCurrentTime
   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
   tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+  tagsResult <- execQuerySpan (Episodes.getTagsForEpisode episode.id)
   upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
   let tracks = fromRight [] tracksResult
+      episodeTags = fromRight [] tagsResult
       upcomingDates = fromRight [] upcomingDatesResult
       banner = renderBanner Error title message
   html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
     IsHxRequest -> do
-      EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
+      EditForm.template currentTime showModel episode tracks episodeTags upcomingDates userMetadata isStaff
       banner
     IsNotHxRequest -> do
       banner
-      EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
+      EditForm.template currentTime showModel episode tracks episodeTags upcomingDates userMetadata isStaff
   pure $ Servant.noHeader html
 
 updateEpisode ::
@@ -354,6 +356,10 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                               Log.logInfo "Failed to update tracks" (episode.id, trackErr)
                               renderFormWithError hxRequest userMetadata episode showModel "Track Update Failed" ("Episode updated but track update failed: " <> trackErr)
                             Right _ -> do
+                              -- Replace tags with new ones (single atomic query)
+                              let tagNames = maybe [] parseTagList (eefTags editForm)
+                              _ <- execQuerySpan (Episodes.replaceEpisodeTags episode.id tagNames)
+
                               -- Success! Redirect to dashboard episodes list with success banner
                               Log.logInfo "Successfully updated episode and tracks" episode.id
                               -- Fetch all episodes for the show to display in the list
@@ -482,3 +488,10 @@ processTrack episodeId track = do
           Log.logInfo "Failed to insert track" (show err)
           pure $ Left "Failed to insert track"
         Right trackId -> pure $ Right trackId
+
+--------------------------------------------------------------------------------
+-- Tag Parsing
+
+-- | Parse a comma-separated tag string into a list of trimmed, non-empty tag names.
+parseTagList :: Text -> [Text]
+parseTagList = filter (not . Text.null) . map Text.strip . Text.splitOn ","

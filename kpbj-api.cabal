@@ -356,6 +356,7 @@ library
     Effects.Database.Tables.BlogPosts
     Effects.Database.Tables.BlogTags
     Effects.Database.Tables.Episodes
+    Effects.Database.Tables.EpisodeTags
     Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
     Effects.Database.Tables.Shows

@@ -23,6 +23,7 @@ import Data.Time (UTCTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -50,8 +51,8 @@ isScheduledInFuture now episode = episode.scheduledAt > now
 -- The currentTime parameter is used to determine if the scheduled date has passed.
 -- If the scheduled date is in the future, file upload fields are shown.
 -- The isStaff parameter indicates if the user has staff-level permissions or higher.
-template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template currentTime showModel episode tracks upcomingDates _userMeta isStaff = do
+template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
+template currentTime showModel episode tracks episodeTags upcomingDates _userMeta isStaff = do
   renderForm config form
   scripts
   where
@@ -89,6 +90,10 @@ template currentTime showModel episode tracks upcomingDates _userMeta isStaff = 
           fcHtmxSwap = Just "innerHTML"
         }
 
+    -- Format current tags as comma-separated string
+    currentTagsValue :: Text.Text
+    currentTagsValue = Text.intercalate ", " $ map EpisodeTags.etName episodeTags
+
     form :: FormBuilder
     form = do
       section "BASIC INFORMATION" $ do
@@ -98,6 +103,13 @@ template currentTime showModel episode tracks upcomingDates _userMeta isStaff = 
           hint "Up to 5000 characters"
           value descriptionValue
           maxLength 5000
+
+        textField "tags" $ do
+          label "Tags"
+          placeholder "industrial, ambient, glitch, experimental (comma separated)"
+          hint "Optional. Comma-separated list of genres/themes"
+          value currentTagsValue
+          maxLength 500
 
       when allowFileUpload $ do
         section "MEDIA FILES" $ do
