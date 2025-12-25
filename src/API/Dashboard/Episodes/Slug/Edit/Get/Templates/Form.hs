@@ -17,6 +17,7 @@ import Component.Form.V2
 import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
+import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Design (base, class_)
@@ -24,6 +25,7 @@ import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -41,17 +43,15 @@ mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 -- | Check if the episode's scheduled date is in the future (allowing file uploads)
 isScheduledInFuture :: UTCTime -> Episodes.Model -> Bool
-isScheduledInFuture now episode = case episode.scheduledAt of
-  Nothing -> True -- No scheduled date means it's still editable
-  Just scheduledAt -> scheduledAt > now
+isScheduledInFuture now episode = episode.scheduledAt > now
 
 -- | Episode edit template
 --
 -- The currentTime parameter is used to determine if the scheduled date has passed.
 -- If the scheduled date is in the future, file upload fields are shown.
 -- The isStaff parameter indicates if the user has staff-level permissions or higher.
-template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template currentTime showModel episode tracks _userMeta isStaff = do
+template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
+template currentTime showModel episode tracks upcomingDates _userMeta isStaff = do
   renderForm config form
   scripts
   where
@@ -67,6 +67,16 @@ template currentTime showModel episode tracks _userMeta isStaff = do
     audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.audioFilePath
     artworkUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.artworkUrl
     isPublished = episode.status == Episodes.Published
+
+    -- \| Encode schedule slot value as "template_id|scheduled_at" for form submission
+    encodeScheduleValue :: ShowSchedule.UpcomingShowDate -> Text.Text
+    encodeScheduleValue usd =
+      display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdStartTime usd)
+
+    -- \| Encode current episode's schedule value
+    encodeCurrentScheduleValue :: Episodes.Model -> Text.Text
+    encodeCurrentScheduleValue ep =
+      display ep.scheduleTemplateId <> "|" <> Text.pack (show ep.scheduledAt)
 
     postUrl = [i|/dashboard/episodes/#{showSlugText}/#{episodeNumText}/edit|]
 
@@ -104,6 +114,27 @@ template currentTime showModel episode tracks _userMeta isStaff = do
 
       section "TRACK LISTING" $ do
         plain $ trackListingContent tracks
+
+      -- Schedule slot section (only shown if episode is in future or user is staff)
+      when (allowFileUpload || isStaff) $ do
+        section "SCHEDULE SLOT" $ do
+          if null upcomingDates
+            then plain $
+              Lucid.div_ $ do
+                Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+                Lucid.div_
+                  [Lucid.class_ "w-full p-3 border-2 border-gray-300 bg-gray-50 font-mono text-sm"]
+                  (Lucid.toHtml $ "Current: " <> display episode.scheduledAt)
+                Lucid.p_
+                  [Lucid.class_ "text-sm text-gray-600 mt-2 italic"]
+                  "No other available time slots. To change, cancel and create a new episode."
+            else selectField "scheduled_date" $ do
+              label "Scheduled Date"
+              hint "Choose when this episode will air"
+              -- Current slot as first option (preselected)
+              addOption (encodeCurrentScheduleValue episode) (display episode.scheduledAt <> " (Current)")
+              -- Other available slots
+              mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
 
       section "PUBLISHING" $ do
         toggleField "status" $ do

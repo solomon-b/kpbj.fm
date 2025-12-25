@@ -26,7 +26,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime, getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -40,6 +40,7 @@ import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -51,12 +52,29 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
+import Text.Read (readMaybe)
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
 dashboardEpisodesUrl :: Slug -> Links.URI
 dashboardEpisodesUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
+
+--------------------------------------------------------------------------------
+
+-- | Parse a schedule value in format "template_id|scheduled_at"
+parseScheduleValue :: Text -> Either Text (ShowSchedule.TemplateId, UTCTime)
+parseScheduleValue txt =
+  case Text.splitOn "|" txt of
+    [tidStr, timeStr] -> do
+      tid <- case readMaybe (Text.unpack tidStr) of
+        Just n -> Right $ ShowSchedule.TemplateId n
+        Nothing -> Left $ "Invalid template ID: " <> tidStr
+      time <- case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timeStr) of
+        Just t -> Right t
+        Nothing -> Left $ "Invalid timestamp: " <> timeStr
+      Right (tid, time)
+    _ -> Left $ "Invalid schedule format: " <> txt
 
 --------------------------------------------------------------------------------
 
@@ -122,15 +140,17 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) editForm 
                       currentTime <- liftIO getCurrentTime
                       let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
                       tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+                      upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
                       let tracks = fromRight [] tracksResult
+                          upcomingDates = fromRight [] upcomingDatesResult
                           banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
                       html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                         IsHxRequest -> do
-                          EditForm.template currentTime showModel episode tracks userMetadata isStaff
+                          EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
                           banner
                         IsNotHxRequest -> do
                           banner
-                          EditForm.template currentTime showModel episode tracks userMetadata isStaff
+                          EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
                       pure $ Servant.noHeader html
                     Right True -> updateEpisode hxRequest user userMetadata episode showModel editForm
                     Right False ->
@@ -141,28 +161,26 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) editForm 
                           currentTime <- liftIO getCurrentTime
                           let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
                           tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+                          upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
                           let tracks = fromRight [] tracksResult
+                              upcomingDates = fromRight [] upcomingDatesResult
                               banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
                           html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                             IsHxRequest -> do
-                              EditForm.template currentTime showModel episode tracks userMetadata isStaff
+                              EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
                               banner
                             IsNotHxRequest -> do
                               banner
-                              EditForm.template currentTime showModel episode tracks userMetadata isStaff
+                              EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
                           pure $ Servant.noHeader html
 
 -- | Check if the episode's scheduled date is in the future (allowing file uploads)
 isScheduledInFuture :: UTCTime -> Episodes.Model -> Bool
-isScheduledInFuture now episode = case episode.scheduledAt of
-  Nothing -> True -- No scheduled date means it's still editable
-  Just scheduledAt -> scheduledAt > now
+isScheduledInFuture now episode = episode.scheduledAt > now
 
 -- | Check if the episode's scheduled date has passed
 isScheduledInPast :: UTCTime -> Episodes.Model -> Bool
-isScheduledInPast now episode = case episode.scheduledAt of
-  Nothing -> False -- No scheduled date means it hasn't "passed"
-  Just scheduledAt -> scheduledAt <= now
+isScheduledInPast now episode = episode.scheduledAt <= now
 
 -- | Helper to render the edit form with an error banner
 renderFormWithError ::
@@ -186,15 +204,17 @@ renderFormWithError hxRequest userMetadata episode showModel title message = do
   currentTime <- liftIO getCurrentTime
   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
   tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+  upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
   let tracks = fromRight [] tracksResult
+      upcomingDates = fromRight [] upcomingDatesResult
       banner = renderBanner Error title message
   html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
     IsHxRequest -> do
-      EditForm.template currentTime showModel episode tracks userMetadata isStaff
+      EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
       banner
     IsNotHxRequest -> do
       banner
-      EditForm.template currentTime showModel episode tracks userMetadata isStaff
+      EditForm.template currentTime showModel episode tracks upcomingDates userMetadata isStaff
   pure $ Servant.noHeader html
 
 updateEpisode ::
@@ -286,28 +306,69 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                           Right Nothing -> Log.logInfo "File path update returned Nothing" episode.id
                           Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
 
-                      -- Update tracks
-                      updateTracksResult <- updateTracks episode.id (eefTracks editForm)
-                      case updateTracksResult of
-                        Left trackErr -> do
-                          Log.logInfo "Failed to update tracks" (episode.id, trackErr)
-                          renderFormWithError hxRequest userMetadata episode showModel "Track Update Failed" ("Episode updated but track update failed: " <> trackErr)
-                        Right _ -> do
-                          -- Success! Redirect to dashboard episodes list with success banner
-                          Log.logInfo "Successfully updated episode and tracks" episode.id
-                          -- Fetch all episodes for the show to display in the list
-                          episodesResult <- execQuerySpan (Episodes.getEpisodesForShowIncludingDrafts showModel.id (Limit 100) (Offset 0))
-                          let episodes = fromRight [] episodesResult
-                              listUrl = dashboardEpisodesUrl showModel.slug
-                              banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
-                          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                            IsHxRequest -> do
-                              EpisodesListPage.template userMetadata (Just showModel) episodes 1 False
-                              banner
-                            IsNotHxRequest -> do
-                              banner
-                              EpisodesListPage.template userMetadata (Just showModel) episodes 1 False
-                          pure $ Servant.addHeader [i|/#{listUrl}|] html
+                      -- Update schedule slot if changed (only allowed for future episodes or staff/admin)
+                      scheduleUpdateResult <- case eefScheduledDate editForm of
+                        Nothing -> pure $ Right () -- No schedule change requested
+                        Just scheduleDateValue -> do
+                          case parseScheduleValue scheduleDateValue of
+                            Left parseErr -> do
+                              Log.logInfo "Failed to parse schedule value" parseErr
+                              pure $ Left parseErr
+                            Right (newTemplateId, newScheduledAt) -> do
+                              -- Check if schedule actually changed
+                              let scheduleChanged = newTemplateId /= episode.scheduleTemplateId || newScheduledAt /= episode.scheduledAt
+                              if not scheduleChanged
+                                then pure $ Right () -- No change
+                                else do
+                                  -- Non-staff can only change schedule for future episodes
+                                  if isPast && not isStaffOrAdmin
+                                    then do
+                                      Log.logInfo "Host attempted to change schedule on past episode" episode.id
+                                      pure $ Left "Schedule changes not allowed for past episodes"
+                                    else do
+                                      let slotUpdate =
+                                            Episodes.ScheduleSlotUpdate
+                                              { Episodes.essuId = episode.id,
+                                                Episodes.essuScheduleTemplateId = newTemplateId,
+                                                Episodes.essuScheduledAt = newScheduledAt
+                                              }
+                                      execQuerySpan (Episodes.updateScheduledSlot slotUpdate) >>= \case
+                                        Left err -> do
+                                          Log.logInfo "Failed to update schedule slot" (episode.id, show err)
+                                          pure $ Left "Failed to update schedule"
+                                        Right Nothing -> do
+                                          Log.logInfo "Schedule slot update returned Nothing" episode.id
+                                          pure $ Left "Failed to update schedule"
+                                        Right (Just _) -> do
+                                          Log.logInfo "Successfully updated schedule slot" episode.id
+                                          pure $ Right ()
+
+                      case scheduleUpdateResult of
+                        Left scheduleErr ->
+                          renderFormWithError hxRequest userMetadata episode showModel "Schedule Update Failed" scheduleErr
+                        Right () -> do
+                          -- Update tracks
+                          updateTracksResult <- updateTracks episode.id (eefTracks editForm)
+                          case updateTracksResult of
+                            Left trackErr -> do
+                              Log.logInfo "Failed to update tracks" (episode.id, trackErr)
+                              renderFormWithError hxRequest userMetadata episode showModel "Track Update Failed" ("Episode updated but track update failed: " <> trackErr)
+                            Right _ -> do
+                              -- Success! Redirect to dashboard episodes list with success banner
+                              Log.logInfo "Successfully updated episode and tracks" episode.id
+                              -- Fetch all episodes for the show to display in the list
+                              episodesResult <- execQuerySpan (Episodes.getEpisodesForShowIncludingDrafts showModel.id (Limit 100) (Offset 0))
+                              let episodes = fromRight [] episodesResult
+                                  listUrl = dashboardEpisodesUrl showModel.slug
+                                  banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
+                              html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
+                                IsHxRequest -> do
+                                  EpisodesListPage.template userMetadata (Just showModel) episodes 1 False
+                                  banner
+                                IsNotHxRequest -> do
+                                  banner
+                                  EpisodesListPage.template userMetadata (Just showModel) episodes 1 False
+                              pure $ Servant.addHeader [i|/#{listUrl}|] html
 
 -- | Process file uploads for episode editing
 processFileUploads ::
@@ -327,7 +388,7 @@ processFileUploads showModel episode editForm = do
   audioResult <- case eefAudioFile editForm of
     Nothing -> pure $ Right Nothing
     Just audioFile -> do
-      result <- FileUpload.uploadEpisodeAudio showModel.slug fileId episode.scheduledAt audioFile
+      result <- FileUpload.uploadEpisodeAudio showModel.slug fileId (Just episode.scheduledAt) audioFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
@@ -339,7 +400,7 @@ processFileUploads showModel episode editForm = do
   artworkResult <- case eefArtworkFile editForm of
     Nothing -> pure $ Right Nothing
     Just artworkFile -> do
-      result <- FileUpload.uploadEpisodeArtwork showModel.slug fileId episode.scheduledAt artworkFile
+      result <- FileUpload.uploadEpisodeArtwork showModel.slug fileId (Just episode.scheduledAt) artworkFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)

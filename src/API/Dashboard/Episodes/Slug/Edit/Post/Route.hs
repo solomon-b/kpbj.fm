@@ -35,6 +35,7 @@ import Text.Read (readMaybe)
 data EpisodeEditForm = EpisodeEditForm
   { eefDescription :: Maybe Text,
     eefStatus :: Text,
+    eefScheduledDate :: Maybe Text, -- Format: "template_id|scheduled_at"
     eefTracks :: [TrackInfo],
     -- File uploads (optional - only present if scheduled date is in the future)
     eefAudioFile :: Maybe (FileData Mem),
@@ -55,6 +56,8 @@ instance FromMultipart Mem EpisodeEditForm where
   fromMultipart multipartData = do
     let description = either (const Nothing) Just (lookupInput "description" multipartData)
     status <- lookupInput "status" multipartData
+    -- Parse scheduled date (optional) - format: "template_id|scheduled_at"
+    let scheduledDate = either (const Nothing) Just (lookupInput "scheduled_date" multipartData)
     -- Parse tracks - using safe parsing that handles multipart correctly
     let tracks = parseTracksFromMultipart multipartData
     -- File lookups - these must be done with lookupFile, not lookupInput
@@ -65,6 +68,7 @@ instance FromMultipart Mem EpisodeEditForm where
       EpisodeEditForm
         { eefDescription = emptyToNothing description,
           eefStatus = status,
+          eefScheduledDate = emptyToNothing scheduledDate,
           eefTracks = tracks,
           eefAudioFile = audioFile,
           eefArtworkFile = artworkFile

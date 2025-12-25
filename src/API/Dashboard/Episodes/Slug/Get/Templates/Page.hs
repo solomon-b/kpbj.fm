@@ -96,11 +96,8 @@ template _userMeta showModel episode tracks = do
             -- Aired/Scheduled date
             Lucid.div_ $ do
               Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700]] "Scheduled: "
-              case episode.scheduledAt of
-                Just scheduledAt -> do
-                  let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
-                  Lucid.toHtml dateStr
-                Nothing -> "Not scheduled"
+              let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" episode.scheduledAt
+              Lucid.toHtml dateStr
 
             -- Published date
             case episode.publishedAt of

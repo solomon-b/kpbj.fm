@@ -61,11 +61,8 @@ renderLatestEpisode showModel episode tracks = do
             ]
             $ Lucid.toHtml (show epNum)
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
-          case episode.scheduledAt of
-            Just scheduledAt -> do
-              let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
-              "Aired: " <> Lucid.toHtml dateStr
-            Nothing -> "Draft"
+          let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" episode.scheduledAt
+          "Aired: " <> Lucid.toHtml dateStr
 
           case episode.durationSeconds of
             Just duration ->
@@ -211,11 +208,8 @@ renderEpisodeCard showModel episode = do
           $ Lucid.toHtml (show epNum)
 
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
-        case episode.scheduledAt of
-          Just scheduledAt -> do
-            let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
-            "Aired: " <> Lucid.toHtml dateStr
-          Nothing -> "Draft"
+        let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" episode.scheduledAt
+        "Aired: " <> Lucid.toHtml dateStr
 
         case episode.durationSeconds of
           Just duration -> " • Duration: " <> Lucid.toHtml (show (duration `div` 60)) <> "min"

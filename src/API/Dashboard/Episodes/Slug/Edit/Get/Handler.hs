@@ -9,8 +9,8 @@ module API.Dashboard.Episodes.Slug.Edit.Get.Handler where
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (template)
 import API.Get.Templates qualified as HomeTemplate
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
-import Component.DashboardFrame (DashboardNav (..))
 import Component.Banner (BannerType (..), renderBanner)
+import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -23,12 +23,14 @@ import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -101,14 +103,17 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
               currentTime <- liftIO getCurrentTime
               Log.logInfo "Episode scheduled_at" (show episode.scheduledAt)
               Log.logInfo "Current time" (show currentTime)
-              Log.logInfo "Is scheduled in future?" (show $ case episode.scheduledAt of Nothing -> True; Just s -> s > currentTime)
+              Log.logInfo "Is scheduled in future?" (show $ episode.scheduledAt > currentTime)
+              -- Fetch upcoming dates for the show (for schedule slot selection)
+              upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
+              let upcomingDates = either (const []) id upcomingDatesResult
               -- Fetch shows for dashboard sidebar
               allShows <-
                 if UserMetadata.isAdmin userMetadata.mUserRole
                   then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
                   else either (const []) id <$> execQuerySpan (Shows.getShowsForUser user.mId)
               let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                  editTemplate = template currentTime showModel episode tracks userMetadata isStaff
+                  editTemplate = template currentTime showModel episode tracks upcomingDates userMetadata isStaff
                   statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
               html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate
               pure $ Servant.noHeader $ Servant.noHeader html

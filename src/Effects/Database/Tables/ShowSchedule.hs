@@ -526,6 +526,7 @@ getScheduledShowsForDate targetDate =
 -- | Data type to represent an upcoming show date.
 data UpcomingShowDate = UpcomingShowDate
   { usdId :: Shows.Id,
+    usdTemplateId :: TemplateId,
     usdShowDate :: Day,
     usdDayOfWeek :: DayOfWeek,
     usdStartTime :: UTCTime,
@@ -551,10 +552,11 @@ instance Display UpcomingShowDate where
             <> " PT)"
 
 -- | Convert from database row to UpcomingShowDate.
-fromUpcomingShowDateRow :: (Shows.Id, Day, DayOfWeek, UTCTime, UTCTime) -> UpcomingShowDate
-fromUpcomingShowDateRow (showId, showDate, dayOfWeek, startTime, endTime) =
+fromUpcomingShowDateRow :: (Shows.Id, TemplateId, Day, DayOfWeek, UTCTime, UTCTime) -> UpcomingShowDate
+fromUpcomingShowDateRow (showId, templateId, showDate, dayOfWeek, startTime, endTime) =
   UpcomingShowDate
     { usdId = showId,
+      usdTemplateId = templateId,
       usdShowDate = showDate,
       usdDayOfWeek = dayOfWeek,
       usdStartTime = startTime,
@@ -588,6 +590,7 @@ getUpcomingShowDates showId referenceDate (Limit limitVal) =
       -- For each active template, find matching dates
       SELECT DISTINCT
         st.show_id,
+        st.id as template_id,
         ds.date as show_date,
         st.day_of_week,
         st.start_time,
@@ -618,6 +621,7 @@ getUpcomingShowDates showId referenceDate (Limit limitVal) =
     )
     SELECT
       show_id,
+      template_id,
       show_date,
       day_of_week,
       (show_date::TEXT || ' ' || start_time::TEXT)::TIMESTAMP AT TIME ZONE timezone as start_time,
@@ -658,6 +662,7 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
     schedule_instances AS (
       SELECT DISTINCT
         st.show_id,
+        st.id as template_id,
         ds.date as show_date,
         st.day_of_week,
         st.start_time,
@@ -688,6 +693,7 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
     unscheduled_instances AS (
       SELECT
         si.show_id,
+        si.template_id,
         si.show_date,
         si.day_of_week,
         (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone as start_time,
@@ -703,7 +709,7 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
       WHERE e.id IS NULL  -- Only dates without scheduled episodes
         AND si.show_date >= CURRENT_DATE
     )
-    SELECT show_id, show_date, day_of_week, start_time, end_time
+    SELECT show_id, template_id, show_date, day_of_week, start_time, end_time
     FROM unscheduled_instances
     ORDER BY show_date
     LIMIT #{limitVal}
