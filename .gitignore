@@ -5,3 +5,4 @@
 /keys/
 /secrets.env
 /TAGS
+/.image-cache/
