@@ -249,13 +249,40 @@ staging-psql:
 staging-mock-data:
   (cat mock-data.sql; echo "\\q") | fly postgres connect --app {{STAGING_DB_APP}} -d {{STAGING_DB_NAME}}
 
+# Reset staging database (drops all tables, re-runs migrations)
+staging-migrations-reset:
+  @echo "⚠️  Resetting staging database (this will delete all data)..."
+  @echo "Starting proxy in background..."
+  fly proxy 15432:5432 -a {{STAGING_DB_APP}} &
+  @sleep 3
+  @echo "Stopping staging app to release database connections..."
+  fly scale count 0 --app {{STAGING_APP}} --yes
+  @echo "Dropping database..."
+  psql "postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/postgres" -c "DROP DATABASE IF EXISTS {{STAGING_DB_NAME}} WITH (FORCE);"
+  @echo "Creating database..."
+  psql "postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/postgres" -c "CREATE DATABASE {{STAGING_DB_NAME}};"
+  @echo "Running migrations..."
+  DATABASE_URL=postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}} sqlx migrate run --source migrations
+  @echo "Restarting staging app..."
+  fly scale count 1 --app {{STAGING_APP}} --yes
+  @just staging-proxy-close
+  @echo "✨ Staging database reset complete!"
+
 # Run migrations on staging (via proxy)
 staging-migrations-run:
   @echo "Starting proxy in background..."
   fly proxy 15432:5432 -a {{STAGING_DB_APP}} &
   @sleep 2
-  DATABASE_URL=postgres://postgres:$STAGING_DB_PASSWORD@localhost:15432/{{STAGING_DB_NAME}} sqlx migrate run --source migrations
+  DATABASE_URL=postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}} sqlx migrate run --source migrations
   @pkill -f "fly proxy 15432"
+
+# Open proxy to staging database (runs in foreground)
+staging-proxy-open:
+  fly proxy 15432:5432 -a {{STAGING_DB_APP}}
+
+# Close staging database proxy
+staging-proxy-close:
+  @kill $(lsof -ti:15432) 2>/dev/null && echo "Proxy closed" || echo "No proxy running"
 
 # SSH into staging app
 staging-ssh:
