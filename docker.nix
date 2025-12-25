@@ -7,12 +7,20 @@ pkgs.dockerTools.buildImage {
   # https://discourse.nixos.org/t/copy-files-into-a-docker-container-using-copytoroot/21144/5
   copyToRoot = pkgs.buildEnv {
     name = "image-root";
-    pathsToLink = [ "/bin" "/static" "/migrations" ];
-    paths = [ pkgs.sqlx-cli (pkgs.haskell.lib.justStaticExecutables kpbj-api) ./. ];
+    pathsToLink = [ "/bin" "/etc" "/static" "/migrations" ];
+    paths = [
+      pkgs.busybox
+      pkgs.fakeNss
+      pkgs.gnutar
+      pkgs.gzip
+      pkgs.sqlx-cli
+      (pkgs.haskell.lib.justStaticExecutables kpbj-api)
+      ./.
+    ];
   };
 
   config = {
-    Entrypoint = [ "${pkgs.bash}/bin/bash" ];
+    Entrypoint = [ "/bin/sh" ];
     Cmd = [
       "-c"
       "/bin/kpbj-api"
