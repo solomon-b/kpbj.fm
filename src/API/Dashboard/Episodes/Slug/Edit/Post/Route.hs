@@ -34,6 +34,7 @@ import Text.Read (readMaybe)
 -- | Form data for episode editing
 data EpisodeEditForm = EpisodeEditForm
   { eefDescription :: Maybe Text,
+    eefTags :: Maybe Text, -- Comma-separated list of tags
     eefStatus :: Text,
     eefScheduledDate :: Maybe Text, -- Format: "template_id|scheduled_at"
     eefTracks :: [TrackInfo],
@@ -55,6 +56,7 @@ data TrackInfo = TrackInfo
 instance FromMultipart Mem EpisodeEditForm where
   fromMultipart multipartData = do
     let description = either (const Nothing) Just (lookupInput "description" multipartData)
+    let tags = either (const Nothing) Just (lookupInput "tags" multipartData)
     status <- lookupInput "status" multipartData
     -- Parse scheduled date (optional) - format: "template_id|scheduled_at"
     let scheduledDate = either (const Nothing) Just (lookupInput "scheduled_date" multipartData)
@@ -67,6 +69,7 @@ instance FromMultipart Mem EpisodeEditForm where
     pure
       EpisodeEditForm
         { eefDescription = emptyToNothing description,
+          eefTags = emptyToNothing tags,
           eefStatus = status,
           eefScheduledDate = emptyToNothing scheduledDate,
           eefTracks = tracks,

@@ -58,6 +58,12 @@ module Effects.Database.Tables.Episodes
 
     -- * Result Types
     EpisodeWithShow (..),
+
+    -- * Tag Junction Queries
+    getTagsForEpisode,
+    addTagToEpisode,
+    removeAllTagsFromEpisode,
+    replaceEpisodeTags,
   )
 where
 
@@ -74,6 +80,7 @@ import Data.Time (UTCTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug)
+import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -655,4 +662,78 @@ countPublishedEpisodesWithFilters mSearch mDateFrom mDateTo =
       AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
       AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
       AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
+  |]
+
+--------------------------------------------------------------------------------
+-- Tag Junction Queries
+
+-- | Get all tags for an episode.
+getTagsForEpisode :: Id -> Hasql.Statement () [EpisodeTags.Model]
+getTagsForEpisode episodeId =
+  interp
+    False
+    [sql|
+    SELECT et.id, et.name, et.created_at
+    FROM episode_tags et
+    INNER JOIN episode_tag_assignments eta ON et.id = eta.tag_id
+    WHERE eta.episode_id = #{episodeId}
+    ORDER BY et.name
+  |]
+
+-- | Add a tag to an episode.
+--
+-- Uses ON CONFLICT DO NOTHING for idempotent behavior.
+addTagToEpisode :: Id -> EpisodeTags.Id -> Hasql.Statement () ()
+addTagToEpisode episodeId tagId =
+  interp
+    False
+    [sql|
+    INSERT INTO episode_tag_assignments (episode_id, tag_id)
+    VALUES (#{episodeId}, #{tagId})
+    ON CONFLICT DO NOTHING
+  |]
+
+-- | Remove all tag assignments from an episode.
+--
+-- Used when updating an episode's tags (clear all, then re-add).
+removeAllTagsFromEpisode :: Id -> Hasql.Statement () ()
+removeAllTagsFromEpisode episodeId =
+  interp
+    False
+    [sql|
+    DELETE FROM episode_tag_assignments
+    WHERE episode_id = #{episodeId}
+  |]
+
+-- | Replace all tags for an episode with a new set of tags.
+--
+-- This is an atomic operation that:
+-- 1. Deletes all existing tag assignments for the episode
+-- 2. Inserts any new tag names that don't exist yet
+-- 3. Creates assignments for all provided tags
+--
+-- Pass an empty list to remove all tags.
+replaceEpisodeTags :: Id -> [Text] -> Hasql.Statement () ()
+replaceEpisodeTags episodeId tagNames =
+  interp
+    False
+    [sql|
+    WITH
+      -- Delete existing assignments
+      deleted AS (
+        DELETE FROM episode_tag_assignments
+        WHERE episode_id = #{episodeId}
+      ),
+      -- Insert new tags, using DO UPDATE to return existing ones too
+      all_tags AS (
+        INSERT INTO episode_tags (name)
+        SELECT unnest(#{tagNames}::text[])
+        ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+        RETURNING id
+      )
+    -- Create assignments using the returned IDs
+    INSERT INTO episode_tag_assignments (episode_id, tag_id)
+    SELECT #{episodeId}, id
+    FROM all_tags
+    ON CONFLICT DO NOTHING
   |]

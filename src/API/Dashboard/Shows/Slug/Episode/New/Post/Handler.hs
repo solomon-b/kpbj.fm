@@ -319,6 +319,9 @@ processEpisodeUpload userMetadata user form = do
                             Right episodeId -> do
                               -- Insert tracks if provided
                               _ <- insertTracks episodeId episodeData.tracks
+                              -- Replace tags with provided ones (single atomic query)
+                              let tagNames = maybe [] parseTagList (eufTags form)
+                              _ <- execQuerySpan (Episodes.replaceEpisodeTags episodeId tagNames)
                               pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
@@ -503,3 +506,10 @@ insertTracks episodeId tracks = do
       case result of
         Left err -> pure $ Left $ "Failed to insert track: " <> Text.pack (show err)
         Right trackId -> pure $ Right trackId
+
+--------------------------------------------------------------------------------
+-- Tag Processing
+
+-- | Parse comma-separated tag list into individual tag names.
+parseTagList :: Text -> [Text]
+parseTagList = filter (not . Text.null) . map Text.strip . Text.splitOn ","
