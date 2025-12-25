@@ -57,19 +57,17 @@ episodeUploadForm showModel upcomingDates = do
       section "EPISODE DETAILS" $ do
         -- Scheduled date field (conditional on upcomingDates)
         if not (null upcomingDates)
-          then
-            selectField "scheduled_date" $ do
-              label "Scheduled Date"
-              hint "Choose when this episode will air"
-              addOption "" "-- Select Date --"
-              mapM_ (\usd -> addOption (Text.pack $ show $ ShowSchedule.usdStartTime usd) (display usd)) upcomingDates
-          else
-            plain $
-              Lucid.div_ $ do
-                Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
-                Lucid.div_
-                  [Lucid.class_ "w-full p-3 border-2 border-yellow-400 bg-yellow-50 font-mono text-sm"]
-                  "No upcoming scheduled dates"
+          then selectField "scheduled_date" $ do
+            label "Scheduled Date"
+            hint "Choose when this episode will air"
+            addOption "" "-- Select Date --"
+            mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
+          else plain $
+            Lucid.div_ $ do
+              Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+              Lucid.div_
+                [Lucid.class_ "w-full p-3 border-2 border-yellow-400 bg-yellow-50 font-mono text-sm"]
+                "No upcoming scheduled dates"
 
         textareaField "description" 6 $ do
           label "Episode Description"
@@ -113,6 +111,11 @@ episodeUploadForm showModel upcomingDates = do
 
       submitButton "SUBMIT"
       cancelButton cancelUrl "CANCEL"
+
+    -- \| Encode schedule slot value as "template_id|scheduled_at" for form submission
+    encodeScheduleValue :: ShowSchedule.UpcomingShowDate -> Text.Text
+    encodeScheduleValue usd =
+      display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdStartTime usd)
 
 --------------------------------------------------------------------------------
 -- Custom HTML Sections

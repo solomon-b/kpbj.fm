@@ -4,6 +4,7 @@ module Effects.Database.Tables.EpisodesSpec where
 
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as UUT
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -16,6 +17,7 @@ import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertRight)
 import Test.Gen.Tables.Episodes (episodeInsertGen)
+import Test.Gen.Tables.ShowSchedule (scheduleTemplateInsertGen)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
@@ -39,7 +41,8 @@ prop_insertSelectEpisode cfg = do
   arrange (bracketConn cfg) $ do
     userWithMetadata <- forAllT userWithMetadataInsertGen
     showInsert <- forAllT showInsertGen
-    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (User.Id 1) -- Placeholder IDs
+    scheduleTemplateInsert <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1) -- Placeholder show ID
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1) -- Placeholder IDs
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Setup: Create user, metadata, and show
@@ -47,8 +50,12 @@ prop_insertSelectEpisode cfg = do
         _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata)
         showId <- TRX.statement () (Shows.insertShow showInsert)
 
+        -- Create schedule template for the show (update with real show ID)
+        let scheduleTemplateWithShowId = scheduleTemplateInsert {ShowSchedule.stiShowId = showId}
+        templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleTemplateWithShowId)
+
         -- Update episode template with real IDs
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
 
         episodeId <- TRX.statement () (UUT.insertEpisode episodeInsert)
         selected <- TRX.statement () (UUT.getEpisodeById episodeId)
@@ -68,7 +75,8 @@ prop_getEpisodeById cfg = do
   arrange (bracketConn cfg) $ do
     userWithMetadata <- forAllT userWithMetadataInsertGen
     showInsert <- forAllT showInsertGen
-    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (User.Id 1)
+    scheduleTemplateInsert <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1) -- Placeholder show ID
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -76,7 +84,11 @@ prop_getEpisodeById cfg = do
         _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata)
         showId <- TRX.statement () (Shows.insertShow showInsert)
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiCreatedBy = userId}
+        -- Create schedule template for the show (update with real show ID)
+        let scheduleTemplateWithShowId = scheduleTemplateInsert {ShowSchedule.stiShowId = showId}
+        templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleTemplateWithShowId)
+
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
 
         episodeId <- TRX.statement () (UUT.insertEpisode episodeInsert)
         byId <- TRX.statement () (UUT.getEpisodeById episodeId)

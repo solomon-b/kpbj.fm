@@ -32,6 +32,7 @@ module Effects.Database.Tables.Episodes
     -- * Update Types
     Update (..),
     FileUpdate (..),
+    ScheduleSlotUpdate (..),
 
     -- * Queries
     getPublishedEpisodesForShow,
@@ -45,6 +46,7 @@ module Effects.Database.Tables.Episodes
     insertEpisode,
     updateEpisode,
     updateEpisodeFiles,
+    updateScheduledSlot,
     deleteEpisode,
     publishEpisode,
     isUserHostOfEpisodeShow,
@@ -72,6 +74,7 @@ import Data.Time (UTCTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug)
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
@@ -186,7 +189,8 @@ data Episode f = Episode
     audioMimeType :: Column f (Maybe Text),
     durationSeconds :: Column f (Maybe Int64),
     artworkUrl :: Column f (Maybe Text),
-    scheduledAt :: Column f (Maybe UTCTime),
+    scheduleTemplateId :: Column f ShowSchedule.TemplateId,
+    scheduledAt :: Column f UTCTime,
     publishedAt :: Column f (Maybe UTCTime),
     status :: Column f Status,
     createdBy :: Column f User.Id,
@@ -233,6 +237,7 @@ episodeSchema =
             audioMimeType = "audio_mime_type",
             durationSeconds = "duration_seconds",
             artworkUrl = "artwork_url",
+            scheduleTemplateId = "schedule_template_id",
             scheduledAt = "scheduled_at",
             publishedAt = "published_at",
             status = "status",
@@ -254,7 +259,8 @@ data Insert = Insert
     eiAudioMimeType :: Maybe Text,
     eiDurationSeconds :: Maybe Int64,
     eiArtworkUrl :: Maybe Text,
-    eiScheduledAt :: Maybe UTCTime,
+    eiScheduleTemplateId :: ShowSchedule.TemplateId,
+    eiScheduledAt :: UTCTime,
     eiStatus :: Status,
     eiCreatedBy :: User.Id
   }
@@ -282,6 +288,15 @@ data FileUpdate = FileUpdate
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance FileUpdate)
 
+-- | Episode schedule slot update for changing the scheduled time slot.
+data ScheduleSlotUpdate = ScheduleSlotUpdate
+  { essuId :: Id,
+    essuScheduleTemplateId :: ShowSchedule.TemplateId,
+    essuScheduledAt :: UTCTime
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving (Display) via (RecordInstance ScheduleSlotUpdate)
+
 --------------------------------------------------------------------------------
 -- Result Types
 
@@ -298,7 +313,8 @@ data EpisodeWithShow = EpisodeWithShow
     ewsAudioMimeType :: Maybe Text,
     ewsDurationSeconds :: Maybe Int64,
     ewsArtworkUrl :: Maybe Text,
-    ewsScheduledAt :: Maybe UTCTime,
+    ewsScheduleTemplateId :: ShowSchedule.TemplateId,
+    ewsScheduledAt :: UTCTime,
     ewsPublishedAt :: Maybe UTCTime,
     ewsStatus :: Status,
     ewsCreatedBy :: User.Id,
@@ -326,7 +342,7 @@ getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
             ep <- each episodeSchema
             where_ $ ep.showId ==. lit showId'
             where_ $ ep.status ==. lit Published
-            where_ $ ep.scheduledAt <=. nullify (lit currentTime)
+            where_ $ ep.scheduledAt <=. lit currentTime
             pure ep
 
 -- | Get episodes for a show including drafts (for hosts viewing their own show).
@@ -339,7 +355,7 @@ getEpisodesForShowIncludingDrafts showId' (Limit lim) (Offset off) =
     select $
       Rel8.limit (fromIntegral lim) $
         Rel8.offset (fromIntegral off) $
-          orderBy ((.scheduledAt) >$< nullsLast desc) do
+          orderBy ((.scheduledAt) >$< desc) do
             ep <- each episodeSchema
             where_ $ ep.showId ==. lit showId'
             where_ $ ep.status /=. lit Deleted
@@ -350,7 +366,7 @@ getAllEpisodes :: Hasql.Statement () [Model]
 getAllEpisodes =
   run $
     select $
-      orderBy ((.scheduledAt) >$< nullsLast desc) do
+      orderBy ((.scheduledAt) >$< desc) do
         each episodeSchema
 
 -- | Get all non-deleted episodes for a show.
@@ -358,7 +374,7 @@ getEpisodesById :: Shows.Id -> Hasql.Statement () [Model]
 getEpisodesById showId' =
   run $
     select $
-      orderBy ((.scheduledAt) >$< nullsLast desc) do
+      orderBy ((.scheduledAt) >$< desc) do
         ep <- each episodeSchema
         where_ $ ep.showId ==. lit showId'
         where_ $ ep.status /=. lit Deleted
@@ -374,7 +390,7 @@ getEpisodeByShowAndNumber showSlug episodeNumber =
     [sql|
     SELECT e.id, e.show_id, e.description, e.episode_number,
            e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-           e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by, e.created_at, e.updated_at
+           e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at, e.status, e.created_by, e.created_at, e.updated_at
     FROM episodes e
     JOIN shows s ON e.show_id = s.id
     WHERE s.slug = #{showSlug} AND e.episode_number = #{episodeNumber}
@@ -425,10 +441,10 @@ insertEpisode Insert {..} =
           [sql|
         INSERT INTO episodes(show_id, description,
                             audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-                            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at)
+                            artwork_url, schedule_template_id, scheduled_at, published_at, status, created_by, created_at, updated_at)
         VALUES (#{eiId}, #{eiDescription},
                 #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
-                #{eiArtworkUrl}, #{eiScheduledAt}, NOW(), #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
+                #{eiArtworkUrl}, #{eiScheduleTemplateId}, #{eiScheduledAt}, NOW(), #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
         RETURNING id
       |]
     _ ->
@@ -438,10 +454,10 @@ insertEpisode Insert {..} =
           [sql|
         INSERT INTO episodes(show_id, description,
                             audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-                            artwork_url, scheduled_at, published_at, status, created_by, created_at, updated_at)
+                            artwork_url, schedule_template_id, scheduled_at, published_at, status, created_by, created_at, updated_at)
         VALUES (#{eiId}, #{eiDescription},
                 #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
-                #{eiArtworkUrl}, #{eiScheduledAt}, NULL, #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
+                #{eiArtworkUrl}, #{eiScheduleTemplateId}, #{eiScheduledAt}, NULL, #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
         RETURNING id
       |]
 
@@ -476,6 +492,22 @@ updateEpisodeFiles FileUpdate {..} =
         artwork_url = COALESCE(#{efuArtworkUrl}, artwork_url),
         updated_at = NOW()
     WHERE id = #{efuId}
+    RETURNING id
+  |]
+
+-- | Update an episode's scheduled time slot.
+--
+-- Changes both the schedule template reference and the scheduled_at timestamp.
+updateScheduledSlot :: ScheduleSlotUpdate -> Hasql.Statement () (Maybe Id)
+updateScheduledSlot ScheduleSlotUpdate {..} =
+  interp
+    False
+    [sql|
+    UPDATE episodes
+    SET schedule_template_id = #{essuScheduleTemplateId},
+        scheduled_at = #{essuScheduledAt},
+        updated_at = NOW()
+    WHERE id = #{essuId}
     RETURNING id
   |]
 
@@ -563,7 +595,7 @@ getPublishedEpisodesWithFilters currentTime mSearch mDateFrom mDateTo sortBy (Li
     SELECT
       e.id, e.show_id, e.description, e.episode_number,
       e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-      e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
+      e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at, e.status, e.created_by,
       e.created_at, e.updated_at,
       s.title, s.slug,
       COALESCE(um.display_name, u.email)
@@ -587,7 +619,7 @@ getPublishedEpisodesWithFilters currentTime mSearch mDateFrom mDateTo sortBy (Li
     SELECT
       e.id, e.show_id, e.description, e.episode_number,
       e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-      e.artwork_url, e.scheduled_at, e.published_at, e.status, e.created_by,
+      e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at, e.status, e.created_by,
       e.created_at, e.updated_at,
       s.title, s.slug,
       COALESCE(um.display_name, u.email)

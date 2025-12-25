@@ -33,9 +33,7 @@ import OpenTelemetry.Trace (Tracer)
 
 -- | Check if the episode's scheduled date has passed
 isScheduledInPast :: UTCTime -> Episodes.Model -> Bool
-isScheduledInPast now episode = case episode.scheduledAt of
-  Nothing -> False -- No scheduled date means it hasn't "passed"
-  Just scheduledAt -> scheduledAt <= now
+isScheduledInPast now episode = episode.scheduledAt <= now
 
 handler ::
   ( Has Tracer env,

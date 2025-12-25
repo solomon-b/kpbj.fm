@@ -122,14 +122,11 @@ renderPlayButton =
           path_ [d_ "M6 19h4V5H6v14zm8-14v14h4V5h-4z"] mempty
 
 -- | Render episode date.
-renderEpisodeDate :: Maybe UTCTime -> Lucid.Html ()
-renderEpisodeDate mScheduledAt =
-  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "dark:text-gray-400"]] $
-    case mScheduledAt of
-      Just scheduledAt -> do
-        let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
-        Lucid.toHtml dateStr
-      Nothing -> mempty
+renderEpisodeDate :: UTCTime -> Lucid.Html ()
+renderEpisodeDate scheduledAt =
+  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "dark:text-gray-400"]] $ do
+    let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
+    Lucid.toHtml dateStr
 
 --------------------------------------------------------------------------------
 -- Alpine.js Script

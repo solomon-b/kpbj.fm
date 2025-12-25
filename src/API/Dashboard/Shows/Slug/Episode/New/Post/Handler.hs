@@ -288,7 +288,7 @@ processEpisodeUpload userMetadata user form = do
                       currentTime <- liftIO getCurrentTime
                       let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
                       -- Handle file uploads (pass scheduled date for file organization)
-                      uploadResults <- processFileUploads episodeData.showSlug fileId episodeData.scheduledAt episodeData.status (eufAudioFile form) (eufArtworkFile form)
+                      uploadResults <- processFileUploads episodeData.showSlug fileId (Just episodeData.scheduledAt) episodeData.status (eufAudioFile form) (eufArtworkFile form)
 
                       case uploadResults of
                         Left uploadErr -> pure $ Left uploadErr
@@ -303,6 +303,7 @@ processEpisodeUpload userMetadata user form = do
                                     Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
                                     Episodes.eiDurationSeconds = episodeData.durationSeconds,
                                     Episodes.eiArtworkUrl = artworkPath,
+                                    Episodes.eiScheduleTemplateId = episodeData.scheduleTemplateId,
                                     Episodes.eiScheduledAt = episodeData.scheduledAt,
                                     Episodes.eiStatus = episodeData.status,
                                     Episodes.eiCreatedBy = User.mId user
@@ -323,14 +324,11 @@ processEpisodeUpload userMetadata user form = do
 -- | Parse form data into structured format with show info
 parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Sanitize.ContentValidationError ParsedEpisodeData
 parseFormDataWithShow (Shows.Id showId) showSlug form = do
-  -- Parse scheduled timestamp (now receives full UTC timestamp from form)
-  scheduledAt <- case eufScheduledDate form of
-    Nothing -> Right Nothing
-    Just timestampStr ->
-      -- Try parsing as full UTCTime (format: "YYYY-MM-DD HH:MM:SS.ssssss UTC")
-      case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timestampStr) of
-        Just timestamp -> Right (Just timestamp)
-        Nothing -> Left $ Sanitize.ContentInvalid $ "Invalid scheduled timestamp format: " <> timestampStr
+  -- Parse schedule value (format: "template_id|scheduled_at")
+  (scheduleTemplateId, scheduledAt) <- case eufScheduledDate form of
+    Nothing -> Left $ Sanitize.ContentInvalid "Scheduled date is required"
+    Just "" -> Left $ Sanitize.ContentInvalid "Scheduled date is required"
+    Just scheduleStr -> parseScheduleValue scheduleStr
 
   -- Determine episode status
   status <- case eufStatus form of
@@ -362,11 +360,26 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
       { showId = showId,
         showSlug = showSlug,
         description = Just validDescription,
+        scheduleTemplateId = scheduleTemplateId,
         scheduledAt = scheduledAt,
         status = status,
         tracks = tracks,
         durationSeconds = durationSeconds
       }
+
+-- | Parse schedule value from form (format: "template_id|scheduled_at")
+parseScheduleValue :: Text -> Either Sanitize.ContentValidationError (ShowSchedule.TemplateId, UTCTime)
+parseScheduleValue txt =
+  case Text.splitOn "|" txt of
+    [tidStr, timeStr] -> do
+      tid <- case readMaybe (Text.unpack tidStr) of
+        Just n -> Right $ ShowSchedule.TemplateId n
+        Nothing -> Left $ Sanitize.ContentInvalid $ "Invalid template ID: " <> tidStr
+      time <- case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timeStr) of
+        Just t -> Right t
+        Nothing -> Left $ Sanitize.ContentInvalid $ "Invalid timestamp: " <> timeStr
+      Right (tid, time)
+    _ -> Left $ Sanitize.ContentInvalid $ "Invalid schedule format: " <> txt
 
 -- | Sanitize track list by sanitizing all text fields
 sanitizeTrackList :: [TrackInfo] -> [TrackInfo]
@@ -382,7 +395,8 @@ data ParsedEpisodeData = ParsedEpisodeData
   { showId :: Int64,
     showSlug :: Slug,
     description :: Maybe Text,
-    scheduledAt :: Maybe UTCTime,
+    scheduleTemplateId :: ShowSchedule.TemplateId,
+    scheduledAt :: UTCTime,
     status :: Episodes.Status,
     tracks :: [TrackInfo],
     durationSeconds :: Maybe Int64

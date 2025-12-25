@@ -73,9 +73,9 @@ renderEpisodeTableRow userMeta showModel episode = do
 
     -- Scheduled date
     Lucid.td_ cellLinkAttrs $
-      case episode.scheduledAt of
-        Just scheduledAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" scheduledAt
-        Nothing -> Lucid.span_ [class_ $ base ["text-gray-500", "italic"]] "Not scheduled"
+      Lucid.toHtml $
+        Text.pack $
+          formatTime defaultTimeLocale "%b %d, %Y" episode.scheduledAt
 
     -- Status
     Lucid.td_ cellLinkAttrs $

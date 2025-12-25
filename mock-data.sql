@@ -853,9 +853,10 @@ FROM schedule_templates;
 
 -- Generate episodes for the past 2 weeks based on show schedules
 -- Each show gets 2 episodes (one per week for 2 weeks)
-INSERT INTO episodes (show_id, description, status, scheduled_at, published_at, created_by)
+INSERT INTO episodes (show_id, schedule_template_id, description, status, scheduled_at, published_at, created_by)
 SELECT
     s.id as show_id,
+    st.id as schedule_template_id,
     'A great episode of ' || s.title || ' from ' || to_char(generate_series, 'FMMonth DD, YYYY') as description,
     'published' as status,
     -- interpret date + time in show's timezone, then convert to UTC
