@@ -204,10 +204,18 @@ postgres-test-psql:
   echo "🌐 Connecting to the Test Postgres service.."
   psql -h localhost -p 5434 -U postgres -d test_db
 
+# Generate mock images for shows, episodes, events, etc.
+mock-images:
+  echo "🖼️  Generating mock images..."
+  ./scripts/generate-mock-images.sh
+  echo "✨ Mock images generated!"
+
 # Load mock data into the development database
 mock-data:
+  echo "🖼️  Loading mock images to /tmp/kpbj..."
+  ./scripts/load-mock-images.sh
   echo "📊 Loading mock data into dev_db..."
-  PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d dev_db -f mock-data.sql
+  cd mock-data && PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d dev_db -f load-all.sql
   echo "✨ Mock data loaded successfully!"
 
 
@@ -247,7 +255,54 @@ staging-psql:
 
 # Load mock data into staging database
 staging-mock-data:
-  (cat mock-data.sql; echo "\\q") | fly postgres connect --app {{STAGING_DB_APP}} -d {{STAGING_DB_NAME}}
+  @echo "📊 Loading mock data into staging..."
+  @(cat mock-data/00_init.sql mock-data/01_admin_user.sql mock-data/02_shows.sql mock-data/03_show_tags.sql mock-data/04_show_tag_assignments.sql mock-data/05_host_users.sql mock-data/06_host_user_metadata.sql mock-data/07_show_hosts.sql mock-data/08_host_details.sql mock-data/09_schedule_templates.sql mock-data/10_episodes.sql mock-data/11_staff_and_users.sql mock-data/12_events.sql mock-data/13_blog_tags.sql mock-data/14_blog_posts.sql mock-data/15_episode_tracks.sql mock-data/16_summary.sql; echo "\\q") | fly postgres connect --app {{STAGING_DB_APP}} -d {{STAGING_DB_NAME}}
+  @echo "✨ Mock data loaded successfully!"
+
+# Upload mock images to staging volume
+staging-mock-images:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "🖼️  Uploading mock images to staging..."
+  echo ""
+
+  # Create a temporary directory with the correct structure
+  TMPDIR=$(mktemp -d)
+  trap "rm -rf $TMPDIR" EXIT
+
+  # Create target directory structure (matches load-mock-images.sh)
+  mkdir -p "$TMPDIR/images/2025/01/01/avatars"
+  mkdir -p "$TMPDIR/images/2025/01/01/logos"
+  mkdir -p "$TMPDIR/images/2025/01/01/banners"
+  mkdir -p "$TMPDIR/images/2025/01/01/artwork"
+  mkdir -p "$TMPDIR/images/2025/01/01/event-posters"
+  mkdir -p "$TMPDIR/images/2025/01/01/blog-heroes"
+
+  # Copy files to temp directory with correct structure
+  cp mock-data/media/avatars/* "$TMPDIR/images/2025/01/01/avatars/" 2>/dev/null || true
+  cp mock-data/media/shows/logos/* "$TMPDIR/images/2025/01/01/logos/" 2>/dev/null || true
+  cp mock-data/media/shows/banners/* "$TMPDIR/images/2025/01/01/banners/" 2>/dev/null || true
+  cp mock-data/media/episodes/artwork/* "$TMPDIR/images/2025/01/01/artwork/" 2>/dev/null || true
+  cp mock-data/media/events/posters/* "$TMPDIR/images/2025/01/01/event-posters/" 2>/dev/null || true
+  cp mock-data/media/blog/heroes/* "$TMPDIR/images/2025/01/01/blog-heroes/" 2>/dev/null || true
+
+  FILE_COUNT=$(find $TMPDIR -type f | wc -l)
+  echo "  Prepared $FILE_COUNT files for upload"
+
+  # Create tarball
+  TARBALL="$TMPDIR/mock-images.tar.gz"
+  tar -C "$TMPDIR" -czf "$TARBALL" images
+  echo "  Created tarball: $(du -h $TARBALL | cut -f1)"
+
+  # Upload and extract via SSH
+  echo "  Uploading to staging (run 'just staging-ssh-setup' first if this fails)..."
+  tar -C "$TMPDIR" -czf - images | fly ssh console --app {{STAGING_APP}} -C "/bin/tar -C /tmp/kpbj -xzf -"
+
+  echo "✨ Mock images uploaded successfully!"
+
+# Load all mock data (database + images) into staging
+staging-mock-all: staging-mock-images staging-mock-data
+  @echo "🎉 All staging mock data loaded!"
 
 # Reset staging database (drops all tables, re-runs migrations)
 staging-migrations-reset:
