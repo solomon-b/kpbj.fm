@@ -138,7 +138,8 @@ handler _tracer cookie (foldHxReq -> hxRequest) form = do
             Left uploadError -> do
               Log.logInfo "Hero image upload failed" (Aeson.object ["error" .= Text.pack (show uploadError)])
               pure Nothing
-            Right result -> do
+            Right Nothing -> pure Nothing -- No file selected
+            Right (Just result) -> do
               Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" .= uploadResultStoragePath result])
               pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
 

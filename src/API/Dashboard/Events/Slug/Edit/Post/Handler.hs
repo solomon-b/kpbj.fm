@@ -178,7 +178,8 @@ updateEvent hxRequest userMetadata allShows selectedShow event editForm = do
                 Left uploadError -> do
                   Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
                   pure event.emPosterImageUrl -- Keep existing image on error
-                Right result -> do
+                Right Nothing -> pure event.emPosterImageUrl -- No file selected, keep existing
+                Right (Just result) -> do
                   Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
                   pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
 

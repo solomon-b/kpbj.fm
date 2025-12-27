@@ -10,6 +10,7 @@ module Effects.FileUpload
 
     -- * Helper functions
     stripStorageRoot,
+    isEmptyUpload,
   )
 where
 
@@ -89,6 +90,7 @@ uploadEpisodeAudio showSlug episodeSlug mScheduledDate fileData = runExceptT $ d
 -- Validates the image file using both browser-provided MIME type and magic byte detection,
 -- then stores it in the episode artwork directory organized by show and date.
 --
+-- Returns 'Nothing' if no file was provided (empty upload).
 -- Artwork files are optional for episodes but when provided must pass validation.
 uploadEpisodeArtwork ::
   (MonadIO m, Log.MonadLog m) =>
@@ -100,42 +102,45 @@ uploadEpisodeArtwork ::
   Maybe UTCTime ->
   -- | Uploaded artwork file data
   FileData Mem ->
-  m (Either UploadError UploadResult)
-uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileData = runExceptT $ do
-  -- Convert to temp file and process
-  tempPath <- ExceptT $ convertFileDataToTempFile fileData
+  m (Either UploadError (Maybe UploadResult))
+uploadEpisodeArtwork showSlug episodeSlug mScheduledDate fileData
+  | isEmptyUpload fileData = pure (Right Nothing)
+  | otherwise = runExceptT $ do
+      -- Convert to temp file and process
+      tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  let originalName = fdFileName fileData
-      browserMimeType = fdFileCType fileData
+      let originalName = fdFileName fileData
+          browserMimeType = fdFileCType fileData
 
-  -- Get file info and setup
-  fileSize <- liftIO $ getFileSize tempPath
-  let config = defaultStorageConfig
-  time <- liftIO $ maybe getCurrentTime pure mScheduledDate
-  seed <- liftIO Random.getStdGen
+      -- Get file info and setup
+      fileSize <- liftIO $ getFileSize tempPath
+      let config = defaultStorageConfig
+      time <- liftIO $ maybe getCurrentTime pure mScheduledDate
+      seed <- liftIO Random.getStdGen
 
-  -- Validate with browser-provided MIME type and file size
-  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+      -- Validate with browser-provided MIME type and file size
+      liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-  -- Validate actual file content against magic bytes
-  actualMimeType <- ExceptT $ do
-    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+      -- Validate actual file content against magic bytes
+      actualMimeType <- ExceptT $ do
+        either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-  -- Build upload result and move file
-  let uploadResult = buildEpisodeArtworkUpload config showSlug episodeSlug originalName actualMimeType fileSize time seed
-      storagePath = uploadResultStoragePath uploadResult
+      -- Build upload result and move file
+      let uploadResult = buildEpisodeArtworkUpload config showSlug episodeSlug originalName actualMimeType fileSize time seed
+          storagePath = uploadResultStoragePath uploadResult
 
-  liftIO $ do
-    createDirectoryIfMissing True (takeDirectory storagePath)
-    copyFile tempPath storagePath
+      liftIO $ do
+        createDirectoryIfMissing True (takeDirectory storagePath)
+        copyFile tempPath storagePath
 
-  pure uploadResult
+      pure (Just uploadResult)
 
 -- | Upload a logo image for a show.
 --
 -- Validates the image file using both browser-provided MIME type and magic byte detection,
 -- then stores it in the show assets directory.
 --
+-- Returns 'Nothing' if no file was provided (empty upload).
 -- Logo files are optional for shows but when provided must pass validation.
 uploadShowLogo ::
   (MonadIO m, Log.MonadLog m) =>
@@ -143,42 +148,45 @@ uploadShowLogo ::
   Slug ->
   -- | Uploaded logo file data
   FileData Mem ->
-  m (Either UploadError UploadResult)
-uploadShowLogo showSlug fileData = runExceptT $ do
-  -- Convert to temp file and process
-  tempPath <- ExceptT $ convertFileDataToTempFile fileData
+  m (Either UploadError (Maybe UploadResult))
+uploadShowLogo showSlug fileData
+  | isEmptyUpload fileData = pure (Right Nothing)
+  | otherwise = runExceptT $ do
+      -- Convert to temp file and process
+      tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  let originalName = fdFileName fileData
-      browserMimeType = fdFileCType fileData
+      let originalName = fdFileName fileData
+          browserMimeType = fdFileCType fileData
 
-  -- Get file info and setup
-  fileSize <- liftIO $ getFileSize tempPath
-  let config = defaultStorageConfig
-  time <- liftIO getCurrentTime
-  seed <- liftIO Random.getStdGen
+      -- Get file info and setup
+      fileSize <- liftIO $ getFileSize tempPath
+      let config = defaultStorageConfig
+      time <- liftIO getCurrentTime
+      seed <- liftIO Random.getStdGen
 
-  -- Validate with browser-provided MIME type and file size
-  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+      -- Validate with browser-provided MIME type and file size
+      liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-  -- Validate actual file content against magic bytes
-  actualMimeType <- ExceptT $ do
-    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+      -- Validate actual file content against magic bytes
+      actualMimeType <- ExceptT $ do
+        either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-  -- Build upload result and move file
-  let uploadResult = buildShowLogoUpload config showSlug originalName actualMimeType fileSize time seed
-      storagePath = uploadResultStoragePath uploadResult
+      -- Build upload result and move file
+      let uploadResult = buildShowLogoUpload config showSlug originalName actualMimeType fileSize time seed
+          storagePath = uploadResultStoragePath uploadResult
 
-  liftIO $ do
-    createDirectoryIfMissing True (takeDirectory storagePath)
-    copyFile tempPath storagePath
+      liftIO $ do
+        createDirectoryIfMissing True (takeDirectory storagePath)
+        copyFile tempPath storagePath
 
-  pure uploadResult
+      pure (Just uploadResult)
 
 -- | Upload a banner image for a show.
 --
 -- Validates the image file using both browser-provided MIME type and magic byte detection,
 -- then stores it in the show assets directory.
 --
+-- Returns 'Nothing' if no file was provided (empty upload).
 -- Banner files are optional for shows but when provided must pass validation.
 uploadShowBanner ::
   (MonadIO m, Log.MonadLog m) =>
@@ -186,42 +194,45 @@ uploadShowBanner ::
   Slug ->
   -- | Uploaded banner file data
   FileData Mem ->
-  m (Either UploadError UploadResult)
-uploadShowBanner showSlug fileData = runExceptT $ do
-  -- Convert to temp file and process
-  tempPath <- ExceptT $ convertFileDataToTempFile fileData
+  m (Either UploadError (Maybe UploadResult))
+uploadShowBanner showSlug fileData
+  | isEmptyUpload fileData = pure (Right Nothing)
+  | otherwise = runExceptT $ do
+      -- Convert to temp file and process
+      tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  let originalName = fdFileName fileData
-      browserMimeType = fdFileCType fileData
+      let originalName = fdFileName fileData
+          browserMimeType = fdFileCType fileData
 
-  -- Get file info and setup
-  fileSize <- liftIO $ getFileSize tempPath
-  let config = defaultStorageConfig
-  time <- liftIO getCurrentTime
-  seed <- liftIO Random.getStdGen
+      -- Get file info and setup
+      fileSize <- liftIO $ getFileSize tempPath
+      let config = defaultStorageConfig
+      time <- liftIO getCurrentTime
+      seed <- liftIO Random.getStdGen
 
-  -- Validate with browser-provided MIME type and file size
-  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+      -- Validate with browser-provided MIME type and file size
+      liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-  -- Validate actual file content against magic bytes
-  actualMimeType <- ExceptT $ do
-    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+      -- Validate actual file content against magic bytes
+      actualMimeType <- ExceptT $ do
+        either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-  -- Build upload result and move file
-  let uploadResult = buildShowBannerUpload config showSlug originalName actualMimeType fileSize time seed
-      storagePath = uploadResultStoragePath uploadResult
+      -- Build upload result and move file
+      let uploadResult = buildShowBannerUpload config showSlug originalName actualMimeType fileSize time seed
+          storagePath = uploadResultStoragePath uploadResult
 
-  liftIO $ do
-    createDirectoryIfMissing True (takeDirectory storagePath)
-    copyFile tempPath storagePath
+      liftIO $ do
+        createDirectoryIfMissing True (takeDirectory storagePath)
+        copyFile tempPath storagePath
 
-  pure uploadResult
+      pure (Just uploadResult)
 
 -- | Upload a hero image for a blog post.
 --
 -- Validates the image file using both browser-provided MIME type and magic byte detection,
 -- then stores it in the blog hero images directory.
 --
+-- Returns 'Nothing' if no file was provided (empty upload).
 -- Hero images are optional for blog posts but when provided must pass validation.
 uploadBlogHeroImage ::
   (MonadIO m, Log.MonadLog m) =>
@@ -229,42 +240,45 @@ uploadBlogHeroImage ::
   Slug ->
   -- | Uploaded hero image file data
   FileData Mem ->
-  m (Either UploadError UploadResult)
-uploadBlogHeroImage postSlug fileData = runExceptT $ do
-  -- Convert to temp file and process
-  tempPath <- ExceptT $ convertFileDataToTempFile fileData
+  m (Either UploadError (Maybe UploadResult))
+uploadBlogHeroImage postSlug fileData
+  | isEmptyUpload fileData = pure (Right Nothing)
+  | otherwise = runExceptT $ do
+      -- Convert to temp file and process
+      tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  let originalName = fdFileName fileData
-      browserMimeType = fdFileCType fileData
+      let originalName = fdFileName fileData
+          browserMimeType = fdFileCType fileData
 
-  -- Get file info and setup
-  fileSize <- liftIO $ getFileSize tempPath
-  let config = defaultStorageConfig
-  time <- liftIO getCurrentTime
-  seed <- liftIO Random.getStdGen
+      -- Get file info and setup
+      fileSize <- liftIO $ getFileSize tempPath
+      let config = defaultStorageConfig
+      time <- liftIO getCurrentTime
+      seed <- liftIO Random.getStdGen
 
-  -- Validate with browser-provided MIME type and file size
-  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+      -- Validate with browser-provided MIME type and file size
+      liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-  -- Validate actual file content against magic bytes
-  actualMimeType <- ExceptT $ do
-    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+      -- Validate actual file content against magic bytes
+      actualMimeType <- ExceptT $ do
+        either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-  -- Build upload result and move file
-  let uploadResult = buildBlogHeroImageUpload config postSlug originalName actualMimeType fileSize time seed
-      storagePath = uploadResultStoragePath uploadResult
+      -- Build upload result and move file
+      let uploadResult = buildBlogHeroImageUpload config postSlug originalName actualMimeType fileSize time seed
+          storagePath = uploadResultStoragePath uploadResult
 
-  liftIO $ do
-    createDirectoryIfMissing True (takeDirectory storagePath)
-    copyFile tempPath storagePath
+      liftIO $ do
+        createDirectoryIfMissing True (takeDirectory storagePath)
+        copyFile tempPath storagePath
 
-  pure uploadResult
+      pure (Just uploadResult)
 
 -- | Upload a poster image for an event.
 --
 -- Validates the image file using both browser-provided MIME type and magic byte detection,
 -- then stores it in the event poster images directory.
 --
+-- Returns 'Nothing' if no file was provided (empty upload).
 -- Poster images are optional for events but when provided must pass validation.
 uploadEventPosterImage ::
   (MonadIO m, Log.MonadLog m) =>
@@ -272,42 +286,45 @@ uploadEventPosterImage ::
   Slug ->
   -- | Uploaded poster image file data
   FileData Mem ->
-  m (Either UploadError UploadResult)
-uploadEventPosterImage eventSlug fileData = runExceptT $ do
-  -- Convert to temp file and process
-  tempPath <- ExceptT $ convertFileDataToTempFile fileData
+  m (Either UploadError (Maybe UploadResult))
+uploadEventPosterImage eventSlug fileData
+  | isEmptyUpload fileData = pure (Right Nothing)
+  | otherwise = runExceptT $ do
+      -- Convert to temp file and process
+      tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  let originalName = fdFileName fileData
-      browserMimeType = fdFileCType fileData
+      let originalName = fdFileName fileData
+          browserMimeType = fdFileCType fileData
 
-  -- Get file info and setup
-  fileSize <- liftIO $ getFileSize tempPath
-  let config = defaultStorageConfig
-  time <- liftIO getCurrentTime
-  seed <- liftIO Random.getStdGen
+      -- Get file info and setup
+      fileSize <- liftIO $ getFileSize tempPath
+      let config = defaultStorageConfig
+      time <- liftIO getCurrentTime
+      seed <- liftIO Random.getStdGen
 
-  -- Validate with browser-provided MIME type and file size
-  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+      -- Validate with browser-provided MIME type and file size
+      liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-  -- Validate actual file content against magic bytes
-  actualMimeType <- ExceptT $ do
-    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+      -- Validate actual file content against magic bytes
+      actualMimeType <- ExceptT $ do
+        either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-  -- Build upload result and move file
-  let uploadResult = buildEventPosterImageUpload config eventSlug originalName actualMimeType fileSize time seed
-      storagePath = uploadResultStoragePath uploadResult
+      -- Build upload result and move file
+      let uploadResult = buildEventPosterImageUpload config eventSlug originalName actualMimeType fileSize time seed
+          storagePath = uploadResultStoragePath uploadResult
 
-  liftIO $ do
-    createDirectoryIfMissing True (takeDirectory storagePath)
-    copyFile tempPath storagePath
+      liftIO $ do
+        createDirectoryIfMissing True (takeDirectory storagePath)
+        copyFile tempPath storagePath
 
-  pure uploadResult
+      pure (Just uploadResult)
 
 -- | Upload an avatar image for a user.
 --
 -- Validates the image file using both browser-provided MIME type and magic byte detection,
 -- then stores it in the user avatars directory.
 --
+-- Returns 'Nothing' if no file was provided (empty upload).
 -- Avatar images are optional for users but when provided must pass validation.
 uploadUserAvatar ::
   (MonadIO m, Log.MonadLog m) =>
@@ -315,36 +332,38 @@ uploadUserAvatar ::
   Text ->
   -- | Uploaded avatar file data
   FileData Mem ->
-  m (Either UploadError UploadResult)
-uploadUserAvatar userId fileData = runExceptT $ do
-  -- Convert to temp file and process
-  tempPath <- ExceptT $ convertFileDataToTempFile fileData
+  m (Either UploadError (Maybe UploadResult))
+uploadUserAvatar userId fileData
+  | isEmptyUpload fileData = pure (Right Nothing)
+  | otherwise = runExceptT $ do
+      -- Convert to temp file and process
+      tempPath <- ExceptT $ convertFileDataToTempFile fileData
 
-  let originalName = fdFileName fileData
-      browserMimeType = fdFileCType fileData
+      let originalName = fdFileName fileData
+          browserMimeType = fdFileCType fileData
 
-  -- Get file info and setup
-  fileSize <- liftIO $ getFileSize tempPath
-  let config = defaultStorageConfig
-  time <- liftIO getCurrentTime
-  seed <- liftIO Random.getStdGen
+      -- Get file info and setup
+      fileSize <- liftIO $ getFileSize tempPath
+      let config = defaultStorageConfig
+      time <- liftIO getCurrentTime
+      seed <- liftIO Random.getStdGen
 
-  -- Validate with browser-provided MIME type and file size
-  liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+      -- Validate with browser-provided MIME type and file size
+      liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
 
-  -- Validate actual file content against magic bytes
-  actualMimeType <- ExceptT $ do
-    either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+      -- Validate actual file content against magic bytes
+      actualMimeType <- ExceptT $ do
+        either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-  -- Build upload result and move file
-  let uploadResult = buildUserAvatarUpload config userId originalName actualMimeType fileSize time seed
-      storagePath = uploadResultStoragePath uploadResult
+      -- Build upload result and move file
+      let uploadResult = buildUserAvatarUpload config userId originalName actualMimeType fileSize time seed
+          storagePath = uploadResultStoragePath uploadResult
 
-  liftIO $ do
-    createDirectoryIfMissing True (takeDirectory storagePath)
-    copyFile tempPath storagePath
+      liftIO $ do
+        createDirectoryIfMissing True (takeDirectory storagePath)
+        copyFile tempPath storagePath
 
-  pure uploadResult
+      pure (Just uploadResult)
 
 --------------------------------------------------------------------------------
 -- Helper functions
@@ -388,3 +407,11 @@ stripStorageRoot path =
    in case List.stripPrefix prefix path of
         Just relativePath -> Text.pack relativePath
         Nothing -> Text.pack path
+
+-- | Check if a file upload is empty (no file selected).
+--
+-- When a form has a file input but no file is selected, the browser sends
+-- an empty payload with content-type "application/octet-stream". This helper
+-- detects that case so handlers can skip processing.
+isEmptyUpload :: FileData Mem -> Bool
+isEmptyUpload fileData = BSL.null (fdPayload fileData)

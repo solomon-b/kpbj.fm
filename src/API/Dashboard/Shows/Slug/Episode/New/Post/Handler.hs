@@ -450,7 +450,8 @@ processFileUploads showSlug episodeSlug mScheduledDate status mAudioFile mArtwor
         Left err -> do
           Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err -- Invalid file provided, reject entire operation
-        Right uploadResult ->
+        Right Nothing -> pure $ Right Nothing -- No file selected
+        Right (Just uploadResult) ->
           pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   case (audioResult, artworkResult) of

@@ -416,7 +416,8 @@ processFileUploads showModel episode editForm = do
         Left err -> do
           Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err
-        Right uploadResult ->
+        Right Nothing -> pure $ Right Nothing -- No file selected
+        Right (Just uploadResult) ->
           pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   case (audioResult, artworkResult) of
