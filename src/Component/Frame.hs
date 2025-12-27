@@ -809,9 +809,6 @@ template mUser main =
                 -- Main player bar
                 Lucid.div_ [class_ $ base [Tokens.bgGray800, Tokens.px4, "py-3"]] mobileMusicPlayer
 
-        -- Script to display banner from URL params (runs after DOM is ready)
-        Lucid.script_ [] bannerFromUrlScript
-
 -- footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
 --   div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do
 --     div_ $ do

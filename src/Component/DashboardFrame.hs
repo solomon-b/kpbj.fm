@@ -13,6 +13,7 @@ where
 import API.Links (apiLinks, dashboardBlogsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardUsersLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
+import Component.Frame (bannerFromUrlScript)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Maybe (fromMaybe)
@@ -133,6 +134,8 @@ template userMeta allShows selectedShow activeNav statsContent actionButton main
             Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
           -- Main content (use same ID as main site for HTMX compatibility)
           Lucid.main_ [class_ $ base ["flex-1", Tokens.p8], Lucid.id_ "main-content"] main
+      -- Script to display banner from URL params (runs after DOM is ready)
+      Lucid.script_ [] bannerFromUrlScript
 
 -- | Left sidebar with navigation
 sidebar ::
