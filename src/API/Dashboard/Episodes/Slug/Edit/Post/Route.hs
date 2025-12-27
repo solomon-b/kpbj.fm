@@ -7,7 +7,6 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -147,7 +146,6 @@ type Route =
         :> Servant.Capture "episode_number" Episodes.EpisodeNumber
         :> "edit"
         :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
         :> MultipartForm Mem EpisodeEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
+        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )

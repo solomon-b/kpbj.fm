@@ -1,24 +1,22 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Get.Templates.Page qualified as EpisodesListPage
-import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form qualified as EditForm
 import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackInfo (..), parseStatus)
-import API.Links (dashboardEpisodesLinks)
+import API.Links (dashboardEpisodesLinks, userLinks)
 import API.Types
-import App.Common (getUserInfo, renderTemplate)
-import Component.Banner (BannerType (..), renderBanner)
+import App.Common (getUserInfo)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Either (fromRight, partitionEithers)
+import Data.Either (partitionEithers)
 import Data.Has (Has)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -29,9 +27,6 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Domain.Types.Limit (Limit (..))
-import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
@@ -57,8 +52,23 @@ import Text.Read (readMaybe)
 --------------------------------------------------------------------------------
 
 -- URL helpers
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
+
+userLoginGetUrlText :: Text
+userLoginGetUrlText = [i|/#{userLoginGetUrl}|]
+
 dashboardEpisodesUrl :: Slug -> Links.URI
 dashboardEpisodesUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
+
+dashboardEpisodesUrlText :: Slug -> Text
+dashboardEpisodesUrlText showSlug = [i|/#{dashboardEpisodesUrl showSlug}|]
+
+episodeEditUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeEditUrl showSlug episodeNum = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug episodeNum
+
+episodeEditUrlText :: Slug -> Episodes.EpisodeNumber -> Text
+episodeEditUrlText showSlug episodeNum = [i|/#{episodeEditUrl showSlug episodeNum}|]
 
 --------------------------------------------------------------------------------
 
@@ -92,87 +102,56 @@ handler ::
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
-  Maybe HxRequest ->
   EpisodeEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) editForm = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer showSlug episodeNumber cookie editForm = do
+  let editUrl = episodeEditUrlText showSlug episodeNumber
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized episode edit attempt" episodeNumber
-      let banner = renderBanner Error "Access Denied" "You must be logged in to edit episodes."
-      html <- renderTemplate hxRequest Nothing (banner :: Lucid.Html ())
-      pure $ Servant.noHeader html
+      let banner = BannerParams Error "Access Denied" "You must be logged in to edit episodes."
+      pure $ Servant.addHeader (buildRedirectUrl userLoginGetUrlText banner) (redirectWithBanner userLoginGetUrlText banner)
     Just (user, userMetadata) -> do
       -- Fetch the episode to verify it exists and check authorization
       execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
         Left err -> do
           Log.logAttention "getEpisodeByShowAndNumber execution error" (show err)
-          let banner = renderBanner Error "Episode Not Found" "The episode you're trying to update doesn't exist."
-          html <- renderTemplate hxRequest (Just userMetadata) banner
-          pure $ Servant.noHeader html
+          let banner = BannerParams Error "Episode Not Found" "The episode you're trying to update doesn't exist."
+          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
         Right Nothing -> do
           Log.logInfo_ $ "No episode: show='" <> display showSlug <> "' number=" <> display episodeNumber
-          let banner = renderBanner Error "Episode Not Found" "The episode you're trying to update doesn't exist."
-          html <- renderTemplate hxRequest (Just userMetadata) banner
-          pure $ Servant.noHeader html
+          let banner = BannerParams Error "Episode Not Found" "The episode you're trying to update doesn't exist."
+          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
         Right (Just episode) -> do
           -- Fetch show info
           execQuerySpan (Shows.getShowById episode.showId) >>= \case
             Left err -> do
               Log.logAttention "getShowById execution error" (show err)
-              let banner = renderBanner Error "Episode Not Found" "The episode's show was not found."
-              html <- renderTemplate hxRequest (Just userMetadata) banner
-              pure $ Servant.noHeader html
+              let banner = BannerParams Error "Episode Not Found" "The episode's show was not found."
+              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
             Right Nothing -> do
               Log.logInfo "Episode's show not found" episode.showId
-              let banner = renderBanner Error "Episode Not Found" "The episode's show was not found."
-              html <- renderTemplate hxRequest (Just userMetadata) banner
-              pure $ Servant.noHeader html
+              let banner = BannerParams Error "Episode Not Found" "The episode's show was not found."
+              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
             Right (Just showModel) -> do
               -- Check authorization - user must be creator, host, or staff+
               -- Admins don't need explicit host check since they have access to all shows
               if UserMetadata.isAdmin userMetadata.mUserRole
-                then updateEpisode hxRequest user userMetadata episode showModel editForm
+                then updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
                 else
                   execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id) >>= \case
                     Left err -> do
                       Log.logAttention "isUserHostOfShow execution error" (show err)
-                      currentTime <- liftIO getCurrentTime
-                      let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                      tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
-                      upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
-                      let tracks = fromRight [] tracksResult
-                          upcomingDates = fromRight [] upcomingDatesResult
-                          banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
-                      html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                        IsHxRequest -> do
-                          EditForm.template currentTime showModel episode tracks [] Nothing upcomingDates userMetadata isStaff
-                          banner
-                        IsNotHxRequest -> do
-                          banner
-                          EditForm.template currentTime showModel episode tracks [] Nothing upcomingDates userMetadata isStaff
-                      pure $ Servant.noHeader html
-                    Right True -> updateEpisode hxRequest user userMetadata episode showModel editForm
+                      let banner = BannerParams Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
+                      pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
+                    Right True -> updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
                     Right False ->
                       if UserMetadata.isStaffOrHigher userMetadata.mUserRole || episode.createdBy == user.mId
-                        then updateEpisode hxRequest user userMetadata episode showModel editForm
+                        then updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
                         else do
                           Log.logInfo "User attempted to edit episode they don't own" episode.id
-                          currentTime <- liftIO getCurrentTime
-                          let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                          tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
-                          upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
-                          let tracks = fromRight [] tracksResult
-                              upcomingDates = fromRight [] upcomingDatesResult
-                              banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
-                          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                            IsHxRequest -> do
-                              EditForm.template currentTime showModel episode tracks [] Nothing upcomingDates userMetadata isStaff
-                              banner
-                            IsNotHxRequest -> do
-                              banner
-                              EditForm.template currentTime showModel episode tracks [] Nothing upcomingDates userMetadata isStaff
-                          pure $ Servant.noHeader html
+                          let banner = BannerParams Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
+                          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
 
 -- | Check if the episode's scheduled date is in the future (allowing file uploads)
 isScheduledInFuture :: UTCTime -> Episodes.Model -> Bool
@@ -181,48 +160,6 @@ isScheduledInFuture now episode = episode.scheduledAt > now
 -- | Check if the episode's scheduled date has passed
 isScheduledInPast :: UTCTime -> Episodes.Model -> Bool
 isScheduledInPast now episode = episode.scheduledAt <= now
-
--- | Helper to render the edit form with an error banner
-renderFormWithError ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  HxRequest ->
-  UserMetadata.Model ->
-  Episodes.Model ->
-  Shows.Model ->
-  Text ->
-  Text ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-renderFormWithError hxRequest userMetadata episode showModel title message = do
-  currentTime <- liftIO getCurrentTime
-  let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-  tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
-  tagsResult <- execQuerySpan (Episodes.getTagsForEpisode episode.id)
-  upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
-  -- Fetch the schedule template for the current slot (for consistent display)
-  mCurrentTemplate <- execQuerySpan (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId)
-  let tracks = fromRight [] tracksResult
-      episodeTags = fromRight [] tagsResult
-      upcomingDates = fromRight [] upcomingDatesResult
-      mCurrentSlot = case mCurrentTemplate of
-        Right (Just scheduleTemplate) -> Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate episode.scheduledAt
-        _ -> Nothing
-      banner = renderBanner Error title message
-  html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-    IsHxRequest -> do
-      EditForm.template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
-      banner
-    IsNotHxRequest -> do
-      banner
-      EditForm.template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
-  pure $ Servant.noHeader html
 
 updateEpisode ::
   ( MonadDB m,
@@ -234,19 +171,22 @@ updateEpisode ::
     MonadIO m,
     Has HSQL.Pool.Pool env
   ) =>
-  HxRequest ->
+  Slug ->
+  Episodes.EpisodeNumber ->
   User.Model ->
   UserMetadata.Model ->
   Episodes.Model ->
   Shows.Model ->
   EpisodeEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-updateEpisode hxRequest _user userMetadata episode showModel editForm = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+updateEpisode showSlug episodeNumber _user userMetadata episode showModel editForm = do
+  let editUrl = episodeEditUrlText showSlug episodeNumber
   -- Parse and validate form data
   case parseStatus (eefStatus editForm) of
     Nothing -> do
       Log.logInfo "Invalid status in episode edit form" (eefStatus editForm)
-      renderFormWithError hxRequest userMetadata episode showModel "Invalid Status" "Invalid episode status value."
+      let banner = BannerParams Error "Invalid Status" "Invalid episode status value."
+      pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
     Just parsedStatus -> do
       -- Check if user is trying to change status on a past-scheduled episode
       currentTime <- liftIO getCurrentTime
@@ -258,7 +198,8 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
       if statusChanged && isPast && not isStaffOrAdmin
         then do
           Log.logInfo "Host attempted to change status on past episode" (episode.id, episode.status, parsedStatus)
-          renderFormWithError hxRequest userMetadata episode showModel "Status Change Not Allowed" "This episode's scheduled date has passed. Only staff or admin users can change the status of past episodes."
+          let banner = BannerParams Error "Status Change Not Allowed" "This episode's scheduled date has passed. Only staff or admin users can change the status of past episodes."
+          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
         else do
           -- Sanitize user input to prevent XSS attacks
           let sanitizedDescription = maybe "" Sanitize.sanitizeUserContent (eefDescription editForm)
@@ -267,7 +208,8 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
           case Sanitize.validateContentLength 10000 sanitizedDescription of
             Left descError -> do
               let errorMsg = Sanitize.displayContentValidationError descError
-              renderFormWithError hxRequest userMetadata episode showModel "Validation Error" errorMsg
+                  banner = BannerParams Error "Validation Error" errorMsg
+              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
             Right validDescription -> do
               -- Update episode metadata (basic update, doesn't change audio/artwork)
               let updateData =
@@ -281,10 +223,12 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
               execQuerySpan (Episodes.updateEpisode updateData) >>= \case
                 Left err -> do
                   Log.logInfo "Failed to update episode" (episode.id, show err)
-                  renderFormWithError hxRequest userMetadata episode showModel "Update Failed" "Database error occurred. Please try again."
+                  let banner = BannerParams Error "Update Failed" "Database error occurred. Please try again."
+                  pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
                 Right Nothing -> do
                   Log.logInfo "Episode update returned Nothing" episode.id
-                  renderFormWithError hxRequest userMetadata episode showModel "Update Failed" "Failed to update episode. Please try again."
+                  let banner = BannerParams Error "Update Failed" "Failed to update episode. Please try again."
+                  pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
                 Right (Just _updatedId) -> do
                   -- Check if file uploads are allowed (scheduled date is in the future OR user is staff/admin)
                   let allowFileUpload = isScheduledInFuture currentTime episode || isStaffOrAdmin
@@ -298,7 +242,8 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                   case fileUpdateResult of
                     Left fileErr -> do
                       Log.logInfo "Failed to upload files" (episode.id, fileErr)
-                      renderFormWithError hxRequest userMetadata episode showModel "File Upload Failed" ("Episode updated but file upload failed: " <> fileErr)
+                      let banner = BannerParams Error "File Upload Failed" ("Episode updated but file upload failed: " <> fileErr)
+                      pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
                     Right (mAudioPath, mArtworkPath) -> do
                       -- Update file paths in database if any files were uploaded
                       when (isJust mAudioPath || isJust mArtworkPath) $ do
@@ -351,15 +296,17 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
                                           pure $ Right ()
 
                       case scheduleUpdateResult of
-                        Left scheduleErr ->
-                          renderFormWithError hxRequest userMetadata episode showModel "Schedule Update Failed" scheduleErr
+                        Left scheduleErr -> do
+                          let banner = BannerParams Error "Schedule Update Failed" scheduleErr
+                          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
                         Right () -> do
                           -- Update tracks
                           updateTracksResult <- updateTracks episode.id (eefTracks editForm)
                           case updateTracksResult of
                             Left trackErr -> do
                               Log.logInfo "Failed to update tracks" (episode.id, trackErr)
-                              renderFormWithError hxRequest userMetadata episode showModel "Track Update Failed" ("Episode updated but track update failed: " <> trackErr)
+                              let banner = BannerParams Error "Track Update Failed" ("Episode updated but track update failed: " <> trackErr)
+                              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
                             Right _ -> do
                               -- Replace tags with new ones (single atomic query)
                               let tagNames = maybe [] parseTagList (eefTags editForm)
@@ -367,19 +314,10 @@ updateEpisode hxRequest _user userMetadata episode showModel editForm = do
 
                               -- Success! Redirect to dashboard episodes list with success banner
                               Log.logInfo "Successfully updated episode and tracks" episode.id
-                              -- Fetch all episodes for the show to display in the list
-                              episodesResult <- execQuerySpan (Episodes.getEpisodesForShowIncludingDrafts showModel.id (Limit 100) (Offset 0))
-                              let episodes = fromRight [] episodesResult
-                                  listUrl = dashboardEpisodesUrl showModel.slug
-                                  banner = renderBanner Success "Episode Updated" "Your episode has been updated successfully."
-                              html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                                IsHxRequest -> do
-                                  EpisodesListPage.template userMetadata (Just showModel) episodes 1 False
-                                  banner
-                                IsNotHxRequest -> do
-                                  banner
-                                  EpisodesListPage.template userMetadata (Just showModel) episodes 1 False
-                              pure $ Servant.addHeader [i|/#{listUrl}|] html
+                              let listUrl = dashboardEpisodesUrlText showModel.slug
+                                  banner = BannerParams Success "Episode Updated" "Your episode has been updated successfully."
+                                  redirectUrl = buildRedirectUrl listUrl banner
+                              pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
 
 -- | Process file uploads for episode editing
 processFileUploads ::

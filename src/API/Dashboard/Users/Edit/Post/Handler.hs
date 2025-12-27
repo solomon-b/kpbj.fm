@@ -1,26 +1,21 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Users.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Users.Detail.Get.Templates.Page qualified as DetailPage
 import API.Links (dashboardUsersLinks)
 import API.Types (DashboardUsersRoutes (..))
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..), renderBanner)
-import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
+import App.Common (getUserInfo)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Either (fromRight)
 import Data.Has (Has)
-import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -30,11 +25,8 @@ import Domain.Types.DisplayName qualified as DisplayName
 import Domain.Types.FileUpload qualified
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
-import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
-import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -50,7 +42,7 @@ import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile)
 
 --------------------------------------------------------------------------------
 
--- | URL for user detail page (redirect target on errors)
+-- | URL for user detail page (redirect target)
 userDetailUrl :: User.Id -> Text
 userDetailUrl userId =
   let uri = Links.linkURI $ dashboardUsersLinks.detail userId
@@ -71,16 +63,15 @@ handler ::
   Tracer ->
   User.Id ->
   Maybe Cookie ->
-  Maybe HxRequest ->
   MultipartData Mem ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer targetUserId cookie multipartData = do
   getUserInfo cookie >>= \case
     Nothing -> pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Login Required" "You must be logged in to edit users."))
     Just (_user, userMetadata)
       | not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata ->
           pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Admin Access Required" "You do not have permission to edit users."))
-    Just (user, userMetadata) -> do
+    Just (_user, _userMetadata) -> do
       -- Parse form fields
       let formInputs = inputs multipartData
 
@@ -137,36 +128,10 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
                   pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User metadata not found."))
                 Right (Just ()) -> do
                   Log.logInfo "User updated successfully" ()
-                  -- Fetch shows for sidebar (admins see all, staff see their assigned shows)
-                  showsResult <-
-                    if UserMetadata.isAdmin userMetadata.mUserRole
-                      then execQuerySpan Shows.getAllActiveShows
-                      else execQuerySpan (Shows.getShowsForUser (User.mId user))
-                  let allShows = fromRight [] showsResult
-                      selectedShow = listToMaybe allShows
-
-                  -- Fetch updated user data for detail page
-                  updatedUserData <- execTransactionSpan $ do
-                    maybeUser <- HT.statement () (User.getUser targetUserId)
-                    maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata targetUserId)
-                    shows' <- HT.statement () (Shows.getShowsForUser targetUserId)
-                    episodes <- HT.statement () (Episodes.getEpisodesByUser targetUserId 10 0)
-                    pure (maybeUser, maybeMetadata, shows', episodes)
-
-                  case updatedUserData of
-                    Left _err ->
-                      pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User updated but failed to load details."))
-                    Right (Nothing, _, _, _) ->
-                      pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User not found after update."))
-                    Right (_, Nothing, _, _) ->
-                      pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User metadata not found after update."))
-                    Right (Just updatedUser, Just updatedMetadata, shows', episodes) -> do
-                      let detailUrl = Links.linkURI $ dashboardUsersLinks.detail targetUserId
-                          pageContent = do
-                            DetailPage.template updatedUser updatedMetadata shows' episodes
-                            renderBanner Success "User Updated" "The user's information has been updated."
-                      html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing pageContent
-                      pure $ Servant.addHeader [i|/#{detailUrl}|] html
+                  let detailUrl = userDetailUrl targetUserId
+                      banner = BannerParams Success "User Updated" "The user's information has been updated."
+                      redirectUrl = buildRedirectUrl detailUrl banner
+                  pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
 
 extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.UserRole)
 extractFormFields inputs = do

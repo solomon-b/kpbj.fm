@@ -6,20 +6,17 @@ module API.Dashboard.Profile.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Profile.Edit.Get.Templates.Form qualified as ProfileForm
 import API.Links (dashboardLinks)
 import API.Types (DashboardRoutes (..))
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..), renderBanner)
-import Component.DashboardFrame (DashboardNav (..))
+import App.Common (getUserInfo)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Either (fromRight)
 import Data.Has (Has)
-import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -31,8 +28,7 @@ import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
-import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -45,6 +41,11 @@ import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile)
+
+--------------------------------------------------------------------------------
+
+profileEditGetUrl :: Links.URI
+profileEditGetUrl = Links.linkURI dashboardLinks.profileEditGet
 
 --------------------------------------------------------------------------------
 
@@ -62,20 +63,24 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   MultipartData Mem ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handler _tracer cookie (foldHxReq -> hxRequest) multipartData = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer cookie (foldHxReq -> _hxRequest) multipartData = do
   getUserInfo cookie >>= \case
-    Nothing -> pure $ Servant.noHeader (renderBanner Error "Login Required" "You must be logged in to update your profile.")
+    Nothing -> do
+      let banner = BannerParams Error "Login Required" "You must be logged in to update your profile."
+      pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
     Just (_user, userMetadata)
-      | isSuspended userMetadata ->
-          pure $ Servant.noHeader (renderBanner Error "Account Suspended" "Your account is suspended. You cannot update your profile.")
-    Just (user, userMetadata) -> do
+      | isSuspended userMetadata -> do
+          let banner = BannerParams Error "Account Suspended" "Your account is suspended. You cannot update your profile."
+          pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
+    Just (user, _userMetadata) -> do
       -- Parse form fields
       let formInputs = inputs multipartData
 
       case extractFormFields formInputs of
-        Left errorMsg ->
-          pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" errorMsg)
+        Left errorMsg -> do
+          let banner = BannerParams Error "Error Updating Profile" errorMsg
+          pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
         Right (newDisplayName, newFullName, newColorScheme) -> do
           -- Handle avatar upload if provided
           avatarUploadResult <- case lookupFile "avatar" multipartData of
@@ -90,8 +95,9 @@ handler _tracer cookie (foldHxReq -> hxRequest) multipartData = do
                    in pure (Right (Just (FileUpload.stripStorageRoot storagePath)))
 
           case avatarUploadResult of
-            Left errorMsg ->
-              pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" errorMsg)
+            Left errorMsg -> do
+              let banner = BannerParams Error "Error Updating Profile" errorMsg
+              pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
             Right maybeAvatarPath -> do
               -- Update user metadata in transaction
               updateResult <- execTransactionSpan $ do
@@ -118,34 +124,17 @@ handler _tracer cookie (foldHxReq -> hxRequest) multipartData = do
               case updateResult of
                 Left err -> do
                   Log.logInfo "Failed to update profile" (show err)
-                  pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" "Failed to update profile. Please try again.")
-                Right Nothing ->
-                  pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" "User metadata not found.")
+                  let banner = BannerParams Error "Error Updating Profile" "Failed to update profile. Please try again."
+                  pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
+                Right Nothing -> do
+                  let banner = BannerParams Error "Error Updating Profile" "User metadata not found."
+                  pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
                 Right (Just ()) -> do
                   Log.logInfo "Profile updated successfully" ()
-                  -- Fetch shows for sidebar
-                  showsResult <-
-                    if UserMetadata.isAdmin userMetadata.mUserRole
-                      then execQuerySpan Shows.getAllActiveShows
-                      else execQuerySpan (Shows.getShowsForUser (User.mId user))
-                  let allShows = fromRight [] showsResult
-                      selectedShow = listToMaybe allShows
-
-                  -- Fetch updated user data
-                  updatedMetadataResult <- execQuerySpan (UserMetadata.getUserMetadata (User.mId user))
-
-                  case updatedMetadataResult of
-                    Left _err ->
-                      pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" "Profile updated but failed to reload data.")
-                    Right Nothing ->
-                      pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" "Profile not found after update.")
-                    Right (Just updatedMetadata) -> do
-                      let editUrl = Links.linkURI dashboardLinks.profileEditGet
-                          pageContent = do
-                            ProfileForm.template user updatedMetadata
-                            renderBanner Success "Profile Updated" "Your profile has been updated successfully."
-                      html <- renderDashboardTemplate hxRequest updatedMetadata allShows selectedShow NavSettings Nothing Nothing pageContent
-                      pure $ Servant.addHeader [i|/#{editUrl}|] html
+                  let detailUrl = [i|/#{profileEditGetUrl}|] :: Text
+                      banner = BannerParams Success "Profile Updated" "Your profile has been updated successfully."
+                      redirectUrl = buildRedirectUrl detailUrl banner
+                  pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
 
 extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.ColorScheme)
 extractFormFields formInputs = do
