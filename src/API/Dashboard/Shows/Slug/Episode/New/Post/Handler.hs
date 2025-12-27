@@ -1,24 +1,20 @@
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Shows.Slug.Episode.New.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
 import API.Dashboard.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), TrackInfo (..))
-import API.Links (showEpisodesLinks)
-import API.Shows.Slug.Episode.Get.Templates.Page qualified as DetailPage
-import API.Types (ShowEpisodesRoutes (..))
-import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
-import Component.Banner (BannerType (..), renderBanner)
-import Component.DashboardFrame (DashboardNav (..))
+import API.Links (dashboardEpisodesLinks, dashboardShowsLinks, userLinks)
+import API.Types
+import App.Common (getUserInfo)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson qualified as Aeson
-import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
@@ -30,7 +26,6 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
@@ -58,39 +53,6 @@ import Utils (partitionEithers)
 
 --------------------------------------------------------------------------------
 
--- | Helper to render the new episode form with an error banner using dashboard frame
-renderFormWithError ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  HxRequest ->
-  UserMetadata.Model ->
-  [Shows.Model] ->
-  Shows.Model ->
-  Text ->
-  Text ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-renderFormWithError hxRequest userMetadata allShows showModel title message = do
-  -- Fetch upcoming dates for the form
-  upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id 4)
-  let upcomingDates = fromRight [] upcomingDatesResult
-      banner = renderBanner Error title message
-      formContent = case hxRequest of
-        IsHxRequest -> do
-          episodeUploadForm showModel upcomingDates
-          banner
-        IsNotHxRequest -> do
-          banner
-          episodeUploadForm showModel upcomingDates
-  html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing formContent
-  pure $ Servant.noHeader html
-
 handler ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -104,38 +66,38 @@ handler ::
   Tracer ->
   Slug ->
   Maybe Cookie ->
-  Maybe HxRequest ->
   EpisodeUploadForm ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer showSlug cookie form = do
+  let loginUri = Links.linkURI $ userLinks.loginGet Nothing Nothing
+      loginUrl = [i|/#{loginUri}|] :: Text
+      newEpisodeUri = Links.linkURI $ dashboardShowsLinks.episodeNewGet showSlug
+      newEpisodeUrl = [i|/#{newEpisodeUri}|] :: Text
   getUserInfo cookie >>= \case
     Nothing -> do
-      let banner = renderBanner Error "Login Required" "You must be logged in to upload episodes."
-      html <- renderTemplate hxRequest Nothing (banner :: Lucid.Html ())
-      pure $ Servant.noHeader html
+      let banner = BannerParams Error "Login Required" "You must be logged in to upload episodes."
+      pure $ Servant.addHeader (buildRedirectUrl loginUrl banner) (redirectWithBanner loginUrl banner)
     Just (user, userMetadata)
       | UserMetadata.isAdmin userMetadata.mUserRole -> do
           -- Admin user - fetch all shows
           execQuerySpan Shows.getAllActiveShows >>= \case
             Left _err -> do
               Log.logInfo "Failed to fetch shows for admin" ()
-              let banner = renderBanner Error "Error" "Failed to load shows."
-              html <- renderTemplate hxRequest (Just userMetadata) banner
-              pure $ Servant.noHeader html
-            Right allShows ->
-              processUploadForUser user userMetadata allShows showSlug hxRequest form
+              let banner = BannerParams Error "Error" "Failed to load shows."
+              pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
+            Right _allShows ->
+              processUploadForUser user userMetadata showSlug form
     Just (user, userMetadata) -> do
       -- Regular host - fetch their assigned shows
       execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
         Left _err -> do
           Log.logInfo "Failed to fetch shows for user" (User.mId user)
-          let banner = renderBanner Error "Error" "Failed to load your shows."
-          html <- renderTemplate hxRequest (Just userMetadata) banner
-          pure $ Servant.noHeader html
-        Right userShows ->
-          processUploadForUser user userMetadata userShows showSlug hxRequest form
+          let banner = BannerParams Error "Error" "Failed to load your shows."
+          pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
+        Right _userShows ->
+          processUploadForUser user userMetadata showSlug form
 
--- | Process upload for an authenticated user with their shows list
+-- | Process upload for an authenticated user
 processUploadForUser ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -148,27 +110,23 @@ processUploadForUser ::
   ) =>
   User.Model ->
   UserMetadata.Model ->
-  [Shows.Model] ->
   Slug ->
-  HxRequest ->
   EpisodeUploadForm ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-processUploadForUser user userMetadata allShows showSlug hxRequest form = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+processUploadForUser user userMetadata showSlug form = do
+  let newEpisodeUri = Links.linkURI $ dashboardShowsLinks.episodeNewGet showSlug
+      newEpisodeUrl = [i|/#{newEpisodeUri}|] :: Text
   -- Verify show exists
   showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
   case showResult of
     Left _err -> do
       Log.logInfo "Failed to fetch show" showSlug
-      let banner = renderBanner Error "Error" "Failed to load show information."
-          content = banner :: Lucid.Html ()
-      html <- renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes Nothing Nothing content
-      pure $ Servant.noHeader html
+      let banner = BannerParams Error "Error" "Failed to load show information."
+      pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
     Right Nothing -> do
       Log.logInfo "Show not found" showSlug
-      let banner = renderBanner Error "Error" "Show not found."
-          content = banner :: Lucid.Html ()
-      html <- renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes Nothing Nothing content
-      pure $ Servant.noHeader html
+      let banner = BannerParams Error "Error" "Show not found."
+      pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
     Right (Just showModel) -> do
       -- Verify user is host (admins can upload to any show)
       isAuthorized <-
@@ -178,62 +136,50 @@ processUploadForUser user userMetadata allShows showSlug hxRequest form = do
       case isAuthorized of
         Left _err -> do
           Log.logInfo "Failed to check host permissions" showSlug
-          renderFormWithError hxRequest userMetadata allShows showModel "Error" "Failed to verify permissions."
+          let banner = BannerParams Error "Error" "Failed to verify permissions."
+          pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
         Right True | not (UserMetadata.isSuspended userMetadata) -> do
           processEpisodeUpload userMetadata user form >>= \case
             Left err -> do
               Log.logInfo "Episode upload failed" err
-              renderFormWithError hxRequest userMetadata allShows showModel "Upload Failed" err
+              let banner = BannerParams Error "Upload Failed" err
+              pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
             Right episodeId -> do
               Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
-              handleUploadSuccess hxRequest userMetadata allShows showModel episodeId
+              handleUploadSuccess showModel episodeId
         Right _ -> do
           Log.logInfo "User is not host of show" (user.mId, showSlug)
-          renderFormWithError hxRequest userMetadata allShows showModel "Permission Denied" "You are not authorized to upload episodes for this show."
+          let banner = BannerParams Error "Permission Denied" "You are not authorized to upload episodes for this show."
+          pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
 
 -- | Handle successful upload by redirecting to episode page with banner
 handleUploadSuccess ::
-  ( Has Tracer env,
-    Log.MonadLog m,
+  ( Log.MonadLog m,
+    MonadDB m,
     MonadReader env m,
     MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has Tracer env
   ) =>
-  HxRequest ->
-  UserMetadata.Model ->
-  [Shows.Model] ->
   Shows.Model ->
   Episodes.Id ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handleUploadSuccess hxRequest userMetadata allShows showModel episodeId = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handleUploadSuccess showModel episodeId = do
   -- Fetch the created episode
   execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
     Right (Just episode) -> do
-      -- Fetch tracks for the episode
-      tracksResult <- execQuerySpan (EpisodeTracks.getTracksForEpisode episodeId)
-      let tracks = fromRight [] tracksResult
-          detailUrl = Links.linkURI $ showEpisodesLinks.detail showModel.slug episode.episodeNumber
-          banner = renderBanner Success "Episode Uploaded" "Your episode has been uploaded successfully."
-          -- Dashboard users (hosts/staff/admin) can always view drafts
-          canViewDrafts = True
-          content = case hxRequest of
-            IsHxRequest -> do
-              DetailPage.template showModel episode tracks canViewDrafts
-              banner
-            IsNotHxRequest -> do
-              banner
-              DetailPage.template showModel episode tracks canViewDrafts
-      html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing content
-      pure $ Servant.addHeader [i|/#{detailUrl}|] html
+      let detailLinkUri = Links.linkURI $ dashboardEpisodesLinks.detail showModel.slug episode.episodeNumber
+          detailUrl = [i|/#{detailLinkUri}|] :: Text
+          banner = BannerParams Success "Episode Uploaded" "Your episode has been uploaded successfully."
+          redirectUrl = buildRedirectUrl detailUrl banner
+      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
     _ -> do
       Log.logInfo_ "Created episode but failed to retrieve it"
-      let banner = renderBanner Warning "Episode Created" "Episode was created successfully, but there was an error displaying the confirmation."
-          content = banner :: Lucid.Html ()
-      html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing content
-      pure $ Servant.noHeader html
+      let showListUri = Links.linkURI $ dashboardEpisodesLinks.list showModel.slug Nothing
+          showListUrl = [i|/#{showListUri}|] :: Text
+          banner = BannerParams Warning "Episode Created" "Episode was created but there was an error loading details."
+          redirectUrl = buildRedirectUrl showListUrl banner
+      pure $ Servant.addHeader redirectUrl (redirectWithBanner showListUrl banner)
 
 -- | Process episode upload form
 processEpisodeUpload ::
@@ -250,8 +196,6 @@ processEpisodeUpload ::
   EpisodeUploadForm ->
   m (Either Text Episodes.Id)
 processEpisodeUpload userMetadata user form = do
-  _currentTime <- liftIO getCurrentTime
-
   -- Debug logging for duration
   Log.logInfo "Duration from form" (Text.pack $ show $ eufDurationSeconds form)
 
@@ -262,9 +206,7 @@ processEpisodeUpload userMetadata user form = do
       let showId = Shows.Id showIdInt
 
       -- Look up show to get slug
-      showResult <- execQuerySpan (Shows.getShowById showId)
-
-      case showResult of
+      execQuerySpan (Shows.getShowById showId) >>= \case
         Left _err -> pure $ Left "Database error looking up show"
         Right Nothing -> pure $ Left "Show not found"
         Right (Just showModel) -> do

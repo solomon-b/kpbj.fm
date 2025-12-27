@@ -6,7 +6,6 @@ import Data.Foldable (fold)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Observability qualified as Observability
@@ -26,9 +25,8 @@ type Route =
         :> Servant.Capture "show_slug" Slug
         :> "new"
         :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
         :> Servant.ReqBody '[Servant.FormUrlEncoded] NewShowBlogPostForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
+        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------

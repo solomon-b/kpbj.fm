@@ -3,6 +3,7 @@
 module Component.Redirect
   ( redirectTemplate,
     redirectWithBanner,
+    buildRedirectUrl,
     BannerParams (..),
   )
 where
@@ -36,12 +37,11 @@ data BannerParams = BannerParams
     bpMessage :: Text
   }
 
--- | Redirect with banner parameters encoded in the URL
+-- | Build a redirect URL with banner parameters encoded as query params
 --
--- Appends query parameters that Component.Frame will read on page load
--- to display a notification banner.
-redirectWithBanner :: Text -> BannerParams -> Lucid.Html ()
-redirectWithBanner baseUrl BannerParams {..} = do
+-- Use this to create the URL for the HX-Redirect header.
+buildRedirectUrl :: Text -> BannerParams -> Text
+buildRedirectUrl baseUrl BannerParams {..} =
   let bannerTypeParam :: Text
       bannerTypeParam = case bpType of
         Success -> "success"
@@ -52,8 +52,15 @@ redirectWithBanner baseUrl BannerParams {..} = do
       encodedMessage = urlEncodeText bpMessage
       separator :: Text
       separator = if Text.isInfixOf "?" baseUrl then "&" else "?"
-      fullUrl :: Text
-      fullUrl = [i|#{baseUrl}#{separator}_banner=#{bannerTypeParam}&_title=#{encodedTitle}&_msg=#{encodedMessage}|]
+   in [i|#{baseUrl}#{separator}_banner=#{bannerTypeParam}&_title=#{encodedTitle}&_msg=#{encodedMessage}|]
+
+-- | Redirect with banner parameters encoded in the URL
+--
+-- Appends query parameters that Component.Frame will read on page load
+-- to display a notification banner.
+redirectWithBanner :: Text -> BannerParams -> Lucid.Html ()
+redirectWithBanner baseUrl bannerParams = do
+  let fullUrl = buildRedirectUrl baseUrl bannerParams
   Lucid.meta_ [Lucid.httpEquiv_ "refresh", Lucid.content_ [i|0;url=#{fullUrl}|]]
   Lucid.p_ "Redirecting..."
 

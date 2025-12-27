@@ -7,7 +7,6 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -31,9 +30,8 @@ type Route =
         :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
         :> MultipartForm Mem BlogEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
+        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )
 
 --------------------------------------------------------------------------------

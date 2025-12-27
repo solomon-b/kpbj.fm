@@ -1,19 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Shows.Slug.Edit.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form qualified as EditForm
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..), ShowEditForm (..))
 import API.Links (apiLinks, dashboardShowsLinks, userLinks)
 import API.Types
-import App.Common (getUserInfo, renderDashboardTemplate)
+import App.Common (getUserInfo)
 import Component.Banner (BannerType (..))
-import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Applicative ((<|>))
 import Control.Monad (forM_, when)
 import Control.Monad.Catch (MonadCatch)
@@ -21,10 +18,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Aeson qualified as Aeson
-import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -35,7 +30,6 @@ import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.Database.Class (MonadDB)
@@ -71,6 +65,11 @@ dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing 
 
 dashboardShowDetailUrl :: Shows.Id -> Slug -> Links.URI
 dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail showId slug Nothing
+
+dashboardShowEditGetUrl :: Slug -> Text
+dashboardShowEditGetUrl slug =
+  let uri = Links.linkURI $ dashboardShowsLinks.editGet slug
+   in [i|/#{uri}|]
 
 -- | Parse show status from text
 parseStatus :: Text -> Maybe Shows.Status
@@ -136,10 +135,9 @@ handler ::
   Tracer ->
   Slug ->
   Maybe Cookie ->
-  Maybe HxRequest ->
   ShowEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
+handler _tracer slug cookie editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized show edit attempt" slug
@@ -172,15 +170,8 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) editForm = do
                   Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
                   let banner = BannerParams Warning "Not Found" "The show you're trying to update doesn't exist."
                   pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
-                Right (Just showModel) -> do
-                  -- Fetch sidebar shows for dashboard rendering on errors
-                  sidebarShowsResult <-
-                    if UserMetadata.isAdmin userMetadata.mUserRole
-                      then execQuerySpan Shows.getAllActiveShows
-                      else execQuerySpan (Shows.getShowsForUser user.mId)
-                  let sidebarShows = fromRight [] sidebarShowsResult
-                      selectedShow = Just showModel
-                  updateShow hxRequest user userMetadata showModel sidebarShows selectedShow editForm
+                Right (Just showModel) ->
+                  updateShow userMetadata showModel editForm
 
 updateShow ::
   ( MonadDB m,
@@ -192,23 +183,20 @@ updateShow ::
     MonadIO m,
     Has HSQL.Pool.Pool env
   ) =>
-  HxRequest ->
-  User.Model ->
   UserMetadata.Model ->
   Shows.Model ->
-  [Shows.Model] ->
-  Maybe Shows.Model ->
   ShowEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow editForm = do
+updateShow userMetadata showModel editForm = do
   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+      editUrl = dashboardShowEditGetUrl showModel.slug
 
   -- Parse and validate form data
   case parseStatus (sefStatus editForm) of
     Nothing -> do
       Log.logInfo "Invalid status in show edit form" (sefStatus editForm)
       let banner = BannerParams Error "Validation Error" "Invalid show status value."
-      pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
+      pure (Servant.noHeader (redirectWithBanner editUrl banner))
     Just parsedStatus -> do
       -- If not staff, preserve original schedule/settings values
       let finalStatus = if isStaff then parsedStatus else showModel.status
@@ -223,7 +211,7 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
         Left uploadErr -> do
           Log.logInfo "Failed to upload show artwork" uploadErr
           let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
-          pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
+          pure (Servant.noHeader (redirectWithBanner editUrl banner))
         Right (mLogoPath, mBannerPath) -> do
           -- Use new uploaded files if provided, otherwise keep existing values
           let finalLogoUrl = mLogoPath <|> showModel.logoUrl
@@ -244,11 +232,11 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
             Left err -> do
               Log.logInfo "Failed to update show" (showModel.id, show err)
               let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
-              pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
+              pure (Servant.noHeader (redirectWithBanner editUrl banner))
             Right Nothing -> do
               Log.logInfo "Show update returned Nothing" showModel.id
               let banner = BannerParams Error "Update Failed" "Failed to update show. Please try again."
-              pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
+              pure (Servant.noHeader (redirectWithBanner editUrl banner))
             Right (Just _updatedId) -> do
               Log.logInfo "Successfully updated show" showModel.id
               -- Process tags: clear existing and add new ones
@@ -258,36 +246,16 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
                 then case parseSchedules (sefSchedulesJson editForm) of
                   Left err -> do
                     Log.logInfo "Schedule validation failed" err
-                    -- Re-render form with error banner, preserving user's submitted schedules
-                    let updatedShowModel = showModel {Shows.title = sefTitle editForm, Shows.description = sefDescription editForm, Shows.slug = generatedSlug, Shows.status = finalStatus, Shows.logoUrl = finalLogoUrl, Shows.bannerUrl = finalBannerUrl}
-                        -- Use the submitted JSON so user sees what they tried to submit
-                        submittedSchedulesJson = fromMaybe "[]" (sefSchedulesJson editForm)
-                        submittedHostIds = Set.fromList (sefHosts editForm)
-                        submittedTags = fromMaybe "" (sefTags editForm)
-                        banner = BannerParams Error "Schedule Error" err
-                    -- Refetch eligible hosts for the form
-                    eligibleHosts <- fetchEligibleHosts
-                    let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds submittedTags
-                    html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows Nothing Nothing (renderBannerHtml banner <> editTemplate)
-                    pure $ Servant.noHeader html
+                    let banner = BannerParams Error "Schedule Error" err
+                    pure (Servant.noHeader (redirectWithBanner editUrl banner))
                   Right schedules -> do
                     -- Check for conflicts with other shows
                     conflictCheck <- checkScheduleConflicts showModel.id schedules
                     case conflictCheck of
                       Left conflictErr -> do
                         Log.logInfo "Schedule conflict with other show" conflictErr
-                        -- Re-render form with error banner, preserving user's submitted schedules
-                        let updatedShowModel = showModel {Shows.title = sefTitle editForm, Shows.description = sefDescription editForm, Shows.slug = generatedSlug, Shows.status = finalStatus, Shows.logoUrl = finalLogoUrl, Shows.bannerUrl = finalBannerUrl}
-                            -- Use the submitted JSON so user sees what they tried to submit
-                            submittedSchedulesJson = fromMaybe "[]" (sefSchedulesJson editForm)
-                            submittedHostIds = Set.fromList (sefHosts editForm)
-                            submittedTags = fromMaybe "" (sefTags editForm)
-                            banner = BannerParams Error "Schedule Conflict" conflictErr
-                        -- Refetch eligible hosts for the form
-                        eligibleHosts <- fetchEligibleHosts
-                        let editTemplate = EditForm.template updatedShowModel userMetadata True submittedSchedulesJson eligibleHosts submittedHostIds submittedTags
-                        html <- renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows Nothing Nothing (renderBannerHtml banner <> editTemplate)
-                        pure $ Servant.noHeader html
+                        let banner = BannerParams Error "Schedule Conflict" conflictErr
+                        pure (Servant.noHeader (redirectWithBanner editUrl banner))
                       Right () -> do
                         -- Update schedules
                         updateSchedulesForShow showModel.id schedules
@@ -296,18 +264,6 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
                         redirectToShowPage showModel.id generatedSlug
                 else redirectToShowPage showModel.id generatedSlug
   where
-    -- Render banner as HTML
-    renderBannerHtml :: BannerParams -> Lucid.Html ()
-    renderBannerHtml BannerParams {..} =
-      let bgColor = case bpType of
-            Success -> "bg-green-100 border-green-600 text-green-800"
-            Error -> "bg-red-100 border-red-600 text-red-800"
-            Warning -> "bg-yellow-100 border-yellow-600 text-yellow-800"
-            Info -> "bg-blue-100 border-blue-600 text-blue-800"
-       in Lucid.div_ [Lucid.class_ ("border-2 p-4 mb-4 " <> bgColor)] $ do
-            Lucid.strong_ $ Lucid.toHtml bpTitle
-            Lucid.span_ [Lucid.class_ "ml-2"] $ Lucid.toHtml bpMessage
-
     -- Redirect to the dashboard show detail page with a success banner
     redirectToShowPage :: (MonadIO m) => Shows.Id -> Slug -> m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     redirectToShowPage showId newSlug = do
@@ -321,17 +277,6 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
           -- Build the full URL with banner params for the HX-Redirect header
           redirectUrl = buildRedirectUrl showUrl bannerParams
       pure $ Servant.addHeader redirectUrl (redirectWithBanner showUrl bannerParams)
-
-    -- Build URL with banner query params
-    buildRedirectUrl :: Text -> BannerParams -> Text
-    buildRedirectUrl baseUrl BannerParams {..} =
-      let bannerTypeParam :: Text
-          bannerTypeParam = case bpType of
-            Success -> "success"
-            Error -> "error"
-            Warning -> "warning"
-            Info -> "info"
-       in [i|#{baseUrl}?_banner=#{bannerTypeParam}&_title=#{bpTitle}&_msg=#{bpMessage}|]
 
 --------------------------------------------------------------------------------
 -- Schedule Update Helpers
@@ -547,22 +492,6 @@ updateSchedulesForShow showId newSchedules = do
 
 --------------------------------------------------------------------------------
 -- Host Update Helpers
-
--- | Fetch all eligible hosts for the form (all users)
-fetchEligibleHosts ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has Tracer env
-  ) =>
-  m [UserMetadata.UserWithMetadata]
-fetchEligibleHosts =
-  execQuerySpan (UserMetadata.getAllUsersWithPagination 1000 0) >>= \case
-    Left err -> do
-      Log.logInfo "Failed to fetch eligible hosts" (show err)
-      pure []
-    Right hosts -> pure hosts
 
 -- | Update hosts for a show
 --

@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Shows.New.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..), ScheduleSlotInfo (..))
-import API.Links (apiLinks, dashboardShowsLinks, showsLinks, userLinks)
+import API.Links (apiLinks, dashboardShowsLinks, userLinks)
 import API.Types
-import App.Common (getUserInfo, renderTemplate)
-import Component.Banner (BannerType (..), renderBanner)
+import App.Common (getUserInfo)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (forM_, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -27,7 +27,6 @@ import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
@@ -44,7 +43,6 @@ import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
@@ -59,98 +57,14 @@ dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing 
 dashboardShowsNewGetUrl :: Links.URI
 dashboardShowsNewGetUrl = Links.linkURI dashboardShowsLinks.newGet
 
+dashboardShowDetailUrl :: Shows.Id -> Slug.Slug -> Links.URI
+dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail showId slug Nothing
+
 rootGetUrl :: Links.URI
 rootGetUrl = Links.linkURI apiLinks.rootGet
 
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
-
---------------------------------------------------------------------------------
-
--- | Error template
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Error Creating Show"
-    Lucid.p_ [Lucid.class_ "mb-6 text-red-700"] $ Lucid.toHtml errorMsg
-
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardShowsNewGetUrl}|],
-          hxGet_ [i|/#{dashboardShowsNewGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-        ]
-        "TRY AGAIN"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardShowsGetUrl}|],
-          hxGet_ [i|/#{dashboardShowsGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
-        ]
-        "BACK TO SHOWS"
-
--- | Login required template
-loginRequiredTemplate :: Lucid.Html ()
-loginRequiredTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Login Required"
-    Lucid.p_ [Lucid.class_ "mb-4"] "You must be logged in to create shows."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{userLoginGetUrl}|],
-        hxGet_ [i|/#{userLoginGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-      ]
-      "LOGIN"
-
--- | Permission denied template
-permissionDeniedTemplate :: Lucid.Html ()
-permissionDeniedTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Permission Denied"
-    Lucid.p_ [Lucid.class_ "mb-4"] "Only Admin users can create shows."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{rootGetUrl}|],
-        hxGet_ [i|/#{rootGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-      ]
-      "BACK TO HOME"
-
--- | Success template showing the created show
-successTemplate :: Shows.Model -> Lucid.Html ()
-successTemplate theShow = do
-  let showTitle = theShow.title
-      showDescription = theShow.description
-      showDetailUrl = Links.linkURI $ showsLinks.detail theShow.slug Nothing
-  renderBanner Success "Show Created" [i|"#{showTitle}" has been created successfully.|]
-
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
-    Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-4"] $ Lucid.toHtml showTitle
-    Lucid.p_ [Lucid.class_ "text-gray-600 mb-4"] $ Lucid.toHtml showDescription
-
-    Lucid.div_ [Lucid.class_ "flex gap-4"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showDetailUrl}|],
-          hxGet_ [i|/#{showDetailUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-        ]
-        "VIEW SHOW"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardShowsGetUrl}|],
-          hxGet_ [i|/#{dashboardShowsGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-300 text-gray-800 px-6 py-3 font-bold hover:bg-gray-400"
-        ]
-        "BACK TO SHOWS"
 
 --------------------------------------------------------------------------------
 
@@ -166,22 +80,25 @@ handler ::
   ) =>
   Tracer ->
   Maybe Cookie ->
-  Maybe HxRequest ->
   NewShowForm ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handler _tracer cookie (foldHxReq -> hxRequest) form = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer cookie form = do
   getUserInfo cookie >>= \case
-    Nothing ->
-      Servant.noHeader <$> renderTemplate hxRequest Nothing loginRequiredTemplate
+    Nothing -> do
+      let banner = BannerParams Error "Login Required" "You must be logged in to create shows."
+      pure $ Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
     Just (_user, userMetadata) ->
       if not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata
-        then Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) permissionDeniedTemplate
+        then do
+          let banner = BannerParams Error "Permission Denied" "Only Admin users can create shows."
+          pure $ Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner)
         else case validateNewShow form of
           Left validationError -> do
             Log.logInfo "Show creation failed validation" (Aeson.object ["error" .= validationError])
-            Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate validationError)
+            let banner = BannerParams Error "Validation Error" validationError
+            pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
           Right showData ->
-            handleShowCreation hxRequest userMetadata showData form
+            handleShowCreation showData form
 
 -- | Validate and convert form data to show insert data (without file paths yet)
 validateNewShow :: NewShowForm -> Either Text Shows.Insert
@@ -266,17 +183,16 @@ handleShowCreation ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  HxRequest ->
-  UserMetadata.Model ->
   Shows.Insert ->
   NewShowForm ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handleShowCreation hxRequest userMetadata showData form = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handleShowCreation showData form = do
   -- Parse schedules first to check for conflicts before creating the show
   case parseSchedules (nsfSchedulesJson form) of
     Left err -> do
       Log.logInfo "Failed to parse schedules" (Aeson.object ["error" .= err])
-      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "Invalid schedule data: " <> err)
+      let banner = BannerParams Error "Invalid Schedule" ("Invalid schedule data: " <> err)
+      pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
     Right schedules -> do
       -- Check for schedule conflicts before creating the show
       -- Use Shows.Id 0 as placeholder since the show doesn't exist yet
@@ -285,7 +201,8 @@ handleShowCreation hxRequest userMetadata showData form = do
       case conflictResult of
         Left conflictErr -> do
           Log.logInfo "Schedule conflict detected" (Aeson.object ["error" .= conflictErr])
-          Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate conflictErr)
+          let banner = BannerParams Error "Schedule Conflict" conflictErr
+          pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
         Right () -> do
           -- No conflicts, proceed with file uploads
           uploadResults <- processShowArtworkUploads showData.siSlug (nsfLogoFile form) (nsfBannerFile form)
@@ -293,7 +210,8 @@ handleShowCreation hxRequest userMetadata showData form = do
           case uploadResults of
             Left uploadErr -> do
               Log.logInfo "Failed to upload show artwork" uploadErr
-              Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate $ "File upload error: " <> uploadErr)
+              let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
+              pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
             Right (mLogoPath, mBannerPath) -> do
               -- Update show data with file paths
               let finalShowData =
@@ -305,7 +223,8 @@ handleShowCreation hxRequest userMetadata showData form = do
               execQuerySpan (Shows.insertShow finalShowData) >>= \case
                 Left dbError -> do
                   Log.logInfo "Database error creating show" (Aeson.object ["error" .= Text.pack (show dbError)])
-                  Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Database error occurred. Please try again.")
+                  let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
+                  pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
                 Right showId -> do
                   -- Assign hosts to the show
                   assignHostsToShow showId (nsfHosts form)
@@ -320,12 +239,17 @@ handleShowCreation hxRequest userMetadata showData form = do
                   execQuerySpan (Shows.getShowById showId) >>= \case
                     Right (Just createdShow) -> do
                       Log.logInfo "Successfully created show" (Aeson.object ["title" .= Shows.siTitle finalShowData, "id" .= show showId])
-                      let detailUrl = Links.linkURI $ apiLinks.shows.detail createdShow.slug Nothing
-                      html <- renderTemplate hxRequest (Just userMetadata) (successTemplate createdShow)
-                      pure $ Servant.addHeader [i|/#{detailUrl}|] html
+                      let showSlug = createdShow.slug
+                          showTitle = createdShow.title
+                          detailLink = dashboardShowDetailUrl showId showSlug
+                          detailUrl = [i|/#{detailLink}|] :: Text
+                          banner = BannerParams Success "Show Created" [i|"#{showTitle}" has been created successfully.|]
+                          redirectUrl = buildRedirectUrl detailUrl banner
+                      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
                     _ -> do
                       Log.logInfo_ "Created show but failed to retrieve it"
-                      Servant.noHeader <$> renderTemplate hxRequest (Just userMetadata) (errorTemplate "Show was created but there was an error displaying the confirmation.")
+                      let banner = BannerParams Error "Error" "Show was created but there was an error displaying the confirmation."
+                      pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
 
 -- | Assign hosts to a show and auto-promote regular users to Host role
 assignHostsToShow ::

@@ -1,44 +1,34 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Redundant <$>" #-}
 
 module API.Dashboard.Events.Slug.Edit.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Events.Slug.Edit.Post.Route (EventEditForm (..), parseDateTime, parseStatus)
-import API.Dashboard.Events.Slug.Get.Templates.Page qualified as DetailPage
 import API.Links (apiLinks, dashboardEventsLinks, userLinks)
 import API.Types (DashboardEventsRoutes (..), Routes (..), UserRoutes (..))
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..), renderBanner)
-import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
+import App.Common (getUserInfo)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
-import Data.Either (fromRight)
 import Data.Has (Has)
-import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -59,6 +49,14 @@ rootGetUrl = Links.linkURI apiLinks.rootGet
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
+eventsListUrl :: Links.URI
+eventsListUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
+
+eventsEditGetUrl :: Events.Id -> Slug -> Text
+eventsEditGetUrl eid slug =
+  let uri = Links.linkURI $ dashboardEventsLinks.editGet eid slug
+   in [i|/#{uri}|]
+
 --------------------------------------------------------------------------------
 
 handler ::
@@ -75,28 +73,19 @@ handler ::
   Events.Id ->
   Slug ->
   Maybe Cookie ->
-  Maybe HxRequest ->
   EventEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer eventId slug cookie editForm = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized event edit attempt" eventId
       let banner = BannerParams Error "Login Required" "You must be logged in to edit events."
-      Servant.noHeader <$> pure (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
+      pure $ Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
     Just (_user, userMetadata)
       | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
           let banner = BannerParams Error "Staff Access Required" "You do not have permission to edit events."
-          Servant.noHeader <$> pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+          pure $ Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner)
     Just (user, userMetadata) -> do
-      -- Fetch shows for sidebar
-      showsResult <-
-        if UserMetadata.isAdmin userMetadata.mUserRole
-          then execQuerySpan Shows.getAllActiveShows
-          else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = fromRight [] showsResult
-          selectedShow = listToMaybe allShows
-
       mResult <- execTransactionSpan $ runMaybeT $ do
         event <- MaybeT $ HT.statement () (Events.getEventById eventId)
         MaybeT $ pure $ Just event
@@ -104,16 +93,19 @@ handler _tracer eventId _slug cookie (foldHxReq -> hxRequest) editForm = do
       case mResult of
         Left err -> do
           Log.logAttention "getEventById execution error" (show err)
-          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Warning "Event Not Found" "The event you're trying to update doesn't exist.")
+          let banner = BannerParams Warning "Event Not Found" "The event you're trying to update doesn't exist."
+          pure $ Servant.noHeader (redirectWithBanner [i|/#{eventsListUrl}|] banner)
         Right Nothing -> do
           Log.logInfo "No event found with id" eventId
-          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Warning "Event Not Found" "The event you're trying to update doesn't exist.")
+          let banner = BannerParams Warning "Event Not Found" "The event you're trying to update doesn't exist."
+          pure $ Servant.noHeader (redirectWithBanner [i|/#{eventsListUrl}|] banner)
         Right (Just event) ->
           if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-            then updateEvent hxRequest userMetadata allShows selectedShow event editForm
+            then updateEvent eventId slug event editForm
             else do
               Log.logInfo "User attempted to edit event they don't own" event.emId
-              Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Access Denied" "You can only edit events you created or have staff permissions.")
+              let banner = BannerParams Error "Access Denied" "You can only edit events you created or have staff permissions."
+              pure $ Servant.noHeader (redirectWithBanner [i|/#{eventsListUrl}|] banner)
 
 updateEvent ::
   ( MonadDB m,
@@ -123,25 +115,27 @@ updateEvent ::
     MonadUnliftIO m,
     MonadCatch m
   ) =>
-  HxRequest ->
-  UserMetadata.Model ->
-  [Shows.Model] ->
-  Maybe Shows.Model ->
+  Events.Id ->
+  Slug ->
   Events.Model ->
   EventEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
-updateEvent hxRequest userMetadata allShows selectedShow event editForm = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+updateEvent eventId slug event editForm = do
+  let editUrl = eventsEditGetUrl eventId slug
   -- Parse and validate form data
   case (parseStatus (eefStatus editForm), parseDateTime (eefStartsAt editForm), parseDateTime (eefEndsAt editForm)) of
     (Nothing, _, _) -> do
       Log.logInfo "Invalid status in event edit form" (eefStatus editForm)
-      Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Invalid event status value.")
+      let banner = BannerParams Error "Update Failed" "Invalid event status value."
+      pure $ Servant.noHeader (redirectWithBanner editUrl banner)
     (_, Nothing, _) -> do
       Log.logInfo "Invalid starts_at datetime in event edit form" (eefStartsAt editForm)
-      Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Invalid start date/time format.")
+      let banner = BannerParams Error "Update Failed" "Invalid start date/time format."
+      pure $ Servant.noHeader (redirectWithBanner editUrl banner)
     (_, _, Nothing) -> do
       Log.logInfo "Invalid ends_at datetime in event edit form" (eefEndsAt editForm)
-      Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Invalid end date/time format.")
+      let banner = BannerParams Error "Update Failed" "Invalid end date/time format."
+      pure $ Servant.noHeader (redirectWithBanner editUrl banner)
     (Just parsedStatus, Just parsedStartsAt, Just parsedEndsAt) -> do
       -- Sanitize user input to prevent XSS attacks
       let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
@@ -157,16 +151,20 @@ updateEvent hxRequest userMetadata allShows selectedShow event editForm = do
            ) of
         (Left titleError, _, _, _) -> do
           let errorMsg = Sanitize.displayContentValidationError titleError
-          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" errorMsg)
+              banner = BannerParams Error "Update Failed" errorMsg
+          pure $ Servant.noHeader (redirectWithBanner editUrl banner)
         (_, Left descError, _, _) -> do
           let errorMsg = Sanitize.displayContentValidationError descError
-          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" errorMsg)
+              banner = BannerParams Error "Update Failed" errorMsg
+          pure $ Servant.noHeader (redirectWithBanner editUrl banner)
         (_, _, Left nameError, _) -> do
           let errorMsg = Sanitize.displayContentValidationError nameError
-          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" errorMsg)
+              banner = BannerParams Error "Update Failed" errorMsg
+          pure $ Servant.noHeader (redirectWithBanner editUrl banner)
         (_, _, _, Left addrError) -> do
           let errorMsg = Sanitize.displayContentValidationError addrError
-          Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" errorMsg)
+              banner = BannerParams Error "Update Failed" errorMsg
+          pure $ Servant.noHeader (redirectWithBanner editUrl banner)
         (Right validTitle, Right validDescription, Right validLocationName, Right validLocationAddress) -> do
           -- Upload poster image if provided
           posterImagePath <- case eefPosterImage editForm of
@@ -207,31 +205,16 @@ updateEvent hxRequest userMetadata allShows selectedShow event editForm = do
           case mUpdateResult of
             Left err -> do
               Log.logInfo "Failed to update event" (event.emId, show err)
-              Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Database error occurred. Please try again.")
+              let banner = BannerParams Error "Update Failed" "Database error occurred. Please try again."
+              pure $ Servant.noHeader (redirectWithBanner editUrl banner)
             Right Nothing -> do
               Log.logInfo "Event update returned Nothing" event.emId
-              Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Failed to update event. Please try again.")
+              let banner = BannerParams Error "Update Failed" "Failed to update event. Please try again."
+              pure $ Servant.noHeader (redirectWithBanner editUrl banner)
             Right (Just _) -> do
               Log.logInfo "Successfully updated event" event.emId
-              -- Fetch updated event data for detail page
-              updatedEventData <- execTransactionSpan $ runMaybeT $ do
-                updatedEvent <- MaybeT $ HT.statement () (Events.getEventById event.emId)
-                author <- MaybeT $ HT.statement () (UserMetadata.getUserMetadata updatedEvent.emAuthorId)
-                pure (updatedEvent, author)
-
-              case updatedEventData of
-                Left _err ->
-                  Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Event updated but failed to load details.")
-                Right Nothing ->
-                  Servant.noHeader <$> renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing (renderBanner Error "Update Failed" "Event updated but not found.")
-                Right (Just (updatedEvent, author)) -> do
-                  let detailUrl = Links.linkURI $ dashboardEventsLinks.detail event.emId newSlug
-                      banner = renderBanner Success "Event Updated" "Your event has been updated and saved."
-                  html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing $ case hxRequest of
-                    IsHxRequest -> do
-                      DetailPage.template updatedEvent (Just author)
-                      banner
-                    IsNotHxRequest -> do
-                      banner
-                      DetailPage.template updatedEvent (Just author)
-                  pure $ Servant.addHeader [i|/#{detailUrl}|] html
+              let detailLink = Links.linkURI $ dashboardEventsLinks.detail eventId newSlug
+                  detailUrl = [i|/#{detailLink}|] :: Text
+                  banner = BannerParams Success "Event Updated" "Your event has been updated and saved."
+                  redirectUrl = buildRedirectUrl detailUrl banner
+              pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)

@@ -6,9 +6,11 @@ module API.Dashboard.Blogs.New.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Blogs.New.Post.Route (NewShowBlogPostForm (..))
-import API.Links (dashboardBlogsLinks, showsLinks, userLinks)
-import API.Types
-import App.Common (getUserInfo, renderTemplate)
+import API.Links (dashboardBlogsLinks, userLinks)
+import API.Types (DashboardBlogsRoutes (..), UserRoutes (..))
+import App.Common (getUserInfo)
+import Component.Banner (BannerType (..))
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (guard, unless, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -23,7 +25,6 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -40,124 +41,32 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
+import Servant qualified
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
-showGetUrl :: Slug -> Links.URI
-showGetUrl showSlug = Links.linkURI $ showsLinks.detail showSlug Nothing
+dashboardBlogsGetUrl :: Slug -> Text
+dashboardBlogsGetUrl showSlug =
+  let uri = Links.linkURI $ dashboardBlogsLinks.list showSlug Nothing
+   in [i|/#{uri}|]
 
-dashboardBlogsGetUrl :: Slug -> Links.URI
-dashboardBlogsGetUrl showSlug = Links.linkURI $ dashboardBlogsLinks.list showSlug Nothing
+dashboardBlogsNewGetUrl :: Slug -> Text
+dashboardBlogsNewGetUrl showSlug =
+  let uri = Links.linkURI $ dashboardBlogsLinks.newGet showSlug
+   in [i|/#{uri}|]
 
-dashboardBlogsNewGetUrl :: Slug -> Links.URI
-dashboardBlogsNewGetUrl showSlug = Links.linkURI $ dashboardBlogsLinks.newGet showSlug
+dashboardBlogsDetailUrl :: Slug -> ShowBlogPosts.Id -> Text
+dashboardBlogsDetailUrl showSlug postId =
+  let uri = Links.linkURI $ dashboardBlogsLinks.detail showSlug postId
+   in [i|/#{uri}|]
 
-dashboardBlogsDetailUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
-dashboardBlogsDetailUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.detail showSlug postId
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
-
---------------------------------------------------------------------------------
-
--- | Success template after blog creation
-successTemplate :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
-successTemplate showModel post = do
-  Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "Blog Post Created Successfully!"
-    Lucid.p_ [Lucid.class_ "mb-6"] $ do
-      "Your post \""
-      Lucid.strong_ $ Lucid.toHtml (ShowBlogPosts.title post)
-      "\" has been "
-      case ShowBlogPosts.status post of
-        Published -> "published and is now live."
-        Draft -> "saved as a draft."
-        Deleted -> "deleted."
-
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardBlogsDetailUrl (Shows.slug showModel) (ShowBlogPosts.id post)}|],
-          hxGet_ [i|/#{dashboardBlogsDetailUrl (Shows.slug showModel) (ShowBlogPosts.id post)}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-        ]
-        "VIEW POST"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardBlogsGetUrl (Shows.slug showModel)}|],
-          hxGet_ [i|/#{dashboardBlogsGetUrl (Shows.slug showModel)}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
-        ]
-        "BACK TO BLOG"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardBlogsNewGetUrl (Shows.slug showModel)}|],
-          hxGet_ [i|/#{dashboardBlogsNewGetUrl (Shows.slug showModel)}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700"
-        ]
-        "CREATE ANOTHER"
-
--- | Error template
-errorTemplate :: Slug -> Text -> Lucid.Html ()
-errorTemplate showSlug errorMsg = do
-  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Error Creating Blog Post"
-    Lucid.p_ [Lucid.class_ "mb-6 text-red-700"] $ Lucid.toHtml errorMsg
-
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardBlogsNewGetUrl showSlug}|],
-          hxGet_ [i|/#{dashboardBlogsNewGetUrl showSlug}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-        ]
-        "TRY AGAIN"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardBlogsGetUrl showSlug}|],
-          hxGet_ [i|/#{dashboardBlogsGetUrl showSlug}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
-        ]
-        "BACK TO BLOG"
-
--- | Template for login required error
-loginRequiredTemplate :: Lucid.Html ()
-loginRequiredTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Login Required"
-    Lucid.p_ [Lucid.class_ "mb-4"] "You must be logged in to create blog posts."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{userLoginGetUrl}|],
-        hxGet_ [i|/#{userLoginGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-      ]
-      "LOGIN"
-
--- | Template for permission denied error
-permissionDeniedTemplate :: Slug -> Lucid.Html ()
-permissionDeniedTemplate showSlug =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Permission Denied"
-    Lucid.p_ [Lucid.class_ "mb-4"] "You must be a host of this show to create blog posts."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{showGetUrl showSlug}|],
-        hxGet_ [i|/#{showGetUrl showSlug}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-      ]
-      "BACK TO SHOW"
+userLoginGetUrl :: Text
+userLoginGetUrl =
+  let uri = Links.linkURI $ userLinks.loginGet Nothing Nothing
+   in [i|/#{uri}|]
 
 --------------------------------------------------------------------------------
 
@@ -174,16 +83,17 @@ handler ::
   Tracer ->
   Slug ->
   Maybe Cookie ->
-  Maybe HxRequest ->
   NewShowBlogPostForm ->
-  m (Lucid.Html ())
-handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer showSlug cookie form = do
   getUserInfo cookie >>= \case
-    Nothing ->
-      renderTemplate hxRequest Nothing loginRequiredTemplate
+    Nothing -> do
+      let banner = BannerParams Error "Login Required" "You must be logged in to create blog posts."
+      pure $ Servant.noHeader (redirectWithBanner userLoginGetUrl banner)
     Just (_user, userMetadata)
-      | UserMetadata.isSuspended userMetadata ->
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate showSlug "You have been suspended.")
+      | UserMetadata.isSuspended userMetadata -> do
+          let banner = BannerParams Error "Account Suspended" "You have been suspended."
+          pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsGetUrl showSlug) banner)
     Just (user, userMetadata) -> do
       -- Fetch show and verify host permissions in a transaction
       mResult <- execTransactionSpan $ runMaybeT $ do
@@ -197,19 +107,21 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) form = do
       case mResult of
         Left err -> do
           Log.logAttention "Failed to process show blog post creation" (show err)
-          renderTemplate hxRequest (Just userMetadata) $ errorTemplate showSlug "Failed to create blog post. Please try again."
+          let banner = BannerParams Error "Error" "Failed to create blog post. Please try again."
+          pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsNewGetUrl showSlug) banner)
         Right Nothing -> do
           Log.logInfo "Show not found or user not authorized" (showSlug, User.mId user)
-          renderTemplate hxRequest (Just userMetadata) $ permissionDeniedTemplate showSlug
+          let banner = BannerParams Error "Permission Denied" "You must be a host of this show to create blog posts."
+          pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsGetUrl showSlug) banner)
         Right (Just showModel) -> do
           case validateNewShowBlogPost form showModel.id (UserMetadata.mUserId userMetadata) of
             Left validationError -> do
               let errorMsg = Sanitize.displayContentValidationError validationError
               Log.logInfo ("Show blog post creation failed: " <> errorMsg) ()
-              renderTemplate hxRequest (Just userMetadata) (errorTemplate showSlug errorMsg)
-            Right blogPostData -> do
-              template <- handlePostCreation blogPostData form showModel
-              renderTemplate hxRequest (Just userMetadata) template
+              let banner = BannerParams Error "Validation Error" errorMsg
+              pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsNewGetUrl showSlug) banner)
+            Right blogPostData ->
+              handlePostCreation blogPostData form showModel
 
 -- | Validate and convert form data to blog post insert data
 validateNewShowBlogPost :: NewShowBlogPostForm -> Shows.Id -> User.Id -> Either Sanitize.ContentValidationError ShowBlogPosts.Insert
@@ -299,18 +211,17 @@ handlePostCreation ::
   ShowBlogPosts.Insert ->
   NewShowBlogPostForm ->
   Shows.Model ->
-  m (Lucid.Html ())
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handlePostCreation blogPostData form showModel = do
   execQuerySpan (ShowBlogPosts.insertShowBlogPost blogPostData) >>= \case
     Left dbError -> do
       Log.logInfo ("Database error creating show blog post: " <> Text.pack (show dbError)) ()
-      pure (errorTemplate (Shows.slug showModel) "Database error occurred. Please try again.")
+      let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
+      pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsNewGetUrl (Shows.slug showModel)) banner)
     Right postId -> do
-      execQuerySpan (ShowBlogPosts.getShowBlogPostById postId) >>= \case
-        Right (Just createdPost) -> do
-          createPostTags postId form
-          Log.logInfo ("Successfully created show blog post: " <> ShowBlogPosts.title createdPost) ()
-          pure (successTemplate showModel createdPost)
-        _ -> do
-          Log.logInfo "Created blog post but failed to retrieve it" ()
-          pure (errorTemplate (Shows.slug showModel) "Post was created but there was an error displaying the confirmation.")
+      createPostTags postId form
+      Log.logInfo "Successfully created show blog post" postId
+      let detailUrl = dashboardBlogsDetailUrl (Shows.slug showModel) postId
+          banner = BannerParams Success "Blog Post Created" "Your blog post has been created successfully."
+          redirectUrl = buildRedirectUrl detailUrl banner
+      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)

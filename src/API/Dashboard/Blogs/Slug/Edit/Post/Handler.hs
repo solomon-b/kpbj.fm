@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Blogs.Slug.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Blogs.Slug.Edit.Post.Route (ShowBlogEditForm (..))
-import API.Links (apiLinks, dashboardBlogsLinks)
-import API.Types
-import App.Common (getUserInfo, renderTemplate)
+import API.Links (apiLinks, dashboardBlogsLinks, userLinks)
+import API.Types (DashboardBlogsRoutes (..), Routes (..), UserRoutes (..))
+import App.Common (getUserInfo)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
+import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -23,7 +23,6 @@ import Data.Has (Has)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -39,58 +38,36 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
+import Servant qualified
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
 -- URL helpers
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
+
+userLoginGetUrlText :: Text
+userLoginGetUrlText = [i|/#{userLoginGetUrl}|]
+
 dashboardBlogsDetailUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
 dashboardBlogsDetailUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.detail showSlug postId
+
+dashboardBlogsDetailUrlText :: Slug -> ShowBlogPosts.Id -> Text
+dashboardBlogsDetailUrlText showSlug postId = [i|/#{dashboardBlogsDetailUrl showSlug postId}|]
 
 dashboardBlogsEditGetUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
 dashboardBlogsEditGetUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.editGet showSlug postId
 
+dashboardBlogsEditGetUrlText :: Slug -> ShowBlogPosts.Id -> Text
+dashboardBlogsEditGetUrlText showSlug postId = [i|/#{dashboardBlogsEditGetUrl showSlug postId}|]
+
 rootGetUrl :: Links.URI
 rootGetUrl = Links.linkURI apiLinks.rootGet
 
---------------------------------------------------------------------------------
-
--- | Error template
-errorTemplate :: Slug -> ShowBlogPosts.Id -> Text -> Lucid.Html ()
-errorTemplate showSlug postId errorMsg = do
-  Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Error Updating Blog Post"
-    Lucid.p_ [Lucid.class_ "mb-6 text-red-700"] $ Lucid.toHtml errorMsg
-
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardBlogsEditGetUrl showSlug postId}|],
-          hxGet_ [i|/#{dashboardBlogsEditGetUrl showSlug postId}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-        ]
-        "TRY AGAIN"
-
-unauthorizedTemplate :: Lucid.Html ()
-unauthorizedTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Login Required"
-    Lucid.p_ "You must be logged in to edit blog posts."
-
-forbiddenTemplate :: Lucid.Html ()
-forbiddenTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Permission Denied"
-    Lucid.p_ "You are not authorized to edit this blog post."
-
-notFoundTemplate :: Lucid.Html ()
-notFoundTemplate =
-  Lucid.div_ [Lucid.class_ "text-center p-8"] $ do
-    Lucid.h2_ [Lucid.class_ "text-xl font-bold mb-4"] "Blog Post Not Found"
-    Lucid.p_ "The blog post you're trying to edit does not exist."
+rootGetUrlText :: Text
+rootGetUrlText = [i|/#{rootGetUrl}|]
 
 --------------------------------------------------------------------------------
 
@@ -117,18 +94,19 @@ handler ::
   Slug ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
-  Maybe HxRequest ->
   ShowBlogEditForm ->
-  m (Lucid.Html ())
-handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) editForm = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+handler _tracer showSlug postId cookie editForm = do
+  let editUrl = dashboardBlogsEditGetUrlText showSlug postId
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized blog edit attempt" (showSlug, postId)
-      renderTemplate hxRequest Nothing unauthorizedTemplate
+      let banner = BannerParams Error "Login Required" "You must be logged in to edit blog posts."
+      pure $ Servant.addHeader (buildRedirectUrl userLoginGetUrlText banner) (redirectWithBanner userLoginGetUrlText banner)
     Just (_user, userMetadata)
       | UserMetadata.isSuspended userMetadata -> do
           let banner = BannerParams Error "Account Suspended" "Your account has been suspended. You cannot edit blog posts."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
+          pure $ Servant.addHeader (buildRedirectUrl rootGetUrlText banner) (redirectWithBanner rootGetUrlText banner)
     Just (user, userMetadata) -> do
       mResult <- execTransactionSpan $ runMaybeT $ do
         blogPost <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)
@@ -146,16 +124,19 @@ handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) editForm = do
       case mResult of
         Left err -> do
           Log.logAttention "getShowBlogPostById execution error" (show err)
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          let banner = BannerParams Error "Blog Post Not Found" "The blog post you're trying to edit does not exist."
+          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
         Right Nothing -> do
           Log.logInfo "No blog post found" (showSlug, postId)
-          renderTemplate hxRequest (Just userMetadata) notFoundTemplate
+          let banner = BannerParams Error "Blog Post Not Found" "The blog post you're trying to edit does not exist."
+          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
         Right (Just (blogPost, showModel, oldTags, isHost)) ->
           if blogPost.authorId == User.mId user || isHost
-            then updateBlogPost hxRequest userMetadata showModel blogPost oldTags editForm
+            then updateBlogPost showSlug postId showModel blogPost oldTags editForm
             else do
               Log.logInfo "User attempted to edit blog post they're not authorized for" blogPost.id
-              renderTemplate hxRequest (Just userMetadata) forbiddenTemplate
+              let banner = BannerParams Error "Permission Denied" "You are not authorized to edit this blog post."
+              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
 
 updateBlogPost ::
   ( MonadDB m,
@@ -165,18 +146,20 @@ updateBlogPost ::
     MonadUnliftIO m,
     MonadCatch m
   ) =>
-  HxRequest ->
-  UserMetadata.Model ->
+  Slug ->
+  ShowBlogPosts.Id ->
   Shows.Model ->
   ShowBlogPosts.Model ->
   [ShowBlogTags.Model] ->
   ShowBlogEditForm ->
-  m (Lucid.Html ())
-updateBlogPost hxRequest userMetadata showModel blogPost oldTags editForm = do
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+updateBlogPost showSlug postId showModel blogPost oldTags editForm = do
+  let editUrl = dashboardBlogsEditGetUrlText showSlug postId
   case parseStatus (sbefStatus editForm) of
     Nothing -> do
       Log.logInfo "Invalid status in blog edit form" (sbefStatus editForm)
-      renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.slug showModel) (ShowBlogPosts.id blogPost) "Invalid blog post status value.")
+      let banner = BannerParams Error "Invalid Status" "Invalid blog post status value."
+      pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
     Just parsedStatus -> do
       let newSlug = Slug.mkSlug (sbefTitle editForm)
           updateData =
@@ -191,7 +174,7 @@ updateBlogPost hxRequest userMetadata showModel blogPost oldTags editForm = do
               }
 
       mUpdateResult <- execTransactionSpan $ runMaybeT $ do
-        _ <- MaybeT $ HT.statement () (ShowBlogPosts.updateShowBlogPost blogPost.id updateData)
+        void $ MaybeT $ HT.statement () (ShowBlogPosts.updateShowBlogPost blogPost.id updateData)
         lift $ traverse_ (HT.statement () . ShowBlogPosts.removeTagFromShowBlogPost blogPost.id . ShowBlogTags.sbtmId) oldTags
         lift $ updatePostTags blogPost.id editForm
         MaybeT $ pure $ Just ()
@@ -199,16 +182,17 @@ updateBlogPost hxRequest userMetadata showModel blogPost oldTags editForm = do
       case mUpdateResult of
         Left err -> do
           Log.logInfo "Failed to update show blog post" (blogPost.id, show err)
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.slug showModel) (ShowBlogPosts.id blogPost) "Database error occurred. Please try again.")
+          let banner = BannerParams Error "Update Failed" "Database error occurred. Please try again."
+          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
         Right Nothing -> do
           Log.logInfo "Blog post update returned Nothing" blogPost.id
-          renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.slug showModel) (ShowBlogPosts.id blogPost) "Failed to update blog post. Please try again.")
+          let banner = BannerParams Error "Update Failed" "Failed to update blog post. Please try again."
+          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
         Right (Just _) -> do
           Log.logInfo "Successfully updated show blog post" blogPost.id
-          let postId' = blogPost.id
-              detailUrl = [i|/#{dashboardBlogsDetailUrl (Shows.slug showModel) postId'}|]
+          let detailUrl = dashboardBlogsDetailUrlText (Shows.slug showModel) blogPost.id
               banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated successfully."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner detailUrl banner)
+          pure $ Servant.addHeader (buildRedirectUrl detailUrl banner) (redirectWithBanner detailUrl banner)
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::
@@ -223,9 +207,8 @@ createOrAssociateTag ::
   ShowBlogPosts.Id ->
   Text ->
   HT.Transaction ()
-createOrAssociateTag postId tagName = do
-  mTag <- HT.statement () (ShowBlogTags.getShowBlogTagByName tagName)
-  case mTag of
+createOrAssociateTag postId tagName =
+  HT.statement () (ShowBlogTags.getShowBlogTagByName tagName) >>= \case
     Just existingTag -> do
       -- If tag exists, associate it
       HT.statement () (ShowBlogPosts.addTagToShowBlogPost postId (ShowBlogTags.sbtmId existingTag))
