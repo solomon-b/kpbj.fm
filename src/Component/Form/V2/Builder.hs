@@ -56,9 +56,11 @@ module Component.Form.V2.Builder
     conditional,
     plain,
 
-    -- * Buttons
+    -- * Footer Items (Buttons and Inline Controls)
     submitButton,
     cancelButton,
+    footerToggle,
+    footerHint,
   )
 where
 
@@ -105,9 +107,13 @@ tellTitle t = tell $ emptyFormState {fsTitle = Just t}
 tellSubtitle :: Text -> FormBuilder
 tellSubtitle t = tell $ emptyFormState {fsSubtitle = Just t}
 
--- | Add a button to the form.
-tellButton :: FormButton -> FormBuilder
-tellButton b = tell $ emptyFormState {fsButtons = [b]}
+-- | Add a footer item to the form.
+tellFooterItem :: FormFooterItem -> FormBuilder
+tellFooterItem item = tell $ emptyFormState {fsFooterItems = [item]}
+
+-- | Set the footer hint.
+tellFooterHint :: Text -> FormBuilder
+tellFooterHint h = tell $ emptyFormState {fsFooterHint = Just h}
 
 -- | Build a field from name, type, and builder.
 buildField :: Text -> FieldType -> FieldBuilder -> Field
@@ -310,16 +316,39 @@ plain html =
       }
 
 --------------------------------------------------------------------------------
--- Buttons
+-- Footer Items (Buttons and Inline Controls)
 
 -- | Add a submit button to the form.
 --
 -- > submitButton "SAVE CHANGES"
 submitButton :: Text -> FormBuilder
-submitButton lbl = tellButton (SubmitButton lbl)
+submitButton lbl = tellFooterItem (FooterSubmit lbl)
 
 -- | Add a cancel button (renders as a link styled as button).
 --
 -- > cancelButton "/dashboard" "CANCEL"
 cancelButton :: Text -> Text -> FormBuilder
-cancelButton url lbl = tellButton (CancelButton url lbl)
+cancelButton url lbl = tellFooterItem (FooterCancel url lbl)
+
+-- | Add a toggle switch to the form footer (inline with buttons).
+--
+-- Use this for action modifiers like "publish/draft" that belong next to submit.
+-- For toggles within form sections, use 'toggleField' instead.
+--
+-- > footerToggle "status" do
+-- >   offLabel "DRAFT"
+-- >   onLabel "PUBLISHED"
+-- >   offValue "draft"
+-- >   onValue "published"
+-- >   checked  -- if initially on
+footerToggle :: Text -> FieldBuilder -> FormBuilder
+footerToggle name builder =
+  tellFooterItem $ FooterToggle $ buildField name ToggleField builder
+
+-- | Add a hint below the form footer.
+--
+-- Use this to provide context about the footer actions.
+--
+-- > footerHint "Saving as draft will not notify subscribers"
+footerHint :: Text -> FormBuilder
+footerHint = tellFooterHint

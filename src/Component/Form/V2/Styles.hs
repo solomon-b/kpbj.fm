@@ -168,7 +168,7 @@ defaultFormStyles =
       fsSubtitleClasses =
         "text-gray-600 mt-2",
       fsButtonContainerClasses =
-        "flex gap-4 pt-4",
+        "flex gap-4 justify-end",
       fsSubmitButtonClasses =
         "bg-gray-800 text-white font-bold py-3 px-6 hover:bg-gray-700 transition-colors",
       fsCancelButtonClasses =

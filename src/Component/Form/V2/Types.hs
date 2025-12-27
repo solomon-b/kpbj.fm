@@ -10,8 +10,8 @@ module Component.Form.V2.Types
     -- * Form Elements
     FormElement (..),
 
-    -- * Form Buttons
-    FormButton (..),
+    -- * Form Footer Items
+    FormFooterItem (..),
 
     -- * Fields
     Field (..),
@@ -52,14 +52,16 @@ data FormState = FormState
     fsTitle :: Maybe Text,
     -- | Form subtitle (rendered below title)
     fsSubtitle :: Maybe Text,
-    -- | Form buttons (submit, cancel, etc.)
-    fsButtons :: [FormButton]
+    -- | Form footer items (submit, cancel, toggles, etc.)
+    fsFooterItems :: [FormFooterItem],
+    -- | Optional hint text displayed below footer items
+    fsFooterHint :: Maybe Text
   }
   deriving stock (Show)
 
 instance Semigroup FormState where
-  FormState e1 h1 t1 st1 b1 <> FormState e2 h2 t2 st2 b2 =
-    FormState (e1 <> e2) (h1 <> h2) (t2 <|> t1) (st2 <|> st1) (b1 <> b2)
+  FormState e1 h1 t1 st1 f1 fh1 <> FormState e2 h2 t2 st2 f2 fh2 =
+    FormState (e1 <> e2) (h1 <> h2) (t2 <|> t1) (st2 <|> st1) (f1 <> f2) (fh2 <|> fh1)
     where
       (<|>) :: Maybe a -> Maybe a -> Maybe a
       Nothing <|> y = y
@@ -70,7 +72,7 @@ instance Monoid FormState where
 
 -- | Empty form state.
 emptyFormState :: FormState
-emptyFormState = FormState [] [] Nothing Nothing []
+emptyFormState = FormState {fsElements = [], fsHiddenFields = [], fsTitle = Nothing, fsSubtitle = Nothing, fsFooterItems = [], fsFooterHint = Nothing}
 
 --------------------------------------------------------------------------------
 -- Form Elements
@@ -86,15 +88,17 @@ data FormElement
   deriving stock (Show)
 
 --------------------------------------------------------------------------------
--- Form Buttons
+-- Form Footer Items
 
--- | A button or link in the form footer.
-data FormButton
+-- | An item in the form footer (buttons, toggles, etc.).
+data FormFooterItem
   = -- | Submit button with label
-    SubmitButton Text
+    FooterSubmit Text
   | -- | Cancel button with URL and label
-    CancelButton Text Text
-  deriving stock (Show, Eq)
+    FooterCancel Text Text
+  | -- | Toggle switch rendered inline with buttons
+    FooterToggle Field
+  deriving stock (Show)
 
 --------------------------------------------------------------------------------
 -- Fields

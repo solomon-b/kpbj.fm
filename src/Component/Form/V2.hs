@@ -81,9 +81,11 @@ module Component.Form.V2
     conditional,
     plain,
 
-    -- * Buttons
+    -- * Footer Items (Buttons and Inline Controls)
     submitButton,
     cancelButton,
+    footerToggle,
+    footerHint,
 
     -- * Field Configuration
     FieldBuilder,
@@ -126,7 +128,7 @@ module Component.Form.V2
 
     -- * Types (re-exports from Types)
     SelectOption (..),
-    FormButton (..),
+    FormFooterItem (..),
 
     -- * Styles
     FormStyles (..),
@@ -171,6 +173,8 @@ import Component.Form.V2.Builder
     conditional,
     dateTimeField,
     fileField,
+    footerHint,
+    footerToggle,
     formSubtitle,
     formTitle,
     hidden,
@@ -220,5 +224,5 @@ import Component.Form.V2.Render
     renderForm,
   )
 import Component.Form.V2.Styles (FormStyles (..), defaultFormStyles)
-import Component.Form.V2.Types (FormButton (..), SelectOption (..))
+import Component.Form.V2.Types (FormFooterItem (..), SelectOption (..))
 import Control.Monad (unless, when)
