@@ -9,6 +9,11 @@ import API.About.Get.Route qualified as About.Get
 import API.Blog.Get.Route qualified as Blog.Get
 import API.Blog.Post.Get.Route qualified as Blog.Post.Get
 import API.Dashboard.Blogs.Get.Route qualified as Dashboard.Blogs.Get
+import API.Dashboard.Blogs.New.Get.Route qualified as Dashboard.Blogs.New.Get
+import API.Dashboard.Blogs.New.Post.Route qualified as Dashboard.Blogs.New.Post
+import API.Dashboard.Blogs.Slug.Delete.Route qualified as Dashboard.Blogs.Slug.Delete
+import API.Dashboard.Blogs.Slug.Edit.Get.Route qualified as Dashboard.Blogs.Slug.Edit.Get
+import API.Dashboard.Blogs.Slug.Edit.Post.Route qualified as Dashboard.Blogs.Slug.Edit.Post
 import API.Dashboard.Blogs.Slug.Get.Route qualified as Dashboard.Blogs.Slug.Get
 import API.Dashboard.Episodes.Get.Route qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Redirect.Route qualified as Dashboard.Episodes.Redirect
@@ -56,12 +61,7 @@ import API.Media.Get.Route qualified as Media.Get
 import API.PrivacyPolicy.Get.Route qualified as PrivacyPolicy.Get
 import API.Schedule.Get.Route qualified as Schedule
 import API.Shows.Get.Route qualified as Shows.Get
-import API.Shows.Slug.Blog.Delete.Route qualified as Show.Blog.Delete
-import API.Shows.Slug.Blog.Edit.Get.Route qualified as Show.Blog.Edit.Get
-import API.Shows.Slug.Blog.Edit.Post.Route qualified as Show.Blog.Edit.Post
 import API.Shows.Slug.Blog.Get.Route qualified as Show.Blog.Get
-import API.Shows.Slug.Blog.New.Get.Route qualified as Show.Blog.New.Get
-import API.Shows.Slug.Blog.New.Post.Route qualified as Show.Blog.New.Post
 import API.Shows.Slug.Blog.Post.Get.Route qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Delete.Route qualified as Episodes.Delete
 import API.Shows.Slug.Episode.DiscardDraft.Route qualified as Episodes.DiscardDraft
@@ -161,24 +161,15 @@ data ShowsRoutes mode = ShowsRoutes
 
 -- | Show-specific blog routes under @/shows/:showSlug/blog@.
 --
--- Allows hosts to create and manage blog posts for their shows.
+-- Read-only public routes for viewing show blog posts.
+-- Blog management (create/edit/delete) is handled in the dashboard.
 data ShowBlogRoutes mode = ShowBlogRoutes
   { -- | @GET /shows/:showSlug/blog@ - Show blog listing
     list :: mode :- Show.Blog.Get.Route,
-    -- | @GET /shows/:showSlug/blog/new@ - New blog post form
-    newGet :: mode :- Show.Blog.New.Get.Route,
-    -- | @POST /shows/:showSlug/blog/new@ - Create new blog post
-    newPost :: mode :- Show.Blog.New.Post.Route,
     -- | @GET /shows/:showSlug/blog/:id/:slug@ - Blog post detail (canonical)
     postWithSlug :: mode :- Show.Blog.Post.Get.RouteWithSlug,
     -- | @GET /shows/:showSlug/blog/:id@ - Blog post detail (redirects)
-    postWithoutSlug :: mode :- Show.Blog.Post.Get.RouteWithoutSlug,
-    -- | @GET /shows/:showSlug/blog/:id/edit@ - Edit blog post form
-    editGet :: mode :- Show.Blog.Edit.Get.Route,
-    -- | @POST /shows/:showSlug/blog/:id/edit@ - Update blog post
-    editPost :: mode :- Show.Blog.Edit.Post.Route,
-    -- | @DELETE /shows/:showSlug/blog/:id@ - Delete blog post
-    delete :: mode :- Show.Blog.Delete.Route
+    postWithoutSlug :: mode :- Show.Blog.Post.Get.RouteWithoutSlug
   }
   deriving stock (Generic)
 
@@ -276,12 +267,24 @@ data DashboardEpisodesRoutes mode = DashboardEpisodesRoutes
   }
   deriving stock (Generic)
 
--- | Dashboard show blog management routes under @/dashboard/blogs@.
+-- | Dashboard show blog management routes under @/dashboard/blog@.
+--
+-- Full CRUD operations for hosts to manage their show's blog posts.
 data DashboardBlogsRoutes mode = DashboardBlogsRoutes
-  { -- | @GET /dashboard/blogs/:showSlug@ - Blog post list for a show
+  { -- | @GET /dashboard/blog/:showSlug@ - Blog post list for a show
     list :: mode :- Dashboard.Blogs.Get.Route,
-    -- | @GET /dashboard/blogs/:showSlug/:postSlug@ - Blog post detail
-    detail :: mode :- Dashboard.Blogs.Slug.Get.Route
+    -- | @GET /dashboard/blog/:showSlug/:postId@ - Blog post detail
+    detail :: mode :- Dashboard.Blogs.Slug.Get.Route,
+    -- | @GET /dashboard/blog/:showSlug/new@ - New blog post form
+    newGet :: mode :- Dashboard.Blogs.New.Get.Route,
+    -- | @POST /dashboard/blog/:showSlug/new@ - Create new blog post
+    newPost :: mode :- Dashboard.Blogs.New.Post.Route,
+    -- | @GET /dashboard/blog/:showSlug/:postId/edit@ - Edit blog post form
+    editGet :: mode :- Dashboard.Blogs.Slug.Edit.Get.Route,
+    -- | @POST /dashboard/blog/:showSlug/:postId/edit@ - Update blog post
+    editPost :: mode :- Dashboard.Blogs.Slug.Edit.Post.Route,
+    -- | @DELETE /dashboard/blog/:showSlug/:postId@ - Delete blog post
+    delete :: mode :- Dashboard.Blogs.Slug.Delete.Route
   }
   deriving stock (Generic)
 

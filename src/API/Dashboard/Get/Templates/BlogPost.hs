@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardBlogsLinks, showBlogLinks)
+import API.Links (dashboardBlogsLinks)
 import API.Types
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -25,11 +25,11 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-dashboardBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-dashboardBlogPostGetUrl showId postId postSlug = Links.linkURI $ dashboardBlogsLinks.detail showId postId postSlug
+dashboardBlogPostGetUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
+dashboardBlogPostGetUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.detail showSlug postId
 
-showBlogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-showBlogEditGetUrl showId postId postSlug = Links.linkURI $ showBlogLinks.editGet showId postId postSlug
+dashboardBlogEditGetUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
+dashboardBlogEditGetUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.editGet showSlug postId
 
 --------------------------------------------------------------------------------
 
@@ -38,8 +38,8 @@ renderBlogPostTableRow :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
 renderBlogPostTableRow showModel post = do
   let postId = post.id
       postRowId = [i|blog-post-row-#{postId}|]
-      detailUrl = dashboardBlogPostGetUrl showModel.id post.id post.slug
-      editUrl = showBlogEditGetUrl showModel.id post.id post.slug
+      detailUrl = dashboardBlogPostGetUrl showModel.slug post.id
+      editUrl = dashboardBlogEditGetUrl showModel.slug post.id
       cellLinkAttrs =
         [ class_ $ base [Tokens.p4, "cursor-pointer"],
           hxGet_ [i|/#{detailUrl}|],

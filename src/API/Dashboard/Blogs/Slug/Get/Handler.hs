@@ -8,8 +8,8 @@ module API.Dashboard.Blogs.Slug.Get.Handler where
 
 import API.Dashboard.Blogs.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
-import API.Links (showBlogLinks)
-import API.Types (ShowBlogRoutes (..))
+import API.Links (dashboardBlogsLinks)
+import API.Types (DashboardBlogsRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
@@ -48,13 +48,12 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
-  ShowBlogPosts.Id ->
   Slug ->
+  ShowBlogPosts.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer showId postId _postSlug cookie (foldHxReq -> hxRequest) = do
+handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to dashboard blog post" ()
@@ -64,14 +63,14 @@ handler _tracer showId postId _postSlug cookie (foldHxReq -> hxRequest) = do
           Log.logInfo "User without Host role tried to access dashboard blog post" userMetadata.mDisplayName
           renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
     Just (user, userMetadata) -> do
-      -- Fetch the show
-      execQuerySpan (Shows.getShowById showId) >>= \case
+      -- Fetch the show by slug
+      execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
         Left _err -> do
-          Log.logInfo "Failed to fetch show from database" showId
+          Log.logInfo "Failed to fetch show from database" showSlug
           let content = errorTemplate "Failed to load show. Please try again."
           renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog Nothing Nothing content
         Right Nothing -> do
-          Log.logInfo "Show not found" showId
+          Log.logInfo "Show not found" showSlug
           let content = notFoundTemplate
           renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog Nothing Nothing content
         Right (Just showModel) -> do
@@ -86,7 +85,7 @@ handler _tracer showId postId _postSlug cookie (foldHxReq -> hxRequest) = do
 
           if not hasAccess
             then do
-              Log.logInfo "User tried to access blog post for show they don't have access to" (userMetadata.mDisplayName, showId)
+              Log.logInfo "User tried to access blog post for show they don't have access to" (userMetadata.mDisplayName, showSlug)
               renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
             else do
               -- Fetch the blog post
@@ -103,7 +102,7 @@ handler _tracer showId postId _postSlug cookie (foldHxReq -> hxRequest) = do
                   -- Verify blog post belongs to the show
                   if blogPost.showId /= showModel.id
                     then do
-                      Log.logInfo "Blog post does not belong to show" (showId, postId)
+                      Log.logInfo "Blog post does not belong to show" (showSlug, postId)
                       let content = errorTemplate "Blog post not found in this show."
                       renderDashboardTemplate hxRequest userMetadata [showModel] (Just showModel) NavBlog Nothing Nothing content
                     else do
@@ -122,7 +121,7 @@ handler _tracer showId postId _postSlug cookie (foldHxReq -> hxRequest) = do
 -- | Action button for creating a new blog post
 actionButton :: Shows.Model -> Maybe (Lucid.Html ())
 actionButton showModel =
-  let newBlogUrl = Links.linkURI $ showBlogLinks.newGet showModel.slug
+  let newBlogUrl = Links.linkURI $ dashboardBlogsLinks.newGet showModel.slug
    in Just $
         Lucid.a_
           [ Lucid.href_ [i|/#{newBlogUrl}|],

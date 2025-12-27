@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Slug.Blog.Edit.Get.Templates.Page
+module API.Dashboard.Blogs.Slug.Edit.Get.Templates.Page
   ( editBlogPostForm,
     notLoggedInTemplate,
     permissionDeniedTemplate,
@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (showBlogLinks)
+import API.Links (dashboardBlogsLinks)
 import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
@@ -28,14 +28,14 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-showBlogGetUrl :: Shows.Model -> Links.URI
-showBlogGetUrl showModel = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
+dashboardBlogsGetUrl :: Shows.Model -> Links.URI
+dashboardBlogsGetUrl showModel = Links.linkURI $ dashboardBlogsLinks.list (Shows.slug showModel) Nothing
 
-showBlogPostGetUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
-showBlogPostGetUrl showModel post = Links.linkURI $ showBlogLinks.postWithSlug (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
+dashboardBlogsDetailUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
+dashboardBlogsDetailUrl showModel post = Links.linkURI $ dashboardBlogsLinks.detail (Shows.slug showModel) (ShowBlogPosts.id post)
 
-showBlogEditPostUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
-showBlogEditPostUrl showModel post = Links.linkURI $ showBlogLinks.editPost (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)
+dashboardBlogsEditPostUrl :: Shows.Model -> ShowBlogPosts.Model -> Links.URI
+dashboardBlogsEditPostUrl showModel post = Links.linkURI $ dashboardBlogsLinks.editPost (Shows.slug showModel) (ShowBlogPosts.id post)
 
 --------------------------------------------------------------------------------
 
@@ -44,7 +44,7 @@ editBlogPostForm :: Shows.Model -> ShowBlogPosts.Model -> [ShowBlogTags.Model] -
 editBlogPostForm showModel post tags = do
   buildValidatedForm
     FormBuilder
-      { fbAction = [i|/#{showBlogEditPostUrl showModel post}|],
+      { fbAction = [i|/#{dashboardBlogsEditPostUrl showModel post}|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader showModel post),
         fbFields = showBlogEditFormFields post tags,
@@ -67,16 +67,16 @@ renderFormHeader showModel post =
           Lucid.toHtml (Shows.title showModel)
       Lucid.div_ [class_ $ base ["text-center", "flex", Tokens.gap4]] $ do
         Lucid.a_
-          [ Lucid.href_ [i|/#{showBlogPostGetUrl showModel post}|],
-            hxGet_ [i|/#{showBlogPostGetUrl showModel post}|],
+          [ Lucid.href_ [i|/#{dashboardBlogsDetailUrl showModel post}|],
+            hxGet_ [i|/#{dashboardBlogsDetailUrl showModel post}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW POST"
         Lucid.a_
-          [ Lucid.href_ [i|/#{showBlogGetUrl showModel}|],
-            hxGet_ [i|/#{showBlogGetUrl showModel}|],
+          [ Lucid.href_ [i|/#{dashboardBlogsGetUrl showModel}|],
+            hxGet_ [i|/#{dashboardBlogsGetUrl showModel}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]

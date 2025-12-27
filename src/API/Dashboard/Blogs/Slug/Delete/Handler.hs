@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module API.Shows.Slug.Blog.Delete.Handler where
+module API.Dashboard.Blogs.Slug.Delete.Handler where
 
 --------------------------------------------------------------------------------
 
@@ -41,20 +41,18 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
   Slug ->
   ShowBlogPosts.Id ->
-  Slug ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer showId _showSlug postId _postSlug cookie = do
-  -- Fetch the show by ID
-  execQuerySpan (Shows.getShowById showId) >>= \case
+handler _tracer showSlug postId cookie = do
+  -- Fetch the show by slug
+  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
     Left err -> do
       Log.logInfo "Delete failed: Failed to fetch show" (Aeson.object ["error" .= show err])
       pure $ renderBanner Error "Delete Failed" "Database error. Please try again or contact support."
     Right Nothing -> do
-      Log.logInfo "Delete failed: Show not found" (Aeson.object ["showId" .= showId])
+      Log.logInfo "Delete failed: Show not found" (Aeson.object ["showSlug" .= showSlug])
       pure $ renderBanner Error "Delete Failed" "Show not found."
     Right (Just showModel) -> do
       getUserInfo cookie >>= \case
@@ -70,13 +68,19 @@ handler _tracer showId _showSlug postId _postSlug cookie = do
               Log.logInfo "Delete failed: Blog post not found" (Aeson.object ["postId" .= postId])
               pure $ renderBanner Error "Delete Failed" "Blog post not found."
             Right (Just blogPost) -> do
-              isHostOrStaff <- checkIfHost userMetadata user showModel.id
-
-              if isHostOrStaff && not (UserMetadata.isSuspended userMetadata)
-                then deleteBlogPost blogPost
+              -- Verify the blog post belongs to the show
+              if blogPost.showId /= showModel.id
+                then do
+                  Log.logInfo "Delete failed: Blog post does not belong to show" (Aeson.object ["postId" .= postId, "showSlug" .= showSlug])
+                  pure $ renderBanner Error "Delete Failed" "Blog post not found."
                 else do
-                  Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "postId" .= blogPost.id])
-                  pure $ renderBanner Error "Delete Failed" "You don't have permission to delete this blog post."
+                  isHostOrStaff <- checkIfHost userMetadata user showModel.id
+
+                  if isHostOrStaff && not (UserMetadata.isSuspended userMetadata)
+                    then deleteBlogPost blogPost
+                    else do
+                      Log.logInfo "Delete failed: Not authorized" (Aeson.object ["userId" .= user.mId, "postId" .= blogPost.id])
+                      pure $ renderBanner Error "Delete Failed" "You don't have permission to delete this blog post."
 
 deleteBlogPost ::
   ( Has Tracer env,

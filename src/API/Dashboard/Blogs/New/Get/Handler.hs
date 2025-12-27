@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Slug.Blog.New.Get.Handler where
+module API.Dashboard.Blogs.New.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Blog.New.Get.Templates.Page (errorTemplate, newBlogPostForm, notLoggedInTemplate)
+import API.Dashboard.Blogs.New.Get.Templates.Page (errorTemplate, newBlogPostForm, notLoggedInTemplate)
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad (guard, unless)

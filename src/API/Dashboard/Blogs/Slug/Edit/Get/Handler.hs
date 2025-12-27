@@ -1,15 +1,13 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Slug.Blog.Edit.Get.Handler where
+module API.Dashboard.Blogs.Slug.Edit.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Blog.Edit.Get.Templates.Page (editBlogPostForm, errorTemplate, notLoggedInTemplate, permissionDeniedTemplate)
+import API.Dashboard.Blogs.Slug.Edit.Get.Templates.Page (editBlogPostForm, errorTemplate, notLoggedInTemplate, permissionDeniedTemplate)
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -17,12 +15,9 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
-import Data.String.Interpolate (i)
-import Data.Text (Text)
-import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Domain.Types.Slug (Slug, matchSlug)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -35,7 +30,6 @@ import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant qualified
 
 --------------------------------------------------------------------------------
 
@@ -50,23 +44,23 @@ handler ::
     Has HSQL.Pool.Pool env
   ) =>
   Tracer ->
-  Shows.Id ->
-  ShowBlogPosts.Id ->
   Slug ->
+  ShowBlogPosts.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showId postId urlSlug cookie (foldHxReq -> hxRequest) = do
+  m (Lucid.Html ())
+handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
       Log.logInfo "Unauthorized access to blog post edit" ()
-      html <- renderTemplate hxRequest Nothing notLoggedInTemplate
-      pure $ Servant.noHeader html
+      renderTemplate hxRequest Nothing notLoggedInTemplate
     Just (user, userMetadata) -> do
       -- Fetch blog post, show, tags, and verify host permissions in a transaction
       mResult <- execTransactionSpan $ runMaybeT $ do
         post <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)
         showModel <- MaybeT $ HT.statement () (Shows.getShowById post.showId)
+        -- Verify the show slug matches
+        MaybeT $ pure $ if showModel.slug == showSlug then Just () else Nothing
         tags <- lift $ HT.statement () (ShowBlogPosts.getTagsForShowBlogPost post.id)
         -- Admins don't need explicit host check since they have access to all shows
         isHost <-
@@ -78,36 +72,20 @@ handler _tracer showId postId urlSlug cookie (foldHxReq -> hxRequest) = do
       case mResult of
         Left err -> do
           Log.logAttention "Failed to load blog post edit form" (show err)
-          html <- renderTemplate hxRequest (Just userMetadata) $ errorTemplate "Failed to load blog post. Please try again."
-          pure $ Servant.noHeader html
+          renderTemplate hxRequest (Just userMetadata) $ errorTemplate "Failed to load blog post. Please try again."
         Right Nothing -> do
-          Log.logInfo "Blog post not found" (showId, postId)
-          html <- renderTemplate hxRequest (Just userMetadata) $ errorTemplate "Blog post not found."
-          pure $ Servant.noHeader html
+          Log.logInfo "Blog post not found" (showSlug, postId)
+          renderTemplate hxRequest (Just userMetadata) $ errorTemplate "Blog post not found."
         Right (Just (post, showModel, tags, isHost)) -> do
-          let canonicalSlug = post.slug
-              showIdText = display showId
-              postIdText = display postId
-              slugText = display canonicalSlug
-              canonicalUrl = [i|/shows/#{showIdText}/blog/#{postIdText}/#{slugText}/edit|]
-
-          if matchSlug canonicalSlug (Just urlSlug)
-            then
-              if isHost || User.mId user == post.authorId
-                then do
-                  Log.logInfo "Authorized user accessing blog post edit form" post.id
-                  -- Fetch shows for dashboard sidebar
-                  allShows <-
-                    if UserMetadata.isAdmin userMetadata.mUserRole
-                      then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
-                      else either (const []) id <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
-                  html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ editBlogPostForm showModel post tags
-                  pure $ Servant.noHeader html
-                else do
-                  Log.logInfo "User not authorized to edit this blog post" (User.mId user, post.id)
-                  html <- renderTemplate hxRequest (Just userMetadata) permissionDeniedTemplate
-                  pure $ Servant.noHeader html
+          if isHost || User.mId user == post.authorId
+            then do
+              Log.logInfo "Authorized user accessing blog post edit form" post.id
+              -- Fetch shows for dashboard sidebar
+              allShows <-
+                if UserMetadata.isAdmin userMetadata.mUserRole
+                  then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
+                  else either (const []) id <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+              renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ editBlogPostForm showModel post tags
             else do
-              Log.logInfo "Redirecting to canonical show blog edit URL" canonicalUrl
-              html <- renderTemplate hxRequest (Just userMetadata) (redirectTemplate canonicalUrl)
-              pure $ Servant.addHeader canonicalUrl html
+              Log.logInfo "User not authorized to edit this blog post" (User.mId user, post.id)
+              renderTemplate hxRequest (Just userMetadata) permissionDeniedTemplate

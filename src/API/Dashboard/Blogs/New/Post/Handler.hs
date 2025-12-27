@@ -1,12 +1,12 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Shows.Slug.Blog.New.Post.Handler where
+module API.Dashboard.Blogs.New.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Links (showBlogLinks, showsLinks, userLinks)
-import API.Shows.Slug.Blog.New.Post.Route (NewShowBlogPostForm (..))
+import API.Links (dashboardBlogsLinks, showsLinks, userLinks)
+import API.Dashboard.Blogs.New.Post.Route (NewShowBlogPostForm (..))
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad (guard, unless, void)
@@ -50,14 +50,14 @@ import Servant.Links qualified as Links
 showGetUrl :: Slug -> Links.URI
 showGetUrl showSlug = Links.linkURI $ showsLinks.detail showSlug Nothing
 
-showBlogGetUrl :: Slug -> Links.URI
-showBlogGetUrl showSlug = Links.linkURI $ showBlogLinks.list showSlug Nothing Nothing
+dashboardBlogsGetUrl :: Slug -> Links.URI
+dashboardBlogsGetUrl showSlug = Links.linkURI $ dashboardBlogsLinks.list showSlug Nothing
 
-showBlogNewGetUrl :: Slug -> Links.URI
-showBlogNewGetUrl showSlug = Links.linkURI $ showBlogLinks.newGet showSlug
+dashboardBlogsNewGetUrl :: Slug -> Links.URI
+dashboardBlogsNewGetUrl showSlug = Links.linkURI $ dashboardBlogsLinks.newGet showSlug
 
-showBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
-showBlogPostGetUrl showId postId postSlug = Links.linkURI $ showBlogLinks.postWithSlug showId postId postSlug
+dashboardBlogsDetailUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
+dashboardBlogsDetailUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.detail showSlug postId
 
 userLoginGetUrl :: Links.URI
 userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
@@ -68,7 +68,7 @@ userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 successTemplate :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
 successTemplate showModel post = do
   Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "✓ Blog Post Created Successfully!"
+    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "Blog Post Created Successfully!"
     Lucid.p_ [Lucid.class_ "mb-6"] $ do
       "Your post \""
       Lucid.strong_ $ Lucid.toHtml (ShowBlogPosts.title post)
@@ -80,24 +80,24 @@ successTemplate showModel post = do
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogPostGetUrl (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)}|],
-          hxGet_ [i|/#{showBlogPostGetUrl (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)}|],
+        [ Lucid.href_ [i|/#{dashboardBlogsDetailUrl (Shows.slug showModel) (ShowBlogPosts.id post)}|],
+          hxGet_ [i|/#{dashboardBlogsDetailUrl (Shows.slug showModel) (ShowBlogPosts.id post)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
         ]
         "VIEW POST"
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
-          hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
+        [ Lucid.href_ [i|/#{dashboardBlogsGetUrl (Shows.slug showModel)}|],
+          hxGet_ [i|/#{dashboardBlogsGetUrl (Shows.slug showModel)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
         ]
         "BACK TO BLOG"
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogNewGetUrl (Shows.slug showModel)}|],
-          hxGet_ [i|/#{showBlogNewGetUrl (Shows.slug showModel)}|],
+        [ Lucid.href_ [i|/#{dashboardBlogsNewGetUrl (Shows.slug showModel)}|],
+          hxGet_ [i|/#{dashboardBlogsNewGetUrl (Shows.slug showModel)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700"
@@ -108,21 +108,21 @@ successTemplate showModel post = do
 errorTemplate :: Slug -> Text -> Lucid.Html ()
 errorTemplate showSlug errorMsg = do
   Lucid.div_ [Lucid.class_ "bg-red-100 border-2 border-red-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "❌ Error Creating Blog Post"
+    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-red-800"] "Error Creating Blog Post"
     Lucid.p_ [Lucid.class_ "mb-6 text-red-700"] $ Lucid.toHtml errorMsg
 
     Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogNewGetUrl showSlug}|],
-          hxGet_ [i|/#{showBlogNewGetUrl showSlug}|],
+        [ Lucid.href_ [i|/#{dashboardBlogsNewGetUrl showSlug}|],
+          hxGet_ [i|/#{dashboardBlogsNewGetUrl showSlug}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
         ]
         "TRY AGAIN"
       Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogGetUrl showSlug}|],
-          hxGet_ [i|/#{showBlogGetUrl showSlug}|],
+        [ Lucid.href_ [i|/#{dashboardBlogsGetUrl showSlug}|],
+          hxGet_ [i|/#{dashboardBlogsGetUrl showSlug}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
           Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"

@@ -35,6 +35,11 @@ import API.About.Get.Handler qualified as About.Get
 import API.Blog.Get.Handler qualified as Blog.Get
 import API.Blog.Post.Get.Handler qualified as Blog.Post.Get
 import API.Dashboard.Blogs.Get.Handler qualified as Dashboard.Blogs.Get
+import API.Dashboard.Blogs.New.Get.Handler qualified as Dashboard.Blogs.New.Get
+import API.Dashboard.Blogs.New.Post.Handler qualified as Dashboard.Blogs.New.Post
+import API.Dashboard.Blogs.Slug.Delete.Handler qualified as Dashboard.Blogs.Slug.Delete
+import API.Dashboard.Blogs.Slug.Edit.Get.Handler qualified as Dashboard.Blogs.Slug.Edit.Get
+import API.Dashboard.Blogs.Slug.Edit.Post.Handler qualified as Dashboard.Blogs.Slug.Edit.Post
 import API.Dashboard.Blogs.Slug.Get.Handler qualified as Dashboard.Blogs.Slug.Get
 import API.Dashboard.Episodes.Get.Handler qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Redirect.Handler qualified as Dashboard.Episodes.Redirect
@@ -83,12 +88,7 @@ import API.Media.Get.Handler qualified as Media.Get
 import API.PrivacyPolicy.Get.Handler qualified as PrivacyPolicy.Get
 import API.Schedule.Get.Handler qualified as Schedule.Get
 import API.Shows.Get.Handler qualified as Shows.Get
-import API.Shows.Slug.Blog.Delete.Handler qualified as Show.Blog.Delete
-import API.Shows.Slug.Blog.Edit.Get.Handler qualified as Show.Blog.Edit.Get
-import API.Shows.Slug.Blog.Edit.Post.Handler qualified as Show.Blog.Edit.Post
 import API.Shows.Slug.Blog.Get.Handler qualified as Show.Blog.Get
-import API.Shows.Slug.Blog.New.Get.Handler qualified as Show.Blog.New.Get
-import API.Shows.Slug.Blog.New.Post.Handler qualified as Show.Blog.New.Post
 import API.Shows.Slug.Blog.Post.Get.Handler qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Delete.Handler qualified as Episodes.Delete
 import API.Shows.Slug.Episode.DiscardDraft.Handler qualified as Episodes.DiscardDraft
@@ -179,13 +179,8 @@ server env =
     showBlogRoutes =
       ShowBlogRoutes
         { list = Show.Blog.Get.handler,
-          newGet = Show.Blog.New.Get.handler,
-          newPost = Show.Blog.New.Post.handler,
           postWithSlug = Show.Blog.Post.Get.handlerWithSlug,
-          postWithoutSlug = Show.Blog.Post.Get.handlerWithoutSlug,
-          editGet = Show.Blog.Edit.Get.handler,
-          editPost = Show.Blog.Edit.Post.handler,
-          delete = Show.Blog.Delete.handler
+          postWithoutSlug = Show.Blog.Post.Get.handlerWithoutSlug
         }
 
     showEpisodesRoutes =
@@ -241,7 +236,12 @@ server env =
     dashboardBlogsRoutes =
       DashboardBlogsRoutes
         { list = Dashboard.Blogs.Get.handler,
-          detail = Dashboard.Blogs.Slug.Get.handler
+          detail = Dashboard.Blogs.Slug.Get.handler,
+          newGet = Dashboard.Blogs.New.Get.handler,
+          newPost = Dashboard.Blogs.New.Post.handler,
+          editGet = Dashboard.Blogs.Slug.Edit.Get.handler,
+          editPost = Dashboard.Blogs.Slug.Edit.Post.handler,
+          delete = Dashboard.Blogs.Slug.Delete.handler
         }
 
     dashboardEventsRoutes =
