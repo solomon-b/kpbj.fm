@@ -9,7 +9,7 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types
-import Component.Form.V2
+import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Text.Display (display)

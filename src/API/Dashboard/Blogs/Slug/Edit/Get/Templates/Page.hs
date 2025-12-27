@@ -12,7 +12,7 @@ where
 
 import API.Links (dashboardBlogsLinks)
 import API.Types
-import Component.Form.V2
+import Component.Form.Builder
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Text (Text)

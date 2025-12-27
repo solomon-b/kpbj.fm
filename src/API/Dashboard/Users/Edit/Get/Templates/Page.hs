@@ -4,149 +4,135 @@ module API.Dashboard.Users.Edit.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardUsersLinks)
+import API.Links (apiLinks, dashboardUsersLinks)
 import API.Types
+import Component.Form.Builder
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text.Display (display)
+import Design (base, class_)
+import Design.Tokens qualified as T
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
+
+--------------------------------------------------------------------------------
+
+-- | URL helpers
+mediaGetUrl :: Links.URI
+mediaGetUrl = Links.linkURI apiLinks.mediaGet
+
+--------------------------------------------------------------------------------
 
 template :: User.Model -> UserMetadata.Model -> Lucid.Html ()
 template user metadata = do
-  -- Back button
-  Lucid.div_ [Lucid.class_ "mb-8"] $ do
-    Lucid.a_
-      [ Lucid.href_ [i|/#{backUrl}|],
-        hxGet_ [i|/#{backUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        Lucid.class_ "text-blue-600 hover:underline font-bold mb-4 inline-block"
-      ]
-      "← Back to User Detail"
+  renderFormHeader user metadata
+  renderForm config form
+  where
+    userId :: User.Id
+    userId = user.mId
 
-  -- Page header
-  Lucid.section_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 mb-8 w-full"] $ do
-    Lucid.h1_ [Lucid.class_ "text-3xl font-bold"] "EDIT USER"
-    Lucid.p_ [Lucid.class_ "text-gray-600 mt-2"] $
-      Lucid.toHtml $
-        "Editing: " <> display user.mEmail
+    backUri :: Links.URI
+    backUri = Links.linkURI $ dashboardUsersLinks.detail userId
 
-  -- Edit form
-  Lucid.div_ [Lucid.class_ "bg-white border-2 border-gray-800 p-8 w-full"]
-    $ Lucid.form_
-      [ Lucid.action_ [i|/#{postUrl}|],
-        Lucid.method_ "post",
-        Lucid.enctype_ "multipart/form-data",
-        hxPost_ [i|/#{postUrl}|],
-        hxTarget_ "#main-content",
-        hxSwap_ "innerHTML",
-        Lucid.class_ "space-y-6"
-      ]
-    $ do
+    postUri :: Links.URI
+    postUri = Links.linkURI $ dashboardUsersLinks.editPost userId
+
+    backUrl :: Text
+    backUrl = [i|/#{backUri}|]
+
+    postUrl :: Text
+    postUrl = [i|/#{postUri}|]
+
+    avatarUrl :: Text
+    avatarUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) metadata.mAvatarUrl
+
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = postUrl,
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
       -- Display Name
-      Lucid.div_ $ do
-        Lucid.label_ [Lucid.for_ "display_name", Lucid.class_ "block font-bold mb-2"] "Display Name *"
-        Lucid.input_
-          [ Lucid.type_ "text",
-            Lucid.name_ "display_name",
-            Lucid.id_ "display_name",
-            Lucid.value_ (display metadata.mDisplayName),
-            Lucid.class_ "w-full p-3 border-2 border-gray-800",
-            Lucid.required_ ""
-          ]
+      textField "display_name" $ do
+        label "Display Name"
+        value (display metadata.mDisplayName)
+        placeholder "Display name"
+        required
 
       -- Full Name
-      Lucid.div_ $ do
-        Lucid.label_ [Lucid.for_ "full_name", Lucid.class_ "block font-bold mb-2"] "Full Name *"
-        Lucid.input_
-          [ Lucid.type_ "text",
-            Lucid.name_ "full_name",
-            Lucid.id_ "full_name",
-            Lucid.value_ (display metadata.mFullName),
-            Lucid.class_ "w-full p-3 border-2 border-gray-800",
-            Lucid.required_ ""
-          ]
+      textField "full_name" $ do
+        label "Full Name"
+        value (display metadata.mFullName)
+        placeholder "Full name"
+        required
 
       -- Avatar Upload
-      Lucid.div_ $ do
-        Lucid.label_ [Lucid.for_ "avatar", Lucid.class_ "block font-bold mb-2"] "Avatar Image"
-
-        -- Show current avatar if it exists
+      imageField "avatar" $ do
+        label "Avatar Image"
+        maxSize 10
+        aspectRatio (1, 1)
+        hint "Optional: Upload a new avatar image (JPEG, PNG, WebP, or GIF, max 10MB)"
         case metadata.mAvatarUrl of
-          Just avatarUrl -> do
-            Lucid.div_ [Lucid.class_ "mb-4"] $ do
-              Lucid.p_ [Lucid.class_ "text-sm text-gray-600 mb-2"] "Current avatar:"
-              Lucid.img_
-                [ Lucid.src_ [i|/#{avatarUrl}|],
-                  Lucid.alt_ "Current avatar",
-                  Lucid.class_ "w-24 h-24 object-cover border-2 border-gray-800"
-                ]
-          Nothing -> do
-            Lucid.p_ [Lucid.class_ "text-sm text-gray-600 mb-2"] "No avatar uploaded"
+          Just _ -> currentFile avatarUrl
+          Nothing -> pure ()
 
-        Lucid.input_
-          [ Lucid.type_ "file",
-            Lucid.name_ "avatar",
-            Lucid.id_ "avatar",
-            Lucid.class_ "w-full p-3 border-2 border-gray-800",
-            Lucid.accept_ "image/jpeg,image/jpg,image/png,image/webp,image/gif"
-          ]
-        Lucid.p_ [Lucid.class_ "text-sm text-gray-600 mt-1"] "Optional: Upload a new avatar image (JPEG, PNG, WebP, or GIF, max 10MB)"
+      section "" $ do
+        -- Role Selector
+        selectField "Role" $ do
+          hint "Changing user roles affects their permissions"
+          required
+          roleOption UserMetadata.User "User" metadata.mUserRole
+          roleOption UserMetadata.Host "Host" metadata.mUserRole
+          roleOption UserMetadata.Staff "Staff" metadata.mUserRole
+          roleOption UserMetadata.Admin "Admin" metadata.mUserRole
 
-      -- Role Selector
+        -- Info box
+        plain roleInfoBox
+
+      cancelButton backUrl "CANCEL"
+      submitButton "SAVE CHANGES"
+
+-- | Helper to add a role option, selecting it if it matches current role
+roleOption :: UserMetadata.UserRole -> Text -> UserMetadata.UserRole -> FieldBuilder
+roleOption role roleText currentRole =
+  if role == currentRole
+    then addOptionSelected roleText roleText
+    else addOption roleText roleText
+
+-- | Form header with title and back link
+renderFormHeader :: User.Model -> UserMetadata.Model -> Lucid.Html ()
+renderFormHeader user _metadata = do
+  let backUrl = Links.linkURI $ dashboardUsersLinks.detail user.mId
+  Lucid.section_ [class_ $ base [T.bgGray800, T.textWhite, T.p6, T.mb8, T.fullWidth]] $ do
+    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
-        Lucid.label_ [Lucid.for_ "role", Lucid.class_ "block font-bold mb-2"] "Role *"
-        Lucid.select_
-          [ Lucid.name_ "role",
-            Lucid.id_ "role",
-            Lucid.class_ "w-full p-3 border-2 border-gray-800"
-          ]
-          $ do
-            renderRoleOption UserMetadata.User metadata.mUserRole
-            renderRoleOption UserMetadata.Host metadata.mUserRole
-            renderRoleOption UserMetadata.Staff metadata.mUserRole
-            renderRoleOption UserMetadata.Admin metadata.mUserRole
-
-      -- Info box
-      Lucid.div_ [Lucid.class_ "bg-blue-50 border-2 border-blue-200 p-4"] $ do
-        Lucid.p_ [Lucid.class_ "text-sm text-blue-800"] $ do
-          Lucid.strong_ "Note: "
-          "Changing user roles affects their permissions. "
-          "Admin has full access, Staff can manage content, Host can manage shows, User has basic access."
-
-      -- Submit buttons
-      Lucid.div_ [Lucid.class_ "flex gap-4 pt-4 border-t-2 border-gray-200"] $ do
-        Lucid.button_
-          [ Lucid.type_ "submit",
-            Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-          ]
-          "SAVE CHANGES"
-
+        Lucid.h1_ [class_ $ base [T.text2xl, T.fontBold, T.mb2]] "EDIT USER"
+        Lucid.div_ [class_ $ base ["text-gray-300", T.textSm]] $ do
+          Lucid.strong_ "Editing: "
+          Lucid.toHtml $ display user.mEmail
+      Lucid.div_ $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{backUrl}|],
             hxGet_ [i|/#{backUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "bg-gray-300 text-gray-800 px-6 py-3 font-bold hover:bg-gray-400"
+            class_ $ base ["text-blue-300", "hover:text-blue-100", T.textSm, "underline"]
           ]
-          "CANCEL"
-  where
-    backUrl = Links.linkURI $ dashboardUsersLinks.detail user.mId
-    postUrl = Links.linkURI $ dashboardUsersLinks.editPost user.mId
+          "← BACK TO USER"
 
-renderRoleOption :: UserMetadata.UserRole -> UserMetadata.UserRole -> Lucid.Html ()
-renderRoleOption roleOption currentRole = do
-  let roleText = case roleOption of
-        UserMetadata.User -> "User"
-        UserMetadata.Host -> "Host"
-        UserMetadata.Staff -> "Staff"
-        UserMetadata.Admin -> "Admin"
-
-  Lucid.option_
-    [ Lucid.value_ roleText,
-      if roleOption == currentRole then Lucid.selected_ "selected" else mempty
-    ]
-    $ Lucid.toHtml roleText
+-- | Info box explaining role permissions
+roleInfoBox :: Lucid.Html ()
+roleInfoBox =
+  Lucid.div_ [class_ $ base ["bg-blue-50", T.border2, "border-blue-200", T.p4]] $ do
+    Lucid.p_ [class_ $ base [T.textSm, "text-blue-800"]] $ do
+      Lucid.strong_ "Note: "
+      "Changing user roles affects their permissions. "
+      "Admin has full access, Staff can manage content, Host can manage shows, User has basic access."

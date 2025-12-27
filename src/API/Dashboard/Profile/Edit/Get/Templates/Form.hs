@@ -7,7 +7,7 @@ module API.Dashboard.Profile.Edit.Get.Templates.Form where
 
 import API.Links (apiLinks, dashboardLinks)
 import API.Types
-import Component.Form.V2
+import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -93,8 +93,8 @@ template user metadata =
         colorSchemeOption metadata "DarkMode" "Dark Mode" "Always use dark theme" UserMetadata.DarkMode
 
       -- Buttons
-      submitButton "SAVE CHANGES"
       cancelButton [i|/#{dashboardEpisodesRedirectUrl}|] "CANCEL"
+      submitButton "SAVE CHANGES"
 
 -- | Helper to add a color scheme option, selecting it if it matches current setting
 colorSchemeOption :: UserMetadata.Model -> Text -> Text -> Text -> UserMetadata.ColorScheme -> FieldBuilder

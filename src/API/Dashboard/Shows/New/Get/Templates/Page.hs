@@ -8,12 +8,14 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardShowsLinks)
-import API.Types (DashboardShowsRoutes (..))
+import API.Links (apiLinks)
+import API.Types
 import Component.Form.Builder
-import Component.ImageFilePicker qualified as ImageFilePicker
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text.Display (display)
+import Design (base, class_)
+import Design.Tokens qualified as T
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xRef_, xShow_)
@@ -22,184 +24,111 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
+dashboardShowsGetUrl = Links.linkURI $ apiLinks.dashboard.admin.shows.list Nothing Nothing Nothing
 
 dashboardShowsNewPostUrl :: Links.URI
-dashboardShowsNewPostUrl = Links.linkURI dashboardShowsLinks.newPost
+dashboardShowsNewPostUrl = Links.linkURI apiLinks.dashboard.admin.shows.newPost
 
 --------------------------------------------------------------------------------
 
--- | New show form template using FormBuilder
+-- | New show form template using V2 FormBuilder
 template :: [UserMetadata.UserWithMetadata] -> Lucid.Html ()
-template eligibleHosts =
-  buildValidatedForm
-    FormBuilder
-      { fbAction = [i|/#{dashboardShowsNewPostUrl}|],
-        fbMethod = "post",
-        fbHeader = Just renderFormHeader,
-        fbFields = showFormFields eligibleHosts,
-        fbAdditionalContent = [renderSubmitActions, renderScheduleManagementScript],
-        fbStyles = defaultFormStyles,
-        fbHtmx = Nothing
-      }
+template eligibleHosts = do
+  renderFormHeader
+  renderForm config form
+  renderScheduleManagementScript
+  where
+    postUrl :: Text
+    postUrl = [i|/#{dashboardShowsNewPostUrl}|]
+
+    backUrl :: Text
+    backUrl = [i|/#{dashboardShowsGetUrl}|]
+
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = postUrl,
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
+      -- Basic Information Section
+      section "BASIC INFORMATION" $ do
+        textField "title" $ do
+          label "Show Title"
+          placeholder "e.g. Industrial Depths"
+          required
+          minLength 3
+          maxLength 200
+
+        textareaField "description" 6 $ do
+          label "Description"
+          placeholder "Describe your show. What kind of music do you play? What's your show's vibe?"
+          required
+          minLength 10
+          maxLength 5000
+
+        textField "tags" $ do
+          label "Tags"
+          placeholder "e.g. Techno, Ambient, Experimental, Hip-Hop"
+          hint "Comma-separated tags for categorization and filtering"
+          maxLength 500
+
+      -- Schedule & Settings Section
+      section "SCHEDULE & SETTINGS" $ do
+        selectField "status" $ do
+          label "Show Status"
+          hint "Active shows appear on the shows page"
+          required
+          addOptionSelected "active" "Active"
+          addOption "inactive" "Inactive"
+
+      -- Artwork & Branding Section
+      section "ARTWORK & BRANDING" $ do
+        imageField "logo_file" $ do
+          label "Logo Image"
+          maxSize 10
+          aspectRatio (4, 3)
+
+        imageField "banner_file" $ do
+          label "Banner Image"
+          maxSize 10
+          aspectRatio (3, 1)
+
+      -- Hosts Section
+      section "HOSTS" $ do
+        plain $ renderHostsMultiSelect eligibleHosts
+
+      -- Schedule Section
+      section "SCHEDULE" $ do
+        plain renderScheduleSection
+
+      cancelButton backUrl "CANCEL"
+      submitButton "CREATE SHOW"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)
 
 renderFormHeader :: Lucid.Html ()
 renderFormHeader =
-  Lucid.section_ [Lucid.class_ "bg-gray-800 text-white p-6 mb-8 w-full"] $ do
-    Lucid.div_ [Lucid.class_ "flex items-center justify-between"] $ do
+  Lucid.section_ [class_ $ base [T.bgGray800, T.textWhite, T.p6, T.mb8, T.fullWidth]] $ do
+    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
-        Lucid.h1_ [Lucid.class_ "text-2xl font-bold mb-2"] "CREATE NEW SHOW"
-        Lucid.div_
-          [Lucid.class_ "text-gray-300 text-sm"]
+        Lucid.h1_ [class_ $ base [T.text2xl, T.fontBold, T.mb2]] "CREATE NEW SHOW"
+        Lucid.div_ [class_ $ base ["text-gray-300", T.textSm]] $
           "Add a new show to the station"
-      Lucid.div_ [Lucid.class_ "text-center"] $
+      Lucid.div_ $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{dashboardShowsGetUrl}|],
             hxGet_ [i|/#{dashboardShowsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "text-blue-300 hover:text-blue-100 text-sm underline"
+            class_ $ base ["text-blue-300", "hover:text-blue-100", T.textSm, "underline"]
           ]
           "← BACK TO SHOWS"
-
---------------------------------------------------------------------------------
--- Form Fields Definition
-
-showFormFields :: [UserMetadata.UserWithMetadata] -> [FormField]
-showFormFields eligibleHosts =
-  [ -- Basic Information Section
-    SectionField
-      { sfTitle = "BASIC INFORMATION",
-        sfFields =
-          [ ValidatedTextField
-              { vfName = "title",
-                vfLabel = "Show Title",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "e.g. Industrial Depths",
-                vfHint = Nothing,
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Just 3,
-                      vrMaxLength = Just 200,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextareaField
-              { vtName = "description",
-                vtLabel = "Description",
-                vtInitialValue = Nothing,
-                vtRows = 6,
-                vtPlaceholder = Just "Describe your show. What kind of music do you play? What's your show's vibe?",
-                vtHint = Nothing,
-                vtValidation =
-                  ValidationRules
-                    { vrMinLength = Just 10,
-                      vrMaxLength = Just 5000,
-                      vrPattern = Nothing,
-                      vrRequired = True,
-                      vrCustomValidation = Nothing
-                    }
-              },
-            ValidatedTextField
-              { vfName = "tags",
-                vfLabel = "Tags",
-                vfInitialValue = Nothing,
-                vfPlaceholder = Just "e.g. Techno, Ambient, Experimental, Hip-Hop",
-                vfHint = Just "Comma-separated tags for categorization and filtering",
-                vfValidation =
-                  ValidationRules
-                    { vrMinLength = Nothing,
-                      vrMaxLength = Just 500,
-                      vrPattern = Nothing,
-                      vrRequired = False,
-                      vrCustomValidation = Nothing
-                    }
-              }
-          ]
-      },
-    -- Schedule & Settings Section
-    SectionField
-      { sfTitle = "SCHEDULE & SETTINGS",
-        sfFields =
-          [ ValidatedSelectField
-              { vsName = "status",
-                vsLabel = "Show Status",
-                vsOptions =
-                  [ SelectOption "active" "Active" True Nothing,
-                    SelectOption "inactive" "Inactive" False Nothing
-                  ],
-                vsHint = Just "Active shows appear on the shows page",
-                vsValidation = emptyValidation {vrRequired = True}
-              }
-          ]
-      },
-    -- Artwork & Branding Section
-    SectionField
-      { sfTitle = "ARTWORK & BRANDING",
-        sfFields =
-          [ PlainFileField
-              { pffHtml = logoImageField
-              },
-            PlainFileField
-              { pffHtml = bannerImageField
-              }
-          ]
-      },
-    -- Hosts Section (admin only - using PlainField for multi-select)
-    SectionField
-      { sfTitle = "HOSTS",
-        sfFields =
-          [ PlainField
-              { pfHtml = renderHostsMultiSelect eligibleHosts
-              }
-          ]
-      },
-    -- Schedule Section (using PlainField for dynamic list management)
-    SectionField
-      { sfTitle = "SCHEDULE",
-        sfFields =
-          [ PlainField
-              { pfHtml = renderScheduleSection
-              }
-          ]
-      }
-  ]
-
---------------------------------------------------------------------------------
--- Image Fields
-
--- | Render logo image field with integrated preview.
-logoImageField :: Lucid.Html ()
-logoImageField =
-  ImageFilePicker.render
-    ImageFilePicker.Config
-      { ImageFilePicker.fieldName = "logo_file",
-        ImageFilePicker.label = "Logo Image",
-        ImageFilePicker.existingImageUrl = "",
-        ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
-        ImageFilePicker.maxSizeMB = 10,
-        ImageFilePicker.isRequired = False,
-        ImageFilePicker.aspectRatio = (4, 3)
-      }
-
--- | Render banner image field with integrated preview.
-bannerImageField :: Lucid.Html ()
-bannerImageField =
-  ImageFilePicker.render
-    ImageFilePicker.Config
-      { ImageFilePicker.fieldName = "banner_file",
-        ImageFilePicker.label = "Banner Image",
-        ImageFilePicker.existingImageUrl = "",
-        ImageFilePicker.accept = "image/jpeg,image/png,image/webp,image/gif",
-        ImageFilePicker.maxSizeMB = 10,
-        ImageFilePicker.isRequired = False,
-        ImageFilePicker.aspectRatio = (3, 1)
-      }
 
 --------------------------------------------------------------------------------
 -- Searchable Multi-Select for Hosts
@@ -406,24 +335,3 @@ renderScheduleManagementScript =
   }
 })();
 |]
-
---------------------------------------------------------------------------------
--- Form Submit Actions (rendered inside <form>)
-
-renderSubmitActions :: Lucid.Html ()
-renderSubmitActions =
-  Lucid.section_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-6"] $ do
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          Lucid.class_ "bg-gray-800 text-white px-8 py-3 font-bold hover:bg-gray-700 transition-colors"
-        ]
-        "CREATE SHOW"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardShowsGetUrl}|],
-          hxGet_ [i|/#{dashboardShowsGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-400 text-white px-8 py-3 font-bold hover:bg-gray-500 transition-colors no-underline"
-        ]
-        "CANCEL"

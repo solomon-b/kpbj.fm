@@ -18,7 +18,7 @@
 -- > -- Render to JavaScript
 -- > renderExpr emailValidation
 -- > -- "(value.trim().length > 0) && (value.includes('@'))"
-module Component.Form.V2.JS
+module Component.Form.Builder.JS
   ( -- * Core Types
     JSExpr (..),
     JSValue (..),

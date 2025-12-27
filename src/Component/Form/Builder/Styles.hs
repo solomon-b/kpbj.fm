@@ -2,7 +2,7 @@
 --
 -- This module provides customizable CSS classes for form elements.
 -- The 'defaultFormStyles' works well with Tailwind CSS.
-module Component.Form.V2.Styles
+module Component.Form.Builder.Styles
   ( FormStyles (..),
     defaultFormStyles,
   )

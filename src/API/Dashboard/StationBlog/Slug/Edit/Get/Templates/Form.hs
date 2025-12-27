@@ -10,7 +10,7 @@ where
 
 import API.Links (apiLinks, dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..), Routes (..))
-import Component.Form.V2
+import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Design (base, class_)
@@ -23,6 +23,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
+import Data.Foldable (for_)
 
 --------------------------------------------------------------------------------
 
@@ -89,6 +90,12 @@ template blogPost tags userMeta = do
           aspectRatio (16, 9)
           currentFile imageUrl
 
+        textareaField "excerpt" 3 $ do
+          label "Excerpt (Optional)"
+          placeholder "Short preview of your post (optional - will auto-generate if left blank)"
+          for_ blogPost.bpmExcerpt value
+          maxLength 500
+
         textField "tags" $ do
           label "Tags"
           placeholder "industrial, ambient, interview, chrome-valley"
@@ -96,26 +103,16 @@ template blogPost tags userMeta = do
           unless (Text.null tagsText) $ value tagsText
           maxLength 500
 
-      -- Publishing Options Section
-      section "PUBLISHING OPTIONS" $ do
-        toggleField "status" $ do
-          offLabel "Draft"
-          onLabel "Published"
-          offValue "draft"
-          onValue "published"
-          when (blogPost.bpmStatus == Published) checked
-          hint "Toggle to publish immediately"
+      footerToggle "status" $ do
+        offLabel "Draft"
+        onLabel "Published"
+        offValue "draft"
+        onValue "published"
+        when (blogPost.bpmStatus == Published) checked
+        hint "Toggle to publish immediately"
 
-        textareaField "excerpt" 3 $ do
-          label "Excerpt (Optional)"
-          placeholder "Short preview of your post (optional - will auto-generate if left blank)"
-          case blogPost.bpmExcerpt of
-            Just excerptText -> value excerptText
-            Nothing -> pure ()
-          maxLength 500
-
-      submitButton "UPDATE POST"
       cancelButton [i|/#{postBackUrl}|] "CANCEL"
+      submitButton "UPDATE POST"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)

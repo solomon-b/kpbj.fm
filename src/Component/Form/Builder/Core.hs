@@ -26,7 +26,7 @@
 -- >       label "Biography"
 -- >       maxLength 500
 -- >       hint "Tell us about yourself"
-module Component.Form.V2.Builder
+module Component.Form.Builder.Core
   ( -- * Builder Type
     FormBuilder,
     runFormBuilder,
@@ -66,8 +66,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import Component.Form.V2.FieldBuilder (FieldBuilder, FieldBuilderState (..), runFieldBuilder)
-import Component.Form.V2.Types
+import Component.Form.Builder.Field (FieldBuilder, FieldBuilderState (..), runFieldBuilder)
+import Component.Form.Builder.Types
 import Control.Monad.Writer.Strict (Writer, execWriter, tell)
 import Data.Text (Text)
 import Lucid qualified

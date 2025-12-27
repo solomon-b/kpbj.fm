@@ -11,7 +11,7 @@ where
 
 import API.Links (apiLinks)
 import API.Types
-import Component.Form.V2
+import Component.Form.Builder
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.Set (Set)
@@ -141,8 +141,8 @@ template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds e
         section "SCHEDULE" $ do
           plain renderScheduleSection
 
-      submitButton "UPDATE SHOW"
       cancelButton [i|/#{showBackUrl}|] "CANCEL"
+      submitButton "UPDATE SHOW"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)
