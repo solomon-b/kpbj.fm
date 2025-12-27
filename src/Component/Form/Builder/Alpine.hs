@@ -118,6 +118,20 @@ generateFieldInit field =
           let hasCurrentFile = isJust (fcCurrentValue cfg)
               clearedVal = boolToJS (not hasCurrentFile)
            in name <> ": { fileName: '', fileSize: 0, isValid: true, error: '', previewUrl: '', currentCleared: " <> clearedVal <> " }"
+        SelectField ->
+          -- For select fields, use the selected option's value as initial value
+          let selectedOption = filter soSelected (fcOptions cfg)
+              initialVal = case selectedOption of
+                (opt : _) -> escapeJsString (soValue opt)
+                [] -> ""
+           in name <> ": { value: '" <> initialVal <> "', isValid: true }"
+        RadioField ->
+          -- For radio fields, use the selected option's value as initial value
+          let selectedOption = filter soSelected (fcOptions cfg)
+              initialVal = case selectedOption of
+                (opt : _) -> escapeJsString (soValue opt)
+                [] -> ""
+           in name <> ": { value: '" <> initialVal <> "', isValid: true }"
         _ ->
           let initialVal = escapeJsString (maybe "" id (fcInitialValue cfg))
            in name <> ": { value: '" <> initialVal <> "', isValid: true }"

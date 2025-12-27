@@ -445,8 +445,9 @@ renderSelectField styles field = do
             else []
       )
       $ do
-        -- Placeholder option
-        Lucid.option_ [Lucid.value_ "", Lucid.disabled_ "", Lucid.selected_ ""] $
+        -- Placeholder option (only selected if no option is pre-selected)
+        let hasSelectedOption = any soSelected options
+        Lucid.option_ ([Lucid.value_ "", Lucid.disabled_ ""] <> [Lucid.selected_ "" | not hasSelectedOption]) $
           Lucid.toHtml $
             fromMaybe "Select..." (fcPlaceholder cfg)
         -- Options

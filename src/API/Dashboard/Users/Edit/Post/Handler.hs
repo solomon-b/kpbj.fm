@@ -12,11 +12,13 @@ import API.Types (DashboardUsersRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.ByteString.Lazy qualified as BSL
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
@@ -45,7 +47,15 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile)
+import Servant.Multipart (FileData (..), Input (..), Mem, MultipartData (..), lookupFile)
+
+--------------------------------------------------------------------------------
+
+-- | URL for user detail page (redirect target on errors)
+userDetailUrl :: User.Id -> Text
+userDetailUrl userId =
+  let uri = Links.linkURI $ dashboardUsersLinks.detail userId
+   in [i|/#{uri}|]
 
 --------------------------------------------------------------------------------
 
@@ -67,32 +77,34 @@ handler ::
   m (Servant.Headers '[Servant.Header "HX-Push-Url" Text] (Lucid.Html ()))
 handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
   getUserInfo cookie >>= \case
-    Nothing -> pure $ Servant.noHeader (renderBanner Error "Login Required" "You must be logged in to edit users.")
+    Nothing -> pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Login Required" "You must be logged in to edit users."))
     Just (_user, userMetadata)
       | not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata ->
-          pure $ Servant.noHeader (renderBanner Error "Admin Access Required" "You do not have permission to edit users.")
+          pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Admin Access Required" "You do not have permission to edit users."))
     Just (user, userMetadata) -> do
       -- Parse form fields
       let formInputs = inputs multipartData
 
       case extractFormFields formInputs of
         Left errorMsg ->
-          pure $ Servant.noHeader (renderBanner Error "Error Updating User" errorMsg)
+          pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" errorMsg))
         Right (newDisplayName, newFullName, newRole) -> do
-          -- Handle avatar upload if provided
+          -- Handle avatar upload if provided (skip if file is empty)
           avatarUploadResult <- case lookupFile "avatar" multipartData of
             Left _ -> pure (Right Nothing)
-            Right avatarFile -> do
-              uploadResult <- FileUpload.uploadUserAvatar (display targetUserId) avatarFile
-              case uploadResult of
-                Left _err -> pure (Left "Failed to upload avatar image")
-                Right result ->
-                  let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
-                   in pure (Right (Just (FileUpload.stripStorageRoot storagePath)))
+            Right avatarFile
+              | BSL.null (fdPayload avatarFile) -> pure (Right Nothing) -- No file selected
+              | otherwise -> do
+                  uploadResult <- FileUpload.uploadUserAvatar (display targetUserId) avatarFile
+                  case uploadResult of
+                    Left _err -> pure (Left "Failed to upload avatar image")
+                    Right result ->
+                      let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
+                       in pure (Right (Just (FileUpload.stripStorageRoot storagePath)))
 
           case avatarUploadResult of
             Left errorMsg ->
-              pure $ Servant.noHeader (renderBanner Error "Error Updating User" errorMsg)
+              pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" errorMsg))
             Right maybeAvatarPath -> do
               -- Update user metadata and role in transaction
               updateResult <- execTransactionSpan $ do
@@ -122,9 +134,9 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
               case updateResult of
                 Left _err -> do
                   Log.logInfo "Failed to update user" ()
-                  pure $ Servant.noHeader (renderBanner Error "Error Updating User" "Failed to update user. Please try again.")
+                  pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "Failed to update user. Please try again."))
                 Right Nothing ->
-                  pure $ Servant.noHeader (renderBanner Error "Error Updating User" "User metadata not found.")
+                  pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User metadata not found."))
                 Right (Just ()) -> do
                   Log.logInfo "User updated successfully" ()
                   -- Fetch shows for sidebar (admins see all, staff see their assigned shows)
@@ -145,11 +157,11 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) multipartData = do
 
                   case updatedUserData of
                     Left _err ->
-                      pure $ Servant.noHeader (renderBanner Error "Error Updating User" "User updated but failed to load details.")
+                      pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User updated but failed to load details."))
                     Right (Nothing, _, _, _) ->
-                      pure $ Servant.noHeader (renderBanner Error "Error Updating User" "User not found after update.")
+                      pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User not found after update."))
                     Right (_, Nothing, _, _) ->
-                      pure $ Servant.noHeader (renderBanner Error "Error Updating User" "User metadata not found after update.")
+                      pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User metadata not found after update."))
                     Right (Just updatedUser, Just updatedMetadata, shows', episodes) -> do
                       let detailUrl = Links.linkURI $ dashboardUsersLinks.detail targetUserId
                           pageContent = do

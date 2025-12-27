@@ -17,6 +17,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.ByteString.Lazy qualified as BSL
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
@@ -44,7 +45,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile)
+import Servant.Multipart (FileData (..), Input (..), Mem, MultipartData (..), lookupFile)
 
 --------------------------------------------------------------------------------
 
@@ -77,16 +78,18 @@ handler _tracer cookie (foldHxReq -> hxRequest) multipartData = do
         Left errorMsg ->
           pure $ Servant.noHeader (renderBanner Error "Error Updating Profile" errorMsg)
         Right (newDisplayName, newFullName, newColorScheme) -> do
-          -- Handle avatar upload if provided
+          -- Handle avatar upload if provided (skip if file is empty)
           avatarUploadResult <- case lookupFile "avatar" multipartData of
             Left _ -> pure (Right Nothing)
-            Right avatarFile -> do
-              uploadResult <- FileUpload.uploadUserAvatar (display (User.mId user)) avatarFile
-              case uploadResult of
-                Left _err -> pure (Left "Failed to upload avatar image")
-                Right result ->
-                  let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
-                   in pure (Right (Just (FileUpload.stripStorageRoot storagePath)))
+            Right avatarFile
+              | BSL.null (fdPayload avatarFile) -> pure (Right Nothing) -- No file selected
+              | otherwise -> do
+                  uploadResult <- FileUpload.uploadUserAvatar (display (User.mId user)) avatarFile
+                  case uploadResult of
+                    Left _err -> pure (Left "Failed to upload avatar image")
+                    Right result ->
+                      let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
+                       in pure (Right (Just (FileUpload.stripStorageRoot storagePath)))
 
           case avatarUploadResult of
             Left errorMsg ->
