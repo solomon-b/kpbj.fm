@@ -83,13 +83,13 @@ episodeUploadForm showModel upcomingDates = do
           maxLength 500
 
       -- Audio Upload Section
-      section "AUDIO FILES" $ do
+      section "MEDIA FILES" $ do
         audioField "audio_file" $ do
           label "Episode Audio"
           maxSize 500
 
         imageField "artwork_file" $ do
-          label "Episode Image"
+          label "Episode Artworks"
           maxSize 5
           aspectRatio (1, 1)
 
@@ -98,16 +98,12 @@ episodeUploadForm showModel upcomingDates = do
 
       -- Publishing Section
       section "PUBLISHING" $ do
-        plain $
-          Lucid.p_ [Lucid.class_ "text-sm text-gray-600 italic mb-4"] $
-            "Note: Published episodes will not be publicly visible until the scheduled date/time. "
-              <> "Once the scheduled time has passed, the episode can no longer be edited."
-
         toggleField "status" $ do
           offLabel "Draft"
           onLabel "Published"
           offValue "draft"
           onValue "published"
+          hint "Published episodes will be visible after their scheduled date"
 
       submitButton "SUBMIT"
       cancelButton cancelUrl "CANCEL"

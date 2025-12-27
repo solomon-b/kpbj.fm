@@ -146,11 +146,11 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) editForm 
                           banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
                       html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                         IsHxRequest -> do
-                          EditForm.template currentTime showModel episode tracks [] upcomingDates userMetadata isStaff
+                          EditForm.template currentTime showModel episode tracks [] Nothing upcomingDates userMetadata isStaff
                           banner
                         IsNotHxRequest -> do
                           banner
-                          EditForm.template currentTime showModel episode tracks [] upcomingDates userMetadata isStaff
+                          EditForm.template currentTime showModel episode tracks [] Nothing upcomingDates userMetadata isStaff
                       pure $ Servant.noHeader html
                     Right True -> updateEpisode hxRequest user userMetadata episode showModel editForm
                     Right False ->
@@ -167,11 +167,11 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) editForm 
                               banner = renderBanner Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
                           html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
                             IsHxRequest -> do
-                              EditForm.template currentTime showModel episode tracks [] upcomingDates userMetadata isStaff
+                              EditForm.template currentTime showModel episode tracks [] Nothing upcomingDates userMetadata isStaff
                               banner
                             IsNotHxRequest -> do
                               banner
-                              EditForm.template currentTime showModel episode tracks [] upcomingDates userMetadata isStaff
+                              EditForm.template currentTime showModel episode tracks [] Nothing upcomingDates userMetadata isStaff
                           pure $ Servant.noHeader html
 
 -- | Check if the episode's scheduled date is in the future (allowing file uploads)
@@ -206,17 +206,22 @@ renderFormWithError hxRequest userMetadata episode showModel title message = do
   tracksResult <- execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
   tagsResult <- execQuerySpan (Episodes.getTagsForEpisode episode.id)
   upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
+  -- Fetch the schedule template for the current slot (for consistent display)
+  mCurrentTemplate <- execQuerySpan (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId)
   let tracks = fromRight [] tracksResult
       episodeTags = fromRight [] tagsResult
       upcomingDates = fromRight [] upcomingDatesResult
+      mCurrentSlot = case mCurrentTemplate of
+        Right (Just scheduleTemplate) -> Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate episode.scheduledAt
+        _ -> Nothing
       banner = renderBanner Error title message
   html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
     IsHxRequest -> do
-      EditForm.template currentTime showModel episode tracks episodeTags upcomingDates userMetadata isStaff
+      EditForm.template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
       banner
     IsNotHxRequest -> do
       banner
-      EditForm.template currentTime showModel episode tracks episodeTags upcomingDates userMetadata isStaff
+      EditForm.template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
   pure $ Servant.noHeader html
 
 updateEpisode ::
