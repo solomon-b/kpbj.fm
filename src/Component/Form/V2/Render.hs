@@ -153,10 +153,10 @@ renderFormElement config state allFields hasFileFields styles = do
         forM_ (fsElements state) $ \element ->
           renderElement styles element
 
-        -- Buttons (from builder state, or fallback to config footer)
-        case fsButtons state of
+        -- Footer items (from builder state, or fallback to config footer)
+        case fsFooterItems state of
           [] -> fromMaybe mempty (fcFooter config)
-          buttons -> renderButtons styles buttons
+          items -> renderFooter styles items (fsFooterHint state)
 
 --------------------------------------------------------------------------------
 -- Element Rendering
@@ -182,28 +182,94 @@ renderSection styles sec = do
           renderField styles field
 
 --------------------------------------------------------------------------------
--- Button Rendering
+-- Footer Rendering
 
--- | Render form buttons.
-renderButtons :: FormStyles -> [FormButton] -> Lucid.Html ()
-renderButtons styles buttons =
-  Lucid.div_ [Lucid.class_ (fsButtonContainerClasses styles)] $
-    forM_ buttons $ \btn -> case btn of
-      SubmitButton lbl ->
-        Lucid.button_
-          [ Lucid.type_ "submit",
-            Lucid.class_ (fsSubmitButtonClasses styles)
+-- | Render form footer (buttons and inline controls like toggles).
+renderFooter :: FormStyles -> [FormFooterItem] -> Maybe Text -> Lucid.Html ()
+renderFooter styles items mHint =
+  Lucid.div_ [Lucid.class_ "pt-4"] $ do
+    -- Footer hint (displayed above the buttons, right-aligned)
+    forM_ mHint $ \hint ->
+      Lucid.p_ [Lucid.class_ (fsHintClasses styles <> " text-right mb-2")] (Lucid.toHtml hint)
+    Lucid.div_ [Lucid.class_ (fsButtonContainerClasses styles)] $
+      forM_ items $ \item -> case item of
+        FooterSubmit lbl ->
+          Lucid.button_
+            [ Lucid.type_ "submit",
+              Lucid.class_ (fsSubmitButtonClasses styles)
+            ]
+            (Lucid.toHtml lbl)
+        FooterCancel url lbl ->
+          Lucid.a_
+            [ Lucid.href_ url,
+              hxGet_ url,
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              Lucid.class_ (fsCancelButtonClasses styles)
+            ]
+            (Lucid.toHtml lbl)
+        FooterToggle field ->
+          renderFooterToggle styles field
+
+-- | Render a toggle switch inline with footer buttons.
+--
+-- This is a compact version of toggle rendering designed to sit alongside
+-- submit/cancel buttons (e.g., for publish/draft status).
+-- Hints are rendered as tooltips (title attribute) since this is an inline context.
+renderFooterToggle :: FormStyles -> Field -> Lucid.Html ()
+renderFooterToggle styles field = do
+  let name = fName field
+      cfg = fConfig field
+      isDisabled = fcDisabled cfg
+      isChecked = fcChecked cfg
+      offLabelText = fromMaybe "Off" (fcOffLabel cfg)
+      onLabelText = fromMaybe "On" (fcOnLabel cfg)
+      offVal = fromMaybe "off" (fcOffValue cfg)
+      onVal = fromMaybe "on" (fcOnValue cfg)
+      switchClasses =
+        if isDisabled
+          then fsToggleSwitchDisabledClasses styles
+          else fsToggleSwitchClasses styles
+      trackClasses =
+        if isDisabled
+          then fsToggleTrackDisabledClasses styles
+          else fsToggleTrackClasses styles
+      toggleId = name <> "-toggle"
+      hintAttr = maybe [] (\h -> [Lucid.title_ h]) (fcHint cfg)
+
+  -- Compact inline toggle (no wrapper margin, flows with buttons)
+  Lucid.div_
+    ( [ xData_ [i|{ isOn: #{if isChecked then "true" else "false" :: Text} }|],
+        Lucid.class_ (fsToggleContainerClasses styles)
+      ]
+        <> hintAttr
+    )
+    $ do
+      -- Hidden input that submits the actual value
+      Lucid.input_
+        [ Lucid.type_ "hidden",
+          Lucid.name_ name,
+          xBindValue_ [i|isOn ? '#{onVal}' : '#{offVal}'|]
+        ]
+
+      -- Off label
+      Lucid.span_ [Lucid.class_ (fsToggleOffLabelClasses styles)] $
+        Lucid.toHtml offLabelText
+
+      -- Toggle switch
+      Lucid.label_ [Lucid.class_ switchClasses] $ do
+        Lucid.input_ $
+          [ Lucid.type_ "checkbox",
+            Lucid.id_ toggleId,
+            Lucid.class_ "sr-only peer",
+            xModel_ "isOn"
           ]
-          (Lucid.toHtml lbl)
-      CancelButton url lbl ->
-        Lucid.a_
-          [ Lucid.href_ url,
-            hxGet_ url,
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ (fsCancelButtonClasses styles)
-          ]
-          (Lucid.toHtml lbl)
+            <> [Lucid.disabled_ "disabled" | isDisabled]
+        Lucid.div_ [Lucid.class_ trackClasses] mempty
+
+      -- On label
+      Lucid.span_ [Lucid.class_ (fsToggleOnLabelClasses styles)] $
+        Lucid.toHtml onLabelText
 
 --------------------------------------------------------------------------------
 -- Field Rendering

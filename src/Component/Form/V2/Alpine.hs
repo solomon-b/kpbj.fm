@@ -86,14 +86,19 @@ isFileField field = case fType field of
   AudioField {} -> True
   _ -> False
 
--- | Collect all fields from a form state, including those in sections.
+-- | Collect all fields from a form state, including those in sections and footer toggles.
 collectAllFields :: FormState -> [Field]
 collectAllFields state =
   concatMap collectFromElement (fsElements state)
+    <> concatMap collectFromFooter (fsFooterItems state)
   where
     collectFromElement :: FormElement -> [Field]
     collectFromElement (SectionElement sec) = secFields sec
     collectFromElement (FieldElement field) = [field]
+
+    collectFromFooter :: FormFooterItem -> [Field]
+    collectFromFooter (FooterToggle field) = [field]
+    collectFromFooter _ = []
 
 --------------------------------------------------------------------------------
 -- Field Initialization
