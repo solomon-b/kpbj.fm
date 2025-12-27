@@ -97,16 +97,16 @@ episodeUploadForm showModel upcomingDates = do
       section "TRACKLIST" $ plain tracklistSection
 
       -- Publishing Section
-      section "PUBLISHING" $ do
-        toggleField "status" $ do
-          offLabel "Draft"
-          onLabel "Published"
-          offValue "draft"
-          onValue "published"
-          hint "Published episodes will be visible after their scheduled date"
+      footerToggle "status" $ do
+        offLabel "Draft"
+        onLabel "Published"
+        offValue "draft"
+        onValue "published"
 
-      submitButton "SUBMIT"
+
+      footerHint "Published episodes will be visible after their scheduled date"
       cancelButton cancelUrl "CANCEL"
+      submitButton "SUBMIT"
 
     -- \| Encode schedule slot value as "template_id|scheduled_at" for form submission
     encodeScheduleValue :: ShowSchedule.UpcomingShowDate -> Text.Text
