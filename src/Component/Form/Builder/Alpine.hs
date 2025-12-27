@@ -52,6 +52,7 @@ generateAlpineState fields =
 needsValidation :: Field -> Bool
 needsValidation field = case fType field of
   TextField -> hasValidationRules field
+  PasswordField -> hasValidationRules field
   TextareaField {} -> hasValidationRules field
   SelectField -> hasValidationRules field
   FileField {} -> hasValidationRules field || hasFileConstraints field

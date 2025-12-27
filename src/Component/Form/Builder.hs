@@ -58,6 +58,7 @@ module Component.Form.Builder
 
     -- * Field Functions
     textField,
+    passwordField,
     textareaField,
     selectField,
     radioField,
@@ -92,6 +93,7 @@ module Component.Form.Builder
     label,
     placeholder,
     hint,
+    description,
     value,
     disabled,
     classes,
@@ -180,6 +182,7 @@ import Component.Form.Builder.Core
     hidden,
     imageField,
     numberField,
+    passwordField,
     plain,
     radioField,
     section,
@@ -201,6 +204,7 @@ import Component.Form.Builder.Field
     classes,
     currentFile,
     customValidation,
+    description,
     disabled,
     hint,
     label,

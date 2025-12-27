@@ -116,6 +116,8 @@ data Field = Field
 data FieldType
   = -- | Single-line text input
     TextField
+  | -- | Password input (like TextField but masked)
+    PasswordField
   | -- | Multi-line text input
     TextareaField
       { tfRows :: Int
@@ -189,7 +191,9 @@ data FieldConfig = FieldConfig
     -- | Toggle off value (submitted when off, e.g., "draft")
     fcOffValue :: Maybe Text,
     -- | Initial checked/on state for toggles
-    fcChecked :: Bool
+    fcChecked :: Bool,
+    -- | Rich description (HTML) for checkboxes
+    fcDescriptionHtml :: Maybe (Lucid.Html ())
   }
   deriving stock (Show)
 
@@ -212,7 +216,8 @@ defaultFieldConfig =
       fcOffLabel = Nothing,
       fcOnValue = Nothing,
       fcOffValue = Nothing,
-      fcChecked = False
+      fcChecked = False,
+      fcDescriptionHtml = Nothing
     }
 
 --------------------------------------------------------------------------------
