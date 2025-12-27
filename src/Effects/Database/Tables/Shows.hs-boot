@@ -4,7 +4,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
 import Data.Text.Display (Display)
 import Hasql.Interpolate (DecodeValue, EncodeValue)
-import Rel8 (DBEq, DBType, DBOrd)
+import Rel8 (DBEq, DBOrd, DBType)
 import Servant qualified
 
 newtype Id = Id {unId :: Int64}
