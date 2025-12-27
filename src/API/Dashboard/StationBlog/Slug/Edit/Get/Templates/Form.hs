@@ -11,6 +11,7 @@ where
 import API.Links (apiLinks, dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..), Routes (..))
 import Component.Form.Builder
+import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Design (base, class_)
@@ -23,7 +24,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
-import Data.Foldable (for_)
 
 --------------------------------------------------------------------------------
 

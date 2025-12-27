@@ -103,7 +103,6 @@ episodeUploadForm showModel upcomingDates = do
         offValue "draft"
         onValue "published"
 
-
       footerHint "Published episodes will be visible after their scheduled date"
       cancelButton cancelUrl "CANCEL"
       submitButton "SUBMIT"
