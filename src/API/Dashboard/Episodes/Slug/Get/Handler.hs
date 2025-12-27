@@ -6,8 +6,8 @@ module API.Dashboard.Episodes.Slug.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
-import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
+import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)

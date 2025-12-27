@@ -124,6 +124,7 @@ library
     API.Get.Templates
     API.Dashboard.Blogs.Get.Handler
     API.Dashboard.Blogs.Get.Route
+    API.Dashboard.Blogs.Get.Templates.BlogPostRow
     API.Dashboard.Blogs.Get.Templates.ItemsFragment
     API.Dashboard.Blogs.Get.Templates.Page
     API.Dashboard.Blogs.Slug.Get.Handler
@@ -190,15 +191,13 @@ library
     API.Dashboard.Episodes.Slug.Get.Templates.Page
     API.Dashboard.Episodes.Get.Handler
     API.Dashboard.Episodes.Get.Route
+    API.Dashboard.Episodes.Get.Templates.EpisodeRow
     API.Dashboard.Episodes.Get.Templates.ItemsFragment
     API.Dashboard.Episodes.Get.Templates.Page
     API.Dashboard.Episodes.Redirect.Handler
     API.Dashboard.Episodes.Redirect.Route
     API.Dashboard.Get.Handler
     API.Dashboard.Get.Route
-    API.Dashboard.Get.Templates.Auth
-    API.Dashboard.Get.Templates.BlogPost
-    API.Dashboard.Get.Templates.Episode
     API.Dashboard.Profile.Edit.Get.Handler
     API.Dashboard.Profile.Edit.Get.Route
     API.Dashboard.Profile.Edit.Get.Templates.Form
@@ -312,6 +311,7 @@ library
     Component.Card.Episode
     Component.Card.Event
     Component.Card.Show
+    Component.Dashboard.Auth
     Component.Form
     Component.Form.Builder
     Component.Form.Internal

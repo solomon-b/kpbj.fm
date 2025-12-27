@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Get.Templates.BlogPost (renderBlogPostTableRow)
+import API.Dashboard.Blogs.Get.Templates.BlogPostRow (renderBlogPostTableRow)
 import API.Links (dashboardBlogsLinks)
 import API.Types
 import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
