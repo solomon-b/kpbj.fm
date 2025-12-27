@@ -86,7 +86,7 @@ template user metadata = do
 
       section "" $ do
         -- Role Selector
-        selectField "Role" $ do
+        selectField "role" $ do
           hint "Changing user roles affects their permissions"
           required
           roleOption UserMetadata.User "User" metadata.mUserRole
