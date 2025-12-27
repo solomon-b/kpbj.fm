@@ -5,8 +5,8 @@ module API.Dashboard.Blogs.New.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardBlogsLinks, showsLinks, userLinks)
 import API.Dashboard.Blogs.New.Post.Route (NewShowBlogPostForm (..))
+import API.Links (dashboardBlogsLinks, showsLinks, userLinks)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Control.Monad (guard, unless, void)

@@ -12,7 +12,8 @@ where
 
 import API.Links (dashboardBlogsLinks)
 import API.Types
-import Component.Form.Builder
+import Component.Form.V2
+import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -39,19 +40,68 @@ dashboardBlogsEditPostUrl showModel post = Links.linkURI $ dashboardBlogsLinks.e
 
 --------------------------------------------------------------------------------
 
--- | Edit show blog post form template
+-- | Edit show blog post form template using V2 FormBuilder
 editBlogPostForm :: Shows.Model -> ShowBlogPosts.Model -> [ShowBlogTags.Model] -> Lucid.Html ()
 editBlogPostForm showModel post tags = do
-  buildValidatedForm
-    FormBuilder
-      { fbAction = [i|/#{dashboardBlogsEditPostUrl showModel post}|],
-        fbMethod = "post",
-        fbHeader = Just (renderFormHeader showModel post),
-        fbFields = showBlogEditFormFields post tags,
-        fbAdditionalContent = [renderSubmitActions showModel post, renderStatusToggleScript],
-        fbStyles = defaultFormStyles,
-        fbHtmx = Nothing
-      }
+  renderFormHeader showModel post
+  renderForm config form
+  where
+    postUrl = [i|/#{dashboardBlogsEditPostUrl showModel post}|]
+    cancelUrl = [i|/#{dashboardBlogsGetUrl showModel}|]
+
+    tagsText = Text.intercalate ", " $ map ShowBlogTags.sbtmName tags
+    isPublished = ShowBlogPosts.status post == Published
+
+    config :: FormConfig
+    config =
+      defaultFormConfig
+        { fcAction = postUrl,
+          fcMethod = "post",
+          fcHtmxTarget = Just "#main-content",
+          fcHtmxSwap = Just "innerHTML"
+        }
+
+    form :: FormBuilder
+    form = do
+      -- Post Details Section
+      section "POST DETAILS" $ do
+        textField "title" $ do
+          label "Post Title"
+          value (ShowBlogPosts.title post)
+          required
+          minLength 3
+          maxLength 200
+
+        textareaField "content" 12 $ do
+          label "Post Content"
+          value (ShowBlogPosts.content post)
+          required
+          minLength 10
+          maxLength 50000
+
+        textField "tags" $ do
+          label "Tags"
+          unless (Text.null tagsText) $ value tagsText
+          placeholder "music-selection, behind-the-scenes, guest-interview"
+          hint "Comma separated tags (lowercase with hyphens)"
+          maxLength 500
+
+        textareaField "excerpt" 3 $ do
+          label "Excerpt (Optional)"
+          for_ (ShowBlogPosts.excerpt post) value
+          placeholder "Short preview of your post (optional)"
+          maxLength 500
+
+      footerToggle "status" $ do
+        offLabel "Draft"
+        onLabel "Published"
+        offValue "draft"
+        onValue "published"
+        when isPublished checked
+        hint "Toggle to publish immediately"
+
+      cancelButton cancelUrl "CANCEL"
+      submitButton "SAVE CHANGES"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)
@@ -82,144 +132,6 @@ renderFormHeader showModel post =
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW BLOG"
-
---------------------------------------------------------------------------------
--- Form Fields Definition
-
-showBlogEditFormFields :: ShowBlogPosts.Model -> [ShowBlogTags.Model] -> [FormField]
-showBlogEditFormFields post tags =
-  let tagsText = Text.intercalate ", " $ map ShowBlogTags.sbtmName tags
-      statusValue :: Text
-      statusValue = case ShowBlogPosts.status post of
-        Published -> "published"
-        Draft -> "draft"
-        _ -> "draft"
-   in [ -- Hidden status field (controlled by toggle)
-        HiddenField
-          { hfName = "status",
-            hfValue = statusValue
-          },
-        -- Post Details Section
-        SectionField
-          { sfTitle = "POST DETAILS",
-            sfFields =
-              [ ValidatedTextField
-                  { vfName = "title",
-                    vfLabel = "Post Title",
-                    vfInitialValue = Just (ShowBlogPosts.title post),
-                    vfPlaceholder = Nothing,
-                    vfHint = Nothing,
-                    vfValidation =
-                      ValidationRules
-                        { vrMinLength = Just 3,
-                          vrMaxLength = Just 200,
-                          vrPattern = Nothing,
-                          vrRequired = True,
-                          vrCustomValidation = Nothing
-                        }
-                  },
-                ValidatedTextareaField
-                  { vtName = "content",
-                    vtLabel = "Post Content",
-                    vtInitialValue = Just (ShowBlogPosts.content post),
-                    vtRows = 12,
-                    vtPlaceholder = Nothing,
-                    vtHint = Nothing,
-                    vtValidation =
-                      ValidationRules
-                        { vrMinLength = Just 10,
-                          vrMaxLength = Just 50000,
-                          vrPattern = Nothing,
-                          vrRequired = True,
-                          vrCustomValidation = Nothing
-                        }
-                  },
-                ValidatedTextField
-                  { vfName = "tags",
-                    vfLabel = "Tags",
-                    vfInitialValue = if Text.null tagsText then Nothing else Just tagsText,
-                    vfPlaceholder = Just "music-selection, behind-the-scenes, guest-interview",
-                    vfHint = Just "Comma separated tags (lowercase with hyphens)",
-                    vfValidation =
-                      ValidationRules
-                        { vrMinLength = Nothing,
-                          vrMaxLength = Just 500,
-                          vrPattern = Nothing,
-                          vrRequired = False,
-                          vrCustomValidation = Nothing
-                        }
-                  },
-                ValidatedTextareaField
-                  { vtName = "excerpt",
-                    vtLabel = "Excerpt (Optional)",
-                    vtInitialValue = ShowBlogPosts.excerpt post,
-                    vtRows = 3,
-                    vtPlaceholder = Just "Short preview of your post (optional)",
-                    vtHint = Nothing,
-                    vtValidation =
-                      ValidationRules
-                        { vrMinLength = Nothing,
-                          vrMaxLength = Just 500,
-                          vrPattern = Nothing,
-                          vrRequired = False,
-                          vrCustomValidation = Nothing
-                        }
-                  }
-              ]
-          }
-      ]
-
---------------------------------------------------------------------------------
--- Form Submit Actions (rendered inside <form>)
-
-renderSubmitActions :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
-renderSubmitActions _showModel post =
-  let isPublished = ShowBlogPosts.status post == Published
-   in Lucid.section_ [class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-400", Tokens.p6]] $ do
-        Lucid.div_ [class_ $ base ["flex", "justify-end", "items-center"]] $ do
-          Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center"]] $ do
-            -- Status toggle switch
-            Lucid.div_ [class_ $ base ["flex", "items-center", "gap-3"]] $ do
-              Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.textGray600]] "Draft"
-              Lucid.label_ [class_ $ base ["relative", "inline-flex", "items-center", "cursor-pointer"]] $ do
-                Lucid.input_ $
-                  [ Lucid.type_ "checkbox",
-                    Lucid.id_ "status-toggle",
-                    Lucid.class_ "sr-only peer"
-                  ]
-                    <> [Lucid.checked_ | isPublished]
-                Lucid.div_
-                  [ Lucid.class_ $
-                      "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 "
-                        <> "peer-focus:ring-blue-300 rounded-full peer "
-                        <> "peer-checked:after:translate-x-full peer-checked:after:border-white "
-                        <> "after:content-[''] after:absolute after:top-[2px] after:left-[2px] "
-                        <> "after:bg-white after:border-gray-300 after:border after:rounded-full "
-                        <> "after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"
-                  ]
-                  mempty
-              Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.textGray600]] "Published"
-            Lucid.button_
-              [ Lucid.type_ "submit",
-                class_ $ base ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
-              ]
-              "SUBMIT"
-
--- | JavaScript for status toggle
-renderStatusToggleScript :: Lucid.Html ()
-renderStatusToggleScript =
-  Lucid.script_
-    [i|
-(function() {
-  const statusToggle = document.getElementById('status-toggle');
-  const statusField = document.querySelector('input[name="status"]');
-  statusToggle?.addEventListener('change', () => {
-    if (statusField) {
-      statusField.value = statusToggle.checked ? 'published' : 'draft';
-    }
-  });
-})();
-|]
 
 --------------------------------------------------------------------------------
 -- Error Templates

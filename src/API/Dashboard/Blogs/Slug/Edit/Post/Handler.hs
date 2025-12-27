@@ -6,8 +6,8 @@ module API.Dashboard.Blogs.Slug.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardBlogsLinks, showsLinks)
 import API.Dashboard.Blogs.Slug.Edit.Post.Route (ShowBlogEditForm (..))
+import API.Links (apiLinks, dashboardBlogsLinks)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
@@ -52,38 +52,10 @@ dashboardBlogsDetailUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.de
 dashboardBlogsEditGetUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
 dashboardBlogsEditGetUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.editGet showSlug postId
 
-showGetUrl :: Slug -> Links.URI
-showGetUrl showSlug = Links.linkURI $ showsLinks.detail showSlug Nothing
-
 rootGetUrl :: Links.URI
 rootGetUrl = Links.linkURI apiLinks.rootGet
 
 --------------------------------------------------------------------------------
-
--- | Success template after blog update
-successTemplate :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
-successTemplate showModel blogPost = do
-  Lucid.div_ [Lucid.class_ "bg-green-100 border-2 border-green-600 p-8 text-center"] $ do
-    Lucid.h2_ [Lucid.class_ "text-2xl font-bold mb-4 text-green-800"] "Blog Post Updated Successfully!"
-    Lucid.p_ [Lucid.class_ "mb-6"] "Your blog post has been updated."
-
-    Lucid.div_ [Lucid.class_ "flex gap-4 justify-center"] $ do
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardBlogsDetailUrl (Shows.slug showModel) (ShowBlogPosts.id blogPost)}|],
-          hxGet_ [i|/#{dashboardBlogsDetailUrl (Shows.slug showModel) (ShowBlogPosts.id blogPost)}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700"
-        ]
-        "VIEW POST"
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showGetUrl (Shows.slug showModel)}|],
-          hxGet_ [i|/#{showGetUrl (Shows.slug showModel)}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-600 text-white px-6 py-3 font-bold hover:bg-gray-700"
-        ]
-        "BACK TO SHOW"
 
 -- | Error template
 errorTemplate :: Slug -> ShowBlogPosts.Id -> Text -> Lucid.Html ()
@@ -233,7 +205,10 @@ updateBlogPost hxRequest userMetadata showModel blogPost oldTags editForm = do
           renderTemplate hxRequest (Just userMetadata) (errorTemplate (Shows.slug showModel) (ShowBlogPosts.id blogPost) "Failed to update blog post. Please try again.")
         Right (Just _) -> do
           Log.logInfo "Successfully updated show blog post" blogPost.id
-          renderTemplate hxRequest (Just userMetadata) (successTemplate showModel blogPost)
+          let postId' = blogPost.id
+              detailUrl = [i|/#{dashboardBlogsDetailUrl (Shows.slug showModel) postId'}|]
+              banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated successfully."
+          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner detailUrl banner)
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::
