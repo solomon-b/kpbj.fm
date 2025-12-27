@@ -107,6 +107,11 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
               -- Fetch tags for the episode (separate from main transaction to avoid tuple Display constraint)
               episodeTagsResult <- execQuerySpan (Episodes.getTagsForEpisode episode.id)
               let episodeTags = either (const []) id episodeTagsResult
+              -- Fetch the schedule template for the episode's current slot
+              mCurrentTemplate <- execQuerySpan (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId)
+              let mCurrentSlot = case mCurrentTemplate of
+                    Right (Just scheduleTemplate) -> Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate episode.scheduledAt
+                    _ -> Nothing
               -- Fetch upcoming dates for the show (for schedule slot selection)
               upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
               let upcomingDates = either (const []) id upcomingDatesResult
@@ -116,7 +121,7 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
                   then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
                   else either (const []) id <$> execQuerySpan (Shows.getShowsForUser user.mId)
               let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                  editTemplate = template currentTime showModel episode tracks episodeTags upcomingDates userMetadata isStaff
+                  editTemplate = template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
                   statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
               html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate
               pure $ Servant.noHeader $ Servant.noHeader html

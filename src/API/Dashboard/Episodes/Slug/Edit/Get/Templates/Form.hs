@@ -51,8 +51,10 @@ isScheduledInFuture now episode = episode.scheduledAt > now
 -- The currentTime parameter is used to determine if the scheduled date has passed.
 -- If the scheduled date is in the future, file upload fields are shown.
 -- The isStaff parameter indicates if the user has staff-level permissions or higher.
-template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template currentTime showModel episode tracks episodeTags upcomingDates _userMeta isStaff = do
+-- The mCurrentSlot parameter contains the current episode's schedule slot formatted
+-- as an UpcomingShowDate so it can be displayed consistently with other slots.
+template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Maybe ShowSchedule.UpcomingShowDate -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
+template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates _userMeta isStaff = do
   renderForm config form
   scripts
   where
@@ -69,15 +71,10 @@ template currentTime showModel episode tracks episodeTags upcomingDates _userMet
     artworkUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.artworkUrl
     isPublished = episode.status == Episodes.Published
 
-    -- \| Encode schedule slot value as "template_id|scheduled_at" for form submission
+    -- Encode schedule slot value as "template_id|scheduled_at" for form submission
     encodeScheduleValue :: ShowSchedule.UpcomingShowDate -> Text.Text
     encodeScheduleValue usd =
       display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdStartTime usd)
-
-    -- \| Encode current episode's schedule value
-    encodeCurrentScheduleValue :: Episodes.Model -> Text.Text
-    encodeCurrentScheduleValue ep =
-      display ep.scheduleTemplateId <> "|" <> Text.pack (show ep.scheduledAt)
 
     postUrl = [i|/dashboard/episodes/#{showSlugText}/#{episodeNumText}/edit|]
 
@@ -96,7 +93,41 @@ template currentTime showModel episode tracks episodeTags upcomingDates _userMet
 
     form :: FormBuilder
     form = do
-      section "BASIC INFORMATION" $ do
+      section "EPISODE DETAILS" $ do
+        -- Schedule slot section (only shown if episode is in future or user is staff)
+        when (allowFileUpload || isStaff) $ do
+          section "SCHEDULE SLOT" $ do
+            case mCurrentSlot of
+              Nothing ->
+                -- No template found, show raw scheduled date
+                plain $
+                  Lucid.div_ $ do
+                    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+                    Lucid.div_
+                      [Lucid.class_ "w-full p-3 border-2 border-gray-300 bg-gray-50 font-mono text-sm"]
+                      (Lucid.toHtml $ "Current: " <> display episode.scheduledAt)
+                    Lucid.p_
+                      [Lucid.class_ "text-sm text-gray-600 mt-2 italic"]
+                      "Schedule template not found. To change, cancel and create a new episode."
+              Just currentSlot ->
+                if null upcomingDates
+                  then plain $
+                    Lucid.div_ $ do
+                      Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+                      Lucid.div_
+                        [Lucid.class_ "w-full p-3 border-2 border-gray-300 bg-gray-50 font-mono text-sm"]
+                        (Lucid.toHtml $ display currentSlot <> " (Current)")
+                      Lucid.p_
+                        [Lucid.class_ "text-sm text-gray-600 mt-2 italic"]
+                        "No other available time slots. To change, cancel and create a new episode."
+                  else selectField "scheduled_date" $ do
+                    label "Scheduled Date"
+                    hint "Choose when this episode will air"
+                    -- Current slot as first option (preselected), rendered same as upcoming dates
+                    addOption (encodeScheduleValue currentSlot) (display currentSlot <> " (Current)")
+                    -- Other available slots
+                    mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
+
         textareaField "description" 6 $ do
           label "Description"
           placeholder "Describe this episode. What tracks did you play? Any special guests or themes?"
@@ -126,27 +157,6 @@ template currentTime showModel episode tracks episodeTags upcomingDates _userMet
 
       section "TRACK LISTING" $ do
         plain $ trackListingContent tracks
-
-      -- Schedule slot section (only shown if episode is in future or user is staff)
-      when (allowFileUpload || isStaff) $ do
-        section "SCHEDULE SLOT" $ do
-          if null upcomingDates
-            then plain $
-              Lucid.div_ $ do
-                Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
-                Lucid.div_
-                  [Lucid.class_ "w-full p-3 border-2 border-gray-300 bg-gray-50 font-mono text-sm"]
-                  (Lucid.toHtml $ "Current: " <> display episode.scheduledAt)
-                Lucid.p_
-                  [Lucid.class_ "text-sm text-gray-600 mt-2 italic"]
-                  "No other available time slots. To change, cancel and create a new episode."
-            else selectField "scheduled_date" $ do
-              label "Scheduled Date"
-              hint "Choose when this episode will air"
-              -- Current slot as first option (preselected)
-              addOption (encodeCurrentScheduleValue episode) (display episode.scheduledAt <> " (Current)")
-              -- Other available slots
-              mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
 
       section "PUBLISHING" $ do
         toggleField "status" $ do

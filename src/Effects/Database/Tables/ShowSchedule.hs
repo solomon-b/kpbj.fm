@@ -49,6 +49,7 @@ module Effects.Database.Tables.ShowSchedule
     UpcomingShowDate (..),
     getUpcomingShowDates,
     getUpcomingUnscheduledShowDates,
+    makeUpcomingShowDateFromTemplate,
   )
 where
 
@@ -57,13 +58,13 @@ where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
-import Data.Time (Day, DayOfWeek (..), TimeOfDay, UTCTime)
+import Data.Time (Day, DayOfWeek (..), TimeOfDay, UTCTime, addUTCTime, dayOfWeek, utctDay)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (hoursToTimeZone, utcToLocalTime)
+import Data.Time.LocalTime (hoursToTimeZone, timeOfDayToTime, utcToLocalTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -553,12 +554,12 @@ instance Display UpcomingShowDate where
 
 -- | Convert from database row to UpcomingShowDate.
 fromUpcomingShowDateRow :: (Shows.Id, TemplateId, Day, DayOfWeek, UTCTime, UTCTime) -> UpcomingShowDate
-fromUpcomingShowDateRow (showId, templateId, showDate, dayOfWeek, startTime, endTime) =
+fromUpcomingShowDateRow (showId, templateId, showDate, dow, startTime, endTime) =
   UpcomingShowDate
     { usdId = showId,
       usdTemplateId = templateId,
       usdShowDate = showDate,
-      usdDayOfWeek = dayOfWeek,
+      usdDayOfWeek = dow,
       usdStartTime = startTime,
       usdEndTime = endTime
     }
@@ -714,3 +715,41 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
     ORDER BY show_date
     LIMIT #{limitVal}
   |]
+
+--------------------------------------------------------------------------------
+-- Helper Functions
+
+-- | Construct an UpcomingShowDate from a schedule template and scheduled time.
+--
+-- This is used to render the current episode's schedule slot in the same format
+-- as the upcoming available slots. The scheduled_at timestamp from the episode
+-- is used as the start time, and the end time is calculated from the template's
+-- duration.
+makeUpcomingShowDateFromTemplate ::
+  -- | The schedule template
+  ScheduleTemplate Result ->
+  -- | The scheduled start time (from episode)
+  UTCTime ->
+  UpcomingShowDate
+makeUpcomingShowDateFromTemplate template scheduledAt =
+  UpcomingShowDate
+    { usdId = template.stShowId,
+      usdTemplateId = template.stId,
+      usdShowDate = utctDay scheduledAt,
+      usdDayOfWeek = fromMaybe (dayOfWeek $ utctDay scheduledAt) template.stDayOfWeek,
+      usdStartTime = scheduledAt,
+      usdEndTime = computeEndTime template scheduledAt
+    }
+  where
+    -- Compute end time by adding the show duration to the start time
+    computeEndTime :: ScheduleTemplate Result -> UTCTime -> UTCTime
+    computeEndTime tmpl startTime =
+      let startTod = tmpl.stStartTime
+          endTod = tmpl.stEndTime
+          -- Duration in seconds, handling overnight shows
+          durationSecs =
+            if endTod > startTod
+              then timeOfDayToTime endTod - timeOfDayToTime startTod
+              else -- Overnight show: add 24 hours worth of seconds
+                (24 * 60 * 60) - timeOfDayToTime startTod + timeOfDayToTime endTod
+       in addUTCTime (realToFrac durationSecs) startTime
