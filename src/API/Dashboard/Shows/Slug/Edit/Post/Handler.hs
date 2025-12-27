@@ -8,7 +8,7 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler (handler) where
 
 import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form qualified as EditForm
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..), ShowEditForm (..))
-import API.Links (apiLinks, dashboardShowsLinks, showsLinks, userLinks)
+import API.Links (apiLinks, dashboardShowsLinks, userLinks)
 import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate)
 import Component.Banner (BannerType (..))
@@ -69,8 +69,8 @@ userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 dashboardShowsGetUrl :: Links.URI
 dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
 
-showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
+dashboardShowDetailUrl :: Shows.Id -> Slug -> Links.URI
+dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail showId slug Nothing
 
 -- | Parse show status from text
 parseStatus :: Text -> Maybe Shows.Status
@@ -293,8 +293,8 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
                         updateSchedulesForShow showModel.id schedules
                         -- Update hosts
                         updateHostsForShow showModel.id (sefHosts editForm)
-                        redirectToShowPage generatedSlug
-                else redirectToShowPage generatedSlug
+                        redirectToShowPage showModel.id generatedSlug
+                else redirectToShowPage showModel.id generatedSlug
   where
     -- Render banner as HTML
     renderBannerHtml :: BannerParams -> Lucid.Html ()
@@ -308,10 +308,10 @@ updateShow hxRequest _user userMetadata showModel sidebarShows selectedShow edit
             Lucid.strong_ $ Lucid.toHtml bpTitle
             Lucid.span_ [Lucid.class_ "ml-2"] $ Lucid.toHtml bpMessage
 
-    -- Redirect to the show page with a success banner
-    redirectToShowPage :: (MonadIO m) => Slug -> m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    redirectToShowPage newSlug = do
-      let showUrl = [i|/#{showGetUrl newSlug}|] :: Text
+    -- Redirect to the dashboard show detail page with a success banner
+    redirectToShowPage :: (MonadIO m) => Shows.Id -> Slug -> m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    redirectToShowPage showId newSlug = do
+      let showUrl = [i|/#{dashboardShowDetailUrl showId newSlug}|] :: Text
           bannerParams =
             BannerParams
               { bpType = Success,
