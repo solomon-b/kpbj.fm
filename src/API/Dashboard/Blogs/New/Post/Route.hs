@@ -1,4 +1,4 @@
-module API.Shows.Slug.Blog.New.Post.Route where
+module API.Dashboard.Blogs.New.Post.Route where
 
 --------------------------------------------------------------------------------
 
@@ -20,10 +20,10 @@ import Web.FormUrlEncoded (FromForm (..), parseMaybe, parseUnique)
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_slug/blog/new"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
+    "POST /dashboard/blog/:show_slug/new"
+    ( "dashboard"
         :> "blog"
+        :> Servant.Capture "show_slug" Slug
         :> "new"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest

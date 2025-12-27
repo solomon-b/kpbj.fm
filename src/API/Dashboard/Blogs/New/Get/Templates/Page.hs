@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Shows.Slug.Blog.New.Get.Templates.Page
+module API.Dashboard.Blogs.New.Get.Templates.Page
   ( newBlogPostForm,
     notLoggedInTemplate,
     errorTemplate,
@@ -9,7 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (showBlogLinks, showsLinks)
+import API.Links (dashboardBlogsLinks, showsLinks)
 import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
@@ -23,11 +23,11 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-showBlogGetUrl :: Shows.Model -> Links.URI
-showBlogGetUrl showModel = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
+dashboardBlogsGetUrl :: Shows.Model -> Links.URI
+dashboardBlogsGetUrl showModel = Links.linkURI $ dashboardBlogsLinks.list (Shows.slug showModel) Nothing
 
-showBlogNewPostUrl :: Shows.Model -> Links.URI
-showBlogNewPostUrl showModel = Links.linkURI $ showBlogLinks.newPost (Shows.slug showModel)
+dashboardBlogsNewPostUrl :: Shows.Model -> Links.URI
+dashboardBlogsNewPostUrl showModel = Links.linkURI $ dashboardBlogsLinks.newPost (Shows.slug showModel)
 
 showGetUrl :: Shows.Model -> Links.URI
 showGetUrl showModel = Links.linkURI $ showsLinks.detail (Shows.slug showModel) Nothing
@@ -39,7 +39,7 @@ newBlogPostForm :: Shows.Model -> Lucid.Html ()
 newBlogPostForm showModel = do
   buildValidatedForm
     FormBuilder
-      { fbAction = [i|/#{showBlogNewPostUrl showModel}|],
+      { fbAction = [i|/#{dashboardBlogsNewPostUrl showModel}|],
         fbMethod = "post",
         fbHeader = Just (renderFormHeader showModel),
         fbFields = showBlogFormFields,
@@ -70,8 +70,8 @@ renderFormHeader showModel =
           ]
           "VIEW SHOW"
         Lucid.a_
-          [ Lucid.href_ [i|/#{showBlogGetUrl showModel}|],
-            hxGet_ [i|/#{showBlogGetUrl showModel}|],
+          [ Lucid.href_ [i|/#{dashboardBlogsGetUrl showModel}|],
+            hxGet_ [i|/#{dashboardBlogsGetUrl showModel}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]

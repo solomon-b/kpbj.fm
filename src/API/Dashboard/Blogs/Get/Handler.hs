@@ -8,7 +8,7 @@ module API.Dashboard.Blogs.Get.Handler where
 import API.Dashboard.Blogs.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Blogs.Get.Templates.Page (template)
 import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
-import API.Links (showBlogLinks)
+import API.Links (dashboardBlogsLinks)
 import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.DashboardFrame (DashboardNav (..))
@@ -140,7 +140,7 @@ handler _tracer showSlug maybePage cookie (foldHxReq -> hxRequest) = do
 
     actionButton :: Shows.Model -> Maybe (Lucid.Html ())
     actionButton showModel =
-      let newBlogUrl = Links.linkURI $ showBlogLinks.newGet showModel.slug
+      let newBlogUrl = Links.linkURI $ dashboardBlogsLinks.newGet showModel.slug
        in Just $
             Lucid.a_
               [ Lucid.href_ [i|/#{newBlogUrl}|],

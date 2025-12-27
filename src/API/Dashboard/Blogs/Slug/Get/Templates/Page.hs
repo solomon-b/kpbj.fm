@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardBlogsLinks, showBlogLinks)
+import API.Links (dashboardBlogsLinks)
 import API.Types
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
@@ -20,12 +20,13 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PostStatus (BlogPostStatus (..))
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Extras (hxConfirm_, hxDelete_, hxGet_, hxOnAfterRequest_, hxPushUrl_, hxSwap_, hxTarget_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -33,8 +34,11 @@ import Servant.Links qualified as Links
 dashboardBlogsGetUrl :: Shows.Model -> Links.URI
 dashboardBlogsGetUrl showModel = Links.linkURI $ dashboardBlogsLinks.list showModel.slug Nothing
 
-blogEditGetUrl :: Shows.Id -> ShowBlogPosts.Id -> ShowBlogPosts.Model -> Links.URI
-blogEditGetUrl showId postId post = Links.linkURI $ showBlogLinks.editGet showId postId post.slug
+blogEditGetUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
+blogEditGetUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.editGet showSlug postId
+
+blogDeleteUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
+blogDeleteUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.delete showSlug postId
 
 --------------------------------------------------------------------------------
 
@@ -67,16 +71,30 @@ template _userMeta showModel blogPost tags = do
           Lucid.div_ [class_ $ base [Tokens.mb4]] $
             renderStatusBadge blogPost.status
 
-        -- Edit button
-        let editUrl = blogEditGetUrl showModel.id blogPost.id blogPost
-        Lucid.a_
-          [ Lucid.href_ [i|/#{editUrl}|],
-            hxGet_ [i|/#{editUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
-          ]
-          "Edit Post"
+        -- Edit and Delete buttons
+        Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
+          let editUrl = blogEditGetUrl showModel.slug blogPost.id
+          Lucid.a_
+            [ Lucid.href_ [i|/#{editUrl}|],
+              hxGet_ [i|/#{editUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
+            ]
+            "Edit Post"
+          -- Delete button
+          let deleteUrl = blogDeleteUrl showModel.slug blogPost.id
+              backUrl = dashboardBlogsGetUrl showModel
+          Lucid.button_
+            [ Lucid.type_ "button",
+              hxDelete_ [i|/#{deleteUrl}|],
+              hxTarget_ "#main-content",
+              hxSwap_ "innerHTML",
+              hxConfirm_ "Are you sure you want to delete this blog post?",
+              hxOnAfterRequest_ [i|if(event.detail.successful) window.location.href='/#{backUrl}'|],
+              class_ $ base ["bg-red-600", Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-red-700"]
+            ]
+            "Delete"
 
       -- Blog post metadata grid
       Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.mb4]] $ do

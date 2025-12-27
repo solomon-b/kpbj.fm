@@ -1,4 +1,4 @@
-module API.Shows.Slug.Blog.Edit.Post.Route where
+module API.Dashboard.Blogs.Slug.Edit.Post.Route where
 
 --------------------------------------------------------------------------------
 
@@ -9,7 +9,6 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
@@ -22,12 +21,11 @@ import Web.FormUrlEncoded qualified as Form
 
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_id/blog/:post_id/:slug/edit"
-    ( "shows"
-        :> Servant.Capture "show_id" Shows.Id
+    "POST /dashboard/blog/:show_slug/:post_id/edit"
+    ( "dashboard"
         :> "blog"
+        :> Servant.Capture "show_slug" Slug
         :> Servant.Capture "post_id" ShowBlogPosts.Id
-        :> Servant.Capture "slug" Slug
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest

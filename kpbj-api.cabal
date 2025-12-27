@@ -129,6 +129,18 @@ library
     API.Dashboard.Blogs.Slug.Get.Handler
     API.Dashboard.Blogs.Slug.Get.Route
     API.Dashboard.Blogs.Slug.Get.Templates.Page
+    API.Dashboard.Blogs.New.Get.Handler
+    API.Dashboard.Blogs.New.Get.Route
+    API.Dashboard.Blogs.New.Get.Templates.Page
+    API.Dashboard.Blogs.New.Post.Handler
+    API.Dashboard.Blogs.New.Post.Route
+    API.Dashboard.Blogs.Slug.Delete.Handler
+    API.Dashboard.Blogs.Slug.Delete.Route
+    API.Dashboard.Blogs.Slug.Edit.Get.Handler
+    API.Dashboard.Blogs.Slug.Edit.Get.Route
+    API.Dashboard.Blogs.Slug.Edit.Get.Templates.Page
+    API.Dashboard.Blogs.Slug.Edit.Post.Handler
+    API.Dashboard.Blogs.Slug.Edit.Post.Route
     API.Dashboard.Events.Get.Handler
     API.Dashboard.Events.Get.Route
     API.Dashboard.Events.Get.Templates.ItemsFragment
@@ -263,21 +275,9 @@ library
     API.Shows.Slug.Get.Route
     API.Shows.Slug.Get.Templates.Page
     API.Shows.Slug.Get.Templates.ShowHeader
-    API.Shows.Slug.Blog.Delete.Handler
-    API.Shows.Slug.Blog.Delete.Route
-    API.Shows.Slug.Blog.Edit.Get.Handler
-    API.Shows.Slug.Blog.Edit.Get.Route
-    API.Shows.Slug.Blog.Edit.Get.Templates.Page
-    API.Shows.Slug.Blog.Edit.Post.Handler
-    API.Shows.Slug.Blog.Edit.Post.Route
     API.Shows.Slug.Blog.Get.Handler
     API.Shows.Slug.Blog.Get.Route
     API.Shows.Slug.Blog.Get.Templates.Page
-    API.Shows.Slug.Blog.New.Get.Handler
-    API.Shows.Slug.Blog.New.Get.Route
-    API.Shows.Slug.Blog.New.Get.Templates.Page
-    API.Shows.Slug.Blog.New.Post.Handler
-    API.Shows.Slug.Blog.New.Post.Route
     API.Shows.Slug.Blog.Post.Get.Handler
     API.Shows.Slug.Blog.Post.Get.Route
     API.Shows.Slug.Blog.Post.Get.Templates.Page
