@@ -158,21 +158,21 @@ template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingD
       section "TRACK LISTING" $ do
         plain $ trackListingContent tracks
 
-      section "PUBLISHING" $ do
-        toggleField "status" $ do
-          offLabel "Draft"
-          onLabel "Published"
-          offValue "draft"
-          onValue "published"
-          when isPublished checked
-          unless canChangeStatus disabled
-          hint $
-            if canChangeStatus
-              then "Published episodes will be visible after their scheduled date"
-              else "Status locked - scheduled date has passed"
+      footerToggle "status" $ do
+        offLabel "Draft"
+        onLabel "Published"
+        offValue "draft"
+        onValue "published"
+        when isPublished checked
+        unless canChangeStatus disabled
 
-      submitButton "SAVE CHANGES"
+      footerHint $
+        if canChangeStatus
+          then "Published episodes will be visible after their scheduled date"
+          else "Status locked - scheduled date has passed"
+
       cancelButton [i|/#{episodeBackUrl}|] "CANCEL"
+      submitButton "SAVE CHANGES"
 
 --------------------------------------------------------------------------------
 -- Track listing
