@@ -7,8 +7,9 @@ module API.User.Login.Get.Templates.Form where
 
 import API.Links (userLinks)
 import API.Types
+import Component.Form.Builder
 import Component.PageHeader (pageHeader)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -29,109 +30,93 @@ userRegisterGetUrl = Link.linkURI (userLinks.registerGet Nothing Nothing Nothing
 
 --------------------------------------------------------------------------------
 
-alpineState :: Text -> Text
-alpineState emailValue =
-  [i|{
-  fields: {
-    email: { value: `#{emailValue}`, isValid: true },
-    password: { value: ``, isValid: true }
-  },
-  showErrors: false,
-
-  validateAndSubmit(event) {
-    this.showErrors = true;
-
-    // Validate all fields
-    this.fields.email.isValid = this.fields.email.value.trim() !== '';
-    this.fields.password.isValid = this.fields.password.value.trim() !== '';
-
-    // Check if all fields are valid including terms
-    const allFieldsValid = Object.values(this.fields).every(field => field.isValid);
-
-    // Validate all fields
-    if (!allFieldsValid) {
-      event.preventDefault();
-      return false;
-    }
-
-    return true;
-  }
-}|]
-
---------------------------------------------------------------------------------
-
 template :: Maybe EmailAddress -> Maybe Text -> Lucid.Html ()
 template emailAddress redirectLink =
-  let validationNotice = maybe "" (const alert) emailAddress
-      emailValue = maybe "" display emailAddress
+  let emailValue = maybe "" display emailAddress
       redirectLink' = fromMaybe "/" redirectLink
+      hasError = isJust emailAddress
+      postUrl = [i|/#{userLoginPostUrl redirectLink'}|]
    in Lucid.div_
-        [ class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"],
-          xData_ (alpineState emailValue)
-        ]
+        [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]]
         do
           Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] do
             pageHeader "LOGIN"
-            Lucid.form_ [Lucid.class_ "space-y-6", hxPost_ [i|/#{userLoginPostUrl redirectLink'}|]] do
-              validationNotice
-              emailField
-              passwordField
-              lostPasswordField
-              submitButton
-            Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center"]] do
-              Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb4]] "Don't have an account yet?"
-              Lucid.a_
-                [Lucid.href_ "#", hxGet_ [i|/#{userRegisterGetUrl}|], hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", class_ $ base ["bg-green-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-green-700", "inline-block"]]
-                "CREATE ACCOUNT"
 
-emailField :: Lucid.Html ()
-emailField =
-  Lucid.div_ do
-    Lucid.label_
-      [Lucid.for_ "email", class_ $ base ["block", Tokens.fontBold, Tokens.mb2]]
-      "Email or Username *"
-    Lucid.input_
-      [ Lucid.type_ "email",
-        Lucid.name_ "email",
-        Lucid.id_ "email",
-        class_ $ base [Tokens.fullWidth, Tokens.p3, Tokens.border2, "border-gray-400", "font-mono", "focus:border-blue-600"],
-        Lucid.placeholder_ "your@email.com or username",
-        xModel_ "fields.email.value",
-        xBindClass_ "showErrors && !fields.email.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
-      ]
+            -- Error alert (shown when login failed)
+            when hasError alert
 
-passwordField :: Lucid.Html ()
-passwordField =
-  Lucid.div_ [] do
-    Lucid.label_
-      [Lucid.for_ "password", class_ $ base ["block", Tokens.fontBold, Tokens.mb2]]
-      "Password *"
-    Lucid.input_
-      [ Lucid.type_ "password",
-        Lucid.name_ "password",
-        Lucid.id_ "password",
-        Lucid.placeholder_ "Your password",
-        class_ $ base [Tokens.fullWidth, Tokens.p3, Tokens.border2, "border-gray-400", "font-mono", "focus:border-blue-600"],
-        xModel_ "fields.password.value",
-        xBindClass_ "showErrors && !fields.password.isValid ? 'w-full p-3 border-2 border-red-500 font-mono focus:border-red-600' : 'w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600'"
-      ]
+            -- Login form using form builder
+            renderForm (loginFormConfig postUrl) (loginForm emailValue)
 
-lostPasswordField :: Lucid.Html ()
-lostPasswordField =
-  Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.textSm]] do
+            -- Register section (outside form)
+            registerSection
+
+--------------------------------------------------------------------------------
+-- Form Configuration
+
+loginFormConfig :: Text -> FormConfig
+loginFormConfig postUrl =
+  defaultFormConfig
+    { fcAction = postUrl,
+      fcMethod = "post",
+      -- Use "body" as target to enable HTMX submission
+      -- The HX-Redirect header from the POST handler will handle the actual redirect
+      fcHtmxTarget = Just "body"
+    }
+
+--------------------------------------------------------------------------------
+-- Form Definition
+
+loginForm :: Text -> FormBuilder
+loginForm emailValue = do
+  textField "email" $ do
+    label "Email or Username"
+    placeholder "your@email.com or username"
+    value emailValue
+    required
+
+  passwordField "password" $ do
+    label "Password"
+    placeholder "Your password"
+    required
+
+  -- Remember me + Forgot password row (custom HTML)
+  plain rememberMeRow
+
+  submitButton "LOGIN"
+
+--------------------------------------------------------------------------------
+-- Custom Components
+
+rememberMeRow :: Lucid.Html ()
+rememberMeRow =
+  Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.textSm, "mb-4"]] do
     Lucid.div_ [class_ $ base ["flex", "items-center"]] do
-      Lucid.input_ [Lucid.type_ "checkbox", Lucid.id_ "remember", Lucid.class_ "mr-2"]
+      Lucid.input_ [Lucid.type_ "checkbox", Lucid.id_ "remember", Lucid.name_ "remember", Lucid.class_ "mr-2"]
       Lucid.label_ [Lucid.for_ "remember"] "Remember me"
-    Lucid.a_ [Lucid.href_ "#", hxGet_ "/forgot-password", hxSwap_ "innerHTML", hxTarget_ "body", hxPushUrl_ "true", class_ $ base ["text-blue-600", "hover:text-blue-800", "hover:underline"]] "Forgot password?"
+    Lucid.a_
+      [ Lucid.href_ "#",
+        hxGet_ "/forgot-password",
+        hxSwap_ "innerHTML",
+        hxTarget_ "body",
+        hxPushUrl_ "true",
+        class_ $ base ["text-blue-600", "hover:text-blue-800", "hover:underline"]
+      ]
+      "Forgot password?"
 
-submitButton :: Lucid.Html ()
-submitButton =
-  Lucid.button_
-    [ Lucid.type_ "submit",
-      class_ $ base [Tokens.fullWidth, "bg-blue-600", Tokens.textWhite, Tokens.p3, Tokens.fontBold, "hover:bg-blue-700", "transition-colors"],
-      xOnClick_ "validateAndSubmit($event)"
-    ]
-    "LOGIN"
+registerSection :: Lucid.Html ()
+registerSection =
+  Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center"]] do
+    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb4]] "Don't have an account yet?"
+    Lucid.a_
+      [ Lucid.href_ "#",
+        hxGet_ [i|/#{userRegisterGetUrl}|],
+        hxSwap_ "innerHTML",
+        hxTarget_ "body",
+        hxPushUrl_ "true",
+        class_ $ base ["bg-green-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-green-700", "inline-block"]
+      ]
+      "CREATE ACCOUNT"
 
 alert :: Lucid.Html ()
 alert =
