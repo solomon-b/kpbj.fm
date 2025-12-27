@@ -314,16 +314,15 @@ library
     Component.Dashboard.Auth
     Component.Form
     Component.Form.Builder
+    Component.Form.Builder.Alpine
+    Component.Form.Builder.Core
+    Component.Form.Builder.Field
+    Component.Form.Builder.JS
+    Component.Form.Builder.Render
+    Component.Form.Builder.Styles
+    Component.Form.Builder.Types
     Component.Form.Internal
     Component.Form.JSArrow
-    Component.Form.V2
-    Component.Form.V2.Alpine
-    Component.Form.V2.Builder
-    Component.Form.V2.FieldBuilder
-    Component.Form.V2.JS
-    Component.Form.V2.Render
-    Component.Form.V2.Styles
-    Component.Form.V2.Types
     Component.DashboardFrame
     Component.Frame
     Component.Layout

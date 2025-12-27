@@ -9,7 +9,7 @@ where
 
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
-import Component.Form.V2
+import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -103,17 +103,15 @@ template userMeta = do
           minLength 3
           maxLength 500
 
-      -- Publishing Section
-      section "PUBLISHING" $ do
-        toggleField "status" $ do
-          offLabel "Draft"
-          onLabel "Published"
-          offValue "draft"
-          onValue "published"
-          hint "Toggle to publish immediately"
+      footerToggle "status" $ do
+        offLabel "Draft"
+        onLabel "Published"
+        offValue "draft"
+        onValue "published"
+        hint "Toggle to publish immediately"
 
-      submitButton "CREATE EVENT"
       cancelButton cancelUrl "CANCEL"
+      submitButton "CREATE EVENT"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)

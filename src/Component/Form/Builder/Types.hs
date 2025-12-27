@@ -2,7 +2,7 @@
 --
 -- This module defines the data structures accumulated by the Writer monad
 -- when building forms declaratively.
-module Component.Form.V2.Types
+module Component.Form.Builder.Types
   ( -- * Form State
     FormState (..),
     emptyFormState,

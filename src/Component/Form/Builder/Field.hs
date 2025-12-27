@@ -12,7 +12,7 @@
 -- >   required
 -- >   pattern "[^@]+@[^@]+"
 -- >   hint "We'll never share your email"
-module Component.Form.V2.FieldBuilder
+module Component.Form.Builder.Field
   ( -- * Builder Type
     FieldBuilder,
     FieldBuilderState (..),
@@ -60,7 +60,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import Component.Form.V2.Types
+import Component.Form.Builder.Types
 import Control.Monad.Writer.Strict (Writer, execWriter, tell)
 import Data.Text (Text)
 

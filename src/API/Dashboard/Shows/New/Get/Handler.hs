@@ -9,8 +9,9 @@ module API.Dashboard.Shows.New.Get.Handler (handler) where
 import API.Dashboard.Shows.New.Get.Templates.Page (template)
 import API.Links (apiLinks, userLinks)
 import API.Types (Routes (..), UserRoutes (..))
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
 import Component.Banner (BannerType (..))
+import Component.DashboardFrame (DashboardNav (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -72,4 +73,4 @@ handler _tracer cookie (foldHxReq -> hxRequest) = do
               let banner = BannerParams Error "Error" "Failed to load form data. Please try again."
               renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{rootGetUrl}|] banner)
             Right eligibleHosts -> do
-              renderTemplate hxRequest (Just userMetadata) (template eligibleHosts)
+              renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows Nothing Nothing (template eligibleHosts)

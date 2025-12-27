@@ -11,7 +11,7 @@ where
 
 import API.Links (dashboardBlogsLinks, showsLinks)
 import API.Types
-import Component.Form.V2
+import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_)

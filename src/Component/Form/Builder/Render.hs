@@ -7,7 +7,7 @@
 -- - Field rendering with validation attributes
 -- - Section grouping
 -- - HTMX integration
-module Component.Form.V2.Render
+module Component.Form.Builder.Render
   ( -- * Form Configuration
     FormConfig (..),
     defaultFormConfig,
@@ -22,11 +22,11 @@ where
 --------------------------------------------------------------------------------
 
 import Component.AudioPlayer.Waveform qualified as WaveformPlayer
-import Component.Form.V2.Alpine (collectAllFields, generateAlpineState, isFileField, needsValidation)
-import Component.Form.V2.Builder (FormBuilder, runFormBuilder)
-import Component.Form.V2.JS (capitalizeFirst)
-import Component.Form.V2.Styles (FormStyles (..), defaultFormStyles)
-import Component.Form.V2.Types
+import Component.Form.Builder.Alpine (collectAllFields, generateAlpineState, isFileField, needsValidation)
+import Component.Form.Builder.Core (FormBuilder, runFormBuilder)
+import Component.Form.Builder.JS (capitalizeFirst)
+import Component.Form.Builder.Styles (FormStyles (..), defaultFormStyles)
+import Component.Form.Builder.Types
 import Control.Monad (forM_, when)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)

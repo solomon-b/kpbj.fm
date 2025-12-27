@@ -13,7 +13,7 @@ import API.Links (apiLinks, showEpisodesLinks)
 import API.Types
 import Component.Form qualified as Form
 import Component.Form.Internal (hiddenInput)
-import Component.Form.V2
+import Component.Form.Builder
 import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)

@@ -2,7 +2,7 @@
 --
 -- This module generates the Alpine.js x-data object for validated forms,
 -- including field state initialization, validators, and helper methods.
-module Component.Form.V2.Alpine
+module Component.Form.Builder.Alpine
   ( -- * State Generation
     generateAlpineState,
 
@@ -15,8 +15,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import Component.Form.V2.JS hiding (field)
-import Component.Form.V2.Types
+import Component.Form.Builder.JS hiding (field)
+import Component.Form.Builder.Types
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text

@@ -10,7 +10,7 @@ where
 
 import API.Links (apiLinks, dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..), Routes (..))
-import Component.Form.V2
+import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -129,18 +129,16 @@ template event userMeta = do
           minLength 3
           maxLength 500
 
-      -- Publishing Section
-      section "PUBLISHING" $ do
-        toggleField "status" $ do
-          offLabel "Draft"
-          onLabel "Published"
-          offValue "draft"
-          onValue "published"
-          when (event.emStatus == Events.Published) checked
-          hint "Toggle to publish immediately"
+      footerToggle "status" $ do
+        offLabel "Draft"
+        onLabel "Published"
+        offValue "draft"
+        onValue "published"
+        when (event.emStatus == Events.Published) checked
+        hint "Toggle to publish immediately"
 
-      submitButton "UPDATE EVENT"
       cancelButton [i|/#{eventBackUrl}|] "CANCEL"
+      submitButton "UPDATE EVENT"
 
 --------------------------------------------------------------------------------
 -- Form Header (rendered OUTSIDE <form>)

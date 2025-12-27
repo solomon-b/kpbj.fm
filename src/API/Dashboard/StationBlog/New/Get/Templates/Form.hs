@@ -9,7 +9,7 @@ where
 
 import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
-import Component.Form.V2
+import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -68,25 +68,23 @@ template userMeta = do
           maxSize 10
           aspectRatio (16, 9)
 
+        textareaField "excerpt" 3 $ do
+          label "Excerpt (Optional)"
+          placeholder "Short preview of your post (optional - will auto-generate if left blank)"
+          maxLength 500
+
         textField "tags" $ do
           label "Tags"
           placeholder "industrial, ambient, interview, chrome-valley"
           hint "Comma separated tags"
           maxLength 500
 
-      -- Publishing Options Section
-      section "PUBLISHING OPTIONS" $ do
-        toggleField "status" $ do
-          offLabel "Draft"
-          onLabel "Published"
-          offValue "draft"
-          onValue "published"
-          hint "Toggle to publish immediately"
-
-        textareaField "excerpt" 3 $ do
-          label "Excerpt (Optional)"
-          placeholder "Short preview of your post (optional - will auto-generate if left blank)"
-          maxLength 500
+      footerToggle "status" $ do
+        offLabel "Draft"
+        onLabel "Published"
+        offValue "draft"
+        onValue "published"
+        hint "Toggle to publish immediately"
 
       submitButton "SAVE POST"
       cancelButton cancelUrl "CANCEL"
