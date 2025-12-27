@@ -99,7 +99,8 @@ processShowArtworkUploads showSlug mLogoFile mBannerFile = do
         Left err -> do
           Log.logInfo "Failed to upload logo file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err
-        Right uploadResult ->
+        Right Nothing -> pure $ Right Nothing -- No file selected
+        Right (Just uploadResult) ->
           pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   -- Process banner file (optional)
@@ -111,7 +112,8 @@ processShowArtworkUploads showSlug mLogoFile mBannerFile = do
         Left err -> do
           Log.logInfo "Failed to upload banner file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err -- File validation failed, reject entire operation
-        Right uploadResult ->
+        Right Nothing -> pure $ Right Nothing -- No file selected
+        Right (Just uploadResult) ->
           pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
 
   case (logoResult, bannerResult) of

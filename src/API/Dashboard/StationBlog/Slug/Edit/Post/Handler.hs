@@ -157,7 +157,8 @@ updateBlogPost hxRequest userMetadata allShows selectedShow blogPost oldTags edi
             Left uploadError -> do
               Log.logInfo "Hero image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
               pure blogPost.bpmHeroImageUrl -- Keep existing image on error
-            Right result -> do
+            Right Nothing -> pure blogPost.bpmHeroImageUrl -- No file selected, keep existing
+            Right (Just result) -> do
               Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
               pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
 
