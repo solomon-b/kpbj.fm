@@ -93,6 +93,7 @@
               pkgs.postgresql
               pkgs.shellcheck
               pkgs.sqlx-cli
+              pkgs.sloc
               pkgs.pkg-config
             ];
           };
