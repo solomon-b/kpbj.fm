@@ -7,10 +7,10 @@ module API.Dashboard.Episodes.Get.Handler where
 
 import API.Dashboard.Episodes.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Episodes.Get.Templates.Page (template)
-import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
+import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO (..))

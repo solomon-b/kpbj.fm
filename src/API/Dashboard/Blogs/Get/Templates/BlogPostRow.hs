@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Get.Templates.BlogPost
+module API.Dashboard.Blogs.Get.Templates.BlogPostRow
   ( renderBlogPostTableRow,
   )
 where
@@ -20,7 +20,8 @@ import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, onchange_)
+import Lucid.Base qualified as LucidBase
+import Lucid.Extras (hxDelete_, hxGet_, hxPushUrl_, hxSwap_, hxTarget_, xData_, xOnChange_, xRef_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -76,8 +77,46 @@ renderBlogPostTableRow showModel post = do
       renderStatusBadge post.status
 
     -- Actions dropdown
-    Lucid.td_ [class_ $ base [Tokens.p4, "text-right"]] $
-      renderActionsDropdown postRowId editUrl deleteUrl
+    Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
+      Lucid.div_ [xData_ "{}"] $ do
+        -- Hidden link for Edit
+        Lucid.a_
+          [ Lucid.href_ [i|/#{editUrl}|],
+            hxGet_ [i|/#{editUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            xRef_ "editLink",
+            Lucid.class_ "hidden"
+          ]
+          ""
+        -- Hidden button for Delete
+        Lucid.button_
+          [ hxDelete_ [i|/#{deleteUrl}|],
+            hxTarget_ ("#" <> postRowId),
+            hxSwap_ "outerHTML",
+            LucidBase.makeAttributes "hx-confirm" "Are you sure you want to delete this blog post?",
+            xRef_ "deleteBtn",
+            Lucid.class_ "hidden"
+          ]
+          ""
+        -- Visible dropdown
+        Lucid.select_
+          [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
+            xOnChange_
+              [i|
+              const action = $el.value;
+              $el.value = '';
+              if (action === 'edit') {
+                $refs.editLink.click();
+              } else if (action === 'delete') {
+                $refs.deleteBtn.click();
+              }
+            |]
+          ]
+          $ do
+            Lucid.option_ [Lucid.value_ ""] "Actions..."
+            Lucid.option_ [Lucid.value_ "edit"] "Edit"
+            Lucid.option_ [Lucid.value_ "delete"] "Delete"
 
 -- | Render status badge with appropriate styling
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
@@ -87,37 +126,3 @@ renderStatusBadge Published =
   Lucid.span_ [class_ $ base ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
 renderStatusBadge Deleted =
   Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"
-
--- | Render actions dropdown select with hidden HTMX links for proper history handling
-renderActionsDropdown :: Text.Text -> Links.URI -> Links.URI -> Lucid.Html ()
-renderActionsDropdown rowId editUrl deleteUrl = do
-  -- Hidden HTMX link for edit action (proper history integration)
-  Lucid.a_
-    [ Lucid.id_ [i|#{rowId}-edit-link|],
-      Lucid.href_ [i|/#{editUrl}|],
-      hxGet_ [i|/#{editUrl}|],
-      hxTarget_ "#main-content",
-      hxPushUrl_ "true",
-      Lucid.class_ "hidden"
-    ]
-    mempty
-
-  -- Select dropdown
-  Lucid.select_
-    [ class_ $ base ["border", "border-gray-300", Tokens.bgWhite, Tokens.textSm, Tokens.fontBold, "px-2", "py-1", "cursor-pointer"],
-      onchange_ [i|
-        var action = this.value;
-        this.value = '';
-        if (action === 'edit') {
-          document.getElementById('#{rowId}-edit-link').click();
-        } else if (action === 'delete') {
-          if (confirm('Are you sure you want to delete this blog post?')) {
-            htmx.ajax('DELETE', '/#{deleteUrl}', {target: '\##{rowId}', swap: 'outerHTML'});
-          }
-        }
-      |]
-    ]
-    $ do
-      Lucid.option_ [Lucid.value_ "", Lucid.selected_ "selected"] "Actions"
-      Lucid.option_ [Lucid.value_ "edit"] "Edit"
-      Lucid.option_ [Lucid.value_ "delete"] "Delete"

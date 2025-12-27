@@ -4,7 +4,7 @@ module API.Shows.Slug.Episode.DiscardDraft.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
+import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
 import App.Common (getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)

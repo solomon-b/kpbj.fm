@@ -5,11 +5,11 @@ module API.Dashboard.Episodes.Redirect.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import API.Links (dashboardEpisodesLinks, dashboardLinks)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import Component.Banner (BannerType (..))
+import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import Component.Redirect (BannerParams (..), redirectTemplate, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)

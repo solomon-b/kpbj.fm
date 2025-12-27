@@ -7,10 +7,10 @@ module API.Dashboard.Blogs.Slug.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Blogs.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
-import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import API.Links (dashboardBlogsLinks)
 import API.Types (DashboardBlogsRoutes (..))
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
+import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)

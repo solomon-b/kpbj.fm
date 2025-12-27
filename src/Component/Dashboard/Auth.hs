@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Get.Templates.Auth
+module Component.Dashboard.Auth
   ( notAuthorizedTemplate,
     notLoggedInTemplate,
   )

@@ -5,9 +5,9 @@ module API.Dashboard.Shows.Slug.Episode.New.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Get.Templates.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import API.Dashboard.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
 import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
+import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad (guard)
 import Control.Monad.Catch (MonadCatch)

@@ -12,7 +12,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Get.Templates.Episode (renderEpisodeTableRow)
+import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
 import API.Links (dashboardEpisodesLinks)
 import API.Types
 import Component.InfiniteScroll (renderEndOfContent, renderSentinel)
