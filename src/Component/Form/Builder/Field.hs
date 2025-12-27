@@ -22,6 +22,7 @@ module Component.Form.Builder.Field
     label,
     placeholder,
     hint,
+    description,
     value,
     disabled,
     classes,
@@ -63,6 +64,7 @@ where
 import Component.Form.Builder.Types
 import Control.Monad.Writer.Strict (Writer, execWriter, tell)
 import Data.Text (Text)
+import Lucid qualified
 
 --------------------------------------------------------------------------------
 -- Types
@@ -112,7 +114,8 @@ mergeConfigs c1 c2 =
       fcOffLabel = fcOffLabel c2 <|> fcOffLabel c1,
       fcOnValue = fcOnValue c2 <|> fcOnValue c1,
       fcOffValue = fcOffValue c2 <|> fcOffValue c1,
-      fcChecked = fcChecked c1 || fcChecked c2
+      fcChecked = fcChecked c1 || fcChecked c2,
+      fcDescriptionHtml = fcDescriptionHtml c2 <|> fcDescriptionHtml c1
     }
   where
     (<|>) :: Maybe a -> Maybe a -> Maybe a
@@ -165,6 +168,16 @@ placeholder txt = tellConfig $ \c -> c {fcPlaceholder = Just txt}
 -- >   hint "At least 8 characters"
 hint :: Text -> FieldBuilder
 hint txt = tellConfig $ \c -> c {fcHint = Just txt}
+
+-- | Set rich HTML description for checkboxes.
+--
+-- > checkboxField "terms" do
+-- >   label "I agree to the Terms"
+-- >   description do
+-- >     Lucid.span_ "By signing up, you agree to our "
+-- >     Lucid.a_ [Lucid.href_ "/terms"] "Terms of Service"
+description :: Lucid.Html () -> FieldBuilder
+description html = tellConfig $ \c -> c {fcDescriptionHtml = Just html}
 
 -- | Set the initial/default value.
 --

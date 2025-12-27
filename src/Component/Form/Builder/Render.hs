@@ -27,7 +27,7 @@ import Component.Form.Builder.Core (FormBuilder, runFormBuilder)
 import Component.Form.Builder.JS (capitalizeFirst)
 import Component.Form.Builder.Styles (FormStyles (..), defaultFormStyles)
 import Component.Form.Builder.Types
-import Control.Monad (forM_, when)
+import Control.Monad (forM_, unless, when)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -192,7 +192,7 @@ renderFooter styles items mHint =
     forM_ mHint $ \hint ->
       Lucid.p_ [Lucid.class_ (fsHintClasses styles <> " text-right mb-2")] (Lucid.toHtml hint)
     Lucid.div_ [Lucid.class_ (fsButtonContainerClasses styles)] $
-      forM_ items $ \item -> case item of
+      forM_ items $ \case
         FooterSubmit lbl ->
           Lucid.button_
             [ Lucid.type_ "submit",
@@ -278,6 +278,7 @@ renderFooterToggle styles field = do
 renderField :: FormStyles -> Field -> Lucid.Html ()
 renderField styles field = case fType field of
   TextField -> renderTextField styles field
+  PasswordField -> renderPasswordField styles field
   TextareaField rows -> renderTextareaField styles field rows
   SelectField -> renderSelectField styles field
   RadioField -> renderRadioField styles field
@@ -315,6 +316,63 @@ renderTextField styles field = do
     -- Input
     Lucid.input_ $
       [ Lucid.type_ "text",
+        Lucid.name_ name,
+        Lucid.id_ name,
+        Lucid.class_ inputClasses
+      ]
+        <> maybe [] (\v -> [Lucid.value_ v]) (fcInitialValue cfg)
+        <> maybe [] (\p -> [Lucid.placeholder_ p]) (fcPlaceholder cfg)
+        <> [Lucid.required_ "" | isReq && not isDisabled]
+        <> maybe [] (\n -> [Lucid.minlength_ (Text.pack $ show n)]) (vcMinLength val)
+        <> maybe [] (\n -> [Lucid.maxlength_ (Text.pack $ show n)]) (vcMaxLength val)
+        <> [Lucid.disabled_ "" | isDisabled]
+        <> if hasVal
+          then
+            [ xModel_ ("fields." <> name <> ".value"),
+              xBindClass_ ("showErrors && !fields." <> name <> ".isValid ? '" <> fsTextInputErrorClasses styles <> "' : '" <> fsTextInputClasses styles <> "'"),
+              xOnInput_ ("showErrors && validate" <> capName <> "()"),
+              xOnBlur_ ("showErrors && validate" <> capName <> "()")
+            ]
+          else []
+
+    -- Error message
+    when hasVal $
+      Lucid.div_
+        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
+          Lucid.class_ (fsErrorMessageClasses styles),
+          Lucid.style_ "display: none;"
+        ]
+        "Please check this field"
+
+    -- Hint
+    forM_ (fcHint cfg) $ \h ->
+      Lucid.p_ [Lucid.class_ (fsHintClasses styles)] (Lucid.toHtml h)
+
+--------------------------------------------------------------------------------
+-- Password Field
+
+renderPasswordField :: FormStyles -> Field -> Lucid.Html ()
+renderPasswordField styles field = do
+  let name = fName field
+      cfg = fConfig field
+      val = fValidation field
+      isReq = vcRequired val
+      isDisabled = fcDisabled cfg
+      hasVal = needsValidation field && not isDisabled
+      capName = capitalizeFirst name
+      inputClasses
+        | isDisabled = fsTextInputDisabledClasses styles
+        | otherwise = fsTextInputClasses styles
+
+  Lucid.div_ [Lucid.class_ "mb-4"] $ do
+    -- Label
+    Lucid.label_
+      [Lucid.for_ name, Lucid.class_ (fsLabelClasses styles)]
+      (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq && not isDisabled then " *" else "")
+
+    -- Input
+    Lucid.input_ $
+      [ Lucid.type_ "password",
         Lucid.name_ name,
         Lucid.id_ name,
         Lucid.class_ inputClasses
@@ -491,9 +549,7 @@ renderRadioField styles field = do
     -- Radio group
     Lucid.div_
       ( [Lucid.class_ (fsRadioGroupClasses styles)]
-          <> if hasVal
-            then [xBindClass_ ("showErrors && !fields." <> name <> ".isValid ? '" <> fsRadioGroupErrorClasses styles <> "' : '" <> fsRadioGroupClasses styles <> "'")]
-            else []
+          <> [xBindClass_ ("showErrors && !fields." <> name <> ".isValid ? '" <> fsRadioGroupErrorClasses styles <> "' : '" <> fsRadioGroupClasses styles <> "'") | hasVal]
       )
       $ do
         forM_ options $ \opt -> do
@@ -910,7 +966,8 @@ renderImageField styles field = do
 
       -- Hint for non-required with existing
       when (not isReq && hasExisting) $
-        Lucid.p_ [Lucid.class_ (fsHintClasses styles <> " mt-2")] $
+        Lucid.p_
+          [Lucid.class_ (fsHintClasses styles <> " mt-2")]
           "Leave unchanged to keep the current image"
 
       -- Cropper Modal
@@ -1034,7 +1091,8 @@ renderAudioField styles field = do
 
       -- File picker button and info
       Lucid.label_ [Lucid.for_ inputId, Lucid.class_ "cursor-pointer"] $ do
-        Lucid.div_ [Lucid.class_ (fsAudioButtonClasses styles)] $
+        Lucid.div_
+          [Lucid.class_ (fsAudioButtonClasses styles)]
           "CHOOSE AUDIO FILE"
         Lucid.p_ [Lucid.class_ (fsHintClasses styles <> " mt-2")] $
           if isReq
@@ -1153,25 +1211,44 @@ renderCheckboxField styles field = do
       isReq = vcRequired val
       hasVal = needsValidation field
       capName = capitalizeFirst name
+      hasDescription = case fcDescriptionHtml cfg of
+        Just _ -> True
+        Nothing -> False
 
   Lucid.div_ [Lucid.class_ "mb-4"] $ do
-    Lucid.label_ [Lucid.for_ name, Lucid.class_ (fsCheckboxLabelClasses styles)] $ do
+    Lucid.div_ [Lucid.class_ "flex items-start"] $ do
+      -- Checkbox input
       Lucid.input_ $
         [ Lucid.type_ "checkbox",
           Lucid.name_ name,
           Lucid.id_ name,
-          Lucid.class_ "mr-2"
+          Lucid.class_ "mr-3 mt-1",
+          Lucid.value_ "on"
         ]
           <> [Lucid.required_ "" | isReq]
           <> [Lucid.disabled_ "" | fcDisabled cfg]
+          <> [Lucid.checked_ | fcChecked cfg]
           <> if hasVal
             then
               [ xModel_ ("fields." <> name <> ".value"),
                 xOnChange_ ("showErrors && validate" <> capName <> "()")
               ]
             else []
-      Lucid.span_ (Lucid.toHtml $ fromMaybe name (fcLabel cfg))
-      when isReq $ Lucid.span_ [Lucid.class_ "text-red-500 ml-1"] "*"
+
+      -- Label block (bold label + optional description)
+      Lucid.label_ [Lucid.for_ name, Lucid.class_ "text-sm cursor-pointer"] $ do
+        Lucid.span_ [Lucid.class_ "font-bold"] $ do
+          Lucid.toHtml $ fromMaybe name (fcLabel cfg)
+          when isReq $ Lucid.span_ [Lucid.class_ "text-red-500 ml-1"] "*"
+
+        -- Rich HTML description (if provided)
+        forM_ (fcDescriptionHtml cfg) $ \descHtml ->
+          Lucid.div_ [Lucid.class_ "text-gray-600 font-normal"] descHtml
+
+        -- Fallback to hint as description (if no descriptionHtml)
+        unless hasDescription $
+          forM_ (fcHint cfg) $ \h ->
+            Lucid.div_ [Lucid.class_ "text-gray-600 font-normal"] (Lucid.toHtml h)
 
     -- Error message
     when hasVal $
@@ -1181,10 +1258,6 @@ renderCheckboxField styles field = do
           Lucid.style_ "display: none;"
         ]
         "This field is required"
-
-    -- Hint
-    forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ (fsHintClasses styles)] (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Toggle Field

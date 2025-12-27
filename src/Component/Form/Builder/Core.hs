@@ -37,6 +37,7 @@ module Component.Form.Builder.Core
 
     -- * Field Functions
     textField,
+    passwordField,
     textareaField,
     selectField,
     radioField,
@@ -152,6 +153,15 @@ formSubtitle = tellSubtitle
 -- >   required
 textField :: Text -> FieldBuilder -> FormBuilder
 textField name builder = tellField $ buildField name TextField builder
+
+-- | Add a password input field (masked text).
+--
+-- > passwordField "password" do
+-- >   label "Password"
+-- >   placeholder "Enter your password"
+-- >   required
+passwordField :: Text -> FieldBuilder -> FormBuilder
+passwordField name builder = tellField $ buildField name PasswordField builder
 
 -- | Add a multi-line textarea field.
 --
