@@ -28,6 +28,7 @@ common common-extensions
       OverloadedStrings
       RankNTypes
       RecordWildCards
+      StrictData
       TypeApplications
       TypeOperators
       TypeSynonymInstances
