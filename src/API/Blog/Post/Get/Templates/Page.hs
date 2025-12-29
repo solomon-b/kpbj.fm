@@ -3,7 +3,6 @@
 module API.Blog.Post.Get.Templates.Page
   ( template,
     notFoundTemplate,
-    renderTags,
   )
 where
 
@@ -11,6 +10,7 @@ where
 
 import API.Links (apiLinks, blogLinks)
 import API.Types
+import Component.Tags qualified as Tags
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -43,25 +43,13 @@ mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 
--- | Render tags for a blog post
-renderTags :: [BlogTags.Model] -> Lucid.Html ()
-renderTags tags = do
-  Lucid.div_ [class_ $ base ["flex", Tokens.gap2, Tokens.mb6]] $ do
-    mapM_ renderTag tags
-  where
-    renderTag :: BlogTags.Model -> Lucid.Html ()
-    renderTag tag =
-      Lucid.a_
-        [ Lucid.href_ [i|/#{blogGetTagUrl (BlogTags.btmName tag)}|],
-          hxGet_ [i|/#{blogGetTagUrl (BlogTags.btmName tag)}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ tagStyle
-        ]
-        $ Lucid.toHtml
-        $ "#" <> BlogTags.btmName tag
-
-    tagStyle = "bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono hover:bg-gray-300 cursor-pointer"
+-- | Convert blog tags to tag links for rendering.
+blogTagToLink :: BlogTags.Model -> Tags.TagLink
+blogTagToLink tag =
+  Tags.TagLink
+    { tagName = BlogTags.btmName tag,
+      tagUrl = blogGetTagUrl (BlogTags.btmName tag)
+    }
 
 -- | Main blog post template
 template :: BlogPosts.Model -> UserMetadata.Model -> [BlogTags.Model] -> Lucid.Html ()
@@ -104,7 +92,8 @@ template post author tags = do
 
       -- Tags
       unless (null tags) $
-        renderTags tags
+        Lucid.div_ [Lucid.class_ Tokens.mb6] $
+          Tags.renderTags (map blogTagToLink tags)
 
     -- Post Content
     renderContent (BlogPosts.bpmContent post)

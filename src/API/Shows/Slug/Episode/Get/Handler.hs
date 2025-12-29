@@ -85,6 +85,7 @@ renderEpisode ::
 renderEpisode hxRequest mUserInfo mUserId episode = do
   showResult <- execQuerySpan (Shows.getShowById episode.showId)
   tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+  tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
 
   case showResult of
     Left err -> do
@@ -104,5 +105,5 @@ renderEpisode hxRequest mUserInfo mUserId episode = do
           result <- execQuerySpan (ShowHost.isUserHostOfShow userId showModel.id)
           pure $ fromRight False result
       let canViewDrafts = isHost || isStaffOrAdmin
-          episodeTemplate = template showModel episode tracks canViewDrafts
+          episodeTemplate = template showModel episode tracks tags canViewDrafts
       renderTemplate hxRequest mUserInfo episodeTemplate

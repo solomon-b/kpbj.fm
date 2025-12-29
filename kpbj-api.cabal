@@ -330,6 +330,7 @@ library
     Component.PageHeader
     Component.Redirect
     Component.Table
+    Component.Tags
     Design
     Design.Lucid
     Design.Lucid.Card
