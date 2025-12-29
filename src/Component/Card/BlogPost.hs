@@ -76,7 +76,7 @@ renderBlogPostCard card = do
               Lucid.img_
                 [ Lucid.src_ [i|/#{mediaGetUrl}/#{heroImageUrl}|],
                   Lucid.alt_ card.cardTitle,
-                  class_ $ base [Tokens.fullWidth, "h-auto", Tokens.border2, Tokens.borderGray400, "dark:border-gray-600"]
+                  class_ $ base [Tokens.fullWidth, "h-auto", "border", "border-gray-300"]
                 ]
           Nothing -> pure ()
 
