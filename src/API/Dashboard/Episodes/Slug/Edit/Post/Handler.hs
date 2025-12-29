@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
 
@@ -16,6 +17,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Aeson qualified as Aeson
 import Data.Either (partitionEithers)
 import Data.Has (Has)
 import Data.Maybe (isJust)
@@ -23,6 +25,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
@@ -300,8 +303,8 @@ updateEpisode showSlug episodeNumber _user userMetadata episode showModel editFo
                           let banner = BannerParams Error "Schedule Update Failed" scheduleErr
                           pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
                         Right () -> do
-                          -- Update tracks
-                          updateTracksResult <- updateTracks episode.id (eefTracks editForm)
+                          -- Update tracks from JSON
+                          updateTracksResult <- updateTracksFromJson episode.id (eefTracksJson editForm)
                           case updateTracksResult of
                             Left trackErr -> do
                               Log.logInfo "Failed to update tracks" (episode.id, trackErr)
@@ -366,12 +369,11 @@ processFileUploads showModel episode editForm = do
 --------------------------------------------------------------------------------
 -- Track Update Logic
 
--- | Update tracks for an episode
--- Strategy: For each track in the form:
---   - If it has an ID, update the existing track
---   - If it has no ID, insert a new track
--- Note: Removed tracks are handled by the frontend (they won't be in the form submission)
-updateTracks ::
+-- | Update tracks for an episode from JSON.
+--
+-- Strategy: Delete all existing tracks and insert new ones from JSON.
+-- Track numbers are auto-calculated from array position (1-indexed).
+updateTracksFromJson ::
   ( MonadIO m,
     MonadDB m,
     Log.MonadLog m,
@@ -381,19 +383,38 @@ updateTracks ::
     Has Tracer env
   ) =>
   Episodes.Id ->
-  [TrackInfo] ->
-  m (Either Text [EpisodeTrack.Id])
-updateTracks episodeId tracks = do
-  results <- mapM (processTrack episodeId) tracks
-  let (errors, trackIds) = partitionEithers results
-  if null errors
-    then pure $ Right trackIds
-    else do
-      Log.logInfo "Some tracks failed to process" errors
-      pure $ Left "Failed to process some tracks"
+  Maybe Text ->
+  m (Either Text ())
+updateTracksFromJson episodeId mTracksJson = do
+  -- Delete all existing tracks for this episode
+  deleteResult <- execQuerySpan (EpisodeTrack.deleteAllTracksForEpisode episodeId)
+  case deleteResult of
+    Left err -> do
+      Log.logInfo "Failed to delete existing tracks" (show err)
+      pure $ Left "Failed to delete existing tracks"
+    Right _ -> do
+      -- Parse and insert new tracks
+      case mTracksJson of
+        Nothing -> pure $ Right ()
+        Just "" -> pure $ Right ()
+        Just "[]" -> pure $ Right ()
+        Just jsonStr -> do
+          case Aeson.eitherDecodeStrict (Text.encodeUtf8 jsonStr) of
+            Left err -> do
+              Log.logInfo "Failed to parse tracks JSON" err
+              pure $ Left $ "Invalid tracks JSON: " <> Text.pack err
+            Right (trackList :: [TrackInfo]) -> do
+              -- Insert tracks with auto-calculated track numbers (1-indexed)
+              results <- mapM (insertTrack episodeId) (zip [1 ..] trackList)
+              let (errors, _trackIds) = partitionEithers results
+              if null errors
+                then pure $ Right ()
+                else do
+                  Log.logInfo "Some tracks failed to insert" errors
+                  pure $ Left "Failed to insert some tracks"
 
--- | Process a single track (update existing or insert new)
-processTrack ::
+-- | Insert a single track with the given track number.
+insertTrack ::
   ( MonadIO m,
     MonadDB m,
     Log.MonadLog m,
@@ -403,35 +424,21 @@ processTrack ::
     Has Tracer env
   ) =>
   Episodes.Id ->
-  TrackInfo ->
+  (Int, TrackInfo) ->
   m (Either Text EpisodeTrack.Id)
-processTrack episodeId track = do
+insertTrack episodeId (trackNum, track) = do
   let trackInsert =
         EpisodeTrack.Insert
           { EpisodeTrack.etiEpisodeId = episodeId,
-            EpisodeTrack.etiTrackNumber = tiTrackNumber track,
-            EpisodeTrack.etiTitle = tiTitle track,
-            EpisodeTrack.etiArtist = tiArtist track
+            EpisodeTrack.etiTrackNumber = fromIntegral trackNum,
+            EpisodeTrack.etiTitle = Sanitize.sanitizePlainText (tiTitle track),
+            EpisodeTrack.etiArtist = Sanitize.sanitizePlainText (tiArtist track)
           }
-
-  case tiId track of
-    -- Update existing track
-    Just trackId -> do
-      execQuerySpan (EpisodeTrack.updateEpisodeTrack trackId trackInsert) >>= \case
-        Left err -> do
-          Log.logInfo "Failed to update track" (trackId, show err)
-          pure $ Left "Failed to update track"
-        Right Nothing -> do
-          Log.logInfo "Track update returned Nothing" trackId
-          pure $ Left "Track not found"
-        Right (Just updatedId) -> pure $ Right updatedId
-    -- Insert new track
-    Nothing -> do
-      execQuerySpan (EpisodeTrack.insertEpisodeTrack trackInsert) >>= \case
-        Left err -> do
-          Log.logInfo "Failed to insert track" (show err)
-          pure $ Left "Failed to insert track"
-        Right trackId -> pure $ Right trackId
+  execQuerySpan (EpisodeTrack.insertEpisodeTrack trackInsert) >>= \case
+    Left err -> do
+      Log.logInfo "Failed to insert track" (show err)
+      pure $ Left "Failed to insert track"
+    Right trackId -> pure $ Right trackId
 
 --------------------------------------------------------------------------------
 -- Tag Parsing

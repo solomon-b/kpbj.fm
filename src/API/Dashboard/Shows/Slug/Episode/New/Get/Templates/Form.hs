@@ -10,6 +10,7 @@ where
 import API.Links (dashboardShowsLinks)
 import API.Types
 import Component.Form.Builder
+import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
@@ -33,7 +34,7 @@ dashboardShowDetailUrl showId showSlug = Links.linkURI $ dashboardShowsLinks.det
 episodeUploadForm :: Shows.Model -> [ShowSchedule.UpcomingShowDate] -> Lucid.Html ()
 episodeUploadForm showModel upcomingDates = do
   renderForm config form
-  renderTrackManagementScript
+  renderAudioDurationScript
   where
     postUrl = [i|/#{episodesNewPostUrl (Shows.slug showModel)}|]
     cancelUrl = [i|/#{dashboardShowDetailUrl (Shows.id showModel) (Shows.slug showModel)}|]
@@ -93,8 +94,15 @@ episodeUploadForm showModel upcomingDates = do
           maxSize 5
           aspectRatio (1, 1)
 
-      -- Tracklist Section (custom JavaScript management)
-      section "TRACKLIST" $ plain tracklistSection
+      -- Tracklist Section
+      section "TRACKLIST" $
+        plain $
+          TrackListingEditor.render
+            TrackListingEditor.Config
+              { TrackListingEditor.editorId = "new-episode-tracks",
+                TrackListingEditor.initialTracks = [],
+                TrackListingEditor.jsonFieldName = "tracks_json"
+              }
 
       -- Publishing Section
       footerToggle "status" $ do
@@ -113,95 +121,17 @@ episodeUploadForm showModel upcomingDates = do
       display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdStartTime usd)
 
 --------------------------------------------------------------------------------
--- Custom HTML Sections
+-- Audio Duration Script
 
--- | Tracklist section with custom JavaScript management
-tracklistSection :: Lucid.Html ()
-tracklistSection =
-  Lucid.div_ [] $ do
-    Lucid.p_
-      [Lucid.class_ "text-sm text-gray-600 mb-4"]
-      "Add tracks in the order they will be played during the episode."
-
-    Lucid.div_ [Lucid.id_ "tracklist-container"] $ do
-      Lucid.div_ [Lucid.class_ "border-2 border-dashed border-gray-400 p-8 text-center text-gray-600"] $ do
-        Lucid.button_
-          [ Lucid.type_ "button",
-            Lucid.id_ "add-track-btn",
-            Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700"
-          ]
-          "+ ADD TRACK"
-        Lucid.div_ [Lucid.class_ "mt-2 text-sm"] "Click to add your first track"
-
-    Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "tracks_json", Lucid.id_ "tracks-json", Lucid.value_ "[]"]
-
---------------------------------------------------------------------------------
--- Track Management JavaScript
-
-renderTrackManagementScript :: Lucid.Html ()
-renderTrackManagementScript =
+-- | Script to extract audio duration from uploaded file.
+--
+-- This is separate from the track listing editor because it handles
+-- the audio file input from the FormBuilder.
+renderAudioDurationScript :: Lucid.Html ()
+renderAudioDurationScript =
   Lucid.script_
     [i|
-// Track management module (IIFE to avoid global pollution)
 (function() {
-  // Track HTML template
-  const createTrackElement = () => {
-    const div = document.createElement('div');
-    div.className = 'border border-gray-300 p-4 bg-gray-50 mb-4';
-    div.innerHTML = `
-      <div class='grid grid-cols-1 md:grid-cols-2 gap-4'>
-        <div>
-          <label class='block font-bold text-sm mb-1'>Track Title</label>
-          <input type='text' class='w-full p-2 border border-gray-400 text-sm font-mono track-title' placeholder='Track title'>
-        </div>
-        <div>
-          <label class='block font-bold text-sm mb-1'>Artist</label>
-          <input type='text' class='w-full p-2 border border-gray-400 text-sm font-mono track-artist' placeholder='Artist name'>
-        </div>
-      </div>
-      <div class='flex justify-end mt-4'>
-        <button type='button' class='bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700' data-action='remove-track'>
-          REMOVE
-        </button>
-      </div>
-    `;
-    return div;
-  };
-
-  // Extract track data from DOM element
-  const extractTrackData = (div) => ({
-    tiTitle: div.querySelector('.track-title')?.value || '',
-    tiArtist: div.querySelector('.track-artist')?.value || ''
-  });
-
-  // Update hidden JSON field with current tracks
-  const updateTracksJson = () => {
-    const trackDivs = document.querySelectorAll('\#tracklist-container .border:not(.border-dashed)');
-    const tracks = Array.from(trackDivs).map(extractTrackData);
-
-    const jsonField = document.getElementById('tracks-json');
-    if (jsonField) {
-      jsonField.value = JSON.stringify(tracks);
-    }
-  };
-
-  // Add new track
-  const addTrack = () => {
-    const container = document.getElementById('tracklist-container');
-    const addButton = container?.querySelector('.border-dashed');
-    if (container && addButton) {
-      container.insertBefore(createTrackElement(), addButton);
-      updateTracksJson();
-    }
-  };
-
-  // Remove track
-  const removeTrack = (button) => {
-    button.closest('.border')?.remove();
-    updateTracksJson();
-  };
-
-  // Extract and set audio duration
   const extractAudioDuration = (file) => {
     const isAudio = file.type.startsWith('audio/') || /\\.(mp3|wav|flac|aac|ogg|m4a)$/i.test(file.name);
     if (!isAudio) return;
@@ -220,22 +150,6 @@ renderTrackManagementScript =
     audio.onerror = () => URL.revokeObjectURL(audio.src);
     audio.src = URL.createObjectURL(file);
   };
-
-  // Initialize immediately (script runs after DOM elements are rendered)
-  // Add track button
-  document.getElementById('add-track-btn')?.addEventListener('click', addTrack);
-
-  // Track list updates (use event delegation)
-  const container = document.getElementById('tracklist-container');
-  if (container) {
-    container.addEventListener('input', updateTracksJson);
-    container.addEventListener('change', updateTracksJson);
-    container.addEventListener('click', (e) => {
-      if (e.target.dataset.action === 'remove-track') {
-        removeTrack(e.target);
-      }
-    });
-  }
 
   // Audio file duration extraction - listen for the V2 FormBuilder audio field
   const audioContainer = document.querySelector('[data-field-name="audio_file"]');

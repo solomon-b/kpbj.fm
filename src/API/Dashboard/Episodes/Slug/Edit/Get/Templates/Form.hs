@@ -8,20 +8,15 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts (scripts)
 import API.Links (apiLinks, showEpisodesLinks)
 import API.Types
-import Component.Form qualified as Form
 import Component.Form.Builder
-import Component.Form.Internal (hiddenInput)
-import Control.Monad (forM_)
+import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime)
-import Design (base, class_)
-import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -56,7 +51,6 @@ isScheduledInFuture now episode = episode.scheduledAt > now
 template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Maybe ShowSchedule.UpcomingShowDate -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
 template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates _userMeta isStaff = do
   renderForm config form
-  scripts
   where
     showSlugText = display showModel.slug
     episodeNum = episode.episodeNumber
@@ -156,7 +150,13 @@ template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingD
             currentFile artworkUrl
 
       section "TRACK LISTING" $ do
-        plain $ trackListingContent tracks
+        plain $
+          TrackListingEditor.render
+            TrackListingEditor.Config
+              { TrackListingEditor.editorId = "edit-episode-tracks",
+                TrackListingEditor.initialTracks = map TrackListingEditor.fromEpisodeTrack tracks,
+                TrackListingEditor.jsonFieldName = "tracks_json"
+              }
 
       footerToggle "status" $ do
         offLabel "Draft"
@@ -173,83 +173,3 @@ template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingD
 
       cancelButton [i|/#{episodeBackUrl}|] "CANCEL"
       submitButton "SAVE CHANGES"
-
---------------------------------------------------------------------------------
--- Track listing
-
-trackListingContent :: [EpisodeTrack.Model] -> Lucid.Html ()
-trackListingContent tracks = do
-  Lucid.div_ [Lucid.id_ "tracks-container", class_ $ base ["space-y-4"]] $ do
-    if null tracks
-      then Lucid.p_ [class_ $ base [Tokens.textGray600, "italic"]] "No tracks added yet."
-      else forM_ (zip [(0 :: Int) ..] tracks) $ uncurry renderTrackEditor
-  addTrackButton
-
-addTrackButton :: Lucid.Html ()
-addTrackButton = do
-  Lucid.div_ [class_ $ base ["mt-4"]] $ do
-    Lucid.button_
-      [ Lucid.type_ "button",
-        Lucid.id_ "add-track-btn",
-        class_ $ base ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-2", Tokens.fontBold, "hover:bg-blue-700"]
-      ]
-      "+ ADD TRACK"
-
-renderTrackEditor :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-renderTrackEditor idx track = do
-  Lucid.div_ [class_ $ base ["border-2", "border-gray-300", Tokens.p4, "track-item"]] $ do
-    trackEditorHeader idx
-    hiddenInput [i|tracks[#{idx}][id]|] (display track.id)
-    Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4]] $ do
-      trackNumberField idx track
-      trackTitleField idx track
-      trackArtistField idx track
-
-trackEditorHeader :: Int -> Lucid.Html ()
-trackEditorHeader idx = do
-  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-center", "mb-3"]] $ do
-    Lucid.h3_ [class_ $ base [Tokens.fontBold]] $ "Track #" <> Lucid.toHtml (show (idx + 1))
-    Lucid.button_
-      [ Lucid.type_ "button",
-        class_ $ base ["text-red-600", Tokens.fontBold, "hover:text-red-800", "remove-track-btn"]
-      ]
-      "X REMOVE"
-
-trackNumberField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackNumberField idx track =
-  Form.formNumberInput
-    Form.FormNumberInputConfig
-      { Form.fniName = [i|tracks[#{idx}][track_number]|],
-        Form.fniLabel = "Track #",
-        Form.fniValue = Just (fromIntegral track.trackNumber),
-        Form.fniMin = Just 1,
-        Form.fniMax = Nothing,
-        Form.fniHint = Nothing,
-        Form.fniRequired = False
-      }
-
-trackTitleField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackTitleField idx track = do
-  Lucid.div_ [class_ $ base ["col-span-2"]] $
-    Form.formTextInput
-      Form.FormTextInputConfig
-        { Form.ftiName = [i|tracks[#{idx}][title]|],
-          Form.ftiLabel = "Title",
-          Form.ftiValue = Just track.title,
-          Form.ftiPlaceholder = Nothing,
-          Form.ftiHint = Nothing,
-          Form.ftiRequired = True
-        }
-
-trackArtistField :: Int -> EpisodeTrack.Model -> Lucid.Html ()
-trackArtistField idx track = do
-  Lucid.div_ [class_ $ base ["col-span-2"]] $
-    Form.formTextInput
-      Form.FormTextInputConfig
-        { Form.ftiName = [i|tracks[#{idx}][artist]|],
-          Form.ftiLabel = "Artist",
-          Form.ftiValue = Just track.artist,
-          Form.ftiPlaceholder = Nothing,
-          Form.ftiHint = Nothing,
-          Form.ftiRequired = True
-        }
