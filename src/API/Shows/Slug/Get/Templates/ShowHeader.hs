@@ -40,7 +40,7 @@ renderShowHeader showModel hosts schedules tags = do
   case showModel.bannerUrl of
     Just bannerUrl -> do
       let bannerAlt = showModel.title <> " banner"
-      Lucid.div_ [class_ $ base [Tokens.fullWidth, Tokens.mb8, Tokens.cardBorder, "overflow-hidden"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.fullWidth, Tokens.mb8, "border", "border-gray-300", "overflow-hidden"]] $ do
         Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{bannerUrl}|], Lucid.alt_ bannerAlt, Lucid.class_ "w-full h-auto object-cover"]
     Nothing -> mempty
 
@@ -48,7 +48,7 @@ renderShowHeader showModel hosts schedules tags = do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
-        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "border", "border-gray-300", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
           case showModel.logoUrl of
             Just logoUrl -> do
               let logoAlt = showModel.title <> " logo"

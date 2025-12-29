@@ -81,7 +81,7 @@ template post author tags = do
             Lucid.img_
               [ Lucid.src_ [i|/#{mediaGetUrl}/#{heroImageUrl}|],
                 Lucid.alt_ $ BlogPosts.bpmTitle post,
-                class_ $ base [Tokens.fullWidth, "h-auto", Tokens.border2, Tokens.borderGray400]
+                class_ $ base [Tokens.fullWidth, "h-auto", "border", "border-gray-300"]
               ]
         Nothing -> pure ()
 
