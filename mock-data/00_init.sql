@@ -8,6 +8,8 @@ TRUNCATE TABLE
     schedule_templates,
     show_hosts,
     episode_tracks,
+    episode_tag_assignments,
+    episode_tags,
     episodes,
     show_tag_assignments,
     show_tags,
