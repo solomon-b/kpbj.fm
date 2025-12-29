@@ -104,8 +104,10 @@ deleteBlogPost blogPost = do
       pure $ renderBanner Error "Delete Failed" "Blog post not found during delete operation."
     Right (Just _) -> do
       Log.logInfo "Blog post deleted successfully" (Aeson.object ["postId" .= blogPost.id])
-      -- Return empty response so the post card gets removed
-      pure $ Lucid.toHtmlRaw ("" :: Text)
+      -- Return empty response to remove the card + OOB success banner
+      pure $ do
+        Lucid.toHtmlRaw ("" :: Text)
+        renderBanner Success "Blog Post Deleted" "The blog post has been deleted."
 
 checkIfHost ::
   ( Has Tracer env,

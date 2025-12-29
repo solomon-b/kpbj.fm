@@ -67,7 +67,10 @@ renderDeleteResult :: (Log.MonadLog m) => DeleteResult -> m (Lucid.Html ())
 renderDeleteResult = \case
   DeleteSuccess uid email -> do
     Log.logInfo "User soft deleted successfully" (Aeson.object ["userId" .= display uid])
-    pure $ renderBanner Success "User Deleted" ("User " <> display email <> " has been successfully deleted. They can no longer authenticate.")
+    -- Return empty to remove the row + OOB success banner
+    pure $ do
+      mempty
+      renderBanner Success "User Deleted" ("User " <> display email <> " has been successfully deleted. They can no longer authenticate.")
   TargetUserNotFound uid -> do
     Log.logInfo "User already deleted or not found during delete" (Aeson.object ["userId" .= display uid])
     pure $ renderBanner Error "Delete Failed" "User not found."
