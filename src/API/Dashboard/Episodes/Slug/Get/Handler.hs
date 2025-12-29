@@ -97,11 +97,14 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
                   -- Fetch tracks for the episode
                   tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
 
+                  -- Fetch tags for the episode
+                  tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
+
                   -- Get user's shows for sidebar
                   userShows <-
                     if UserMetadata.isAdmin userMetadata.mUserRole
                       then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
                       else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
 
-                  let content = template userMetadata showModel episode tracks
+                  let content = template userMetadata showModel episode tracks tags
                   renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes Nothing Nothing content

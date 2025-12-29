@@ -21,6 +21,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -40,8 +41,8 @@ dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list s
 --------------------------------------------------------------------------------
 
 -- | Dashboard episode detail template
-template :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
-template _userMeta showModel episode tracks = do
+template :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Lucid.Html ()
+template _userMeta showModel episode tracks tags = do
   -- Back button and header
   Lucid.div_ [class_ $ base [Tokens.mb6]] $ do
     let backUrl = dashboardEpisodesGetUrl showModel.slug
@@ -125,6 +126,13 @@ template _userMeta showModel episode tracks = do
             Just desc -> Lucid.p_ [class_ $ base [Tokens.textGray700, "leading-relaxed"]] $ Lucid.toHtml desc
             Nothing -> mempty
 
+          -- Episode tags
+          unless (null tags) $ do
+            Lucid.div_ [class_ $ base [Tokens.mt4]] $ do
+              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700, "mr-2"]] "Tags:"
+              Lucid.div_ [class_ $ base ["inline-flex", "flex-wrap", Tokens.gap2]] $ do
+                mapM_ renderTag tags
+
     -- Audio player section
     case episode.audioFilePath of
       Just audioPath -> do
@@ -162,6 +170,15 @@ template _userMeta showModel episode tracks = do
 
         Lucid.div_ [Lucid.class_ "space-y-1"] $ do
           mapM_ renderTrackRow tracks
+
+--------------------------------------------------------------------------------
+
+renderTag :: EpisodeTags.Model -> Lucid.Html ()
+renderTag tag =
+  Lucid.span_
+    [class_ $ base ["bg-gray-200", "text-gray-800", "px-2", "py-1", "text-xs", "font-mono"]]
+    $ Lucid.toHtml
+    $ "#" <> EpisodeTags.etName tag
 
 --------------------------------------------------------------------------------
 
