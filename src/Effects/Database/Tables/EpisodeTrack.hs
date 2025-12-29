@@ -36,7 +36,7 @@ import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), RowsAffected, interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), RowsAffected (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import Rel8 (Column, DBEq, DBOrd, DBType, Name, Rel8able, Result, TableSchema (..))
 import Servant qualified
@@ -179,11 +179,16 @@ deleteEpisodeTrack trackId =
   |]
 
 -- | Delete all tracks for an episode.
-deleteAllTracksForEpisode :: Episodes.Id -> Hasql.Statement () RowsAffected
+--
+-- Returns the number of rows deleted.
+deleteAllTracksForEpisode :: Episodes.Id -> Hasql.Statement () Int
 deleteAllTracksForEpisode episodeId =
-  interp
-    False
-    [sql|
+  fromIntegral . unRowsAffected
+    <$> interp
+      False
+      [sql|
     DELETE FROM episode_tracks
     WHERE episode_id = #{episodeId}
   |]
+  where
+    unRowsAffected (RowsAffected n) = n

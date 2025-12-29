@@ -109,6 +109,12 @@ xOnDragleave_ = Lucid.makeAttributes "x-on:dragleave.prevent"
 xOnDrop_ :: Text -> Lucid.Attributes
 xOnDrop_ = Lucid.makeAttributes "x-on:drop.prevent"
 
+xFor_ :: Text -> Lucid.Attributes
+xFor_ = Lucid.makeAttributes "x-for"
+
+xKey_ :: Text -> Lucid.Attributes
+xKey_ = Lucid.makeAttributes ":key"
+
 -- | Listen for HTMX's pushedIntoHistory event (fired after hx-push-url updates history)
 xOnHtmxPushedIntoHistory_ :: Text -> Lucid.Attributes
 xOnHtmxPushedIntoHistory_ = Lucid.makeAttributes "x-on:htmx:pushed-into-history.window"
