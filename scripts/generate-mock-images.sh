@@ -706,8 +706,8 @@ generate_image() {
             ;;
     esac
 
-    # Add text
-    add_text "$processed_file" "$output" "$title" "$font_size" "$text_color"
+    # Copy processed file to output (no text overlay)
+    cp "$processed_file" "$output"
 
     # Compress for smaller file size
     mogrify -quality 70 -strip "$output"
