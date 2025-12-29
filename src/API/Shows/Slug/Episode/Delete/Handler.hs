@@ -107,8 +107,10 @@ softDeleteEpisode userMeta showModel episode = do
       pure $ renderErrorWithRow userMeta showModel episode "Episode not found during archive operation."
     Right (Just _) -> do
       Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
-      -- Return empty response to remove the row
-      pure emptyResponse
+      -- Return empty response to remove the row + OOB success banner
+      pure $ do
+        emptyResponse
+        renderBanner Success "Episode Archived" "The episode has been archived."
 
 -- | Render an error banner AND the episode row (to prevent row removal on error)
 renderErrorWithRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()

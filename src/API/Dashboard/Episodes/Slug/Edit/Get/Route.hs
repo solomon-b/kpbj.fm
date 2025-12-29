@@ -25,5 +25,5 @@ type Route =
         :> "edit"
         :> Servant.Header "Cookie" Cookie
         :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Push-Url" Text, Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
     )

@@ -9,7 +9,7 @@ import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
 import App.Common (getUserInfo)
 import Component.Banner (BannerType (..), renderBanner)
-import Component.Redirect (redirectTemplate)
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -95,5 +95,6 @@ deleteBlogPost blogPost = do
       pure $ renderBanner Error "Delete Failed" "Blog post not found during delete operation."
     Right (Just _) -> do
       Log.logInfo "Blog post deleted successfully" (Aeson.object ["postId" .= BlogPosts.bpmId blogPost])
-      -- Redirect back to the station blog index
-      pure $ redirectTemplate [i|/#{dashboardStationBlogGetUrl}|]
+      -- Redirect back to the station blog index with success banner
+      let banner = BannerParams Success "Blog Post Deleted" "The blog post has been deleted."
+      pure $ redirectWithBanner [i|/#{dashboardStationBlogGetUrl}|] banner
