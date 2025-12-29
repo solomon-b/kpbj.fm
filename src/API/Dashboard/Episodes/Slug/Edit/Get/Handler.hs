@@ -7,10 +7,12 @@ module API.Dashboard.Episodes.Slug.Edit.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (template)
-import API.Get.Templates qualified as HomeTemplate
-import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
-import Component.Banner (BannerType (..), renderBanner)
+import API.Links (dashboardEpisodesLinks, userLinks)
+import API.Types
+import App.Common (getUserInfo, renderDashboardTemplate)
+import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -18,6 +20,7 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
@@ -40,6 +43,16 @@ import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
+import Servant.Links qualified as Links
+
+--------------------------------------------------------------------------------
+
+-- | URL helpers
+dashboardEpisodesUrl :: Slug -> Links.URI
+dashboardEpisodesUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
+
+userLoginGetUrl :: Links.URI
+userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -58,16 +71,16 @@ handler ::
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Servant.Headers '[Servant.Header "HX-Push-Url" Text, Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
   getUserInfo cookie >>= \case
     Nothing -> do
-      Log.logInfo "Unauthorized access to episode edit" ()
-      let banner = renderBanner Warning "Login Required" "Please login to edit episodes."
-      html <- renderTemplate hxRequest Nothing $ case hxRequest of
-        IsHxRequest -> HomeTemplate.template <> banner
-        IsNotHxRequest -> banner <> HomeTemplate.template
-      pure $ Servant.addHeader "/" $ Servant.noHeader html
+      Log.logInfo_ "Unauthorized access to episode edit - not logged in"
+      -- Redirect to login page
+      pure $
+        Servant.addHeader [i|/#{userLoginGetUrl}|] $
+          redirectWithBanner [i|/#{userLoginGetUrl}|] $
+            BannerParams Warning "Login Required" "Please login to edit episodes."
     Just (user, userMetadata) -> do
       -- Fetch episode by show slug and episode number
       mResult <- execTransactionSpan $ runMaybeT $ do
@@ -81,21 +94,23 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
             else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
         MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
 
+      let episodesListUrl = [i|/#{dashboardEpisodesUrl showSlug}|]
+
       case mResult of
         Left err -> do
           Log.logAttention "getEpisodeByShowAndNumber execution error" (show err)
-          let banner = renderBanner Warning "Episode Not Found" "The episode you're trying to edit doesn't exist."
-          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-            IsHxRequest -> HomeTemplate.template <> banner
-            IsNotHxRequest -> banner <> HomeTemplate.template
-          pure $ Servant.addHeader "/" $ Servant.noHeader html
+          -- Redirect to episodes list with error banner
+          pure $
+            Servant.addHeader episodesListUrl $
+              redirectWithBanner episodesListUrl $
+                BannerParams Warning "Error" "Failed to load episode. Please try again."
         Right Nothing -> do
           Log.logInfo_ $ "No episode : show='" <> display showSlug <> "' number=" <> display episodeNumber
-          let banner = renderBanner Warning "Episode Not Found" "The episode you're trying to edit doesn't exist."
-          html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-            IsHxRequest -> HomeTemplate.template <> banner
-            IsNotHxRequest -> banner <> HomeTemplate.template
-          pure $ Servant.addHeader "/" $ Servant.noHeader html
+          -- Redirect to episodes list with error banner
+          pure $
+            Servant.addHeader episodesListUrl $
+              redirectWithBanner episodesListUrl $
+                BannerParams Warning "Episode Not Found" "The episode you're trying to edit doesn't exist."
         Right (Just (episode, showModel, tracks, isHost)) -> do
           if episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
             then do
@@ -124,11 +139,11 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
                   editTemplate = template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
                   statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
               html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate
-              pure $ Servant.noHeader $ Servant.noHeader html
+              pure $ Servant.noHeader html
             else do
               Log.logInfo "User tried to edit episode they don't own" episode.id
-              let banner = renderBanner Error "Access Denied" "You can only edit your own episodes."
-              html <- renderTemplate hxRequest (Just userMetadata) $ case hxRequest of
-                IsHxRequest -> HomeTemplate.template <> banner
-                IsNotHxRequest -> banner <> HomeTemplate.template
-              pure $ Servant.addHeader "/" $ Servant.noHeader html
+              -- Redirect to episodes list with error banner
+              pure $
+                Servant.addHeader episodesListUrl $
+                  redirectWithBanner episodesListUrl $
+                    BannerParams Error "Access Denied" "You can only edit your own episodes."
