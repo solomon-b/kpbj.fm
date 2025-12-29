@@ -13,6 +13,7 @@ where
 import API.Links (showsLinks)
 import API.Types
 import Component.Card.Episode (renderEpisodeCard)
+import Component.Tags qualified as Tags
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -21,6 +22,7 @@ import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
+import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
@@ -32,13 +34,30 @@ import Servant.Links qualified as Links
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
+showsListUrl :: Links.URI
+showsListUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Nothing
+
+-- | Convert episode tags to tag links.
+-- Links to shows list for now (no episode tag filtering route yet).
+episodeTagToLink :: EpisodeTags.Model -> Tags.TagLink
+episodeTagToLink tag =
+  Tags.TagLink
+    { tagName = EpisodeTags.etName tag,
+      tagUrl = showsListUrl -- TODO: Link to proper episode tag filtering when implemented
+    }
+
 --------------------------------------------------------------------------------
 
-template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Bool -> Lucid.Html ()
-template showModel episode tracks canViewDrafts = do
+template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Bool -> Lucid.Html ()
+template showModel episode tracks tags canViewDrafts = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Episode card (reuses the same component from show page)
     renderEpisodeCard showModel canViewDrafts episode
+
+    -- Tags section
+    unless (null tags) $ do
+      Lucid.div_ [class_ $ base [Tokens.bgWhite, "mt-6"]] $ do
+        Tags.renderTags (map episodeTagToLink tags)
 
     -- Track listing section
     unless (null tracks) $ do
