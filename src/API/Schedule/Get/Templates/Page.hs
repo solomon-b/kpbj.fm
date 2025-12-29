@@ -4,22 +4,18 @@ module API.Schedule.Get.Templates.Page (template) where
 
 import API.Schedule.Get.Templates.Components (renderScheduleView)
 import Data.Text (Text)
-import Data.Time (Day, DayOfWeek, TimeOfDay)
+import Data.Time (DayOfWeek, TimeOfDay)
 import Design (base, tablet)
 import Design.StyleBuilder (class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.WeekOffset (WeekOffset)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 
 --------------------------------------------------------------------------------
 
--- | Schedule page template
---
--- Note: This page has its own header in the Components file for mobile,
--- and no header on desktop.
-template :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> WeekOffset -> Day -> Maybe Text -> Lucid.Html ()
-template scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart maybeError = do
+-- | Schedule page template (single-day view with day navigation)
+template :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Maybe Text -> Lucid.Html ()
+template scheduledShows currentDayOfWeek currentTimeOfDay maybeError = do
   -- Error message if present
   case maybeError of
     Just errorMsg -> Lucid.div_ [errorStyles] $ do
@@ -27,7 +23,7 @@ template scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart m
     Nothing -> do
       -- Schedule View
       Lucid.section_ [sectionStyles] $ do
-        renderScheduleView scheduledShows currentDayOfWeek currentTimeOfDay weekOffset weekStart
+        renderScheduleView scheduledShows currentDayOfWeek currentTimeOfDay
 
 --------------------------------------------------------------------------------
 -- Styles
