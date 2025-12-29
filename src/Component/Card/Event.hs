@@ -104,11 +104,11 @@ renderImage event =
       Lucid.img_
         [ Lucid.src_ [i|/#{mediaGetUrl}/#{posterUrl}|],
           Lucid.alt_ (event.emTitle <> " poster"),
-          class_ $ base [Tokens.fullWidth, "aspect-square", "object-cover"]
+          class_ $ base [Tokens.fullWidth, "aspect-square", "object-cover", "border", "border-gray-300"]
         ]
     Nothing ->
       Lucid.div_
-        [class_ $ base [Tokens.fullWidth, "aspect-square", "bg-gray-300", "dark:bg-gray-700", "flex", "items-center", "justify-center", Tokens.textLg]]
+        [class_ $ base [Tokens.fullWidth, "aspect-square", "bg-gray-300", "dark:bg-gray-700", "flex", "items-center", "justify-center", Tokens.textLg, "border", "border-gray-300"]]
         "[NO POSTER]"
 
 -- | Render event title.

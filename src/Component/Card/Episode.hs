@@ -83,7 +83,7 @@ renderArtworkWithPlayer epUrl mArtworkUrl showDraftBadge =
         hxGet_ [i|/#{epUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "dark:bg-gray-700", "flex", "items-center", "justify-center", Tokens.textXs, "block"]
+        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "dark:bg-gray-700", "flex", "items-center", "justify-center", Tokens.textXs, "block", "border", "border-gray-300"]
       ]
       $ case mArtworkUrl of
         Just artworkUrl ->
