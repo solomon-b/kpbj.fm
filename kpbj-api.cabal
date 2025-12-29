@@ -184,7 +184,6 @@ library
     API.Dashboard.Episodes.Slug.Edit.Get.Handler
     API.Dashboard.Episodes.Slug.Edit.Get.Route
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
-    API.Dashboard.Episodes.Slug.Edit.Get.Templates.Scripts
     API.Dashboard.Episodes.Slug.Edit.Post.Handler
     API.Dashboard.Episodes.Slug.Edit.Post.Route
     API.Dashboard.Episodes.Slug.Get.Handler
@@ -307,6 +306,7 @@ library
     Component.AudioPlayer.Waveform
     Component.ImageFilePicker
     Component.InfiniteScroll
+    Component.TrackListingEditor
     Component.Banner
     Component.Card.BlogPost
     Component.Card.Episode
