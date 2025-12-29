@@ -451,7 +451,9 @@ data ScheduledShowWithDetails = ScheduledShowWithDetails
     sswdEndTime :: TimeOfDay,
     sswdShowSlug :: Slug,
     sswdShowTitle :: Text,
-    sswdHostName :: Text
+    sswdHostName :: Text,
+    sswdBannerUrl :: Maybe Text,
+    sswdLogoUrl :: Maybe Text
   }
   deriving stock (Show, Generic, Eq)
   deriving anyclass (FromJSON, ToJSON, DecodeRow)
@@ -487,7 +489,9 @@ getScheduledShowsForDate targetDate =
       st.end_time::time,
       s.slug,
       s.title,
-      COALESCE(um.display_name, um.full_name) as host_name
+      COALESCE(um.display_name, um.full_name) as host_name,
+      s.banner_url,
+      s.logo_url
     FROM schedule_templates st
     JOIN schedule_template_validity stv ON stv.template_id = st.id
     JOIN shows s ON s.id = st.show_id
