@@ -37,6 +37,16 @@ SELECT
 FROM episode_tracks
 UNION ALL
 SELECT
+    'Episode Tags' as metric,
+    COUNT(*) as count
+FROM episode_tags
+UNION ALL
+SELECT
+    'Episode Tag Assignments' as metric,
+    COUNT(*) as count
+FROM episode_tag_assignments
+UNION ALL
+SELECT
     'Events' as metric,
     COUNT(*) as count
 FROM events
