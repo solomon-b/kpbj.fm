@@ -60,6 +60,9 @@ dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Noth
 dashboardEventsGetUrl :: Links.URI
 dashboardEventsGetUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
 
+dashboardShowSettingsUrl :: Slug -> Links.URI
+dashboardShowSettingsUrl slug = Links.linkURI $ dashboardShowsLinks.editGet slug
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -161,6 +164,7 @@ sidebar userMeta activeNav selectedShow =
         Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
           navItem "EPISODES" NavEpisodes activeNav selectedShow
           navItem "BLOG" NavBlog activeNav selectedShow
+          navItem "SHOW SETTINGS" NavSettings activeNav selectedShow
 
       -- Staff/Admin section - shown only for Staff or higher roles
       when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
@@ -283,7 +287,7 @@ navUrl nav mShow =
         NavEpisodes -> dashboardEpisodesGetUrl <$> mSlug
         NavBlog -> dashboardBlogsGetUrl <$> mSlug
         NavSchedule -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add schedule route
-        NavSettings -> dashboardEpisodesGetUrl <$> mSlug -- TODO: Add settings route
+        NavSettings -> dashboardShowSettingsUrl <$> mSlug
         NavUsers -> Just dashboardUsersGetUrl
         NavShows -> Just dashboardShowsGetUrl
         NavStationBlog -> Just dashboardStationBlogGetUrl
