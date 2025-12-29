@@ -71,6 +71,14 @@
 \i 15_episode_tracks.sql
 
 \echo ''
+\echo '17. Creating episode tags...'
+\i 17_episode_tags.sql
+
+\echo ''
+\echo '18. Assigning tags to episodes...'
+\i 18_episode_tag_assignments.sql
+
+\echo ''
 \echo '=========================================='
 \echo 'Summary'
 \echo '=========================================='
