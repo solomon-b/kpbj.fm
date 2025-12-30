@@ -15,7 +15,7 @@ where
 import API.Dashboard.StationBlog.Get.Templates.Page (renderPostRow)
 import API.Links (dashboardStationBlogLinks)
 import API.Types
-import Component.InfiniteScroll (renderEndOfContent, renderSentinel)
+import Component.Table (renderTableFragment)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -33,21 +33,12 @@ renderItemsFragment ::
   Int64 ->
   Bool ->
   Lucid.Html ()
-renderItemsFragment posts currentPage hasMore = do
-  -- Render each new post row
-  mapM_ renderPostRow posts
-
-  -- Render sentinel for next page or end indicator
-  -- For tables, we use a tr element as sentinel
-  if hasMore
-    then
-      Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-        Lucid.td_ [Lucid.colspan_ "5"] $
-          renderSentinel [i|/#{nextPageUrl}|] "#station-blog-table-body"
-    else
-      Lucid.tr_ [] $
-        Lucid.td_ [Lucid.colspan_ "5"] $
-          renderEndOfContent
+renderItemsFragment posts currentPage hasMore =
+  renderTableFragment
+    5 -- Number of columns
+    "#station-blog-table-body"
+    (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
+    (mapM_ renderPostRow posts)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardStationBlogLinks.list (Just (currentPage + 1))

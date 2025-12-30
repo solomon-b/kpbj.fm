@@ -16,7 +16,7 @@ where
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
 import API.Links (dashboardUsersLinks)
 import API.Types
-import Component.InfiniteScroll (renderEndOfContent, renderSentinel)
+import Component.Table (renderTableFragment)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -42,21 +42,12 @@ renderItemsFragment ::
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
   Lucid.Html ()
-renderItemsFragment now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
-  -- Render each new user row
-  mapM_ (renderUserRow now) users
-
-  -- Render sentinel for next page or end indicator
-  -- For tables, we use a tr element as sentinel
-  if hasMore
-    then
-      Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-        Lucid.td_ [Lucid.colspan_ "6"] $
-          renderSentinel [i|/#{nextPageUrl}|] "#users-table-body"
-    else
-      Lucid.tr_ [] $
-        Lucid.td_ [Lucid.colspan_ "6"] $
-          renderEndOfContent
+renderItemsFragment now users currentPage hasMore maybeQuery maybeRoleFilter sortBy =
+  renderTableFragment
+    6 -- Number of columns
+    "#users-table-body"
+    (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
+    (mapM_ (renderUserRow now) users)
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
     nextPageUrl :: Links.URI

@@ -15,7 +15,7 @@ where
 import API.Dashboard.Blogs.Get.Templates.BlogPostRow (renderBlogPostTableRow)
 import API.Links (dashboardBlogsLinks)
 import API.Types
-import Component.InfiniteScroll (renderEndOfContent, renderSentinel)
+import Component.Table (renderTableFragment)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -35,21 +35,12 @@ renderItemsFragment ::
   Int64 ->
   Bool ->
   Lucid.Html ()
-renderItemsFragment showModel posts currentPage hasMore = do
-  -- Render each new blog post row
-  mapM_ (renderBlogPostTableRow showModel) posts
-
-  -- Render sentinel for next page or end indicator
-  -- For tables, we use a tr element as sentinel
-  if hasMore
-    then
-      Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-        Lucid.td_ [Lucid.colspan_ "4"] $
-          renderSentinel [i|/#{nextPageUrl}|] "#blog-posts-table-body"
-    else
-      Lucid.tr_ [] $
-        Lucid.td_ [Lucid.colspan_ "4"] $
-          renderEndOfContent
+renderItemsFragment showModel posts currentPage hasMore =
+  renderTableFragment
+    4 -- Number of columns
+    "#blog-posts-table-body"
+    (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
+    (mapM_ (renderBlogPostTableRow showModel) posts)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardBlogsLinks.list showModel.slug (Just (currentPage + 1))
