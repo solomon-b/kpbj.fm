@@ -251,6 +251,7 @@ desktopImageStyles = class_ $ do
 showTitleStyles :: Bool -> Attributes
 showTitleStyles hasImage = class_ $ do
   base [Tokens.fontBold, "relative", "z-10"]
+  desktop [Tokens.text2xl]
   when hasImage $ base [Tokens.textWhite, "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"]
 
 liveBadgeStyles :: Attributes
