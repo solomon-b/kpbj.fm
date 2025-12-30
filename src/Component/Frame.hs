@@ -785,9 +785,10 @@ template mUser main =
               Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
 
             -- Main content
+            -- "isolate" creates a stacking context so PayPal iframes can't escape with high z-index
             Lucid.main_
               [ class_ $ do
-                  base ["flex-grow", Tokens.px4, Tokens.py4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col"]
+                  base ["flex-grow", Tokens.px4, Tokens.py4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col", "isolate"]
                   tablet [Tokens.px4, "items-center"],
                 Lucid.id_ "main-content"
               ]
