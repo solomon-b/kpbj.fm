@@ -15,7 +15,7 @@ where
 import API.Dashboard.Shows.Get.Templates.Page (renderShowRow)
 import API.Links (dashboardShowsLinks)
 import API.Types
-import Component.InfiniteScroll (renderEndOfContent, renderSentinel)
+import Component.Table (renderTableFragment)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -37,21 +37,12 @@ renderItemsFragment ::
   Maybe Text ->
   Maybe Shows.Status ->
   Lucid.Html ()
-renderItemsFragment theShows currentPage hasMore maybeQuery maybeStatusFilter = do
-  -- Render each new show row
-  mapM_ renderShowRow theShows
-
-  -- Render sentinel for next page or end indicator
-  -- For tables, we use a tr element as sentinel
-  if hasMore
-    then
-      Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-        Lucid.td_ [Lucid.colspan_ "5"] $
-          renderSentinel [i|/#{nextPageUrl}|] "#shows-table-body"
-    else
-      Lucid.tr_ [] $
-        Lucid.td_ [Lucid.colspan_ "5"] $
-          renderEndOfContent
+renderItemsFragment theShows currentPage hasMore maybeQuery maybeStatusFilter =
+  renderTableFragment
+    4 -- Number of columns (was incorrectly 5 before)
+    "#shows-table-body"
+    (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
+    (mapM_ renderShowRow theShows)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))

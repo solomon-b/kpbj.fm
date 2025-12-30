@@ -15,7 +15,7 @@ where
 import API.Dashboard.Events.Get.Templates.Page (renderEventRow)
 import API.Links (dashboardEventsLinks)
 import API.Types
-import Component.InfiniteScroll (renderEndOfContent, renderSentinel)
+import Component.Table (renderTableFragment)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.Events qualified as Events
@@ -33,21 +33,12 @@ renderItemsFragment ::
   Int64 ->
   Bool ->
   Lucid.Html ()
-renderItemsFragment events currentPage hasMore = do
-  -- Render each new event row
-  mapM_ renderEventRow events
-
-  -- Render sentinel for next page or end indicator
-  -- For tables, we use a tr element as sentinel
-  if hasMore
-    then
-      Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-        Lucid.td_ [Lucid.colspan_ "5"] $
-          renderSentinel [i|/#{nextPageUrl}|] "#events-table-body"
-    else
-      Lucid.tr_ [] $
-        Lucid.td_ [Lucid.colspan_ "5"] $
-          renderEndOfContent
+renderItemsFragment events currentPage hasMore =
+  renderTableFragment
+    5 -- Number of columns
+    "#events-table-body"
+    (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
+    (mapM_ renderEventRow events)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardEventsLinks.list (Just (currentPage + 1))

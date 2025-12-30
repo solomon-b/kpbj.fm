@@ -15,7 +15,7 @@ where
 import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
 import API.Links (dashboardEpisodesLinks)
 import API.Types
-import Component.InfiniteScroll (renderEndOfContent, renderSentinel)
+import Component.Table (renderTableFragment)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -37,21 +37,12 @@ renderItemsFragment ::
   Int64 ->
   Bool ->
   Lucid.Html ()
-renderItemsFragment userMeta showModel episodes currentPage hasMore = do
-  -- Render each new episode row
-  mapM_ (renderEpisodeTableRow userMeta showModel) episodes
-
-  -- Render sentinel for next page or end indicator
-  -- For tables, we use a tr element as sentinel
-  if hasMore
-    then
-      Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-        Lucid.td_ [Lucid.colspan_ "4"] $
-          renderSentinel [i|/#{nextPageUrl}|] "#episodes-table-body"
-    else
-      Lucid.tr_ [] $
-        Lucid.td_ [Lucid.colspan_ "4"] $
-          renderEndOfContent
+renderItemsFragment userMeta showModel episodes currentPage hasMore =
+  renderTableFragment
+    4 -- Number of columns
+    "#episodes-table-body"
+    (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
+    (mapM_ (renderEpisodeTableRow userMeta showModel) episodes)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardEpisodesLinks.list showModel.slug (Just (currentPage + 1))

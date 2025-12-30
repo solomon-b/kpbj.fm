@@ -12,8 +12,15 @@ where
 import API.Links (dashboardUsersLinks)
 import API.Types
 import Component.ActionsDropdown qualified as ActionsDropdown
-import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
-import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId)
+import Component.Table
+  ( ColumnAlign (..),
+    ColumnHeader (..),
+    IndexTableConfig (..),
+    PaginationConfig (..),
+    clickableCellAttrs,
+    renderIndexTable,
+    rowAttrs,
+  )
 import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -26,7 +33,6 @@ import Domain.Types.Filter (Filter (..))
 import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras
 import Servant.Links qualified as Links
 
 -- | Users list template (filters are now in the top bar)
@@ -44,39 +50,28 @@ template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
     if null users
       then renderEmptyState maybeQuery
-      else renderTableWithBodyId
-        "users-table-body"
-        TableConfig
-          { headers =
-              [ ColumnHeader "Display Name" AlignLeft,
-                ColumnHeader "Email" AlignLeft,
-                ColumnHeader "Role" AlignLeft,
-                ColumnHeader "Status" AlignLeft,
-                ColumnHeader "Member Since" AlignLeft,
-                ColumnHeader "" AlignCenter
-              ],
-            wrapperClass = "overflow-x-auto",
-            tableClass = "w-full"
-          }
-        $ do
-          mapM_ (renderUserRow now) users
-          -- Sentinel row for infinite scroll
-          if hasMore
-            then
-              Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-                Lucid.td_ [Lucid.colspan_ "6"] $
-                  renderSentinel [i|/#{nextPageUrl}|] "#users-table-body"
-            else
-              Lucid.tr_ [] $
-                Lucid.td_ [Lucid.colspan_ "6"] $
-                  renderEndOfContent
-
-  -- Loading indicator (hidden by default, shown during HTMX requests)
-  renderLoadingIndicator
-
-  -- Fallback pagination for browsers without JavaScript
-  Lucid.noscript_ $
-    renderPagination currentPage hasMore maybeQuery maybeRoleFilter sortBy
+      else
+        renderIndexTable
+          IndexTableConfig
+            { itcBodyId = "users-table-body",
+              itcHeaders =
+                [ ColumnHeader "Display Name" AlignLeft,
+                  ColumnHeader "Email" AlignLeft,
+                  ColumnHeader "Role" AlignLeft,
+                  ColumnHeader "Status" AlignLeft,
+                  ColumnHeader "Member Since" AlignLeft,
+                  ColumnHeader "" AlignCenter
+                ],
+              itcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
+              itcPaginationConfig =
+                Just
+                  PaginationConfig
+                    { pcPrevPageUrl = if currentPage > 1 then Just [i|/#{prevPageUrl}|] else Nothing,
+                      pcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
+                      pcCurrentPage = currentPage
+                    }
+            }
+          (mapM_ (renderUserRow now) users)
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
     nextPageUrl :: Links.URI
@@ -84,6 +79,14 @@ template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
       Links.linkURI $
         dashboardUsersLinks.list
           (Just (currentPage + 1))
+          (Just . Filter $ maybeQuery)
+          (Just . Filter $ maybeRoleFilter)
+          maybeSortFilter
+    prevPageUrl :: Links.URI
+    prevPageUrl =
+      Links.linkURI $
+        dashboardUsersLinks.list
+          (Just (currentPage - 1))
           (Just . Filter $ maybeQuery)
           (Just . Filter $ maybeRoleFilter)
           maybeSortFilter
@@ -96,13 +99,8 @@ renderUserRow now user =
       userRole = user.uwmUserRole
       createdAt = user.uwmUserCreatedAt
       suspendedAt = user.uwmSuspendedAt
-      userDetailUrl = Links.linkURI $ dashboardUsersLinks.detail userId
-      cellLinkAttrs =
-        [ class_ $ base [Tokens.p4, "cursor-pointer"],
-          hxGet_ [i|/#{userDetailUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true"
-        ]
+      userDetailUri = Links.linkURI $ dashboardUsersLinks.detail userId
+      userDetailUrl = [i|/#{userDetailUri}|]
       userEditUrl = Links.linkURI $ dashboardUsersLinks.editGet userId
       userDeleteUrl = Links.linkURI $ dashboardUsersLinks.delete userId
       userSuspendUrl = Links.linkURI $ dashboardUsersLinks.suspendPost userId
@@ -148,44 +146,40 @@ renderUserRow now user =
                 [("reason", "Suspended by admin")]
             ]
    in do
-        Lucid.tr_
-          [ Lucid.id_ rowId,
-            class_ $ base ["border-b-2", "border-gray-200", "hover:bg-gray-50"]
-          ]
-          $ do
-            Lucid.td_ cellLinkAttrs $
-              Lucid.span_ [class_ $ base [Tokens.fontBold]] $
-                Lucid.toHtml (display displayName)
+        Lucid.tr_ (rowAttrs rowId) $ do
+          Lucid.td_ (clickableCellAttrs userDetailUrl) $
+            Lucid.span_ [class_ $ base [Tokens.fontBold]] $
+              Lucid.toHtml (display displayName)
 
-            Lucid.td_ cellLinkAttrs $
-              Lucid.toHtml (display email)
+          Lucid.td_ (clickableCellAttrs userDetailUrl) $
+            Lucid.toHtml (display email)
 
-            Lucid.td_ cellLinkAttrs $
-              renderRoleBadge userRole
+          Lucid.td_ (clickableCellAttrs userDetailUrl) $
+            renderRoleBadge userRole
 
-            Lucid.td_ cellLinkAttrs $
-              renderStatusBadge suspendedAt
+          Lucid.td_ (clickableCellAttrs userDetailUrl) $
+            renderStatusBadge suspendedAt
 
-            Lucid.td_ cellLinkAttrs $ do
-              Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatMonthYear createdAt)
-              Lucid.div_ [class_ $ base ["text-xs", Tokens.textGray600]] $ Lucid.toHtml (formatRelativeTime now createdAt)
+          Lucid.td_ (clickableCellAttrs userDetailUrl) $ do
+            Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatMonthYear createdAt)
+            Lucid.div_ [class_ $ base ["text-xs", Tokens.textGray600]] $ Lucid.toHtml (formatRelativeTime now createdAt)
 
-            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-              ActionsDropdown.render $
-                [ ActionsDropdown.navigateAction
-                    "edit"
-                    "Edit"
-                    [i|/#{userEditUrl}|]
-                ]
-                  <> suspendAction
-                  <> [ ActionsDropdown.htmxDeleteAction
-                         "delete"
-                         "Delete"
-                         [i|/#{userDeleteUrl}|]
-                         rowTarget
-                         ActionsDropdown.SwapOuterHTML
-                         deleteConfirmMessage
-                     ]
+          Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
+            ActionsDropdown.render $
+              [ ActionsDropdown.navigateAction
+                  "edit"
+                  "Edit"
+                  [i|/#{userEditUrl}|]
+              ]
+                <> suspendAction
+                <> [ ActionsDropdown.htmxDeleteAction
+                       "delete"
+                       "Delete"
+                       [i|/#{userDeleteUrl}|]
+                       rowTarget
+                       ActionsDropdown.SwapOuterHTML
+                       deleteConfirmMessage
+                   ]
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
 renderRoleBadge role = do
@@ -217,46 +211,6 @@ renderEmptyState maybeQuery = do
       case maybeQuery of
         Nothing -> "No users found."
         Just query -> Lucid.toHtml $ "No users found matching \"" <> query <> "\"."
-
-renderPagination :: Int64 -> Bool -> Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()
-renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filter -> maybeRoleFilter) sortBy = do
-  Lucid.div_ [Lucid.class_ "flex justify-between items-center"] $ do
-    -- Previous button
-    if currentPage > 1
-      then
-        Lucid.a_
-          [ Lucid.href_ [i|/#{prevPageUrl}|],
-            hxGet_ [i|/#{prevPageUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-          ]
-          "<- PREVIOUS"
-      else
-        Lucid.div_ [] mempty
-
-    -- Page indicator
-    Lucid.span_ [Lucid.class_ "text-gray-600 font-bold"] $
-      Lucid.toHtml $
-        "Page " <> show currentPage
-
-    -- Next button
-    if hasMore
-      then
-        Lucid.a_
-          [ Lucid.href_ [i|/#{nextPageUrl}|],
-            hxGet_ [i|/#{nextPageUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            Lucid.class_ "bg-gray-800 text-white px-6 py-3 font-bold hover:bg-gray-700"
-          ]
-          "NEXT ->"
-      else
-        Lucid.div_ [] mempty
-  where
-    maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
-    prevPageUrl = Links.linkURI $ dashboardUsersLinks.list (Just (currentPage - 1)) maybeQuery maybeRoleFilter maybeSortFilter
-    nextPageUrl = Links.linkURI $ dashboardUsersLinks.list (Just (currentPage + 1)) maybeQuery maybeRoleFilter maybeSortFilter
 
 formatMonthYear :: UTCTime -> String
 formatMonthYear = formatTime defaultTimeLocale "%B %Y"

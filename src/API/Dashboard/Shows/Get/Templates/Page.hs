@@ -12,8 +12,14 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types (DashboardShowsRoutes (..))
-import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
-import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId)
+import Component.Table
+  ( ColumnAlign (..),
+    ColumnHeader (..),
+    IndexTableConfig (..),
+    PaginationConfig (..),
+    clickableCellAttrs,
+    renderIndexTable,
+  )
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -22,7 +28,7 @@ import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras
+import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xOnChange_, xOnClick_, xRef_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -40,64 +46,49 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
     if null theShowList
       then renderEmptyState maybeQuery
-      else renderTableWithBodyId
-        "shows-table-body"
-        TableConfig
-          { headers =
-              [ ColumnHeader "Title" AlignLeft,
-                ColumnHeader "Status" AlignLeft,
-                ColumnHeader "Hosts" AlignLeft,
-                ColumnHeader "" AlignCenter
-              ],
-            wrapperClass = "overflow-x-auto",
-            tableClass = "w-full"
-          }
-        $ do
-          mapM_ renderShowRow theShowList
-          -- Sentinel row for infinite scroll
-          if hasMore
-            then
-              Lucid.tr_ [Lucid.id_ "load-more-sentinel-row"] $
-                Lucid.td_ [Lucid.colspan_ "4"] $
-                  renderSentinel [i|/#{nextPageUrl}|] "#shows-table-body"
-            else
-              Lucid.tr_ [] $
-                Lucid.td_
-                  [Lucid.colspan_ "4"]
-                  renderEndOfContent
-
-  -- Loading indicator (hidden by default, shown during HTMX requests)
-  renderLoadingIndicator
-
-  -- Fallback pagination for browsers without JavaScript
-  Lucid.noscript_ $
-    renderPagination currentPage hasMore maybeQuery maybeStatusFilter
+      else
+        renderIndexTable
+          IndexTableConfig
+            { itcBodyId = "shows-table-body",
+              itcHeaders =
+                [ ColumnHeader "Title" AlignLeft,
+                  ColumnHeader "Status" AlignLeft,
+                  ColumnHeader "Hosts" AlignLeft,
+                  ColumnHeader "" AlignCenter
+                ],
+              itcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
+              itcPaginationConfig =
+                Just
+                  PaginationConfig
+                    { pcPrevPageUrl = if currentPage > 1 then Just [i|/#{prevPageUrl}|] else Nothing,
+                      pcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
+                      pcCurrentPage = currentPage
+                    }
+            }
+          (mapM_ renderShowRow theShowList)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))
+    prevPageUrl :: Links.URI
+    prevPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage - 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))
 
 renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
 renderShowRow showInfo =
-  let showDetailUrl = Links.linkURI $ dashboardShowsLinks.detail showInfo.swhiId showInfo.swhiSlug Nothing
+  let showDetailUri = Links.linkURI $ dashboardShowsLinks.detail showInfo.swhiId showInfo.swhiSlug Nothing
+      showDetailUrl = [i|/#{showDetailUri}|]
       showEditUrl = Links.linkURI $ dashboardShowsLinks.editGet showInfo.swhiSlug
-      cellLinkAttrs =
-        [ class_ $ base [Tokens.p4, "cursor-pointer"],
-          hxGet_ [i|/#{showDetailUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true"
-        ]
    in do
         Lucid.tr_
           [Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"]
           $ do
-            Lucid.td_ cellLinkAttrs $
+            Lucid.td_ (clickableCellAttrs showDetailUrl) $
               Lucid.span_ [Lucid.class_ Tokens.fontBold] $
                 Lucid.toHtml showInfo.swhiTitle
 
-            Lucid.td_ cellLinkAttrs $
+            Lucid.td_ (clickableCellAttrs showDetailUrl) $
               renderStatusBadge showInfo.swhiStatus
 
-            Lucid.td_ cellLinkAttrs $ do
+            Lucid.td_ (clickableCellAttrs showDetailUrl) $ do
               case showInfo.swhiHostNames of
                 Nothing -> Lucid.span_ [Lucid.class_ "text-gray-400 italic"] "No hosts"
                 Just names -> do
@@ -153,42 +144,3 @@ renderEmptyState maybeQuery = do
       case maybeQuery of
         Nothing -> "No shows found. Create your first show!"
         Just query -> Lucid.toHtml $ "No shows found matching \"" <> query <> "\"."
-
-renderPagination :: Int64 -> Bool -> Maybe Text -> Maybe Shows.Status -> Lucid.Html ()
-renderPagination currentPage hasMore (Just . Filter -> maybeQuery) (Just . Filter -> maybeStatusFilter) = do
-  Lucid.div_ [Lucid.class_ "flex justify-between items-center"] $ do
-    -- Previous button
-    if currentPage > 1
-      then
-        Lucid.a_
-          [ Lucid.href_ [i|/#{prevPageUrl}|],
-            hxGet_ [i|/#{prevPageUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
-          ]
-          "<- PREVIOUS"
-      else
-        Lucid.div_ [] mempty
-
-    -- Page indicator
-    Lucid.span_ [class_ $ base [Tokens.textGray600, Tokens.fontBold]] $
-      Lucid.toHtml $
-        "Page " <> show currentPage
-
-    -- Next button
-    if hasMore
-      then
-        Lucid.a_
-          [ Lucid.href_ [i|/#{nextPageUrl}|],
-            hxGet_ [i|/#{nextPageUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
-          ]
-          "NEXT ->"
-      else
-        Lucid.div_ [] mempty
-  where
-    prevPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage - 1)) maybeQuery maybeStatusFilter
-    nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) maybeQuery maybeStatusFilter
