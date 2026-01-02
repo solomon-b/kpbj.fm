@@ -1,13 +1,12 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module API.Dashboard.StationBlog.New.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.StationBlog.New.Post.Route (NewBlogPostForm (..))
-import API.Links (apiLinks, dashboardStationBlogLinks, userLinks)
-import API.Types (DashboardStationBlogRoutes (..), Routes (..), UserRoutes (..))
-import App.Common (getUserInfo)
+import API.Links (dashboardStationBlogLinks, rootLink)
+import API.Types (DashboardStationBlogRoutes (..))
+import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, void)
@@ -20,7 +19,6 @@ import Data.Aeson qualified as Aeson
 import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
@@ -34,30 +32,12 @@ import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
--- URL helpers
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-dashboardStationBlogGetUrl :: Links.URI
-dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
-
-dashboardStationBlogNewGetUrl :: Links.URI
-dashboardStationBlogNewGetUrl = Links.linkURI dashboardStationBlogLinks.newGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -75,39 +55,40 @@ handler ::
   Maybe Cookie ->
   NewBlogPostForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie form = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to create blog posts."
-      pure (Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner))
-    Just (_user, userMetadata)
-      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
-          let banner = BannerParams Error "Staff Access Required" "You do not have permission to create blog posts."
-          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
-    Just (_user, userMetadata) -> do
-      -- Process hero image upload if present
-      heroImagePath <- case nbpfHeroImage form of
-        Nothing -> pure Nothing
-        Just heroImageFile -> do
-          let slug = Slug.mkSlug (nbpfTitle form)
-          uploadResult <- uploadBlogHeroImage slug heroImageFile
-          case uploadResult of
-            Left uploadError -> do
-              Log.logInfo "Hero image upload failed" (Aeson.object ["error" .= Text.pack (show uploadError)])
-              pure Nothing
-            Right Nothing -> pure Nothing -- No file selected
-            Right (Just result) -> do
-              Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" .= uploadResultStoragePath result])
-              pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+handler _tracer cookie form =
+  handleRedirectErrors "Blog post creation" dashboardStationBlogLinks.newGet $ do
+    -- 1. Require authentication and staff role
+    (user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "You do not have permission to create blog posts." userMetadata
 
-      case validateNewBlogPost form userMetadata.mUserId heroImagePath of
-        Left validationError -> do
-          let errorMsg = Sanitize.displayContentValidationError validationError
-          Log.logInfo "Blog post creation failed" (Aeson.object ["message" .= errorMsg])
-          let banner = BannerParams Error "Validation Error" errorMsg
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardStationBlogNewGetUrl}|] banner)
-        Right blogPostData ->
-          handlePostCreation blogPostData form
+    -- 2. Process hero image upload if present
+    heroImagePath <- handleHeroImageUpload form
+
+    -- 3. Validate and create blog post
+    blogPostData <-
+      requireRight
+        Sanitize.displayContentValidationError
+        (validateNewBlogPost form (User.mId user) heroImagePath)
+    handlePostCreation blogPostData form
+
+-- | Handle hero image upload
+handleHeroImageUpload ::
+  (MonadIO m, Log.MonadLog m) =>
+  NewBlogPostForm ->
+  m (Maybe Text)
+handleHeroImageUpload form = case nbpfHeroImage form of
+  Nothing -> pure Nothing
+  Just heroImageFile -> do
+    let slug = Slug.mkSlug (nbpfTitle form)
+    uploadResult <- uploadBlogHeroImage slug heroImageFile
+    case uploadResult of
+      Left uploadError -> do
+        Log.logInfo "Hero image upload failed" (Aeson.object ["error" .= Text.pack (show uploadError)])
+        pure Nothing
+      Right Nothing -> pure Nothing
+      Right (Just result) -> do
+        Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" .= uploadResultStoragePath result])
+        pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
 
 -- | Validate and convert form data to blog post insert data
 validateNewBlogPost :: NewBlogPostForm -> User.Id -> Maybe Text -> Either Sanitize.ContentValidationError BlogPosts.Insert
@@ -197,24 +178,36 @@ handlePostCreation ::
   NewBlogPostForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handlePostCreation blogPostData form = do
+  postId <- insertBlogPost blogPostData
+  createPostTags postId form
+
+  -- Fetch created post to get the slug
+  execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
+    Right (Just createdPost) -> do
+      Log.logInfo "Successfully created blog post" (Aeson.object ["title" .= BlogPosts.bpmTitle createdPost])
+      let createdSlug = BlogPosts.bpmSlug createdPost
+          detailUrl = rootLink $ dashboardStationBlogLinks.detail postId createdSlug
+          banner = BannerParams Success "Blog Post Created" "Your blog post has been created successfully."
+          redirectUrl = buildRedirectUrl detailUrl banner
+      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+    _ -> do
+      Log.logInfo_ "Created blog post but failed to retrieve it"
+      let listUrl = rootLink $ dashboardStationBlogLinks.list Nothing
+          banner = BannerParams Success "Blog Post Created" "Your blog post has been created."
+          redirectUrl = buildRedirectUrl listUrl banner
+      pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+
+insertBlogPost ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  BlogPosts.Insert ->
+  m BlogPosts.Id
+insertBlogPost blogPostData =
   execQuerySpan (BlogPosts.insertBlogPost blogPostData) >>= \case
-    Left dbError -> do
-      Log.logInfo "Database error creating blog post" (Aeson.object ["error" .= Text.pack (show dbError)])
-      let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
-      pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardStationBlogNewGetUrl}|] banner)
-    Right postId -> do
-      createPostTags postId form
-      -- Fetch created post to get the slug
-      execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
-        Right (Just createdPost) -> do
-          Log.logInfo "Successfully created blog post" (Aeson.object ["title" .= BlogPosts.bpmTitle createdPost])
-          let createdSlug = BlogPosts.bpmSlug createdPost
-              detailLink = Links.linkURI $ dashboardStationBlogLinks.detail postId createdSlug
-              detailUrl = [i|/#{detailLink}|] :: Text
-              banner = BannerParams Success "Blog Post Created" "Your blog post has been created successfully."
-              redirectUrl = buildRedirectUrl detailUrl banner
-          pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
-        _ -> do
-          Log.logInfo_ "Created blog post but failed to retrieve it"
-          let banner = BannerParams Error "Error" "Post was created but there was an error displaying the confirmation."
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardStationBlogGetUrl}|] banner)
+    Left err -> throwDatabaseError err
+    Right postId -> pure postId

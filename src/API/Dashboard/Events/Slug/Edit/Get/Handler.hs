@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Events.Slug.Edit.Get.Handler (handler) where
@@ -7,13 +6,13 @@ module API.Dashboard.Events.Slug.Edit.Get.Handler (handler) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Events.Slug.Edit.Get.Templates.Form (template)
-import API.Links (apiLinks, dashboardEventsLinks, userLinks)
-import API.Types (DashboardEventsRoutes (..), Routes (..), UserRoutes (..))
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..))
+import API.Links (apiLinks)
+import API.Types (Routes (..))
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
@@ -21,7 +20,6 @@ import Control.Monad.Trans.Maybe
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
-import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -30,25 +28,12 @@ import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
-dashboardEventsGetUrl :: Links.URI
-dashboardEventsGetUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
 
 --------------------------------------------------------------------------------
 
@@ -68,46 +53,49 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized access to event edit" ()
-      let banner = BannerParams Error "Access Denied" "You must be logged in to edit events."
-      pure $ redirectWithBanner [i|/#{userLoginGetUrl}|] banner
-    Just (_user, userMetadata)
-      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
-          let banner = BannerParams Error "Staff Access Required" "You do not have permission to edit events."
-          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-    Just (user, userMetadata) -> do
-      -- Fetch shows for sidebar (admins see all, staff see their assigned shows)
-      showsResult <-
-        if UserMetadata.isAdmin userMetadata.mUserRole
-          then execQuerySpan Shows.getAllActiveShows
-          else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = fromRight [] showsResult
-          selectedShow = listToMaybe allShows
+handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Event edit form" apiLinks.rootGet $ do
+    -- 1. Require authentication and staff role
+    (user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "You do not have permission to edit events." userMetadata
 
-      mResult <- execTransactionSpan $ runMaybeT $ do
-        event <- MaybeT $ HT.statement () (Events.getEventById eventId)
-        MaybeT $ pure $ Just event
+    -- 2. Fetch shows for sidebar
+    showsResult <-
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then execQuerySpan Shows.getAllActiveShows
+        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+    let allShows = fromRight [] showsResult
+        selectedShow = listToMaybe allShows
 
-      case mResult of
-        Left err -> do
-          Log.logAttention "getEventById execution error" (show err)
-          let banner = BannerParams Warning "Event Not Found" "The event you're trying to edit doesn't exist."
-          pure $ redirectWithBanner [i|/#{dashboardEventsGetUrl}|] banner
-        Right Nothing -> do
-          Log.logInfo "No event found with id" eventId
-          let banner = BannerParams Warning "Event Not Found" "The event you're trying to edit doesn't exist."
-          pure $ redirectWithBanner [i|/#{dashboardEventsGetUrl}|] banner
-        Right (Just event) -> do
-          -- Check authorization: must be staff/admin or the creator
-          if event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-            then do
-              Log.logInfo "Authorized user accessing event edit form" event.emId
-              let editTemplate = template event userMetadata
-              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing editTemplate
-            else do
-              Log.logInfo "User tried to edit event they don't own" event.emId
-              let banner = BannerParams Error "Access Denied" "You can only edit events you created or have staff permissions."
-              pure $ redirectWithBanner [i|/#{dashboardEventsGetUrl}|] banner
+    -- 3. Fetch event
+    event <- fetchEvent eventId
+
+    -- 4. Check authorization: must be staff/admin or the creator
+    if not (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole)
+      then throwNotAuthorized "You can only edit events you created or have staff permissions."
+      else do
+        Log.logInfo "Authorized user accessing event edit form" event.emId
+        let editTemplate = template event userMetadata
+        renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing editTemplate
+
+fetchEvent ::
+  ( Log.MonadLog m,
+    MonadDB m,
+    MonadReader env m,
+    Has Tracer env,
+    MonadUnliftIO m,
+    MonadThrow m
+  ) =>
+  Events.Id ->
+  m Events.Model
+fetchEvent eventId = do
+  mResult <-
+    execTransactionSpan $
+      runMaybeT $
+        MaybeT $
+          HT.statement () (Events.getEventById eventId)
+
+  case mResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Event"
+    Right (Just e) -> pure e

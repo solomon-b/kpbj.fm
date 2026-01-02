@@ -5,16 +5,21 @@ module API.Dashboard.Blogs.New.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Blogs.New.Get.Templates.Page (errorTemplate, newBlogPostForm, notLoggedInTemplate)
-import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
+import API.Dashboard.Blogs.New.Get.Templates.Page (newBlogPostForm)
+import API.Links (apiLinks)
+import API.Types (Routes (..))
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotAuthorized)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad (guard, unless)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -48,33 +53,47 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer showSlug cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized access to new blog post form" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
-    Just (user, userMetadata) -> do
-      -- Fetch show and verify host permissions in a transaction
-      mResult <- execTransactionSpan $ runMaybeT $ do
-        showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
-        -- Admins can create blog posts for any show, hosts need explicit assignment
-        unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do
-          isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
-          guard isHost
-        MaybeT $ pure $ Just showModel
+handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "New blog post form" apiLinks.rootGet $ do
+    -- 1. Require authentication and host role
+    (user, userMetadata) <- requireAuth cookie
+    requireHostNotSuspended "You do not have permission to create blog posts." userMetadata
 
-      case mResult of
-        Left err -> do
-          Log.logAttention "Failed to load new blog post form" (show err)
-          renderTemplate hxRequest (Just userMetadata) $ errorTemplate "Failed to load blog post form. Please try again."
-        Right Nothing -> do
-          Log.logInfo "Show not found or user not authorized" (showSlug, User.mId user)
-          renderTemplate hxRequest (Just userMetadata) $ errorTemplate "You are not authorized to create blog posts for this show."
-        Right (Just showModel) -> do
-          Log.logInfo "Authorized user accessing new blog post form" showModel.id
-          -- Fetch shows for dashboard sidebar
-          allShows <-
-            if UserMetadata.isAdmin userMetadata.mUserRole
-              then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
-              else either (const []) id <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
-          renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ newBlogPostForm showModel
+    -- 2. Fetch show and verify host permissions in a transaction
+    showModel <- fetchShowBySlug user userMetadata showSlug
+
+    -- 3. Fetch shows for dashboard sidebar
+    Log.logInfo "Authorized user accessing new blog post form" showModel.id
+    allShows <-
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
+        else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+
+    -- 4. Render form
+    renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ newBlogPostForm showModel
+
+fetchShowBySlug ::
+  ( MonadUnliftIO m,
+    Has Tracer env,
+    MonadReader env m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadThrow m
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  Slug ->
+  m Shows.Model
+fetchShowBySlug user userMetadata showSlug = do
+  mResult <- execTransactionSpan $ runMaybeT $ do
+    showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
+    -- Admins can create blog posts for any show, hosts need explicit assignment
+    unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do
+      isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
+      guard isHost
+    pure showModel
+
+  case mResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotAuthorized "You are not authorized to create blog posts for this show."
+    Right (Just sm) -> pure sm

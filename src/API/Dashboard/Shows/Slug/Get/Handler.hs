@@ -6,19 +6,22 @@ module API.Dashboard.Shows.Slug.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
-import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
-import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
+import API.Dashboard.Shows.Slug.Get.Templates.Page (template)
+import API.Links (apiLinks)
+import API.Types
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Handler.Error (handleHtmlErrors, throwNotFound)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe)
-import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
@@ -67,46 +70,39 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer showId showSlug mPage cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized access to dashboard show details" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
-    Just (_, userMetadata)
-      | not (UserMetadata.isHostOrHigher userMetadata.mUserRole) -> do
-          Log.logInfo "User without Host role tried to access dashboard show details" userMetadata.mDisplayName
-          renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
-    Just (_, userMetadata)
-      | UserMetadata.isAdmin userMetadata.mUserRole -> do
-          Log.logInfo "Admin accessing dashboard show details" userMetadata.mDisplayName
-          execQuerySpan Shows.getAllActiveShows >>= \case
-            Left _err -> do
-              let content = errorTemplate "Failed to load shows."
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows Nothing Nothing content
-            Right allShows -> do
-              let selectedShow = find (\s -> s.id == showId) allShows
-              case selectedShow of
-                Nothing -> do
-                  Log.logInfo ("Show not found: " <> display showId) ()
-                  let content = notFoundTemplate showSlug
-                  renderDashboardTemplate hxRequest userMetadata allShows Nothing NavShows Nothing Nothing content
-                Just showModel -> do
-                  renderShowDetails hxRequest userMetadata allShows showModel mPage
-    Just (user, userMetadata) -> do
-      Log.logInfo "Host accessing dashboard show details" userMetadata.mDisplayName
-      execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
-        Left _err -> do
-          let content = errorTemplate "Failed to load shows."
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavShows Nothing Nothing content
-        Right userShows -> do
-          let selectedShow = find (\s -> s.id == showId) userShows
-          case selectedShow of
-            Nothing -> do
-              Log.logInfo ("Show not found or not authorized: " <> display showId) ()
-              let content = notFoundTemplate showSlug
-              renderDashboardTemplate hxRequest userMetadata userShows Nothing NavShows Nothing Nothing content
-            Just showModel -> do
-              renderShowDetails hxRequest userMetadata userShows showModel mPage
+handler _tracer showId showSlug mPage cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Show details" apiLinks.rootGet $ do
+    -- 1. Require authentication and host role
+    (user, userMetadata) <- requireAuth cookie
+    requireShowHostOrStaff user.mId showSlug userMetadata
+
+    -- 2. Fetch shows for sidebar (admins see all, hosts see their own)
+    allShows <- fetchShowsForUser user userMetadata
+
+    -- 3. Find the selected show
+    let selectedShow = find (\s -> s.id == showId) allShows
+    case selectedShow of
+      Nothing -> throwNotFound "Show"
+      Just showModel -> do
+        -- 4. Render show details
+        renderShowDetails hxRequest userMetadata allShows showModel mPage
+
+-- | Fetch shows based on user role (admins see all, hosts see their own)
+fetchShowsForUser ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  m [Shows.Model]
+fetchShowsForUser user userMetadata =
+  if UserMetadata.isAdmin userMetadata.mUserRole
+    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
+    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
 
 -- | Render show details page within dashboard frame
 renderShowDetails ::

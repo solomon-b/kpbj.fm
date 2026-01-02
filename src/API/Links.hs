@@ -17,7 +17,10 @@
 -- aboutUrl = Links.linkURI apiLinks.aboutGet
 -- @
 module API.Links
-  ( -- * Link generation structures
+  ( -- * Link helpers
+    rootLink,
+
+    -- * Link generation structures
     apiLinks,
     blogLinks,
     eventsLinks,
@@ -41,8 +44,26 @@ where
 --------------------------------------------------------------------------------
 
 import API.Types
+import Data.Text (Text)
 import Domain.Types.WeekOffset (WeekOffset)
 import Servant.Links (AsLink, Link, allFieldLinks)
+import Web.HttpApiData qualified as Http
+
+--------------------------------------------------------------------------------
+
+-- | Convert a Servant Link to a root-relative URL path for HTML.
+--
+-- Servant's 'Link' produces relative paths (e.g., @"user/login"@).
+-- For HTML href attributes, we need root-relative paths (e.g., @"/user/login"@)
+-- to ensure links resolve correctly regardless of the current page's URL.
+--
+-- Usage:
+--
+-- @
+-- Lucid.a_ [Lucid.href_ (rootLink $ userLinks.loginGet Nothing Nothing)] "Login"
+-- @
+rootLink :: Link -> Text
+rootLink = ("/" <>) . Http.toUrlPiece
 
 --------------------------------------------------------------------------------
 

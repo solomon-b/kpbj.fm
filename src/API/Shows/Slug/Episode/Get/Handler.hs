@@ -8,12 +8,11 @@ module API.Shows.Slug.Episode.Get.Handler where
 
 import API.Shows.Slug.Episode.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
-import Control.Monad.Catch (MonadCatch)
+import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError, throwDatabaseError, throwNotFound)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Aeson ((.=))
-import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Domain.Types.Cookie (Cookie (..))
@@ -56,54 +55,94 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
   let mUserInfo = fmap snd userInfoResult
       mUserId = fmap (User.mId . fst) userInfoResult
 
-  -- Fetch the episode by show slug and episode number
-  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
-    Left _err -> do
-      Log.logInfo "Failed to fetch episode from database" (showSlug, episodeNumber)
-      renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load episode. Please try again.")
-    Right Nothing -> do
-      Log.logInfo "Episode not found" (showSlug, episodeNumber)
-      renderTemplate hxRequest mUserInfo (notFoundTemplate showSlug episodeNumber)
-    Right (Just episode) -> do
-      renderEpisode hxRequest mUserInfo mUserId episode
+  handleEpisodePageErrors hxRequest mUserInfo showSlug episodeNumber $ do
+    -- 1. Fetch episode
+    episode <- fetchEpisode showSlug episodeNumber
 
-renderEpisode ::
-  ( Has Tracer env,
-    MonadReader env m,
+    -- 2. Fetch show and related data
+    showModel <- fetchShow episode.showId
+    tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+    tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
+
+    -- 3. Determine if user can view drafts
+    canViewDrafts <- checkCanViewDrafts mUserInfo mUserId showModel.id
+
+    -- 4. Render page
+    let episodeTemplate = template showModel episode tracks tags canViewDrafts
+    renderTemplate hxRequest mUserInfo episodeTemplate
+
+--------------------------------------------------------------------------------
+-- Data Fetching
+
+fetchEpisode ::
+  ( MonadDB m,
     Log.MonadLog m,
-    MonadDB m,
+    MonadReader env m,
     MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    Has HSQL.Pool.Pool env
+    MonadThrow m,
+    Has Tracer env
   ) =>
-  HxRequest ->
+  Slug ->
+  Episodes.EpisodeNumber ->
+  m Episodes.Model
+fetchEpisode showSlug episodeNumber =
+  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Episode"
+    Right (Just episode) -> pure episode
+
+fetchShow ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadThrow m,
+    Has Tracer env
+  ) =>
+  Shows.Id ->
+  m Shows.Model
+fetchShow showId =
+  execQuerySpan (Shows.getShowById showId) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Show"
+    Right (Just showModel) -> pure showModel
+
+checkCanViewDrafts ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    Has Tracer env
+  ) =>
   Maybe UserMetadata.Model ->
   Maybe User.Id ->
-  Episodes.Model ->
-  m (Lucid.Html ())
-renderEpisode hxRequest mUserInfo mUserId episode = do
-  showResult <- execQuerySpan (Shows.getShowById episode.showId)
-  tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
-  tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
+  Shows.Id ->
+  m Bool
+checkCanViewDrafts mUserInfo mUserId showId = do
+  let isStaffOrAdmin = case mUserInfo of
+        Just metadata -> UserMetadata.isStaffOrHigher metadata.mUserRole
+        Nothing -> False
+  isHost <- case mUserId of
+    Nothing -> pure False
+    Just userId -> do
+      result <- execQuerySpan (ShowHost.isUserHostOfShow userId showId)
+      pure $ fromRight False result
+  pure $ isHost || isStaffOrAdmin
 
-  case showResult of
-    Left err -> do
-      Log.logInfo "Failed to fetch show from database" (Aeson.object ["showId" .= episode.showId, "error" .= show err])
-      renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show data. Please try again.")
-    Right Nothing -> do
-      Log.logInfo "Show not found for episode" (Aeson.object ["showId" .= episode.showId])
-      renderTemplate hxRequest mUserInfo (errorTemplate "Show not found for this episode.")
-    Right (Just showModel) -> do
-      -- Check if user can view drafts (is host of the show or is staff/admin)
-      let isStaffOrAdmin = case mUserInfo of
-            Just metadata -> UserMetadata.isStaffOrHigher (UserMetadata.mUserRole metadata)
-            Nothing -> False
-      isHost <- case mUserId of
-        Nothing -> pure False
-        Just userId -> do
-          result <- execQuerySpan (ShowHost.isUserHostOfShow userId showModel.id)
-          pure $ fromRight False result
-      let canViewDrafts = isHost || isStaffOrAdmin
-          episodeTemplate = template showModel episode tracks tags canViewDrafts
-      renderTemplate hxRequest mUserInfo episodeTemplate
+--------------------------------------------------------------------------------
+-- Error Handling
+
+handleEpisodePageErrors ::
+  (MonadCatch m, Log.MonadLog m) =>
+  HxRequest ->
+  Maybe UserMetadata.Model ->
+  Slug ->
+  Episodes.EpisodeNumber ->
+  m (Lucid.Html ()) ->
+  m (Lucid.Html ())
+handleEpisodePageErrors hxRequest mUserInfo showSlug episodeNumber action =
+  action `catchHandlerError` \err -> do
+    logHandlerError "Episode page" err
+    renderTemplate hxRequest mUserInfo $ case err of
+      NotFound _ -> notFoundTemplate showSlug episodeNumber
+      _ -> errorTemplate "Failed to load episode. Please try again."

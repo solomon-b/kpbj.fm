@@ -5,9 +5,11 @@ module API.Shows.Slug.Episode.DiscardDraft.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
-import App.Common (getUserInfo)
+import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError, throwDatabaseError, throwNotFound, throwValidationError)
 import Component.Banner (BannerType (..), renderBanner)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad (when)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
@@ -51,63 +53,91 @@ handler ::
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer showSlug episodeNumber cookie = do
-  -- Fetch the show by slug
+handler _tracer showSlug episodeNumber cookie =
+  handleDiscardErrors $ do
+    -- 1. Require authentication
+    (user, userMeta) <- requireAuth cookie
+
+    -- 2. Require show host or staff (not suspended)
+    requireShowHostOrStaff user.mId showSlug userMeta
+
+    -- 3. Fetch show and episode
+    showModel <- fetchShow showSlug
+    episode <- fetchEpisode showSlug episodeNumber
+
+    -- 4. Validate episode is a draft
+    requireDraftStatus episode
+
+    -- 5. Execute hard delete
+    hardDeleteEpisode showModel episode userMeta
+
+--------------------------------------------------------------------------------
+-- Data Fetching
+
+fetchShow ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadThrow m,
+    Has Tracer env
+  ) =>
+  Slug ->
+  m Shows.Model
+fetchShow showSlug =
   execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
-    Left err -> do
-      Log.logInfo "Discard draft failed: Failed to fetch show" (Aeson.object ["error" .= show err])
-      pure $ renderBanner Error "Discard Failed" "Database error. Please try again or contact support."
-    Right Nothing -> do
-      Log.logInfo "Discard draft failed: Show not found" (Aeson.object ["showSlug" .= showSlug])
-      pure $ renderBanner Error "Discard Failed" "Show not found."
-    Right (Just showModel) -> do
-      getUserInfo cookie >>= \case
-        Nothing -> do
-          Log.logInfo_ "No user session"
-          pure $ renderBanner Error "Discard Failed" "You must be logged in to discard episodes."
-        Just (user, userMeta) -> do
-          execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
-            Left err -> do
-              Log.logInfo "Discard draft failed: Failed to fetch episode" (Aeson.object ["error" .= show err])
-              pure $ renderBanner Error "Discard Failed" "Database error. Please try again or contact support."
-            Right Nothing -> do
-              Log.logInfo "Discard draft failed: Episode not found" (Aeson.object ["episodeNumber" .= episodeNumber])
-              pure $ renderBanner Error "Discard Failed" "Episode not found."
-            Right (Just episode) -> do
-              -- Check that episode is a draft
-              if episode.status /= Episodes.Draft
-                then do
-                  Log.logInfo "Discard draft failed: Episode is not a draft" (Aeson.object ["episodeId" .= episode.id, "status" .= show episode.status])
-                  pure $ renderErrorWithRow userMeta showModel episode "Only draft episodes can be discarded. Published episodes must be archived by staff."
-                else do
-                  -- Check authorization: staff, creator, or host
-                  let isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole
-                      isCreator = episode.createdBy == user.mId
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Show"
+    Right (Just showModel) -> pure showModel
 
-                  isHost <- if isStaff || isCreator then pure True else checkIfHost user episode
+fetchEpisode ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadThrow m,
+    Has Tracer env
+  ) =>
+  Slug ->
+  Episodes.EpisodeNumber ->
+  m Episodes.Model
+fetchEpisode showSlug episodeNumber =
+  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Episode"
+    Right (Just episode) -> pure episode
 
-                  if (isStaff || isCreator || isHost) && not (UserMetadata.isSuspended userMeta)
-                    then hardDeleteEpisode userMeta showModel episode
-                    else do
-                      Log.logInfo "Discard draft failed: Not authorized" (Aeson.object ["userId" .= user.mId, "episodeId" .= episode.id])
-                      pure $ renderErrorWithRow userMeta showModel episode "You don't have permission to discard this episode."
+--------------------------------------------------------------------------------
+-- Validation
+
+requireDraftStatus ::
+  (MonadThrow m, Log.MonadLog m) =>
+  Episodes.Model ->
+  m ()
+requireDraftStatus episode =
+  when (episode.status /= Episodes.Draft) $ do
+    Log.logInfo
+      "Discard draft failed: Episode is not a draft"
+      (Aeson.object ["episodeId" .= episode.id, "status" .= show episode.status])
+    throwValidationError "Only draft episodes can be discarded. Published episodes must be archived by staff."
+
+--------------------------------------------------------------------------------
+-- Delete Execution
 
 hardDeleteEpisode ::
   ( Has Tracer env,
     Log.MonadLog m,
     MonadReader env m,
     MonadUnliftIO m,
-    MonadCatch m,
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  UserMetadata.Model ->
   Shows.Model ->
   Episodes.Model ->
+  UserMetadata.Model ->
   m (Lucid.Html ())
-hardDeleteEpisode userMeta showModel episode = do
-  -- Delete tracks and episode in a single transaction
+hardDeleteEpisode showModel episode userMeta = do
   execTransactionSpan (deleteEpisodeTransaction episode.id) >>= \case
     Left err -> do
       Log.logInfo "Discard draft failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
@@ -117,10 +147,42 @@ hardDeleteEpisode userMeta showModel episode = do
       pure $ renderErrorWithRow userMeta showModel episode "Episode not found during discard operation."
     Right (Just _) -> do
       Log.logInfo "Draft episode discarded successfully" (Aeson.object ["episodeId" .= episode.id])
-      -- Return empty response to remove the row + OOB success banner
       pure $ do
         emptyResponse
         renderBanner Success "Draft Discarded" "The draft episode has been discarded."
+
+-- | Transaction to delete episode tracks and then the episode itself.
+deleteEpisodeTransaction :: Episodes.Id -> Txn.Transaction (Maybe Episodes.Id)
+deleteEpisodeTransaction episodeId = do
+  -- First delete all tracks for this episode
+  _ <- Txn.statement () (EpisodeTrack.deleteAllTracksForEpisode episodeId)
+  -- Then hard delete the episode
+  Txn.statement () (Episodes.hardDeleteEpisode episodeId)
+
+--------------------------------------------------------------------------------
+-- Error Handling
+
+handleDiscardErrors ::
+  (MonadCatch m, Log.MonadLog m) =>
+  m (Lucid.Html ()) ->
+  m (Lucid.Html ())
+handleDiscardErrors action =
+  action `catchHandlerError` \err -> do
+    logHandlerError "Episode discard" err
+    pure $ renderBanner Error "Discard Failed" (errorMessage err)
+
+errorMessage :: HandlerError -> Text
+errorMessage = \case
+  NotAuthenticated -> "You must be logged in to discard episodes."
+  NotAuthorized msg -> msg
+  NotFound resource -> resource <> " not found."
+  DatabaseError _ -> "Database error. Please try again or contact support."
+  ValidationError msg -> msg
+  UserSuspended -> "Your account is suspended."
+  HandlerFailure msg -> msg
+
+--------------------------------------------------------------------------------
+-- Rendering Helpers
 
 -- | Render an error banner AND the episode row (to prevent row removal on error)
 renderErrorWithRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()
@@ -131,30 +193,3 @@ renderErrorWithRow userMeta showModel episode errorMsg = do
 -- | Empty response for successful deletes (row is removed by HTMX)
 emptyResponse :: Lucid.Html ()
 emptyResponse = ""
-
--- | Transaction to delete episode tracks and then the episode itself.
-deleteEpisodeTransaction :: Episodes.Id -> Txn.Transaction (Maybe Episodes.Id)
-deleteEpisodeTransaction episodeId = do
-  -- First delete all tracks for this episode
-  _ <- Txn.statement () (EpisodeTrack.deleteAllTracksForEpisode episodeId)
-  -- Then hard delete the episode
-  Txn.statement () (Episodes.hardDeleteEpisode episodeId)
-
-checkIfHost ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  User.Model ->
-  Episodes.Model ->
-  m Bool
-checkIfHost user episode = do
-  result <- execQuerySpan (Episodes.isUserHostOfEpisodeShow user.mId episode.id)
-  case result of
-    Left _ -> pure False
-    Right authorized -> pure authorized

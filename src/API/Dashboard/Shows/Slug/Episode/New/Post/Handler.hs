@@ -5,9 +5,10 @@ module API.Dashboard.Shows.Slug.Episode.New.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), TrackInfo (..))
-import API.Links (dashboardEpisodesLinks, dashboardShowsLinks, userLinks)
+import API.Links (apiLinks, dashboardEpisodesLinks, dashboardShowsLinks)
 import API.Types
-import App.Common (getUserInfo)
+import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
@@ -68,37 +69,59 @@ handler ::
   Maybe Cookie ->
   EpisodeUploadForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug cookie form = do
-  let loginUri = Links.linkURI $ userLinks.loginGet Nothing Nothing
-      loginUrl = [i|/#{loginUri}|] :: Text
-      newEpisodeUri = Links.linkURI $ dashboardShowsLinks.episodeNewGet showSlug
-      newEpisodeUrl = [i|/#{newEpisodeUri}|] :: Text
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to upload episodes."
-      pure $ Servant.addHeader (buildRedirectUrl loginUrl banner) (redirectWithBanner loginUrl banner)
-    Just (user, userMetadata)
-      | UserMetadata.isAdmin userMetadata.mUserRole -> do
-          -- Admin user - fetch all shows
-          execQuerySpan Shows.getAllActiveShows >>= \case
-            Left _err -> do
-              Log.logInfo "Failed to fetch shows for admin" ()
-              let banner = BannerParams Error "Error" "Failed to load shows."
-              pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
-            Right _allShows ->
-              processUploadForUser user userMetadata showSlug form
-    Just (user, userMetadata) -> do
-      -- Regular host - fetch their assigned shows
-      execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
-        Left _err -> do
-          Log.logInfo "Failed to fetch shows for user" (User.mId user)
-          let banner = BannerParams Error "Error" "Failed to load your shows."
-          pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
-        Right _userShows ->
-          processUploadForUser user userMetadata showSlug form
+handler _tracer showSlug cookie form =
+  handleRedirectErrors "Episode upload" apiLinks.rootGet $ do
+    -- 1. Require authentication
+    (user, userMetadata) <- requireAuth cookie
+    requireShowHostOrStaff user.mId showSlug userMetadata
 
--- | Process upload for an authenticated user
-processUploadForUser ::
+    -- 2. Verify the show exists
+    showModel <- fetchShowOrNotFound showSlug
+
+    -- 3. Process the upload
+    processEpisodeUploadAndRespond userMetadata user showModel form
+
+-- | Fetch show by slug or throw NotFound
+fetchShowOrNotFound ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  Slug ->
+  m Shows.Model
+fetchShowOrNotFound showSlug =
+  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Show"
+    Right (Just showModel) -> pure showModel
+
+-- | Verify user has access to the show (admin or assigned host)
+requireShowAccess ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  Shows.Model ->
+  m ()
+requireShowAccess user userMetadata showModel =
+  if UserMetadata.isAdmin userMetadata.mUserRole
+    then pure ()
+    else do
+      execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) showModel.id) >>= \case
+        Left err -> throwDatabaseError err
+        Right False -> throwNotAuthorized "You are not authorized to upload episodes for this show."
+        Right True -> pure ()
+
+-- | Process the episode upload and return appropriate response
+processEpisodeUploadAndRespond ::
   ( Has Tracer env,
     Log.MonadLog m,
     MonadReader env m,
@@ -108,49 +131,23 @@ processUploadForUser ::
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  User.Model ->
   UserMetadata.Model ->
-  Slug ->
+  User.Model ->
+  Shows.Model ->
   EpisodeUploadForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-processUploadForUser user userMetadata showSlug form = do
-  let newEpisodeUri = Links.linkURI $ dashboardShowsLinks.episodeNewGet showSlug
+processEpisodeUploadAndRespond userMetadata user showModel form = do
+  let newEpisodeUri = Links.linkURI $ dashboardShowsLinks.episodeNewGet showModel.slug
       newEpisodeUrl = [i|/#{newEpisodeUri}|] :: Text
-  -- Verify show exists
-  showResult <- execQuerySpan (Shows.getShowBySlug showSlug)
-  case showResult of
-    Left _err -> do
-      Log.logInfo "Failed to fetch show" showSlug
-      let banner = BannerParams Error "Error" "Failed to load show information."
+
+  processEpisodeUpload userMetadata user form >>= \case
+    Left err -> do
+      Log.logInfo "Episode upload failed" err
+      let banner = BannerParams Error "Upload Failed" err
       pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
-    Right Nothing -> do
-      Log.logInfo "Show not found" showSlug
-      let banner = BannerParams Error "Error" "Show not found."
-      pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
-    Right (Just showModel) -> do
-      -- Verify user is host (admins can upload to any show)
-      isAuthorized <-
-        if UserMetadata.isAdmin userMetadata.mUserRole
-          then pure (Right True) -- Admins always authorized
-          else execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id)
-      case isAuthorized of
-        Left _err -> do
-          Log.logInfo "Failed to check host permissions" showSlug
-          let banner = BannerParams Error "Error" "Failed to verify permissions."
-          pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
-        Right True | not (UserMetadata.isSuspended userMetadata) -> do
-          processEpisodeUpload userMetadata user form >>= \case
-            Left err -> do
-              Log.logInfo "Episode upload failed" err
-              let banner = BannerParams Error "Upload Failed" err
-              pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
-            Right episodeId -> do
-              Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
-              handleUploadSuccess showModel episodeId
-        Right _ -> do
-          Log.logInfo "User is not host of show" (user.mId, showSlug)
-          let banner = BannerParams Error "Permission Denied" "You are not authorized to upload episodes for this show."
-          pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
+    Right episodeId -> do
+      Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
+      handleUploadSuccess showModel episodeId
 
 -- | Handle successful upload by redirecting to episode page with banner
 handleUploadSuccess ::

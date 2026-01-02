@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Profile.Edit.Get.Handler where
@@ -7,12 +6,13 @@ module API.Dashboard.Profile.Edit.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Profile.Edit.Get.Templates.Form (template)
-import API.Links (apiLinks, userLinks)
-import API.Types (Routes (..), UserRoutes (..))
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..))
+import API.Links (apiLinks)
+import API.Types (Routes (..))
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth)
+import App.Handler.Error (handleHtmlErrors, throwUserSuspended)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
+import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -20,28 +20,17 @@ import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
-import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -59,22 +48,20 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to access this page."
-      pure $ redirectWithBanner [i|/#{userLoginGetUrl}|] banner
-    Just (_user, userMetadata)
-      | isSuspended userMetadata -> do
-          let banner = BannerParams Error "Account Suspended" "Your account is suspended. You cannot edit your profile."
-          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-    Just (user, userMetadata) -> do
-      -- Fetch shows for sidebar
-      showsResult <-
-        if UserMetadata.isAdmin userMetadata.mUserRole
-          then execQuerySpan Shows.getAllActiveShows
-          else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = fromRight [] showsResult
-          selectedShow = listToMaybe allShows
+handler _tracer cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Profile edit" apiLinks.rootGet $ do
+    -- 1. Require authentication
+    (user, userMetadata) <- requireAuth cookie
 
-      renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavSettings Nothing Nothing (template user userMetadata)
+    -- 2. Check not suspended
+    when (UserMetadata.isSuspended userMetadata) throwUserSuspended
+
+    -- 3. Fetch shows for sidebar
+    showsResult <-
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then execQuerySpan Shows.getAllActiveShows
+        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+    let allShows = fromRight [] showsResult
+        selectedShow = listToMaybe allShows
+
+    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavSettings Nothing Nothing (template user userMetadata)

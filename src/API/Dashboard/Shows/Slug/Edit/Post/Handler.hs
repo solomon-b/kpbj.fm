@@ -6,9 +6,10 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler (handler) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..), ShowEditForm (..))
-import API.Links (apiLinks, dashboardShowsLinks, userLinks)
+import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
-import App.Common (getUserInfo)
+import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Applicative ((<|>))
@@ -24,7 +25,6 @@ import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
@@ -39,7 +39,6 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
@@ -54,15 +53,6 @@ import Servant.Multipart (FileData, Mem)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
-
-dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
-
 dashboardShowDetailUrl :: Shows.Id -> Slug -> Links.URI
 dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail showId slug Nothing
 
@@ -137,41 +127,34 @@ handler ::
   Maybe Cookie ->
   ShowEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer slug cookie editForm = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized show edit attempt" slug
-      let banner = BannerParams Error "Login Required" "You must be logged in to edit a show."
-      pure (Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner))
-    Just (_user, userMetadata)
-      | isSuspended userMetadata -> do
-          let banner = BannerParams Error "Account Suspended" "Your account has been suspended."
-          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
-    Just (user, userMetadata) -> do
-      execQuerySpan (ShowHost.isUserHostOfShowSlug user.mId slug) >>= \case
-        Left err -> do
-          Log.logAttention "isUserHostOfShow execution error" (show err)
-          let banner = BannerParams Error "Error" "An error occurred. Please try again."
-          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
-        Right isHost -> do
-          let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-          if not (isHost || isStaff)
-            then do
-              Log.logInfo "User attempted to edit show they don't host" slug
-              let banner = BannerParams Error "Access Denied" "You don't have permission to edit this show."
-              pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
-            else do
-              execQuerySpan (Shows.getShowBySlug slug) >>= \case
-                Left err -> do
-                  Log.logAttention "getShowBySlug execution error" (show err)
-                  let banner = BannerParams Error "Error" "Failed to load show. Please try again."
-                  pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
-                Right Nothing -> do
-                  Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
-                  let banner = BannerParams Warning "Not Found" "The show you're trying to update doesn't exist."
-                  pure (Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner))
-                Right (Just showModel) ->
-                  updateShow userMetadata showModel editForm
+handler _tracer slug cookie editForm =
+  handleRedirectErrors "Show edit" apiLinks.rootGet $ do
+    -- 1. Require authentication and authorization (host of show or staff+)
+    (user, userMetadata) <- requireAuth cookie
+    requireShowHostOrStaff user.mId slug userMetadata
+
+    -- 2. Fetch the show
+    showModel <- fetchShowOrNotFound slug
+
+    -- 3. Process the edit
+    updateShow userMetadata showModel editForm
+
+-- | Fetch show by slug or throw NotFound
+fetchShowOrNotFound ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  Slug ->
+  m Shows.Model
+fetchShowOrNotFound slug =
+  execQuerySpan (Shows.getShowBySlug slug) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Show"
+    Right (Just showModel) -> pure showModel
 
 updateShow ::
   ( MonadDB m,

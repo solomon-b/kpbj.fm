@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module API.Dashboard.StationBlog.Slug.Edit.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.StationBlog.Slug.Edit.Post.Route (BlogEditForm (..))
-import API.Links (apiLinks, dashboardStationBlogLinks, userLinks)
-import API.Types (DashboardStationBlogRoutes (..), Routes (..), UserRoutes (..))
-import App.Common (getUserInfo)
+import API.Links (dashboardStationBlogLinks, rootLink)
+import API.Types (DashboardStationBlogRoutes (..))
+import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, void)
@@ -21,12 +21,11 @@ import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Foldable (traverse_)
 import Data.Has (Has)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.PostStatus (BlogPostStatus (..))
+import Domain.Types.PostStatus (decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
@@ -34,8 +33,6 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
-import Effects.Database.Tables.UserMetadata (isSuspended)
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
@@ -43,32 +40,6 @@ import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
-
-stationBlogListUrl :: Links.URI
-stationBlogListUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
-
-stationBlogEditGetUrl :: BlogPosts.Id -> Slug -> Text
-stationBlogEditGetUrl pid slug =
-  let uri = Links.linkURI $ dashboardStationBlogLinks.editGet pid slug
-   in [i|/#{uri}|]
-
---------------------------------------------------------------------------------
-
--- | Parse blog post status from text
-parseStatus :: Text -> Maybe BlogPostStatus
-parseStatus "published" = Just Published
-parseStatus "draft" = Just Draft
-parseStatus "deleted" = Just Deleted
-parseStatus _ = Nothing
 
 --------------------------------------------------------------------------------
 
@@ -88,35 +59,25 @@ handler ::
   Maybe Cookie ->
   BlogEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer blogPostId slug cookie editForm = do
-  let editUrl = stationBlogEditGetUrl blogPostId slug
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized blog edit attempt" blogPostId
-      let banner = BannerParams Error "Login Required" "You must be logged in to edit blog posts."
-      pure (Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner))
-    Just (_user, userMetadata)
-      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
-          Log.logInfo "Non-staff user tried to edit station blog post" blogPostId
-          let banner = BannerParams Error "Staff Access Required" "You do not have permission to edit station blog posts."
-          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
-    Just (_user, _userMetadata) -> do
-      mResult <- execTransactionSpan $ runMaybeT $ do
-        blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
-        oldTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
-        MaybeT $ pure $ Just (blogPost, oldTags)
+handler _tracer blogPostId slug cookie editForm =
+  handleRedirectErrors "Station blog update" (dashboardStationBlogLinks.editGet blogPostId slug) $ do
+    -- 1. Require authentication and staff role
+    (_user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "You do not have permission to edit station blog posts." userMetadata
 
-      case mResult of
-        Left err -> do
-          Log.logAttention "getBlogPostById execution error" (show err)
-          let banner = BannerParams Warning "Blog Post Not Found" "The blog post you're trying to update doesn't exist."
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{stationBlogListUrl}|] banner)
-        Right Nothing -> do
-          Log.logInfo "No blog post found with id" blogPostId
-          let banner = BannerParams Warning "Blog Post Not Found" "The blog post you're trying to update doesn't exist."
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{stationBlogListUrl}|] banner)
-        Right (Just (blogPost, oldTags)) ->
-          updateBlogPost editUrl blogPost oldTags editForm
+    -- 2. Fetch blog post and old tags
+    mResult <- execTransactionSpan $ runMaybeT $ do
+      blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
+      oldTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
+      pure (blogPost, oldTags)
+
+    (blogPost, oldTags) <- case mResult of
+      Left err -> throwDatabaseError err
+      Right Nothing -> throwNotFound "Blog post"
+      Right (Just result) -> pure result
+
+    -- 3. Update the blog post
+    updateBlogPost blogPost oldTags editForm
 
 updateBlogPost ::
   ( MonadDB m,
@@ -127,84 +88,66 @@ updateBlogPost ::
     MonadCatch m,
     MonadIO m
   ) =>
-  Text ->
   BlogPosts.Model ->
   [BlogTags.Model] ->
   BlogEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-updateBlogPost editUrl blogPost oldTags editForm = do
-  case parseStatus (befStatus editForm) of
-    Nothing -> do
-      Log.logInfo "Invalid status in blog edit form" (befStatus editForm)
-      let banner = BannerParams Error "Update Failed" "Invalid blog post status value."
-      pure $ Servant.noHeader (redirectWithBanner editUrl banner)
-    Just parsedStatus -> do
-      -- Process hero image upload if present
-      heroImagePath <- case befHeroImage editForm of
-        Nothing -> pure blogPost.bpmHeroImageUrl -- Keep existing image
-        Just heroImageFile -> do
-          let slug = Slug.mkSlug (befTitle editForm)
-          uploadResult <- uploadBlogHeroImage slug heroImageFile
-          case uploadResult of
-            Left uploadError -> do
-              Log.logInfo "Hero image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
-              pure blogPost.bpmHeroImageUrl -- Keep existing image on error
-            Right Nothing -> pure blogPost.bpmHeroImageUrl -- No file selected, keep existing
-            Right (Just result) -> do
-              Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
-              pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+updateBlogPost blogPost oldTags editForm = do
+  -- 4. Validate status
+  parsedStatus <- requireJust "Invalid blog post status value." (decodeBlogPost (befStatus editForm))
 
-      -- Sanitize user input to prevent XSS attacks
-      let sanitizedTitle = Sanitize.sanitizeTitle (befTitle editForm)
-          sanitizedContent = Sanitize.sanitizeUserContent (befContent editForm)
-          sanitizedExcerpt = Sanitize.sanitizeDescription <$> befExcerpt editForm
-          newSlug = Slug.mkSlug sanitizedTitle
+  -- 5. Process hero image upload if present
+  heroImagePath <- case befHeroImage editForm of
+    Nothing -> pure blogPost.bpmHeroImageUrl -- Keep existing image
+    Just heroImageFile -> do
+      let slug = Slug.mkSlug (befTitle editForm)
+      uploadResult <- uploadBlogHeroImage slug heroImageFile
+      case uploadResult of
+        Left uploadError -> do
+          Log.logInfo "Hero image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
+          pure blogPost.bpmHeroImageUrl -- Keep existing image on error
+        Right Nothing -> pure blogPost.bpmHeroImageUrl -- No file selected, keep existing
+        Right (Just result) -> do
+          Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
+          pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
 
-      -- Validate content lengths
-      case (Sanitize.validateContentLength 200 sanitizedTitle, Sanitize.validateContentLength 50000 sanitizedContent) of
-        (Left titleError, _) -> do
-          let errorMsg = Sanitize.displayContentValidationError titleError
-              banner = BannerParams Error "Update Failed" errorMsg
-          pure $ Servant.noHeader (redirectWithBanner editUrl banner)
-        (_, Left contentError) -> do
-          let errorMsg = Sanitize.displayContentValidationError contentError
-              banner = BannerParams Error "Update Failed" errorMsg
-          pure $ Servant.noHeader (redirectWithBanner editUrl banner)
-        (Right validTitle, Right validContent) -> do
-          let updateData =
-                BlogPosts.Insert
-                  { BlogPosts.bpiTitle = validTitle,
-                    BlogPosts.bpiSlug = newSlug,
-                    BlogPosts.bpiContent = validContent,
-                    BlogPosts.bpiExcerpt = sanitizedExcerpt,
-                    BlogPosts.bpiHeroImageUrl = heroImagePath,
-                    BlogPosts.bpiAuthorId = blogPost.bpmAuthorId,
-                    BlogPosts.bpiStatus = parsedStatus
-                  }
+  -- 6. Sanitize and validate content
+  let sanitizedTitle = Sanitize.sanitizeTitle (befTitle editForm)
+      sanitizedContent = Sanitize.sanitizeUserContent (befContent editForm)
+      sanitizedExcerpt = Sanitize.sanitizeDescription <$> befExcerpt editForm
+      newSlug = Slug.mkSlug sanitizedTitle
 
-          mUpdateResult <- execTransactionSpan $ runMaybeT $ do
-            _ <- MaybeT $ HT.statement () (BlogPosts.updateBlogPost blogPost.bpmId updateData)
-            lift $ traverse_ (\tag -> HT.statement () (BlogPosts.removeTagFromPost blogPost.bpmId tag.btmId)) oldTags
-            lift $ updatePostTags blogPost.bpmId editForm
-            MaybeT $ pure $ Just ()
+  validTitle <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 200 sanitizedTitle)
+  validContent <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 50000 sanitizedContent)
 
-          case mUpdateResult of
-            Left err -> do
-              Log.logInfo "Failed to update blog post" (blogPost.bpmId, show err)
-              let banner = BannerParams Error "Update Failed" "Database error occurred. Please try again."
-              pure $ Servant.noHeader (redirectWithBanner editUrl banner)
-            Right Nothing -> do
-              Log.logInfo "Blog post update returned Nothing" blogPost.bpmId
-              let banner = BannerParams Error "Update Failed" "Failed to update blog post. Please try again."
-              pure $ Servant.noHeader (redirectWithBanner editUrl banner)
-            Right (Just _) -> do
-              Log.logInfo "Successfully updated blog post" blogPost.bpmId
-              let postId = blogPost.bpmId
-                  detailLink = Links.linkURI $ dashboardStationBlogLinks.detail postId newSlug
-                  detailUrl = [i|/#{detailLink}|] :: Text
-                  banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated and saved."
-                  redirectUrl = buildRedirectUrl detailUrl banner
-              pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+  -- 7. Build update data
+  let updateData =
+        BlogPosts.Insert
+          { BlogPosts.bpiTitle = validTitle,
+            BlogPosts.bpiSlug = newSlug,
+            BlogPosts.bpiContent = validContent,
+            BlogPosts.bpiExcerpt = sanitizedExcerpt,
+            BlogPosts.bpiHeroImageUrl = heroImagePath,
+            BlogPosts.bpiAuthorId = blogPost.bpmAuthorId,
+            BlogPosts.bpiStatus = parsedStatus
+          }
+
+  -- 8. Update in transaction
+  mUpdateResult <- execTransactionSpan $ runMaybeT $ do
+    _ <- MaybeT $ HT.statement () (BlogPosts.updateBlogPost blogPost.bpmId updateData)
+    lift $ traverse_ (\tag -> HT.statement () (BlogPosts.removeTagFromPost blogPost.bpmId tag.btmId)) oldTags
+    lift $ updatePostTags blogPost.bpmId editForm
+    pure ()
+
+  case mUpdateResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwDatabaseError (error "Blog post update returned Nothing")
+    Right (Just _) -> do
+      Log.logInfo "Successfully updated blog post" blogPost.bpmId
+      let detailUrl = rootLink $ dashboardStationBlogLinks.detail blogPost.bpmId newSlug
+          banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated and saved."
+          redirectUrl = buildRedirectUrl detailUrl banner
+      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::

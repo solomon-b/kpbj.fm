@@ -5,9 +5,12 @@ module API.Dashboard.Episodes.Slug.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
-import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
-import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
+import API.Dashboard.Episodes.Slug.Get.Templates.Page (template)
+import API.Links (apiLinks)
+import API.Types
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -48,63 +51,102 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized access to dashboard episode" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
-    Just (_, userMetadata)
-      | not (UserMetadata.isHostOrHigher userMetadata.mUserRole) -> do
-          Log.logInfo "User without Host role tried to access dashboard episode" userMetadata.mDisplayName
-          renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
-    Just (user, userMetadata) -> do
-      -- Fetch the show and episode together
-      execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
-        Left _err -> do
-          Log.logInfo "Failed to fetch episode from database" (showSlug, episodeNumber)
-          let content = errorTemplate "Failed to load episode. Please try again."
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
-        Right Nothing -> do
-          Log.logInfo "Episode not found" (showSlug, episodeNumber)
-          let content = notFoundTemplate showSlug
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
-        Right (Just episode) -> do
-          -- Fetch the show
-          execQuerySpan (Shows.getShowById episode.showId) >>= \case
-            Left _err -> do
-              Log.logInfo "Failed to fetch show from database" showSlug
-              let content = errorTemplate "Failed to load show. Please try again."
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
-            Right Nothing -> do
-              Log.logInfo "Show not found" showSlug
-              let content = notFoundTemplate showSlug
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing content
-            Right (Just showModel) -> do
-              -- Verify user has access to this show (unless admin)
-              hasAccess <-
-                if UserMetadata.isAdmin userMetadata.mUserRole
-                  then pure True
-                  else do
-                    execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
-                      Left _ -> pure False
-                      Right userShows -> pure $ any (\s -> s.id == showModel.id) userShows
+handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Episode detail" apiLinks.rootGet $ do
+    -- 1. Require authentication and host role
+    (user, userMetadata) <- requireAuth cookie
+    requireHostNotSuspended "You do not have permission to access this page." userMetadata
 
-              if not hasAccess
-                then do
-                  Log.logInfo "User tried to access episode for show they don't have access to" (userMetadata.mDisplayName, showSlug)
-                  renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
-                else do
-                  -- Fetch tracks for the episode
-                  tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+    -- 2. Fetch the episode
+    episode <- fetchEpisodeOrNotFound showSlug episodeNumber
 
-                  -- Fetch tags for the episode
-                  tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
+    -- 3. Fetch the show
+    showModel <- fetchShowOrNotFound episode.showId
 
-                  -- Get user's shows for sidebar
-                  userShows <-
-                    if UserMetadata.isAdmin userMetadata.mUserRole
-                      then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-                      else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+    -- 4. Verify user has access to this show
+    requireShowAccess user userMetadata showModel
 
-                  let content = template userMetadata showModel episode tracks tags
-                  renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes Nothing Nothing content
+    -- 5. Fetch tracks and tags for the episode
+    tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
+    tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
+
+    -- 6. Get user's shows for sidebar
+    userShows <- fetchShowsForUser user userMetadata
+
+    -- 7. Render template
+    let content = template userMetadata showModel episode tracks tags
+    renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes Nothing Nothing content
+
+-- | Fetch episode by show slug and episode number
+fetchEpisodeOrNotFound ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  Slug ->
+  Episodes.EpisodeNumber ->
+  m Episodes.Model
+fetchEpisodeOrNotFound showSlug episodeNumber =
+  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Episode"
+    Right (Just episode) -> pure episode
+
+-- | Fetch show by ID
+fetchShowOrNotFound ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  Shows.Id ->
+  m Shows.Model
+fetchShowOrNotFound showId =
+  execQuerySpan (Shows.getShowById showId) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Show"
+    Right (Just showModel) -> pure showModel
+
+-- | Verify user has access to the show (admin or assigned host)
+requireShowAccess ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  Shows.Model ->
+  m ()
+requireShowAccess user userMetadata showModel =
+  if UserMetadata.isAdmin userMetadata.mUserRole
+    then pure ()
+    else do
+      userShows <- fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+      if any (\s -> s.id == showModel.id) userShows
+        then pure ()
+        else throwNotAuthorized "You don't have access to this show."
+
+-- | Fetch shows for user based on role
+fetchShowsForUser ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  m [Shows.Model]
+fetchShowsForUser user userMetadata =
+  if UserMetadata.isAdmin userMetadata.mUserRole
+    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
+    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
