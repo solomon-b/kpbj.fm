@@ -1,23 +1,23 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Profile.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardLinks)
+import API.Links (dashboardLinks, rootLink)
 import API.Types (DashboardRoutes (..))
-import App.Common (getUserInfo)
+import App.Handler.Combinators (requireAuth)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwUserSuspended, throwValidationError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Applicative ((<|>))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad (when)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
@@ -30,7 +30,6 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
@@ -39,13 +38,7 @@ import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Links qualified as Links
 import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile)
-
---------------------------------------------------------------------------------
-
-profileEditGetUrl :: Links.URI
-profileEditGetUrl = Links.linkURI dashboardLinks.profileEditGet
 
 --------------------------------------------------------------------------------
 
@@ -64,77 +57,95 @@ handler ::
   Maybe HxRequest ->
   MultipartData Mem ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie (foldHxReq -> _hxRequest) multipartData = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to update your profile."
-      pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
-    Just (_user, userMetadata)
-      | isSuspended userMetadata -> do
-          let banner = BannerParams Error "Account Suspended" "Your account is suspended. You cannot update your profile."
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
-    Just (user, _userMetadata) -> do
-      -- Parse form fields
-      let formInputs = inputs multipartData
+handler _tracer cookie (foldHxReq -> _hxRequest) multipartData =
+  handleRedirectErrors "Profile update" dashboardLinks.profileEditGet $ do
+    -- 1. Require authentication
+    (user, userMetadata) <- requireAuth cookie
 
-      case extractFormFields formInputs of
-        Left errorMsg -> do
-          let banner = BannerParams Error "Error Updating Profile" errorMsg
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
-        Right (newDisplayName, newFullName, newColorScheme) -> do
-          -- Handle avatar upload if provided
-          avatarUploadResult <- case lookupFile "avatar" multipartData of
-            Left _ -> pure (Right Nothing)
-            Right avatarFile -> do
-              uploadResult <- FileUpload.uploadUserAvatar (display (User.mId user)) avatarFile
-              case uploadResult of
-                Left _err -> pure (Left "Failed to upload avatar image")
-                Right Nothing -> pure (Right Nothing) -- No file selected
-                Right (Just result) ->
-                  let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
-                   in pure (Right (Just (FileUpload.stripStorageRoot storagePath)))
+    -- 2. Check not suspended
+    when (UserMetadata.isSuspended userMetadata) throwUserSuspended
 
-          case avatarUploadResult of
-            Left errorMsg -> do
-              let banner = BannerParams Error "Error Updating Profile" errorMsg
-              pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
-            Right maybeAvatarPath -> do
-              -- Update user metadata in transaction
-              updateResult <- execTransactionSpan $ do
-                -- Get current metadata
-                maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata (User.mId user))
-                case maybeMetadata of
-                  Nothing -> pure Nothing
-                  Just currentMetadata -> do
-                    -- Determine final avatar URL (use new upload or keep existing)
-                    let finalAvatarUrl = maybeAvatarPath <|> currentMetadata.mAvatarUrl
+    -- 3. Parse and validate form fields
+    (newDisplayName, newFullName, newColorScheme) <- parseFormFields (inputs multipartData)
 
-                    -- Update metadata fields
-                    let metadataUpdate =
-                          UserMetadata.Update
-                            { UserMetadata.uDisplayName = Just newDisplayName,
-                              UserMetadata.uFullName = Just newFullName,
-                              UserMetadata.uAvatarUrl = Just finalAvatarUrl,
-                              UserMetadata.uColorScheme = Just newColorScheme
-                            }
-                    _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
+    -- 4. Handle avatar upload if provided
+    maybeAvatarPath <- handleAvatarUpload user multipartData
 
-                    pure $ Just ()
+    -- 5. Update user metadata
+    updateUserProfile user maybeAvatarPath newDisplayName newFullName newColorScheme
 
-              case updateResult of
-                Left err -> do
-                  Log.logInfo "Failed to update profile" (show err)
-                  let banner = BannerParams Error "Error Updating Profile" "Failed to update profile. Please try again."
-                  pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
-                Right Nothing -> do
-                  let banner = BannerParams Error "Error Updating Profile" "User metadata not found."
-                  pure $ Servant.noHeader (redirectWithBanner [i|/#{profileEditGetUrl}|] banner)
-                Right (Just ()) -> do
-                  Log.logInfo "Profile updated successfully" ()
-                  let detailUrl = [i|/#{profileEditGetUrl}|] :: Text
-                      banner = BannerParams Success "Profile Updated" "Your profile has been updated successfully."
-                      redirectUrl = buildRedirectUrl detailUrl banner
-                  pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+    -- 6. Success redirect
+    Log.logInfo "Profile updated successfully" ()
+    let detailUrl = rootLink dashboardLinks.profileEditGet
+        banner = BannerParams Success "Profile Updated" "Your profile has been updated successfully."
+        redirectUrl = buildRedirectUrl detailUrl banner
+    pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+parseFormFields ::
+  (MonadThrow m) =>
+  [Input] ->
+  m (DisplayName, FullName, UserMetadata.ColorScheme)
+parseFormFields formInputs =
+  case extractFormFields formInputs of
+    Left errorMsg -> throwValidationError errorMsg
+    Right result -> pure result
+
+handleAvatarUpload ::
+  (MonadIO m, Log.MonadLog m, MonadThrow m) =>
+  User.Model ->
+  MultipartData Mem ->
+  m (Maybe Text)
+handleAvatarUpload user multipartData =
+  case lookupFile "avatar" multipartData of
+    Left _ -> pure Nothing
+    Right avatarFile -> do
+      uploadResult <- FileUpload.uploadUserAvatar (display (User.mId user)) avatarFile
+      case uploadResult of
+        Left _err -> throwValidationError "Failed to upload avatar image"
+        Right Nothing -> pure Nothing
+        Right (Just result) ->
+          let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
+           in pure $ Just (FileUpload.stripStorageRoot storagePath)
+
+updateUserProfile ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m,
+    MonadThrow m
+  ) =>
+  User.Model ->
+  Maybe Text ->
+  DisplayName ->
+  FullName ->
+  UserMetadata.ColorScheme ->
+  m ()
+updateUserProfile user maybeAvatarPath newDisplayName newFullName newColorScheme = do
+  updateResult <- execTransactionSpan $ do
+    maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata (User.mId user))
+    case maybeMetadata of
+      Nothing -> pure Nothing
+      Just currentMetadata -> do
+        let finalAvatarUrl = maybeAvatarPath <|> currentMetadata.mAvatarUrl
+            metadataUpdate =
+              UserMetadata.Update
+                { UserMetadata.uDisplayName = Just newDisplayName,
+                  UserMetadata.uFullName = Just newFullName,
+                  UserMetadata.uAvatarUrl = Just finalAvatarUrl,
+                  UserMetadata.uColorScheme = Just newColorScheme
+                }
+        _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
+        pure $ Just ()
+
+  case updateResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "User metadata"
+    Right (Just ()) -> pure ()
 
 extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.ColorScheme)
 extractFormFields formInputs = do

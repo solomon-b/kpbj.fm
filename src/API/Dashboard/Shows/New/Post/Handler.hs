@@ -6,9 +6,10 @@ module API.Dashboard.Shows.New.Post.Handler (handler) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..), ScheduleSlotInfo (..))
-import API.Links (apiLinks, dashboardShowsLinks, userLinks)
+import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
-import App.Common (getUserInfo)
+import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Error (handleRedirectErrors)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (forM_, void)
@@ -36,7 +37,6 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
@@ -60,12 +60,6 @@ dashboardShowsNewGetUrl = Links.linkURI dashboardShowsLinks.newGet
 dashboardShowDetailUrl :: Shows.Id -> Slug.Slug -> Links.URI
 dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail showId slug Nothing
 
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
-
 --------------------------------------------------------------------------------
 
 handler ::
@@ -82,23 +76,20 @@ handler ::
   Maybe Cookie ->
   NewShowForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie form = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to create shows."
-      pure $ Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner)
-    Just (_user, userMetadata) ->
-      if not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata
-        then do
-          let banner = BannerParams Error "Permission Denied" "Only Admin users can create shows."
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner)
-        else case validateNewShow form of
-          Left validationError -> do
-            Log.logInfo "Show creation failed validation" (Aeson.object ["error" .= validationError])
-            let banner = BannerParams Error "Validation Error" validationError
-            pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-          Right showData ->
-            handleShowCreation showData form
+handler _tracer cookie form =
+  handleRedirectErrors "Show creation" apiLinks.rootGet $ do
+    -- 1. Require authentication and admin role
+    (_user, userMetadata) <- requireAuth cookie
+    requireAdminNotSuspended "Only Admin users can create shows." userMetadata
+
+    -- 2. Validate form data
+    case validateNewShow form of
+      Left validationError -> do
+        Log.logInfo "Show creation failed validation" (Aeson.object ["error" .= validationError])
+        let banner = BannerParams Error "Validation Error" validationError
+        pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
+      Right showData ->
+        handleShowCreation showData form
 
 -- | Validate and convert form data to show insert data (without file paths yet)
 validateNewShow :: NewShowForm -> Either Text Shows.Insert

@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Shows.Get.Handler (handler) where
@@ -8,12 +7,12 @@ module API.Dashboard.Shows.Get.Handler (handler) where
 
 import API.Dashboard.Shows.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Shows.Get.Templates.Page (template)
-import API.Links (apiLinks, dashboardShowsLinks, userLinks)
-import API.Types (DashboardShowsRoutes (..), Routes (..), UserRoutes (..))
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..))
+import API.Links (apiLinks, dashboardShowsLinks, rootLink)
+import API.Types (DashboardShowsRoutes (..), Routes (..))
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -22,7 +21,6 @@ import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isNothing, listToMaybe)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
@@ -34,22 +32,12 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -70,58 +58,49 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -> hxRequest) = do
-  let page = fromMaybe 1 maybePage
-      limit = 20 :: Limit
-      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
-      statusFilter = getFilter =<< statusFilterParam
-      queryFilter = getFilter =<< queryFilterParam
-      -- Infinite scroll request = HTMX request for page > 1
-      isAppendRequest = hxRequest == IsHxRequest && page > 1
+handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Shows list" apiLinks.rootGet $ do
+    -- 1. Require authentication and staff role
+    (user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
 
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to access this page."
-      pure $ redirectWithBanner [i|/#{userLoginGetUrl}|] banner
-    Just (_user, userMetadata)
-      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
-          let banner = BannerParams Error "Staff Access Required" "You do not have permission to access this page."
-          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-    Just (user, userMetadata) -> do
-      -- Fetch shows for sidebar (admins see all, staff see their assigned shows)
-      sidebarShowsResult <-
-        if UserMetadata.isAdmin userMetadata.mUserRole
-          then execQuerySpan Shows.getAllActiveShows
-          else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let sidebarShows = fromRight [] sidebarShowsResult
-          selectedShow = listToMaybe sidebarShows
+    -- 2. Set up pagination and filters
+    let page = fromMaybe 1 maybePage
+        limit = 20 :: Limit
+        offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+        statusFilter = getFilter =<< statusFilterParam
+        queryFilter = getFilter =<< queryFilterParam
+        isAppendRequest = hxRequest == IsHxRequest && page > 1
 
-      getShowsResults limit offset queryFilter statusFilter >>= \case
-        Left _err -> do
-          Log.logInfo "Failed to fetch shows from database" ()
-          let banner = BannerParams Error "Error" "Failed to load shows. Please try again."
-          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-        Right allShowsResult -> do
-          let theShows = take (fromIntegral limit) allShowsResult
-              hasMore = length allShowsResult > fromIntegral limit
+    -- 3. Fetch shows for sidebar
+    sidebarShowsResult <-
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then execQuerySpan Shows.getAllActiveShows
+        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+    let sidebarShows = fromRight [] sidebarShowsResult
+        selectedShow = listToMaybe sidebarShows
 
-          if isAppendRequest
-            then
-              -- Infinite scroll: return only new rows + sentinel (no page wrapper)
-              pure $ renderItemsFragment theShows page hasMore queryFilter statusFilter
-            else do
-              -- Full page: render with table, sentinel, and noscript pagination
-              let showsTemplate = template theShows page hasMore queryFilter statusFilter
-                  filtersContent = Just $ filtersUI queryFilter statusFilter
-              renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows filtersContent newShowButton showsTemplate
+    -- 4. Fetch shows for main content
+    allShowsResult <- getShowResults limit offset queryFilter statusFilter
+
+    -- 5. Render response
+    let theShows = take (fromIntegral limit) allShowsResult
+        hasMore = length allShowsResult > fromIntegral limit
+
+    if isAppendRequest
+      then pure $ renderItemsFragment theShows page hasMore queryFilter statusFilter
+      else do
+        let showsTemplate = template theShows page hasMore queryFilter statusFilter
+            filtersContent = Just $ filtersUI queryFilter statusFilter
+        renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows filtersContent newShowButton showsTemplate
   where
     newShowButton :: Maybe (Lucid.Html ())
     newShowButton =
-      let newShowUrl = Links.linkURI dashboardShowsLinks.newGet
+      let newShowUrl = rootLink dashboardShowsLinks.newGet
        in Just $
             Lucid.a_
-              [ Lucid.href_ [i|/#{newShowUrl}|],
-                hxGet_ [i|/#{newShowUrl}|],
+              [ Lucid.href_ newShowUrl,
+                hxGet_ newShowUrl,
                 hxTarget_ "#main-content",
                 hxPushUrl_ "true",
                 Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
@@ -131,9 +110,9 @@ handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe Shows.Status -> Lucid.Html ()
 filtersUI queryFilter statusFilter = do
-  let dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
+  let dashboardShowsGetUrl = rootLink $ dashboardShowsLinks.list Nothing Nothing Nothing
   Lucid.form_
-    [ hxGet_ [i|/#{dashboardShowsGetUrl}|],
+    [ hxGet_ dashboardShowsGetUrl,
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
       Lucid.class_ "flex items-center gap-3"
@@ -165,23 +144,30 @@ filtersUI queryFilter statusFilter = do
   where
     selectedWhen cond = [Lucid.selected_ "selected" | cond]
 
-getShowsResults ::
-  ( MonadUnliftIO m,
-    MonadDB m,
+getShowResults ::
+  ( Has Tracer env,
     Log.MonadLog m,
     MonadReader env m,
-    Has Tracer env
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
   ) =>
   Limit ->
   Offset ->
   Maybe Text ->
   Maybe Shows.Status ->
-  m (Either HSQL.Pool.UsageError [Shows.ShowWithHostInfo])
-getShowsResults limit offset maybeQuery maybeStatus =
-  case (maybeQuery, maybeStatus) of
-    (Just query, _) ->
-      execQuerySpan (Shows.searchShowsWithHostInfo (Search query) (limit + 1) offset)
-    (Nothing, Just status) ->
-      execQuerySpan (Shows.getShowsByStatusWithHostInfo status (limit + 1) offset)
-    (Nothing, Nothing) ->
-      execQuerySpan (Shows.getAllShowsWithHostInfo (limit + 1) offset)
+  m [Shows.ShowWithHostInfo]
+getShowResults limit offset queryFilter statusFilter = do
+  showsResult <-
+    case (queryFilter, statusFilter) of
+      (Just query, _) ->
+        execQuerySpan (Shows.searchShowsWithHostInfo (Search query) (limit + 1) offset)
+      (Nothing, Just status) ->
+        execQuerySpan (Shows.getShowsByStatusWithHostInfo status (limit + 1) offset)
+      (Nothing, Nothing) ->
+        execQuerySpan (Shows.getAllShowsWithHostInfo (limit + 1) offset)
+  case showsResult of
+    Left err -> throwDatabaseError err
+    Right s -> pure s

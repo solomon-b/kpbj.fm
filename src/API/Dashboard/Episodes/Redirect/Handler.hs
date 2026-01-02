@@ -5,16 +5,18 @@ module API.Dashboard.Episodes.Redirect.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardEpisodesLinks, dashboardLinks)
+import API.Links (apiLinks, dashboardEpisodesLinks)
 import API.Types
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (renderTemplate)
+import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
+import App.Handler.Error (handleHtmlErrors)
 import Component.Banner (BannerType (..))
-import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
 import Component.Redirect (BannerParams (..), redirectTemplate, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.List (uncons)
 import Data.String.Interpolate (i)
@@ -35,7 +37,7 @@ import Servant.Links qualified as Links
 
 -- URL helpers
 hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI dashboardLinks.home
+hostDashboardGetUrl = Links.linkURI apiLinks.rootGet
 
 dashboardEpisodesGetUrl :: Shows.Model -> Links.URI
 dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesLinks.list showModel.slug Nothing
@@ -57,31 +59,37 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized access to dashboard episodes redirect" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
-    Just (_, userMetadata)
-      | not (UserMetadata.isHostOrHigher userMetadata.mUserRole) -> do
-          Log.logInfo "User without Host role tried to access dashboard episodes" userMetadata.mDisplayName
-          renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
-    Just (user, userMetadata) -> do
-      -- Admins see all shows, hosts see their assigned shows
-      showsResult <-
-        if UserMetadata.isAdmin userMetadata.mUserRole
-          then execQuerySpan Shows.getAllActiveShows
-          else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      case showsResult of
-        Left _err -> do
-          Log.logAttention "Failed to fetch shows" (User.mId user)
-          let banner = BannerParams Warning "Error" "Unable to load shows. Please try again."
-          renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
-        Right userShows ->
-          case uncons userShows of
-            Nothing -> do
-              let banner = BannerParams Info "No Shows" "No shows available."
-              renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
-            Just (firstShow, _) -> do
-              Log.logInfo "Redirecting to first show's episodes" firstShow.slug
-              renderTemplate hxRequest (Just userMetadata) (redirectTemplate [i|/#{dashboardEpisodesGetUrl firstShow}|])
+handler _tracer cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Episodes redirect" apiLinks.rootGet $ do
+    -- 1. Require authentication and host role
+    (user, userMetadata) <- requireAuth cookie
+    requireHostNotSuspended "You do not have permission to access this page." userMetadata
+
+    -- 2. Fetch shows (admins see all, hosts see their own)
+    userShows <- fetchShowsForUser user userMetadata
+
+    -- 3. Redirect to first show's episodes page
+    case uncons userShows of
+      Nothing -> do
+        let banner = BannerParams Info "No Shows" "No shows available."
+        renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
+      Just (firstShow, _) -> do
+        Log.logInfo "Redirecting to first show's episodes" firstShow.slug
+        renderTemplate hxRequest (Just userMetadata) (redirectTemplate [i|/#{dashboardEpisodesGetUrl firstShow}|])
+
+-- | Fetch shows based on user role (admins see all, hosts see their own)
+fetchShowsForUser ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  m [Shows.Model]
+fetchShowsForUser user userMetadata =
+  if UserMetadata.isAdmin userMetadata.mUserRole
+    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
+    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))

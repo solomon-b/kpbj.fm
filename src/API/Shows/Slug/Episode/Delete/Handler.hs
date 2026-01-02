@@ -5,9 +5,10 @@ module API.Shows.Slug.Episode.Delete.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
-import App.Common (getUserInfo)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..), renderBanner)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
@@ -49,55 +50,77 @@ handler ::
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer showSlug episodeNumber cookie = do
-  -- Fetch the show by slug
+handler _tracer showSlug episodeNumber cookie =
+  handleArchiveErrors $ do
+    -- 1. Require authentication
+    (_user, userMeta) <- requireAuth cookie
+
+    -- 2. Require staff role (not suspended)
+    requireStaffNotSuspended
+      "Only staff members can archive episodes. Hosts can discard draft episodes instead."
+      userMeta
+
+    -- 3. Fetch show and episode
+    showModel <- fetchShow showSlug
+    episode <- fetchEpisode showSlug episodeNumber
+
+    -- 4. Execute archive
+    archiveEpisode showModel episode userMeta
+
+--------------------------------------------------------------------------------
+-- Data Fetching
+
+fetchShow ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadThrow m,
+    Has Tracer env
+  ) =>
+  Slug ->
+  m Shows.Model
+fetchShow showSlug =
   execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
-    Left err -> do
-      Log.logInfo "Archive failed: Failed to fetch show" (Aeson.object ["error" .= show err])
-      -- Can't render card without show, return just error banner
-      pure $ renderBanner Error "Archive Failed" "Database error. Please try again or contact support."
-    Right Nothing -> do
-      Log.logInfo "Archive failed: Show not found" (Aeson.object ["showSlug" .= showSlug])
-      pure $ renderBanner Error "Archive Failed" "Show not found."
-    Right (Just showModel) -> do
-      getUserInfo cookie >>= \case
-        Nothing -> do
-          Log.logInfo_ "No user session"
-          -- Can't render card without episode, return simple error
-          pure $ renderBanner Error "Archive Failed" "You must be logged in to archive episodes."
-        Just (_user, userMeta) -> do
-          execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
-            Left err -> do
-              Log.logInfo "Archive failed: Failed to fetch episode" (Aeson.object ["error" .= show err])
-              pure $ renderBanner Error "Archive Failed" "Database error. Please try again or contact support."
-            Right Nothing -> do
-              Log.logInfo "Archive failed: Episode not found" (Aeson.object ["episodeNumber" .= episodeNumber])
-              pure $ renderBanner Error "Archive Failed" "Episode not found."
-            Right (Just episode) -> do
-              -- Only staff or higher can archive episodes
-              let isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Show"
+    Right (Just showModel) -> pure showModel
 
-              if isStaff && not (UserMetadata.isSuspended userMeta)
-                then softDeleteEpisode userMeta showModel episode
-                else do
-                  Log.logInfo "Archive failed: Not authorized (staff+ required)" (Aeson.object ["userId" .= userMeta.mUserId, "episodeId" .= episode.id])
-                  pure $ renderErrorWithRow userMeta showModel episode "Only staff members can archive episodes. Hosts can discard draft episodes instead."
+fetchEpisode ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadThrow m,
+    Has Tracer env
+  ) =>
+  Slug ->
+  Episodes.EpisodeNumber ->
+  m Episodes.Model
+fetchEpisode showSlug episodeNumber =
+  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Episode"
+    Right (Just episode) -> pure episode
 
-softDeleteEpisode ::
+--------------------------------------------------------------------------------
+-- Archive Execution
+
+archiveEpisode ::
   ( Has Tracer env,
     Log.MonadLog m,
     MonadReader env m,
     MonadUnliftIO m,
-    MonadCatch m,
+    MonadThrow m,
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env
   ) =>
-  UserMetadata.Model ->
   Shows.Model ->
   Episodes.Model ->
+  UserMetadata.Model ->
   m (Lucid.Html ())
-softDeleteEpisode userMeta showModel episode = do
+archiveEpisode showModel episode userMeta = do
   execQuerySpan (Episodes.deleteEpisode episode.id) >>= \case
     Left err -> do
       Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
@@ -107,10 +130,38 @@ softDeleteEpisode userMeta showModel episode = do
       pure $ renderErrorWithRow userMeta showModel episode "Episode not found during archive operation."
     Right (Just _) -> do
       Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
-      -- Return empty response to remove the row + OOB success banner
       pure $ do
         emptyResponse
         renderBanner Success "Episode Archived" "The episode has been archived."
+
+--------------------------------------------------------------------------------
+-- Error Handling
+
+-- | Handle errors for archive operations.
+--
+-- Early errors (auth, not found) return just a banner since we don't have row context.
+-- Late errors (during archive) are handled inline with row preservation.
+handleArchiveErrors ::
+  (MonadCatch m, Log.MonadLog m) =>
+  m (Lucid.Html ()) ->
+  m (Lucid.Html ())
+handleArchiveErrors action =
+  action `catchHandlerError` \err -> do
+    logHandlerError "Episode archive" err
+    pure $ renderBanner Error "Archive Failed" (errorMessage err)
+
+errorMessage :: HandlerError -> Text
+errorMessage = \case
+  NotAuthenticated -> "You must be logged in to archive episodes."
+  NotAuthorized msg -> msg
+  NotFound resource -> resource <> " not found."
+  DatabaseError _ -> "Database error. Please try again or contact support."
+  ValidationError msg -> msg
+  UserSuspended -> "Your account is suspended."
+  HandlerFailure msg -> msg
+
+--------------------------------------------------------------------------------
+-- Rendering Helpers
 
 -- | Render an error banner AND the episode row (to prevent row removal on error)
 renderErrorWithRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()

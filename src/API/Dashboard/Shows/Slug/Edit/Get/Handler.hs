@@ -7,12 +7,12 @@ module API.Dashboard.Shows.Slug.Edit.Get.Handler (handler) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form (schedulesToJson, template)
-import API.Links (apiLinks, userLinks)
+import API.Links (apiLinks)
 import API.Types
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..))
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -22,10 +22,8 @@ import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Set (Set)
 import Data.Set qualified as Set
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -36,22 +34,12 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -70,66 +58,71 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer slug cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized access to show edit" ()
-      let banner = BannerParams Error "Login Required" "You must be logged in to edit a show."
-      pure $ redirectWithBanner [i|/#{userLoginGetUrl}|] banner
-    Just (_user, userMetadata)
-      | isSuspended userMetadata -> do
-          let banner = BannerParams Error "Account Suspended" "Your account has been suspended."
-          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-    Just (user, userMetadata) -> do
-      -- Check if user can edit this show (host or staff+)
-      execQuerySpan (ShowHost.isUserHostOfShowSlug user.mId slug) >>= \case
-        Left err -> do
-          Log.logAttention "isUserHostOfShow execution error" (show err)
-          let banner = BannerParams Error "Error" "An error occurred. Please try again."
-          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-        Right isHost -> do
-          let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-          if not (isHost || isStaff)
-            then do
-              let banner = BannerParams Error "Access Denied" "You don't have permission to edit this show."
-              pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-            else do
-              -- Fetch the show to edit
-              execQuerySpan (Shows.getShowBySlug slug) >>= \case
-                Left err -> do
-                  Log.logAttention "getShowBySlug execution error" (show err)
-                  let banner = BannerParams Error "Error" "Failed to load show. Please try again."
-                  pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-                Right Nothing -> do
-                  Log.logInfo_ $ "No show with slug: '" <> display slug <> "'"
-                  let banner = BannerParams Warning "Not Found" "The show you're trying to edit doesn't exist."
-                  pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-                Right (Just showModel) -> do
-                  -- Fetch sidebar shows for dashboard navigation
-                  sidebarShowsResult <-
-                    if UserMetadata.isAdmin userMetadata.mUserRole
-                      then execQuerySpan Shows.getAllActiveShows
-                      else execQuerySpan (Shows.getShowsForUser user.mId)
-                  let sidebarShows = fromRight [] sidebarShowsResult
-                      selectedShow = Just showModel
+handler _tracer slug cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Show edit" apiLinks.rootGet $ do
+    -- 1. Require authentication and authorization (host of show or staff+)
+    (user, userMetadata) <- requireAuth cookie
+    requireShowHostOrStaff user.mId slug userMetadata
 
-                  -- Fetch existing tags for this show
-                  existingTagsResult <- execQuerySpan (Shows.getTagsForShow showModel.id)
-                  let existingTags = case existingTagsResult of
-                        Left _ -> ""
-                        Right tags -> Text.intercalate ", " $ map ShowTags.stName tags
+    -- 2. Check if staff for conditional rendering
+    let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
 
-                  -- Fetch staff-only data (schedules, hosts) if user is staff
-                  bool (pure (Right ("[]", [], Set.empty))) (fetchStaffData showModel.id) isStaff >>= \case
-                    Left err -> do
-                      Log.logAttention "Failed to fetchStaffData" (show err)
-                      let banner = BannerParams Error "Error" "An error occurred fetching show data."
-                      pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-                    Right (schedulesJson, eligibleHosts, currentHostIds) -> do
-                      let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds existingTags
-                          -- Use NavSettings for hosts, NavShows for staff/admin
-                          activeNav = if isStaff then NavShows else NavSettings
-                      renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow activeNav Nothing Nothing editTemplate
+    -- 3. Fetch the show to edit
+    showModel <- fetchShowOrNotFound slug
+
+    -- 5. Fetch sidebar shows for dashboard navigation
+    sidebarShows <- fetchShowsForUser user userMetadata
+
+    -- 6. Fetch existing tags for this show
+    existingTagsResult <- execQuerySpan (Shows.getTagsForShow showModel.id)
+    let existingTags = case existingTagsResult of
+          Left _ -> ""
+          Right tags -> Text.intercalate ", " $ map ShowTags.stName tags
+
+    -- 7. Fetch staff-only data (schedules, hosts) if user is staff
+    staffDataResult <- bool (pure (Right ("[]", [], Set.empty))) (fetchStaffData showModel.id) isStaff
+    (schedulesJson, eligibleHosts, currentHostIds) <- case staffDataResult of
+      Left err -> throwDatabaseError err
+      Right result -> pure result
+
+    -- 8. Render template
+    let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds existingTags
+        activeNav = if isStaff then NavShows else NavSettings
+    renderDashboardTemplate hxRequest userMetadata sidebarShows (Just showModel) activeNav Nothing Nothing editTemplate
+
+-- | Fetch show by slug, throwing NotFound if not found
+fetchShowOrNotFound ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  Slug ->
+  m Shows.Model
+fetchShowOrNotFound slug =
+  execQuerySpan (Shows.getShowBySlug slug) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Show"
+    Right (Just showModel) -> pure showModel
+
+-- | Fetch shows for user based on role
+fetchShowsForUser ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  m [Shows.Model]
+fetchShowsForUser user userMetadata =
+  if UserMetadata.isAdmin userMetadata.mUserRole
+    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
+    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser user.mId)
 
 -- | Fetch staff-only data for the edit form (schedules and hosts)
 fetchStaffData ::

@@ -8,12 +8,12 @@ module API.Dashboard.Users.Get.Handler (handler) where
 
 import API.Dashboard.Users.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Users.Get.Templates.Page (template)
-import API.Links (apiLinks, dashboardUsersLinks, userLinks)
+import API.Links (apiLinks, dashboardUsersLinks)
 import API.Types
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..))
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -35,7 +35,6 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -43,14 +42,6 @@ import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -72,52 +63,44 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) = do
-  let page = fromMaybe 1 maybePage
-      limit = 20 :: Limit
-      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
-      roleFilter = getFilter =<< roleFilterParam
-      queryFilter = getFilter =<< queryFilterParam
-      sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
-      -- Infinite scroll request = HTMX request for page > 1
-      isAppendRequest = hxRequest == IsHxRequest && page > 1
+handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Users list" apiLinks.rootGet $ do
+    -- 1. Require authentication and staff role
+    (user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
 
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to access this page."
-      pure $ redirectWithBanner [i|/#{userLoginGetUrl}|] banner
-    Just (_user, userMetadata)
-      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
-          let banner = BannerParams Error "Staff Access Required" "You do not have permission to access this page."
-          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-    Just (user, userMetadata) -> do
-      -- Fetch shows for sidebar (admins see all, staff see their assigned shows)
-      showsResult <-
-        if UserMetadata.isAdmin userMetadata.mUserRole
-          then execQuerySpan Shows.getAllActiveShows
-          else execQuerySpan (Shows.getShowsForUser (User.mId user))
-      let allShows = fromRight [] showsResult
-          selectedShow = listToMaybe allShows
+    -- 2. Set up pagination and filters
+    let page = fromMaybe 1 maybePage
+        limit = 20 :: Limit
+        offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+        roleFilter = getFilter =<< roleFilterParam
+        queryFilter = getFilter =<< queryFilterParam
+        sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
+        isAppendRequest = hxRequest == IsHxRequest && page > 1
 
-      getUsersResults limit offset queryFilter roleFilter sortBy >>= \case
-        Left _err -> do
-          Log.logInfo "Failed to fetch users from database" ()
-          let banner = BannerParams Error "Error" "Failed to load users. Please try again."
-          pure $ redirectWithBanner [i|/#{rootGetUrl}|] banner
-        Right allUsers -> do
-          now <- liftIO getCurrentTime
-          let users = take (fromIntegral limit) allUsers
-              hasMore = length allUsers > fromIntegral limit
+    -- 3. Fetch shows for sidebar
+    showsResult <-
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then execQuerySpan Shows.getAllActiveShows
+        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+    let allShows = fromRight [] showsResult
+        selectedShow = listToMaybe allShows
 
-          if isAppendRequest
-            then
-              -- Infinite scroll: return only new rows + sentinel (no page wrapper)
-              pure $ renderItemsFragment now users page hasMore queryFilter roleFilter sortBy
-            else do
-              -- Full page: render with filters, table, sentinel, and noscript pagination
-              let usersTemplate = template now users page hasMore queryFilter roleFilter sortBy
-                  filtersContent = Just $ filtersUI queryFilter roleFilter sortBy
-              renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers filtersContent Nothing usersTemplate
+    -- 4. Fetch users
+    allUsers <- fetchUsers limit offset queryFilter roleFilter sortBy
+
+    -- 5. Render response
+    now <- liftIO getCurrentTime
+    let users = take (fromIntegral limit) allUsers
+        hasMore = length allUsers > fromIntegral limit
+
+    if isAppendRequest
+      then
+        pure $ renderItemsFragment now users page hasMore queryFilter roleFilter sortBy
+      else do
+        let usersTemplate = template now users page hasMore queryFilter roleFilter sortBy
+            filtersContent = Just $ filtersUI queryFilter roleFilter sortBy
+        renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers filtersContent Nothing usersTemplate
 
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()
@@ -169,11 +152,12 @@ filtersUI queryFilter roleFilter sortBy = do
   where
     selectedWhen cond = [Lucid.selected_ "selected" | cond]
 
-getUsersResults ::
+fetchUsers ::
   ( MonadUnliftIO m,
     MonadDB m,
     Log.MonadLog m,
     MonadReader env m,
+    MonadCatch m,
     Has Tracer env
   ) =>
   Limit ->
@@ -181,10 +165,13 @@ getUsersResults ::
   Maybe Text ->
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
-  m (Either HSQL.Pool.UsageError [UserMetadata.UserWithMetadata])
-getUsersResults limit offset maybeQuery (maybeToList -> roles) sortBy =
-  case maybeQuery of
+  m [UserMetadata.UserWithMetadata]
+fetchUsers limit offset maybeQuery (maybeToList -> roles) sortBy = do
+  result <- case maybeQuery of
     Just query ->
       execQuerySpan (UserMetadata.searchUsers query roles (limit + 1) offset sortBy)
     Nothing ->
       execQuerySpan (UserMetadata.getUsersByRole roles (limit + 1) offset sortBy)
+  case result of
+    Left err -> throwDatabaseError err
+    Right users -> pure users

@@ -6,8 +6,10 @@ module API.Dashboard.Users.Suspend.Post.Handler where
 
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
 import API.Dashboard.Users.Suspend.Post.Route (SuspendForm (..))
-import App.Common (AuthorizationCheck (..), checkAdminAuthorization, getUserInfo)
+import App.Handler.Combinators (requireAuth)
+import App.Handler.Error (handleBannerErrors, throwNotAuthorized)
 import Component.Banner (BannerType (..), renderBanner)
+import Control.Monad (unless)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -29,6 +31,36 @@ import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
+
+--------------------------------------------------------------------------------
+
+handler ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Tracer ->
+  User.Id ->
+  Maybe Cookie ->
+  SuspendForm ->
+  m (Lucid.Html ())
+handler _tracer targetUserId cookie SuspendForm {..} =
+  handleBannerErrors "User suspend" $ do
+    -- 1. Require admin authentication
+    (_user, userMetadata) <- requireAuth cookie
+    unless (UserMetadata.isAdmin userMetadata.mUserRole) $
+      throwNotAuthorized "Only admins can suspend users."
+
+    -- 2. Execute the suspension
+    Log.logInfo "Suspending user" (Aeson.object ["targetUserId" .= display targetUserId, "reason" .= sfReason])
+    now <- liftIO getCurrentTime
+    result <- executeSuspension targetUserId sfReason
+    renderSuspendResult now result
 
 --------------------------------------------------------------------------------
 
@@ -85,33 +117,3 @@ renderSuspendResult now = \case
   SuspendFailed err -> do
     Log.logInfo "Database error during suspension" (Aeson.object ["error" .= show err])
     pure $ renderBanner Error "Suspend Failed" "Failed to suspend user. Please try again."
-
---------------------------------------------------------------------------------
-
-handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  Tracer ->
-  User.Id ->
-  Maybe Cookie ->
-  SuspendForm ->
-  m (Lucid.Html ())
-handler _tracer targetUserId cookie SuspendForm {..} = do
-  userInfo <- getUserInfo cookie
-
-  case checkAdminAuthorization userInfo of
-    Unauthorized -> do
-      Log.logInfo_ "Suspend failed: Unauthorized"
-      pure $ renderBanner Error "Suspend Failed" "Unauthorized"
-    Authorized -> do
-      Log.logInfo "Suspending user" (Aeson.object ["targetUserId" .= display targetUserId, "reason" .= sfReason])
-      now <- liftIO getCurrentTime
-      result <- executeSuspension targetUserId sfReason
-      renderSuspendResult now result

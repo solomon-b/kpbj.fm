@@ -7,18 +7,20 @@ module API.Dashboard.Episodes.Get.Handler where
 
 import API.Dashboard.Episodes.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Episodes.Get.Templates.Page (template)
-import API.Links (dashboardShowsLinks)
+import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
-import App.Common (getUserInfo, renderDashboardTemplate, renderTemplate)
-import Component.Dashboard.Auth (notAuthorizedTemplate, notLoggedInTemplate)
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Int (Int64)
-import Data.List (find, uncons)
+import Data.List (find)
 import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -65,61 +67,44 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Lucid.Html ())
-handler _tracer showSlug maybePage cookie (foldHxReq -> hxRequest) = do
-  today <- liftIO $ utctDay <$> getCurrentTime
-  let page = fromMaybe 1 maybePage
-      limit = 20 :: Limit
-      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
-      -- Infinite scroll request = HTMX request for page > 1
-      isAppendRequest = hxRequest == IsHxRequest && page > 1
+handler _tracer showSlug maybePage cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Episodes list" apiLinks.rootGet $ do
+    -- 1. Require authentication and host role
+    (user, userMetadata) <- requireAuth cookie
+    requireHostNotSuspended "You do not have permission to access this page." userMetadata
 
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized access to dashboard episodes" ()
-      renderTemplate hxRequest Nothing notLoggedInTemplate
-    Just (_, userMetadata)
-      | not (UserMetadata.isHostOrHigher userMetadata.mUserRole) -> do
-          Log.logInfo "User without Host role tried to access dashboard episodes" userMetadata.mDisplayName
-          renderTemplate hxRequest (Just userMetadata) notAuthorizedTemplate
-    Just (_, userMetadata)
-      -- Admins see all shows, hosts see their assigned shows
-      | UserMetadata.isAdmin userMetadata.mUserRole -> do
-          Log.logInfo "Admin accessing dashboard episodes" userMetadata.mDisplayName
-          execQuerySpan Shows.getAllActiveShows >>= \case
-            Left _err -> do
-              let content = template userMetadata Nothing [] page False
-              renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
-            Right allShows -> do
-              let selectedShow = find (\s -> s.slug == showSlug) allShows
-              case selectedShow of
-                Nothing -> do
-                  case uncons allShows of
-                    Nothing ->
-                      execQuerySpan Episodes.getAllEpisodes >>= \case
-                        Left _err -> do
-                          let content = template userMetadata Nothing [] page False
-                          renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
-                        Right allEpisodes -> do
-                          let content = template userMetadata Nothing allEpisodes page False
-                          renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes (statsContent userMetadata allEpisodes [] Nothing) Nothing content
-                    Just (showToFetch, _) ->
-                      renderShowEpisodes today isAppendRequest hxRequest userMetadata allShows showToFetch limit offset page
-                Just showToFetch ->
-                  renderShowEpisodes today isAppendRequest hxRequest userMetadata allShows showToFetch limit offset page
-    Just (user, userMetadata) -> do
-      Log.logInfo "Host accessing dashboard episodes" userMetadata.mDisplayName
-      execQuerySpan (Shows.getShowsForUser (User.mId user)) >>= \case
-        Left _err -> do
-          let content = template userMetadata Nothing [] page False
-          renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
-        Right userShows -> do
-          let selectedShow = find (\s -> s.slug == showSlug) userShows
-          case selectedShow of
-            Nothing -> do
-              let content = template userMetadata Nothing [] page False
-              renderDashboardTemplate hxRequest userMetadata userShows Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
-            Just showToFetch ->
-              renderShowEpisodes today isAppendRequest hxRequest userMetadata userShows showToFetch limit offset page
+    -- 2. Set up pagination
+    today <- liftIO $ utctDay <$> getCurrentTime
+    let page = fromMaybe 1 maybePage
+        limit = 20 :: Limit
+        offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+        isAppendRequest = hxRequest == IsHxRequest && page > 1
+
+    -- 3. Fetch shows for sidebar (admins see all, hosts see their own)
+    allShows <- fetchShowsForUser user userMetadata
+
+    -- 4. Determine which show to display
+    let selectedShow = find (\s -> s.slug == showSlug) allShows
+    case selectedShow of
+      Nothing -> do
+        -- No matching show found - render empty state
+        let content = template userMetadata Nothing [] page False
+        renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
+      Just showToFetch -> do
+        -- 5. Fetch episodes for the show
+        (allEpisodes, schedules, nextShow) <- fetchEpisodesData today showToFetch limit offset
+
+        let episodes = take (fromIntegral limit) allEpisodes
+            hasMore = length allEpisodes > fromIntegral limit
+
+        if isAppendRequest
+          then
+            -- Infinite scroll: return only new rows + sentinel
+            pure $ renderItemsFragment userMetadata showToFetch episodes page hasMore
+          else do
+            -- Full page: render with table, sentinel, and noscript pagination
+            let content = template userMetadata (Just showToFetch) episodes page hasMore
+            renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes (statsContent userMetadata episodes schedules nextShow) (actionButton showToFetch) content
   where
     actionButton :: Shows.Model -> Maybe (Lucid.Html ())
     actionButton showModel =
@@ -134,44 +119,6 @@ handler _tracer showSlug maybePage cookie (foldHxReq -> hxRequest) = do
               ]
               "New Episode"
 
-    -- \| Render episodes for a specific show with pagination support
-    renderShowEpisodes ::
-      ( Log.MonadLog m,
-        MonadUnliftIO m,
-        MonadCatch m,
-        MonadDB m,
-        MonadReader env m,
-        Has Tracer env
-      ) =>
-      Day ->
-      Bool ->
-      HxRequest ->
-      UserMetadata.Model ->
-      [Shows.Model] ->
-      Shows.Model ->
-      Limit ->
-      Offset ->
-      Int64 ->
-      m (Lucid.Html ())
-    renderShowEpisodes today' isAppendRequest' hxReq userMeta allShows showToFetch lim off pg = do
-      execTransactionSpan (fetchEpisodesDataPaginated today' showToFetch lim off) >>= \case
-        Left _err -> do
-          let content = template userMeta (Just showToFetch) [] pg False
-          renderDashboardTemplate hxReq userMeta allShows (Just showToFetch) NavEpisodes (statsContent userMeta [] [] Nothing) (actionButton showToFetch) content
-        Right (allEpisodes, schedules, nextShow) -> do
-          let episodes = take (fromIntegral lim) allEpisodes
-              hasMore = length allEpisodes > fromIntegral lim
-
-          if isAppendRequest'
-            then
-              -- Infinite scroll: return only new rows + sentinel
-              pure $ renderItemsFragment userMeta showToFetch episodes pg hasMore
-            else do
-              -- Full page: render with table, sentinel, and noscript pagination
-              let content = template userMeta (Just showToFetch) episodes pg hasMore
-              renderDashboardTemplate hxReq userMeta allShows (Just showToFetch) NavEpisodes (statsContent userMeta episodes schedules nextShow) (actionButton showToFetch) content
-
-    -- \| Build stats content for top bar
     statsContent ::
       UserMetadata.Model ->
       [Episodes.Model] ->
@@ -204,6 +151,42 @@ handler _tracer showSlug maybePage cookie (foldHxReq -> hxRequest) = do
           dayText = if null dayNames then "One-time" else Text.intercalate ", " dayNames
           timeRange = formatTimeOfDay firstSchedule.stStartTime <> "-" <> formatTimeOfDay firstSchedule.stEndTime
        in Lucid.span_ [] $ Lucid.toHtml $ dayText <> " " <> timeRange
+
+-- | Fetch shows based on user role (admins see all, hosts see their own)
+fetchShowsForUser ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  m [Shows.Model]
+fetchShowsForUser user userMetadata =
+  if UserMetadata.isAdmin userMetadata.mUserRole
+    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
+    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+
+-- | Fetch episodes data for a show with pagination
+fetchEpisodesData ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    Has Tracer env
+  ) =>
+  Day ->
+  Shows.Model ->
+  Limit ->
+  Offset ->
+  m ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
+fetchEpisodesData today showModel limit offset =
+  execTransactionSpan (fetchEpisodesDataPaginated today showModel limit offset) >>= \case
+    Left err -> throwDatabaseError err
+    Right result -> pure result
 
 -- | Fetch episodes data for dashboard with pagination
 fetchEpisodesDataPaginated :: Day -> Shows.Model -> Limit -> Offset -> Txn.Transaction ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
