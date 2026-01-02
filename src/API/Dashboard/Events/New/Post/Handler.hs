@@ -1,13 +1,12 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module API.Dashboard.Events.New.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Events.New.Post.Route (NewEventForm (..))
-import API.Links (apiLinks, dashboardEventsLinks, userLinks)
-import API.Types (DashboardEventsRoutes (..), Routes (..), UserRoutes (..))
-import App.Common (getUserInfo)
+import API.Links (dashboardEventsLinks, rootLink)
+import API.Types (DashboardEventsRoutes (..))
+import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
@@ -17,7 +16,6 @@ import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
@@ -31,30 +29,12 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot, uploadEventPosterImage)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
--- URL helpers
-dashboardEventsNewGetUrl :: Links.URI
-dashboardEventsNewGetUrl = Links.linkURI dashboardEventsLinks.newGet
-
-dashboardEventsListUrl :: Links.URI
-dashboardEventsListUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -118,68 +98,70 @@ handler ::
   Maybe Cookie ->
   NewEventForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie form = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to create events."
-      pure (Servant.noHeader (redirectWithBanner [i|/#{userLoginGetUrl}|] banner))
-    Just (_user, userMetadata)
-      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
-          let banner = BannerParams Error "Staff Access Required" "You do not have permission to create events."
-          pure (Servant.noHeader (redirectWithBanner [i|/#{rootGetUrl}|] banner))
-    Just (user, _userMetadata) -> do
-      -- Upload poster image if provided
-      posterImagePath <- case nefPosterImage form of
-        Nothing -> pure Nothing
-        Just posterImageFile -> do
-          let slug = Slug.mkSlug (nefTitle form)
-          uploadResult <- uploadEventPosterImage slug posterImageFile
-          case uploadResult of
-            Left uploadError -> do
-              Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
-              pure Nothing
-            Right Nothing -> pure Nothing -- No file selected
-            Right (Just result) -> do
-              Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
-              pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+handler _tracer cookie form =
+  handleRedirectErrors "Event creation" dashboardEventsLinks.newGet $ do
+    -- 1. Require authentication and staff role
+    (user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "You do not have permission to create events." userMetadata
 
-      case validateEventForm form of
-        Left validationError -> do
-          let errorMsg = Sanitize.displayContentValidationError validationError
-          Log.logInfo "Event creation failed validation" errorMsg
-          let banner = BannerParams Error "Validation Error" errorMsg
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardEventsNewGetUrl}|] banner)
-        Right (title, description, startsAt, endsAt, locationName, locationAddress, status) -> do
-          let slug = Slug.mkSlug title
-              eventInsert =
-                Events.Insert
-                  { Events.eiTitle = title,
-                    Events.eiSlug = slug,
-                    Events.eiDescription = description,
-                    Events.eiStartsAt = startsAt,
-                    Events.eiEndsAt = endsAt,
-                    Events.eiLocationName = locationName,
-                    Events.eiLocationAddress = locationAddress,
-                    Events.eiStatus = status,
-                    Events.eiAuthorId = user.mId,
-                    Events.eiPosterImageUrl = posterImagePath
-                  }
-          execQuerySpan (Events.insertEvent eventInsert) >>= \case
-            Left _err -> do
-              Log.logInfo "Failed to create event in database" ()
-              let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
-              pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardEventsNewGetUrl}|] banner)
-            Right eventId -> do
-              Log.logInfo "Event created successfully" eventId
-              execQuerySpan (Events.getEventById eventId) >>= \case
-                Right (Just event) -> do
-                  let eventSlug = Events.emSlug event
-                      detailLink = Links.linkURI $ dashboardEventsLinks.detail eventId eventSlug
-                      detailUrl = [i|/#{detailLink}|] :: Text
-                      banner = BannerParams Success "Event Created" "Your event has been created successfully."
-                      redirectUrl = buildRedirectUrl detailUrl banner
-                  pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
-                _ -> do
-                  Log.logInfo "Failed to fetch event" (Aeson.object ["eventId" .= eventId])
-                  let banner = BannerParams Error "Error" "Event created but failed to load details."
-                  pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardEventsListUrl}|] banner)
+    -- 2. Upload poster image if provided
+    posterImagePath <- handlePosterUpload form
+
+    -- 3. Validate form
+    (title, description, startsAt, endsAt, locationName, locationAddress, status) <-
+      requireRight Sanitize.displayContentValidationError (validateEventForm form)
+
+    -- 4. Insert event
+    let slug = Slug.mkSlug title
+        eventInsert =
+          Events.Insert
+            { Events.eiTitle = title,
+              Events.eiSlug = slug,
+              Events.eiDescription = description,
+              Events.eiStartsAt = startsAt,
+              Events.eiEndsAt = endsAt,
+              Events.eiLocationName = locationName,
+              Events.eiLocationAddress = locationAddress,
+              Events.eiStatus = status,
+              Events.eiAuthorId = User.mId user,
+              Events.eiPosterImageUrl = posterImagePath
+            }
+    eventId <-
+      execQuerySpan (Events.insertEvent eventInsert) >>= \case
+        Left err -> throwDatabaseError err
+        Right eid -> pure eid
+
+    -- 5. Fetch created event and redirect
+    Log.logInfo "Event created successfully" eventId
+    execQuerySpan (Events.getEventById eventId) >>= \case
+      Right (Just event) -> do
+        let eventSlug = Events.emSlug event
+            detailUrl = rootLink $ dashboardEventsLinks.detail eventId eventSlug
+            banner = BannerParams Success "Event Created" "Your event has been created successfully."
+            redirectUrl = buildRedirectUrl detailUrl banner
+        pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+      _ -> do
+        Log.logInfo "Failed to fetch event" (Aeson.object ["eventId" .= eventId])
+        let listUrl = rootLink $ dashboardEventsLinks.list Nothing
+            banner = BannerParams Success "Event Created" "Your event has been created."
+            redirectUrl = buildRedirectUrl listUrl banner
+        pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+
+-- | Handle poster image upload
+handlePosterUpload ::
+  (MonadIO m, Log.MonadLog m) =>
+  NewEventForm ->
+  m (Maybe Text)
+handlePosterUpload form = case nefPosterImage form of
+  Nothing -> pure Nothing
+  Just posterImageFile -> do
+    let slug = Slug.mkSlug (nefTitle form)
+    uploadResult <- uploadEventPosterImage slug posterImageFile
+    case uploadResult of
+      Left uploadError -> do
+        Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
+        pure Nothing
+      Right Nothing -> pure Nothing
+      Right (Just result) -> do
+        Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
+        pure (Just $ stripStorageRoot $ uploadResultStoragePath result)

@@ -9,7 +9,8 @@ module API.Dashboard.Users.Role.Patch.Handler where
 import API.Dashboard.Users.Role.Patch.Route (RoleUpdateForm (..))
 import API.Links (dashboardUsersLinks)
 import API.Types (DashboardUsersRoutes (..))
-import App.Common (getUserInfo)
+import App.Handler.Combinators (requireAuth, requireAdminNotSuspended)
+import App.Handler.Error (handleBannerErrors)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -47,23 +48,22 @@ handler ::
   Maybe Cookie ->
   RoleUpdateForm ->
   m (Lucid.Html ())
-handler _tracer targetUserId cookie (RoleUpdateForm newRole) = do
-  getUserInfo cookie >>= \case
-    Nothing -> pure unauthorizedResponse
-    Just (_user, userMetadata) ->
-      if not (UserMetadata.isAdmin userMetadata.mUserRole)
-        then pure unauthorizedResponse
-        else
-          execQuerySpan (UserMetadata.updateUserRole targetUserId newRole) >>= \case
-            Left _err -> do
-              Log.logInfo "Failed to update user role" ()
-              pure $ errorResponse targetUserId newRole "Failed to update role"
-            Right Nothing -> do
-              Log.logInfo "User not found for role update" ()
-              pure $ errorResponse targetUserId newRole "User not found"
-            Right (Just _) -> do
-              Log.logInfo "User role updated successfully" ()
-              pure $ successResponse targetUserId newRole
+handler _tracer targetUserId cookie (RoleUpdateForm newRole) =
+  handleBannerErrors "Role update" $ do
+    -- Require admin authentication
+    (_user, userMetadata) <- requireAuth cookie
+    requireAdminNotSuspended  "Only admins can change user roles." userMetadata
+
+    execQuerySpan (UserMetadata.updateUserRole targetUserId newRole) >>= \case
+      Left _err -> do
+        Log.logInfo "Failed to update user role" ()
+        pure $ errorResponse targetUserId newRole "Failed to update role"
+      Right Nothing -> do
+        Log.logInfo "User not found for role update" ()
+        pure $ errorResponse targetUserId newRole "User not found"
+      Right (Just _) -> do
+        Log.logInfo "User role updated successfully" ()
+        pure $ successResponse targetUserId newRole
 
 --------------------------------------------------------------------------------
 -- Response Templates
@@ -93,16 +93,6 @@ errorResponse userId currentRole msg =
         [ Lucid.class_ "text-red-600 text-sm font-bold"
         ]
         $ Lucid.toHtml msg
-
-unauthorizedResponse :: Lucid.Html ()
-unauthorizedResponse =
-  Lucid.div_
-    [ Lucid.id_ "role-dropdown-container"
-    ]
-    $ Lucid.span_
-      [ Lucid.class_ "text-red-600 text-sm font-bold"
-      ]
-      "Unauthorized"
 
 renderRoleDropdown :: User.Id -> UserMetadata.UserRole -> Lucid.Html ()
 renderRoleDropdown userId currentRole =

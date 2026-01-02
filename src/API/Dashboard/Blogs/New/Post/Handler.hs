@@ -1,18 +1,16 @@
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module API.Dashboard.Blogs.New.Post.Handler where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Blogs.New.Post.Route (NewShowBlogPostForm (..))
-import API.Links (dashboardBlogsLinks, userLinks)
-import API.Types (DashboardBlogsRoutes (..), UserRoutes (..))
-import App.Common (getUserInfo)
+import API.Links (dashboardBlogsLinks, rootLink)
+import API.Types (DashboardBlogsRoutes (..))
+import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireRight)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (guard, unless, void)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
@@ -21,7 +19,6 @@ import Control.Monad.Trans.Maybe
 import Data.Foldable (traverse_)
 import Data.Has (Has)
 import Data.Maybe (fromMaybe)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
@@ -43,30 +40,6 @@ import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
--- URL helpers
-dashboardBlogsGetUrl :: Slug -> Text
-dashboardBlogsGetUrl showSlug =
-  let uri = Links.linkURI $ dashboardBlogsLinks.list showSlug Nothing
-   in [i|/#{uri}|]
-
-dashboardBlogsNewGetUrl :: Slug -> Text
-dashboardBlogsNewGetUrl showSlug =
-  let uri = Links.linkURI $ dashboardBlogsLinks.newGet showSlug
-   in [i|/#{uri}|]
-
-dashboardBlogsDetailUrl :: Slug -> ShowBlogPosts.Id -> Text
-dashboardBlogsDetailUrl showSlug postId =
-  let uri = Links.linkURI $ dashboardBlogsLinks.detail showSlug postId
-   in [i|/#{uri}|]
-
-userLoginGetUrl :: Text
-userLoginGetUrl =
-  let uri = Links.linkURI $ userLinks.loginGet Nothing Nothing
-   in [i|/#{uri}|]
 
 --------------------------------------------------------------------------------
 
@@ -85,43 +58,21 @@ handler ::
   Maybe Cookie ->
   NewShowBlogPostForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug cookie form = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      let banner = BannerParams Error "Login Required" "You must be logged in to create blog posts."
-      pure $ Servant.noHeader (redirectWithBanner userLoginGetUrl banner)
-    Just (_user, userMetadata)
-      | UserMetadata.isSuspended userMetadata -> do
-          let banner = BannerParams Error "Account Suspended" "You have been suspended."
-          pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsGetUrl showSlug) banner)
-    Just (user, userMetadata) -> do
-      -- Fetch show and verify host permissions in a transaction
-      mResult <- execTransactionSpan $ runMaybeT $ do
-        showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
-        -- Admins can create blog posts for any show, hosts need explicit assignment
-        unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do
-          isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
-          guard isHost
-        pure showModel
+handler _tracer showSlug cookie form =
+  handleRedirectErrors "Show blog post creation" (dashboardBlogsLinks.newGet showSlug) $ do
+    -- 1. Require authentication and host role
+    (user, userMetadata) <- requireAuth cookie
+    requireHostNotSuspended "You do not have permission to create blog posts." userMetadata
 
-      case mResult of
-        Left err -> do
-          Log.logAttention "Failed to process show blog post creation" (show err)
-          let banner = BannerParams Error "Error" "Failed to create blog post. Please try again."
-          pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsNewGetUrl showSlug) banner)
-        Right Nothing -> do
-          Log.logInfo "Show not found or user not authorized" (showSlug, User.mId user)
-          let banner = BannerParams Error "Permission Denied" "You must be a host of this show to create blog posts."
-          pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsGetUrl showSlug) banner)
-        Right (Just showModel) -> do
-          case validateNewShowBlogPost form showModel.id (UserMetadata.mUserId userMetadata) of
-            Left validationError -> do
-              let errorMsg = Sanitize.displayContentValidationError validationError
-              Log.logInfo ("Show blog post creation failed: " <> errorMsg) ()
-              let banner = BannerParams Error "Validation Error" errorMsg
-              pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsNewGetUrl showSlug) banner)
-            Right blogPostData ->
-              handlePostCreation blogPostData form showModel
+    -- 2. Fetch show and verify host permissions in a transaction
+    showModel <- fetchShowBySlug user userMetadata showSlug
+
+    -- 3. Validate and create blog post
+    blogPostData <-
+      requireRight
+        Sanitize.displayContentValidationError
+        (validateNewShowBlogPost form showModel.id (UserMetadata.mUserId userMetadata))
+    handlePostCreation blogPostData form showModel
 
 -- | Validate and convert form data to blog post insert data
 validateNewShowBlogPost :: NewShowBlogPostForm -> Shows.Id -> User.Id -> Either Sanitize.ContentValidationError ShowBlogPosts.Insert
@@ -148,6 +99,32 @@ validateNewShowBlogPost form showId authorId = do
         ShowBlogPosts.sbpiAuthorId = authorId,
         ShowBlogPosts.sbpiStatus = status
       }
+
+fetchShowBySlug ::
+  ( MonadUnliftIO m,
+    Has Tracer env,
+    MonadReader env m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadThrow m
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  Slug ->
+  m Shows.Model
+fetchShowBySlug user userMetadata showSlug = do
+  mResult <- execTransactionSpan $ runMaybeT $ do
+    showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
+    -- Admins can create blog posts for any show, hosts need explicit assignment
+    unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do
+      isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
+      guard isHost
+    pure showModel
+
+  case mResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotAuthorized "You must be a host of this show to create blog posts."
+    Right (Just sm) -> pure sm
 
 -- | Create tags for a show blog post
 createPostTags ::
@@ -213,15 +190,15 @@ handlePostCreation ::
   Shows.Model ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handlePostCreation blogPostData form showModel = do
-  execQuerySpan (ShowBlogPosts.insertShowBlogPost blogPostData) >>= \case
-    Left dbError -> do
-      Log.logInfo ("Database error creating show blog post: " <> Text.pack (show dbError)) ()
-      let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
-      pure $ Servant.noHeader (redirectWithBanner (dashboardBlogsNewGetUrl (Shows.slug showModel)) banner)
-    Right postId -> do
-      createPostTags postId form
-      Log.logInfo "Successfully created show blog post" postId
-      let detailUrl = dashboardBlogsDetailUrl (Shows.slug showModel) postId
-          banner = BannerParams Success "Blog Post Created" "Your blog post has been created successfully."
-          redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+  postId <-
+    execQuerySpan (ShowBlogPosts.insertShowBlogPost blogPostData) >>= \case
+      Left err -> throwDatabaseError err
+      Right pid -> pure pid
+
+  createPostTags postId form
+  Log.logInfo "Successfully created show blog post" postId
+
+  let detailUrl = rootLink $ dashboardBlogsLinks.detail (Shows.slug showModel) postId
+      banner = BannerParams Success "Blog Post Created" "Your blog post has been created successfully."
+      redirectUrl = buildRedirectUrl detailUrl banner
+  pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)

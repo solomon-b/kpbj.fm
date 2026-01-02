@@ -301,6 +301,8 @@ library
     API.User.Register.Post.Handler
     API.User.Register.Post.Route
     App.Common
+    App.Handler.Combinators
+    App.Handler.Error
     Component.ActionsDropdown
     Component.AudioFilePicker
     Component.AudioPlayer.Waveform

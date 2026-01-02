@@ -4,7 +4,8 @@ module API.Dashboard.Users.Delete.Handler where
 
 --------------------------------------------------------------------------------
 
-import App.Common (AuthorizationCheck (..), checkAdminAuthorization, getUserInfo)
+import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Error (handleBannerErrors)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
@@ -27,6 +28,31 @@ import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
+
+--------------------------------------------------------------------------------
+
+handler ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Tracer ->
+  User.Id ->
+  Maybe Cookie ->
+  m (Lucid.Html ())
+handler _tracer targetUserId cookie =
+  handleBannerErrors "User delete" $ do
+    -- Require admin authentication
+    (_user, userMetadata) <- requireAuth cookie
+    requireAdminNotSuspended "Only admins can delete users." userMetadata
+
+    -- Execute deletion
+    executeUserDeletion targetUserId >>= renderDeleteResult
 
 --------------------------------------------------------------------------------
 
@@ -77,29 +103,3 @@ renderDeleteResult = \case
   DeleteFailed err -> do
     Log.logInfo "Database error" (Aeson.object ["error" .= show err])
     pure $ renderBanner Error "Delete Failed" "Failed to delete user. Please try again."
-
---------------------------------------------------------------------------------
-
-handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  Tracer ->
-  User.Id ->
-  Maybe Cookie ->
-  m (Lucid.Html ())
-handler _tracer targetUserId cookie = do
-  userInfo <- getUserInfo cookie
-
-  case checkAdminAuthorization userInfo of
-    Unauthorized -> do
-      Log.logInfo_ "Delete failed: Unauthorized"
-      pure $ renderBanner Error "Delete Failed" "Unauthorized"
-    Authorized ->
-      executeUserDeletion targetUserId >>= renderDeleteResult

@@ -1,18 +1,18 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module API.Dashboard.Blogs.Slug.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Blogs.Slug.Edit.Post.Route (ShowBlogEditForm (..))
-import API.Links (apiLinks, dashboardBlogsLinks, userLinks)
-import API.Types (DashboardBlogsRoutes (..), Routes (..), UserRoutes (..))
-import App.Common (getUserInfo)
+import API.Links (dashboardBlogsLinks, rootLink)
+import API.Types (DashboardBlogsRoutes (..))
+import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireJust)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (void)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
@@ -20,7 +20,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Foldable (traverse_)
 import Data.Has (Has)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.PostStatus (BlogPostStatus (..))
@@ -40,34 +39,6 @@ import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
--- URL helpers
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
-
-userLoginGetUrlText :: Text
-userLoginGetUrlText = [i|/#{userLoginGetUrl}|]
-
-dashboardBlogsDetailUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
-dashboardBlogsDetailUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.detail showSlug postId
-
-dashboardBlogsDetailUrlText :: Slug -> ShowBlogPosts.Id -> Text
-dashboardBlogsDetailUrlText showSlug postId = [i|/#{dashboardBlogsDetailUrl showSlug postId}|]
-
-dashboardBlogsEditGetUrl :: Slug -> ShowBlogPosts.Id -> Links.URI
-dashboardBlogsEditGetUrl showSlug postId = Links.linkURI $ dashboardBlogsLinks.editGet showSlug postId
-
-dashboardBlogsEditGetUrlText :: Slug -> ShowBlogPosts.Id -> Text
-dashboardBlogsEditGetUrlText showSlug postId = [i|/#{dashboardBlogsEditGetUrl showSlug postId}|]
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
-
-rootGetUrlText :: Text
-rootGetUrlText = [i|/#{rootGetUrl}|]
 
 --------------------------------------------------------------------------------
 
@@ -96,47 +67,51 @@ handler ::
   Maybe Cookie ->
   ShowBlogEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug postId cookie editForm = do
-  let editUrl = dashboardBlogsEditGetUrlText showSlug postId
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized blog edit attempt" (showSlug, postId)
-      let banner = BannerParams Error "Login Required" "You must be logged in to edit blog posts."
-      pure $ Servant.addHeader (buildRedirectUrl userLoginGetUrlText banner) (redirectWithBanner userLoginGetUrlText banner)
-    Just (_user, userMetadata)
-      | UserMetadata.isSuspended userMetadata -> do
-          let banner = BannerParams Error "Account Suspended" "Your account has been suspended. You cannot edit blog posts."
-          pure $ Servant.addHeader (buildRedirectUrl rootGetUrlText banner) (redirectWithBanner rootGetUrlText banner)
-    Just (user, userMetadata) -> do
-      mResult <- execTransactionSpan $ runMaybeT $ do
-        blogPost <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)
-        showModel <- MaybeT $ HT.statement () (Shows.getShowById blogPost.showId)
-        -- Verify the show slug matches
-        MaybeT $ pure $ if showModel.slug == showSlug then Just () else Nothing
-        oldTags <- lift $ HT.statement () (ShowBlogPosts.getTagsForShowBlogPost blogPost.id)
-        -- Admins don't need explicit host check since they have access to all shows
-        isHost <-
-          if UserMetadata.isAdmin userMetadata.mUserRole
-            then pure True
-            else lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) blogPost.showId)
-        MaybeT $ pure $ Just (blogPost, showModel, oldTags, isHost)
+handler _tracer showSlug postId cookie editForm =
+  handleRedirectErrors "Blog post update" (dashboardBlogsLinks.editGet showSlug postId) $ do
+    -- 1. Require authentication and host role
+    (user, userMetadata) <- requireAuth cookie
+    requireHostNotSuspended "You do not have permission to edit blog posts." userMetadata
 
-      case mResult of
-        Left err -> do
-          Log.logAttention "getShowBlogPostById execution error" (show err)
-          let banner = BannerParams Error "Blog Post Not Found" "The blog post you're trying to edit does not exist."
-          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-        Right Nothing -> do
-          Log.logInfo "No blog post found" (showSlug, postId)
-          let banner = BannerParams Error "Blog Post Not Found" "The blog post you're trying to edit does not exist."
-          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-        Right (Just (blogPost, showModel, oldTags, isHost)) ->
-          if blogPost.authorId == User.mId user || isHost
-            then updateBlogPost showSlug postId showModel blogPost oldTags editForm
-            else do
-              Log.logInfo "User attempted to edit blog post they're not authorized for" blogPost.id
-              let banner = BannerParams Error "Permission Denied" "You are not authorized to edit this blog post."
-              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
+    -- 2. Fetch blog post, show, tags, and verify host permissions in a transaction
+    (blogPost, showModel, oldTags, isHost) <- fetchBlogPostWithContext user userMetadata showSlug postId
+
+    -- 3. Verify user is authorized to edit this post
+    if not (blogPost.authorId == User.mId user || isHost)
+      then throwNotAuthorized "You are not authorized to edit this blog post."
+      else updateBlogPost showSlug postId showModel blogPost oldTags editForm
+
+fetchBlogPostWithContext ::
+  ( MonadUnliftIO m,
+    Has Tracer env,
+    MonadReader env m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadThrow m
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  Slug ->
+  ShowBlogPosts.Id ->
+  m (ShowBlogPosts.Model, Shows.Model, [ShowBlogTags.Model], Bool)
+fetchBlogPostWithContext user userMetadata showSlug postId = do
+  mResult <- execTransactionSpan $ runMaybeT $ do
+    post <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)
+    showModel <- MaybeT $ HT.statement () (Shows.getShowById post.showId)
+    -- Verify the show slug matches
+    MaybeT $ pure $ if showModel.slug == showSlug then Just () else Nothing
+    tags <- lift $ HT.statement () (ShowBlogPosts.getTagsForShowBlogPost post.id)
+    -- Admins don't need explicit host check since they have access to all shows
+    isHost <-
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then pure True
+        else lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) post.showId)
+    pure (post, showModel, tags, isHost)
+
+  case mResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Blog post"
+    Right (Just result) -> pure result
 
 updateBlogPost ::
   ( MonadDB m,
@@ -153,46 +128,38 @@ updateBlogPost ::
   [ShowBlogTags.Model] ->
   ShowBlogEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-updateBlogPost showSlug postId showModel blogPost oldTags editForm = do
-  let editUrl = dashboardBlogsEditGetUrlText showSlug postId
-  case parseStatus (sbefStatus editForm) of
-    Nothing -> do
-      Log.logInfo "Invalid status in blog edit form" (sbefStatus editForm)
-      let banner = BannerParams Error "Invalid Status" "Invalid blog post status value."
-      pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-    Just parsedStatus -> do
-      let newSlug = Slug.mkSlug (sbefTitle editForm)
-          updateData =
-            ShowBlogPosts.Insert
-              { ShowBlogPosts.sbpiId = blogPost.showId,
-                ShowBlogPosts.sbpiTitle = sbefTitle editForm,
-                ShowBlogPosts.sbpiSlug = newSlug,
-                ShowBlogPosts.sbpiContent = sbefContent editForm,
-                ShowBlogPosts.sbpiExcerpt = sbefExcerpt editForm,
-                ShowBlogPosts.sbpiAuthorId = blogPost.authorId,
-                ShowBlogPosts.sbpiStatus = parsedStatus
-              }
+updateBlogPost _showSlug _postId showModel blogPost oldTags editForm = do
+  -- 4. Validate status
+  parsedStatus <- requireJust "Invalid blog post status value." (parseStatus (sbefStatus editForm))
 
-      mUpdateResult <- execTransactionSpan $ runMaybeT $ do
-        void $ MaybeT $ HT.statement () (ShowBlogPosts.updateShowBlogPost blogPost.id updateData)
-        lift $ traverse_ (HT.statement () . ShowBlogPosts.removeTagFromShowBlogPost blogPost.id . ShowBlogTags.sbtmId) oldTags
-        lift $ updatePostTags blogPost.id editForm
-        MaybeT $ pure $ Just ()
+  -- 5. Build update data
+  let newSlug = Slug.mkSlug (sbefTitle editForm)
+      updateData =
+        ShowBlogPosts.Insert
+          { ShowBlogPosts.sbpiId = blogPost.showId,
+            ShowBlogPosts.sbpiTitle = sbefTitle editForm,
+            ShowBlogPosts.sbpiSlug = newSlug,
+            ShowBlogPosts.sbpiContent = sbefContent editForm,
+            ShowBlogPosts.sbpiExcerpt = sbefExcerpt editForm,
+            ShowBlogPosts.sbpiAuthorId = blogPost.authorId,
+            ShowBlogPosts.sbpiStatus = parsedStatus
+          }
 
-      case mUpdateResult of
-        Left err -> do
-          Log.logInfo "Failed to update show blog post" (blogPost.id, show err)
-          let banner = BannerParams Error "Update Failed" "Database error occurred. Please try again."
-          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-        Right Nothing -> do
-          Log.logInfo "Blog post update returned Nothing" blogPost.id
-          let banner = BannerParams Error "Update Failed" "Failed to update blog post. Please try again."
-          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-        Right (Just _) -> do
-          Log.logInfo "Successfully updated show blog post" blogPost.id
-          let detailUrl = dashboardBlogsDetailUrlText (Shows.slug showModel) blogPost.id
-              banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated successfully."
-          pure $ Servant.addHeader (buildRedirectUrl detailUrl banner) (redirectWithBanner detailUrl banner)
+  -- 6. Update blog post in a transaction
+  mUpdateResult <- execTransactionSpan $ runMaybeT $ do
+    void $ MaybeT $ HT.statement () (ShowBlogPosts.updateShowBlogPost blogPost.id updateData)
+    lift $ traverse_ (HT.statement () . ShowBlogPosts.removeTagFromShowBlogPost blogPost.id . ShowBlogTags.sbtmId) oldTags
+    lift $ updatePostTags blogPost.id editForm
+    pure ()
+
+  case mUpdateResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwDatabaseError (error "Blog post update returned Nothing")
+    Right (Just _) -> do
+      Log.logInfo "Successfully updated show blog post" blogPost.id
+      let detailUrl = rootLink $ dashboardBlogsLinks.detail (Shows.slug showModel) blogPost.id
+          banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated successfully."
+      pure $ Servant.addHeader (buildRedirectUrl detailUrl banner) (redirectWithBanner detailUrl banner)
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::

@@ -5,7 +5,8 @@ module API.Dashboard.Users.Unsuspend.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
-import App.Common (AuthorizationCheck (..), checkAdminAuthorization, getUserInfo)
+import App.Handler.Combinators (requireAuth, requireAdminNotSuspended)
+import App.Handler.Error (handleBannerErrors)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -27,6 +28,34 @@ import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
+
+--------------------------------------------------------------------------------
+
+handler ::
+  ( Has Tracer env,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    MonadCatch m,
+    MonadIO m,
+    MonadDB m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Tracer ->
+  User.Id ->
+  Maybe Cookie ->
+  m (Lucid.Html ())
+handler _tracer targetUserId cookie =
+  handleBannerErrors "User unsuspend" $ do
+    -- Require admin authentication
+    (_user, userMetadata) <- requireAuth cookie
+    requireAdminNotSuspended "Only admins can unsuspend users." userMetadata
+
+    -- Execute unsuspension
+    Log.logInfo "Unsuspending user" (Aeson.object ["targetUserId" .= display targetUserId])
+    now <- liftIO getCurrentTime
+    result <- executeUnsuspension targetUserId
+    renderUnsuspendResult now result
 
 --------------------------------------------------------------------------------
 
@@ -82,32 +111,3 @@ renderUnsuspendResult now = \case
   UnsuspendFailed err -> do
     Log.logInfo "Database error during unsuspension" (Aeson.object ["error" .= show err])
     pure $ renderBanner Error "Unsuspend Failed" "Failed to unsuspend user. Please try again."
-
---------------------------------------------------------------------------------
-
-handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
-  Tracer ->
-  User.Id ->
-  Maybe Cookie ->
-  m (Lucid.Html ())
-handler _tracer targetUserId cookie = do
-  userInfo <- getUserInfo cookie
-
-  case checkAdminAuthorization userInfo of
-    Unauthorized -> do
-      Log.logInfo_ "Unsuspend failed: Unauthorized"
-      pure $ renderBanner Error "Unsuspend Failed" "Unauthorized"
-    Authorized -> do
-      Log.logInfo "Unsuspending user" (Aeson.object ["targetUserId" .= display targetUserId])
-      now <- liftIO getCurrentTime
-      result <- executeUnsuspension targetUserId
-      renderUnsuspendResult now result

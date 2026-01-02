@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
@@ -7,24 +6,25 @@ module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackInfo (..), parseStatus)
-import API.Links (dashboardEpisodesLinks, userLinks)
+import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
-import App.Common (getUserInfo)
+import App.Handler.Combinators (requireAuth)
+import App.Handler.Error
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad (when)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad (unless, when)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Either (partitionEithers)
 import Data.Has (Has)
 import Data.Maybe (isJust)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
@@ -34,7 +34,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -45,49 +45,12 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
+import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Links qualified as Links
 import Text.Read (readMaybe)
-
---------------------------------------------------------------------------------
-
--- URL helpers
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
-
-userLoginGetUrlText :: Text
-userLoginGetUrlText = [i|/#{userLoginGetUrl}|]
-
-dashboardEpisodesUrl :: Slug -> Links.URI
-dashboardEpisodesUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
-
-dashboardEpisodesUrlText :: Slug -> Text
-dashboardEpisodesUrlText showSlug = [i|/#{dashboardEpisodesUrl showSlug}|]
-
-episodeEditUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodeEditUrl showSlug episodeNum = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug episodeNum
-
-episodeEditUrlText :: Slug -> Episodes.EpisodeNumber -> Text
-episodeEditUrlText showSlug episodeNum = [i|/#{episodeEditUrl showSlug episodeNum}|]
-
---------------------------------------------------------------------------------
-
--- | Parse a schedule value in format "template_id|scheduled_at"
-parseScheduleValue :: Text -> Either Text (ShowSchedule.TemplateId, UTCTime)
-parseScheduleValue txt =
-  case Text.splitOn "|" txt of
-    [tidStr, timeStr] -> do
-      tid <- case readMaybe (Text.unpack tidStr) of
-        Just n -> Right $ ShowSchedule.TemplateId n
-        Nothing -> Left $ "Invalid template ID: " <> tidStr
-      time <- case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timeStr) of
-        Just t -> Right t
-        Nothing -> Left $ "Invalid timestamp: " <> timeStr
-      Right (tid, time)
-    _ -> Left $ "Invalid schedule format: " <> txt
 
 --------------------------------------------------------------------------------
 
@@ -107,54 +70,75 @@ handler ::
   Maybe Cookie ->
   EpisodeEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug episodeNumber cookie editForm = do
-  let editUrl = episodeEditUrlText showSlug episodeNumber
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo "Unauthorized episode edit attempt" episodeNumber
-      let banner = BannerParams Error "Access Denied" "You must be logged in to edit episodes."
-      pure $ Servant.addHeader (buildRedirectUrl userLoginGetUrlText banner) (redirectWithBanner userLoginGetUrlText banner)
-    Just (user, userMetadata) -> do
-      -- Fetch the episode to verify it exists and check authorization
-      execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
-        Left err -> do
-          Log.logAttention "getEpisodeByShowAndNumber execution error" (show err)
-          let banner = BannerParams Error "Episode Not Found" "The episode you're trying to update doesn't exist."
-          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-        Right Nothing -> do
-          Log.logInfo_ $ "No episode: show='" <> display showSlug <> "' number=" <> display episodeNumber
-          let banner = BannerParams Error "Episode Not Found" "The episode you're trying to update doesn't exist."
-          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-        Right (Just episode) -> do
-          -- Fetch show info
-          execQuerySpan (Shows.getShowById episode.showId) >>= \case
-            Left err -> do
-              Log.logAttention "getShowById execution error" (show err)
-              let banner = BannerParams Error "Episode Not Found" "The episode's show was not found."
-              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-            Right Nothing -> do
-              Log.logInfo "Episode's show not found" episode.showId
-              let banner = BannerParams Error "Episode Not Found" "The episode's show was not found."
-              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-            Right (Just showModel) -> do
-              -- Check authorization - user must be creator, host, or staff+
-              -- Admins don't need explicit host check since they have access to all shows
-              if UserMetadata.isAdmin userMetadata.mUserRole
-                then updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
-                else
-                  execQuerySpan (ShowHost.isUserHostOfShow user.mId showModel.id) >>= \case
-                    Left err -> do
-                      Log.logAttention "isUserHostOfShow execution error" (show err)
-                      let banner = BannerParams Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
-                      pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-                    Right True -> updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
-                    Right False ->
-                      if UserMetadata.isStaffOrHigher userMetadata.mUserRole || episode.createdBy == user.mId
-                        then updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
-                        else do
-                          Log.logInfo "User attempted to edit episode they don't own" episode.id
-                          let banner = BannerParams Error "Access Denied" "You can only edit episodes you created, or episodes for shows you host."
-                          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
+handler _tracer showSlug episodeNumber cookie editForm =
+  handleRedirectErrors "Episode update" (dashboardEpisodesLinks.editGet showSlug episodeNumber) $ do
+    -- 1. Require authentication
+    (user, userMetadata) <- requireAuth cookie
+
+    -- 2. Fetch episode context (episode, show, isHost) in transaction
+    (episode, showModel, isHost) <- fetchEpisodeContext showSlug episodeNumber user userMetadata
+
+    -- 3. Check authorization
+    let isAuthorized =
+          episode.createdBy == user.mId
+            || isHost
+            || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+    unless isAuthorized $
+      throwNotAuthorized "You can only edit episodes you created, or episodes for shows you host."
+
+    -- 4. Perform the update
+    updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
+
+--------------------------------------------------------------------------------
+-- Context Fetching
+
+-- | Fetch episode, show, and host status in a single transaction
+type EpisodeEditContext = (Episodes.Model, Shows.Model, Bool)
+
+fetchEpisodeContext ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m,
+    MonadThrow m
+  ) =>
+  Slug ->
+  Episodes.EpisodeNumber ->
+  User.Model ->
+  UserMetadata.Model ->
+  m EpisodeEditContext
+fetchEpisodeContext showSlug episodeNumber user userMetadata = do
+  mResult <- execTransactionSpan $ runMaybeT $ do
+    episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
+    showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
+    isHost <-
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then pure True
+        else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
+    MaybeT $ pure $ Just (episode, showResult, isHost)
+  case mResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Episode"
+    Right (Just ctx) -> pure ctx
+
+--------------------------------------------------------------------------------
+-- Schedule Parsing
+
+-- | Parse a schedule value in format "template_id|scheduled_at"
+parseScheduleValue :: Text -> Either Text (ShowSchedule.TemplateId, UTCTime)
+parseScheduleValue txt =
+  case Text.splitOn "|" txt of
+    [tidStr, timeStr] -> do
+      tid <- case readMaybe (Text.unpack tidStr) of
+        Just n -> Right $ ShowSchedule.TemplateId n
+        Nothing -> Left $ "Invalid template ID: " <> tidStr
+      time <- case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timeStr) of
+        Just t -> Right t
+        Nothing -> Left $ "Invalid timestamp: " <> timeStr
+      Right (tid, time)
+    _ -> Left $ "Invalid schedule format: " <> txt
 
 -- | Check if the episode's scheduled date is in the future (allowing file uploads)
 isScheduledInFuture :: UTCTime -> Episodes.Model -> Bool
@@ -164,6 +148,8 @@ isScheduledInFuture now episode = episode.scheduledAt > now
 isScheduledInPast :: UTCTime -> Episodes.Model -> Bool
 isScheduledInPast now episode = episode.scheduledAt <= now
 
+--------------------------------------------------------------------------------
+
 updateEpisode ::
   ( MonadDB m,
     Log.MonadLog m,
@@ -171,6 +157,7 @@ updateEpisode ::
     Has Tracer env,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadThrow m,
     MonadIO m,
     Has HSQL.Pool.Pool env
   ) =>
@@ -182,145 +169,217 @@ updateEpisode ::
   Shows.Model ->
   EpisodeEditForm ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-updateEpisode showSlug episodeNumber _user userMetadata episode showModel editForm = do
-  let editUrl = episodeEditUrlText showSlug episodeNumber
-  -- Parse and validate form data
-  case parseStatus (eefStatus editForm) of
-    Nothing -> do
-      Log.logInfo "Invalid status in episode edit form" (eefStatus editForm)
-      let banner = BannerParams Error "Invalid Status" "Invalid episode status value."
-      pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-    Just parsedStatus -> do
-      -- Check if user is trying to change status on a past-scheduled episode
-      currentTime <- liftIO getCurrentTime
-      let statusChanged = parsedStatus /= episode.status
-          isPast = isScheduledInPast currentTime episode
-          isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel editForm = do
+  currentTime <- liftIO getCurrentTime
+  let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+      isPast = isScheduledInPast currentTime episode
 
-      -- Restrict status changes on past episodes to staff/admin only
-      if statusChanged && isPast && not isStaffOrAdmin
-        then do
-          Log.logInfo "Host attempted to change status on past episode" (episode.id, episode.status, parsedStatus)
-          let banner = BannerParams Error "Status Change Not Allowed" "This episode's scheduled date has passed. Only staff or admin users can change the status of past episodes."
-          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-        else do
-          -- Sanitize user input to prevent XSS attacks
-          let sanitizedDescription = maybe "" Sanitize.sanitizeUserContent (eefDescription editForm)
+  -- 1. Validation phase (throws on error)
+  parsedStatus <- validateStatus (eefStatus editForm)
+  validateStatusChangePermission isPast isStaffOrAdmin episode parsedStatus
+  validDescription <- validateDescription (eefDescription editForm)
 
-          -- Validate content lengths
-          case Sanitize.validateContentLength 10000 sanitizedDescription of
-            Left descError -> do
-              let errorMsg = Sanitize.displayContentValidationError descError
-                  banner = BannerParams Error "Validation Error" errorMsg
-              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-            Right validDescription -> do
-              -- Update episode metadata (basic update, doesn't change audio/artwork)
-              let updateData =
-                    Episodes.Update
-                      { euId = episode.id,
-                        euDescription = Just validDescription,
-                        euStatus = Just parsedStatus
-                      }
+  -- 2. Core update (throws on error)
+  let updateData =
+        Episodes.Update
+          { euId = episode.id,
+            euDescription = Just validDescription,
+            euStatus = Just parsedStatus
+          }
+  execQuerySpan (Episodes.updateEpisode updateData) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwHandlerFailure "Failed to update episode"
+    Right (Just _) -> pure ()
 
-              -- Update the episode
-              execQuerySpan (Episodes.updateEpisode updateData) >>= \case
-                Left err -> do
-                  Log.logInfo "Failed to update episode" (episode.id, show err)
-                  let banner = BannerParams Error "Update Failed" "Database error occurred. Please try again."
-                  pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-                Right Nothing -> do
-                  Log.logInfo "Episode update returned Nothing" episode.id
-                  let banner = BannerParams Error "Update Failed" "Failed to update episode. Please try again."
-                  pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-                Right (Just _updatedId) -> do
-                  -- Check if file uploads are allowed (scheduled date is in the future OR user is staff/admin)
-                  let allowFileUpload = isScheduledInFuture currentTime episode || isStaffOrAdmin
+  -- 3. Optional updates (accumulate warnings, don't throw)
+  warnings <- execOptionalUpdates currentTime isStaffOrAdmin isPast episode showModel editForm
 
-                  -- Process file uploads if allowed and provided
-                  fileUpdateResult <-
-                    if allowFileUpload && (isJust (eefAudioFile editForm) || isJust (eefArtworkFile editForm))
-                      then processFileUploads showModel episode editForm
-                      else pure $ Right (Nothing, Nothing)
+  -- 4. Success redirect with any warnings
+  Log.logInfo "Successfully updated episode" episode.id
+  let listUrl = rootLink $ dashboardEpisodesLinks.list showModel.slug Nothing
+      banner = makeSuccessBanner warnings
+      redirectUrl = buildRedirectUrl listUrl banner
+  pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
 
-                  case fileUpdateResult of
-                    Left fileErr -> do
-                      Log.logInfo "Failed to upload files" (episode.id, fileErr)
-                      let banner = BannerParams Error "File Upload Failed" ("Episode updated but file upload failed: " <> fileErr)
-                      pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-                    Right (mAudioPath, mArtworkPath) -> do
-                      -- Update file paths in database if any files were uploaded
-                      when (isJust mAudioPath || isJust mArtworkPath) $ do
-                        let fileUpdate =
-                              Episodes.FileUpdate
-                                { efuId = episode.id,
-                                  efuAudioFilePath = mAudioPath,
-                                  efuArtworkUrl = mArtworkPath
-                                }
-                        execQuerySpan (Episodes.updateEpisodeFiles fileUpdate) >>= \case
-                          Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)
-                          Right Nothing -> Log.logInfo "File path update returned Nothing" episode.id
-                          Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
+--------------------------------------------------------------------------------
+-- Validation Helpers
 
-                      -- Update schedule slot if changed (only allowed for future episodes or staff/admin)
-                      scheduleUpdateResult <- case eefScheduledDate editForm of
-                        Nothing -> pure $ Right () -- No schedule change requested
-                        Just scheduleDateValue -> do
-                          case parseScheduleValue scheduleDateValue of
-                            Left parseErr -> do
-                              Log.logInfo "Failed to parse schedule value" parseErr
-                              pure $ Left parseErr
-                            Right (newTemplateId, newScheduledAt) -> do
-                              -- Check if schedule actually changed
-                              let scheduleChanged = newTemplateId /= episode.scheduleTemplateId || newScheduledAt /= episode.scheduledAt
-                              if not scheduleChanged
-                                then pure $ Right () -- No change
-                                else do
-                                  -- Non-staff can only change schedule for future episodes
-                                  if isPast && not isStaffOrAdmin
-                                    then do
-                                      Log.logInfo "Host attempted to change schedule on past episode" episode.id
-                                      pure $ Left "Schedule changes not allowed for past episodes"
-                                    else do
-                                      let slotUpdate =
-                                            Episodes.ScheduleSlotUpdate
-                                              { Episodes.essuId = episode.id,
-                                                Episodes.essuScheduleTemplateId = newTemplateId,
-                                                Episodes.essuScheduledAt = newScheduledAt
-                                              }
-                                      execQuerySpan (Episodes.updateScheduledSlot slotUpdate) >>= \case
-                                        Left err -> do
-                                          Log.logInfo "Failed to update schedule slot" (episode.id, show err)
-                                          pure $ Left "Failed to update schedule"
-                                        Right Nothing -> do
-                                          Log.logInfo "Schedule slot update returned Nothing" episode.id
-                                          pure $ Left "Failed to update schedule"
-                                        Right (Just _) -> do
-                                          Log.logInfo "Successfully updated schedule slot" episode.id
-                                          pure $ Right ()
+validateStatus :: (MonadThrow m) => Text -> m Episodes.Status
+validateStatus statusText =
+  case parseStatus statusText of
+    Nothing -> throwValidationError "Invalid episode status value."
+    Just s -> pure s
 
-                      case scheduleUpdateResult of
-                        Left scheduleErr -> do
-                          let banner = BannerParams Error "Schedule Update Failed" scheduleErr
-                          pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-                        Right () -> do
-                          -- Update tracks from JSON
-                          updateTracksResult <- updateTracksFromJson episode.id (eefTracksJson editForm)
-                          case updateTracksResult of
-                            Left trackErr -> do
-                              Log.logInfo "Failed to update tracks" (episode.id, trackErr)
-                              let banner = BannerParams Error "Track Update Failed" ("Episode updated but track update failed: " <> trackErr)
-                              pure $ Servant.addHeader (buildRedirectUrl editUrl banner) (redirectWithBanner editUrl banner)
-                            Right _ -> do
-                              -- Replace tags with new ones (single atomic query)
-                              let tagNames = maybe [] parseTagList (eefTags editForm)
-                              _ <- execQuerySpan (Episodes.replaceEpisodeTags episode.id tagNames)
+validateStatusChangePermission ::
+  (MonadThrow m, Log.MonadLog m) =>
+  -- | isPast
+  Bool ->
+  Bool -> -- isStaffOrAdmin
+  Episodes.Model ->
+  Episodes.Status ->
+  m ()
+validateStatusChangePermission isPast isStaffOrAdmin episode newStatus = do
+  let statusChanged = newStatus /= episode.status
+  when (statusChanged && isPast && not isStaffOrAdmin) $ do
+    throwValidationError "This episode's scheduled date has passed. Only staff or admin users can change the status of past episodes."
 
-                              -- Success! Redirect to dashboard episodes list with success banner
-                              Log.logInfo "Successfully updated episode and tracks" episode.id
-                              let listUrl = dashboardEpisodesUrlText showModel.slug
-                                  banner = BannerParams Success "Episode Updated" "Your episode has been updated successfully."
-                                  redirectUrl = buildRedirectUrl listUrl banner
-                              pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+validateDescription :: (MonadThrow m) => Maybe Text -> m Text
+validateDescription mDescription = do
+  let sanitized = maybe "" Sanitize.sanitizeUserContent mDescription
+  case Sanitize.validateContentLength 10000 sanitized of
+    Left err -> throwValidationError (Sanitize.displayContentValidationError err)
+    Right valid -> pure valid
+
+--------------------------------------------------------------------------------
+-- Optional Updates (accumulate warnings)
+
+execOptionalUpdates ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has Tracer env,
+    MonadUnliftIO m,
+    MonadIO m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  UTCTime ->
+  Bool -> -- isStaffOrAdmin
+  Bool -> -- isPast
+  Episodes.Model ->
+  Shows.Model ->
+  EpisodeEditForm ->
+  m [Text] -- Returns list of warning messages
+execOptionalUpdates currentTime isStaffOrAdmin isPast episode showModel editForm = do
+  let allowFileUpload = isScheduledInFuture currentTime episode || isStaffOrAdmin
+
+  -- File uploads
+  fileWarning <- processFileUploadsWithWarning allowFileUpload showModel episode editForm
+
+  -- Schedule update
+  scheduleWarning <- processScheduleUpdate isPast isStaffOrAdmin episode editForm
+
+  -- Track updates
+  trackWarning <- processTrackUpdates episode.id (eefTracksJson editForm)
+
+  -- Tags (fire-and-forget, no warning on failure)
+  let tagNames = maybe [] parseTagList (eefTags editForm)
+  _ <- execQuerySpan (Episodes.replaceEpisodeTags episode.id tagNames)
+
+  pure $ concat [fileWarning, scheduleWarning, trackWarning]
+
+-- | Process file uploads, returning a warning if it fails
+processFileUploadsWithWarning ::
+  ( MonadIO m,
+    MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has Tracer env,
+    MonadUnliftIO m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Bool -> -- allowFileUpload
+  Shows.Model ->
+  Episodes.Model ->
+  EpisodeEditForm ->
+  m [Text]
+processFileUploadsWithWarning allowFileUpload showModel episode editForm =
+  if not allowFileUpload || not (isJust (eefAudioFile editForm) || isJust (eefArtworkFile editForm))
+    then pure []
+    else do
+      result <- processFileUploads showModel episode editForm
+      case result of
+        Left fileErr -> do
+          Log.logInfo "Failed to upload files" (episode.id, fileErr)
+          pure ["File upload failed: " <> fileErr]
+        Right (mAudioPath, mArtworkPath) -> do
+          when (isJust mAudioPath || isJust mArtworkPath) $ do
+            let fileUpdate =
+                  Episodes.FileUpdate
+                    { efuId = episode.id,
+                      efuAudioFilePath = mAudioPath,
+                      efuArtworkUrl = mArtworkPath
+                    }
+            execQuerySpan (Episodes.updateEpisodeFiles fileUpdate) >>= \case
+              Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)
+              Right Nothing -> Log.logInfo "File path update returned Nothing" episode.id
+              Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
+          pure []
+
+-- | Process schedule update, returning a warning if it fails
+processScheduleUpdate ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has Tracer env,
+    MonadUnliftIO m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Bool -> -- isPast
+  Bool -> -- isStaffOrAdmin
+  Episodes.Model ->
+  EpisodeEditForm ->
+  m [Text]
+processScheduleUpdate isPast isStaffOrAdmin episode editForm =
+  case eefScheduledDate editForm of
+    Nothing -> pure []
+    Just scheduleDateValue -> do
+      case parseScheduleValue scheduleDateValue of
+        Left parseErr -> do
+          Log.logInfo "Failed to parse schedule value" parseErr
+          pure ["Schedule update failed: " <> parseErr]
+        Right (newTemplateId, newScheduledAt) -> do
+          let scheduleChanged = newTemplateId /= episode.scheduleTemplateId || newScheduledAt /= episode.scheduledAt
+          if not scheduleChanged
+            then pure []
+            else
+              if isPast && not isStaffOrAdmin
+                then do
+                  Log.logInfo "Host attempted to change schedule on past episode" episode.id
+                  pure ["Schedule changes not allowed for past episodes"]
+                else do
+                  let slotUpdate =
+                        Episodes.ScheduleSlotUpdate
+                          { Episodes.essuId = episode.id,
+                            Episodes.essuScheduleTemplateId = newTemplateId,
+                            Episodes.essuScheduledAt = newScheduledAt
+                          }
+                  execQuerySpan (Episodes.updateScheduledSlot slotUpdate) >>= \case
+                    Left err -> do
+                      Log.logInfo "Failed to update schedule slot" (episode.id, show err)
+                      pure ["Failed to update schedule"]
+                    Right Nothing -> do
+                      Log.logInfo "Schedule slot update returned Nothing" episode.id
+                      pure ["Failed to update schedule"]
+                    Right (Just _) -> do
+                      Log.logInfo "Successfully updated schedule slot" episode.id
+                      pure []
+
+-- | Process track updates, returning a warning if it fails
+processTrackUpdates ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has Tracer env,
+    MonadUnliftIO m,
+    Has HSQL.Pool.Pool env
+  ) =>
+  Episodes.Id ->
+  Maybe Text ->
+  m [Text]
+processTrackUpdates episodeId mTracksJson = do
+  result <- updateTracksFromJson episodeId mTracksJson
+  case result of
+    Left trackErr -> do
+      Log.logInfo "Failed to update tracks" (episodeId, trackErr)
+      pure ["Track update failed: " <> trackErr]
+    Right _ -> pure []
+
+-- | Build success banner, incorporating any warnings
+makeSuccessBanner :: [Text] -> BannerParams
+makeSuccessBanner [] = BannerParams Success "Episode Updated" "Your episode has been updated successfully."
+makeSuccessBanner warnings =
+  let warningText = Text.intercalate "; " warnings
+   in BannerParams Warning "Episode Updated with Issues" ("Episode saved, but: " <> warningText)
 
 -- | Process file uploads for episode editing
 processFileUploads ::

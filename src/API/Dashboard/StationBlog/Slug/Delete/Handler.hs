@@ -1,40 +1,29 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module API.Dashboard.StationBlog.Slug.Delete.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardStationBlogLinks)
+import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
-import App.Common (getUserInfo)
-import Component.Banner (BannerType (..), renderBanner)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotFound)
+import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
-import Data.Aeson ((.=))
-import Data.Aeson qualified as Aeson
 import Data.Has (Has)
-import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
-import Effects.Database.Tables.UserMetadata (isSuspended)
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
-dashboardStationBlogGetUrl :: Links.URI
-dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing
 
 --------------------------------------------------------------------------------
 
@@ -53,48 +42,59 @@ handler ::
   Slug ->
   Maybe Cookie ->
   m (Lucid.Html ())
-handler _tracer postId _postSlug cookie = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo_ "No user session"
-      pure $ renderBanner Error "Delete Failed" "You must be logged in to delete blog posts."
-    Just (_user, userMetadata)
-      | not (UserMetadata.isStaffOrHigher userMetadata.mUserRole) || isSuspended userMetadata -> do
-          Log.logInfo_ "Delete failed: Not authorized (not staff)"
-          pure $ renderBanner Error "Delete Failed" "You don't have permission to delete blog posts."
-    Just (_user, _userMetadata) -> do
-      execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
-        Left err -> do
-          Log.logInfo "Delete failed: Failed to fetch blog post" (Aeson.object ["error" .= show err])
-          pure $ renderBanner Error "Delete Failed" "Database error. Please try again or contact support."
-        Right Nothing -> do
-          Log.logInfo "Delete failed: Blog post not found" (Aeson.object ["postId" .= postId])
-          pure $ renderBanner Error "Delete Failed" "Blog post not found."
-        Right (Just blogPost) -> do
-          deleteBlogPost blogPost
+handler _tracer postId _postSlug cookie =
+  handleBannerErrors "Blog delete" $ do
+    -- 1. Require authentication
+    (_user, userMetadata) <- requireAuth cookie
 
-deleteBlogPost ::
-  ( Has Tracer env,
+    -- 2. Check authorization (must be staff+ and not suspended)
+    requireStaffNotSuspended "You don't have permission to delete blog posts." userMetadata
+
+    -- 3. Fetch blog post
+    blogPost <- fetchBlogPost postId
+
+    -- 4. Delete it
+    execDeleteBlogPost blogPost
+
+    -- 5. Success - redirect with banner
+    Log.logInfo "Blog post deleted successfully" postId
+    let banner = BannerParams Success "Blog Post Deleted" "The blog post has been deleted."
+        listUrl = rootLink $ dashboardStationBlogLinks.list Nothing
+    pure $ redirectWithBanner listUrl banner
+
+--------------------------------------------------------------------------------
+-- Inline Helpers
+
+fetchBlogPost ::
+  ( MonadDB m,
     Log.MonadLog m,
     MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
     MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
+    MonadThrow m
+  ) =>
+  BlogPosts.Id ->
+  m BlogPosts.Model
+fetchBlogPost postId =
+  execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Blog post"
+    Right (Just post) -> pure post
+
+execDeleteBlogPost ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m,
+    MonadThrow m
   ) =>
   BlogPosts.Model ->
-  m (Lucid.Html ())
-deleteBlogPost blogPost = do
-  execQuerySpan (BlogPosts.deleteBlogPost (BlogPosts.bpmId blogPost)) >>= \case
-    Left err -> do
-      Log.logInfo "Delete failed: Database error" (Aeson.object ["error" .= show err, "postId" .= BlogPosts.bpmId blogPost])
-      pure $ renderBanner Error "Delete Failed" "Failed to delete blog post due to a database error."
-    Right Nothing -> do
-      Log.logInfo "Delete failed: Blog post not found during delete" (Aeson.object ["postId" .= BlogPosts.bpmId blogPost])
-      pure $ renderBanner Error "Delete Failed" "Blog post not found during delete operation."
-    Right (Just _) -> do
-      Log.logInfo "Blog post deleted successfully" (Aeson.object ["postId" .= BlogPosts.bpmId blogPost])
-      -- Redirect back to the station blog index with success banner
-      let banner = BannerParams Success "Blog Post Deleted" "The blog post has been deleted."
-      pure $ redirectWithBanner [i|/#{dashboardStationBlogGetUrl}|] banner
+  m ()
+execDeleteBlogPost blogPost =
+  execQuerySpan (BlogPosts.deleteBlogPost blogPost.bpmId) >>= \case
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Blog post"
+    Right (Just _) -> pure ()

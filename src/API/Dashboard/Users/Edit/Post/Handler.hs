@@ -6,8 +6,9 @@ module API.Dashboard.Users.Edit.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Links (dashboardUsersLinks)
-import API.Types (DashboardUsersRoutes (..))
-import App.Common (getUserInfo)
+import API.Types
+import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Applicative ((<|>))
@@ -28,7 +29,6 @@ import Domain.Types.FullName qualified as FullName
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata (isSuspended)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
@@ -65,73 +65,65 @@ handler ::
   Maybe Cookie ->
   MultipartData Mem ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer targetUserId cookie multipartData = do
-  getUserInfo cookie >>= \case
-    Nothing -> pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Login Required" "You must be logged in to edit users."))
-    Just (_user, userMetadata)
-      | not (UserMetadata.isAdmin userMetadata.mUserRole) || isSuspended userMetadata ->
-          pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Admin Access Required" "You do not have permission to edit users."))
-    Just (_user, _userMetadata) -> do
-      -- Parse form fields
-      let formInputs = inputs multipartData
+handler _tracer targetUserId cookie multipartData =
+  handleRedirectErrors "User edit" (dashboardUsersLinks.detail targetUserId) $ do
+    -- Require admin authentication
+    (_user, userMetadata) <- requireAuth cookie
+    requireAdminNotSuspended "You do not have permission to edit users." userMetadata
 
-      case extractFormFields formInputs of
-        Left errorMsg ->
-          pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" errorMsg))
-        Right (newDisplayName, newFullName, newRole) -> do
-          -- Handle avatar upload if provided
-          avatarUploadResult <- case lookupFile "avatar" multipartData of
-            Left _ -> pure (Right Nothing)
-            Right avatarFile -> do
-              uploadResult <- FileUpload.uploadUserAvatar (display targetUserId) avatarFile
-              case uploadResult of
-                Left _err -> pure (Left "Failed to upload avatar image")
-                Right Nothing -> pure (Right Nothing) -- No file selected
-                Right (Just result) ->
-                  let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
-                   in pure (Right (Just (FileUpload.stripStorageRoot storagePath)))
+    -- Parse form fields
+    let formInputs = inputs multipartData
 
-          case avatarUploadResult of
-            Left errorMsg ->
-              pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" errorMsg))
-            Right maybeAvatarPath -> do
-              -- Update user metadata and role in transaction
-              updateResult <- execTransactionSpan $ do
-                -- Get current metadata
-                maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata targetUserId)
-                case maybeMetadata of
-                  Nothing -> pure Nothing
-                  Just currentMetadata -> do
-                    -- Determine final avatar URL (use new upload or keep existing)
-                    let finalAvatarUrl = maybeAvatarPath <|> currentMetadata.mAvatarUrl
+    (newDisplayName, newFullName, newRole) <- case extractFormFields formInputs of
+      Left errorMsg -> throwValidationError errorMsg
+      Right result -> pure result
 
-                    -- Update metadata fields (color scheme is not editable by admins, users set it themselves)
-                    let metadataUpdate =
-                          UserMetadata.Update
-                            { UserMetadata.uDisplayName = Just newDisplayName,
-                              UserMetadata.uFullName = Just newFullName,
-                              UserMetadata.uAvatarUrl = Just finalAvatarUrl,
-                              UserMetadata.uColorScheme = Nothing
-                            }
-                    _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
+    -- Handle avatar upload if provided
+    maybeAvatarPath <- case lookupFile "avatar" multipartData of
+      Left _ -> pure Nothing
+      Right avatarFile -> do
+        uploadResult <- FileUpload.uploadUserAvatar (display targetUserId) avatarFile
+        case uploadResult of
+          Left _err -> throwValidationError "Failed to upload avatar image"
+          Right Nothing -> pure Nothing
+          Right (Just result) ->
+            let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
+             in pure (Just (FileUpload.stripStorageRoot storagePath))
 
-                    -- Update role
-                    _ <- HT.statement () (UserMetadata.updateUserRole targetUserId newRole)
+    -- Update user metadata and role in transaction
+    updateResult <- execTransactionSpan $ do
+      -- Get current metadata
+      maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata targetUserId)
+      case maybeMetadata of
+        Nothing -> pure Nothing
+        Just currentMetadata -> do
+          -- Determine final avatar URL (use new upload or keep existing)
+          let finalAvatarUrl = maybeAvatarPath <|> currentMetadata.mAvatarUrl
 
-                    pure $ Just ()
+          -- Update metadata fields (color scheme is not editable by admins, users set it themselves)
+          let metadataUpdate =
+                UserMetadata.Update
+                  { UserMetadata.uDisplayName = Just newDisplayName,
+                    UserMetadata.uFullName = Just newFullName,
+                    UserMetadata.uAvatarUrl = Just finalAvatarUrl,
+                    UserMetadata.uColorScheme = Nothing
+                  }
+          _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
 
-              case updateResult of
-                Left _err -> do
-                  Log.logInfo "Failed to update user" ()
-                  pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "Failed to update user. Please try again."))
-                Right Nothing ->
-                  pure $ Servant.noHeader (redirectWithBanner (userDetailUrl targetUserId) (BannerParams Error "Error Updating User" "User metadata not found."))
-                Right (Just ()) -> do
-                  Log.logInfo "User updated successfully" ()
-                  let detailUrl = userDetailUrl targetUserId
-                      banner = BannerParams Success "User Updated" "The user's information has been updated."
-                      redirectUrl = buildRedirectUrl detailUrl banner
-                  pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+          -- Update role
+          _ <- HT.statement () (UserMetadata.updateUserRole targetUserId newRole)
+
+          pure $ Just ()
+
+    case updateResult of
+      Left err -> throwDatabaseError err
+      Right Nothing -> throwNotFound "User metadata"
+      Right (Just ()) -> do
+        Log.logInfo "User updated successfully" ()
+        let detailUrl = userDetailUrl targetUserId
+            banner = BannerParams Success "User Updated" "The user's information has been updated."
+            redirectUrl = buildRedirectUrl detailUrl banner
+        pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
 
 extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.UserRole)
 extractFormFields inputs = do

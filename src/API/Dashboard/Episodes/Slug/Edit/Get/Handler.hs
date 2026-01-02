@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Dashboard.Episodes.Slug.Edit.Get.Handler where
@@ -7,20 +6,20 @@ module API.Dashboard.Episodes.Slug.Edit.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (template)
-import API.Links (dashboardEpisodesLinks, userLinks)
+import API.Links (dashboardEpisodesLinks)
 import API.Types
-import App.Common (getUserInfo, renderDashboardTemplate)
-import Component.Banner (BannerType (..))
+import App.Common (renderDashboardTemplate)
+import App.Handler.Combinators (requireAuth)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad (unless)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (Has)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
@@ -30,6 +29,7 @@ import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -43,16 +43,6 @@ import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
--- | URL helpers
-dashboardEpisodesUrl :: Slug -> Links.URI
-dashboardEpisodesUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
-
-userLoginGetUrl :: Links.URI
-userLoginGetUrl = Links.linkURI $ userLinks.loginGet Nothing Nothing
 
 --------------------------------------------------------------------------------
 
@@ -72,78 +62,142 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
-  getUserInfo cookie >>= \case
-    Nothing -> do
-      Log.logInfo_ "Unauthorized access to episode edit - not logged in"
-      -- Redirect to login page
-      pure $
-        Servant.addHeader [i|/#{userLoginGetUrl}|] $
-          redirectWithBanner [i|/#{userLoginGetUrl}|] $
-            BannerParams Warning "Login Required" "Please login to edit episodes."
-    Just (user, userMetadata) -> do
-      -- Fetch episode by show slug and episode number
-      mResult <- execTransactionSpan $ runMaybeT $ do
-        episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
-        showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
-        tracks <- lift $ HT.statement () (EpisodeTrack.getTracksForEpisode episode.id)
-        -- Admins don't need explicit host check since they have access to all shows
-        isHost <-
-          if UserMetadata.isAdmin userMetadata.mUserRole
-            then pure True
-            else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
-        MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
+handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
+  handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
+    -- 1. Require authentication
+    (user, userMetadata) <- requireAuth cookie
 
-      let episodesListUrl = [i|/#{dashboardEpisodesUrl showSlug}|]
+    -- 2. Fetch episode context (episode, show, tracks, isHost) in transaction
+    (episode, showModel, tracks, isHost) <- fetchEpisodeContext showSlug episodeNumber user userMetadata
 
-      case mResult of
-        Left err -> do
-          Log.logAttention "getEpisodeByShowAndNumber execution error" (show err)
-          -- Redirect to episodes list with error banner
-          pure $
-            Servant.addHeader episodesListUrl $
-              redirectWithBanner episodesListUrl $
-                BannerParams Warning "Error" "Failed to load episode. Please try again."
-        Right Nothing -> do
-          Log.logInfo_ $ "No episode : show='" <> display showSlug <> "' number=" <> display episodeNumber
-          -- Redirect to episodes list with error banner
-          pure $
-            Servant.addHeader episodesListUrl $
-              redirectWithBanner episodesListUrl $
-                BannerParams Warning "Episode Not Found" "The episode you're trying to edit doesn't exist."
-        Right (Just (episode, showModel, tracks, isHost)) -> do
-          if episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-            then do
-              Log.logInfo "Authorized user accessing episode edit form" episode.id
-              currentTime <- liftIO getCurrentTime
-              Log.logInfo "Episode scheduled_at" (show episode.scheduledAt)
-              Log.logInfo "Current time" (show currentTime)
-              Log.logInfo "Is scheduled in future?" (show $ episode.scheduledAt > currentTime)
-              -- Fetch tags for the episode (separate from main transaction to avoid tuple Display constraint)
-              episodeTagsResult <- execQuerySpan (Episodes.getTagsForEpisode episode.id)
-              let episodeTags = either (const []) id episodeTagsResult
-              -- Fetch the schedule template for the episode's current slot
-              mCurrentTemplate <- execQuerySpan (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId)
-              let mCurrentSlot = case mCurrentTemplate of
-                    Right (Just scheduleTemplate) -> Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate episode.scheduledAt
-                    _ -> Nothing
-              -- Fetch upcoming dates for the show (for schedule slot selection)
-              upcomingDatesResult <- execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showModel.id (Limit 52))
-              let upcomingDates = either (const []) id upcomingDatesResult
-              -- Fetch shows for dashboard sidebar
-              allShows <-
-                if UserMetadata.isAdmin userMetadata.mUserRole
-                  then either (const []) id <$> execQuerySpan Shows.getAllActiveShows
-                  else either (const []) id <$> execQuerySpan (Shows.getShowsForUser user.mId)
-              let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-                  editTemplate = template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
-                  statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
-              html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate
-              pure $ Servant.noHeader html
-            else do
-              Log.logInfo "User tried to edit episode they don't own" episode.id
-              -- Redirect to episodes list with error banner
-              pure $
-                Servant.addHeader episodesListUrl $
-                  redirectWithBanner episodesListUrl $
-                    BannerParams Error "Access Denied" "You can only edit your own episodes."
+    -- 3. Check authorization
+    let isAuthorized = episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+    unless isAuthorized $
+      throwNotAuthorized "You can only edit your own episodes."
+
+    -- 4. Fetch additional data for the edit form
+    Log.logInfo "Authorized user accessing episode edit form" episode.id
+    currentTime <- liftIO getCurrentTime
+
+    episodeTags <- fetchEpisodeTags episode.id
+    mCurrentSlot <- fetchCurrentSlot episode
+    upcomingDates <- fetchUpcomingDates showModel.id
+    allShows <- fetchUserShows user userMetadata
+
+    -- 5. Render the edit form
+    let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+        editTemplate = template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
+        statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
+
+    html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate
+    pure $ Servant.noHeader html
+
+--------------------------------------------------------------------------------
+-- Inline Helpers
+
+-- | Context returned from the initial episode fetch
+type EpisodeContext = (Episodes.Model, Shows.Model, [EpisodeTrack.Model], Bool)
+
+fetchEpisodeContext ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m,
+    MonadThrow m
+  ) =>
+  Slug ->
+  Episodes.EpisodeNumber ->
+  User.Model ->
+  UserMetadata.Model ->
+  m EpisodeContext
+fetchEpisodeContext showSlug episodeNumber user userMetadata = do
+  mResult <- execTransactionSpan $ runMaybeT $ do
+    episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
+    showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
+    tracks <- lift $ HT.statement () (EpisodeTrack.getTracksForEpisode episode.id)
+    isHost <-
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then pure True
+        else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
+    MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
+  case mResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "Episode"
+    Right (Just ctx) -> pure ctx
+
+fetchEpisodeTags ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m
+  ) =>
+  Episodes.Id ->
+  m [EpisodeTags.Model]
+fetchEpisodeTags episodeId =
+  execQuerySpan (Episodes.getTagsForEpisode episodeId) >>= \case
+    Left err -> do
+      Log.logAttention "Failed to fetch episode tags" (show err)
+      pure []
+    Right tags -> pure tags
+
+fetchCurrentSlot ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m
+  ) =>
+  Episodes.Model ->
+  m (Maybe ShowSchedule.UpcomingShowDate)
+fetchCurrentSlot episode =
+  execQuerySpan (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId) >>= \case
+    Left err -> do
+      Log.logAttention "Failed to fetch schedule template" (show err)
+      pure Nothing
+    Right Nothing -> pure Nothing
+    Right (Just scheduleTemplate) ->
+      pure $ Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate episode.scheduledAt
+
+fetchUpcomingDates ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m
+  ) =>
+  Shows.Id ->
+  m [ShowSchedule.UpcomingShowDate]
+fetchUpcomingDates showId =
+  execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showId (Limit 52)) >>= \case
+    Left err -> do
+      Log.logAttention "Failed to fetch upcoming dates" (show err)
+      pure []
+    Right dates -> pure dates
+
+fetchUserShows ::
+  ( MonadDB m,
+    Log.MonadLog m,
+    MonadReader env m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
+    MonadUnliftIO m
+  ) =>
+  User.Model ->
+  UserMetadata.Model ->
+  m [Shows.Model]
+fetchUserShows user userMetadata = do
+  let query =
+        if UserMetadata.isAdmin userMetadata.mUserRole
+          then Shows.getAllActiveShows
+          else Shows.getShowsForUser user.mId
+  execQuerySpan query >>= \case
+    Left err -> do
+      Log.logAttention "Failed to fetch user shows" (show err)
+      pure []
+    Right result -> pure result
