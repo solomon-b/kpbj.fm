@@ -43,9 +43,12 @@ import API.Dashboard.Blogs.Slug.Edit.Post.Handler qualified as Dashboard.Blogs.S
 import API.Dashboard.Blogs.Slug.Get.Handler qualified as Dashboard.Blogs.Slug.Get
 import API.Dashboard.Episodes.Get.Handler qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Redirect.Handler qualified as Dashboard.Episodes.Redirect
+import API.Dashboard.Episodes.Slug.Delete.Handler qualified as Dashboard.Episodes.Slug.Delete
+import API.Dashboard.Episodes.Slug.DiscardDraft.Handler qualified as Dashboard.Episodes.Slug.DiscardDraft
 import API.Dashboard.Episodes.Slug.Edit.Get.Handler qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post.Handler qualified as Dashboard.Episodes.Slug.Edit.Post
 import API.Dashboard.Episodes.Slug.Get.Handler qualified as Dashboard.Episodes.Slug.Get
+import API.Dashboard.Episodes.Slug.Publish.Post.Handler qualified as Dashboard.Episodes.Slug.Publish.Post
 import API.Dashboard.Events.Get.Handler qualified as Dashboard.Events.Get
 import API.Dashboard.Events.New.Get.Handler qualified as Dashboard.Events.New.Get
 import API.Dashboard.Events.New.Post.Handler qualified as Dashboard.Events.New.Post
@@ -90,10 +93,7 @@ import API.Schedule.Get.Handler qualified as Schedule.Get
 import API.Shows.Get.Handler qualified as Shows.Get
 import API.Shows.Slug.Blog.Get.Handler qualified as Show.Blog.Get
 import API.Shows.Slug.Blog.Post.Get.Handler qualified as Show.Blog.Post.Get
-import API.Shows.Slug.Episode.Delete.Handler qualified as Episodes.Delete
-import API.Shows.Slug.Episode.DiscardDraft.Handler qualified as Episodes.DiscardDraft
 import API.Shows.Slug.Episode.Get.Handler qualified as Episodes.Get
-import API.Shows.Slug.Episode.Publish.Post.Handler qualified as Episodes.Publish.Post
 import API.Shows.Slug.Get.Handler qualified as Show.Get
 import API.Static.Get.Handler qualified as Static.Get
 import API.TermsOfService.Get.Handler qualified as TermsOfService.Get
@@ -185,10 +185,7 @@ server env =
 
     showEpisodesRoutes =
       ShowEpisodesRoutes
-        { detail = Episodes.Get.handler,
-          delete = Episodes.Delete.handler,
-          discardDraft = Episodes.DiscardDraft.handler,
-          publish = Episodes.Publish.Post.handler
+        { detail = Episodes.Get.handler
         }
 
     userRoutes =
@@ -230,7 +227,10 @@ server env =
         { list = Dashboard.Episodes.Get.handler,
           detail = Dashboard.Episodes.Slug.Get.handler,
           editGet = Dashboard.Episodes.Slug.Edit.Get.handler,
-          editPost = Dashboard.Episodes.Slug.Edit.Post.handler
+          editPost = Dashboard.Episodes.Slug.Edit.Post.handler,
+          delete = Dashboard.Episodes.Slug.Delete.handler,
+          discardDraft = Dashboard.Episodes.Slug.DiscardDraft.handler,
+          publish = Dashboard.Episodes.Slug.Publish.Post.handler
         }
 
     dashboardBlogsRoutes =
