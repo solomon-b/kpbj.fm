@@ -87,8 +87,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) =
 
     -- 8. Render template
     let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds existingTags
-        activeNav = if isStaff then NavShows else NavSettings
-    renderDashboardTemplate hxRequest userMetadata sidebarShows (Just showModel) activeNav Nothing Nothing editTemplate
+    renderDashboardTemplate hxRequest userMetadata sidebarShows (Just showModel) NavSettings Nothing Nothing editTemplate
 
 -- | Fetch show by slug, throwing NotFound if not found
 fetchShowOrNotFound ::
