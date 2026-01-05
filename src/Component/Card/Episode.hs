@@ -10,7 +10,6 @@ where
 
 import API.Links (apiLinks, showEpisodesLinks)
 import API.Types
-import Control.Monad (when)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -40,10 +39,8 @@ episodeDetailUrl showSlug episodeNumber =
 -- Main Render Function
 
 -- | Render an episode card with artwork (with play button overlay) and date.
---
--- When canViewDrafts is True and the episode is a draft, a "DRAFT" badge is displayed.
-renderEpisodeCard :: Shows.Model -> Bool -> Episodes.Model -> Lucid.Html ()
-renderEpisodeCard showModel canViewDrafts episode = do
+renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisodeCard showModel episode = do
   let epUrl = episodeDetailUrl showModel.slug episode.episodeNumber
       showTitle = showModel.title
       episodeNum = episode.episodeNumber
@@ -54,7 +51,6 @@ renderEpisodeCard showModel canViewDrafts episode = do
       audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) mAudioPath
       hasAudio = if isJust mAudioPath then "true" else "false" :: Text
       episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|] :: Text
-      isDraft = episode.status == Episodes.Draft
 
   -- Container with Alpine.js state for audio player
   -- Note: Audio playback is delegated to the persistent navbar player,
@@ -64,8 +60,8 @@ renderEpisodeCard showModel canViewDrafts episode = do
       xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata
     ]
     $ do
-      -- Artwork with play button overlay and optional draft badge
-      renderArtworkWithPlayer epUrl mArtworkUrl (canViewDrafts && isDraft)
+      -- Artwork with play button overlay
+      renderArtworkWithPlayer epUrl mArtworkUrl
 
       -- Episode date
       renderEpisodeDate episode.scheduledAt
@@ -74,8 +70,8 @@ renderEpisodeCard showModel canViewDrafts episode = do
 -- Component Functions
 
 -- | Render artwork with play button overlayed on bottom-left corner.
-renderArtworkWithPlayer :: Links.URI -> Maybe Text -> Bool -> Lucid.Html ()
-renderArtworkWithPlayer epUrl mArtworkUrl showDraftBadge =
+renderArtworkWithPlayer :: Links.URI -> Maybe Text -> Lucid.Html ()
+renderArtworkWithPlayer epUrl mArtworkUrl =
   Lucid.div_ [class_ $ base ["relative", Tokens.mb4]] $ do
     -- Clickable artwork image
     Lucid.a_
@@ -93,13 +89,6 @@ renderArtworkWithPlayer epUrl mArtworkUrl showDraftBadge =
               Lucid.class_ "w-full h-full object-cover"
             ]
         Nothing -> "[EP IMG]"
-
-    -- Draft badge (top-right corner) - only shown for draft episodes when user can see drafts
-    when showDraftBadge $
-      Lucid.span_
-        [ class_ $ base ["absolute", "top-2", "right-2", "bg-yellow-500", "text-black", Tokens.textXs, Tokens.fontBold, "px-2", "py-1"]
-        ]
-        "DRAFT"
 
     -- Play button overlay (bottom-left corner)
     renderPlayButton
