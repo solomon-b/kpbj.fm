@@ -14,6 +14,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
+import Data.Functor ((<&>))
 import Data.Has (Has)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -22,9 +23,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -51,9 +50,7 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
-  userInfoResult <- getUserInfo cookie
-  let mUserInfo = fmap snd userInfoResult
-      mUserId = fmap (User.mId . fst) userInfoResult
+  mUserInfo <- getUserInfo cookie <&> fmap snd
 
   handleEpisodePageErrors hxRequest mUserInfo showSlug episodeNumber $ do
     -- 1. Fetch episode
@@ -64,11 +61,8 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
     tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
     tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
 
-    -- 3. Determine if user can view drafts
-    canViewDrafts <- checkCanViewDrafts mUserInfo mUserId showModel.id
-
-    -- 4. Render page
-    let episodeTemplate = template showModel episode tracks tags canViewDrafts
+    -- 3. Render page
+    let episodeTemplate = template showModel episode tracks tags
     renderTemplate hxRequest mUserInfo episodeTemplate
 
 --------------------------------------------------------------------------------
@@ -106,28 +100,6 @@ fetchShow showId =
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
-
-checkCanViewDrafts ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has Tracer env
-  ) =>
-  Maybe UserMetadata.Model ->
-  Maybe User.Id ->
-  Shows.Id ->
-  m Bool
-checkCanViewDrafts mUserInfo mUserId showId = do
-  let isStaffOrAdmin = case mUserInfo of
-        Just metadata -> UserMetadata.isStaffOrHigher metadata.mUserRole
-        Nothing -> False
-  isHost <- case mUserId of
-    Nothing -> pure False
-    Just userId -> do
-      result <- execQuerySpan (ShowHost.isUserHostOfShow userId showId)
-      pure $ fromRight False result
-  pure $ isHost || isStaffOrAdmin
 
 --------------------------------------------------------------------------------
 -- Error Handling
