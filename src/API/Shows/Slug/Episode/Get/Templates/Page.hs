@@ -21,8 +21,8 @@ import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
+import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
@@ -48,11 +48,11 @@ episodeTagToLink tag =
 
 --------------------------------------------------------------------------------
 
-template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Bool -> Lucid.Html ()
-template showModel episode tracks tags canViewDrafts = do
+template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Lucid.Html ()
+template showModel episode tracks tags = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Episode card (reuses the same component from show page)
-    renderEpisodeCard showModel canViewDrafts episode
+    renderEpisodeCard showModel episode
 
     -- Tags section
     unless (null tags) $ do
