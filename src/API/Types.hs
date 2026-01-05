@@ -17,9 +17,12 @@ import API.Dashboard.Blogs.Slug.Edit.Post.Route qualified as Dashboard.Blogs.Slu
 import API.Dashboard.Blogs.Slug.Get.Route qualified as Dashboard.Blogs.Slug.Get
 import API.Dashboard.Episodes.Get.Route qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Redirect.Route qualified as Dashboard.Episodes.Redirect
+import API.Dashboard.Episodes.Slug.Delete.Route qualified as Dashboard.Episodes.Slug.Delete
+import API.Dashboard.Episodes.Slug.DiscardDraft.Route qualified as Dashboard.Episodes.Slug.DiscardDraft
 import API.Dashboard.Episodes.Slug.Edit.Get.Route qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post.Route qualified as Dashboard.Episodes.Slug.Edit.Post
 import API.Dashboard.Episodes.Slug.Get.Route qualified as Dashboard.Episodes.Slug.Get
+import API.Dashboard.Episodes.Slug.Publish.Post.Route qualified as Dashboard.Episodes.Slug.Publish.Post
 import API.Dashboard.Events.Get.Route qualified as Dashboard.Events.Get
 import API.Dashboard.Events.New.Get.Route qualified as Dashboard.Events.New.Get
 import API.Dashboard.Events.New.Post.Route qualified as Dashboard.Events.New.Post
@@ -63,10 +66,7 @@ import API.Schedule.Get.Route qualified as Schedule
 import API.Shows.Get.Route qualified as Shows.Get
 import API.Shows.Slug.Blog.Get.Route qualified as Show.Blog.Get
 import API.Shows.Slug.Blog.Post.Get.Route qualified as Show.Blog.Post.Get
-import API.Shows.Slug.Episode.Delete.Route qualified as Episodes.Delete
-import API.Shows.Slug.Episode.DiscardDraft.Route qualified as Episodes.DiscardDraft
 import API.Shows.Slug.Episode.Get.Route qualified as Episodes.Get
-import API.Shows.Slug.Episode.Publish.Post.Route qualified as Episodes.Publish.Post
 import API.Shows.Slug.Get.Route qualified as Show.Get
 import API.Static.Get.Route qualified as Static.Get
 import API.TermsOfService.Get.Route qualified as TermsOfService.Get
@@ -175,17 +175,11 @@ data ShowBlogRoutes mode = ShowBlogRoutes
 
 -- | Show episode routes under @/shows/:showSlug/episodes@.
 --
--- Public view and management routes for show episodes.
--- Note: Episode creation routes are under Dashboard.
+-- Public view routes for show episodes.
+-- Episode management (create/edit/delete/publish) is handled in the Dashboard.
 data ShowEpisodesRoutes mode = ShowEpisodesRoutes
   { -- | @GET /shows/:showSlug/episodes/:episodeNumber@ - Episode detail
-    detail :: mode :- Episodes.Get.Route,
-    -- | @DELETE /shows/:showSlug/episodes/:episodeNumber@ - Delete episode
-    delete :: mode :- Episodes.Delete.Route,
-    -- | @DELETE /shows/:showSlug/episodes/:episodeNumber/draft@ - Discard draft episode
-    discardDraft :: mode :- Episodes.DiscardDraft.Route,
-    -- | @POST /shows/:showSlug/episodes/:episodeNumber/publish@ - Publish draft episode
-    publish :: mode :- Episodes.Publish.Post.Route
+    detail :: mode :- Episodes.Get.Route
   }
   deriving stock (Generic)
 
@@ -263,7 +257,13 @@ data DashboardEpisodesRoutes mode = DashboardEpisodesRoutes
     -- | @GET /dashboard/episodes/:showSlug/:episodeNumber/edit@ - Edit episode form
     editGet :: mode :- Dashboard.Episodes.Slug.Edit.Get.Route,
     -- | @POST /dashboard/episodes/:showSlug/:episodeNumber/edit@ - Update episode
-    editPost :: mode :- Dashboard.Episodes.Slug.Edit.Post.Route
+    editPost :: mode :- Dashboard.Episodes.Slug.Edit.Post.Route,
+    -- | @DELETE /dashboard/episodes/:showSlug/:episodeNumber@ - Archive episode (staff only)
+    delete :: mode :- Dashboard.Episodes.Slug.Delete.Route,
+    -- | @DELETE /dashboard/episodes/:showSlug/:episodeNumber/draft@ - Discard draft episode
+    discardDraft :: mode :- Dashboard.Episodes.Slug.DiscardDraft.Route,
+    -- | @POST /dashboard/episodes/:showSlug/:episodeNumber/publish@ - Publish draft episode
+    publish :: mode :- Dashboard.Episodes.Slug.Publish.Post.Route
   }
   deriving stock (Generic)
 

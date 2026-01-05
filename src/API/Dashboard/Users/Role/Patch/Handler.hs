@@ -9,7 +9,7 @@ module API.Dashboard.Users.Role.Patch.Handler where
 import API.Dashboard.Users.Role.Patch.Route (RoleUpdateForm (..))
 import API.Links (dashboardUsersLinks)
 import API.Types (DashboardUsersRoutes (..))
-import App.Handler.Combinators (requireAuth, requireAdminNotSuspended)
+import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleBannerErrors)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
@@ -52,7 +52,7 @@ handler _tracer targetUserId cookie (RoleUpdateForm newRole) =
   handleBannerErrors "Role update" $ do
     -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended  "Only admins can change user roles." userMetadata
+    requireAdminNotSuspended "Only admins can change user roles." userMetadata
 
     execQuerySpan (UserMetadata.updateUserRole targetUserId newRole) >>= \case
       Left _err -> do

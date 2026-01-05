@@ -1,14 +1,13 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module API.Shows.Slug.Episode.DiscardDraft.Handler where
+module API.Dashboard.Episodes.Slug.Delete.Handler where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
-import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
-import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError, throwDatabaseError, throwNotFound, throwValidationError)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..), renderBanner)
-import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -20,24 +19,22 @@ import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
-import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
+import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
-import Hasql.Transaction qualified as Txn
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
--- | Handler for discarding draft episodes.
+-- | Handler for archiving episodes (soft delete).
 --
--- Only draft episodes can be discarded. Hosts can discard drafts for shows
--- they are assigned to, or drafts they created. This performs a hard delete.
+-- Only staff or higher roles can archive episodes. This allows admins to
+-- remove content from public view while preserving the database record
+-- for compliance, legal, or moderation purposes.
 handler ::
   ( Has Tracer env,
     Log.MonadLog m,
@@ -54,22 +51,21 @@ handler ::
   Maybe Cookie ->
   m (Lucid.Html ())
 handler _tracer showSlug episodeNumber cookie =
-  handleDiscardErrors $ do
+  handleArchiveErrors $ do
     -- 1. Require authentication
-    (user, userMeta) <- requireAuth cookie
+    (_user, userMeta) <- requireAuth cookie
 
-    -- 2. Require show host or staff (not suspended)
-    requireShowHostOrStaff user.mId showSlug userMeta
+    -- 2. Require staff role (not suspended)
+    requireStaffNotSuspended
+      "Only staff members can archive episodes. Hosts can discard draft episodes instead."
+      userMeta
 
     -- 3. Fetch show and episode
     showModel <- fetchShow showSlug
     episode <- fetchEpisode showSlug episodeNumber
 
-    -- 4. Validate episode is a draft
-    requireDraftStatus episode
-
-    -- 5. Execute hard delete
-    hardDeleteEpisode showModel episode userMeta
+    -- 4. Execute archive
+    archiveEpisode showModel episode userMeta
 
 --------------------------------------------------------------------------------
 -- Data Fetching
@@ -108,27 +104,14 @@ fetchEpisode showSlug episodeNumber =
     Right (Just episode) -> pure episode
 
 --------------------------------------------------------------------------------
--- Validation
+-- Archive Execution
 
-requireDraftStatus ::
-  (MonadThrow m, Log.MonadLog m) =>
-  Episodes.Model ->
-  m ()
-requireDraftStatus episode =
-  when (episode.status /= Episodes.Draft) $ do
-    Log.logInfo
-      "Discard draft failed: Episode is not a draft"
-      (Aeson.object ["episodeId" .= episode.id, "status" .= show episode.status])
-    throwValidationError "Only draft episodes can be discarded. Published episodes must be archived by staff."
-
---------------------------------------------------------------------------------
--- Delete Execution
-
-hardDeleteEpisode ::
+archiveEpisode ::
   ( Has Tracer env,
     Log.MonadLog m,
     MonadReader env m,
     MonadUnliftIO m,
+    MonadThrow m,
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env
@@ -137,43 +120,39 @@ hardDeleteEpisode ::
   Episodes.Model ->
   UserMetadata.Model ->
   m (Lucid.Html ())
-hardDeleteEpisode showModel episode userMeta = do
-  execTransactionSpan (deleteEpisodeTransaction episode.id) >>= \case
+archiveEpisode showModel episode userMeta = do
+  execQuerySpan (Episodes.deleteEpisode episode.id) >>= \case
     Left err -> do
-      Log.logInfo "Discard draft failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
-      pure $ renderErrorWithRow userMeta showModel episode "Failed to discard episode due to a database error."
+      Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
+      pure $ renderErrorWithRow userMeta showModel episode "Failed to archive episode due to a database error."
     Right Nothing -> do
-      Log.logInfo "Discard draft failed: Episode not found during delete" (Aeson.object ["episodeId" .= episode.id])
-      pure $ renderErrorWithRow userMeta showModel episode "Episode not found during discard operation."
+      Log.logInfo "Archive failed: Episode not found during archive" (Aeson.object ["episodeId" .= episode.id])
+      pure $ renderErrorWithRow userMeta showModel episode "Episode not found during archive operation."
     Right (Just _) -> do
-      Log.logInfo "Draft episode discarded successfully" (Aeson.object ["episodeId" .= episode.id])
+      Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
       pure $ do
         emptyResponse
-        renderBanner Success "Draft Discarded" "The draft episode has been discarded."
-
--- | Transaction to delete episode tracks and then the episode itself.
-deleteEpisodeTransaction :: Episodes.Id -> Txn.Transaction (Maybe Episodes.Id)
-deleteEpisodeTransaction episodeId = do
-  -- First delete all tracks for this episode
-  _ <- Txn.statement () (EpisodeTrack.deleteAllTracksForEpisode episodeId)
-  -- Then hard delete the episode
-  Txn.statement () (Episodes.hardDeleteEpisode episodeId)
+        renderBanner Success "Episode Archived" "The episode has been archived."
 
 --------------------------------------------------------------------------------
 -- Error Handling
 
-handleDiscardErrors ::
+-- | Handle errors for archive operations.
+--
+-- Early errors (auth, not found) return just a banner since we don't have row context.
+-- Late errors (during archive) are handled inline with row preservation.
+handleArchiveErrors ::
   (MonadCatch m, Log.MonadLog m) =>
   m (Lucid.Html ()) ->
   m (Lucid.Html ())
-handleDiscardErrors action =
+handleArchiveErrors action =
   action `catchHandlerError` \err -> do
-    logHandlerError "Episode discard" err
-    pure $ renderBanner Error "Discard Failed" (errorMessage err)
+    logHandlerError "Episode archive" err
+    pure $ renderBanner Error "Archive Failed" (errorMessage err)
 
 errorMessage :: HandlerError -> Text
 errorMessage = \case
-  NotAuthenticated -> "You must be logged in to discard episodes."
+  NotAuthenticated -> "You must be logged in to archive episodes."
   NotAuthorized msg -> msg
   NotFound resource -> resource <> " not found."
   DatabaseError _ -> "Database error. Please try again or contact support."
@@ -188,7 +167,7 @@ errorMessage = \case
 renderErrorWithRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()
 renderErrorWithRow userMeta showModel episode errorMsg = do
   renderEpisodeTableRow userMeta showModel episode
-  renderBanner Error "Discard Failed" errorMsg
+  renderBanner Error "Archive Failed" errorMsg
 
 -- | Empty response for successful deletes (row is removed by HTMX)
 emptyResponse :: Lucid.Html ()
