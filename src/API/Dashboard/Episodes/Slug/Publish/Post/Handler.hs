@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module API.Shows.Slug.Episode.Publish.Post.Handler where
+module API.Dashboard.Episodes.Slug.Publish.Post.Handler where
 
 --------------------------------------------------------------------------------
 

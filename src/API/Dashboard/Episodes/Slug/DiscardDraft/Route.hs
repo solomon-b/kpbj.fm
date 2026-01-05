@@ -1,4 +1,4 @@
-module API.Shows.Slug.Episode.Publish.Post.Route where
+module API.Dashboard.Episodes.Slug.DiscardDraft.Route where
 
 --------------------------------------------------------------------------------
 
@@ -13,14 +13,19 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
+-- | Hard delete route for draft episodes only.
+--
+-- This allows hosts to discard draft episodes they no longer want to work on.
+-- Only draft episodes can be hard deleted - published episodes must be archived
+-- by staff instead.
 type Route =
   Observability.WithSpan
-    "POST /shows/:show_slug/episodes/:episode_number/publish"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
+    "DELETE /dashboard/episodes/:show_slug/:episode_number/draft"
+    ( "dashboard"
         :> "episodes"
+        :> Servant.Capture "show_slug" Slug
         :> Servant.Capture "episode_number" Episodes.EpisodeNumber
-        :> "publish"
+        :> "draft"
         :> Servant.Header "Cookie" Cookie
-        :> Servant.Post '[HTML] (Lucid.Html ())
+        :> Servant.Delete '[HTML] (Lucid.Html ())
     )

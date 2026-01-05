@@ -8,8 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardEpisodesLinks, showEpisodesLinks)
-import API.Types
+import API.Links (dashboardEpisodesLinks)
+import API.Types (DashboardEpisodesRoutes (..))
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -33,13 +33,13 @@ episodeEditGetUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeEditGetUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.editGet showSlug epNum
 
 episodeArchiveUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodeArchiveUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.delete showSlug epNum
+episodeArchiveUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.delete showSlug epNum
 
 episodeDiscardDraftUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodeDiscardDraftUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.discardDraft showSlug epNum
+episodeDiscardDraftUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.discardDraft showSlug epNum
 
 episodePublishUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodePublishUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.publish showSlug epNum
+episodePublishUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.publish showSlug epNum
 
 --------------------------------------------------------------------------------
 

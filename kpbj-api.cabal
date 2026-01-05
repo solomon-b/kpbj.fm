@@ -181,6 +181,10 @@ library
     API.Dashboard.StationBlog.Slug.Get.Handler
     API.Dashboard.StationBlog.Slug.Get.Route
     API.Dashboard.StationBlog.Slug.Get.Templates.Page
+    API.Dashboard.Episodes.Slug.Delete.Handler
+    API.Dashboard.Episodes.Slug.Delete.Route
+    API.Dashboard.Episodes.Slug.DiscardDraft.Handler
+    API.Dashboard.Episodes.Slug.DiscardDraft.Route
     API.Dashboard.Episodes.Slug.Edit.Get.Handler
     API.Dashboard.Episodes.Slug.Edit.Get.Route
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
@@ -189,6 +193,8 @@ library
     API.Dashboard.Episodes.Slug.Get.Handler
     API.Dashboard.Episodes.Slug.Get.Route
     API.Dashboard.Episodes.Slug.Get.Templates.Page
+    API.Dashboard.Episodes.Slug.Publish.Post.Handler
+    API.Dashboard.Episodes.Slug.Publish.Post.Route
     API.Dashboard.Episodes.Get.Handler
     API.Dashboard.Episodes.Get.Route
     API.Dashboard.Episodes.Get.Templates.EpisodeRow
@@ -264,12 +270,6 @@ library
     API.Shows.Slug.Episode.Get.Handler
     API.Shows.Slug.Episode.Get.Route
     API.Shows.Slug.Episode.Get.Templates.Page
-    API.Shows.Slug.Episode.Delete.Handler
-    API.Shows.Slug.Episode.Delete.Route
-    API.Shows.Slug.Episode.DiscardDraft.Handler
-    API.Shows.Slug.Episode.DiscardDraft.Route
-    API.Shows.Slug.Episode.Publish.Post.Handler
-    API.Shows.Slug.Episode.Publish.Post.Route
     API.Shows.Slug.Get.Handler
     API.Shows.Slug.Get.Route
     API.Shows.Slug.Get.Templates.Page

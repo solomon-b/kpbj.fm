@@ -1,4 +1,4 @@
-module API.Shows.Slug.Episode.Delete.Route where
+module API.Dashboard.Episodes.Slug.Delete.Route where
 
 --------------------------------------------------------------------------------
 
@@ -22,10 +22,10 @@ import Text.HTML (HTML)
 -- For discarding draft episodes, hosts should use the DiscardDraft endpoint instead.
 type Route =
   Observability.WithSpan
-    "DELETE /shows/:show_slug/episodes/:episode_number"
-    ( "shows"
-        :> Servant.Capture "show_slug" Slug
+    "DELETE /dashboard/episodes/:show_slug/:episode_number"
+    ( "dashboard"
         :> "episodes"
+        :> Servant.Capture "show_slug" Slug
         :> Servant.Capture "episode_number" Episodes.EpisodeNumber
         :> Servant.Header "Cookie" Cookie
         :> Servant.Delete '[HTML] (Lucid.Html ())

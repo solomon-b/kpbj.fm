@@ -5,7 +5,7 @@ module API.Dashboard.Users.Unsuspend.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
-import App.Handler.Combinators (requireAuth, requireAdminNotSuspended)
+import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleBannerErrors)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Catch (MonadCatch)
