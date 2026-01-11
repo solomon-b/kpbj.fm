@@ -43,7 +43,13 @@ instance FormUrlEncoded.FromForm Register where
       <*> fmap mkPassword (FormUrlEncoded.parseUnique "password" f)
       <*> FormUrlEncoded.parseUnique "displayName" f
       <*> FormUrlEncoded.parseUnique "fullName" f
-      <*> pure (either (pure Nothing) (const $ Just True) (FormUrlEncoded.parseMaybe @Text "newsletter" f))
+      <*> parseCheckbox (FormUrlEncoded.parseMaybe @Text "newsletter" f)
+
+parseCheckbox :: Either Text (Maybe Text) -> Either Text (Maybe Bool)
+parseCheckbox = \case
+  Left _ -> Right Nothing
+  Right (Just _) -> Right (Just True)
+  Right Nothing -> Right Nothing
 
 data RegisterParsed = RegisterParsed
   { urpEmail :: EmailAddress,
