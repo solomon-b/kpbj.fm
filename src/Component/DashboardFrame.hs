@@ -163,7 +163,7 @@ sidebar userMeta activeNav selectedShow =
         Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", Tokens.px4, Tokens.mb2]] "HOST"
         Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
           navItem "EPISODES" NavEpisodes activeNav selectedShow
-          navItem "BLOG" NavBlog activeNav selectedShow
+          -- navItem "BLOG" NavBlog activeNav selectedShow
           navItem "SHOW SETTINGS" NavSettings activeNav selectedShow
 
       -- Staff/Admin section - shown only for Staff or higher roles
