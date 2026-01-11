@@ -8,7 +8,7 @@ import API.Dashboard.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), 
 import API.Links (apiLinks, dashboardEpisodesLinks, dashboardShowsLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
@@ -98,28 +98,6 @@ fetchShowOrNotFound showSlug =
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
 
--- | Verify user has access to the show (admin or assigned host)
-requireShowAccess ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
-  User.Model ->
-  UserMetadata.Model ->
-  Shows.Model ->
-  m ()
-requireShowAccess user userMetadata showModel =
-  if UserMetadata.isAdmin userMetadata.mUserRole
-    then pure ()
-    else do
-      execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) showModel.id) >>= \case
-        Left err -> throwDatabaseError err
-        Right False -> throwNotAuthorized "You are not authorized to upload episodes for this show."
-        Right True -> pure ()
-
 -- | Process the episode upload and return appropriate response
 processEpisodeUploadAndRespond ::
   ( Has Tracer env,
@@ -140,7 +118,7 @@ processEpisodeUploadAndRespond userMetadata user showModel form = do
   let newEpisodeUri = Links.linkURI $ dashboardShowsLinks.episodeNewGet showModel.slug
       newEpisodeUrl = [i|/#{newEpisodeUri}|] :: Text
 
-  processEpisodeUpload userMetadata user form >>= \case
+  processEpisodeUpload userMetadata user showModel form >>= \case
     Left err -> do
       Log.logInfo "Episode upload failed" err
       let banner = BannerParams Error "Upload Failed" err
@@ -190,78 +168,73 @@ processEpisodeUpload ::
   ) =>
   UserMetadata.Model ->
   User.Model ->
+  Shows.Model ->
   EpisodeUploadForm ->
   m (Either Text Episodes.Id)
-processEpisodeUpload userMetadata user form = do
+processEpisodeUpload userMetadata user showModel form = do
   -- Debug logging for duration
   Log.logInfo "Duration from form" (Text.pack $ show $ eufDurationSeconds form)
 
-  -- Parse show ID first
-  case readMaybe (Text.unpack (eufId form)) of
-    Nothing -> pure $ Left "Invalid show ID"
-    Just showIdInt -> do
-      let showId = Shows.Id showIdInt
+  -- Parse remaining form data
+  case parseFormDataWithShow showModel.id showModel.slug form of
+    Left validationError -> pure $ Left $ Sanitize.displayContentValidationError validationError
+    Right episodeData -> do
+      -- Ensure only staff can publish (hosts can only create drafts)
+      let allowPublish = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+      if not allowPublish && episodeData.status /= Episodes.Draft
+        then pure $ Left "Only staff can publish episodes"
+        else do
+          -- Verify user is host of the show (staff/admins can upload to any show)
+          isAuthorized <-
+            if UserMetadata.isStaffOrHigher userMetadata.mUserRole
+              then pure (Right True) -- Staff and Admins always authorized
+              else execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
-      -- Look up show to get slug
-      execQuerySpan (Shows.getShowById showId) >>= \case
-        Left _err -> pure $ Left "Database error looking up show"
-        Right Nothing -> pure $ Left "Show not found"
-        Right (Just showModel) -> do
-          -- Parse remaining form data
-          case parseFormDataWithShow showModel.id showModel.slug form of
-            Left validationError -> pure $ Left $ Sanitize.displayContentValidationError validationError
-            Right episodeData -> do
-              -- Verify user is host of the show (admins can upload to any show)
-              isAuthorized <-
-                if UserMetadata.isAdmin userMetadata.mUserRole
-                  then pure (Right True) -- Admins always authorized
-                  else execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
+          case isAuthorized of
+            Left _err -> pure $ Left "Database error checking host permissions"
+            Right isHost ->
+              if not isHost
+                then pure $ Left "You are not authorized to create episodes for this show"
+                else do
+                  -- Generate a unique identifier for file naming (based on timestamp)
+                  currentTime <- liftIO getCurrentTime
+                  let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
+                  -- Handle file uploads (pass scheduled date for file organization)
+                  uploadResults <- processFileUploads episodeData.showSlug fileId (Just episodeData.scheduledAt) episodeData.status (eufAudioFile form) (eufArtworkFile form)
 
-              case isAuthorized of
-                Left _err -> pure $ Left "Database error checking host permissions"
-                Right isHost ->
-                  if not isHost
-                    then pure $ Left "You are not authorized to create episodes for this show"
-                    else do
-                      -- Generate a unique identifier for file naming (based on timestamp)
-                      currentTime <- liftIO getCurrentTime
-                      let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
-                      -- Handle file uploads (pass scheduled date for file organization)
-                      uploadResults <- processFileUploads episodeData.showSlug fileId (Just episodeData.scheduledAt) episodeData.status (eufAudioFile form) (eufArtworkFile form)
+                  case uploadResults of
+                    Left uploadErr -> pure $ Left uploadErr
+                    Right (audioPath, artworkPath) -> do
+                      -- Create episode insert
+                      let episodeInsert =
+                            Episodes.Insert
+                              { Episodes.eiId = Shows.Id episodeData.showId,
+                                Episodes.eiDescription = episodeData.description,
+                                Episodes.eiAudioFilePath = audioPath,
+                                Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
+                                Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
+                                Episodes.eiDurationSeconds = episodeData.durationSeconds,
+                                Episodes.eiArtworkUrl = artworkPath,
+                                Episodes.eiScheduleTemplateId = episodeData.scheduleTemplateId,
+                                Episodes.eiScheduledAt = episodeData.scheduledAt,
+                                Episodes.eiStatus = episodeData.status,
+                                Episodes.eiCreatedBy = User.mId user
+                              }
 
-                      case uploadResults of
-                        Left uploadErr -> pure $ Left uploadErr
-                        Right (audioPath, artworkPath) -> do
-                          -- Create episode insert
-                          let episodeInsert =
-                                Episodes.Insert
-                                  { Episodes.eiId = Shows.Id episodeData.showId,
-                                    Episodes.eiDescription = episodeData.description,
-                                    Episodes.eiAudioFilePath = audioPath,
-                                    Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
-                                    Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
-                                    Episodes.eiDurationSeconds = episodeData.durationSeconds,
-                                    Episodes.eiArtworkUrl = artworkPath,
-                                    Episodes.eiScheduleTemplateId = episodeData.scheduleTemplateId,
-                                    Episodes.eiScheduledAt = episodeData.scheduledAt,
-                                    Episodes.eiStatus = episodeData.status,
-                                    Episodes.eiCreatedBy = User.mId user
-                                  }
+                      -- Insert episode
+                      episodeResult <- execQuerySpan (Episodes.insertEpisode episodeInsert)
 
-                          -- Insert episode
-                          episodeResult <- execQuerySpan (Episodes.insertEpisode episodeInsert)
-
-                          case episodeResult of
-                            Left err -> do
-                              Log.logInfo "Failed to insert episode" (Text.pack $ show err)
-                              pure $ Left "Failed to create episode"
-                            Right episodeId -> do
-                              -- Insert tracks if provided
-                              _ <- insertTracks episodeId episodeData.tracks
-                              -- Replace tags with provided ones (single atomic query)
-                              let tagNames = maybe [] parseTagList (eufTags form)
-                              _ <- execQuerySpan (Episodes.replaceEpisodeTags episodeId tagNames)
-                              pure $ Right episodeId
+                      case episodeResult of
+                        Left err -> do
+                          Log.logInfo "Failed to insert episode" (Text.pack $ show err)
+                          pure $ Left "Failed to create episode"
+                        Right episodeId -> do
+                          -- Insert tracks if provided
+                          _ <- insertTracks episodeId episodeData.tracks
+                          -- Replace tags with provided ones (single atomic query)
+                          let tagNames = maybe [] parseTagList (eufTags form)
+                          _ <- execQuerySpan (Episodes.replaceEpisodeTags episodeId tagNames)
+                          pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
 parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Sanitize.ContentValidationError ParsedEpisodeData
