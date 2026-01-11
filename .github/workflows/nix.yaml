@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout 🛎️
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install Nix ❄
       uses: cachix/install-nix-action@v20
@@ -20,5 +20,5 @@ jobs:
         name: kpbj-fm
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     
-    - name: Deploy 🚀
+    - name: Build 🔨
       run: nix build

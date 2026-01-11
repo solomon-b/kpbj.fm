@@ -232,10 +232,11 @@ publish:
 STAGING_APP := "kpbj-fm-staging"
 STAGING_DB_APP := "kpbj-postgres-staging"
 STAGING_DB_NAME := "kpbj_fm_staging"
+STAGING_CONFIG := "fly.staging.toml"
 
 # Deploy to staging
 staging-deploy:
-  fly deploy --app {{STAGING_APP}}
+  fly deploy -c {{STAGING_CONFIG}}
 
 # View staging logs
 staging-logs:
@@ -354,3 +355,55 @@ staging-secrets:
 # View staging machines
 staging-machines:
   fly machines list --app {{STAGING_APP}}
+
+#-------------------------------------------------------------------------------
+## Fly.io Production
+
+PROD_APP := "kpbj-fm"
+PROD_DB_APP := "kpbj-postgres"
+PROD_DB_NAME := "kpbj_fm"
+PROD_CONFIG := "fly.toml"
+
+# Deploy to production
+prod-deploy:
+  fly deploy -c {{PROD_CONFIG}}
+
+# View production logs
+prod-logs:
+  fly logs --app {{PROD_APP}}
+
+# View production app status
+status:
+  fly status --app {{PROD_APP}}
+
+# Open production in browser
+prod-open:
+  fly open --app {{PROD_APP}}
+
+# Connect to production database with psql
+prod-psql:
+  fly postgres connect --app {{PROD_DB_APP}} -d {{PROD_DB_NAME}}
+
+# Run migrations on production (via proxy)
+prod-migrations-run:
+  @echo "Starting proxy in background..."
+  fly proxy 15432:5432 -a {{PROD_DB_APP}} &
+  @sleep 2
+  DATABASE_URL=postgres://postgres:{{env_var("PROD_DB_PASSWORD")}}@localhost:15432/{{PROD_DB_NAME}} sqlx migrate run --source migrations
+  @pkill -f "fly proxy 15432"
+
+# SSH into production app
+prod-ssh:
+  fly ssh console --app {{PROD_APP}}
+
+# Restart production app
+prod-restart:
+  fly apps restart {{PROD_APP}}
+
+# View production secrets
+prod-secrets:
+  fly secrets list --app {{PROD_APP}}
+
+# View production machines
+prod-machines:
+  fly machines list --app {{PROD_APP}}
