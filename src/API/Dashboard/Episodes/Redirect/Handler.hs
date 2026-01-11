@@ -7,11 +7,11 @@ module API.Dashboard.Episodes.Redirect.Handler (handler) where
 
 import API.Links (apiLinks, dashboardEpisodesLinks)
 import API.Types
-import App.Common (renderTemplate)
+import App.Common (renderDashboardTemplate, renderTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (handleHtmlErrors)
-import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), redirectTemplate, redirectWithBanner)
+import Component.DashboardFrame (DashboardNav (..))
+import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -20,6 +20,8 @@ import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.List (uncons)
 import Data.String.Interpolate (i)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
@@ -34,10 +36,6 @@ import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
-
--- URL helpers
-hostDashboardGetUrl :: Links.URI
-hostDashboardGetUrl = Links.linkURI apiLinks.rootGet
 
 dashboardEpisodesGetUrl :: Shows.Model -> Links.URI
 dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesLinks.list showModel.slug Nothing
@@ -68,14 +66,23 @@ handler _tracer cookie (foldHxReq -> hxRequest) =
     -- 2. Fetch shows (admins see all, hosts see their own)
     userShows <- fetchShowsForUser user userMetadata
 
-    -- 3. Redirect to first show's episodes page
+    -- 3. Redirect to first show's episodes page, or show empty state
     case uncons userShows of
       Nothing -> do
-        let banner = BannerParams Info "No Shows" "No shows available."
-        renderTemplate hxRequest (Just userMetadata) (redirectWithBanner [i|/#{hostDashboardGetUrl}|] banner)
+        -- No shows available - render dashboard with empty state
+        renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing renderNoShowsEmptyState
       Just (firstShow, _) -> do
         Log.logInfo "Redirecting to first show's episodes" firstShow.slug
         renderTemplate hxRequest (Just userMetadata) (redirectTemplate [i|/#{dashboardEpisodesGetUrl firstShow}|])
+
+-- | Empty state when user has no shows assigned
+renderNoShowsEmptyState :: Lucid.Html ()
+renderNoShowsEmptyState =
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden"]] $
+    Lucid.div_ [class_ $ base [Tokens.textGray600, "text-center", "p-8"]] $ do
+      Lucid.p_ [class_ $ base [Tokens.textLg, Tokens.fontBold]] "No Shows Available"
+      Lucid.p_ [class_ $ base [Tokens.textSm, "mt-2"]] "You don't have any shows assigned to your account yet."
+      Lucid.p_ [class_ $ base [Tokens.textSm, "mt-1"]] "Contact an administrator to get started."
 
 -- | Fetch shows based on user role (admins see all, hosts see their own)
 fetchShowsForUser ::
