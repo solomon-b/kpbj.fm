@@ -1,9 +1,9 @@
-# fly.toml app configuration file for kpbj-fm
+# fly.toml app configuration file for kpbj-fm-staging
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'kpbj-fm'
+app = 'kpbj-fm-staging'
 primary_region = 'lax'
 
 [build]
@@ -14,11 +14,11 @@ primary_region = 'lax'
 
 [env]
   APP_ENVIRONMENT = 'Production'
-  APP_HOSTNAME = 'kpbj.fm'
+  APP_HOSTNAME = 'kpbj-fm-staging.fly.dev'
   APP_OBSERVABILITY_EXPORTER = 'StdOut'
   APP_OBSERVABILITY_VERBOSITY = 'Brief'
   APP_WARP_PORT = '4000'
-  APP_WARP_SERVERNAME = 'kpbj.fm'
+  APP_WARP_SERVERNAME = 'kpbj-fm-staging.fly.dev'
   APP_WARP_TIMEOUT = '100'
 
 [[services]]
