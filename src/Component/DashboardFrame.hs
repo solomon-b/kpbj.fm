@@ -28,7 +28,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (onchange_)
+import Lucid.Extras (hxGet_, onchange_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -191,7 +191,7 @@ sidebar userMeta activeNav selectedShow =
           [Lucid.href_ [i|/#{dashboardProfileEditUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"]]
           "Settings"
         Lucid.a_
-          [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"]]
+          [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"], hxGet_ [i|/#{userLogoutGetUrl}|]]
           "Logout"
 
 -- | Show selector dropdown for top bar
