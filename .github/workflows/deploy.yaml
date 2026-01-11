@@ -34,6 +34,6 @@ jobs:
     - name: Setup Fly.io CLI 🛠️
       uses: superfly/flyctl-actions/setup-flyctl@master
     - name: Deploy to Fly.io 🛫
-      run: flyctl deploy --remote-only --app kpbj-fm-staging
+      run: flyctl deploy --remote-only --config fly.staging.toml
       env:
         FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
