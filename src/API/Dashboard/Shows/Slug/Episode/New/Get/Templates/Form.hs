@@ -17,6 +17,7 @@ import Data.Text.Display (display)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Servant.Links qualified as Links
 
@@ -31,13 +32,14 @@ dashboardShowDetailUrl showId showSlug = Links.linkURI $ dashboardShowsLinks.det
 --------------------------------------------------------------------------------
 
 -- | Episode upload form using V2 FormBuilder
-episodeUploadForm :: Shows.Model -> [ShowSchedule.UpcomingShowDate] -> Lucid.Html ()
-episodeUploadForm showModel upcomingDates = do
+episodeUploadForm :: Shows.Model -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Lucid.Html ()
+episodeUploadForm showModel upcomingDates userMeta = do
   renderForm config form
   renderAudioDurationScript
   where
     postUrl = [i|/#{episodesNewPostUrl (Shows.slug showModel)}|]
     cancelUrl = [i|/#{dashboardShowDetailUrl (Shows.id showModel) (Shows.slug showModel)}|]
+    isStaffOrHigher = UserMetadata.isStaffOrHigher userMeta.mUserRole
 
     config :: FormConfig
     config =
@@ -90,7 +92,7 @@ episodeUploadForm showModel upcomingDates = do
           maxSize 500
 
         imageField "artwork_file" $ do
-          label "Episode Artworks"
+          label "Episode Artwork"
           maxSize 5
           aspectRatio (1, 1)
 
@@ -105,13 +107,16 @@ episodeUploadForm showModel upcomingDates = do
               }
 
       -- Publishing Section
-      footerToggle "status" $ do
-        offLabel "Draft"
-        onLabel "Published"
-        offValue "draft"
-        onValue "published"
-
-      footerHint "Published episodes will be visible after their scheduled date"
+      if isStaffOrHigher
+        then do
+          footerToggle "status" $ do
+            offLabel "Draft"
+            onLabel "Published"
+            offValue "draft"
+            onValue "published"
+          footerHint "Published episodes will be visible after their scheduled date"
+        else do
+          hidden "status" "draft"
       cancelButton cancelUrl "CANCEL"
       submitButton "SUBMIT"
 

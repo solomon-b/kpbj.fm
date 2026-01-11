@@ -65,7 +65,7 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
     upcomingDates <- fetchUpcomingDates showModel.id
 
     -- 5. Render the form
-    let content = episodeUploadForm showModel upcomingDates
+    let content = episodeUploadForm showModel upcomingDates userMetadata
     renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing content
 
 -- | Fetch shows based on user role (admins see all, hosts see their own)
@@ -81,7 +81,7 @@ fetchShowsForUser ::
   UserMetadata.Model ->
   m [Shows.Model]
 fetchShowsForUser user userMetadata =
-  if UserMetadata.isAdmin userMetadata.mUserRole
+  if UserMetadata.isStaffOrHigher userMetadata.mUserRole
     then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
     else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
 
