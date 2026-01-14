@@ -12,6 +12,7 @@ pkgs.dockerTools.buildImage {
       "/etc"
       "/static"
       "/migrations"
+      "/tmp"
     ];
     paths = [
       pkgs.busybox
@@ -22,6 +23,8 @@ pkgs.dockerTools.buildImage {
       pkgs.sqlx-cli
       (pkgs.haskell.lib.justStaticExecutables kpbj-api)
       ./.
+      # Create /tmp directory for temporary file operations
+      (pkgs.runCommand "tmp-dir" { } "mkdir -p $out/tmp && chmod 1777 $out/tmp")
     ];
   };
 
