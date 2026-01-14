@@ -31,6 +31,7 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
+import Effects.FileUpload (isEmptyUpload)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.StorageBackend (StorageBackend)
@@ -416,30 +417,34 @@ processFileUploads showModel episode editForm = do
   currentTime <- liftIO getCurrentTime
   let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
 
-  -- Process audio file if provided
+  -- Process audio file if provided (skip empty uploads)
   audioResult <- case eefAudioFile editForm of
     Nothing -> pure $ Right Nothing
-    Just audioFile -> do
-      result <- FileUpload.uploadEpisodeAudio storageBackend mAwsEnv showModel.slug fileId (Just episode.scheduledAt) audioFile
-      case result of
-        Left err -> do
-          Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
-          pure $ Left "Failed to upload audio file"
-        Right uploadResult ->
-          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
+    Just audioFile
+      | isEmptyUpload audioFile -> pure $ Right Nothing
+      | otherwise -> do
+          result <- FileUpload.uploadEpisodeAudio storageBackend mAwsEnv showModel.slug fileId (Just episode.scheduledAt) audioFile
+          case result of
+            Left err -> do
+              Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
+              pure $ Left "Failed to upload audio file"
+            Right uploadResult ->
+              pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
-  -- Process artwork file if provided
+  -- Process artwork file if provided (skip empty uploads)
   artworkResult <- case eefArtworkFile editForm of
     Nothing -> pure $ Right Nothing
-    Just artworkFile -> do
-      result <- FileUpload.uploadEpisodeArtwork storageBackend mAwsEnv showModel.slug fileId (Just episode.scheduledAt) artworkFile
-      case result of
-        Left err -> do
-          Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
-          pure $ Left $ Text.pack $ show err
-        Right Nothing -> pure $ Right Nothing -- No file selected
-        Right (Just uploadResult) ->
-          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
+    Just artworkFile
+      | isEmptyUpload artworkFile -> pure $ Right Nothing
+      | otherwise -> do
+          result <- FileUpload.uploadEpisodeArtwork storageBackend mAwsEnv showModel.slug fileId (Just episode.scheduledAt) artworkFile
+          case result of
+            Left err -> do
+              Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
+              pure $ Left $ Text.pack $ show err
+            Right Nothing -> pure $ Right Nothing -- No file selected
+            Right (Just uploadResult) ->
+              pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   case (audioResult, artworkResult) of
     (Left audioErr, _) -> pure $ Left audioErr
