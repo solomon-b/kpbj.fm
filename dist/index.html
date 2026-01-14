@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kpbj.fm</title>
     <link rel="stylesheet" href="/assets/css/output.css">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ST01RRVLDB"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-ST01RRVLDB', { send_page_view: false });
+    </script>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script
       src="https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD">
@@ -50,7 +59,43 @@
       </div>
     </div>
 
-    <div x-html="currentPageContent"></div>
+    <div x-html="currentPageContent"><!-- Hero Section -->
+<main class="relative flex-grow flex flex-col items-center text-center">
+  <a href="https://fccdata.org/?call=kpbj&amp;facid=&amp;city=&amp;state=&amp;ccode=1&amp;country=US" class="pt-8">
+    <img src="/assets/img/range.png" />
+  </a>
+
+  <!-- Email Signup Form -->
+  <section class="mt-12  text-center">
+    <h3 class="text-2xl font-bold mb-4">Stay in the Loop</h3>
+
+
+    <!-- Hidden iframe target -->
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+
+    <!-- Form -->
+    <form action="https://docs.google.com/forms/u/0/d/e/1FAIpQLSfeM91iQ_A7ybaa070b8jiznHNRIJ_2JU0F7wJjo7vAvkS3tQ/formResponse"
+          method="POST"
+          target="hidden_iframe"
+          onsubmit="handleSubmit(event)"
+          class="w-full max-w-sm">
+      <div class="flex items-center border-b border-gray-500 py-2">
+        <input type="email"
+               name="entry.936311333"
+               required
+               placeholder="you@example.com"
+               aria-label="Email Address"
+               class="appearance-none bg-transparent border-none w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none" />
+        <button type="submit"
+                id="subscribe-button"
+                class="px-3 py-2 text-xs font-medium text-center inline-flex items-center text-white bg-gray-700 rounded-md hover:bg-gray-800 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800">
+          Subscribe
+        </button>
+      </div>
+      <p id="form-confirmation" class="mt-2 text-green-700" style="display: none;">Thanks for subscribing!</p>
+    </form>
+  </section>
+</main></div>
 
     <footer class="relative z-10 bg-transparent p-6 text-center mt-auto text-sm">
       <p>&copy; 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization</p>
@@ -123,6 +168,12 @@
             'donate': '/pages/donate'
           },
 
+          pageTitles: {
+            'home': 'kpbj.fm | 95.9 FM Community Radio',
+            'about-us': 'About Us | kpbj.fm',
+            'donate': 'Donate | kpbj.fm'
+          },
+
           init() {
             // Get initial page from URL
             const path = window.location.pathname;
@@ -162,10 +213,22 @@
 
               this.currentPageContent = await response.text();
 
+              // Update browser state
+              document.title = this.pageTitles[page] || 'kpbj.fm';
+
               // Update browser history
               if (pushState) {
                 const url = this.getUrlForPage(page);
                 history.pushState({ page: page }, '', url);
+              }
+
+              // Trigger Analytics Hit
+              if (window.gtag) {
+                gtag('event', 'page_view', {
+                  page_title: document.title,
+                  page_location: window.location.href,
+                  page_path: window.location.pathname
+                });
               }
 
               // Load PayPal script if on donate page

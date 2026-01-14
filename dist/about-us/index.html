@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kpbj.fm</title>
     <link rel="stylesheet" href="/assets/css/output.css">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ST01RRVLDB"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-ST01RRVLDB', { send_page_view: false });
+    </script>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script
       src="https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD">
@@ -50,7 +59,33 @@
       </div>
     </div>
 
-    <div x-html="currentPageContent"></div>
+    <div x-html="currentPageContent"><main class="max-w-3xl mx-auto px-6 py-12">
+  <div class="prose prose-lg mx-auto text-gray-800">
+    <p class="mb-6 leading-relaxed">
+      KPBJ is an independent, community-driven radio station based in Shadow Hills, California.
+    </p>
+    
+    <p class="mb-6 leading-relaxed">
+      KPBJ is a platform to transmit what echoes in the reach of our airwaves. We share diverse voices and artists from the San Fernando Valley, Los Angeles, and beyond through a blend of music, conversation, and storytelling.
+    </p>
+    
+    <p class="mb-6 leading-relaxed">
+      Our online stream will be operational in the Fall of 2025, and our FM broadcast on 95.9 FM will follow soon after. Currently, we are run only on volunteer time and the support of individual donors.
+    </p>
+    
+    <p class="mb-6 leading-relaxed font-medium">
+      We believe that The Valley is the center of the universe and we want to share it with you.
+    </p>
+    
+    <p class="mb-8 leading-relaxed">
+      KPBJ-FM is operated by Sun Valley Arts and Culture, a 501(c)3 nonprofit arts organization.
+    </p>
+    
+    <p class="text-center font-medium">
+      Want to get involved? Sign up for our newsletter to learn more.
+    </p>
+  </div>
+</main></div>
 
     <footer class="relative z-10 bg-transparent p-6 text-center mt-auto text-sm">
       <p>&copy; 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization</p>
@@ -123,6 +158,12 @@
             'donate': '/pages/donate'
           },
 
+          pageTitles: {
+            'home': 'kpbj.fm | 95.9 FM Community Radio',
+            'about-us': 'About Us | kpbj.fm',
+            'donate': 'Donate | kpbj.fm'
+          },
+
           init() {
             // Get initial page from URL
             const path = window.location.pathname;
@@ -162,10 +203,22 @@
 
               this.currentPageContent = await response.text();
 
+              // Update browser state
+              document.title = this.pageTitles[page] || 'kpbj.fm';
+
               // Update browser history
               if (pushState) {
                 const url = this.getUrlForPage(page);
                 history.pushState({ page: page }, '', url);
+              }
+
+              // Trigger Analytics Hit
+              if (window.gtag) {
+                gtag('event', 'page_view', {
+                  page_title: document.title,
+                  page_location: window.location.href,
+                  page_path: window.location.pathname
+                });
               }
 
               // Load PayPal script if on donate page

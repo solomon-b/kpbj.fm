@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kpbj.fm</title>
     <link rel="stylesheet" href="/assets/css/output.css">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ST01RRVLDB"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-ST01RRVLDB', { send_page_view: false });
+    </script>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script
       src="https://www.paypal.com/sdk/js?client-id=BAA56A9gcLxsoKcdDF1ipwRFhXfp8nondkp4mIJClY5tiW5pFR9C1kMlHNKYFrRYTeecQ-MzTmxkjAkFFQ&components=hosted-buttons&enable-funding=venmo&currency=USD">
@@ -50,7 +59,14 @@
       </div>
     </div>
 
-    <div x-html="currentPageContent"></div>
+    <div x-html="currentPageContent"><main>
+    <div id="paypal-container-YBRDJJA6AGBL6"></div>
+    <script>
+      paypal.HostedButtons({
+          hostedButtonId: "YBRDJJA6AGBL6",
+      }).render("#paypal-container-YBRDJJA6AGBL6")
+    </script>
+</main></div>
 
     <footer class="relative z-10 bg-transparent p-6 text-center mt-auto text-sm">
       <p>&copy; 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization</p>
@@ -123,6 +139,12 @@
             'donate': '/pages/donate'
           },
 
+          pageTitles: {
+            'home': 'kpbj.fm | 95.9 FM Community Radio',
+            'about-us': 'About Us | kpbj.fm',
+            'donate': 'Donate | kpbj.fm'
+          },
+
           init() {
             // Get initial page from URL
             const path = window.location.pathname;
@@ -162,10 +184,22 @@
 
               this.currentPageContent = await response.text();
 
+              // Update browser state
+              document.title = this.pageTitles[page] || 'kpbj.fm';
+
               // Update browser history
               if (pushState) {
                 const url = this.getUrlForPage(page);
                 history.pushState({ page: page }, '', url);
+              }
+
+              // Trigger Analytics Hit
+              if (window.gtag) {
+                gtag('event', 'page_view', {
+                  page_title: document.title,
+                  page_location: window.location.href,
+                  page_path: window.location.pathname
+                });
               }
 
               // Load PayPal script if on donate page
