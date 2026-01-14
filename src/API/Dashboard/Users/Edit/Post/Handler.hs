@@ -7,18 +7,20 @@ module API.Dashboard.Users.Edit.Post.Handler where
 
 import API.Links (dashboardUsersLinks)
 import API.Types
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Applicative ((<|>))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
+import Control.Monad.Reader (MonadReader, asks)
+import Data.Has (Has, getter)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.DisplayName (DisplayName)
@@ -26,6 +28,7 @@ import Domain.Types.DisplayName qualified as DisplayName
 import Domain.Types.FileUpload qualified
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.User qualified as User
@@ -56,9 +59,12 @@ handler ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   User.Id ->
@@ -82,13 +88,14 @@ handler _tracer targetUserId cookie multipartData =
     maybeAvatarPath <- case lookupFile "avatar" multipartData of
       Left _ -> pure Nothing
       Right avatarFile -> do
-        uploadResult <- FileUpload.uploadUserAvatar (display targetUserId) avatarFile
+        storageBackend <- asks getter
+        mAwsEnv <- asks getter
+        uploadResult <- FileUpload.uploadUserAvatar storageBackend mAwsEnv (display targetUserId) avatarFile
         case uploadResult of
           Left _err -> throwValidationError "Failed to upload avatar image"
           Right Nothing -> pure Nothing
           Right (Just result) ->
-            let storagePath = Domain.Types.FileUpload.uploadResultStoragePath result
-             in pure (Just (FileUpload.stripStorageRoot storagePath))
+            pure $ Just $ Text.pack $ Domain.Types.FileUpload.uploadResultStoragePath result
 
     -- Update user metadata and role in transaction
     updateResult <- execTransactionSpan $ do

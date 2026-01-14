@@ -100,6 +100,24 @@ buildStoragePath config bucketType resourceType dateHier filename =
       filename' = Text.unpack filename
    in rootPath </> bucketPath </> bucketTypePath' </> yearPath </> monthPath </> dayPath </> resourcePath </> filename'
 
+-- | Build storage key (object key) for S3 or relative path.
+--
+-- This key is environment-independent and used as the path in S3 or
+-- the relative path for local storage. It is what gets stored in the database.
+--
+-- Example: audio/2024/09/27/episodes/show-slug_abc123.mp3
+buildStorageKey :: BucketType -> ResourceType -> DateHierarchy -> Text -> Text
+buildStorageKey bucketType resourceType dateHier filename =
+  Text.intercalate
+    "/"
+    [ bucketTypePath bucketType,
+      dateYear dateHier,
+      dateMonth dateHier,
+      dateDay dateHier,
+      resourceTypePath resourceType,
+      filename
+    ]
+
 -- | Generate unique filename with timestamp
 generateUniqueFilename :: Text -> Text -> Random.StdGen -> Text
 generateUniqueFilename prefix extension seed =

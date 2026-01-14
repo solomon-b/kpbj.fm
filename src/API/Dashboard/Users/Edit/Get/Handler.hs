@@ -15,12 +15,13 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Either (fromRight)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -42,7 +43,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   User.Id ->
@@ -55,15 +57,18 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireAdminNotSuspended "You do not have permission to access this page." userMetadata
 
-    -- 2. Fetch shows for sidebar
+    -- 2. Get storage backend
+    backend <- asks getter
+
+    -- 3. Fetch shows for sidebar
     allShows <- fetchShowsForUser user userMetadata
     let selectedShow = listToMaybe allShows
 
-    -- 3. Fetch target user and their metadata
+    -- 4. Fetch target user and their metadata
     (targetUser, targetMetadata) <- fetchTargetUserOrNotFound targetUserId
 
-    -- 4. Render edit page
-    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing (template targetUser targetMetadata)
+    -- 5. Render edit page
+    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing (template backend targetUser targetMetadata)
 
 -- | Fetch shows based on user role (admins see all, staff see their assigned shows)
 fetchShowsForUser ::

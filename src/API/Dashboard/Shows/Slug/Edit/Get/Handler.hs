@@ -16,10 +16,10 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Bool (bool)
 import Data.Either (fromRight)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -27,6 +27,7 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -51,7 +52,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Slug ->
@@ -64,10 +66,13 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId slug userMetadata
 
-    -- 2. Check if staff for conditional rendering
+    -- 2. Get storage backend
+    backend <- asks getter
+
+    -- 3. Check if staff for conditional rendering
     let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
 
-    -- 3. Fetch the show to edit
+    -- 4. Fetch the show to edit
     showModel <- fetchShowOrNotFound slug
 
     -- 5. Fetch sidebar shows for dashboard navigation
@@ -86,7 +91,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) =
       Right result -> pure result
 
     -- 8. Render template
-    let editTemplate = template showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds existingTags
+    let editTemplate = template backend showModel userMetadata isStaff schedulesJson eligibleHosts currentHostIds existingTags
     renderDashboardTemplate hxRequest userMetadata sidebarShows (Just showModel) NavSettings Nothing Nothing editTemplate
 
 -- | Fetch show by slug, throwing NotFound if not found

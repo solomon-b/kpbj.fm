@@ -17,11 +17,11 @@ import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Either (fromRight)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Maybe (listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -29,6 +29,7 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -52,7 +53,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   BlogPosts.Id ->
@@ -85,7 +87,10 @@ handler _tracer blogPostId urlSlug cookie (foldHxReq -> hxRequest) =
       Right Nothing -> throwNotFound "Blog post"
       Right (Just result) -> pure result
 
-    -- 4. Check for canonical URL and render
+    -- 4. Get storage backend for URL construction
+    storageBackend <- asks getter
+
+    -- 5. Check for canonical URL and render
     let canonicalSlug = blogPost.bpmSlug
         postIdText = display blogPostId
         slugText = display canonicalSlug
@@ -94,7 +99,7 @@ handler _tracer blogPostId urlSlug cookie (foldHxReq -> hxRequest) =
     if matchSlug canonicalSlug (Just urlSlug)
       then do
         Log.logInfo "Authorized user accessing blog edit form" blogPost.bpmId
-        let editTemplate = template blogPost tags userMetadata
+        let editTemplate = template storageBackend blogPost tags userMetadata
         html <- renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing Nothing editTemplate
         pure $ Servant.noHeader html
       else do

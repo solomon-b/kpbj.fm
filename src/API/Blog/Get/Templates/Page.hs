@@ -22,6 +22,7 @@ import Data.Time (UTCTime)
 import Design (base, class_)
 import Design.Lucid qualified as Layout
 import Design.Tokens qualified as Tokens
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -35,13 +36,14 @@ import Servant.Links qualified as Links
 -- Renders the full blog page with items container, loading indicator,
 -- sentinel element, and noscript fallback pagination.
 template ::
+  StorageBackend ->
   UTCTime ->
   [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])] ->
   Int64 ->
   Bool ->
   Maybe Text ->
   Lucid.Html ()
-template currentTime blogPosts currentPage hasMore maybeTag = do
+template backend currentTime blogPosts currentPage hasMore maybeTag = do
   -- Blog Header
   pageHeader "BLOG"
 
@@ -53,7 +55,7 @@ template currentTime blogPosts currentPage hasMore maybeTag = do
           Lucid.div_ [Lucid.class_ "text-center"] $ do
             Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4]] "No Blog Posts Yet"
             Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for updates from the KPBJ community!"
-        else traverse_ (renderStationBlogPostCard currentTime) blogPosts
+        else traverse_ (renderStationBlogPostCard backend currentTime) blogPosts
 
     -- Loading indicator (hidden by default, shown during HTMX requests)
     renderLoadingIndicator

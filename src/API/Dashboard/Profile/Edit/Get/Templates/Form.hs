@@ -5,7 +5,7 @@ module API.Dashboard.Profile.Edit.Get.Templates.Form where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardLinks)
+import API.Links (dashboardLinks)
 import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
@@ -13,6 +13,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as T
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -24,21 +25,21 @@ import Servant.Links qualified as Links
 profileEditPostUrl :: Links.URI
 profileEditPostUrl = Links.linkURI dashboardLinks.profileEditPost
 
-postUrl :: Text
-postUrl = [i|/#{profileEditPostUrl}|]
-
 dashboardEpisodesRedirectUrl :: Links.URI
 dashboardEpisodesRedirectUrl = Links.linkURI dashboardLinks.episodesRedirect
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 --------------------------------------------------------------------------------
 
-template :: User.Model -> UserMetadata.Model -> Lucid.Html ()
-template user metadata =
+template :: StorageBackend -> User.Model -> UserMetadata.Model -> Lucid.Html ()
+template backend user metadata =
   renderForm config form
   where
+    postUrl :: Text
+    postUrl = [i|/#{profileEditPostUrl}|]
+
+    avatarUrl :: Text
+    avatarUrl = maybe "" (buildMediaUrl backend) metadata.mAvatarUrl
+
     config =
       defaultFormConfig
         { fcAction = postUrl,
@@ -78,7 +79,7 @@ template user metadata =
         maxSize 10
         aspectRatio (1, 1)
         case metadata.mAvatarUrl of
-          Just url -> currentFile [i|/#{mediaGetUrl}/#{url}|]
+          Just _ -> currentFile avatarUrl
           Nothing -> pure ()
 
       -- Role (read-only)

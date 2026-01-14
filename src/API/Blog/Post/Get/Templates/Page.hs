@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, blogLinks)
+import API.Links (blogLinks)
 import API.Types
 import Component.Tags qualified as Tags
 import Control.Monad (unless)
@@ -21,6 +21,7 @@ import Design (base, class_)
 import Design.Lucid qualified as Layout
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -38,9 +39,6 @@ blogGetUrl = Links.linkURI $ blogLinks.list Nothing Nothing
 blogGetTagUrl :: Text -> Links.URI
 blogGetTagUrl tag = Links.linkURI $ blogLinks.list Nothing (Just tag)
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 --------------------------------------------------------------------------------
 
 -- | Convert blog tags to tag links for rendering.
@@ -52,8 +50,8 @@ blogTagToLink tag =
     }
 
 -- | Main blog post template
-template :: BlogPosts.Model -> UserMetadata.Model -> [BlogTags.Model] -> Lucid.Html ()
-template post author tags = do
+template :: StorageBackend -> BlogPosts.Model -> UserMetadata.Model -> [BlogTags.Model] -> Lucid.Html ()
+template backend post author tags = do
   -- Blog Post Content
   Lucid.article_ [class_ $ base [Tokens.cardBase, Tokens.fullWidth]] $ do
     -- Post Header
@@ -64,10 +62,10 @@ template post author tags = do
 
       -- Hero Image (if present)
       case BlogPosts.bpmHeroImageUrl post of
-        Just heroImageUrl -> do
+        Just heroImagePath -> do
           Lucid.div_ [Lucid.class_ Tokens.mb6] $ do
             Lucid.img_
-              [ Lucid.src_ [i|/#{mediaGetUrl}/#{heroImageUrl}|],
+              [ Lucid.src_ (buildMediaUrl backend heroImagePath),
                 Lucid.alt_ $ BlogPosts.bpmTitle post,
                 class_ $ base [Tokens.fullWidth, "h-auto", "border", "border-gray-300"]
               ]

@@ -15,14 +15,15 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.Trans.Maybe
 import Data.Either (fromRight)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.Events qualified as Events
@@ -45,7 +46,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Events.Id ->
@@ -70,12 +72,15 @@ handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) =
     -- 3. Fetch event
     event <- fetchEvent eventId
 
-    -- 4. Check authorization: must be staff/admin or the creator
+    -- 4. Get storage backend for URL construction
+    storageBackend <- asks getter
+
+    -- 5. Check authorization: must be staff/admin or the creator
     if not (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole)
       then throwNotAuthorized "You can only edit events you created or have staff permissions."
       else do
         Log.logInfo "Authorized user accessing event edit form" event.emId
-        let editTemplate = template event userMetadata
+        let editTemplate = template storageBackend event userMetadata
         renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEvents Nothing Nothing editTemplate
 
 fetchEvent ::

@@ -16,9 +16,9 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Either (fromRight)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe)
@@ -28,6 +28,7 @@ import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
@@ -61,6 +62,7 @@ handler ::
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
     MonadClock m
   ) =>
   Tracer ->
@@ -76,16 +78,19 @@ handler _tracer showId showSlug mPage cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId showSlug userMetadata
 
-    -- 2. Fetch shows for sidebar (admins see all, hosts see their own)
+    -- 2. Get storage backend
+    backend <- asks getter
+
+    -- 3. Fetch shows for sidebar (admins see all, hosts see their own)
     allShows <- fetchShowsForUser user userMetadata
 
-    -- 3. Find the selected show
+    -- 4. Find the selected show
     let selectedShow = find (\s -> s.id == showId) allShows
     case selectedShow of
       Nothing -> throwNotFound "Show"
       Just showModel -> do
-        -- 4. Render show details
-        renderShowDetails hxRequest userMetadata allShows showModel mPage
+        -- 5. Render show details
+        renderShowDetails backend hxRequest userMetadata allShows showModel mPage
 
 -- | Fetch shows based on user role (admins see all, hosts see their own)
 fetchShowsForUser ::
@@ -111,13 +116,14 @@ renderShowDetails ::
     MonadClock m,
     MonadCatch m
   ) =>
+  StorageBackend ->
   HxRequest ->
   UserMetadata.Model ->
   [Shows.Model] ->
   Shows.Model ->
   Maybe Int ->
   m (Lucid.Html ())
-renderShowDetails hxRequest userMetadata allShows showModel mPage = do
+renderShowDetails backend hxRequest userMetadata allShows showModel mPage = do
   let page = fromMaybe 1 mPage
       limit = fromIntegral episodesPerPage
       offset = fromIntegral (page - 1) * fromIntegral episodesPerPage
@@ -125,10 +131,10 @@ renderShowDetails hxRequest userMetadata allShows showModel mPage = do
   fetchShowDetails now showModel limit offset >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch show details from database" (show err)
-      let content = template showModel [] [] [] [] [] page
+      let content = template backend showModel [] [] [] [] [] page
       renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
     Right (hosts, schedule, episodes, blogPosts, tags) -> do
-      let content = template showModel episodes hosts schedule blogPosts tags page
+      let content = template backend showModel episodes hosts schedule blogPosts tags page
       renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
 
 fetchShowDetails ::

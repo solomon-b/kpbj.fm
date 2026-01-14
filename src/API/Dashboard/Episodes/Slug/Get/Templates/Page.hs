@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardEpisodesLinks)
+import API.Links (dashboardEpisodesLinks)
 import API.Types
 import Component.AudioPlayer.Waveform qualified as WaveformPlayer
 import Control.Monad (unless)
@@ -21,6 +21,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -32,17 +33,14 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 dashboardEpisodesGetUrl :: Slug -> Links.URI
 dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
 
 --------------------------------------------------------------------------------
 
 -- | Dashboard episode detail template
-template :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Lucid.Html ()
-template _userMeta showModel episode tracks tags = do
+template :: StorageBackend -> UserMetadata.Model -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Lucid.Html ()
+template backend _userMeta showModel episode tracks tags = do
   -- Back button and header
   Lucid.div_ [class_ $ base [Tokens.mb6]] $ do
     let backUrl = dashboardEpisodesGetUrl showModel.slug
@@ -65,9 +63,9 @@ template _userMeta showModel episode tracks tags = do
         -- Episode artwork
         Lucid.div_ [class_ $ base ["w-48", "h-48", "bg-gray-300", "border-2", "border-gray-600", "flex", "items-center", "justify-center", "text-xs", "flex-shrink-0"]] $ do
           case episode.artworkUrl of
-            Just artworkUrl ->
+            Just artworkPath ->
               Lucid.img_
-                [ Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|],
+                [ Lucid.src_ (buildMediaUrl backend artworkPath),
                   Lucid.alt_ "Episode artwork",
                   class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]
                 ]
@@ -139,7 +137,7 @@ template _userMeta showModel episode tracks tags = do
         let episodeNum = episode.episodeNumber
             episodeIdVal = episode.id
             audioUrl :: Text
-            audioUrl = [i|/#{mediaGetUrl}/#{audioPath}|]
+            audioUrl = buildMediaUrl backend audioPath
             playerId :: Text
             playerId = [i|dashboard-episode-#{episodeIdVal}|]
             showTitle = showModel.title

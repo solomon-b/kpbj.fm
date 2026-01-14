@@ -11,16 +11,17 @@ import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Either (fromRight)
 import Data.Functor
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug, mkSlug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -42,7 +43,8 @@ handlerWithSlug ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   BlogPosts.Id ->
@@ -61,7 +63,8 @@ handlerWithoutSlug ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   BlogPosts.Id ->
@@ -79,7 +82,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   BlogPosts.Id ->
@@ -115,7 +119,8 @@ renderPost ::
     Log.MonadLog m,
     MonadDB m,
     MonadUnliftIO m,
-    MonadCatch m
+    MonadCatch m,
+    Has StorageBackend env
   ) =>
   HxRequest ->
   Maybe UserMetadata.Model ->
@@ -123,6 +128,7 @@ renderPost ::
   Slug ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 renderPost hxRequest mUserInfo blogPost canonicalSlug = do
+  backend <- asks getter
   execQuerySpan (UserMetadata.getUserMetadata (BlogPosts.bpmAuthorId blogPost)) >>= \case
     Left _err -> do
       Log.logInfo "Failed to fetch blog post author" (BlogPosts.bpmAuthorId blogPost)
@@ -135,7 +141,7 @@ renderPost hxRequest mUserInfo blogPost canonicalSlug = do
     Right (Just author) -> do
       tagsResult <- execQuerySpan (BlogPosts.getTagsForPost (BlogPosts.bpmId blogPost))
       let tags = fromRight [] tagsResult
-          postTemplate = template blogPost author tags
+          postTemplate = template backend blogPost author tags
       html <- renderTemplate hxRequest mUserInfo postTemplate
       pure $ Servant.noHeader html
 

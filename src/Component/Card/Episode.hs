@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, showEpisodesLinks)
+import API.Links (showEpisodesLinks)
 import API.Types
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -19,6 +19,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
@@ -28,9 +29,6 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 -- URL Helpers
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeDetailUrl showSlug episodeNumber =
   Links.linkURI $ showEpisodesLinks.detail showSlug episodeNumber
@@ -39,8 +37,8 @@ episodeDetailUrl showSlug episodeNumber =
 -- Main Render Function
 
 -- | Render an episode card with artwork (with play button overlay) and date.
-renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
-renderEpisodeCard showModel episode = do
+renderEpisodeCard :: StorageBackend -> Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisodeCard backend showModel episode = do
   let epUrl = episodeDetailUrl showModel.slug episode.episodeNumber
       showTitle = showModel.title
       episodeNum = episode.episodeNumber
@@ -48,7 +46,7 @@ renderEpisodeCard showModel episode = do
       mAudioPath = episode.audioFilePath
       mArtworkUrl = episode.artworkUrl
       playerId = [i|episode-#{episodeId}|] :: Text
-      audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) mAudioPath
+      audioUrl = maybe "" (buildMediaUrl backend) mAudioPath
       hasAudio = if isJust mAudioPath then "true" else "false" :: Text
       episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|] :: Text
 
@@ -61,7 +59,7 @@ renderEpisodeCard showModel episode = do
     ]
     $ do
       -- Artwork with play button overlay
-      renderArtworkWithPlayer epUrl mArtworkUrl
+      renderArtworkWithPlayer backend epUrl mArtworkUrl
 
       -- Episode date
       renderEpisodeDate episode.scheduledAt
@@ -70,8 +68,8 @@ renderEpisodeCard showModel episode = do
 -- Component Functions
 
 -- | Render artwork with play button overlayed on bottom-left corner.
-renderArtworkWithPlayer :: Links.URI -> Maybe Text -> Lucid.Html ()
-renderArtworkWithPlayer epUrl mArtworkUrl =
+renderArtworkWithPlayer :: StorageBackend -> Links.URI -> Maybe Text -> Lucid.Html ()
+renderArtworkWithPlayer backend epUrl mArtworkUrl =
   Lucid.div_ [class_ $ base ["relative", Tokens.mb4]] $ do
     -- Clickable artwork image
     Lucid.a_
@@ -82,9 +80,9 @@ renderArtworkWithPlayer epUrl mArtworkUrl =
         class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "dark:bg-gray-700", "flex", "items-center", "justify-center", Tokens.textXs, "block", "border", "border-gray-300"]
       ]
       $ case mArtworkUrl of
-        Just artworkUrl ->
+        Just artworkPath ->
           Lucid.img_
-            [ Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|],
+            [ Lucid.src_ (buildMediaUrl backend artworkPath),
               Lucid.alt_ "Episode artwork",
               Lucid.class_ "w-full h-full object-cover"
             ]

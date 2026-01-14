@@ -18,6 +18,7 @@ import Design (base, class_, desktop, tablet)
 import Design qualified
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
@@ -44,8 +45,8 @@ showBlogGetUrl slug page tag = Links.linkURI $ apiLinks.shows.blog.list slug pag
 
 --------------------------------------------------------------------------------
 
-template :: Shows.Model -> [ShowBlogPosts.Model] -> [ShowBlogTags.Model] -> Maybe Text -> Int64 -> Int64 -> Lucid.Html ()
-template showModel posts tags maybeTag currentPage totalPages = do
+template :: StorageBackend -> Shows.Model -> [ShowBlogPosts.Model] -> [ShowBlogTags.Model] -> Maybe Text -> Int64 -> Int64 -> Lucid.Html ()
+template backend showModel posts tags maybeTag currentPage totalPages = do
   Lucid.div_ [class_ $ base ["max-w-7xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     -- Header
     Lucid.div_ [Lucid.class_ Tokens.mb8] $ do
@@ -97,7 +98,7 @@ template showModel posts tags maybeTag currentPage totalPages = do
       else do
         Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6, Tokens.mb8]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
           forM_ posts $ \post -> do
-            renderShowBlogPostCard showModel post
+            renderShowBlogPostCard backend showModel post
 
         -- Pagination
         when (totalPages > 1) $ do

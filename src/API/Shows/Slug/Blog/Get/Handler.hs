@@ -14,8 +14,8 @@ import Control.Monad (join)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
+import Control.Monad.Reader (MonadReader, asks)
+import Data.Has (Has, getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -25,6 +25,7 @@ import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -49,7 +50,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Slug ->
@@ -62,6 +64,7 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       offset = fromIntegral $ (page - 1) * fromIntegral postsPerPage :: Offset
 
+  storageBackend <- asks getter
   mUserInfo <- fmap snd <$> getUserInfo cookie
 
   execQuerySpan (Shows.getShowBySlug slug) >>= \case
@@ -76,11 +79,11 @@ handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
       fetchData slug offset maybeTag >>= \case
         Right (posts, tags, totalPosts) -> do
           let totalPages = (totalPosts + fromIntegral postsPerPage - 1) `div` fromIntegral postsPerPage
-              pageTemplate = template showModel posts tags maybeTag page totalPages
+              pageTemplate = template storageBackend showModel posts tags maybeTag page totalPages
           renderTemplate hxRequest mUserInfo pageTemplate
         _ -> do
           -- If queries fail, show with empty data
-          let pageTemplate = template showModel [] [] maybeTag page 0
+          let pageTemplate = template storageBackend showModel [] [] maybeTag page 0
           renderTemplate hxRequest mUserInfo pageTemplate
 
 fetchData :: (MonadDB m) => Slug -> Offset -> Maybe Text -> m (Either HSQL.Pool.UsageError ([ShowBlogPosts.Model], [ShowBlogTags.Model], Int64))

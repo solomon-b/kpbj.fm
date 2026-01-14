@@ -15,11 +15,11 @@ import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Coerce (coerce)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -32,6 +32,7 @@ import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
 import Domain.Types.ShowSortBy (ShowSortBy (..))
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowTags qualified as ShowTags
@@ -57,7 +58,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Maybe PageNumber ->
@@ -69,6 +71,7 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSearchFilter maybeSortByFilter (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
+  storageBackend <- asks getter
   let maybeTagId = maybeTagIdFilter >>= getFilter
       maybeStatus = maybeStatusFilter >>= getFilter
       maybeSearch = maybeSearchFilter >>= getFilter
@@ -100,10 +103,10 @@ handler _tracer (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSe
             if isAppendRequest
               then
                 -- Infinite scroll: return only new items + sentinel (no page wrapper)
-                pure $ renderItemsFragment someShows page hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
+                pure $ renderItemsFragment storageBackend someShows page hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
               else do
                 -- Full page: render with header, items, sentinel, and noscript pagination
-                let showsTemplate = template someShows allTags page hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
+                let showsTemplate = template storageBackend someShows allTags page hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
                 renderTemplate htmxRequest mUserInfo showsTemplate
 
 getShows ::

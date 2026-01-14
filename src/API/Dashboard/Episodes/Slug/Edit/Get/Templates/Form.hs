@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, showEpisodesLinks)
+import API.Links (showEpisodesLinks)
 import API.Types
 import Component.Form.Builder
 import Component.TrackListingEditor qualified as TrackListingEditor
@@ -18,6 +18,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -32,9 +33,6 @@ import Servant.Links qualified as Links
 episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 --------------------------------------------------------------------------------
 
 -- | Check if the episode's scheduled date is in the future (allowing file uploads)
@@ -48,8 +46,8 @@ isScheduledInFuture now episode = episode.scheduledAt > now
 -- The isStaff parameter indicates if the user has staff-level permissions or higher.
 -- The mCurrentSlot parameter contains the current episode's schedule slot formatted
 -- as an UpcomingShowDate so it can be displayed consistently with other slots.
-template :: UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Maybe ShowSchedule.UpcomingShowDate -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates _userMeta isStaff = do
+template :: StorageBackend -> UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Maybe ShowSchedule.UpcomingShowDate -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
+template backend currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates _userMeta isStaff = do
   renderForm config form
   where
     showSlugText = display showModel.slug
@@ -61,8 +59,8 @@ template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingD
     allowFileUpload = isScheduledInFuture currentTime episode || isStaff
     -- Status can be changed if the scheduled date is in the future OR user is staff/admin
     canChangeStatus = allowFileUpload || isStaff
-    audioUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.audioFilePath
-    artworkUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) episode.artworkUrl
+    audioUrl = maybe "" (buildMediaUrl backend) episode.audioFilePath
+    artworkUrl = maybe "" (buildMediaUrl backend) episode.artworkUrl
     isPublished = episode.status == Episodes.Published
 
     -- Encode schedule slot value as "template_id|scheduled_at" for form submission

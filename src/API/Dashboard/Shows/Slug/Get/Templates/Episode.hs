@@ -9,8 +9,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, showEpisodesLinks)
-import API.Types (Routes (..), ShowEpisodesRoutes (..))
+import API.Links (showEpisodesLinks)
+import API.Types
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -18,6 +18,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -27,17 +28,13 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
--- | Helper function to convert artwork path to full media URL
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 -- | Helper function to get episode detail URL
 episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
 
 -- | Render a featured "Latest Episode" section with full details
-renderLatestEpisode :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
-renderLatestEpisode showModel episode tracks = do
+renderLatestEpisode :: StorageBackend -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
+renderLatestEpisode backend showModel episode tracks = do
   Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb8]] $ do
     Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Latest Episode"
 
@@ -45,7 +42,7 @@ renderLatestEpisode showModel episode tracks = do
     Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
       Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
         case episode.artworkUrl of
-          Just artworkUrl -> Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|], Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
+          Just artworkPath -> Lucid.img_ [Lucid.src_ (buildMediaUrl backend artworkPath), Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
           Nothing -> "[EP IMG]"
 
       Lucid.div_ [Lucid.class_ "flex-grow"] $ do
@@ -84,7 +81,7 @@ renderLatestEpisode showModel episode tracks = do
             episodeNum = episode.episodeNumber
             episodeId = episode.id
             audioUrl :: Text.Text
-            audioUrl = [i|/#{mediaGetUrl}/#{audioPath}|]
+            audioUrl = buildMediaUrl backend audioPath
             playerId :: Text.Text
             playerId = [i|episode-#{episodeId}|]
             episodeMetadata :: Text.Text
@@ -184,13 +181,13 @@ renderLatestEpisode showModel episode tracks = do
           Lucid.span_ $ Lucid.toHtml track.artist
 
 -- | Render an episode card (for previous episodes list)
-renderEpisodeCard :: Shows.Model -> Episodes.Model -> Lucid.Html ()
-renderEpisodeCard showModel episode = do
+renderEpisodeCard :: StorageBackend -> Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisodeCard backend showModel episode = do
   Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
     -- Episode thumbnail
     Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
       case episode.artworkUrl of
-        Just artworkUrl -> Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{artworkUrl}|], Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
+        Just artworkPath -> Lucid.img_ [Lucid.src_ (buildMediaUrl backend artworkPath), Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
         Nothing -> "[EP IMG]"
 
     -- Episode info
@@ -231,7 +228,7 @@ renderEpisodeCard showModel episode = do
               episodeNum = episode.episodeNumber
               episodeId = episode.id
               audioUrl :: Text.Text
-              audioUrl = [i|/#{mediaGetUrl}/#{audioPath}|]
+              audioUrl = buildMediaUrl backend audioPath
               playerId :: Text.Text
               playerId = [i|episode-#{episodeId}|]
               episodeMetadata :: Text.Text

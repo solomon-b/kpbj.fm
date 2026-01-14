@@ -8,18 +8,19 @@ module API.Dashboard.Shows.New.Post.Handler (handler) where
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..), ScheduleSlotInfo (..))
 import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleRedirectErrors)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (forM_, void)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -29,6 +30,7 @@ import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -38,7 +40,6 @@ import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -68,9 +69,12 @@ handler ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   Maybe Cookie ->
@@ -124,39 +128,48 @@ validateNewShow form = do
 
 -- | Process logo/banner file uploads
 processShowArtworkUploads ::
-  ( MonadIO m,
-    Log.MonadLog m
+  ( MonadUnliftIO m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadMask m,
+    MonadIO m,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Slug.Slug ->
   Maybe (FileData Mem) ->
   Maybe (FileData Mem) ->
   m (Either Text (Maybe Text, Maybe Text))
 processShowArtworkUploads showSlug mLogoFile mBannerFile = do
+  -- TODO: Why is the aws env separate from the storage backend?
+  storageBackend <- asks getter
+  mAwsEnv <- asks getter
+
   -- Process logo file (optional)
   logoResult <- case mLogoFile of
     Nothing ->
       pure $ Right Nothing
     Just logoFile -> do
-      FileUpload.uploadShowLogo showSlug logoFile >>= \case
+      FileUpload.uploadShowLogo storageBackend mAwsEnv showSlug logoFile >>= \case
         Left err -> do
           Log.logInfo "Failed to upload logo file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
-          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   -- Process banner file (optional)
   bannerResult <- case mBannerFile of
     Nothing ->
       pure $ Right Nothing
     Just bannerFile -> do
-      FileUpload.uploadShowBanner showSlug bannerFile >>= \case
+      FileUpload.uploadShowBanner storageBackend mAwsEnv showSlug bannerFile >>= \case
         Left err -> do
           Log.logInfo "Failed to upload banner file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
-          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   case (logoResult, bannerResult) of
     (Left logoErr, _) -> pure $ Left logoErr
@@ -170,9 +183,12 @@ handleShowCreation ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Shows.Insert ->
   NewShowForm ->
@@ -249,6 +265,7 @@ assignHostsToShow ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env
@@ -284,6 +301,7 @@ promoteUserToHostIfNeeded ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env
@@ -406,6 +424,7 @@ createSchedulesForShow ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env

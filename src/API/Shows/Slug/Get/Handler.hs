@@ -11,9 +11,9 @@ import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Functor ((<&>))
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text.Display (display)
@@ -23,6 +23,7 @@ import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Clock (MonadClock, currentSystemTime)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
@@ -54,6 +55,7 @@ handler ::
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
     MonadClock m
   ) =>
   Tracer ->
@@ -64,6 +66,7 @@ handler ::
   m (Lucid.Html ())
 handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
+  backend <- asks getter
   let page = fromMaybe 1 mPage
       limit = fromIntegral episodesPerPage
       offset = fromIntegral (page - 1) * fromIntegral episodesPerPage
@@ -79,10 +82,10 @@ handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
       fetchShowDetails now showModel limit offset >>= \case
         Left err -> do
           Log.logAttention "Failed to fetch show details from database" (show err)
-          let showTemplate = template showModel [] [] [] [] [] page
+          let showTemplate = template backend showModel [] [] [] [] [] page
           renderTemplate hxRequest mUserInfo showTemplate
         Right (hosts, schedule, episodes, blogPosts, tags) -> do
-          let showTemplate = template showModel episodes hosts schedule blogPosts tags page
+          let showTemplate = template backend showModel episodes hosts schedule blogPosts tags page
           renderTemplate hxRequest mUserInfo showTemplate
 
 fetchShowDetails ::

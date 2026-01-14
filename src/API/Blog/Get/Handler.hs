@@ -17,9 +17,9 @@ import Control.Monad (forM)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Functor ((<&>))
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -31,6 +31,7 @@ import Domain.Types.FullName (mkFullNameUnsafe)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -58,7 +59,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Maybe Int64 ->
@@ -67,6 +69,7 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
+  storageBackend <- asks getter
   let page = fromMaybe 1 maybePage
       limit = 10 :: Limit
       offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
@@ -92,10 +95,10 @@ handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
       if isAppendRequest
         then
           -- Infinite scroll: return only new items + sentinel (no page wrapper)
-          pure $ renderItemsFragment currentTime posts page hasMore maybeTag
+          pure $ renderItemsFragment storageBackend currentTime posts page hasMore maybeTag
         else do
           -- Full page: render with header, items, sentinel, and noscript pagination
-          let blogTemplate = template currentTime posts page hasMore maybeTag
+          let blogTemplate = template storageBackend currentTime posts page hasMore maybeTag
           renderTemplate hxRequest mUserInfo blogTemplate
 
 getBlogPostResults ::

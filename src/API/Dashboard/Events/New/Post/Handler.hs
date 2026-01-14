@@ -5,17 +5,18 @@ module API.Dashboard.Events.New.Post.Handler (handler) where
 import API.Dashboard.Events.New.Post.Route (NewEventForm (..))
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
@@ -24,12 +25,13 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
-import Effects.FileUpload (stripStorageRoot, uploadEventPosterImage)
+import Effects.FileUpload (uploadEventPosterImage)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
@@ -90,9 +92,12 @@ handler ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   Maybe Cookie ->
@@ -149,14 +154,16 @@ handler _tracer cookie form =
 
 -- | Handle poster image upload
 handlePosterUpload ::
-  (MonadIO m, Log.MonadLog m) =>
+  (MonadUnliftIO m, Log.MonadLog m, MonadMask m, MonadIO m, MonadReader env m, Has StorageBackend env, Has (Maybe AWS.Env) env) =>
   NewEventForm ->
   m (Maybe Text)
 handlePosterUpload form = case nefPosterImage form of
   Nothing -> pure Nothing
   Just posterImageFile -> do
     let slug = Slug.mkSlug (nefTitle form)
-    uploadResult <- uploadEventPosterImage slug posterImageFile
+    storageBackend <- asks getter
+    mAwsEnv <- asks getter
+    uploadResult <- uploadEventPosterImage storageBackend mAwsEnv slug posterImageFile
     case uploadResult of
       Left uploadError -> do
         Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
@@ -164,4 +171,4 @@ handlePosterUpload form = case nefPosterImage form of
       Right Nothing -> pure Nothing
       Right (Just result) -> do
         Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
-        pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+        pure (Just $ Text.pack $ uploadResultStoragePath result)

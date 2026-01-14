@@ -16,10 +16,10 @@ import Control.Monad (unless)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
@@ -27,6 +27,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
@@ -54,7 +55,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Slug ->
@@ -67,15 +69,18 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
     -- 1. Require authentication
     (user, userMetadata) <- requireAuth cookie
 
-    -- 2. Fetch episode context (episode, show, tracks, isHost) in transaction
+    -- 2. Get storage backend
+    backend <- asks getter
+
+    -- 3. Fetch episode context (episode, show, tracks, isHost) in transaction
     (episode, showModel, tracks, isHost) <- fetchEpisodeContext showSlug episodeNumber user userMetadata
 
-    -- 3. Check authorization
+    -- 4. Check authorization
     let isAuthorized = episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
     unless isAuthorized $
       throwNotAuthorized "You can only edit your own episodes."
 
-    -- 4. Fetch additional data for the edit form
+    -- 5. Fetch additional data for the edit form
     Log.logInfo "Authorized user accessing episode edit form" episode.id
     currentTime <- liftIO getCurrentTime
 
@@ -84,9 +89,9 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
     upcomingDates <- fetchUpcomingDates showModel.id
     allShows <- fetchUserShows user userMetadata
 
-    -- 5. Render the edit form
+    -- 6. Render the edit form
     let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-        editTemplate = template currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
+        editTemplate = template backend currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
         statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
 
     html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate

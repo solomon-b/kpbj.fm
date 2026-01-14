@@ -8,18 +8,19 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler (handler) where
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..), ShowEditForm (..))
 import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Applicative ((<|>))
 import Control.Monad (forM_, when)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Int (Int64)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
@@ -32,6 +33,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -40,7 +42,6 @@ import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -69,8 +70,13 @@ parseStatus _ = Nothing
 
 -- | Process logo/banner file uploads
 processShowArtworkUploads ::
-  ( MonadIO m,
-    Log.MonadLog m
+  ( MonadUnliftIO m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadMask m,
+    MonadIO m,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Slug ->
   -- | Logo file
@@ -79,31 +85,34 @@ processShowArtworkUploads ::
   Maybe (FileData Mem) ->
   m (Either Text (Maybe Text, Maybe Text)) -- (logoPath, bannerPath)
 processShowArtworkUploads showSlug mLogoFile mBannerFile = do
+  storageBackend <- asks getter
+  mAwsEnv <- asks getter
+
   -- Process logo file (optional)
   logoResult <- case mLogoFile of
     Nothing ->
       pure $ Right Nothing
     Just logoFile -> do
-      FileUpload.uploadShowLogo showSlug logoFile >>= \case
+      FileUpload.uploadShowLogo storageBackend mAwsEnv showSlug logoFile >>= \case
         Left err -> do
           Log.logInfo "Failed to upload logo file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
-          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   -- Process banner file (optional)
   bannerResult <- case mBannerFile of
     Nothing ->
       pure $ Right Nothing
     Just bannerFile -> do
-      FileUpload.uploadShowBanner showSlug bannerFile >>= \case
+      FileUpload.uploadShowBanner storageBackend mAwsEnv showSlug bannerFile >>= \case
         Left err -> do
           Log.logInfo "Failed to upload banner file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err -- File validation failed, reject entire operation
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
-          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   case (logoResult, bannerResult) of
     (Left logoErr, _) -> pure $ Left logoErr
@@ -118,9 +127,12 @@ handler ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   Slug ->
@@ -163,8 +175,11 @@ updateShow ::
     Has Tracer env,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   UserMetadata.Model ->
   Shows.Model ->

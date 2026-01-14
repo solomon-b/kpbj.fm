@@ -104,36 +104,57 @@ import API.User.Logout.Get.Handler qualified as User.Logout.Get
 import API.User.Logout.Post.Handler qualified as User.Logout.Post
 import API.User.Register.Get.Handler qualified as User.Register.Get
 import API.User.Register.Post.Handler qualified as User.Register.Post
+import Amazonka qualified as AWS
 import App qualified
-import App.Config (Environment)
-import Control.Monad.Catch (MonadCatch)
+import App.Config (Environment (..))
+import App.Storage (initStorageContext)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
 import Hasql.Pool qualified as HSQL.Pool
 import Log (MonadLog)
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
+import System.Environment (lookupEnv)
 
 --------------------------------------------------------------------------------
 
+-- | Load environment from APP_ENVIRONMENT env var.
+loadEnvironment :: IO Environment
+loadEnvironment = do
+  mEnv <- lookupEnv "APP_ENVIRONMENT"
+  pure $ case mEnv of
+    Just "Production" -> Production
+    _ -> Development
+
+-- | Run the API server with the given storage context.
 runApi :: IO ()
-runApi = App.runApp @API server ()
+runApi = do
+  env <- loadEnvironment
+  putStrLn $ "Starting KPBJ.FM in " <> show env <> " mode"
+
+  storageCtx <- initStorageContext env
+  App.runApp @API server storageCtx
 
 --------------------------------------------------------------------------------
 
 server ::
   ( Has Tracer env,
     MonadCatch m,
+    MonadMask m,
     MonadLog m,
     MonadUnliftIO m,
     MonadClock m,
     MonadDB m,
     MonadReader env m,
     Has HSQL.Pool.Pool env,
-    Has Environment env
+    Has Environment env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Environment ->
   Servant.ServerT API m

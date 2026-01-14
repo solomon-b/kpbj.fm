@@ -301,9 +301,56 @@ staging-mock-images:
 
   echo "✨ Mock images uploaded successfully!"
 
+# Upload mock images to Tigris bucket (S3-compatible)
+# Requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to be set
+staging-mock-images-tigris AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "🖼️  Uploading mock images to Tigris..."
+  echo ""
+
+  BUCKET="staging-kpbj-storage"
+  ENDPOINT="https://fly.storage.tigris.dev"
+
+  # Export credentials for AWS CLI
+  export AWS_ACCESS_KEY_ID="{{AWS_ACCESS_KEY_ID}}"
+  export AWS_SECRET_ACCESS_KEY="{{AWS_SECRET_ACCESS_KEY}}"
+
+  echo "  Using AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:0:8}..."
+
+  # Create a temporary directory with the correct structure
+  TMPDIR=$(mktemp -d)
+  trap "rm -rf $TMPDIR" EXIT
+
+  # Copy files to temp directory with correct structure
+  mkdir -p "$TMPDIR/images/2025/01/01"
+  cp -r mock-data/media/avatars "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
+  cp -r mock-data/media/shows/logos "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
+  cp -r mock-data/media/shows/banners "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
+  cp -r mock-data/media/episodes/artwork "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
+  cp -r mock-data/media/events/posters "$TMPDIR/images/2025/01/01/event-posters" 2>/dev/null || true
+  cp -r mock-data/media/blog/heroes "$TMPDIR/images/2025/01/01/blog-heroes" 2>/dev/null || true
+
+  FILE_COUNT=$(find "$TMPDIR" -type f | wc -l)
+  echo "  Prepared $FILE_COUNT files for upload"
+
+  # Sync to Tigris using AWS CLI
+  echo "  Uploading to Tigris bucket: $BUCKET..."
+  aws s3 sync "$TMPDIR/images" "s3://$BUCKET/images" \
+    --endpoint-url "$ENDPOINT"
+
+  echo ""
+  echo "✨ Mock images uploaded to Tigris successfully!"
+  echo "   Files available at: https://$BUCKET.fly.storage.tigris.dev/images/..."
+
 # Load all mock data (database + images) into staging
 staging-mock-all: staging-mock-images staging-mock-data
   @echo "🎉 All staging mock data loaded!"
+
+# Load all mock data (database + Tigris images) into staging
+# Usage: just staging-mock-all-tigris $AWS_ACCESS_KEY_ID $AWS_SECRET_ACCESS_KEY
+staging-mock-all-tigris AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY: (staging-mock-images-tigris AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY) staging-mock-data
+  @echo "🎉 All staging mock data loaded (using Tigris)!"
 
 # Reset staging database (drops all tables, re-runs migrations)
 staging-migrations-reset:

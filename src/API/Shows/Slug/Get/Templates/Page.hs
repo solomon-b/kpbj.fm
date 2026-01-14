@@ -22,6 +22,7 @@ import Data.Text.Display (display)
 import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -72,21 +73,21 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowBlogPosts.Model] -> [ShowTags.Model] -> Int -> Lucid.Html ()
-template showModel episodes hosts schedules _blogPosts tags currentPage = do
-  renderShowHeader showModel hosts schedules tags
+template :: StorageBackend -> Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowBlogPosts.Model] -> [ShowTags.Model] -> Int -> Lucid.Html ()
+template backend showModel episodes hosts schedules _blogPosts tags currentPage = do
+  renderShowHeader backend showModel hosts schedules tags
 
   -- Episodes content
   Lucid.section_ [Lucid.class_ Tokens.fullWidth] $ do
-    renderEpisodesContent showModel episodes currentPage
+    renderEpisodesContent backend showModel episodes currentPage
 
 -- | Number of episodes per page (should match handler)
 episodesPerPage :: Int
 episodesPerPage = 10
 
 -- Helper function to render episodes content
-renderEpisodesContent :: Shows.Model -> [Episodes.Model] -> Int -> Lucid.Html ()
-renderEpisodesContent showModel episodes currentPage = do
+renderEpisodesContent :: StorageBackend -> Shows.Model -> [Episodes.Model] -> Int -> Lucid.Html ()
+renderEpisodesContent backend showModel episodes currentPage = do
   if null episodes
     then do
       Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
@@ -95,7 +96,7 @@ renderEpisodesContent showModel episodes currentPage = do
     else do
       -- Grid layout: 1 column on mobile, 2 on tablet, 3 on desktop
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-        mapM_ (renderEpisodeCard showModel) episodes
+        mapM_ (renderEpisodeCard backend showModel) episodes
       renderPagination showModel currentPage (length episodes)
 
 -- | Render pagination controls
@@ -146,9 +147,12 @@ renderPagination showModel currentPage episodeCount = do
             [class_ $ base ["bg-gray-300", "text-gray-500", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Next"
 
--- Helper function to render blog content (kept for future show blogs feature)
-_renderBlogContent :: Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
-_renderBlogContent showModel blogPosts = do
+-- | Render blog content for a show's public page.
+--
+-- NOTE: Temporarily disabled. Will be re-enabled when show blogs are
+-- exposed on public show pages. See Dashboard version for active usage.
+_renderBlogContent :: StorageBackend -> Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
+_renderBlogContent backend showModel blogPosts = do
   if null blogPosts
     then do
       Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
@@ -156,7 +160,7 @@ _renderBlogContent showModel blogPosts = do
         Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any blog posts yet. Check back soon!"
     else do
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-        mapM_ (renderShowBlogPostCard showModel) blogPosts
+        mapM_ (renderShowBlogPostCard backend showModel) blogPosts
 
       -- View all link
       let blogUrl = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
