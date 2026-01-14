@@ -60,8 +60,8 @@ instance FromMultipart Mem EpisodeEditForm where
     -- Parse tracks JSON (optional) - JSON array of {tiTitle, tiArtist} objects
     let tracksJson = either (const Nothing) Just (lookupInput "tracks_json" multipartData)
     -- File lookups - these must be done with lookupFile, not lookupInput
-    let audioFile = either (const Nothing) (fileDataToNothing . Just) (lookupFile "audio_file" multipartData)
-        artworkFile = either (const Nothing) (fileDataToNothing . Just) (lookupFile "artwork_file" multipartData)
+    let audioFile = either (const Nothing) (fileDataToNothing . Just) (lookupFile "episode_audio" multipartData)
+        artworkFile = either (const Nothing) (fileDataToNothing . Just) (lookupFile "episode_artwork" multipartData)
 
     pure
       EpisodeEditForm
