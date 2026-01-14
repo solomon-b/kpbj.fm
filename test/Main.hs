@@ -5,6 +5,7 @@ module Main where
 import Data.Maybe (fromMaybe)
 import Domain.Types.FileUploadSpec qualified as FileUpload
 import Domain.Types.SlugSpec qualified as Slug
+import Domain.Types.StorageBackendSpec qualified as StorageBackend
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
 import Effects.Database.Tables.BlogPostsSpec qualified as BlogPosts
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
@@ -40,6 +41,7 @@ main = do
   hspecWith cfg $ parallel $ do
     ContentSanitization.spec
     Slug.spec
+    StorageBackend.spec
     FileUpload.spec
     MimeTypeValidation.spec
     UserRole.spec

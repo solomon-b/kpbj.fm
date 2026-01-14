@@ -23,6 +23,7 @@ import Domain.Types.Filter (Filter (..))
 import Domain.Types.PageNumber (PageNumber)
 import Domain.Types.Search (Search)
 import Domain.Types.ShowSortBy (ShowSortBy (..))
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
@@ -30,8 +31,8 @@ import Lucid.Extras (xData_, xOnClick_, xShow_, xTransitionEnterEnd_, xTransitio
 import Servant.Links qualified as Links
 
 -- | Main shows list template
-template :: [Shows.Model] -> [ShowTags.ShowTagWithCount] -> PageNumber -> Bool -> Maybe ShowTags.Id -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
-template allShows allTags currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy = do
+template :: StorageBackend -> [Shows.Model] -> [ShowTags.ShowTagWithCount] -> PageNumber -> Bool -> Maybe ShowTags.Id -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
+template backend allShows allTags currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy = do
   -- Page container with Alpine state for filter panel
   Lucid.div_ [xData_ "{ filterOpen: false }", class_ $ base [Tokens.fullWidth]] $ do
     -- Header row with filter button on mobile
@@ -73,7 +74,7 @@ template allShows allTags currentPage hasMore maybeTagId maybeStatus maybeSearch
         -- Single column on mobile, expand on larger screens
         -- Items container with stable ID for HTMX appending
         Lucid.div_ [Lucid.id_ "shows-list", class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6, Tokens.mb8]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-          mapM_ renderShowCard allShows
+          mapM_ (renderShowCard backend) allShows
 
         -- Loading indicator (hidden by default, shown during HTMX requests)
         renderLoadingIndicator

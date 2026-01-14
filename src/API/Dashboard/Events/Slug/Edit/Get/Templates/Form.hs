@@ -8,8 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardEventsLinks)
-import API.Types (DashboardEventsRoutes (..), Routes (..))
+import API.Links (dashboardEventsLinks)
+import API.Types (DashboardEventsRoutes (..))
 import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -19,6 +19,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -37,9 +38,6 @@ eventDetailUrl eventId slug = Links.linkURI $ dashboardEventsLinks.detail eventI
 eventEditPostUrl :: Events.Id -> Slug -> Links.URI
 eventEditPostUrl eventId slug = Links.linkURI $ dashboardEventsLinks.editPost eventId slug
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 --------------------------------------------------------------------------------
 
 -- | Format UTCTime to HTML5 datetime-local format (YYYY-MM-DDTHH:MM)
@@ -49,8 +47,8 @@ formatDateTimeLocal = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M"
 --------------------------------------------------------------------------------
 
 -- | Event edit template using V2 FormBuilder
-template :: Events.Model -> UserMetadata.Model -> Lucid.Html ()
-template event userMeta = do
+template :: StorageBackend -> Events.Model -> UserMetadata.Model -> Lucid.Html ()
+template backend event userMeta = do
   renderFormHeader event userMeta eventBackUrl
   renderForm config form
   where
@@ -58,7 +56,7 @@ template event userMeta = do
     eventSlug = event.emSlug
     eventBackUrl = eventDetailUrl eventId eventSlug
     eventEditUrl = eventEditPostUrl eventId eventSlug
-    imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) event.emPosterImageUrl
+    imageUrl = maybe "" (buildMediaUrl backend) event.emPosterImageUrl
     startsAtValue = formatDateTimeLocal event.emStartsAt
     endsAtValue = formatDateTimeLocal event.emEndsAt
 

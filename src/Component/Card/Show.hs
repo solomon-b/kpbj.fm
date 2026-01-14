@@ -8,21 +8,19 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, showsLinks)
+import API.Links (showsLinks)
 import API.Types
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
-
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
@@ -33,8 +31,8 @@ showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 --
 -- Displays a large image (or gray placeholder) and show title.
 -- Tags are displayed on the individual show page.
-renderShowCard :: Shows.Model -> Lucid.Html ()
-renderShowCard s = do
+renderShowCard :: StorageBackend -> Shows.Model -> Lucid.Html ()
+renderShowCard backend s = do
   let showSlug = s.slug
       showTitle = s.title
   Lucid.a_
@@ -51,7 +49,7 @@ renderShowCard s = do
           Just logoUrl -> do
             let logoAlt = showTitle <> " logo"
             Lucid.img_
-              [ Lucid.src_ [i|/#{mediaGetUrl}/#{logoUrl}|],
+              [ Lucid.src_ (buildMediaUrl backend logoUrl),
                 Lucid.alt_ logoAlt,
                 Lucid.class_ "w-full h-full object-cover"
               ]

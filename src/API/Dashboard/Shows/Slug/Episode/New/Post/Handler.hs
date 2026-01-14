@@ -7,16 +7,18 @@ module API.Dashboard.Shows.Slug.Episode.New.Post.Handler where
 import API.Dashboard.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), TrackInfo (..))
 import API.Links (apiLinks, dashboardEpisodesLinks, dashboardShowsLinks)
 import API.Types
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson qualified as Aeson
 import Data.Has (Has)
+import Data.Has qualified as Has
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -29,6 +31,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -39,7 +42,6 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
@@ -58,11 +60,15 @@ handler ::
   ( Has Tracer env,
     Log.MonadLog m,
     MonadReader env m,
+    MonadIO m,
+    MonadMask m,
     MonadUnliftIO m,
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   Slug ->
@@ -103,11 +109,15 @@ processEpisodeUploadAndRespond ::
   ( Has Tracer env,
     Log.MonadLog m,
     MonadReader env m,
-    MonadUnliftIO m,
+    MonadIO m,
+    MonadMask m,
     MonadCatch m,
     MonadIO m,
+    MonadUnliftIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   UserMetadata.Model ->
   User.Model ->
@@ -159,12 +169,15 @@ handleUploadSuccess showModel episodeId = do
 -- | Process episode upload form
 processEpisodeUpload ::
   ( MonadIO m,
+    MonadMask m,
     MonadDB m,
     Log.MonadLog m,
     MonadReader env m,
     MonadUnliftIO m,
     Has HSQL.Pool.Pool env,
-    Has Tracer env
+    Has Tracer env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   UserMetadata.Model ->
   User.Model ->
@@ -172,6 +185,9 @@ processEpisodeUpload ::
   EpisodeUploadForm ->
   m (Either Text Episodes.Id)
 processEpisodeUpload userMetadata user showModel form = do
+  -- Get storage configuration from context
+  backend <- asks (Has.getter @StorageBackend)
+  mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
   -- Debug logging for duration
   Log.logInfo "Duration from form" (Text.pack $ show $ eufDurationSeconds form)
 
@@ -200,7 +216,7 @@ processEpisodeUpload userMetadata user showModel form = do
                   currentTime <- liftIO getCurrentTime
                   let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
                   -- Handle file uploads (pass scheduled date for file organization)
-                  uploadResults <- processFileUploads episodeData.showSlug fileId (Just episodeData.scheduledAt) episodeData.status (eufAudioFile form) (eufArtworkFile form)
+                  uploadResults <- processFileUploads backend mAwsEnv episodeData.showSlug fileId (Just episodeData.scheduledAt) episodeData.status (eufAudioFile form) (eufArtworkFile form)
 
                   case uploadResults of
                     Left uploadErr -> pure $ Left uploadErr
@@ -321,8 +337,13 @@ data ParsedEpisodeData = ParsedEpisodeData
 -- | Process file uploads (audio and artwork)
 processFileUploads ::
   ( MonadIO m,
+    MonadMask m,
     Log.MonadLog m
   ) =>
+  -- | Storage backend
+  StorageBackend ->
+  -- | AWS environment (for S3)
+  Maybe AWS.Env ->
   -- | Show slug
   Slug ->
   -- | Episode slug (for filename)
@@ -337,7 +358,7 @@ processFileUploads ::
   Maybe (FileData Mem) ->
   -- | (audioPath, artworkPath)
   m (Either Text (Maybe Text, Maybe Text))
-processFileUploads showSlug episodeSlug mScheduledDate status mAudioFile mArtworkFile = do
+processFileUploads backend mAwsEnv showSlug episodeSlug mScheduledDate status mAudioFile mArtworkFile = do
   -- Process main audio file (required for published, optional for draft)
   audioResult <- case mAudioFile of
     Nothing ->
@@ -345,26 +366,26 @@ processFileUploads showSlug episodeSlug mScheduledDate status mAudioFile mArtwor
         Episodes.Draft -> pure $ Right Nothing -- Audio optional for drafts
         _ -> pure $ Left "Audio file is required for published episodes"
     Just audioFile -> do
-      result <- FileUpload.uploadEpisodeAudio showSlug episodeSlug mScheduledDate audioFile
+      result <- FileUpload.uploadEpisodeAudio backend mAwsEnv showSlug episodeSlug mScheduledDate audioFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
           pure $ Left "Failed to upload audio file"
         Right uploadResult ->
-          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   -- Process artwork file (optional)
   artworkResult <- case mArtworkFile of
     Nothing -> pure $ Right Nothing
     Just artworkFile -> do
-      result <- FileUpload.uploadEpisodeArtwork showSlug episodeSlug mScheduledDate artworkFile
+      result <- FileUpload.uploadEpisodeArtwork backend mAwsEnv showSlug episodeSlug mScheduledDate artworkFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err -- Invalid file provided, reject entire operation
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
-          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   case (audioResult, artworkResult) of
     (Left audioErr, _) -> pure $ Left audioErr

@@ -14,13 +14,14 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, eventsLinks)
+import API.Links (eventsLinks)
 import API.Types
 import Data.String.Interpolate (i)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Markdown (renderContent)
 import Lucid qualified
@@ -44,46 +45,43 @@ data Variant
 eventGetUrl :: Events.Id -> Slug -> Links.URI
 eventGetUrl eventId slug = Links.linkURI $ eventsLinks.detailWithSlug eventId slug
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 --------------------------------------------------------------------------------
 -- Main Render Functions
 
 -- | Render an event card with the specified variant.
-renderEventCard :: Variant -> Events.Model -> Lucid.Html ()
-renderEventCard variant event = do
+renderEventCard :: StorageBackend -> Variant -> Events.Model -> Lucid.Html ()
+renderEventCard backend variant event = do
   Lucid.article_ [class_ $ base [Tokens.bgWhite, "dark:bg-gray-800"]] $ do
     case variant of
       Summary -> do
         -- Vertical stack layout for summary
-        renderPosterImage variant event
+        renderPosterImage backend variant event
         Lucid.div_ [class_ $ base ["mt-2"]] $ do
           renderTitle variant event
           renderDateAndLocation variant event
       Detail -> do
         -- Vertical stack layout for detail view (centered on desktop)
         Lucid.div_ [class_ $ do { base []; desktop ["max-w-lg", "mx-auto"] }] $ do
-          renderPosterImage variant event
+          renderPosterImage backend variant event
           Lucid.div_ [class_ $ base ["mt-4"]] $ do
             renderTitle variant event
             renderDateAndLocation variant event
             renderDescription event
 
 -- | Convenience function for summary cards (list view).
-renderEventCardSummary :: Events.Model -> Lucid.Html ()
-renderEventCardSummary = renderEventCard Summary
+renderEventCardSummary :: StorageBackend -> Events.Model -> Lucid.Html ()
+renderEventCardSummary backend = renderEventCard backend Summary
 
 -- | Convenience function for detail cards (detail page).
-renderEventCardDetail :: Events.Model -> Lucid.Html ()
-renderEventCardDetail = renderEventCard Detail
+renderEventCardDetail :: StorageBackend -> Events.Model -> Lucid.Html ()
+renderEventCardDetail backend = renderEventCard backend Detail
 
 --------------------------------------------------------------------------------
 -- Component Functions
 
 -- | Render event poster image or placeholder.
-renderPosterImage :: Variant -> Events.Model -> Lucid.Html ()
-renderPosterImage variant event = do
+renderPosterImage :: StorageBackend -> Variant -> Events.Model -> Lucid.Html ()
+renderPosterImage backend variant event = do
   let eventUrl = eventGetUrl event.emId event.emSlug
   case variant of
     Summary ->
@@ -93,16 +91,16 @@ renderPosterImage variant event = do
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
         ]
-        $ renderImage event
-    Detail -> renderImage event
+        $ renderImage backend event
+    Detail -> renderImage backend event
 
 -- | Render the actual image element.
-renderImage :: Events.Model -> Lucid.Html ()
-renderImage event =
+renderImage :: StorageBackend -> Events.Model -> Lucid.Html ()
+renderImage backend event =
   case event.emPosterImageUrl of
     Just posterUrl ->
       Lucid.img_
-        [ Lucid.src_ [i|/#{mediaGetUrl}/#{posterUrl}|],
+        [ Lucid.src_ (buildMediaUrl backend posterUrl),
           Lucid.alt_ (event.emTitle <> " poster"),
           class_ $ base [Tokens.fullWidth, "aspect-square", "object-cover", "border", "border-gray-300"]
         ]

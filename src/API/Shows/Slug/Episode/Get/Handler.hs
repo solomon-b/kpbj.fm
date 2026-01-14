@@ -12,13 +12,14 @@ import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError,
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Either (fromRight)
 import Data.Functor ((<&>))
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -41,7 +42,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Slug ->
@@ -51,6 +53,7 @@ handler ::
   m (Lucid.Html ())
 handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
+  backend <- asks getter
 
   handleEpisodePageErrors hxRequest mUserInfo showSlug episodeNumber $ do
     -- 1. Fetch episode
@@ -62,7 +65,7 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
     tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
 
     -- 3. Render page
-    let episodeTemplate = template showModel episode tracks tags
+    let episodeTemplate = template backend showModel episode tracks tags
     renderTemplate hxRequest mUserInfo episodeTemplate
 
 --------------------------------------------------------------------------------

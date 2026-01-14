@@ -7,20 +7,21 @@ module API.Dashboard.StationBlog.Slug.Edit.Post.Handler (handler) where
 import API.Dashboard.StationBlog.Slug.Edit.Post.Route (BlogEditForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, void)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Foldable (traverse_)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
@@ -28,12 +29,13 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.PostStatus (decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
-import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
+import Effects.FileUpload (uploadBlogHeroImage)
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
@@ -49,9 +51,12 @@ handler ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   BlogPosts.Id ->
@@ -86,7 +91,10 @@ updateBlogPost ::
     Has Tracer env,
     MonadUnliftIO m,
     MonadCatch m,
-    MonadIO m
+    MonadMask m,
+    MonadIO m,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   BlogPosts.Model ->
   [BlogTags.Model] ->
@@ -101,7 +109,9 @@ updateBlogPost blogPost oldTags editForm = do
     Nothing -> pure blogPost.bpmHeroImageUrl -- Keep existing image
     Just heroImageFile -> do
       let slug = Slug.mkSlug (befTitle editForm)
-      uploadResult <- uploadBlogHeroImage slug heroImageFile
+      storageBackend <- asks getter
+      mAwsEnv <- asks getter
+      uploadResult <- uploadBlogHeroImage storageBackend mAwsEnv slug heroImageFile
       case uploadResult of
         Left uploadError -> do
           Log.logInfo "Hero image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
@@ -109,7 +119,7 @@ updateBlogPost blogPost oldTags editForm = do
         Right Nothing -> pure blogPost.bpmHeroImageUrl -- No file selected, keep existing
         Right (Just result) -> do
           Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
-          pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+          pure (Just $ Text.pack $ uploadResultStoragePath result)
 
   -- 6. Sanitize and validate content
   let sanitizedTitle = Sanitize.sanitizeTitle (befTitle editForm)

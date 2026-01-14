@@ -7,30 +7,32 @@ module API.Dashboard.Events.Slug.Edit.Post.Handler (handler) where
 import API.Dashboard.Events.Slug.Edit.Post.Route (EventEditForm (..), parseDateTime, parseStatus)
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.FileUpload (stripStorageRoot, uploadEventPosterImage)
+import Effects.FileUpload (uploadEventPosterImage)
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
@@ -46,9 +48,12 @@ handler ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   Events.Id ->
@@ -82,7 +87,10 @@ updateEvent ::
     Has Tracer env,
     MonadUnliftIO m,
     MonadCatch m,
-    MonadIO m
+    MonadMask m,
+    MonadIO m,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Events.Id ->
   Events.Model ->
@@ -110,7 +118,9 @@ updateEvent eventId event editForm = do
     Nothing -> pure event.emPosterImageUrl -- Keep existing image
     Just posterImageFile -> do
       let newSlug = Slug.mkSlug validTitle
-      uploadResult <- uploadEventPosterImage newSlug posterImageFile
+      storageBackend <- asks getter
+      mAwsEnv <- asks getter
+      uploadResult <- uploadEventPosterImage storageBackend mAwsEnv newSlug posterImageFile
       case uploadResult of
         Left uploadError -> do
           Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
@@ -118,7 +128,7 @@ updateEvent eventId event editForm = do
         Right Nothing -> pure event.emPosterImageUrl -- No file selected, keep existing
         Right (Just result) -> do
           Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
-          pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+          pure (Just $ Text.pack $ uploadResultStoragePath result)
 
   -- 7. Build update data
   let newSlug = Slug.mkSlug validTitle

@@ -8,8 +8,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardStationBlogLinks)
-import API.Types (DashboardStationBlogRoutes (..), Routes (..))
+import API.Links (dashboardStationBlogLinks)
+import API.Types (DashboardStationBlogRoutes (..))
 import Component.Form.Builder
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
@@ -18,6 +18,7 @@ import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -37,14 +38,11 @@ dashboardStationBlogDetailGetUrl postId slug = Links.linkURI $ dashboardStationB
 dashboardStationBlogEditPostUrl :: BlogPosts.Id -> Slug -> Links.URI
 dashboardStationBlogEditPostUrl postId slug = Links.linkURI $ dashboardStationBlogLinks.editPost postId slug
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 --------------------------------------------------------------------------------
 
 -- | Blog post edit template using V2 FormBuilder
-template :: BlogPosts.Model -> [BlogTags.Model] -> UserMetadata.Model -> Lucid.Html ()
-template blogPost tags userMeta = do
+template :: StorageBackend -> BlogPosts.Model -> [BlogTags.Model] -> UserMetadata.Model -> Lucid.Html ()
+template backend blogPost tags userMeta = do
   renderFormHeader blogPost userMeta postBackUrl
   renderForm config form
   where
@@ -53,7 +51,7 @@ template blogPost tags userMeta = do
     postBackUrl = dashboardStationBlogDetailGetUrl postId postSlug
     postEditUrl = dashboardStationBlogEditPostUrl postId postSlug
     tagsText = Text.intercalate ", " $ map (\t -> t.btmName) tags
-    imageUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) blogPost.bpmHeroImageUrl
+    imageUrl = maybe "" (buildMediaUrl backend) blogPost.bpmHeroImageUrl
 
     config :: FormConfig
     config =

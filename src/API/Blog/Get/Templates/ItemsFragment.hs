@@ -20,6 +20,7 @@ import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (UTCTime)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -33,15 +34,16 @@ import Servant.Links qualified as Links
 -- This is returned for HTMX requests when page > 1, and gets appended
 -- to the existing items container.
 renderItemsFragment ::
+  StorageBackend ->
   UTCTime ->
   [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])] ->
   Int64 ->
   Bool ->
   Maybe Text ->
   Lucid.Html ()
-renderItemsFragment currentTime posts currentPage hasMore maybeTag = do
+renderItemsFragment backend currentTime posts currentPage hasMore maybeTag = do
   -- Render each new post
-  traverse_ (renderStationBlogPostCard currentTime) posts
+  traverse_ (renderStationBlogPostCard backend currentTime) posts
 
   -- Render sentinel for next page or end indicator
   if hasMore

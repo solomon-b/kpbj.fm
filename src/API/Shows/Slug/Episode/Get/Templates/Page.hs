@@ -21,6 +21,7 @@ import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -48,11 +49,11 @@ episodeTagToLink tag =
 
 --------------------------------------------------------------------------------
 
-template :: Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Lucid.Html ()
-template showModel episode tracks tags = do
+template :: StorageBackend -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Lucid.Html ()
+template backend showModel episode tracks tags = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Episode card (reuses the same component from show page)
-    renderEpisodeCard showModel episode
+    renderEpisodeCard backend showModel episode
 
     -- Tags section
     unless (null tags) $ do

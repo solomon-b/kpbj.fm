@@ -18,6 +18,7 @@ import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -33,10 +34,10 @@ eventsGetUrl = Links.linkURI eventsLinks.list
 --------------------------------------------------------------------------------
 
 -- | Main event template
-template :: Events.Model -> UserMetadata.Model -> Lucid.Html ()
-template event author = do
+template :: StorageBackend -> Events.Model -> UserMetadata.Model -> Lucid.Html ()
+template backend event author = do
   -- Event card with full details
-  renderEventCardDetail event
+  renderEventCardDetail backend event
 
   -- Event creator info
   Lucid.section_ [class_ $ base ["mt-6"]] $ do

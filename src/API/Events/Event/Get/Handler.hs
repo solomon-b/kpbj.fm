@@ -11,17 +11,18 @@ import Component.Redirect (redirectTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Functor ((<&>))
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug, mkSlug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
@@ -43,7 +44,8 @@ handlerWithSlug ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Events.Id ->
@@ -62,7 +64,8 @@ handlerWithoutSlug ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Events.Id ->
@@ -80,7 +83,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Events.Id ->
@@ -116,13 +120,15 @@ renderEvent ::
     Log.MonadLog m,
     MonadDB m,
     MonadUnliftIO m,
-    MonadCatch m
+    MonadCatch m,
+    Has StorageBackend env
   ) =>
   HxRequest ->
   Maybe UserMetadata.Model ->
   Events.Model ->
   m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-renderEvent hxRequest mUserInfo event =
+renderEvent hxRequest mUserInfo event = do
+  storageBackend <- asks getter
   execQuerySpan (UserMetadata.getUserMetadata event.emAuthorId) >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch event author" (Aeson.object ["id" .= event.emAuthorId, "error" .= show err])
@@ -133,7 +139,7 @@ renderEvent hxRequest mUserInfo event =
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (Events.emSlug event))
       pure $ Servant.noHeader html
     Right (Just author) -> do
-      let eventTemplate = template event author
+      let eventTemplate = template storageBackend event author
       html <- renderTemplate hxRequest mUserInfo eventTemplate
       pure $ Servant.noHeader html
 

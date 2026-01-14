@@ -5,19 +5,20 @@ module API.Dashboard.StationBlog.New.Post.Handler (handler) where
 import API.Dashboard.StationBlog.New.Post.Route (NewBlogPostForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, void)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Foldable (traverse_)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -26,13 +27,14 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
-import Effects.FileUpload (stripStorageRoot, uploadBlogHeroImage)
+import Effects.FileUpload (uploadBlogHeroImage)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
@@ -47,9 +49,12 @@ handler ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   Maybe Cookie ->
@@ -73,14 +78,16 @@ handler _tracer cookie form =
 
 -- | Handle hero image upload
 handleHeroImageUpload ::
-  (MonadIO m, Log.MonadLog m) =>
+  (MonadUnliftIO m, Log.MonadLog m, MonadReader env m, MonadMask m, MonadIO m, Has StorageBackend env, Has (Maybe AWS.Env) env) =>
   NewBlogPostForm ->
   m (Maybe Text)
 handleHeroImageUpload form = case nbpfHeroImage form of
   Nothing -> pure Nothing
   Just heroImageFile -> do
     let slug = Slug.mkSlug (nbpfTitle form)
-    uploadResult <- uploadBlogHeroImage slug heroImageFile
+    storageBackend <- asks getter
+    mAwsEnv <- asks getter
+    uploadResult <- uploadBlogHeroImage storageBackend mAwsEnv slug heroImageFile
     case uploadResult of
       Left uploadError -> do
         Log.logInfo "Hero image upload failed" (Aeson.object ["error" .= Text.pack (show uploadError)])
@@ -88,7 +95,7 @@ handleHeroImageUpload form = case nbpfHeroImage form of
       Right Nothing -> pure Nothing
       Right (Just result) -> do
         Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" .= uploadResultStoragePath result])
-        pure (Just $ stripStorageRoot $ uploadResultStoragePath result)
+        pure (Just $ Text.pack $ uploadResultStoragePath result)
 
 -- | Validate and convert form data to blog post insert data
 validateNewBlogPost :: NewBlogPostForm -> User.Id -> Maybe Text -> Either Sanitize.ContentValidationError BlogPosts.Insert

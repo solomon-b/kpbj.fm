@@ -8,20 +8,21 @@ module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
 import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackInfo (..), parseStatus)
 import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
+import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth)
 import App.Handler.Error
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, when)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Either (partitionEithers)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -32,6 +33,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
@@ -42,7 +44,6 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.FileUpload (stripStorageRoot)
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
@@ -60,9 +61,12 @@ handler ::
     MonadReader env m,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Tracer ->
   Slug ->
@@ -157,9 +161,12 @@ updateEpisode ::
     Has Tracer env,
     MonadUnliftIO m,
     MonadCatch m,
+    MonadMask m,
     MonadThrow m,
     MonadIO m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Slug ->
   Episodes.EpisodeNumber ->
@@ -239,8 +246,11 @@ execOptionalUpdates ::
     MonadReader env m,
     Has Tracer env,
     MonadUnliftIO m,
+    MonadMask m,
     MonadIO m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   UTCTime ->
   Bool -> -- isStaffOrAdmin
@@ -275,7 +285,10 @@ processFileUploadsWithWarning ::
     MonadReader env m,
     Has Tracer env,
     MonadUnliftIO m,
-    Has HSQL.Pool.Pool env
+    MonadMask m,
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Bool -> -- allowFileUpload
   Shows.Model ->
@@ -383,14 +396,22 @@ makeSuccessBanner warnings =
 
 -- | Process file uploads for episode editing
 processFileUploads ::
-  ( MonadIO m,
-    Log.MonadLog m
+  ( MonadUnliftIO m,
+    Log.MonadLog m,
+    MonadReader env m,
+    MonadMask m,
+    MonadIO m,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env
   ) =>
   Shows.Model ->
   Episodes.Model ->
   EpisodeEditForm ->
   m (Either Text (Maybe Text, Maybe Text))
 processFileUploads showModel episode editForm = do
+  storageBackend <- asks getter
+  mAwsEnv <- asks getter
+
   -- Generate a unique identifier for file naming (based on timestamp)
   currentTime <- liftIO getCurrentTime
   let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
@@ -399,26 +420,26 @@ processFileUploads showModel episode editForm = do
   audioResult <- case eefAudioFile editForm of
     Nothing -> pure $ Right Nothing
     Just audioFile -> do
-      result <- FileUpload.uploadEpisodeAudio showModel.slug fileId (Just episode.scheduledAt) audioFile
+      result <- FileUpload.uploadEpisodeAudio storageBackend mAwsEnv showModel.slug fileId (Just episode.scheduledAt) audioFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
           pure $ Left "Failed to upload audio file"
         Right uploadResult ->
-          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   -- Process artwork file if provided
   artworkResult <- case eefArtworkFile editForm of
     Nothing -> pure $ Right Nothing
     Just artworkFile -> do
-      result <- FileUpload.uploadEpisodeArtwork showModel.slug fileId (Just episode.scheduledAt) artworkFile
+      result <- FileUpload.uploadEpisodeArtwork storageBackend mAwsEnv showModel.slug fileId (Just episode.scheduledAt) artworkFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
           pure $ Left $ Text.pack $ show err
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
-          pure $ Right $ Just $ stripStorageRoot $ uploadResultStoragePath uploadResult
+          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
   case (audioResult, artworkResult) of
     (Left audioErr, _) -> pure $ Left audioErr

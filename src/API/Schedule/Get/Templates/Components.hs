@@ -1,11 +1,11 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Schedule.Get.Templates.Components
-  ( renderScheduleView,
+  ( renderSchedule,
   )
 where
 
-import API.Links (apiLinks, showsLinks)
+import API.Links (showsLinks)
 import API.Types
 import Data.List (sortBy)
 import Data.String.Interpolate (i)
@@ -14,6 +14,7 @@ import Data.Time (DayOfWeek (..), TimeOfDay (..))
 import Design (also, base, class_, desktop, when)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.Base (Attributes)
@@ -25,10 +26,6 @@ import Servant.Links qualified as Links
 -- | Create URL for show page
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
-
--- | Create URL for media files
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 -- | Get the next day of the week (for overnight show handling)
 succDay :: DayOfWeek -> DayOfWeek
@@ -59,14 +56,9 @@ isShowLive mCurrentDay mCurrentTime showDay startTime endTime =
                 && currentTime < endTime
     _ -> False
 
--- | Main schedule view template (single-day view with day navigation)
-renderScheduleView :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
-renderScheduleView scheduledShows currentDayOfWeek currentTimeOfDay =
-  renderSchedule scheduledShows currentDayOfWeek currentTimeOfDay
-
 -- | Render schedule (single day view with day navigation)
-renderSchedule :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
-renderSchedule scheduledShows currentDayOfWeek currentTimeOfDay = do
+renderSchedule :: StorageBackend -> [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
+renderSchedule backend scheduledShows currentDayOfWeek currentTimeOfDay = do
   let daysOfWeek = [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
       -- Default to current day, or Monday if not viewing current week
       initialDayIndex :: Int
@@ -100,7 +92,7 @@ renderSchedule scheduledShows currentDayOfWeek currentTimeOfDay = do
           "→"
 
     -- Day content panels (one per day, shown/hidden by Alpine)
-    mapM_ (renderMobileDayPanel scheduledShows currentDayOfWeek currentTimeOfDay) (zip [0 ..] daysOfWeek)
+    mapM_ (renderMobileDayPanel backend scheduledShows currentDayOfWeek currentTimeOfDay) (zip [0 ..] daysOfWeek)
 
 --------------------------------------------------------------------------------
 -- Schedule Styles
@@ -149,8 +141,8 @@ dayOfWeekName Saturday = "Saturday"
 dayOfWeekName Sunday = "Sunday"
 
 -- | Render a day panel (shown/hidden by Alpine based on currentDay)
-renderMobileDayPanel :: [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> (Int, DayOfWeek) -> Lucid.Html ()
-renderMobileDayPanel scheduledShows currentDayOfWeek currentTimeOfDay (idx, dayOfWeek) = do
+renderMobileDayPanel :: StorageBackend -> [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> (Int, DayOfWeek) -> Lucid.Html ()
+renderMobileDayPanel backend scheduledShows currentDayOfWeek currentTimeOfDay (idx, dayOfWeek) = do
   let showsForDay = filter (\s -> ShowSchedule.sswdDayOfWeek s == dayOfWeek) scheduledShows
       sortedShows = sortBy (\a b -> compare (ShowSchedule.sswdStartTime a) (ShowSchedule.sswdStartTime b)) showsForDay
       showCondition = [i|currentDay === #{idx :: Int}|]
@@ -158,15 +150,15 @@ renderMobileDayPanel scheduledShows currentDayOfWeek currentTimeOfDay (idx, dayO
   Lucid.div_ [xShow_ showCondition, Lucid.class_ "space-y-3"] $ do
     if null sortedShows
       then Lucid.p_ [mobileEmptyStyles] "No shows scheduled"
-      else mapM_ (renderShowCard currentDayOfWeek currentTimeOfDay dayOfWeek) sortedShows
+      else mapM_ (renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek) sortedShows
 
 mobileEmptyStyles :: Attributes
 mobileEmptyStyles = class_ $ do
   base [Tokens.textGray600, "text-center", Tokens.py4, "italic"]
 
 -- | Render a single show card (with responsive image: logo on mobile, banner on desktop)
-renderShowCard :: Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
-renderShowCard currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
+renderShowCard :: StorageBackend -> Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
+renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
   let showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
       startTimeText = formatTimeOfDay (ShowSchedule.sswdStartTime show')
       isLiveShow = isShowLive currentDayOfWeek currentTimeOfDay dayOfWeek (ShowSchedule.sswdStartTime show') (ShowSchedule.sswdEndTime show')
@@ -195,7 +187,7 @@ renderShowCard currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
         case mLogoPath of
           Just logoPath ->
             Lucid.img_
-              [ Lucid.src_ [i|/#{mediaGetUrl}/#{logoPath}|],
+              [ Lucid.src_ (buildMediaUrl backend logoPath),
                 Lucid.alt_ "",
                 mobileImageStyles
               ]
@@ -203,7 +195,7 @@ renderShowCard currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
         case mBannerPath of
           Just bannerPath ->
             Lucid.img_
-              [ Lucid.src_ [i|/#{mediaGetUrl}/#{bannerPath}|],
+              [ Lucid.src_ (buildMediaUrl backend bannerPath),
                 Lucid.alt_ "",
                 desktopImageStyles
               ]

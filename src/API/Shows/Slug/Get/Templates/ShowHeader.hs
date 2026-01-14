@@ -8,17 +8,17 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, showsLinks)
+import API.Links (showsLinks)
 import API.Types
 import Component.Tags qualified as Tags
 import Control.Monad (unless)
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..))
 import Design (base, class_, desktop)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
@@ -30,18 +30,15 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 -- | Render show header with info
-renderShowHeader :: Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowTags.Model] -> Lucid.Html ()
-renderShowHeader showModel hosts schedules tags = do
+renderShowHeader :: StorageBackend -> Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowTags.Model] -> Lucid.Html ()
+renderShowHeader backend showModel hosts schedules tags = do
   -- Banner Image (if present)
   case showModel.bannerUrl of
-    Just bannerUrl -> do
+    Just bannerPath -> do
       let bannerAlt = showModel.title <> " banner"
       Lucid.div_ [class_ $ base [Tokens.fullWidth, Tokens.mb8, "border", "border-gray-300", "overflow-hidden"]] $ do
-        Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{bannerUrl}|], Lucid.alt_ bannerAlt, Lucid.class_ "w-full h-auto object-cover"]
+        Lucid.img_ [Lucid.src_ (buildMediaUrl backend bannerPath), Lucid.alt_ bannerAlt, Lucid.class_ "w-full h-auto object-cover"]
     Nothing -> mempty
 
   Lucid.section_ [class_ $ do { base [Tokens.bgWhite, Tokens.mb8, Tokens.fullWidth]; desktop [Tokens.p8] }] $ do
@@ -50,9 +47,9 @@ renderShowHeader showModel hosts schedules tags = do
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
         Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "border", "border-gray-300", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
           case showModel.logoUrl of
-            Just logoUrl -> do
+            Just logoPath -> do
               let logoAlt = showModel.title <> " logo"
-              Lucid.img_ [Lucid.src_ [i|/#{mediaGetUrl}/#{logoUrl}|], Lucid.alt_ logoAlt, Lucid.class_ "w-full h-full object-cover"]
+              Lucid.img_ [Lucid.src_ (buildMediaUrl backend logoPath), Lucid.alt_ logoAlt, Lucid.class_ "w-full h-full object-cover"]
             Nothing -> "[SHOW IMAGE]"
 
       -- Show Info

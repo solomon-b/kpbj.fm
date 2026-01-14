@@ -22,6 +22,7 @@ import Data.Text.Display (display)
 import Design (base, class_, class_', desktop, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -72,9 +73,9 @@ errorTemplate errorMsg = do
       "BROWSE ALL SHOWS"
 
 -- | Main show page template
-template :: Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowBlogPosts.Model] -> [ShowTags.Model] -> Int -> Lucid.Html ()
-template showModel episodes hosts schedules blogPosts tags currentPage = do
-  renderShowHeader showModel hosts schedules tags
+template :: StorageBackend -> Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowBlogPosts.Model] -> [ShowTags.Model] -> Int -> Lucid.Html ()
+template backend showModel episodes hosts schedules blogPosts tags currentPage = do
+  renderShowHeader backend showModel hosts schedules tags
 
   -- Tabbed Content with Alpine.js
   Lucid.div_
@@ -101,19 +102,19 @@ template showModel episodes hosts schedules blogPosts tags currentPage = do
 
       -- Episodes Tab Content
       Lucid.section_ [Lucid.class_ Tokens.fullWidth, xShow_ "activeTab === 'episodes'"] $ do
-        renderEpisodesContent showModel episodes currentPage
+        renderEpisodesContent backend showModel episodes currentPage
 
       -- Blog Tab Content
       Lucid.section_ [Lucid.class_ Tokens.fullWidth, xShow_ "activeTab === 'blog'"] $ do
-        renderBlogContent showModel blogPosts
+        renderBlogContent backend showModel blogPosts
 
 -- | Number of episodes per page (should match handler)
 episodesPerPage :: Int
 episodesPerPage = 10
 
 -- Helper function to render episodes content
-renderEpisodesContent :: Shows.Model -> [Episodes.Model] -> Int -> Lucid.Html ()
-renderEpisodesContent showModel episodes currentPage = do
+renderEpisodesContent :: StorageBackend -> Shows.Model -> [Episodes.Model] -> Int -> Lucid.Html ()
+renderEpisodesContent backend showModel episodes currentPage = do
   if null episodes
     then do
       Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
@@ -126,16 +127,16 @@ renderEpisodesContent showModel episodes currentPage = do
           -- Only show featured episode on first page
           if currentPage == 1
             then do
-              renderLatestEpisode showModel latestEpisode []
+              renderLatestEpisode backend showModel latestEpisode []
               unless (null otherEpisodes) $ do
                 Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
                   Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Previous Episodes"
-                  mapM_ (renderEpisodeCard showModel) otherEpisodes
+                  mapM_ (renderEpisodeCard backend showModel) otherEpisodes
             else do
               -- On subsequent pages, show all episodes as cards
               Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
                 Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Episodes"
-                mapM_ (renderEpisodeCard showModel) episodes
+                mapM_ (renderEpisodeCard backend showModel) episodes
 
           -- Pagination controls
           renderPagination showModel currentPage (length episodes)
@@ -191,8 +192,8 @@ renderPagination showModel currentPage episodeCount = do
             "Next"
 
 -- Helper function to render blog content
-renderBlogContent :: Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
-renderBlogContent showModel blogPosts = do
+renderBlogContent :: StorageBackend -> Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
+renderBlogContent backend showModel blogPosts = do
   if null blogPosts
     then do
       Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
@@ -200,7 +201,7 @@ renderBlogContent showModel blogPosts = do
         Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any blog posts yet. Check back soon!"
     else do
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-        mapM_ (renderShowBlogPostCard showModel) blogPosts
+        mapM_ (renderShowBlogPostCard backend showModel) blogPosts
 
       -- View all link
       let blogUrl = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing

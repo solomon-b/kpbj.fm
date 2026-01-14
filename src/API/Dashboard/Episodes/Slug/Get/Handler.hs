@@ -15,12 +15,13 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Either (fromRight)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -43,7 +44,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Slug ->
@@ -57,24 +59,27 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
 
-    -- 2. Fetch the episode
+    -- 2. Get storage backend
+    backend <- asks getter
+
+    -- 3. Fetch the episode
     episode <- fetchEpisodeOrNotFound showSlug episodeNumber
 
-    -- 3. Fetch the show
+    -- 4. Fetch the show
     showModel <- fetchShowOrNotFound episode.showId
 
-    -- 4. Verify user has access to this show
+    -- 5. Verify user has access to this show
     requireShowAccess user userMetadata showModel
 
-    -- 5. Fetch tracks and tags for the episode
+    -- 6. Fetch tracks and tags for the episode
     tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
     tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
 
-    -- 6. Get user's shows for sidebar
+    -- 7. Get user's shows for sidebar
     userShows <- fetchShowsForUser user userMetadata
 
-    -- 7. Render template
-    let content = template userMetadata showModel episode tracks tags
+    -- 8. Render template
+    let content = template backend userMetadata showModel episode tracks tags
     renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes Nothing Nothing content
 
 -- | Fetch episode by show slug and episode number

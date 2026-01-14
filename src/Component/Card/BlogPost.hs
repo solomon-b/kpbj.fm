@@ -13,7 +13,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, blogLinks, showBlogLinks)
+import API.Links (blogLinks, showBlogLinks)
 import API.Types
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -23,6 +23,7 @@ import Data.Time (UTCTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -34,9 +35,6 @@ import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
-
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
 
 --------------------------------------------------------------------------------
 -- Generic card data and renderer
@@ -54,8 +52,8 @@ data BlogPostCardData = BlogPostCardData
   }
 
 -- | Render a blog post card from generic data.
-renderBlogPostCard :: BlogPostCardData -> Lucid.Html ()
-renderBlogPostCard card = do
+renderBlogPostCard :: StorageBackend -> BlogPostCardData -> Lucid.Html ()
+renderBlogPostCard backend card = do
   Lucid.a_
     [ Lucid.href_ card.cardUrl,
       hxGet_ card.cardUrl,
@@ -74,7 +72,7 @@ renderBlogPostCard card = do
           Just heroImageUrl ->
             Lucid.div_ [Lucid.class_ Tokens.mb4] $
               Lucid.img_
-                [ Lucid.src_ [i|/#{mediaGetUrl}/#{heroImageUrl}|],
+                [ Lucid.src_ (buildMediaUrl backend heroImageUrl),
                   Lucid.alt_ card.cardTitle,
                   class_ $ base [Tokens.fullWidth, "h-auto", "border", "border-gray-300"]
                 ]
@@ -109,10 +107,11 @@ blogPostGetUrl :: BlogPosts.Id -> Slug -> Links.URI
 blogPostGetUrl postId slug = Links.linkURI $ blogLinks.postWithSlug postId slug
 
 -- | Render a station blog post card.
-renderStationBlogPostCard :: UTCTime -> (BlogPosts.Model, UserMetadata.Model, [BlogTags.Model]) -> Lucid.Html ()
-renderStationBlogPostCard currentTime (post, author, _tags) = do
+renderStationBlogPostCard :: StorageBackend -> UTCTime -> (BlogPosts.Model, UserMetadata.Model, [BlogTags.Model]) -> Lucid.Html ()
+renderStationBlogPostCard backend currentTime (post, author, _tags) = do
   let url = [i|/#{blogPostGetUrl (BlogPosts.bpmId post) (BlogPosts.bpmSlug post)}|]
   renderBlogPostCard
+    backend
     BlogPostCardData
       { cardUrl = url,
         cardTitle = BlogPosts.bpmTitle post,
@@ -131,10 +130,11 @@ showBlogPostGetUrl :: Shows.Id -> ShowBlogPosts.Id -> Slug -> Links.URI
 showBlogPostGetUrl showId postId slug = Links.linkURI $ showBlogLinks.postWithSlug showId postId slug
 
 -- | Render a show blog post card.
-renderShowBlogPostCard :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
-renderShowBlogPostCard showModel post = do
+renderShowBlogPostCard :: StorageBackend -> Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
+renderShowBlogPostCard backend showModel post = do
   let url = [i|/#{showBlogPostGetUrl (Shows.id showModel) (ShowBlogPosts.id post) (ShowBlogPosts.slug post)}|]
   renderBlogPostCard
+    backend
     BlogPostCardData
       { cardUrl = url,
         cardTitle = ShowBlogPosts.title post,

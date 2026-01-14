@@ -33,10 +33,6 @@ primary_region = 'lax'
     port = 443
     handlers = ['tls', 'http']
 
-[mounts]
-  source = 'kpbj_uploads'
-  destination = '/tmp/kpbj'
-
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'

@@ -4,7 +4,7 @@ module API.Dashboard.Users.Edit.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardUsersLinks)
+import API.Links (dashboardUsersLinks)
 import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
@@ -12,6 +12,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as T
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -20,14 +21,8 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
--- | URL helpers
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
---------------------------------------------------------------------------------
-
-template :: User.Model -> UserMetadata.Model -> Lucid.Html ()
-template user metadata = do
+template :: StorageBackend -> User.Model -> UserMetadata.Model -> Lucid.Html ()
+template backend user metadata = do
   renderFormHeader user metadata
   renderForm config form
   where
@@ -47,7 +42,7 @@ template user metadata = do
     postUrl = [i|/#{postUri}|]
 
     avatarUrl :: Text
-    avatarUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) metadata.mAvatarUrl
+    avatarUrl = maybe "" (buildMediaUrl backend) metadata.mAvatarUrl
 
     config :: FormConfig
     config =

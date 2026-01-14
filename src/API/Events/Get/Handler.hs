@@ -15,14 +15,15 @@ import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.HxRequest qualified as HxRequest
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
@@ -47,7 +48,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Maybe Cookie ->
@@ -55,6 +57,7 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer cookie hxRequest = do
+  storageBackend <- asks getter
   getUserInfo cookie >>= \mUserInfo -> do
     let limit = 50
         offset = 0
@@ -66,7 +69,7 @@ handler _tracer cookie hxRequest = do
         let banner = BannerParams Error "Error" "Failed to load events. Please try again."
         pure (redirectWithBanner [i|/#{rootGetUrl}|] banner)
       Right events ->
-        pure (template events)
+        pure (template storageBackend events)
 
     let hxReq = HxRequest.foldHxReq hxRequest
         mUserMetadata = fmap snd mUserInfo

@@ -16,12 +16,13 @@ import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Either (fromRight)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
@@ -42,7 +43,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Maybe Cookie ->
@@ -56,7 +58,10 @@ handler _tracer cookie (foldHxReq -> hxRequest) =
     -- 2. Check not suspended
     when (UserMetadata.isSuspended userMetadata) throwUserSuspended
 
-    -- 3. Fetch shows for sidebar
+    -- 3. Get storage backend for URL construction
+    storageBackend <- asks getter
+
+    -- 4. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
         then execQuerySpan Shows.getAllActiveShows
@@ -64,4 +69,4 @@ handler _tracer cookie (foldHxReq -> hxRequest) =
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
-    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavSettings Nothing Nothing (template user userMetadata)
+    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavSettings Nothing Nothing (template storageBackend user userMetadata)

@@ -25,6 +25,7 @@ import Data.Time (DayOfWeek (..))
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -42,14 +43,11 @@ dashboardShowsGetUrl = Links.linkURI $ apiLinks.dashboard.admin.shows.list Nothi
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ apiLinks.shows.detail slug Nothing
 
-mediaGetUrl :: Links.URI
-mediaGetUrl = Links.linkURI apiLinks.mediaGet
-
 --------------------------------------------------------------------------------
 
 -- | Show edit template using V2 FormBuilder
-template :: Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> Lucid.Html ()
-template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds existingTags = do
+template :: StorageBackend -> Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> Lucid.Html ()
+template backend showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds existingTags = do
   renderFormHeader userMeta showModel
   renderForm config form
   when isStaff $ renderScheduleManagementScript schedulesJson
@@ -57,8 +55,8 @@ template showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds e
     showSlug = showModel.slug
     showBackUrl = showGetUrl showSlug
     postUrl = [i|/dashboard/shows/#{display showSlug}/edit|]
-    logoUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) showModel.logoUrl
-    bannerUrl = maybe "" (\path -> [i|/#{mediaGetUrl}/#{path}|]) showModel.bannerUrl
+    logoUrl = maybe "" (buildMediaUrl backend) showModel.logoUrl
+    bannerUrl = maybe "" (buildMediaUrl backend) showModel.bannerUrl
 
     config :: FormConfig
     config =

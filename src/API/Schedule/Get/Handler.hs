@@ -9,16 +9,17 @@ import App.Common (getUserInfo, renderTemplate)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Coerce (coerce)
 import Data.Either (isLeft, rights)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Data.Maybe (fromMaybe)
 import Data.Time (addDays, getCurrentTime, utcToLocalTime)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..))
+import Domain.Types.StorageBackend (StorageBackend)
 import Domain.Types.WeekOffset (WeekOffset (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -39,7 +40,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has StorageBackend env
   ) =>
   Tracer ->
   Maybe WeekOffset ->
@@ -47,6 +49,7 @@ handler ::
   Maybe HxRequest ->
   m (Lucid.Html ())
 handler _tracer (fromMaybe 0 -> WeekOffset weekOffset) (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
+  storageBackend <- asks getter
   getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do
     -- Get current day of week and time in Pacific time
     nowUtc <- liftIO getCurrentTime
@@ -77,6 +80,6 @@ handler _tracer (fromMaybe 0 -> WeekOffset weekOffset) (coerce -> cookie) (fromM
     if hasScheduleError
       then do
         Log.logInfo_ "Failed to fetch schedule from database"
-        renderTemplate htmxRequest mUserInfo (template [] currentDayOfWeek currentTimeOfDay (Just "Failed to load schedule. Please try again."))
+        renderTemplate htmxRequest mUserInfo (template storageBackend [] currentDayOfWeek currentTimeOfDay (Just "Failed to load schedule. Please try again."))
       else
-        renderTemplate htmxRequest mUserInfo (template scheduledShows currentDayOfWeek currentTimeOfDay Nothing)
+        renderTemplate htmxRequest mUserInfo (template storageBackend scheduledShows currentDayOfWeek currentTimeOfDay Nothing)

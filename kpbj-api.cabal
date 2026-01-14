@@ -50,9 +50,12 @@ executable kpbj-api
 library
   import: common-extensions
   build-depends:
+                  , amazonka
+                  , amazonka-s3
                   , aeson
                   , base
                   , bytestring
+                  , conduit
                   , containers
                   , data-has
                   , deriving-aeson
@@ -79,6 +82,7 @@ library
                   , pandoc-types
                   , password
                   , random
+                  , resourcet
                   , servant
                   , servant-multipart
                   , servant-server
@@ -88,6 +92,7 @@ library
                   , text-display
                   , time
                   , transformers
+                  , unliftio
                   , unliftio-core
                   , validation
                   , vector
@@ -302,6 +307,7 @@ library
     API.User.Register.Post.Route
     App.Common
     App.Handler.Combinators
+    App.Storage
     App.Handler.Error
     Component.ActionsDropdown
     Component.AudioFilePicker
@@ -354,6 +360,7 @@ library
     Domain.Types.Search
     Domain.Types.ShowSortBy
     Domain.Types.Slug
+    Domain.Types.StorageBackend
     Domain.Types.UserSortBy
     Domain.Types.WeekOffset
     Effects.Database.Tables.BlogPosts
@@ -369,10 +376,13 @@ library
     Effects.Database.Tables.ShowSchedule
     Effects.Database.Tables.ShowTags
     Effects.Database.Tables.UserMetadata
+    Effects.AWS
     Effects.ContentSanitization
     Effects.FileUpload
     Effects.Markdown
     Effects.MimeTypeValidation
+    Effects.Storage.Local
+    Effects.Storage.S3
     Helpers.RelativeTime
     Lucid.Extras
     Lucid.Responsive
@@ -432,6 +442,7 @@ test-suite kpbj-api-test
     other-modules:
        Domain.Types.FileUploadSpec
        Domain.Types.SlugSpec
+       Domain.Types.StorageBackendSpec
        Effects.ContentSanitizationSpec
        Effects.MarkdownSpec
        Effects.Database.Tables.BlogPostsSpec
