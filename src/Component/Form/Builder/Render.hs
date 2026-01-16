@@ -191,12 +191,31 @@ renderFooter styles items mHint =
     -- Footer hint (displayed above the buttons, right-aligned)
     forM_ mHint $ \hint ->
       Lucid.p_ [Lucid.class_ (fsHintClasses styles <> " text-right mb-2")] (Lucid.toHtml hint)
+
+    -- Upload progress bar (shown during file uploads)
+    Lucid.div_
+      [ xShow_ "isUploading",
+        Lucid.class_ "mb-4"
+      ]
+      $ do
+        Lucid.div_ [Lucid.class_ "flex justify-between text-sm text-gray-600 mb-1"] $ do
+          Lucid.span_ [] "Uploading..."
+          Lucid.span_ [xText_ "uploadProgress + '%'"] ""
+        Lucid.div_ [Lucid.class_ "w-full bg-gray-200 border-2 border-gray-800 h-4"] $
+          Lucid.div_
+            [ Lucid.class_ "bg-black h-full transition-all duration-150",
+              xBindStyle_ "{ width: uploadProgress + '%' }"
+            ]
+            mempty
+
     Lucid.div_ [Lucid.class_ (fsButtonContainerClasses styles)] $
       forM_ items $ \case
         FooterSubmit lbl ->
           Lucid.button_
             [ Lucid.type_ "submit",
-              Lucid.class_ (fsSubmitButtonClasses styles)
+              Lucid.class_ (fsSubmitButtonClasses styles),
+              xBindDisabled_ "isUploading",
+              xBindClass_ "isUploading ? 'opacity-50 cursor-not-allowed' : ''"
             ]
             (Lucid.toHtml lbl)
         FooterCancel url lbl ->
@@ -285,6 +304,8 @@ renderField styles field = case fType field of
   FileField accept -> renderFileField styles field accept
   ImageField {} -> renderImageField styles field
   AudioField {} -> renderAudioField styles field
+  StagedAudioField url uploadType -> renderStagedAudioField styles field url uploadType
+  StagedImageField url uploadType -> renderStagedImageField styles field url uploadType
   DateTimeField -> renderDateTimeField styles field
   NumberField minV maxV step -> renderNumberField styles field minV maxV step
   CheckboxField -> renderCheckboxField styles field
@@ -1078,7 +1099,7 @@ renderAudioField styles field = do
             { WaveformPlayer.playerId = name <> "-player",
               WaveformPlayer.audioUrl = existingUrl,
               WaveformPlayer.title = fromMaybe name (fcLabel cfg),
-              WaveformPlayer.fileInputName = Just name,
+              WaveformPlayer.fileInputId = Just (name <> "-input"),
               WaveformPlayer.containerClasses = Nothing,
               WaveformPlayer.buttonClasses = Nothing,
               WaveformPlayer.progressBarClasses = Nothing,
@@ -1105,6 +1126,567 @@ renderAudioField styles field = do
           if isReq
             then "MP3, WAV, FLAC accepted • Max 500MB"
             else "MP3, WAV, FLAC accepted • Max 500MB • Leave empty to keep current file"
+
+--------------------------------------------------------------------------------
+-- Staged Audio Field
+
+-- | Render a staged audio upload field with background upload and progress bar.
+--
+-- When the user selects a file, it uploads immediately via XHR to the upload URL.
+-- The returned token is stored in a hidden field and submitted with the form.
+renderStagedAudioField :: FormStyles -> Field -> Text -> Text -> Lucid.Html ()
+renderStagedAudioField styles field uploadUrl uploadType = do
+  let name = fName field
+      cfg = fConfig field
+      val = fValidation field
+      isReq = vcRequired val
+      labelText = fromMaybe name (fcLabel cfg) <> if isReq then " *" else ""
+      existingUrl = fromMaybe "" (fcCurrentValue cfg)
+      hasExisting = existingUrl /= ""
+      inputId = name <> "-input"
+      tokenField = name <> "_token"
+      maxSizeMB = fromMaybe 500 (fcMaxSizeMB cfg)
+
+  -- Alpine.js state for this upload
+  Lucid.div_
+    [ xData_
+        [i|{
+  uploadToken: '',
+  isUploading: false,
+  uploadProgress: 0,
+  fileName: '',
+  fileSize: 0,
+  mimeType: '',
+  uploadError: '',
+  currentCleared: false,
+
+  async handleFileSelect(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size
+    if (file.size > #{maxSizeMB * 1024 * 1024}) {
+      this.uploadError = 'File exceeds #{maxSizeMB}MB limit';
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('audio/')) {
+      this.uploadError = 'Please select an audio file';
+      return;
+    }
+
+    this.uploadError = '';
+    this.isUploading = true;
+    this.uploadProgress = 0;
+    this.fileName = file.name;
+    this.fileSize = file.size;
+
+    // Create FormData
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_type', '#{uploadType}');
+
+    // Upload via XHR for progress tracking
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        this.uploadProgress = Math.round((e.loaded / e.total) * 100);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      this.isUploading = false;
+      if (xhr.status === 200) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          if (response.success) {
+            this.uploadToken = response.data.token;
+            this.mimeType = response.data.mimeType;
+            this.currentCleared = false;
+            this.uploadError = '';
+          } else {
+            this.uploadError = response.error || 'Upload failed';
+            this.clearUpload();
+          }
+        } catch (e) {
+          this.uploadError = 'Invalid server response';
+          this.clearUpload();
+        }
+      } else {
+        this.uploadError = 'Upload failed: ' + xhr.statusText;
+        this.clearUpload();
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      this.isUploading = false;
+      this.uploadError = 'Network error during upload';
+      this.clearUpload();
+    });
+
+    xhr.open('POST', '#{uploadUrl}');
+    xhr.send(formData);
+  },
+
+  clearUpload() {
+    const input = document.getElementById('#{inputId}');
+    if (input) input.value = '';
+    // Clear the waveform player
+    window.dispatchEvent(new CustomEvent('waveform-player-clear', {
+      detail: { playerId: '#{name}-player' }
+    }));
+    this.uploadToken = '';
+    this.fileName = '';
+    this.fileSize = 0;
+    this.mimeType = '';
+    this.uploadProgress = 0;
+    this.currentCleared = true;
+  },
+
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + sizes[i];
+  },
+
+  triggerInput() {
+    document.getElementById('#{inputId}').click();
+  }
+}|]
+    ]
+    $ do
+      -- Label
+      Lucid.label_
+        [ Lucid.for_ inputId,
+          Lucid.class_ (fsLabelClasses styles <> " uppercase tracking-wide")
+        ]
+        (Lucid.toHtml labelText)
+
+      -- Hidden token input (submitted with form)
+      Lucid.input_
+        [ Lucid.type_ "hidden",
+          Lucid.name_ tokenField,
+          xModel_ "uploadToken"
+        ]
+
+      -- Hidden clear flag
+      Lucid.input_
+        [ Lucid.type_ "hidden",
+          Lucid.name_ (name <> "_clear"),
+          xBindValue_ "currentCleared ? 'true' : ''"
+        ]
+
+      -- Dashed border container
+      Lucid.div_ [Lucid.class_ (fsAudioContainerClasses styles)] $ do
+        -- Hidden file input (no name attribute - file is uploaded via XHR, only token is submitted)
+        Lucid.input_ $
+          [ Lucid.type_ "file",
+            Lucid.id_ inputId,
+            Lucid.accept_ "audio/*",
+            Lucid.class_ "hidden",
+            xOnChange_ "handleFileSelect($event)"
+          ]
+
+        -- Audio player (watches file input for preview, shows existing if available)
+        Lucid.div_ [Lucid.class_ "mb-4"] $
+          WaveformPlayer.render
+            WaveformPlayer.Config
+              { WaveformPlayer.playerId = name <> "-player",
+                WaveformPlayer.audioUrl = existingUrl,
+                WaveformPlayer.title = fromMaybe "Audio" (fcLabel cfg),
+                WaveformPlayer.fileInputId = Just (name <> "-input"),
+                WaveformPlayer.containerClasses = Nothing,
+                WaveformPlayer.buttonClasses = Nothing,
+                WaveformPlayer.progressBarClasses = Nothing,
+                WaveformPlayer.progressFillClasses = Nothing,
+                WaveformPlayer.timeDisplayClasses = Nothing
+              }
+
+        -- Upload progress bar
+        Lucid.div_
+          [ xShow_ "isUploading",
+            Lucid.class_ "mb-4",
+            Lucid.style_ "display: none;"
+          ]
+          $ do
+            Lucid.div_ [Lucid.class_ "flex justify-between text-sm text-gray-600 mb-1"] $ do
+              Lucid.span_ [xText_ "fileName"] ""
+              Lucid.span_ [xText_ "uploadProgress + '%'"] ""
+            Lucid.div_ [Lucid.class_ "w-full bg-gray-200 border-2 border-gray-800 h-4"] $
+              Lucid.div_
+                [ Lucid.class_ "bg-purple-600 h-full transition-all duration-150",
+                  xBindStyle_ "{ width: uploadProgress + '%' }"
+                ]
+                mempty
+
+        -- Current/existing file state
+        when hasExisting
+          $ Lucid.div_
+            [ xShow_ "!uploadToken && !currentCleared",
+              Lucid.class_ "text-center"
+            ]
+          $ do
+            Lucid.div_ [Lucid.class_ "flex items-center justify-center gap-3 mb-3"] $ do
+              Lucid.span_ [Lucid.class_ "text-green-600 font-bold"] "✓"
+              Lucid.span_ [Lucid.class_ "font-bold"] "Current file uploaded"
+            Lucid.div_ [Lucid.class_ "flex justify-center gap-2"] $ do
+              Lucid.button_
+                [ Lucid.type_ "button",
+                  xOnClick_ "triggerInput()",
+                  Lucid.class_ (fsAudioButtonClasses styles)
+                ]
+                "REPLACE FILE"
+              Lucid.button_
+                [ Lucid.type_ "button",
+                  xOnClick_ "clearUpload()",
+                  Lucid.class_ "text-red-600 hover:text-red-800 font-bold"
+                ]
+                "Remove"
+
+        -- Empty state (no existing, no new upload)
+        let emptyCondition =
+              if hasExisting
+                then "!uploadToken && currentCleared && !isUploading"
+                else "!uploadToken && !isUploading"
+        Lucid.div_
+          [ xShow_ emptyCondition,
+            Lucid.class_ "text-center",
+            Lucid.style_ (if hasExisting then "display: none;" else "")
+          ]
+          $ do
+            Lucid.button_
+              [ Lucid.type_ "button",
+                xOnClick_ "triggerInput()",
+                Lucid.class_ (fsAudioButtonClasses styles)
+              ]
+              "CHOOSE AUDIO FILE"
+            Lucid.p_ [Lucid.class_ (fsHintClasses styles <> " mt-2")] $
+              Lucid.toHtml ([i|MP3, WAV, FLAC accepted • Max #{maxSizeMB}MB|] :: Text)
+
+        -- Uploaded file display
+        Lucid.div_
+          [ xShow_ "uploadToken && !isUploading",
+            Lucid.class_ "text-center",
+            Lucid.style_ "display: none;"
+          ]
+          $ do
+            Lucid.div_ [Lucid.class_ "flex items-center justify-center gap-3 mb-3"] $ do
+              Lucid.span_ [Lucid.class_ "text-green-600 font-bold"] "✓"
+              Lucid.span_ [Lucid.class_ "font-mono", xText_ "fileName"] ""
+              Lucid.span_ [Lucid.class_ "text-gray-500", xText_ "formatFileSize(fileSize)"] ""
+            Lucid.div_ [Lucid.class_ "flex justify-center gap-2"] $ do
+              Lucid.button_
+                [ Lucid.type_ "button",
+                  xOnClick_ "triggerInput()",
+                  Lucid.class_ (fsAudioButtonClasses styles)
+                ]
+                "CHANGE FILE"
+              Lucid.button_
+                [ Lucid.type_ "button",
+                  xOnClick_ "clearUpload()",
+                  Lucid.class_ "text-red-600 hover:text-red-800 font-bold"
+                ]
+                "Remove"
+
+        -- Error message
+        Lucid.div_
+          [ xShow_ "uploadError",
+            Lucid.class_ (fsErrorMessageClasses styles <> " mt-2"),
+            Lucid.style_ "display: none;"
+          ]
+          $ do
+            Lucid.span_ [Lucid.class_ "font-bold mr-2"] "!"
+            Lucid.span_ [xText_ "uploadError"] ""
+
+--------------------------------------------------------------------------------
+-- Staged Image Field
+
+-- | Render a staged image upload field with background upload and progress bar.
+renderStagedImageField :: FormStyles -> Field -> Text -> Text -> Lucid.Html ()
+renderStagedImageField styles field uploadUrl uploadType = do
+  let name = fName field
+      cfg = fConfig field
+      val = fValidation field
+      isReq = vcRequired val
+      labelText = fromMaybe name (fcLabel cfg) <> if isReq then " *" else ""
+      existingUrl = fromMaybe "" (fcCurrentValue cfg)
+      hasExisting = existingUrl /= ""
+      inputId = name <> "-input"
+      tokenField = name <> "_token"
+      maxSizeMB = fromMaybe 10 (fcMaxSizeMB cfg)
+      (ratioW, ratioH) = fromMaybe (1, 1) (fcAspectRatio cfg)
+      aspectRatioStyle :: Text
+      aspectRatioStyle = [i|aspect-ratio: #{ratioW} / #{ratioH}|]
+      ratioText :: Text
+      ratioText = [i|#{ratioW}:#{ratioH}|]
+
+  -- Alpine.js state for this upload
+  Lucid.div_
+    [ xData_
+        [i|{
+  uploadToken: '',
+  isUploading: false,
+  uploadProgress: 0,
+  fileName: '',
+  fileSize: 0,
+  mimeType: '',
+  previewUrl: '',
+  uploadError: '',
+  currentCleared: false,
+
+  async handleFileSelect(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size
+    if (file.size > #{maxSizeMB * 1024 * 1024}) {
+      this.uploadError = 'File exceeds #{maxSizeMB}MB limit';
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      this.uploadError = 'Please select an image file';
+      return;
+    }
+
+    // Create preview
+    if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+    this.previewUrl = URL.createObjectURL(file);
+
+    this.uploadError = '';
+    this.isUploading = true;
+    this.uploadProgress = 0;
+    this.fileName = file.name;
+    this.fileSize = file.size;
+
+    // Create FormData
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_type', '#{uploadType}');
+
+    // Upload via XHR for progress tracking
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        this.uploadProgress = Math.round((e.loaded / e.total) * 100);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      this.isUploading = false;
+      if (xhr.status === 200) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          if (response.success) {
+            this.uploadToken = response.data.token;
+            this.mimeType = response.data.mimeType;
+            this.currentCleared = false;
+            this.uploadError = '';
+          } else {
+            this.uploadError = response.error || 'Upload failed';
+            this.clearUpload();
+          }
+        } catch (e) {
+          this.uploadError = 'Invalid server response';
+          this.clearUpload();
+        }
+      } else {
+        this.uploadError = 'Upload failed: ' + xhr.statusText;
+        this.clearUpload();
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      this.isUploading = false;
+      this.uploadError = 'Network error during upload';
+      this.clearUpload();
+    });
+
+    xhr.open('POST', '#{uploadUrl}');
+    xhr.send(formData);
+  },
+
+  clearUpload() {
+    const input = document.getElementById('#{inputId}');
+    if (input) input.value = '';
+    if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+    this.uploadToken = '';
+    this.fileName = '';
+    this.fileSize = 0;
+    this.mimeType = '';
+    this.previewUrl = '';
+    this.uploadProgress = 0;
+    this.currentCleared = true;
+  },
+
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + sizes[i];
+  },
+
+  triggerInput() {
+    document.getElementById('#{inputId}').click();
+  }
+}|]
+    ]
+    $ do
+      -- Label
+      Lucid.label_
+        [ Lucid.for_ inputId,
+          Lucid.class_ (fsLabelClasses styles <> " uppercase tracking-wide")
+        ]
+        (Lucid.toHtml labelText)
+
+      -- Hidden token input
+      Lucid.input_
+        [ Lucid.type_ "hidden",
+          Lucid.name_ tokenField,
+          xModel_ "uploadToken"
+        ]
+
+      -- Hidden clear flag
+      Lucid.input_
+        [ Lucid.type_ "hidden",
+          Lucid.name_ (name <> "_clear"),
+          xBindValue_ "currentCleared ? 'true' : ''"
+        ]
+
+      -- Hidden file input
+      Lucid.input_ $
+        [ Lucid.type_ "file",
+          Lucid.name_ name,
+          Lucid.id_ inputId,
+          Lucid.accept_ "image/jpeg,image/jpg,image/png,image/webp,image/gif",
+          Lucid.class_ "hidden",
+          xOnChange_ "handleFileSelect($event)"
+        ]
+          <> [Lucid.required_ "" | isReq && not hasExisting]
+
+      -- Drop zone container
+      Lucid.div_
+        [ Lucid.class_ (fsImageDropZoneClasses styles),
+          xBindClass_ [i|{ '#{fsImageDropZoneErrorClasses styles}': uploadError }|],
+          xOnClick_ "triggerInput()"
+        ]
+        $ do
+          Lucid.div_ [Lucid.class_ "flex flex-col items-center"] $ do
+            -- Upload progress
+            Lucid.div_
+              [ xShow_ "isUploading",
+                Lucid.class_ "w-full max-w-xs mb-4",
+                Lucid.style_ "display: none;"
+              ]
+              $ do
+                Lucid.div_ [Lucid.class_ "flex justify-between text-sm text-gray-600 mb-1"] $ do
+                  Lucid.span_ [] "Uploading..."
+                  Lucid.span_ [xText_ "uploadProgress + '%'"] ""
+                Lucid.div_ [Lucid.class_ "w-full bg-gray-200 border border-gray-400 h-3"] $
+                  Lucid.div_
+                    [ Lucid.class_ "bg-purple-600 h-full transition-all duration-150",
+                      xBindStyle_ "{ width: uploadProgress + '%' }"
+                    ]
+                    mempty
+
+            -- Empty state
+            let emptyCondition =
+                  if hasExisting
+                    then "!uploadToken && !previewUrl && currentCleared && !isUploading"
+                    else "!uploadToken && !previewUrl && !isUploading"
+
+            Lucid.div_
+              [ xShow_ emptyCondition,
+                Lucid.style_ (if hasExisting then "display: none;" else ""),
+                Lucid.class_ "flex flex-col items-center"
+              ]
+              $ do
+                Lucid.div_
+                  [ Lucid.class_ "w-40 border-2 border-dashed border-gray-300 bg-white flex items-center justify-center mb-4",
+                    Lucid.style_ aspectRatioStyle
+                  ]
+                  $ do
+                    Lucid.div_ [Lucid.class_ "text-gray-300 text-3xl"] $
+                      Lucid.toHtmlRaw ("&#x1F5BC;" :: Text)
+                Lucid.p_ [Lucid.class_ "font-bold text-gray-700 mb-1"] "Click to upload image"
+                Lucid.p_ [Lucid.class_ "text-sm text-gray-600"] $ do
+                  Lucid.toHtml ratioText
+                  Lucid.span_ [Lucid.class_ "mx-2 text-gray-300"] "·"
+                  Lucid.toHtml ([i|Max #{maxSizeMB}MB|] :: Text)
+
+            -- Current/existing image
+            when hasExisting
+              $ Lucid.div_
+                [ xShow_ "!uploadToken && !previewUrl && !currentCleared && !isUploading",
+                  Lucid.class_ "flex flex-col items-center"
+                ]
+              $ do
+                Lucid.div_
+                  [ Lucid.class_ ("w-40 mb-3 " <> fsImagePreviewClasses styles),
+                    Lucid.style_ aspectRatioStyle
+                  ]
+                  $ do
+                    Lucid.img_
+                      [ Lucid.src_ existingUrl,
+                        Lucid.class_ "w-full h-full object-cover",
+                        Lucid.alt_ "Current image"
+                      ]
+                Lucid.p_ [Lucid.class_ "text-sm text-gray-600 mb-2"] "Current image"
+                Lucid.button_
+                  [ Lucid.type_ "button",
+                    xOnClick_ "$event.stopPropagation(); clearUpload()",
+                    Lucid.class_ (fsImageActionButtonClasses styles)
+                  ]
+                  "Remove image"
+
+            -- New file preview
+            Lucid.div_
+              [ xShow_ "(uploadToken || previewUrl) && !isUploading",
+                Lucid.style_ "display: none;",
+                Lucid.class_ "flex flex-col items-center"
+              ]
+              $ do
+                Lucid.div_
+                  [ Lucid.class_ ("w-40 mb-3 border-purple-400 " <> fsImagePreviewClasses styles),
+                    Lucid.style_ aspectRatioStyle
+                  ]
+                  $ do
+                    Lucid.img_
+                      [ xBindSrc_ "previewUrl",
+                        Lucid.class_ "w-full h-full object-cover",
+                        Lucid.alt_ "Preview"
+                      ]
+                Lucid.div_ [Lucid.class_ "flex items-center gap-2 mb-2"] $ do
+                  Lucid.span_ [Lucid.class_ "text-green-600 font-bold"] "✓"
+                  Lucid.span_ [Lucid.class_ "font-mono text-sm", xText_ "fileName"] ""
+                  Lucid.span_ [Lucid.class_ "text-gray-500 text-sm", xText_ "formatFileSize(fileSize)"] ""
+                Lucid.button_
+                  [ Lucid.type_ "button",
+                    xOnClick_ "$event.stopPropagation(); clearUpload()",
+                    Lucid.class_ (fsImageActionButtonClasses styles)
+                  ]
+                  "Remove"
+
+      -- Error message
+      Lucid.div_
+        [ xShow_ "uploadError",
+          Lucid.class_ (fsErrorMessageClasses styles <> " mt-2 flex items-center gap-2"),
+          Lucid.style_ "display: none;"
+        ]
+        $ do
+          Lucid.span_ [Lucid.class_ "font-bold"] "!"
+          Lucid.span_ [xText_ "uploadError"] ""
+
+      -- Hint for non-required with existing
+      when (not isReq && hasExisting) $
+        Lucid.p_
+          [Lucid.class_ (fsHintClasses styles <> " mt-2")]
+          "Leave unchanged to keep the current image"
 
 --------------------------------------------------------------------------------
 -- DateTime Field

@@ -136,7 +136,7 @@ template backend currentTime showModel episode tracks episodeTags mCurrentSlot u
 
       when allowFileUpload $ do
         section "MEDIA FILES" $ do
-          audioField "episode_audio" $ do
+          stagedAudioField "episode_audio" "/api/uploads/audio" "episode_audio" $ do
             label "Episode Audio"
             maxSize 500
             currentFile audioUrl

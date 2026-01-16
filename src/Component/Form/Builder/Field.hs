@@ -10,7 +10,7 @@
 -- >   label "Email Address"
 -- >   placeholder "you@example.com"
 -- >   required
--- >   pattern "[^@]+@[^@]+"
+-- >   pattern' "[^@]+@[^@]+"
 -- >   hint "We'll never share your email"
 module Component.Form.Builder.Field
   ( -- * Builder Type
@@ -50,7 +50,7 @@ module Component.Form.Builder.Field
     required,
     minLength,
     maxLength,
-    pattern,
+    pattern',
     customValidation,
 
     -- * Conditional Configuration
@@ -332,12 +332,12 @@ minLength n = tellValidation $ \v -> v {vcMinLength = Just n}
 maxLength :: Int -> FieldBuilder
 maxLength n = tellValidation $ \v -> v {vcMaxLength = Just n}
 
--- | Set a regex pattern for validation.
+-- | Set a regex pattern' for validation.
 --
 -- > textField "phone" do
--- >   pattern "[0-9]{3}-[0-9]{3}-[0-9]{4}"
-pattern :: Text -> FieldBuilder
-pattern p = tellValidation $ \v -> v {vcPattern = Just p}
+-- >   pattern' "[0-9]{3}-[0-9]{3}-[0-9]{4}"
+pattern' :: Text -> FieldBuilder
+pattern' p = tellValidation $ \v -> v {vcPattern = Just p}
 
 -- | Add a custom validation rule.
 --

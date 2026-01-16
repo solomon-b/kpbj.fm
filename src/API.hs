@@ -23,6 +23,7 @@ module API
     DashboardStationBlogRoutes (..),
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
+    UploadRoutes (..),
 
     -- * Re-exports from API.Links (for backward compatibility)
     module API.Links,
@@ -98,6 +99,7 @@ import API.Shows.Slug.Get.Handler qualified as Show.Get
 import API.Static.Get.Handler qualified as Static.Get
 import API.TermsOfService.Get.Handler qualified as TermsOfService.Get
 import API.Types
+import API.Uploads.Audio.Post.Handler qualified as Uploads.Audio.Post
 import API.User.Login.Get.Handler qualified as User.Login.Get
 import API.User.Login.Post.Handler qualified as User.Login.Post
 import API.User.Logout.Get.Handler qualified as User.Logout.Get
@@ -106,7 +108,7 @@ import API.User.Register.Get.Handler qualified as User.Register.Get
 import API.User.Register.Post.Handler qualified as User.Register.Post
 import Amazonka qualified as AWS
 import App qualified
-import App.Config (Environment (..))
+import App.Config (Environment (..), Hostname)
 import App.Storage (initStorageContext)
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -153,6 +155,7 @@ server ::
     MonadReader env m,
     Has HSQL.Pool.Pool env,
     Has Environment env,
+    Has Hostname env,
     Has StorageBackend env,
     Has (Maybe AWS.Env) env
   ) =>
@@ -172,7 +175,8 @@ server env =
       schedule = Schedule.Get.handler,
       shows = showsRoutes,
       user = userRoutes,
-      dashboard = dashboardRoutes
+      dashboard = dashboardRoutes,
+      uploads = uploadRoutes
     }
   where
     blogRoutes =
@@ -309,4 +313,9 @@ server env =
           suspendPost = Dashboard.Users.Suspend.Post.handler,
           unsuspendPost = Dashboard.Users.Unsuspend.Post.handler,
           delete = Dashboard.Users.Delete.handler
+        }
+
+    uploadRoutes =
+      UploadRoutes
+        { audioPost = Uploads.Audio.Post.handler
         }

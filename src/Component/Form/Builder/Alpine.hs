@@ -17,7 +17,7 @@ where
 
 import Component.Form.Builder.JS hiding (field)
 import Component.Form.Builder.Types
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
 
@@ -58,6 +58,9 @@ needsValidation field = case fType field of
   FileField {} -> hasValidationRules field || hasFileConstraints field
   ImageField {} -> hasValidationRules field || hasFileConstraints field
   AudioField {} -> hasValidationRules field || hasFileConstraints field
+  -- Staged upload fields handle their own validation via inline Alpine.js
+  StagedAudioField {} -> False
+  StagedImageField {} -> False
   DateTimeField -> hasValidationRules field
   NumberField {} -> hasValidationRules field
   CheckboxField -> hasValidationRules field
@@ -134,7 +137,7 @@ generateFieldInit field =
                 [] -> ""
            in name <> ": { value: '" <> initialVal <> "', isValid: true }"
         _ ->
-          let initialVal = escapeJsString (maybe "" id (fcInitialValue cfg))
+          let initialVal = escapeJsString (fromMaybe "" (fcInitialValue cfg))
            in name <> ": { value: '" <> initialVal <> "', isValid: true }"
 
 boolToJS :: Bool -> Text
@@ -404,6 +407,8 @@ renderAlpineObject fieldInits methods validatorCalls =
         <> "\n\
            \  },\n\
            \  showErrors: false,\n\
+           \  isUploading: false,\n\
+           \  uploadProgress: 0,\n\
            \\n\
            \  "
         <> methodsStr
@@ -431,7 +436,45 @@ renderAlpineObject fieldInits methods validatorCalls =
            \    const htmxTarget = form.getAttribute('data-htmx-target');\n\
            \    const htmxAction = form.getAttribute('data-htmx-action');\n\
            \\n\
-           \    if (typeof htmx !== 'undefined' && htmxTarget && htmxAction) {\n\
+           \    // Check if form has file inputs with files selected\n\
+           \    const hasFiles = Array.from(form.querySelectorAll('input[type=\"file\"]'))\n\
+           \      .some(input => input.files && input.files.length > 0);\n\
+           \\n\
+           \    if (hasFiles && htmxAction) {\n\
+           \      // Use XMLHttpRequest for file uploads to track progress\n\
+           \      this.isUploading = true;\n\
+           \      this.uploadProgress = 0;\n\
+           \\n\
+           \      const xhr = new XMLHttpRequest();\n\
+           \      const formData = new FormData(form);\n\
+           \      const self = this;\n\
+           \\n\
+           \      xhr.upload.addEventListener('progress', (e) => {\n\
+           \        if (e.lengthComputable) {\n\
+           \          self.uploadProgress = Math.round((e.loaded / e.total) * 100);\n\
+           \        }\n\
+           \      });\n\
+           \\n\
+           \      xhr.addEventListener('load', () => {\n\
+           \        self.isUploading = false;\n\
+           \        if (xhr.status >= 200 && xhr.status < 300) {\n\
+           \          const redirect = xhr.getResponseHeader('HX-Redirect');\n\
+           \          if (redirect) {\n\
+           \            window.location.href = redirect;\n\
+           \          } else if (htmxTarget) {\n\
+           \            document.querySelector(htmxTarget).innerHTML = xhr.responseText;\n\
+           \          }\n\
+           \        }\n\
+           \      });\n\
+           \\n\
+           \      xhr.addEventListener('error', () => {\n\
+           \        self.isUploading = false;\n\
+           \        alert('Upload failed. Please try again.');\n\
+           \      });\n\
+           \\n\
+           \      xhr.open('POST', htmxAction);\n\
+           \      xhr.send(formData);\n\
+           \    } else if (typeof htmx !== 'undefined' && htmxTarget && htmxAction) {\n\
            \      const htmxSwap = form.getAttribute('data-htmx-swap') || 'innerHTML';\n\
            \      htmx.ajax('POST', htmxAction, {\n\
            \        source: form,\n\

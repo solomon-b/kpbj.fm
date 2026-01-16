@@ -138,6 +138,19 @@ data FieldType
     AudioField
       { afAccept :: Maybe Text
       }
+  | -- | Staged audio upload (YouTube/Bandcamp style background upload)
+    --
+    -- The upload URL is where files are POSTed to get a token back.
+    -- The token is then submitted with the form.
+    StagedAudioField
+      { safUploadUrl :: Text,
+        safUploadType :: Text
+      }
+  | -- | Staged image upload (YouTube/Bandcamp style background upload)
+    StagedImageField
+      { sifUploadUrl :: Text,
+        sifUploadType :: Text
+      }
   | -- | Date and time picker
     DateTimeField
   | -- | Numeric input

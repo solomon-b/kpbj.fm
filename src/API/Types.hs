@@ -1,7 +1,30 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module API.Types where
+module API.Types
+  ( -- * API Type
+    API,
+
+    -- * Route Records
+    Routes (..),
+    BlogRoutes (..),
+    EventsRoutes (..),
+    ShowsRoutes (..),
+    ShowBlogRoutes (..),
+    ShowEpisodesRoutes (..),
+    UserRoutes (..),
+    DashboardRoutes (..),
+    DashboardHostRoutes (..),
+    DashboardAdminRoutes (..),
+    DashboardEpisodesRoutes (..),
+    DashboardBlogsRoutes (..),
+    DashboardEventsRoutes (..),
+    DashboardStationBlogRoutes (..),
+    DashboardShowsRoutes (..),
+    DashboardUsersRoutes (..),
+    UploadRoutes (..),
+  )
+where
 
 --------------------------------------------------------------------------------
 
@@ -70,6 +93,7 @@ import API.Shows.Slug.Episode.Get.Route qualified as Episodes.Get
 import API.Shows.Slug.Get.Route qualified as Show.Get
 import API.Static.Get.Route qualified as Static.Get
 import API.TermsOfService.Get.Route qualified as TermsOfService.Get
+import API.Uploads.Audio.Post.Route qualified as Uploads.Audio.Post
 import API.User.Login.Get.Route qualified as User.Login.Get
 import API.User.Login.Post.Route qualified as User.Login.Post
 import API.User.Logout.Get.Route qualified as User.Logout.Get
@@ -113,7 +137,9 @@ data Routes mode = Routes
     -- | @/user/...@ - User authentication routes
     user :: mode :- NamedRoutes UserRoutes,
     -- | @/dashboard/...@ - Admin dashboard routes
-    dashboard :: mode :- NamedRoutes DashboardRoutes
+    dashboard :: mode :- NamedRoutes DashboardRoutes,
+    -- | @/api/uploads/...@ - Staged file upload API routes
+    uploads :: mode :- NamedRoutes UploadRoutes
   }
   deriving stock (Generic)
 
@@ -177,7 +203,7 @@ data ShowBlogRoutes mode = ShowBlogRoutes
 --
 -- Public view routes for show episodes.
 -- Episode management (create/edit/delete/publish) is handled in the Dashboard.
-data ShowEpisodesRoutes mode = ShowEpisodesRoutes
+newtype ShowEpisodesRoutes mode = ShowEpisodesRoutes
   { -- | @GET /shows/:showSlug/episodes/:episodeNumber@ - Episode detail
     detail :: mode :- Episodes.Get.Route
   }
@@ -371,5 +397,19 @@ data DashboardUsersRoutes mode = DashboardUsersRoutes
     unsuspendPost :: mode :- Dashboard.Users.Unsuspend.Post.Route,
     -- | @DELETE /dashboard/users/:id@ - Delete user
     delete :: mode :- Dashboard.Users.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Staged file upload API routes under @/api/uploads@.
+--
+-- These endpoints support YouTube/Bandcamp-style background uploads where
+-- files are uploaded immediately on selection, and a token is returned
+-- to be submitted with the form.
+--
+-- Currently only audio uploads use staged uploads since they are large files
+-- that benefit from background uploading. Image uploads use direct form submission.
+newtype UploadRoutes mode = UploadRoutes
+  { -- | @POST /api/uploads/audio@ - Upload audio file and get token
+    audioPost :: mode :- Uploads.Audio.Post.Route
   }
   deriving stock (Generic)

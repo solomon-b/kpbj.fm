@@ -23,6 +23,14 @@ assertJust = \case
   Nothing -> annotate "Expected a Just but found Nothing" >> failure
   Just v -> pure v
 
+assertNothing :: (Show v) => Maybe v -> PropertyT IO ()
+assertNothing = \case
+  Nothing -> pure ()
+  Just v -> do
+    annotate "Expected Nothing but found Just:"
+    annotateShow v
+    failure
+
 (<==) :: (MonadTest m, Show a, HasCallStack) => a -> (a -> Bool) -> m ()
 (<==) val predicate = withFrozenCallStack $ do
   ok <- withFrozenCallStack $ eval $ predicate val

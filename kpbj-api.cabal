@@ -94,6 +94,7 @@ library
                   , transformers
                   , unliftio
                   , unliftio-core
+                  , uuid
                   , validation
                   , vector
                   , wai-extra
@@ -291,6 +292,10 @@ library
     API.TermsOfService.Get.Route
     API.TermsOfService.Get.Templates
     API.Types
+    API.Uploads.Shared
+    API.Uploads.Types
+    API.Uploads.Audio.Post.Handler
+    API.Uploads.Audio.Post.Route
     API.User.Login.Get.Handler
     API.User.Login.Get.Route
     API.User.Login.Get.Templates.Form
@@ -356,6 +361,7 @@ library
     Domain.Types.HxRequest
     Domain.Types.Limit
     Domain.Types.Offset
+    Domain.Types.Origin
     Domain.Types.PageNumber
     Domain.Types.Search
     Domain.Types.ShowSortBy
@@ -375,12 +381,16 @@ library
     Effects.Database.Tables.ShowHost
     Effects.Database.Tables.ShowSchedule
     Effects.Database.Tables.ShowTags
+    Effects.Database.Tables.StagedUploads
     Effects.Database.Tables.UserMetadata
     Effects.AWS
     Effects.ContentSanitization
+    Effects.CSRF
     Effects.FileUpload
     Effects.Markdown
     Effects.MimeTypeValidation
+    Effects.StagedUploadCleanup
+    Effects.StagedUploads
     Effects.Storage.Local
     Effects.Storage.S3
     Helpers.RelativeTime
@@ -451,9 +461,11 @@ test-suite kpbj-api-test
        Effects.Database.Tables.ShowHostSpec
        Effects.Database.Tables.ShowScheduleSpec
        Effects.Database.Tables.ShowsSpec
+       Effects.Database.Tables.StagedUploadsSpec
        Effects.Database.Tables.UserMetadataSpec
        Effects.Database.Tables.UserRoleSpec
        Effects.MimeTypeValidationSpec
+       Effects.StagedUploadsSpec
        Test.Database.Expectation
        Test.Database.Monad
        Test.Database.Property
@@ -468,6 +480,7 @@ test-suite kpbj-api-test
        Test.Gen.Tables.Shows
        Test.Gen.Tables.ShowHost
        Test.Gen.Tables.ShowSchedule
+       Test.Gen.Tables.StagedUploads
        Test.Gen.Tables.User
        Test.Gen.Tables.UserMetadata
        Test.Gen.Text

@@ -42,10 +42,12 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (isEmptyUpload)
 import Effects.FileUpload qualified as FileUpload
+import Effects.StagedUploads (claimStagedUploadMaybe)
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
@@ -200,7 +202,7 @@ updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel edit
     Right (Just _) -> pure ()
 
   -- 3. Optional updates (accumulate warnings, don't throw)
-  warnings <- execOptionalUpdates currentTime isStaffOrAdmin isPast episode showModel editForm
+  warnings <- execOptionalUpdates _user.mId currentTime isStaffOrAdmin isPast episode showModel editForm
 
   -- 4. Success redirect with any warnings
   Log.logInfo "Successfully updated episode" episode.id
@@ -253,6 +255,7 @@ execOptionalUpdates ::
     Has StorageBackend env,
     Has (Maybe AWS.Env) env
   ) =>
+  User.Id ->
   UTCTime ->
   Bool -> -- isStaffOrAdmin
   Bool -> -- isPast
@@ -260,11 +263,11 @@ execOptionalUpdates ::
   Shows.Model ->
   EpisodeEditForm ->
   m [Text] -- Returns list of warning messages
-execOptionalUpdates currentTime isStaffOrAdmin isPast episode showModel editForm = do
+execOptionalUpdates userId currentTime isStaffOrAdmin isPast episode showModel editForm = do
   let allowFileUpload = isScheduledInFuture currentTime episode || isStaffOrAdmin
 
   -- File uploads
-  fileWarning <- processFileUploadsWithWarning allowFileUpload showModel episode editForm
+  fileWarning <- processFileUploadsWithWarning userId allowFileUpload showModel episode editForm
 
   -- Schedule update
   scheduleWarning <- processScheduleUpdate isPast isStaffOrAdmin episode editForm
@@ -279,6 +282,9 @@ execOptionalUpdates currentTime isStaffOrAdmin isPast episode showModel editForm
   pure $ concat [fileWarning, scheduleWarning, trackWarning]
 
 -- | Process file uploads, returning a warning if it fails
+--
+-- Audio supports both staged uploads (tokens) and direct file uploads.
+-- Artwork only uses direct file uploads (no staged upload for images).
 processFileUploadsWithWarning ::
   ( MonadIO m,
     MonadDB m,
@@ -291,37 +297,42 @@ processFileUploadsWithWarning ::
     Has StorageBackend env,
     Has (Maybe AWS.Env) env
   ) =>
+  User.Id ->
   Bool -> -- allowFileUpload
   Shows.Model ->
   Episodes.Model ->
   EpisodeEditForm ->
   m [Text]
-processFileUploadsWithWarning allowFileUpload showModel episode editForm =
-  if not allowFileUpload || not (isJust (eefAudioFile editForm) || isJust (eefArtworkFile editForm) || eefArtworkClear editForm)
-    then pure []
-    else do
-      result <- processFileUploads showModel episode editForm
-      case result of
-        Left fileErr -> do
-          Log.logInfo "Failed to upload files" (episode.id, fileErr)
-          pure ["File upload failed: " <> fileErr]
-        Right (mAudioPath, mArtworkPath) -> do
-          -- Determine final artwork URL: new upload > explicit clear > keep existing
-          let artworkClear = eefArtworkClear editForm
-              shouldUpdateFiles = isJust mAudioPath || isJust mArtworkPath || artworkClear
-          when shouldUpdateFiles $ do
-            let fileUpdate =
-                  Episodes.FileUpdate
-                    { efuId = episode.id,
-                      efuAudioFilePath = mAudioPath,
-                      efuArtworkUrl = mArtworkPath,
-                      efuClearArtwork = artworkClear && isNothing mArtworkPath
-                    }
-            execQuerySpan (Episodes.updateEpisodeFiles fileUpdate) >>= \case
-              Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)
-              Right Nothing -> Log.logInfo "File path update returned Nothing" episode.id
-              Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
-          pure []
+processFileUploadsWithWarning userId allowFileUpload showModel episode editForm =
+  let hasFileUploads = isJust (eefArtworkFile editForm) || eefAudioClear editForm || eefArtworkClear editForm
+      hasStagedUploads = isJust (eefAudioToken editForm)
+   in if not allowFileUpload || not (hasFileUploads || hasStagedUploads)
+        then pure []
+        else do
+          result <- processFileUploads userId showModel episode editForm
+          case result of
+            Left fileErr -> do
+              Log.logInfo "Failed to upload files" (episode.id, fileErr)
+              pure ["File upload failed: " <> fileErr]
+            Right (mAudioPath, mArtworkPath) -> do
+              -- Determine final paths: new upload > explicit clear > keep existing
+              let audioClear = eefAudioClear editForm
+                  artworkClear = eefArtworkClear editForm
+                  shouldUpdateFiles = isJust mAudioPath || isJust mArtworkPath || audioClear || artworkClear
+              when shouldUpdateFiles $ do
+                let fileUpdate =
+                      Episodes.FileUpdate
+                        { efuId = episode.id,
+                          efuAudioFilePath = mAudioPath,
+                          efuArtworkUrl = mArtworkPath,
+                          efuClearAudio = audioClear && isNothing mAudioPath,
+                          efuClearArtwork = artworkClear && isNothing mArtworkPath
+                        }
+                execQuerySpan (Episodes.updateEpisodeFiles fileUpdate) >>= \case
+                  Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)
+                  Right Nothing -> Log.logInfo "File path update returned Nothing" episode.id
+                  Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
+              pure []
 
 -- | Process schedule update, returning a warning if it fails
 processScheduleUpdate ::
@@ -400,20 +411,29 @@ makeSuccessBanner warnings =
    in BannerParams Warning "Episode Updated with Issues" ("Episode saved, but: " <> warningText)
 
 -- | Process file uploads for episode editing
+--
+-- Audio uses staged uploads only - file is uploaded via XHR before form submission,
+-- and we receive a token to claim the upload.
+--
+-- Artwork uses direct form submission (small files don't benefit from staged uploads).
 processFileUploads ::
   ( MonadUnliftIO m,
+    MonadDB m,
     Log.MonadLog m,
     MonadReader env m,
     MonadMask m,
     MonadIO m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
     Has StorageBackend env,
     Has (Maybe AWS.Env) env
   ) =>
+  User.Id ->
   Shows.Model ->
   Episodes.Model ->
   EpisodeEditForm ->
   m (Either Text (Maybe Text, Maybe Text))
-processFileUploads showModel episode editForm = do
+processFileUploads userId showModel episode editForm = do
   storageBackend <- asks getter
   mAwsEnv <- asks getter
 
@@ -421,21 +441,12 @@ processFileUploads showModel episode editForm = do
   currentTime <- liftIO getCurrentTime
   let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
 
-  -- Process audio file if provided (skip empty uploads)
-  audioResult <- case eefAudioFile editForm of
+  -- Process audio: staged upload only (file uploaded via XHR, we receive a token)
+  audioResult <- case eefAudioToken editForm of
+    Just token -> claimStagedUploadMaybe userId token StagedUploads.EpisodeAudio
     Nothing -> pure $ Right Nothing
-    Just audioFile
-      | isEmptyUpload audioFile -> pure $ Right Nothing
-      | otherwise -> do
-          result <- FileUpload.uploadEpisodeAudio storageBackend mAwsEnv showModel.slug fileId (Just episode.scheduledAt) audioFile
-          case result of
-            Left err -> do
-              Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
-              pure $ Left "Failed to upload audio file"
-            Right uploadResult ->
-              pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
-  -- Process artwork file if provided (skip empty uploads)
+  -- Process artwork: direct upload only (no staged upload for images)
   artworkResult <- case eefArtworkFile editForm of
     Nothing -> pure $ Right Nothing
     Just artworkFile

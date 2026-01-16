@@ -44,6 +44,8 @@ module Component.Form.Builder.Core
     fileField,
     imageField,
     audioField,
+    stagedAudioField,
+    stagedImageField,
     dateTimeField,
     numberField,
     checkboxField,
@@ -223,6 +225,30 @@ imageField name builder =
 audioField :: Text -> FieldBuilder -> FormBuilder
 audioField name builder =
   tellField $ buildField name (AudioField (Just "audio/*")) builder
+
+-- | Add a staged audio upload field with background upload and progress bar.
+--
+-- When the user selects a file, it uploads immediately in the background.
+-- A token is returned and submitted with the form instead of the file itself.
+--
+-- > stagedAudioField "audio_file" "/api/uploads/audio" "episode_audio" do
+-- >   label "Episode Audio"
+-- >   maxSize 500
+stagedAudioField :: Text -> Text -> Text -> FieldBuilder -> FormBuilder
+stagedAudioField name uploadUrl uploadType builder =
+  tellField $ buildField name (StagedAudioField uploadUrl uploadType) builder
+
+-- | Add a staged image upload field with background upload and progress bar.
+--
+-- When the user selects a file, it uploads immediately in the background.
+-- A token is returned and submitted with the form instead of the file itself.
+--
+-- > stagedImageField "artwork_file" "/api/uploads/image" "episode_artwork" do
+-- >   label "Episode Artwork"
+-- >   maxSize 10
+stagedImageField :: Text -> Text -> Text -> FieldBuilder -> FormBuilder
+stagedImageField name uploadUrl uploadType builder =
+  tellField $ buildField name (StagedImageField uploadUrl uploadType) builder
 
 -- | Add a date/time picker field.
 --

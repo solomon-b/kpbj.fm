@@ -14,7 +14,7 @@ primary_region = 'lax'
 
 [env]
   APP_ENVIRONMENT = 'Production'
-  APP_HOSTNAME = 'kpbj-fm-staging.fly.dev'
+  APP_HOSTNAME = 'https://kpbj-fm-staging.fly.dev'
   APP_OBSERVABILITY_EXPORTER = 'StdOut'
   APP_OBSERVABILITY_VERBOSITY = 'Brief'
   APP_WARP_PORT = '4000'

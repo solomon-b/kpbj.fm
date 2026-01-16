@@ -13,9 +13,11 @@ import Effects.Database.Tables.EventsSpec qualified as Events
 import Effects.Database.Tables.ShowHostSpec qualified as ShowHost
 import Effects.Database.Tables.ShowScheduleSpec qualified as ShowSchedule
 import Effects.Database.Tables.ShowsSpec qualified as Shows
+import Effects.Database.Tables.StagedUploadsSpec qualified as StagedUploads
 import Effects.Database.Tables.UserMetadataSpec qualified as UserMetadata
 import Effects.Database.Tables.UserRoleSpec qualified as UserRole
 import Effects.MimeTypeValidationSpec qualified as MimeTypeValidation
+import Effects.StagedUploadsSpec qualified as StagedUploadsEffects
 import System.Environment (lookupEnv)
 import Test.Database.Setup (withTmpPG)
 import Test.Hspec
@@ -45,6 +47,7 @@ main = do
     FileUpload.spec
     MimeTypeValidation.spec
     UserRole.spec
+    StagedUploadsEffects.spec
 
   -- Database-dependent tests
   withTmpPG $ hspecWith cfg $ parallel $ do
@@ -56,3 +59,4 @@ main = do
     Events.spec
     ShowHost.spec
     ShowSchedule.spec
+    StagedUploads.spec

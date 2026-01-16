@@ -53,8 +53,9 @@ data EpisodeUploadForm = EpisodeUploadForm
     -- Track data (JSON encoded)
     eufTracksJson :: Maybe Text,
     -- File uploads
-    eufAudioFile :: Maybe (FileData Mem),
-    eufArtworkFile :: Maybe (FileData Mem)
+    eufArtworkFile :: Maybe (FileData Mem), -- Direct upload only (small files)
+    -- Staged upload tokens
+    eufAudioToken :: Maybe Text -- Audio uploaded via XHR, token claimed on form submit
   }
   deriving stock (Show, Generic, Eq)
 
@@ -68,8 +69,8 @@ instance FromMultipart Mem EpisodeUploadForm where
       <*> pure (either (const Nothing) Just (lookupInput "duration_seconds" multipartData))
       <*> lookupInput "status" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tracks_json" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "audio_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "artwork_file" multipartData))
+      <*> pure (either (const Nothing) nonEmptyText (lookupInput "audio_file_token" multipartData))
     where
       -- \| Convert empty filename FileData to Nothing
       fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
@@ -77,3 +78,9 @@ instance FromMultipart Mem EpisodeUploadForm where
         | Text.null (fdFileName fileData) = Nothing
         | otherwise = Just fileData
       fileDataToNothing Nothing = Nothing
+
+      -- \| Convert empty text to Nothing
+      nonEmptyText :: Text -> Maybe Text
+      nonEmptyText t
+        | Text.null t = Nothing
+        | otherwise = Just t
