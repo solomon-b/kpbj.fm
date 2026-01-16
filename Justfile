@@ -123,8 +123,8 @@ hlint-changed:
   	hlint {{CHANGED_HS_FILES}}; \
   fi
 
-# Detect dead code using weeder.
-weeder:
+# Detect dead code using weeder (rebuilds HIE files first).
+weeder: build
   @echo running weeder
   @weeder
 

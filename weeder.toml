@@ -1,18 +1,34 @@
 # Weeder Configuration
 # https://github.com/ocharles/weeder
 
-# Root modules that should be considered entry points
+# Entry point patterns (regex matching fully-qualified symbol names)
 roots = [
-  '''^Main\.main$''',
-  '''^Paths_.*$''',
+  "^Main\\.main$",
+  "^Paths_.*",
+  # Test entry points
+  "^Test\\..*\\.spec$",
+  # Servant handlers - type-level routing is invisible to weeder
+  "^API\\..*\\.handler$",
+  "^API\\..*\\.handlerWithSlug$",
+  "^API\\..*\\.handlerWithoutSlug$"
 ]
 
+# Modules where ALL exports are considered roots
+# Servant's type-level composition (:<|>) can't be traced, so we need
+# the API module and related utilities as roots
 root-modules = [
-  # TODO: This root shouldn't be needed but the `roots` section isn't working:
-  '''^API$''',
-  '''^Component.Form.JSArrow''',
-  '''^Lucid\.Extras$''',
-  '''^Utils$''',
+  # Main API composition - Servant :<|> is invisible to HIE
+  "^API$",
+  # HTMX/Alpine attributes used across all templates
+  "^Lucid\\.Extras$",
+  # Utility functions used throughout
+  "^Utils$"
 ]
 
+# Type class instance handling
+# false = can detect unused instances (stricter)
+# true = all instances are roots (more permissive)
 type-class-roots = true
+
+# Enable detection of unused type definitions
+unused-types = false
