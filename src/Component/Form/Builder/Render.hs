@@ -852,6 +852,13 @@ renderImageField styles field = do
         ]
           <> [Lucid.required_ "" | isReq]
 
+      -- Hidden clear flag (sent when user explicitly removes an existing image)
+      Lucid.input_
+        [ Lucid.type_ "hidden",
+          Lucid.name_ (name <> "_clear"),
+          xBindValue_ "currentCleared ? 'true' : ''"
+        ]
+
       -- Drop zone container
       Lucid.div_
         [ xBindClass_

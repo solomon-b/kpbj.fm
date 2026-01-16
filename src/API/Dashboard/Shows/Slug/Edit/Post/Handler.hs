@@ -13,7 +13,6 @@ import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Applicative ((<|>))
 import Control.Monad (forM_, when)
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -211,10 +210,15 @@ updateShow userMetadata showModel editForm = do
           let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
           pure (Servant.noHeader (redirectWithBanner editUrl banner))
         Right (mLogoPath, mBannerPath) -> do
-          -- Use new uploaded files if provided, otherwise keep existing values
-          let finalLogoUrl = mLogoPath <|> showModel.logoUrl
-              finalBannerUrl = mBannerPath <|> showModel.bannerUrl
-
+          -- Determine final URLs based on: new upload > explicit clear > keep existing
+          let finalLogoUrl = case (mLogoPath, sefLogoClear editForm) of
+                (Just path, _) -> Just path -- New file uploaded
+                (Nothing, True) -> Nothing -- User explicitly cleared
+                (Nothing, False) -> showModel.logoUrl -- Keep existing
+              finalBannerUrl = case (mBannerPath, sefBannerClear editForm) of
+                (Just path, _) -> Just path -- New file uploaded
+                (Nothing, True) -> Nothing -- User explicitly cleared
+                (Nothing, False) -> showModel.bannerUrl -- Keep existing
               updateData =
                 Shows.Insert
                   { siTitle = sefTitle editForm,

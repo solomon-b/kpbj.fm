@@ -43,7 +43,8 @@ data BlogEditForm = BlogEditForm
     befExcerpt :: Maybe Text,
     befStatus :: Text,
     befTags :: [Text],
-    befHeroImage :: Maybe (FileData Mem)
+    befHeroImage :: Maybe (FileData Mem),
+    befHeroImageClear :: Bool -- True if user explicitly removed the hero image
   }
   deriving (Show)
 
@@ -56,6 +57,7 @@ instance FromMultipart Mem BlogEditForm where
       <*> lookupInput "status" multipartData
       <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
       <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "hero_image" multipartData))
+      <*> pure (parseClearFlag "hero_image_clear")
     where
       -- \| Convert empty text to Nothing
       emptyToNothing :: Maybe Text -> Maybe Text
@@ -69,6 +71,12 @@ instance FromMultipart Mem BlogEditForm where
         | otherwise = Just fileData
       fileDataToNothing Nothing = Nothing
 
+      -- \| Parse a clear flag (true if the hidden input has value "true")
+      parseClearFlag :: Text -> Bool
+      parseClearFlag name = case lookupInput name multipartData of
+        Right "true" -> True
+        _ -> False
+
 instance FromForm BlogEditForm where
   fromForm :: Form.Form -> Either Text BlogEditForm
   fromForm form = do
@@ -77,6 +85,7 @@ instance FromForm BlogEditForm where
     excerpt <- Form.parseMaybe "excerpt" form
     status <- Form.parseUnique "status" form
     tags <- Form.parseMaybe "tags" form
+    heroImageClear <- Form.parseMaybe "hero_image_clear" form
 
     pure
       BlogEditForm
@@ -85,7 +94,8 @@ instance FromForm BlogEditForm where
           befExcerpt = emptyToNothing excerpt,
           befStatus = status,
           befTags = parseTags $ fromMaybe "" tags,
-          befHeroImage = Nothing
+          befHeroImage = Nothing,
+          befHeroImageClear = heroImageClear == Just ("true" :: Text)
         }
     where
       emptyToNothing :: Maybe Text -> Maybe Text

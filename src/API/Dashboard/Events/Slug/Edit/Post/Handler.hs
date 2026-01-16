@@ -113,9 +113,15 @@ updateEvent eventId event editForm = do
   validLocationName <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 100 sanitizedLocationName)
   validLocationAddress <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 500 sanitizedLocationAddress)
 
-  -- 6. Upload poster image if provided
+  -- 6. Upload poster image if provided, or clear if requested
   posterImagePath <- case eefPosterImage editForm of
-    Nothing -> pure event.emPosterImageUrl -- Keep existing image
+    Nothing ->
+      -- No new file: check if user wants to clear existing image
+      if eefPosterImageClear editForm
+        then do
+          Log.logInfo "Clearing poster image" event.emId
+          pure Nothing
+        else pure event.emPosterImageUrl -- Keep existing image
     Just posterImageFile -> do
       let newSlug = Slug.mkSlug validTitle
       storageBackend <- asks getter
@@ -125,7 +131,13 @@ updateEvent eventId event editForm = do
         Left uploadError -> do
           Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
           pure event.emPosterImageUrl -- Keep existing image on error
-        Right Nothing -> pure event.emPosterImageUrl -- No file selected, keep existing
+        Right Nothing ->
+          -- No file selected: check if user wants to clear existing image
+          if eefPosterImageClear editForm
+            then do
+              Log.logInfo "Clearing poster image" event.emId
+              pure Nothing
+            else pure event.emPosterImageUrl -- Keep existing
         Right (Just result) -> do
           Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
           pure (Just $ Text.pack $ uploadResultStoragePath result)

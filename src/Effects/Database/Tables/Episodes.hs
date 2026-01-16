@@ -287,10 +287,15 @@ data Update = Update
   deriving (Display) via (RecordInstance Update)
 
 -- | Episode file update data for updating audio and artwork files.
+--
+-- The clear flags allow explicitly setting fields to NULL (removing the file).
+-- When a clear flag is True, the corresponding field is set to NULL regardless
+-- of the Maybe value. When False, Nothing preserves existing and Just sets new.
 data FileUpdate = FileUpdate
   { efuId :: Id,
     efuAudioFilePath :: Maybe Text,
-    efuArtworkUrl :: Maybe Text
+    efuArtworkUrl :: Maybe Text,
+    efuClearArtwork :: Bool -- If True, set artwork_url to NULL
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance FileUpdate)
@@ -487,8 +492,9 @@ updateEpisode Update {..} =
 
 -- | Update an episode's audio and artwork files.
 --
--- Only updates fields that are provided (Just value). Nothing values are ignored
--- and the existing values are kept.
+-- For audio: Nothing preserves existing, Just sets new value.
+-- For artwork: If efuClearArtwork is True, sets to NULL. Otherwise,
+-- Nothing preserves existing and Just sets new value.
 updateEpisodeFiles :: FileUpdate -> Hasql.Statement () (Maybe Id)
 updateEpisodeFiles FileUpdate {..} =
   interp
@@ -496,7 +502,10 @@ updateEpisodeFiles FileUpdate {..} =
     [sql|
     UPDATE episodes
     SET audio_file_path = COALESCE(#{efuAudioFilePath}, audio_file_path),
-        artwork_url = COALESCE(#{efuArtworkUrl}, artwork_url),
+        artwork_url = CASE
+          WHEN #{efuClearArtwork} THEN NULL
+          ELSE COALESCE(#{efuArtworkUrl}, artwork_url)
+        END,
         updated_at = NOW()
     WHERE id = #{efuId}
     RETURNING id

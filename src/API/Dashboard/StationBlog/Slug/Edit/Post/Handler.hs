@@ -104,9 +104,15 @@ updateBlogPost blogPost oldTags editForm = do
   -- 4. Validate status
   parsedStatus <- requireJust "Invalid blog post status value." (decodeBlogPost (befStatus editForm))
 
-  -- 5. Process hero image upload if present
+  -- 5. Process hero image upload if present, or clear if requested
   heroImagePath <- case befHeroImage editForm of
-    Nothing -> pure blogPost.bpmHeroImageUrl -- Keep existing image
+    Nothing ->
+      -- No new file: check if user wants to clear existing image
+      if befHeroImageClear editForm
+        then do
+          Log.logInfo "Clearing hero image" blogPost.bpmId
+          pure Nothing
+        else pure blogPost.bpmHeroImageUrl -- Keep existing image
     Just heroImageFile -> do
       let slug = Slug.mkSlug (befTitle editForm)
       storageBackend <- asks getter
@@ -116,7 +122,13 @@ updateBlogPost blogPost oldTags editForm = do
         Left uploadError -> do
           Log.logInfo "Hero image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
           pure blogPost.bpmHeroImageUrl -- Keep existing image on error
-        Right Nothing -> pure blogPost.bpmHeroImageUrl -- No file selected, keep existing
+        Right Nothing ->
+          -- No file selected: check if user wants to clear existing image
+          if befHeroImageClear editForm
+            then do
+              Log.logInfo "Clearing hero image" blogPost.bpmId
+              pure Nothing
+            else pure blogPost.bpmHeroImageUrl -- Keep existing
         Right (Just result) -> do
           Log.logInfo "Hero image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
           pure (Just $ Text.pack $ uploadResultStoragePath result)

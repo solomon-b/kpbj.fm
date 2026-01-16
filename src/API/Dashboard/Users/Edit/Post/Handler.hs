@@ -12,7 +12,6 @@ import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -41,7 +40,7 @@ import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
-import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile)
+import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, lookupInput)
 
 --------------------------------------------------------------------------------
 
@@ -84,6 +83,11 @@ handler _tracer targetUserId cookie multipartData =
       Left errorMsg -> throwValidationError errorMsg
       Right result -> pure result
 
+    -- Check if admin wants to clear the avatar
+    let avatarClear = case lookupInput "avatar_clear" multipartData of
+          Right "true" -> True
+          _ -> False
+
     -- Handle avatar upload if provided
     maybeAvatarPath <- case lookupFile "avatar" multipartData of
       Left _ -> pure Nothing
@@ -104,8 +108,15 @@ handler _tracer targetUserId cookie multipartData =
       case maybeMetadata of
         Nothing -> pure Nothing
         Just currentMetadata -> do
-          -- Determine final avatar URL (use new upload or keep existing)
-          let finalAvatarUrl = maybeAvatarPath <|> currentMetadata.mAvatarUrl
+          -- Determine final avatar URL:
+          -- 1. New upload takes priority
+          -- 2. If clear flag set and no new upload, clear the avatar
+          -- 3. Otherwise keep existing
+          let finalAvatarUrl = case maybeAvatarPath of
+                Just path -> Just path
+                Nothing
+                  | avatarClear -> Nothing
+                  | otherwise -> currentMetadata.mAvatarUrl
 
           -- Update metadata fields (color scheme is not editable by admins, users set it themselves)
           let metadataUpdate =
