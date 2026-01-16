@@ -44,7 +44,8 @@ data EventEditForm = EventEditForm
     eefLocationAddress :: Text,
     eefStatus :: Text,
     eefTags :: [Text],
-    eefPosterImage :: Maybe (FileData Mem)
+    eefPosterImage :: Maybe (FileData Mem),
+    eefPosterImageClear :: Bool -- True if user explicitly removed the poster image
   }
   deriving (Show)
 
@@ -60,12 +61,19 @@ instance FromMultipart Mem EventEditForm where
       <*> lookupInput "status" multipartData
       <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
       <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
+      <*> pure (parseClearFlag "poster_image_clear")
     where
       fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
       fileDataToNothing (Just fileData)
         | Text.null (fdFileName fileData) = Nothing
         | otherwise = Just fileData
       fileDataToNothing Nothing = Nothing
+
+      -- \| Parse a clear flag (true if the hidden input has value "true")
+      parseClearFlag :: Text -> Bool
+      parseClearFlag name = case lookupInput name multipartData of
+        Right "true" -> True
+        _ -> False
 
 -- | Parse comma-separated tags
 parseTags :: Text -> [Text]

@@ -23,7 +23,7 @@ import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Either (partitionEithers)
 import Data.Has (Has, getter)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -31,7 +31,6 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Effects.FileUpload (isEmptyUpload)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.StorageBackend (StorageBackend)
@@ -45,6 +44,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.FileUpload (isEmptyUpload)
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
@@ -297,7 +297,7 @@ processFileUploadsWithWarning ::
   EpisodeEditForm ->
   m [Text]
 processFileUploadsWithWarning allowFileUpload showModel episode editForm =
-  if not allowFileUpload || not (isJust (eefAudioFile editForm) || isJust (eefArtworkFile editForm))
+  if not allowFileUpload || not (isJust (eefAudioFile editForm) || isJust (eefArtworkFile editForm) || eefArtworkClear editForm)
     then pure []
     else do
       result <- processFileUploads showModel episode editForm
@@ -306,12 +306,16 @@ processFileUploadsWithWarning allowFileUpload showModel episode editForm =
           Log.logInfo "Failed to upload files" (episode.id, fileErr)
           pure ["File upload failed: " <> fileErr]
         Right (mAudioPath, mArtworkPath) -> do
-          when (isJust mAudioPath || isJust mArtworkPath) $ do
+          -- Determine final artwork URL: new upload > explicit clear > keep existing
+          let artworkClear = eefArtworkClear editForm
+              shouldUpdateFiles = isJust mAudioPath || isJust mArtworkPath || artworkClear
+          when shouldUpdateFiles $ do
             let fileUpdate =
                   Episodes.FileUpdate
                     { efuId = episode.id,
                       efuAudioFilePath = mAudioPath,
-                      efuArtworkUrl = mArtworkPath
+                      efuArtworkUrl = mArtworkPath,
+                      efuClearArtwork = artworkClear && isNothing mArtworkPath
                     }
             execQuerySpan (Episodes.updateEpisodeFiles fileUpdate) >>= \case
               Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)

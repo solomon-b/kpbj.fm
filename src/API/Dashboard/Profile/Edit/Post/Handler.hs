@@ -12,7 +12,6 @@ import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwUserSuspended, throwValidationError)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.IO.Class (MonadIO)
@@ -41,7 +40,7 @@ import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant qualified
-import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile)
+import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, lookupInput)
 
 --------------------------------------------------------------------------------
 
@@ -75,10 +74,10 @@ handler _tracer cookie (foldHxReq -> _hxRequest) multipartData =
     (newDisplayName, newFullName, newColorScheme) <- parseFormFields (inputs multipartData)
 
     -- 4. Handle avatar upload if provided
-    maybeAvatarPath <- handleAvatarUpload user multipartData
+    (maybeAvatarPath, avatarClear) <- handleAvatarUpload user multipartData
 
     -- 5. Update user metadata
-    updateUserProfile user maybeAvatarPath newDisplayName newFullName newColorScheme
+    updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme
 
     -- 6. Success redirect
     Log.logInfo "Profile updated successfully" ()
@@ -103,19 +102,24 @@ handleAvatarUpload ::
   (MonadUnliftIO m, Log.MonadLog m, MonadThrow m, MonadMask m, MonadIO m, MonadReader env m, Has StorageBackend env, Has (Maybe AWS.Env) env) =>
   User.Model ->
   MultipartData Mem ->
-  m (Maybe Text)
-handleAvatarUpload user multipartData =
+  m (Maybe Text, Bool) -- (Maybe new path, should clear)
+handleAvatarUpload user multipartData = do
+  -- Check if user wants to clear the avatar
+  let avatarClear = case lookupInput "avatar_clear" multipartData of
+        Right "true" -> True
+        _ -> False
+
   case lookupFile "avatar" multipartData of
-    Left _ -> pure Nothing
+    Left _ -> pure (Nothing, avatarClear)
     Right avatarFile -> do
       storageBackend <- asks getter
       mAwsEnv <- asks getter
       uploadResult <- FileUpload.uploadUserAvatar storageBackend mAwsEnv (display (User.mId user)) avatarFile
       case uploadResult of
         Left _err -> throwValidationError "Failed to upload avatar image"
-        Right Nothing -> pure Nothing
+        Right Nothing -> pure (Nothing, avatarClear)
         Right (Just result) ->
-          pure $ Just $ Text.pack $ Domain.Types.FileUpload.uploadResultStoragePath result
+          pure (Just $ Text.pack $ Domain.Types.FileUpload.uploadResultStoragePath result, False)
 
 updateUserProfile ::
   ( MonadDB m,
@@ -128,17 +132,22 @@ updateUserProfile ::
   ) =>
   User.Model ->
   Maybe Text ->
+  Bool -> -- avatarClear: if True and no new avatar, clear existing
   DisplayName ->
   FullName ->
   UserMetadata.ColorScheme ->
   m ()
-updateUserProfile user maybeAvatarPath newDisplayName newFullName newColorScheme = do
+updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme = do
   updateResult <- execTransactionSpan $ do
     maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata (User.mId user))
     case maybeMetadata of
       Nothing -> pure Nothing
       Just currentMetadata -> do
-        let finalAvatarUrl = maybeAvatarPath <|> currentMetadata.mAvatarUrl
+        -- Determine final avatar URL: new upload > explicit clear > keep existing
+        let finalAvatarUrl = case (maybeAvatarPath, avatarClear) of
+              (Just path, _) -> Just path -- New avatar uploaded
+              (Nothing, True) -> Nothing -- User explicitly cleared
+              (Nothing, False) -> currentMetadata.mAvatarUrl -- Keep existing
             metadataUpdate =
               UserMetadata.Update
                 { UserMetadata.uDisplayName = Just newDisplayName,
