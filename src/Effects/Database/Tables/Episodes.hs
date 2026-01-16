@@ -295,6 +295,7 @@ data FileUpdate = FileUpdate
   { efuId :: Id,
     efuAudioFilePath :: Maybe Text,
     efuArtworkUrl :: Maybe Text,
+    efuClearAudio :: Bool, -- If True, set audio_file_path to NULL
     efuClearArtwork :: Bool -- If True, set artwork_url to NULL
   }
   deriving stock (Generic, Show, Eq)
@@ -492,7 +493,8 @@ updateEpisode Update {..} =
 
 -- | Update an episode's audio and artwork files.
 --
--- For audio: Nothing preserves existing, Just sets new value.
+-- For audio: If efuClearAudio is True, sets to NULL. Otherwise,
+-- Nothing preserves existing and Just sets new value.
 -- For artwork: If efuClearArtwork is True, sets to NULL. Otherwise,
 -- Nothing preserves existing and Just sets new value.
 updateEpisodeFiles :: FileUpdate -> Hasql.Statement () (Maybe Id)
@@ -501,7 +503,10 @@ updateEpisodeFiles FileUpdate {..} =
     False
     [sql|
     UPDATE episodes
-    SET audio_file_path = COALESCE(#{efuAudioFilePath}, audio_file_path),
+    SET audio_file_path = CASE
+          WHEN #{efuClearAudio} THEN NULL
+          ELSE COALESCE(#{efuAudioFilePath}, audio_file_path)
+        END,
         artwork_url = CASE
           WHEN #{efuClearArtwork} THEN NULL
           ELSE COALESCE(#{efuArtworkUrl}, artwork_url)

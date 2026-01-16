@@ -38,9 +38,9 @@ data Config = Config
     audioUrl :: Text,
     -- | Display title (e.g., "Show Name - Episode 42")
     title :: Text,
-    -- | Optional file input name to watch for new file selections.
+    -- | Optional file input ID to watch for new file selections.
     -- When a file is selected, the player will switch to preview that file instead.
-    fileInputName :: Maybe Text,
+    fileInputId :: Maybe Text,
     -- | Optional CSS classes for the outer container (default: gray background with border)
     containerClasses :: Maybe Text,
     -- | Optional CSS classes for the play/pause button
@@ -65,11 +65,11 @@ defaultTimeDisplayClasses = class_' $ base [Tokens.textSm, "font-mono", "w-28", 
 
 -- | Render an audio player with play/pause, seek, and time display.
 --
--- If 'fileInputName' is provided, the player will watch that file input and
+-- If 'fileInputId' is provided, the player will watch that file input and
 -- automatically switch to previewing newly selected files.
 render :: Config -> Lucid.Html ()
 render Config {..} = do
-  let fileInputSelector = maybe "" (\name -> [i|input[name="#{name}"]|]) fileInputName
+  let fileInputSelector = maybe "" (\fid -> "#" <> fid) fileInputId
       containerCls = fromMaybe defaultContainerClasses containerClasses
       buttonCls = fromMaybe defaultButtonClasses buttonClasses
       progressBarCls = fromMaybe defaultProgressBarClasses progressBarClasses
@@ -148,10 +148,31 @@ alpineScript playerId' audioUrl' title' fileInputSelector =
       }
     }
 
+    // Listen for clear events
+    window.addEventListener('waveform-player-clear', (e) => {
+      if (e.detail && e.detail.playerId === this.playerId) {
+        this.clearAudio();
+      }
+    });
+
     // Load audio metadata if we have a URL
     if (this.audioUrl) {
       audio.src = this.audioUrl;
     }
+  },
+  clearAudio() {
+    this.pause();
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = null;
+    }
+    this.audioUrl = '';
+    this.originalUrl = '';
+    const audio = this.$refs.audio;
+    audio.removeAttribute('src');
+    audio.load();
+    this.currentTime = 0;
+    this.duration = 0;
   },
   handleFileSelect(event) {
     const file = event.target.files[0];

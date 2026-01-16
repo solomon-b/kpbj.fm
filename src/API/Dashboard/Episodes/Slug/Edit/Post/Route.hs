@@ -34,10 +34,12 @@ data EpisodeEditForm = EpisodeEditForm
     eefStatus :: Text,
     eefScheduledDate :: Maybe Text, -- Format: "template_id|scheduled_at"
     eefTracksJson :: Maybe Text, -- JSON array of tracks
-    -- File uploads (optional - only present if scheduled date is in the future)
-    eefAudioFile :: Maybe (FileData Mem),
-    eefArtworkFile :: Maybe (FileData Mem),
-    eefArtworkClear :: Bool -- True if user explicitly removed the artwork
+    -- File uploads
+    eefArtworkFile :: Maybe (FileData Mem), -- Direct upload only (small files)
+    eefAudioClear :: Bool, -- True if user explicitly removed the audio
+    eefArtworkClear :: Bool, -- True if user explicitly removed the artwork
+    -- Staged upload tokens
+    eefAudioToken :: Maybe Text -- Audio uploaded via XHR, token claimed on form submit
   }
   deriving (Show)
 
@@ -60,10 +62,12 @@ instance FromMultipart Mem EpisodeEditForm where
     let scheduledDate = either (const Nothing) Just (lookupInput "scheduled_date" multipartData)
     -- Parse tracks JSON (optional) - JSON array of {tiTitle, tiArtist} objects
     let tracksJson = either (const Nothing) Just (lookupInput "tracks_json" multipartData)
-    -- File lookups - these must be done with lookupFile, not lookupInput
-    let audioFile = either (const Nothing) (fileDataToNothing . Just) (lookupFile "episode_audio" multipartData)
-        artworkFile = either (const Nothing) (fileDataToNothing . Just) (lookupFile "episode_artwork" multipartData)
+    -- File lookups - artwork only (audio uses staged uploads)
+    let artworkFile = either (const Nothing) (fileDataToNothing . Just) (lookupFile "episode_artwork" multipartData)
+        audioClear = parseClearFlag "episode_audio_clear" multipartData
         artworkClear = parseClearFlag "episode_artwork_clear" multipartData
+    -- Staged upload tokens (audio uploaded via XHR, token claimed on form submit)
+    let audioToken = either (const Nothing) nonEmptyText (lookupInput "episode_audio_token" multipartData)
 
     pure
       EpisodeEditForm
@@ -72,9 +76,10 @@ instance FromMultipart Mem EpisodeEditForm where
           eefStatus = status,
           eefScheduledDate = emptyToNothing scheduledDate,
           eefTracksJson = emptyToNothing tracksJson,
-          eefAudioFile = audioFile,
           eefArtworkFile = artworkFile,
-          eefArtworkClear = artworkClear
+          eefAudioClear = audioClear,
+          eefArtworkClear = artworkClear,
+          eefAudioToken = audioToken
         }
     where
       emptyToNothing :: Maybe Text -> Maybe Text
@@ -87,6 +92,12 @@ instance FromMultipart Mem EpisodeEditForm where
         | Text.null (fdFileName fileData) = Nothing
         | otherwise = Just fileData
       fileDataToNothing Nothing = Nothing
+
+      -- \| Convert empty text to Nothing
+      nonEmptyText :: Text -> Maybe Text
+      nonEmptyText t
+        | Text.null t = Nothing
+        | otherwise = Just t
 
       -- \| Parse a clear flag (true if the hidden input has value "true")
       parseClearFlag :: Text -> a -> Bool

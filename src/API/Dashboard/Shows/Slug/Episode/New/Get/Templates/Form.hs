@@ -85,9 +85,9 @@ episodeUploadForm showModel upcomingDates userMeta = do
           hint "Optional. Comma-separated list of genres/themes"
           maxLength 500
 
-      -- Audio Upload Section
+      -- Media Files Section
       section "MEDIA FILES" $ do
-        audioField "audio_file" $ do
+        stagedAudioField "audio_file" "/api/uploads/audio" "episode_audio" $ do
           label "Episode Audio"
           maxSize 500
 

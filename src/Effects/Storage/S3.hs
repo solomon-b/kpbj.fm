@@ -3,6 +3,7 @@
 module Effects.Storage.S3
   ( -- * S3 Storage Operations
     storeFileS3,
+    deleteFileS3,
 
     -- * Error Types
     S3UploadError (..),
@@ -48,7 +49,9 @@ data S3UploadError
 formatS3Error :: S3UploadError -> Text
 formatS3Error = \case
   S3ServiceError code msg status ->
-    "S3 service error (HTTP " <> Text.pack (show status) <> "): "
+    "S3 service error (HTTP "
+      <> Text.pack (show status)
+      <> "): "
       <> code
       <> " - "
       <> msg
@@ -118,3 +121,27 @@ classifyS3Error err
   -- Fallback
   | otherwise =
       S3UnexpectedError $ Text.pack (show err)
+
+--------------------------------------------------------------------------------
+
+-- | Delete a file from AWS S3.
+--
+-- Removes the object at the given key from the configured S3 bucket.
+deleteFileS3 ::
+  (MonadIO m) =>
+  AWS.Env ->
+  S3StorageConfig ->
+  -- | Object key (storage path)
+  Text ->
+  m (Either Text ())
+deleteFileS3 awsEnv config objectKey = liftIO $ do
+  let bucket = S3.BucketName (s3BucketName config)
+      key = S3.ObjectKey objectKey
+
+  result <- Exception.try $ runResourceT $ do
+    let req = S3.newDeleteObject bucket key
+    AWS.send awsEnv req
+
+  case result of
+    Right _ -> pure $ Right ()
+    Left err -> pure $ Left $ formatS3Error $ classifyS3Error err

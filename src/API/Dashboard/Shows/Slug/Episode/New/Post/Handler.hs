@@ -40,9 +40,11 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
+import Effects.StagedUploads (claimStagedUploadMaybe)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
@@ -216,7 +218,9 @@ processEpisodeUpload userMetadata user showModel form = do
                   currentTime <- liftIO getCurrentTime
                   let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
                   -- Handle file uploads (pass scheduled date for file organization)
-                  uploadResults <- processFileUploads backend mAwsEnv episodeData.showSlug fileId (Just episodeData.scheduledAt) episodeData.status (eufAudioFile form) (eufArtworkFile form)
+                  -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
+                  -- Artwork: Direct upload only (small files don't benefit from staged uploads)
+                  uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug fileId (Just episodeData.scheduledAt) episodeData.status (eufArtworkFile form) (eufAudioToken form)
 
                   case uploadResults of
                     Left uploadErr -> pure $ Left uploadErr
@@ -335,46 +339,52 @@ data ParsedEpisodeData = ParsedEpisodeData
   deriving stock (Show, Eq)
 
 -- | Process file uploads (audio and artwork)
+--
+-- Audio uses staged uploads only - file is uploaded via XHR before form submission,
+-- and we receive a token to claim the upload.
+--
+-- Artwork uses direct form submission (small files don't benefit from staged uploads).
 processFileUploads ::
   ( MonadIO m,
     MonadMask m,
+    MonadDB m,
+    MonadReader env m,
+    MonadUnliftIO m,
+    Has HSQL.Pool.Pool env,
+    Has Tracer env,
     Log.MonadLog m
   ) =>
   -- | Storage backend
   StorageBackend ->
   -- | AWS environment (for S3)
   Maybe AWS.Env ->
-  -- | Show slug
+  -- | User ID (for claiming staged uploads)
+  User.Id ->
+  -- | Show slug (for artwork file organization)
   Slug ->
-  -- | Episode slug (for filename)
+  -- | Episode slug (for artwork filename)
   Slug ->
-  -- | Scheduled date (for file organization)
+  -- | Scheduled date (for artwork file organization)
   Maybe UTCTime ->
   -- | Episode status (audio only required for published)
   Episodes.Status ->
-  -- | Audio file
+  -- | Artwork file (direct upload)
   Maybe (FileData Mem) ->
-  -- | Artwork file
-  Maybe (FileData Mem) ->
+  -- | Audio token (staged upload)
+  Maybe Text ->
   -- | (audioPath, artworkPath)
   m (Either Text (Maybe Text, Maybe Text))
-processFileUploads backend mAwsEnv showSlug episodeSlug mScheduledDate status mAudioFile mArtworkFile = do
+processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate status mArtworkFile mAudioToken = do
   -- Process main audio file (required for published, optional for draft)
-  audioResult <- case mAudioFile of
+  -- Audio is always uploaded via staged upload - we only receive a token here
+  audioResult <- case mAudioToken of
+    Just token -> claimStagedUploadMaybe userId token StagedUploads.EpisodeAudio
     Nothing ->
       case status of
         Episodes.Draft -> pure $ Right Nothing -- Audio optional for drafts
         _ -> pure $ Left "Audio file is required for published episodes"
-    Just audioFile -> do
-      result <- FileUpload.uploadEpisodeAudio backend mAwsEnv showSlug episodeSlug mScheduledDate audioFile
-      case result of
-        Left err -> do
-          Log.logInfo "Failed to upload audio file" (Text.pack $ show err)
-          pure $ Left "Failed to upload audio file"
-        Right uploadResult ->
-          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
-  -- Process artwork file (optional)
+  -- Process artwork file (optional, direct upload only)
   artworkResult <- case mArtworkFile of
     Nothing -> pure $ Right Nothing
     Just artworkFile -> do
