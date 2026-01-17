@@ -197,8 +197,11 @@ spec = do
       let result = parseMarkdownToHtml defaultMarkdownConfig "<div onclick=\"alert('xss')\">click</div>"
       case result of
         Right html -> do
-          -- Event handlers should not be rendered
-          html `shouldNotSatisfy` Text.isInfixOf "onclick"
+          -- The div tag should be escaped (< becomes &lt;), making onclick harmless text
+          -- Check that it's not a real HTML attribute (would have unescaped < before onclick)
+          html `shouldNotSatisfy` Text.isInfixOf "<div onclick"
+          -- The angle brackets should be escaped
+          html `shouldSatisfy` Text.isInfixOf "&lt;div"
         Left _ -> pure ()
 
     it "preserves safe markdown formatting" $ do

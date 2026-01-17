@@ -51,15 +51,6 @@ where
 
 --------------------------------------------------------------------------------
 
-import Design.Responsive
-  ( hideOnDesktop,
-    hideOnMobile,
-    responsiveGrid,
-    rowToStack,
-    showOnDesktop,
-    showOnMobile,
-    stackToRow,
-  )
 import Design.StyleBuilder
   ( StyleBuilder,
     also,
@@ -73,4 +64,13 @@ import Design.StyleBuilder
     unless,
     when,
     wide,
+  )
+import Design.Tokens
+  ( hideOnDesktop,
+    hideOnMobile,
+    responsiveGrid,
+    rowToStack,
+    showOnDesktop,
+    showOnMobile,
+    stackToRow,
   )

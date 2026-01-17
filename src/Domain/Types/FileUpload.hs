@@ -5,10 +5,7 @@ module Domain.Types.FileUpload where
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (UTCTime)
-import Domain.Types.FileStorage
-import Domain.Types.Slug (Slug)
-import System.Random qualified as Random
+import Domain.Types.FileStorage (BucketType (..))
 
 --------------------------------------------------------------------------------
 
@@ -129,71 +126,3 @@ validateFileSize bucketType fileSize = case bucketType of
       then Right ()
       else Left $ FileTooLarge fileSize maxImageFileSize
   _ -> Right () -- Other buckets have no size limit
-
---------------------------------------------------------------------------------
--- Upload result builders
-
-buildEpisodeAudioUpload :: StorageConfig -> Slug -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
-buildEpisodeAudioUpload config showSlug episodeSlug originalName mimeType fileSize time seed =
-  let baseFilename = showSlug <> episodeSlug
-      storagePath = episodeAudioPath config baseFilename time seed
-   in UploadResult
-        { uploadResultOriginalName = originalName,
-          uploadResultStoragePath = storagePath,
-          uploadResultMimeType = mimeType,
-          uploadResultFileSize = fileSize
-        }
-
-buildEpisodeArtworkUpload :: StorageConfig -> Slug -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
-buildEpisodeArtworkUpload config showSlug episodeSlug originalName mimeType fileSize time seed =
-  UploadResult
-    { uploadResultOriginalName = originalName,
-      uploadResultStoragePath = episodeArtworkPath config showSlug episodeSlug time seed,
-      uploadResultMimeType = mimeType,
-      uploadResultFileSize = fileSize
-    }
-
-buildShowLogoUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
-buildShowLogoUpload config showSlug originalName mimeType fileSize time seed =
-  UploadResult
-    { uploadResultOriginalName = originalName,
-      uploadResultStoragePath = showLogoPath config showSlug time seed,
-      uploadResultMimeType = mimeType,
-      uploadResultFileSize = fileSize
-    }
-
-buildShowBannerUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
-buildShowBannerUpload config showSlug originalName mimeType fileSize time seed =
-  UploadResult
-    { uploadResultOriginalName = originalName,
-      uploadResultStoragePath = showBannerPath config showSlug time seed,
-      uploadResultMimeType = mimeType,
-      uploadResultFileSize = fileSize
-    }
-
-buildBlogHeroImageUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
-buildBlogHeroImageUpload config postSlug originalName mimeType fileSize time seed =
-  UploadResult
-    { uploadResultOriginalName = originalName,
-      uploadResultStoragePath = blogHeroImagePath config postSlug time seed,
-      uploadResultMimeType = mimeType,
-      uploadResultFileSize = fileSize
-    }
-
-buildEventPosterImageUpload :: StorageConfig -> Slug -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
-buildEventPosterImageUpload config eventSlug originalName mimeType fileSize time seed =
-  UploadResult
-    { uploadResultOriginalName = originalName,
-      uploadResultStoragePath = eventPosterImagePath config eventSlug time seed,
-      uploadResultMimeType = mimeType,
-      uploadResultFileSize = fileSize
-    }
-
-buildUserAvatarUpload :: StorageConfig -> Text -> Text -> Text -> Int64 -> UTCTime -> Random.StdGen -> UploadResult
-buildUserAvatarUpload config userId originalName mimeType fileSize time seed =
-  UploadResult
-    { uploadResultOriginalName = originalName,
-      uploadResultStoragePath = userAvatarPath config userId time seed,
-      uploadResultMimeType = mimeType,
-      uploadResultFileSize = fileSize
-    }

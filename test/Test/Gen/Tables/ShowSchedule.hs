@@ -5,7 +5,7 @@ module Test.Gen.Tables.ShowSchedule where
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Int (Int64)
 import Data.Text (Text)
-import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, fromGregorian)
+import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -33,13 +33,6 @@ allWeeksOfMonth = [1, 2, 3, 4, 5]
 genDayOfWeek :: (MonadGen m) => m DayOfWeek
 genDayOfWeek = Gen.element [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
 
--- | Generate a TimeOfDay for schedule times (6 AM to 11 PM typically)
-genScheduleTime :: (MonadGen m) => m TimeOfDay
-genScheduleTime = do
-  hour <- Gen.integral (Range.linear 6 23)
-  minute <- Gen.element [0, 15, 30, 45] -- Quarter hour increments
-  pure $ TimeOfDay hour minute 0
-
 -- | Generate a valid time range (start < end)
 genTimeRange :: (MonadGen m) => m (TimeOfDay, TimeOfDay)
 genTimeRange = do
@@ -55,27 +48,12 @@ genWeeksOfMonth = do
   weeks <- Gen.subsequence @_ @Int64 [1, 2, 3, 4, 5]
   pure $ map fromIntegral weeks
 
--- | Generate a Day value
-genDay :: (MonadGen m) => m Day
-genDay = do
-  year <- Gen.integral (Range.linear 2020 2030)
-  month <- Gen.integral (Range.linear 1 12)
-  day <- Gen.integral (Range.linear 1 28) -- Safe for all months
-  pure $ fromGregorian year month day
-
 -- | Generate a future Day value
 genFutureDay :: (MonadIO m, MonadGen m) => m Day
 genFutureDay = do
   today <- liftIO $ utctDay <$> getCurrentTime
   daysAhead <- Gen.integral (Range.linear 1 365)
   pure $ addDays daysAhead today
-
--- | Generate a past Day value
-genPastDay :: (MonadIO m, MonadGen m) => m Day
-genPastDay = do
-  today <- liftIO $ utctDay <$> getCurrentTime
-  daysBehind <- Gen.integral (Range.linear 1 365)
-  pure $ addDays (negate daysBehind) today
 
 -- | Generate a timezone string
 genTimezone :: (MonadGen m) => m Text
@@ -125,29 +103,3 @@ genOneTimeScheduleInsert showId = do
 scheduleTemplateInsertGen :: (MonadGen m) => Shows.Id -> m ShowSchedule.ScheduleTemplateInsert
 scheduleTemplateInsertGen showId =
   Gen.choice [genRecurringScheduleInsert showId, genOneTimeScheduleInsert showId]
-
--- | Generate a validity insert for a template
-validityInsertGen :: (MonadIO m, MonadGen m) => ShowSchedule.TemplateId -> m ShowSchedule.ValidityInsert
-validityInsertGen templateId = do
-  effectiveFrom <- genPastDay
-  effectiveUntil <- Gen.maybe genFutureDay
-  pure
-    ShowSchedule.ValidityInsert
-      { viTemplateId = templateId,
-        viEffectiveFrom = effectiveFrom,
-        viEffectiveUntil = effectiveUntil
-      }
-
--- | Generate an active validity insert (effective now)
-activeValidityInsertGen :: (MonadIO m, MonadGen m) => ShowSchedule.TemplateId -> m ShowSchedule.ValidityInsert
-activeValidityInsertGen templateId = do
-  today <- liftIO $ utctDay <$> getCurrentTime
-  daysBefore <- Gen.integral (Range.linear 1 30)
-  let effectiveFrom = addDays (negate daysBefore) today
-  effectiveUntil <- Gen.maybe genFutureDay
-  pure
-    ShowSchedule.ValidityInsert
-      { viTemplateId = templateId,
-        viEffectiveFrom = effectiveFrom,
-        viEffectiveUntil = effectiveUntil
-      }

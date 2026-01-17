@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, blogLinks, dashboardLinks, eventsLinks, scheduleLink, showsLinks, userLinks)
+import API.Links (apiLinks, dashboardLinks, scheduleLink, showsLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
 import Control.Monad.Catch (MonadThrow)
@@ -30,12 +30,6 @@ aboutGetUrl = Link.linkURI apiLinks.aboutGet
 
 donateGetUrl :: Link.URI
 donateGetUrl = Link.linkURI apiLinks.donateGet
-
-blogGetUrl :: Link.URI
-blogGetUrl = Link.linkURI $ blogLinks.list Nothing Nothing
-
-eventsGetUrl :: Link.URI
-eventsGetUrl = Link.linkURI eventsLinks.list
 
 userLoginGetUrl :: Link.URI
 userLoginGetUrl = Link.linkURI $ userLinks.loginGet Nothing Nothing
@@ -609,26 +603,6 @@ mobileHeader _mUser =
       Lucid.div_ [class_ $ base ["flex-1", "flex", "justify-center"]] miniLogo
       -- Invisible spacer to balance hamburger button (same size)
       Lucid.div_ [class_ $ base [Tokens.p2, Tokens.textLg, "invisible"]] $ Lucid.toHtml @Text "☰"
-
--- | Simplified auth widget for mobile header
-mobileAuthWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
-mobileAuthWidget mUser =
-  case mUser of
-    Nothing ->
-      Lucid.a_
-        [ Lucid.href_ [i|/#{userLoginGetUrl}|],
-          hxGet_ [i|/#{userLoginGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base [Tokens.px3, Tokens.py2, Tokens.cardBorder, "dark:border-gray-600", Tokens.fontBold, Tokens.textSm, "hover:bg-gray-100", "dark:hover:bg-gray-700"]
-        ]
-        "Log in"
-    Just _user ->
-      Lucid.a_
-        [ Lucid.href_ [i|/#{dashboardGetUrl}|],
-          class_ $ base [Tokens.px3, Tokens.py2, Tokens.cardBorder, "dark:border-gray-600", Tokens.fontBold, Tokens.textSm, "hover:bg-gray-100", "dark:hover:bg-gray-700"]
-        ]
-        "Dashboard"
 
 -- | Full-screen mobile menu overlay
 -- Appears when hamburger is tapped, smooth fade/slide transition

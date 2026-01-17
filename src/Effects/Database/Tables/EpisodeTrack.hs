@@ -10,7 +10,6 @@ module Effects.Database.Tables.EpisodeTrack
 
     -- * Table Definition
     EpisodeTrack (..),
-    episodeTrackSchema,
 
     -- * Model (Result alias)
     Model,
@@ -21,8 +20,6 @@ module Effects.Database.Tables.EpisodeTrack
     -- * Queries
     getTracksForEpisode,
     insertEpisodeTrack,
-    updateEpisodeTrack,
-    deleteEpisodeTrack,
     deleteAllTracksForEpisode,
   )
 where
@@ -38,7 +35,7 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), RowsAffected (..), interp, sql)
 import Hasql.Statement qualified as Hasql
-import Rel8 (Column, DBEq, DBOrd, DBType, Name, Rel8able, Result, TableSchema (..))
+import Rel8 (Column, DBEq, DBOrd, DBType, Rel8able, Result)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -99,22 +96,6 @@ instance Display (EpisodeTrack Result) where
 -- @Model@ is the same as @EpisodeTrack Result@.
 type Model = EpisodeTrack Result
 
--- | Table schema connecting the Haskell type to the database table.
-episodeTrackSchema :: TableSchema (EpisodeTrack Name)
-episodeTrackSchema =
-  TableSchema
-    { name = "episode_tracks",
-      columns =
-        EpisodeTrack
-          { id = "id",
-            episodeId = "episode_id",
-            trackNumber = "track_number",
-            title = "title",
-            artist = "artist",
-            createdAt = "created_at"
-          }
-    }
-
 --------------------------------------------------------------------------------
 -- Insert Type
 
@@ -152,29 +133,6 @@ insertEpisodeTrack Insert {..} =
       [sql|
     INSERT INTO episode_tracks(episode_id, track_number, title, artist, created_at)
     VALUES (#{etiEpisodeId}, #{etiTrackNumber}, #{etiTitle}, #{etiArtist}, NOW())
-    RETURNING id
-  |]
-
--- | Update an episode track.
-updateEpisodeTrack :: Id -> Insert -> Hasql.Statement () (Maybe Id)
-updateEpisodeTrack trackId Insert {..} =
-  interp
-    False
-    [sql|
-    UPDATE episode_tracks
-    SET track_number = #{etiTrackNumber}, title = #{etiTitle}, artist = #{etiArtist}
-    WHERE id = #{trackId}
-    RETURNING id
-  |]
-
--- | Delete an episode track.
-deleteEpisodeTrack :: Id -> Hasql.Statement () (Maybe Id)
-deleteEpisodeTrack trackId =
-  interp
-    False
-    [sql|
-    DELETE FROM episode_tracks
-    WHERE id = #{trackId}
     RETURNING id
   |]
 

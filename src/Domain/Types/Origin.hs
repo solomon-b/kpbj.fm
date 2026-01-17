@@ -6,10 +6,6 @@ module Domain.Types.Origin
   ( -- * Types
     Origin (..),
 
-    -- * Construction
-    mkOrigin,
-    parseOrigin,
-
     -- * Validation
     isAllowedOrigin,
     isLocalhostOrigin,
@@ -42,28 +38,6 @@ newtype Origin = Origin {unOrigin :: Text}
 instance FromHttpApiData Origin where
   parseUrlPiece = Right . Origin
   parseHeader = Right . Origin . Text.decodeUtf8
-
---------------------------------------------------------------------------------
--- Construction
-
--- | Create an Origin from a Text value.
-mkOrigin :: Text -> Origin
-mkOrigin = Origin
-
--- | Parse an Origin from a Text value, normalizing it.
---
--- Removes trailing slashes and validates basic structure.
-parseOrigin :: Text -> Maybe Origin
-parseOrigin t
-  | Text.null normalized = Nothing
-  | not (hasValidScheme normalized) = Nothing
-  | otherwise = Just $ Origin normalized
-  where
-    normalized = normalizeOrigin t
-
-    hasValidScheme :: Text -> Bool
-    hasValidScheme s =
-      Text.isPrefixOf "http://" s || Text.isPrefixOf "https://" s
 
 --------------------------------------------------------------------------------
 -- Validation

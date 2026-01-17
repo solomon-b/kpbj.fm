@@ -26,7 +26,7 @@ module Effects.Markdown
     renderMarkdownPure,
 
     -- * Content Rendering
-    renderContent,
+    renderContentM,
 
     -- * Error Types
     MarkdownError (..),
@@ -245,33 +245,14 @@ applyTailwindStyles nodes =
 --------------------------------------------------------------------------------
 -- Content Rendering
 
--- | Render content as markdown with Tailwind CSS styling.
+-- | Render content as markdown with Tailwind CSS styling and error logging.
 --
--- Parses markdown content and renders it with Tailwind classes applied.
--- Falls back to simple paragraph-based rendering if markdown parsing fails.
-renderContent :: Text -> Lucid.Html ()
-renderContent content =
-  case renderMarkdownPure defaultMarkdownConfig content of
-    Right html ->
-      Lucid.div_ [Lucid.class_ "prose max-w-none"] html
-    Left _err ->
-      -- Fallback to paragraph-based rendering for backwards compatibility
-      fallbackParagraphRendering content
-
--- | Fallback rendering for content that fails markdown parsing.
---
--- This preserves the original behavior of splitting on double newlines
--- and rendering as paragraphs.
-fallbackParagraphRendering :: Text -> Lucid.Html ()
-fallbackParagraphRendering content = do
-  let paragraphs = Text.splitOn "\n\n" content
-  Lucid.div_ [Lucid.class_ "prose max-w-none text-gray-700 leading-relaxed space-y-6"] $ do
-    mapM_ renderParagraph paragraphs
-  where
-    renderParagraph para =
-      if Text.null (Text.strip para)
-        then pure ()
-        else Lucid.p_ $ Lucid.toHtmlRaw para
+-- Parses markdown content, applies Tailwind classes, and logs any parsing
+-- errors via 'Log.MonadLog'. On error, displays an error message to the user.
+renderContentM :: (Log.MonadLog m) => Text -> m (Lucid.Html ())
+renderContentM content = do
+  html <- renderMarkdown defaultMarkdownConfig content
+  pure $ Lucid.div_ [Lucid.class_ "prose max-w-none"] html
 
 --------------------------------------------------------------------------------
 -- Error Display

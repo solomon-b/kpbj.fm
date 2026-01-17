@@ -42,21 +42,17 @@ module Effects.Database.Tables.UserMetadata
     -- * Queries
     getUserMetadata,
     insertUserMetadata,
-    insertUserWithMetadata,
     getAllUsersWithPagination,
     getUsersByRole,
     searchUsers,
     getUserWithMetadataById,
     updateUserRole,
     updateUserMetadata,
-    countUsers,
-    countUsersByRole,
     softDeleteUser,
 
     -- * Suspension Queries
     suspendUser,
     unsuspendUser,
-    getSuspensionStatus,
 
     -- * Result Types
     UserWithMetadata (..),
@@ -86,7 +82,7 @@ import Effects.Database.Tables.User qualified as User
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeValue (..), OneColumn (..), interp, sql)
+import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import OrphanInstances.UTCTime ()
@@ -460,29 +456,6 @@ insertUserMetadata Insert {..} =
             returning = Returning umId
           }
 
--- | Insert user and metadata in a single atomic transaction
---
--- Uses raw SQL because it involves CTE with multiple tables.
-insertUserWithMetadata :: UserWithMetadataInsert -> Hasql.Statement () User.Id
-insertUserWithMetadata UserWithMetadataInsert {..} =
-  head
-    <$> interp
-      True
-      [sql|
-    WITH new_user AS (
-      INSERT INTO users(email, password, created_at, updated_at)
-      VALUES (#{uwmiEmail}, #{uwmiPassword}, NOW(), NOW())
-      RETURNING id
-    )
-    , new_metadata AS (
-      INSERT INTO user_metadata(user_id, display_name, full_name, avatar_url, user_role, color_scheme, created_at, updated_at)
-      SELECT id, #{uwmiDisplayName}, #{uwmiFullName}, #{uwmiAvatarUrl}, #{uwmiUserRole}, #{uwmiColorScheme}::color_scheme, NOW(), NOW()
-      FROM new_user
-      RETURNING user_id
-    )
-    SELECT id FROM new_user
-  |]
-
 --------------------------------------------------------------------------------
 -- Admin Management Queries
 
@@ -783,34 +756,6 @@ updateUserMetadata metadataId Update {..} =
     -- We use a default that won't be used due to the CASE WHEN guard
     colorSchemeValue = fromMaybe Automatic uColorScheme
 
--- | Count total active users (excluding soft-deleted users)
---
--- Uses raw SQL because it requires counting from users table with deleted_at filter.
-countUsers :: Hasql.Statement () Int64
-countUsers =
-  let query =
-        interp
-          False
-          [sql| SELECT COUNT(*)::bigint FROM users WHERE deleted_at IS NULL |]
-   in maybe 0 getOneColumn <$> query
-
--- | Count active users by role (excluding soft-deleted users)
---
--- Uses raw SQL because it joins user_metadata with users table.
-countUsersByRole :: UserRole -> Hasql.Statement () Int64
-countUsersByRole role =
-  let query =
-        interp
-          False
-          [sql|
-        SELECT COUNT(*)::bigint
-        FROM user_metadata um
-        INNER JOIN users u ON um.user_id = u.id
-        WHERE um.user_role = #{role}
-          AND u.deleted_at IS NULL
-      |]
-   in maybe 0 getOneColumn <$> query
-
 --------------------------------------------------------------------------------
 -- User Deletion
 
@@ -916,22 +861,4 @@ unsuspendUser userId =
       AND suspended_at IS NOT NULL
       AND deleted_at IS NULL
     RETURNING id
-  |]
-
--- | Get suspension status for a user
---
--- Returns the suspension status (NotSuspended or Suspended).
--- Returns Nothing if user doesn't exist or is deleted.
---
--- Uses raw SQL because it queries the users table directly.
-getSuspensionStatus :: User.Id -> Hasql.Statement () (Maybe SuspensionStatus)
-getSuspensionStatus userId =
-  fmap getOneColumn
-    <$> interp
-      False
-      [sql|
-    SELECT suspension_status
-    FROM users
-    WHERE id = #{userId}
-      AND deleted_at IS NULL
   |]

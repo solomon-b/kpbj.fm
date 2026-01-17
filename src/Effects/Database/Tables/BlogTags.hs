@@ -1,5 +1,4 @@
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-x-partial #-}
 
@@ -21,14 +20,8 @@ module Effects.Database.Tables.BlogTags
     Insert (..),
 
     -- * Queries
-    getAllTags,
     getTagByName,
-    getTagById,
     insertTag,
-    getTagsWithCounts,
-
-    -- * Result Types
-    BlogTagWithCount (..),
   )
 where
 
@@ -36,14 +29,13 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
-import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
 import Hasql.Statement qualified as Hasql
 import Rel8 hiding (Insert)
 import Rel8 qualified
@@ -128,23 +120,11 @@ newtype Insert = Insert {btiName :: Text}
 --------------------------------------------------------------------------------
 -- Queries
 
--- | Get all tags ordered by name.
-getAllTags :: Hasql.Statement () [Model]
-getAllTags = run $ select $ orderBy (btmName >$< asc) do
-  each blogTagSchema
-
 -- | Get tag by name.
 getTagByName :: Text -> Hasql.Statement () (Maybe Model)
 getTagByName tagName = fmap listToMaybe $ run $ select do
   tag <- each blogTagSchema
   where_ $ btmName tag ==. lit tagName
-  pure tag
-
--- | Get tag by ID.
-getTagById :: Id -> Hasql.Statement () (Maybe Model)
-getTagById tagId = fmap listToMaybe $ run $ select do
-  tag <- each blogTagSchema
-  where_ $ btmId tag ==. lit tagId
   pure tag
 
 -- | Insert a new tag and return its ID.
@@ -167,34 +147,3 @@ insertTag Insert {..} =
             onConflict = Abort,
             returning = Returning btmId
           }
-
---------------------------------------------------------------------------------
--- Complex Queries (raw SQL)
-
--- | Tag with usage count for aggregate queries.
-data BlogTagWithCount = BlogTagWithCount
-  { btwcId :: Id,
-    btwcName :: Text,
-    btwcCreatedAt :: UTCTime,
-    btwcCount :: Int64
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-
--- | Get tags with their usage counts (only tags used by published posts).
---
--- Uses raw SQL because this query involves multiple joins and aggregation
--- that would be verbose to express in rel8.
-getTagsWithCounts :: Hasql.Statement () [BlogTagWithCount]
-getTagsWithCounts =
-  interp
-    False
-    [sql|
-    SELECT bt.id, bt.name, bt.created_at, COUNT(bpt.post_id)::bigint as post_count
-    FROM blog_tags bt
-    LEFT JOIN blog_post_tags bpt ON bt.id = bpt.tag_id
-    LEFT JOIN blog_posts bp ON bpt.post_id = bp.id AND bp.status = 'published'
-    GROUP BY bt.id, bt.name, bt.created_at
-    HAVING COUNT(bpt.post_id) > 0
-    ORDER BY COUNT(bpt.post_id) DESC, bt.name
-  |]

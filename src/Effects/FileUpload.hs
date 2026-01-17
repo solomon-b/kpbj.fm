@@ -2,7 +2,6 @@
 
 module Effects.FileUpload
   ( -- * File upload functions
-    uploadEpisodeAudio,
     uploadEpisodeArtwork,
     uploadShowLogo,
     uploadShowBanner,
@@ -42,60 +41,6 @@ import System.IO.Temp qualified as Temp
 import System.Random qualified as Random
 
 --------------------------------------------------------------------------------
-
--- | Upload an audio file for an episode.
---
--- Validates the file using both browser-provided MIME type and magic byte detection,
--- then stores it using the configured storage backend (local or S3).
---
--- Audio files are required for episodes and validation failures will cause the upload to fail.
-uploadEpisodeAudio ::
-  (MonadIO m, MonadMask m, Log.MonadLog m) =>
-  -- | Storage backend configuration
-  StorageBackend ->
-  -- | AWS environment (required for S3, Nothing for local)
-  Maybe AWS.Env ->
-  -- | Show slug for directory organization
-  Slug ->
-  -- | Episode slug for filename generation
-  Slug ->
-  -- | Scheduled date (Nothing uses current time)
-  Maybe UTCTime ->
-  -- | Uploaded audio file data
-  FileData Mem ->
-  m (Either UploadError UploadResult)
-uploadEpisodeAudio backend mAwsEnv showSlug episodeSlug mScheduledDate fileData =
-  withTempUpload fileData $ \tempPath content -> runExceptT $ do
-    let originalName = fdFileName fileData
-        browserMimeType = fdFileCType fileData
-        fileSize = fromIntegral $ BS.length content
-
-    -- Get time and random seed
-    time <- liftIO $ maybe getCurrentTime pure mScheduledDate
-    seed <- liftIO Random.getStdGen
-
-    -- Validate with browser-provided MIME type and file size
-    liftEither $ validateUpload AudioBucket originalName browserMimeType fileSize
-
-    -- Validate actual file content against magic bytes
-    actualMimeType <- ExceptT $ do
-      either (Left . UnsupportedFileType) Right <$> MimeValidation.validateAudioFile tempPath browserMimeType
-
-    -- Generate filename and date hierarchy
-    let dateHier = dateHierarchyFromTime time
-        extension = getExtensionFromMimeType actualMimeType
-        filename = generateUniqueFilename (display showSlug <> "-" <> display episodeSlug) extension seed
-
-    -- Store file using appropriate backend
-    objectKey <- ExceptT $ storeFile backend mAwsEnv AudioBucket EpisodeAudio dateHier filename content actualMimeType
-
-    pure
-      UploadResult
-        { uploadResultOriginalName = originalName,
-          uploadResultStoragePath = Text.unpack objectKey,
-          uploadResultMimeType = actualMimeType,
-          uploadResultFileSize = fileSize
-        }
 
 -- | Upload artwork for an episode.
 --

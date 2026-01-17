@@ -19,17 +19,13 @@
 --
 -- @
 -- handler mOrigin form = do
---   validateOrigin mOrigin allowedOrigins >>= \\case
+--   validateOriginStrict mOrigin >>= \\case
 --     Left err -> pure $ UploadError err
 --     Right () -> processUpload form
 -- @
 module Effects.CSRF
   ( -- * Origin Validation
-    validateOrigin,
     validateOriginStrict,
-
-    -- * Configuration
-    allowedOrigins,
   )
 where
 
@@ -44,40 +40,11 @@ import Data.Has (Has)
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text.Display (display)
-import Domain.Types.Origin (Origin (..), isAllowedOrigin, mkOrigin)
+import Domain.Types.Origin (Origin (..), isAllowedOrigin)
 import Log qualified
 
 --------------------------------------------------------------------------------
 -- Validation
-
--- | Validate the Origin header against a list of allowed origins.
---
--- Permissive mode: Allows requests without an Origin header (same-origin).
---
--- Returns:
--- - 'Right ()' if origin is valid or missing (same-origin)
--- - 'Left errorMessage' if origin is present but not allowed
-validateOrigin ::
-  ( MonadIO m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Hostname env
-  ) =>
-  Maybe Origin ->
-  m (Either Text ())
-validateOrigin mOrigin = do
-  hostname <- asks (Has.getter @Hostname)
-  case mOrigin of
-    Nothing -> do
-      -- No Origin header - likely same-origin request
-      -- This is OK for POST requests from the same origin
-      pure $ Right ()
-    Just origin -> do
-      if isAllowedOrigin origin hostname
-        then pure $ Right ()
-        else do
-          Log.logInfo "CSRF: Origin not allowed" (Aeson.object ["origin" .= display origin])
-          pure $ Left "Invalid request origin"
 
 -- | Strict validation: requires Origin header to be present.
 --
@@ -106,14 +73,3 @@ validateOriginStrict mOrigin = do
         else do
           Log.logInfo "CSRF: Origin not allowed" (Aeson.object ["origin" .= display origin])
           pure $ Left "Invalid request origin"
-
---------------------------------------------------------------------------------
--- Configuration
-
--- | Build the list of allowed origins from site URLs.
---
--- Pass all origins that should be trusted (e.g., production URL,
--- staging URL, etc.). Same-origin requests without an Origin header
--- are always allowed by 'validateOrigin'.
-allowedOrigins :: [Text] -> [Origin]
-allowedOrigins = map mkOrigin

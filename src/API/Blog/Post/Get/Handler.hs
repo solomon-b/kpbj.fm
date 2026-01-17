@@ -26,6 +26,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (renderContentM)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
@@ -141,7 +142,8 @@ renderPost hxRequest mUserInfo blogPost canonicalSlug = do
     Right (Just author) -> do
       tagsResult <- execQuerySpan (BlogPosts.getTagsForPost (BlogPosts.bpmId blogPost))
       let tags = fromRight [] tagsResult
-          postTemplate = template backend blogPost author tags
+      renderedContent <- renderContentM (BlogPosts.bpmContent blogPost)
+      let postTemplate = template backend blogPost author tags renderedContent
       html <- renderTemplate hxRequest mUserInfo postTemplate
       pure $ Servant.noHeader html
 

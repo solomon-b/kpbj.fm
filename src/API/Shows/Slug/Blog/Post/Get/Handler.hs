@@ -27,6 +27,7 @@ import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (renderContentM)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
@@ -142,7 +143,8 @@ renderPost hxRequest mUserInfo post = do
   case (showResult, authorResult) of
     (Right (Just showModel), Right (Just author)) -> do
       let tags = fromRight [] tagsResult
-      let postTemplate = template showModel post author tags
+      renderedContent <- renderContentM (ShowBlogPosts.content post)
+      let postTemplate = template showModel post author tags renderedContent
       html <- renderTemplate hxRequest mUserInfo postTemplate
       pure $ Servant.noHeader html
     (Right Nothing, _) -> do

@@ -21,7 +21,6 @@ module API.Uploads.Shared
     ExtensionMapper,
 
     -- * Common Helpers
-    sanitizeFileName,
     storeFile,
   )
 where
@@ -111,7 +110,7 @@ processStagedUpload ::
   Text -> -- Browser MIME type
   BS.ByteString -> -- File content
   m (Either Text (StagedUploads.Token, Text, Text, Int64))
-  -- Returns: (token, originalName, mimeType, fileSize)
+-- Returns: (token, originalName, mimeType, fileSize)
 processStagedUpload config backend mAwsEnv userId originalName browserMimeType content = do
   let fileSize = fromIntegral $ BS.length content
 
@@ -197,12 +196,6 @@ storeValidatedFile config backend mAwsEnv browserMimeType content = do
 
 --------------------------------------------------------------------------------
 -- Helpers
-
--- | Sanitize filename for temp file creation.
---
--- Removes path separators and null bytes to prevent directory traversal.
-sanitizeFileName :: Text -> Text
-sanitizeFileName = Text.filter (\c -> c /= '/' && c /= '\\' && c /= ':' && c /= '\0')
 
 -- | Store a file using the configured storage backend.
 storeFile ::

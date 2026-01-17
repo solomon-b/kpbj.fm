@@ -2,11 +2,9 @@ module API.Dashboard.Events.New.Post.Route where
 
 --------------------------------------------------------------------------------
 
-import Data.Foldable (fold)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
-import Effects.ContentSanitization qualified as Sanitize
 import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
@@ -29,17 +27,9 @@ type Route =
 
 --------------------------------------------------------------------------------
 
--- | Parse and sanitize comma-separated tags
-parseTags :: Text -> [Text]
-parseTags tagText =
-  filter (not . Text.null) $
-    map (Sanitize.sanitizePlainText . Text.strip) $
-      Text.splitOn "," tagText
-
 -- Form data structure
 data NewEventForm = NewEventForm
   { nefTitle :: Text,
-    nefTags :: Text,
     nefDescription :: Text,
     nefStartsAt :: Text,
     nefEndsAt :: Text,
@@ -54,7 +44,6 @@ instance FromMultipart Mem NewEventForm where
   fromMultipart multipartData =
     NewEventForm
       <$> lookupInput "title" multipartData
-      <*> pure (fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
       <*> lookupInput "description" multipartData
       <*> lookupInput "starts_at" multipartData
       <*> lookupInput "ends_at" multipartData

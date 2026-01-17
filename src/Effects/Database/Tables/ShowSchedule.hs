@@ -19,26 +19,18 @@ module Effects.Database.Tables.ShowSchedule
     -- * Schedule Template Validity Types
     ValidityId (..),
     ScheduleTemplateValidity (..),
-    scheduleTemplateValiditySchema,
     ValidityInsert (..),
-    ValidityUpdate (..),
 
     -- * Schedule Template Queries
     getScheduleTemplateById,
     getScheduleTemplatesForShow,
     getActiveScheduleTemplatesForShow,
-    getActiveRecurringScheduleTemplates,
     checkTimeSlotConflict,
     insertScheduleTemplate,
-    deleteScheduleTemplate,
 
     -- * Schedule Template Validity Queries
-    getValidityById,
-    getValidityPeriodsForTemplate,
     getActiveValidityPeriodsForTemplate,
     insertValidity,
-    updateValidity,
-    deleteValidity,
     endValidity,
 
     -- * Scheduled Show With Details
@@ -177,32 +169,11 @@ instance DecodeRow (ScheduleTemplateValidity Result)
 instance Display (ScheduleTemplateValidity Result) where
   displayBuilder _ = "ScheduleTemplateValidity"
 
--- | Table schema for schedule_template_validity.
-scheduleTemplateValiditySchema :: TableSchema (ScheduleTemplateValidity Name)
-scheduleTemplateValiditySchema =
-  TableSchema
-    { name = "schedule_template_validity",
-      columns =
-        ScheduleTemplateValidity
-          { stvId = "id",
-            stvTemplateId = "template_id",
-            stvEffectiveFrom = "effective_from",
-            stvEffectiveUntil = "effective_until"
-          }
-    }
-
 -- | Insert type for creating new validity periods.
 data ValidityInsert = ValidityInsert
   { viTemplateId :: TemplateId,
     viEffectiveFrom :: Day,
     viEffectiveUntil :: Maybe Day
-  }
-  deriving stock (Generic, Show, Eq)
-
--- | Update type for modifying validity periods.
-data ValidityUpdate = ValidityUpdate
-  { vuEffectiveFrom :: Day,
-    vuEffectiveUntil :: Maybe Day
   }
   deriving stock (Generic, Show, Eq)
 
@@ -239,26 +210,6 @@ getActiveScheduleTemplatesForShow showId =
     FROM schedule_templates st
     JOIN schedule_template_validity stv ON stv.template_id = st.id
     WHERE st.show_id = #{showId}
-      AND stv.effective_from <= CURRENT_DATE
-      AND (stv.effective_until IS NULL OR stv.effective_until > CURRENT_DATE)
-    ORDER BY st.day_of_week, st.start_time
-  |]
-
--- | Get all currently active recurring schedule templates across all shows.
---
--- Filters out one-time shows (where day_of_week IS NULL).
--- Uses raw SQL because of complex joins and CURRENT_DATE.
-getActiveRecurringScheduleTemplates :: Hasql.Statement () [ScheduleTemplate Result]
-getActiveRecurringScheduleTemplates =
-  interp
-    False
-    [sql|
-    SELECT DISTINCT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at
-    FROM schedule_templates st
-    JOIN schedule_template_validity stv ON stv.template_id = st.id
-    JOIN shows s ON s.id = st.show_id
-    WHERE s.status = 'active'
-      AND st.day_of_week IS NOT NULL
       AND stv.effective_from <= CURRENT_DATE
       AND (stv.effective_until IS NULL OR stv.effective_until > CURRENT_DATE)
     ORDER BY st.day_of_week, st.start_time
@@ -331,40 +282,8 @@ insertScheduleTemplate ScheduleTemplateInsert {..} =
     RETURNING id
   |]
 
--- | Delete a schedule template.
---
--- CASCADE will automatically delete related validity records.
-deleteScheduleTemplate :: TemplateId -> Hasql.Statement () (Maybe TemplateId)
-deleteScheduleTemplate templateId =
-  fmap listToMaybe $
-    run $
-      delete
-        Delete
-          { from = scheduleTemplateSchema,
-            using = pure (),
-            deleteWhere = \_ st -> stId st ==. lit templateId,
-            returning = Returning stId
-          }
-
 --------------------------------------------------------------------------------
 -- Schedule Template Validity Queries
-
--- | Get a validity period by ID.
-getValidityById :: ValidityId -> Hasql.Statement () (Maybe (ScheduleTemplateValidity Result))
-getValidityById validityId = fmap listToMaybe $ run $ select do
-  stv <- each scheduleTemplateValiditySchema
-  where_ $ stvId stv ==. lit validityId
-  pure stv
-
--- | Get all validity periods for a template.
-getValidityPeriodsForTemplate :: TemplateId -> Hasql.Statement () [ScheduleTemplateValidity Result]
-getValidityPeriodsForTemplate templateId =
-  run $
-    select $
-      orderBy (stvEffectiveFrom >$< desc) do
-        stv <- each scheduleTemplateValiditySchema
-        where_ $ stvTemplateId stv ==. lit templateId
-        pure stv
 
 -- | Get currently active validity periods for a template.
 --
@@ -396,33 +315,6 @@ insertValidity ValidityInsert {..} =
     VALUES (#{viTemplateId}, #{viEffectiveFrom}, #{viEffectiveUntil})
     RETURNING id
   |]
-
--- | Update a validity period.
---
--- Used to adjust the time bounds of when a template is active.
-updateValidity :: ValidityId -> ValidityUpdate -> Hasql.Statement () (Maybe ValidityId)
-updateValidity validityId ValidityUpdate {..} =
-  interp
-    False
-    [sql|
-    UPDATE schedule_template_validity
-    SET effective_from = #{vuEffectiveFrom}, effective_until = #{vuEffectiveUntil}
-    WHERE id = #{validityId}
-    RETURNING id
-  |]
-
--- | Delete a validity period.
-deleteValidity :: ValidityId -> Hasql.Statement () (Maybe ValidityId)
-deleteValidity validityId =
-  fmap listToMaybe $
-    run $
-      delete
-        Delete
-          { from = scheduleTemplateValiditySchema,
-            using = pure (),
-            deleteWhere = \_ stv -> stvId stv ==. lit validityId,
-            returning = Returning stvId
-          }
 
 -- | End a validity period by setting effective_until to a specific date.
 --

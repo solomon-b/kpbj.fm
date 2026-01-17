@@ -3,7 +3,21 @@
 -- This module defines the visual language of the site as reusable constants.
 -- Using these tokens ensures consistency across all templates.
 module Design.Tokens
-  ( -- * Typography
+  ( -- * Responsive Visibility
+    hideOnMobile,
+    showOnMobile,
+    hideOnDesktop,
+    showOnDesktop,
+
+    -- * Responsive Flex
+    stackToRow,
+    rowToStack,
+
+    -- * Responsive Grid
+    gridCols,
+    responsiveGrid,
+
+    -- * Typography
     textXs,
     textSm,
     textBase,
@@ -102,6 +116,7 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Design.StyleBuilder.Internal (cls, lg, md)
 
 --------------------------------------------------------------------------------
@@ -373,3 +388,60 @@ linkText = "text-blue-600 hover:text-blue-800 hover:underline"
 -- | Navigation link styling.
 navLink :: Text
 navLink = cls [fontBold, "uppercase", "hover:underline"]
+
+--------------------------------------------------------------------------------
+-- Responsive Visibility
+
+-- | Hide an element on mobile, show on tablet and up.
+hideOnMobile :: Text
+hideOnMobile = "hidden md:block"
+
+-- | Show an element only on mobile (hide on tablet and up).
+showOnMobile :: Text
+showOnMobile = "md:hidden"
+
+-- | Hide an element on desktop (lg+), show on mobile\/tablet.
+hideOnDesktop :: Text
+hideOnDesktop = "lg:hidden"
+
+-- | Show an element only on desktop (lg+).
+showOnDesktop :: Text
+showOnDesktop = "hidden lg:block"
+
+--------------------------------------------------------------------------------
+-- Responsive Flex
+
+-- | Stack vertically on mobile, row on tablet+.
+stackToRow :: Text
+stackToRow = "flex flex-col md:flex-row"
+
+-- | Row on mobile, stack vertically on tablet+.
+rowToStack :: Text
+rowToStack = "flex flex-row md:flex-col"
+
+--------------------------------------------------------------------------------
+-- Responsive Grid
+
+-- | Generate grid-cols-N class.
+--
+-- Example:
+--
+-- > gridCols 3
+-- > -- Result: "grid-cols-3"
+gridCols :: Int -> Text
+gridCols n = "grid-cols-" <> Text.pack (show n)
+
+-- | Generate a responsive grid class string.
+--
+-- Example:
+--
+-- > responsiveGrid 1 2 3
+-- > -- Result: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+responsiveGrid :: Int -> Int -> Int -> Text
+responsiveGrid mobileCols tabletCols desktopCols =
+  cls
+    [ "grid",
+      gridCols mobileCols,
+      md (gridCols tabletCols),
+      lg (gridCols desktopCols)
+    ]

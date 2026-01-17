@@ -30,9 +30,9 @@ module Effects.Database.Tables.StagedUploads
     insert,
     getByToken,
     claimUpload,
-    getExpiredUploads,
     deleteById,
     deleteByToken,
+    getExpiredUploads,
   )
 where
 
@@ -118,9 +118,12 @@ instance Servant.ToHttpApiData UploadType where
 
 -- | Upload claim status.
 data Status
-  = Pending -- ^ Upload is awaiting claim by form submission
-  | Claimed -- ^ Upload has been claimed and associated with an entity
-  | Expired -- ^ Upload has expired and is a candidate for cleanup
+  = -- | Upload is awaiting claim by form submission
+    Pending
+  | -- | Upload has been claimed and associated with an entity
+    Claimed
+  | -- | Upload has expired and is a candidate for cleanup
+    Expired
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded, Read)
   deriving anyclass (FromJSON, ToJSON)
 
@@ -235,20 +238,6 @@ claimUpload token userId =
               upload_type, status, created_at, claimed_at, expires_at
   |]
 
--- | Get all expired pending uploads for cleanup.
---
--- Returns uploads where status = 'pending' and expires_at < NOW().
-getExpiredUploads :: Hasql.Statement () [Model]
-getExpiredUploads =
-  interp
-    False
-    [sql|
-    SELECT id, token, user_id, original_name, storage_path, mime_type, file_size,
-           upload_type, status, created_at, claimed_at, expires_at
-    FROM staged_uploads
-    WHERE status = 'pending' AND expires_at < NOW()
-  |]
-
 -- | Delete a staged upload by ID.
 --
 -- Returns the ID if successful, Nothing if not found.
@@ -273,4 +262,20 @@ deleteByToken token =
     DELETE FROM staged_uploads
     WHERE token = #{token}
     RETURNING id
+  |]
+
+-- | Get all expired uploads that are still pending.
+--
+-- Returns uploads with status 'pending' and expires_at < NOW().
+-- These are candidates for cleanup.
+getExpiredUploads :: Hasql.Statement () [Model]
+getExpiredUploads =
+  interp
+    True
+    [sql|
+    SELECT id, token, user_id, original_name, storage_path, mime_type, file_size,
+           upload_type, status, created_at, claimed_at, expires_at
+    FROM staged_uploads
+    WHERE status = 'pending'
+      AND expires_at < NOW()
   |]

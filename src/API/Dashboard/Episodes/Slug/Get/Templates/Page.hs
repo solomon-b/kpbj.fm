@@ -3,8 +3,6 @@
 
 module API.Dashboard.Episodes.Slug.Get.Templates.Page
   ( template,
-    errorTemplate,
-    notFoundTemplate,
   )
 where
 
@@ -194,26 +192,3 @@ renderTrackRow track = do
 
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray700]] $ do
         Lucid.toHtml track.artist
-
---------------------------------------------------------------------------------
-
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
-    Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Error Loading Episode"
-    Lucid.p_ [class_ $ base [Tokens.textGray700, "mb-6"]] $ Lucid.toHtml errorMsg
-
-notFoundTemplate :: Slug -> Lucid.Html ()
-notFoundTemplate showSlug = do
-  let backUrl = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
-    Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Episode Not Found"
-    Lucid.p_ [class_ $ base [Tokens.textGray700, "mb-6"]] "We couldn't find the episode you're looking for."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{backUrl}|],
-        hxGet_ [i|/#{backUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        class_ $ base ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
-      ]
-      "Back to Episodes"
