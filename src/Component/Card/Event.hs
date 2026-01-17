@@ -23,7 +23,6 @@ import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -49,8 +48,11 @@ eventGetUrl eventId slug = Links.linkURI $ eventsLinks.detailWithSlug eventId sl
 -- Main Render Functions
 
 -- | Render an event card with the specified variant.
-renderEventCard :: StorageBackend -> Variant -> Events.Model -> Lucid.Html ()
-renderEventCard backend variant event = do
+--
+-- For the Detail variant, pass pre-rendered description HTML.
+-- For the Summary variant, the description parameter is ignored.
+renderEventCard :: StorageBackend -> Variant -> Events.Model -> Maybe (Lucid.Html ()) -> Lucid.Html ()
+renderEventCard backend variant event mRenderedDescription = do
   Lucid.article_ [class_ $ base [Tokens.bgWhite, "dark:bg-gray-800"]] $ do
     case variant of
       Summary -> do
@@ -66,15 +68,15 @@ renderEventCard backend variant event = do
           Lucid.div_ [class_ $ base ["mt-4"]] $ do
             renderTitle variant event
             renderDateAndLocation variant event
-            renderDescription event
+            renderDescription mRenderedDescription
 
 -- | Convenience function for summary cards (list view).
 renderEventCardSummary :: StorageBackend -> Events.Model -> Lucid.Html ()
-renderEventCardSummary backend = renderEventCard backend Summary
+renderEventCardSummary backend event = renderEventCard backend Summary event Nothing
 
 -- | Convenience function for detail cards (detail page).
-renderEventCardDetail :: StorageBackend -> Events.Model -> Lucid.Html ()
-renderEventCardDetail backend = renderEventCard backend Detail
+renderEventCardDetail :: StorageBackend -> Events.Model -> Lucid.Html () -> Lucid.Html ()
+renderEventCardDetail backend event renderedDescription = renderEventCard backend Detail event (Just renderedDescription)
 
 --------------------------------------------------------------------------------
 -- Component Functions
@@ -155,8 +157,9 @@ renderDateAndLocation variant event =
           Lucid.div_ [Lucid.class_ [i|#{Tokens.textGray600} dark:text-gray-400|]] $ Lucid.toHtml event.emLocationName
           Lucid.div_ [Lucid.class_ [i|#{Tokens.textGray600} dark:text-gray-400|]] $ Lucid.toHtml event.emLocationAddress
 
--- | Render event description as markdown.
-renderDescription :: Events.Model -> Lucid.Html ()
-renderDescription event =
-  Lucid.div_ [class_ $ base [Tokens.mt4]] $ do
-    renderContent event.emDescription
+-- | Render event description (pre-rendered HTML).
+renderDescription :: Maybe (Lucid.Html ()) -> Lucid.Html ()
+renderDescription mRenderedDescription =
+  case mRenderedDescription of
+    Just rendered -> Lucid.div_ [class_ $ base [Tokens.mt4]] rendered
+    Nothing -> pure ()

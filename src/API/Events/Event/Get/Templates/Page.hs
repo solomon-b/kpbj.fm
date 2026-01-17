@@ -34,10 +34,10 @@ eventsGetUrl = Links.linkURI eventsLinks.list
 --------------------------------------------------------------------------------
 
 -- | Main event template
-template :: StorageBackend -> Events.Model -> UserMetadata.Model -> Lucid.Html ()
-template backend event author = do
+template :: StorageBackend -> Events.Model -> UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
+template backend event author renderedDescription = do
   -- Event card with full details
-  renderEventCardDetail backend event
+  renderEventCardDetail backend event renderedDescription
 
   -- Event creator info
   Lucid.section_ [class_ $ base ["mt-6"]] $ do

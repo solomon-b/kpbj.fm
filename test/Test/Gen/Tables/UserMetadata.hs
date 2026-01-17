@@ -3,7 +3,6 @@ module Test.Gen.Tables.UserMetadata where
 --------------------------------------------------------------------------------
 
 import Control.Monad.IO.Class (MonadIO (..))
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hedgehog (MonadGen (..))
 import Hedgehog.Gen qualified as Gen
@@ -19,16 +18,6 @@ genUserRole = Gen.enumBounded
 
 genColorScheme :: (MonadGen m) => m UserMetadata.ColorScheme
 genColorScheme = Gen.enumBounded
-
-userMetadataInsertGen :: (MonadIO m, MonadGen m) => User.Id -> m UserMetadata.Insert
-userMetadataInsertGen userId = do
-  let iUserId = userId
-  iDisplayName <- genDisplayName
-  iFullName <- genFullName
-  iAvatarUrl <- Gen.maybe genUrl
-  iUserRole <- genUserRole
-  iColorScheme <- genColorScheme
-  pure UserMetadata.Insert {..}
 
 userWithMetadataInsertGen :: (MonadIO m, MonadGen m) => m UserMetadata.UserWithMetadataInsert
 userWithMetadataInsertGen = do

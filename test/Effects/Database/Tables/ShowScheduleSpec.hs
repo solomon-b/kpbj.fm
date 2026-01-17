@@ -4,7 +4,6 @@ module Effects.Database.Tables.ShowScheduleSpec where
 
 import Control.Monad (forM_, void)
 import Control.Monad.IO.Class (liftIO)
-import Data.Maybe (isJust)
 import Data.Time (addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
 import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.Calendar.WeekDate (toWeekDate)
@@ -16,13 +15,12 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog qualified
-import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllT)
 import OrphanInstances.DayOfWeek (toDayOfWeek)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertRight)
-import Test.Gen.Tables.ShowSchedule (allWeeksOfMonth, genDayOfWeek, genFutureDay, genPastDay, genTimeRange, genTimezone, genWeeksOfMonth)
+import Test.Gen.Tables.ShowSchedule (allWeeksOfMonth, genDayOfWeek, genFutureDay, genTimeRange, genTimezone, genWeeksOfMonth)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Hedgehog (hedgehog)
@@ -36,17 +34,9 @@ spec =
       -- Template CRUD tests
       runs 20 . it "schema validation: insert and select schedule template" $ hedgehog . prop_insertSelectTemplate
       runs 20 . it "query validation: getScheduleTemplatesForShow" $ hedgehog . prop_getTemplatesForShow
-      runs 10 . it "query validation: deleteScheduleTemplate" $ hedgehog . prop_deleteTemplate
-
-      -- Validity CRUD tests
-      runs 20 . it "schema validation: insert and select validity period" $ hedgehog . prop_insertSelectValidity
-      runs 20 . it "query validation: getValidityPeriodsForTemplate" $ hedgehog . prop_getValidityPeriods
-      runs 10 . it "query validation: updateValidity" $ hedgehog . prop_updateValidity
-      runs 10 . it "query validation: endValidity" $ hedgehog . prop_endValidity
 
       -- Active schedule queries
       runs 20 . it "query validation: getActiveScheduleTemplatesForShow" $ hedgehog . prop_getActiveTemplates
-      runs 20 . it "query validation: getActiveRecurringScheduleTemplates" $ hedgehog . prop_getActiveRecurring
 
       -- Upcoming dates calculations
       runs 30 . it "upcoming dates are always in the future" $ hedgehog . prop_upcomingDatesInFuture
@@ -60,7 +50,6 @@ spec =
 
       -- One-time shows
       runs 20 . it "one-time shows can be created with Nothing for dayOfWeek and weeksOfMonth" $ hedgehog . prop_oneTimeShowCreation
-      runs 20 . it "one-time shows don't appear in recurring schedule queries" $ hedgehog . prop_oneTimeShowNotInRecurring
 
       -- Timezone validation
       runs 20 . it "timezone is stored and retrieved correctly" $ hedgehog . prop_timezoneStorage
@@ -136,157 +125,6 @@ prop_getTemplatesForShow cfg = do
         forM_ templates $ \template -> do
           template.stShowId === showId
 
-prop_deleteTemplate :: TestDBConfig -> PropertyT IO ()
-prop_deleteTemplate cfg = do
-  arrange (bracketConn cfg) $ do
-    showInsert <- forAllT showInsertGen
-    (startTime, endTime) <- forAllT genTimeRange
-    dayOfWeek <- forAllT $ Just <$> genDayOfWeek
-    timezone <- forAllT genTimezone
-
-    act $ do
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
-
-        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone
-
-        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
-        mDeleted <- TRX.statement () (UUT.deleteScheduleTemplate templateId)
-        mSelected <- TRX.statement () (UUT.getScheduleTemplateById templateId)
-        pure (templateId, mDeleted, mSelected)
-
-      assert $ do
-        (templateId, mDeleted, mSelected) <- assertRight result
-        deleted <- assertJust mDeleted
-        deleted === templateId
-        mSelected === Nothing
-
---------------------------------------------------------------------------------
--- Validity CRUD Tests
-
-prop_insertSelectValidity :: TestDBConfig -> PropertyT IO ()
-prop_insertSelectValidity cfg = do
-  arrange (bracketConn cfg) $ do
-    showInsert <- forAllT showInsertGen
-    (startTime, endTime) <- forAllT genTimeRange
-    dayOfWeek <- forAllT $ Just <$> genDayOfWeek
-    timezone <- forAllT genTimezone
-    effectiveFrom <- forAllT genPastDay
-    effectiveUntil <- forAllT $ Gen.maybe genFutureDay
-
-    act $ do
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
-
-        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone
-        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
-
-        let validityInsert = UUT.ValidityInsert templateId effectiveFrom effectiveUntil
-        validityId <- TRX.statement () (UUT.insertValidity validityInsert)
-        selected <- TRX.statement () (UUT.getValidityById validityId)
-        pure (validityId, validityInsert, selected)
-
-      assert $ do
-        (validityId, validityInsert, mSelected) <- assertRight result
-        UUT.ScheduleTemplateValidity {stvId = selectedId, stvTemplateId = tmplId, stvEffectiveFrom = effFrom, stvEffectiveUntil = effUntil} <- assertJust mSelected
-        validityInsert.viTemplateId === tmplId
-        validityInsert.viEffectiveFrom === effFrom
-        validityInsert.viEffectiveUntil === effUntil
-        validityId === selectedId
-
-prop_getValidityPeriods :: TestDBConfig -> PropertyT IO ()
-prop_getValidityPeriods cfg = do
-  arrange (bracketConn cfg) $ do
-    showInsert <- forAllT showInsertGen
-    (startTime, endTime) <- forAllT genTimeRange
-    dayOfWeek <- forAllT $ Just <$> genDayOfWeek
-    timezone <- forAllT genTimezone
-    from1 <- forAllT genPastDay
-    until1 <- forAllT $ Gen.maybe genFutureDay
-    -- Ensure from2 is different from from1 to avoid unique constraint violation
-    let from2 = addDays 1 from1
-    until2 <- forAllT $ Gen.maybe genFutureDay
-
-    act $ do
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
-        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone
-        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
-
-        let validity1 = UUT.ValidityInsert templateId from1 until1
-            validity2 = UUT.ValidityInsert templateId from2 until2
-        _ <- TRX.statement () (UUT.insertValidity validity1)
-        _ <- TRX.statement () (UUT.insertValidity validity2)
-        periods <- TRX.statement () (UUT.getValidityPeriodsForTemplate templateId)
-        pure (templateId, periods)
-
-      assert $ do
-        (templateId, periods) <- assertRight result
-        Hedgehog.assert (length periods >= 2)
-        forM_ periods $ \period -> do
-          period.stvTemplateId === templateId
-
-prop_updateValidity :: TestDBConfig -> PropertyT IO ()
-prop_updateValidity cfg = do
-  arrange (bracketConn cfg) $ do
-    showInsert <- forAllT showInsertGen
-    (startTime, endTime) <- forAllT genTimeRange
-    dayOfWeek <- forAllT $ Just <$> genDayOfWeek
-    timezone <- forAllT genTimezone
-    origFrom <- forAllT genPastDay
-    origUntil <- forAllT $ Gen.maybe genFutureDay
-    newFrom <- forAllT genPastDay
-    newUntil <- forAllT $ Gen.maybe genFutureDay
-
-    act $ do
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
-        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone
-        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
-
-        let validityInsert = UUT.ValidityInsert templateId origFrom origUntil
-        validityId <- TRX.statement () (UUT.insertValidity validityInsert)
-
-        let update = UUT.ValidityUpdate newFrom newUntil
-        _ <- TRX.statement () (UUT.updateValidity validityId update)
-        updated <- TRX.statement () (UUT.getValidityById validityId)
-        pure (validityId, update, updated)
-
-      assert $ do
-        (validityId, update, mUpdated) <- assertRight result
-        UUT.ScheduleTemplateValidity {stvId = updatedId, stvEffectiveFrom = effFrom, stvEffectiveUntil = effUntil} <- assertJust mUpdated
-        update.vuEffectiveFrom === effFrom
-        update.vuEffectiveUntil === effUntil
-        validityId === updatedId
-
-prop_endValidity :: TestDBConfig -> PropertyT IO ()
-prop_endValidity cfg = do
-  arrange (bracketConn cfg) $ do
-    showInsert <- forAllT showInsertGen
-    (startTime, endTime) <- forAllT genTimeRange
-    dayOfWeek <- forAllT $ Just <$> genDayOfWeek
-    timezone <- forAllT genTimezone
-    effectiveFrom <- forAllT genPastDay
-    endDate <- forAllT genFutureDay
-
-    act $ do
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
-        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone
-        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
-
-        let validityInsert = UUT.ValidityInsert templateId effectiveFrom Nothing
-        validityId <- TRX.statement () (UUT.insertValidity validityInsert)
-
-        _ <- TRX.statement () (UUT.endValidity validityId endDate)
-        ended <- TRX.statement () (UUT.getValidityById validityId)
-        pure (endDate, ended)
-
-      assert $ do
-        (_endDate, mEnded) <- assertRight result
-        ended <- assertJust mEnded
-        ended.stvEffectiveUntil === Just endDate
-
 --------------------------------------------------------------------------------
 -- Active Schedule Tests
 
@@ -317,40 +155,6 @@ prop_getActiveTemplates cfg = do
         Hedgehog.assert (not $ null matchingTemplates)
         forM_ activeTemplates $ \template -> do
           template.stShowId === showId
-
-prop_getActiveRecurring :: TestDBConfig -> PropertyT IO ()
-prop_getActiveRecurring cfg = do
-  arrange (bracketConn cfg) $ do
-    -- Create an active show
-    showInsert <- forAllT showInsertGen
-    let activeShow = showInsert {Shows.siStatus = Shows.Active}
-    (startTime, endTime) <- forAllT genTimeRange
-    dayOfWeek <- forAllT $ Just <$> genDayOfWeek
-    timezone <- forAllT genTimezone
-
-    act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow activeShow)
-
-        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone
-        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
-
-        -- Add active validity with fixed dates
-        let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
-
-        activeRecurring <- TRX.statement () UUT.getActiveRecurringScheduleTemplates
-        pure (templateId, activeRecurring)
-
-      assert $ do
-        (templateId, activeRecurring) <- assertRight result
-        -- Should include our template
-        let matchingTemplates = filter (\(UUT.ScheduleTemplate {stId = tid}) -> tid == templateId) activeRecurring
-        Hedgehog.assert (not $ null matchingTemplates)
-        -- All templates should have day_of_week set (recurring only)
-        forM_ activeRecurring $ \template -> do
-          Hedgehog.assert (isJust template.stDayOfWeek)
 
 --------------------------------------------------------------------------------
 -- Upcoming Dates Tests
@@ -604,46 +408,6 @@ prop_oneTimeShowCreation cfg = do
         template.stStartTime === scheduleInsert.stiStartTime
         template.stEndTime === scheduleInsert.stiEndTime
         template.stTimezone === scheduleInsert.stiTimezone
-
-prop_oneTimeShowNotInRecurring :: TestDBConfig -> PropertyT IO ()
-prop_oneTimeShowNotInRecurring cfg = do
-  arrange (bracketConn cfg) $ do
-    showInsert <- forAllT showInsertGen
-    let activeShow = showInsert {Shows.siStatus = Shows.Active}
-    (startTime, endTime) <- forAllT genTimeRange
-    timezone <- forAllT genTimezone
-
-    act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow activeShow)
-
-        -- Create one-time show schedule
-        let oneTimeSchedule =
-              UUT.ScheduleTemplateInsert
-                { stiShowId = showId,
-                  stiDayOfWeek = Nothing,
-                  stiWeeksOfMonth = Nothing,
-                  stiStartTime = startTime,
-                  stiEndTime = endTime,
-                  stiTimezone = timezone
-                }
-
-        templateId <- TRX.statement () (UUT.insertScheduleTemplate oneTimeSchedule)
-
-        -- Add active validity with fixed dates
-        let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
-
-        -- Query for recurring schedules
-        recurring <- TRX.statement () UUT.getActiveRecurringScheduleTemplates
-        pure (templateId, recurring)
-
-      assert $ do
-        (templateId, recurring) <- assertRight result
-        -- One-time shows should NOT appear in recurring schedules
-        let matchingTemplates = filter (\t -> t.stId == templateId) recurring
-        Hedgehog.assert (null matchingTemplates)
 
 --------------------------------------------------------------------------------
 -- Timezone Validation Tests

@@ -12,6 +12,7 @@ import API.Links (blogLinks)
 import API.Types
 import Component.Card.BlogPost (renderStationBlogPostCard)
 import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
+import Component.Layout qualified as Layout
 import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Foldable (traverse_)
@@ -20,7 +21,6 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Design (base, class_)
-import Design.Lucid qualified as Layout
 import Design.Tokens qualified as Tokens
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts

@@ -19,7 +19,6 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Extras
 import Servant.Links qualified as Links
@@ -32,8 +31,8 @@ showBlogGetUrl slug = Links.linkURI $ showBlogLinks.list slug Nothing Nothing
 
 --------------------------------------------------------------------------------
 
-template :: Shows.Model -> ShowBlogPosts.Model -> UserMetadata.Model -> [ShowBlogTags.Model] -> Lucid.Html ()
-template showModel post author tags = do
+template :: Shows.Model -> ShowBlogPosts.Model -> UserMetadata.Model -> [ShowBlogTags.Model] -> Lucid.Html () -> Lucid.Html ()
+template showModel post author tags renderedContent = do
   Lucid.article_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     -- Article header
     Lucid.header_ [class_ $ base [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", "border-gray-800"]] $ do
@@ -74,7 +73,7 @@ template showModel post author tags = do
               $ Lucid.toHtml (ShowBlogTags.sbtmName tag)
 
     -- Article content
-    renderContent (ShowBlogPosts.content post)
+    renderedContent
 
     -- Back to blog link
     Lucid.div_ [class_ $ base ["mt-12", Tokens.p6, "pt-6", "border-t-2", "border-gray-800"]] $ do

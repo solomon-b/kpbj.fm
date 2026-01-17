@@ -315,9 +315,7 @@ library
     App.Storage
     App.Handler.Error
     Component.ActionsDropdown
-    Component.AudioFilePicker
     Component.AudioPlayer.Waveform
-    Component.ImageFilePicker
     Component.InfiniteScroll
     Component.TrackListingEditor
     Component.Banner
@@ -325,8 +323,6 @@ library
     Component.Card.Episode
     Component.Card.Event
     Component.Card.Show
-    Component.Dashboard.Auth
-    Component.Form
     Component.Form.Builder
     Component.Form.Builder.Alpine
     Component.Form.Builder.Core
@@ -335,8 +331,6 @@ library
     Component.Form.Builder.Render
     Component.Form.Builder.Styles
     Component.Form.Builder.Types
-    Component.Form.Internal
-    Component.Form.JSArrow
     Component.DashboardFrame
     Component.Frame
     Component.Layout
@@ -344,12 +338,8 @@ library
     Component.Redirect
     Component.Table
     Component.Tags
+    Component.Visibility
     Design
-    Design.Lucid
-    Design.Lucid.Card
-    Design.Lucid.Layout
-    Design.Lucid.Visibility
-    Design.Responsive
     Design.StyleBuilder
     Design.StyleBuilder.Internal
     Design.Tokens
@@ -395,8 +385,6 @@ library
     Effects.Storage.S3
     Helpers.RelativeTime
     Lucid.Extras
-    Lucid.Responsive
-    Lucid.Styles
     OrphanInstances.DayOfWeek
     OrphanInstances.Rel8
     OrphanInstances.TimeOfDay
@@ -478,10 +466,8 @@ test-suite kpbj-api-test
        Test.Gen.Tables.Episodes
        Test.Gen.Tables.Events
        Test.Gen.Tables.Shows
-       Test.Gen.Tables.ShowHost
        Test.Gen.Tables.ShowSchedule
        Test.Gen.Tables.StagedUploads
-       Test.Gen.Tables.User
        Test.Gen.Tables.UserMetadata
        Test.Gen.Text
        Test.Gen.Time

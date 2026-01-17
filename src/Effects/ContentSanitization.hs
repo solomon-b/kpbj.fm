@@ -16,10 +16,6 @@ module Effects.ContentSanitization
     sanitizeDescription,
     sanitizePlainText,
 
-    -- * Safe HTML Rendering
-    renderSanitizedContent,
-    renderSanitizedContentWithParagraphs,
-
     -- * Validation
     validateContentLength,
     ContentValidationError (..),
@@ -31,7 +27,6 @@ where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Lucid qualified
 import Text.HTML.SanitizeXSS (sanitizeXSS)
 
 --------------------------------------------------------------------------------
@@ -140,37 +135,3 @@ sanitizePlainText plainText =
   Text.strip $ Text.filter isValidTextChar plainText
   where
     isValidTextChar c = c /= '<' && c /= '>' && c >= ' '
-
---------------------------------------------------------------------------------
--- Safe HTML Rendering
-
--- | Render sanitized content as safe HTML
---
--- This function takes already-sanitized content and renders it as HTML,
--- preserving the allowed HTML formatting while ensuring it's safe.
---
--- The content should have been processed through one of the sanitization
--- functions above before being passed to this function.
-renderSanitizedContent :: Text -> Lucid.Html ()
-renderSanitizedContent sanitizedContent = do
-  -- Since the content has already been sanitized by xss-sanitize,
-  -- we can safely render it as HTML. The xss-sanitize library
-  -- has already removed dangerous elements and attributes.
-  Lucid.toHtmlRaw sanitizedContent
-
--- | Render sanitized content with paragraph breaks
---
--- This function handles the common case of text content that should
--- be broken into paragraphs. It sanitizes the content and then
--- renders it with proper paragraph formatting.
-renderSanitizedContentWithParagraphs :: Text -> Lucid.Html ()
-renderSanitizedContentWithParagraphs content = do
-  let sanitized = sanitizeUserContent content
-      paragraphs = filter (not . Text.null . Text.strip) $ Text.splitOn "\n\n" sanitized
-  Lucid.div_ [Lucid.class_ "prose max-w-none text-gray-700 leading-relaxed space-y-4"] $ do
-    mapM_ renderParagraph paragraphs
-  where
-    renderParagraph para =
-      if Text.null (Text.strip para)
-        then pure ()
-        else Lucid.p_ $ Lucid.toHtmlRaw para

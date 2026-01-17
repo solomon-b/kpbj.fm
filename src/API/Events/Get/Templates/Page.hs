@@ -6,10 +6,10 @@ where
 --------------------------------------------------------------------------------
 
 import Component.Card.Event (renderEventCardSummary)
+import Component.Layout qualified as Layout
 import Component.PageHeader (pageHeader)
 import Data.Foldable (traverse_)
 import Design (base, class_)
-import Design.Lucid.Layout qualified as Layout
 import Design.Tokens qualified as Tokens
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Events qualified as Events

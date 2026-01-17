@@ -8,7 +8,6 @@ module Test.Database.Monad
     withTestDB,
     withAuth,
     bracketConn,
-    dbit,
     withTracer,
     TestDBInitConfig (..),
     TestDBConfig (..),
@@ -65,7 +64,7 @@ import OpenTelemetry.Exporter.Span (ExportResult (..), SpanExporter (..))
 import OpenTelemetry.Processor.Simple (SimpleProcessorConfig (..), simpleProcessor)
 import OpenTelemetry.Trace qualified as OTEL
 import System.Process.Typed (proc, readProcess)
-import Test.Hspec (Spec, SpecWith, it)
+import Test.Hspec (Spec, SpecWith)
 import Test.Hspec.Core.Hooks (around, beforeWith)
 import Test.Hspec.Core.Spec (ActionWith, Example (..), Params, ProgressCallback, Result)
 
@@ -265,6 +264,3 @@ withTestDB = around $ bracket before after . during
 
     during :: ActionWith TestDBConfig -> TestDBConfig -> IO ()
     during = ($)
-
-dbit :: String -> TestDB a -> SpecWith TestDBConfig
-dbit = it

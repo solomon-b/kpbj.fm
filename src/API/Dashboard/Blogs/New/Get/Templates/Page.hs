@@ -2,8 +2,6 @@
 
 module API.Dashboard.Blogs.New.Get.Templates.Page
   ( newBlogPostForm,
-    notLoggedInTemplate,
-    errorTemplate,
   )
 where
 
@@ -13,7 +11,6 @@ import API.Links (dashboardBlogsLinks, showsLinks)
 import API.Types
 import Component.Form.Builder
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Shows qualified as Shows
@@ -120,18 +117,3 @@ renderFormHeader showModel =
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "VIEW BLOG"
-
---------------------------------------------------------------------------------
--- Error Templates
-
-notLoggedInTemplate :: Lucid.Html ()
-notLoggedInTemplate = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "Authentication Required"
-    Lucid.p_ [class_ $ base [Tokens.mb4, Tokens.textGray600]] "You must be logged in to create blog posts."
-
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "Error"
-    Lucid.p_ [Lucid.class_ "text-red-700"] $ Lucid.toHtml errorMsg

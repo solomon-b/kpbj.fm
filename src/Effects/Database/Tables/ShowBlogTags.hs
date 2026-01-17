@@ -20,9 +20,7 @@ module Effects.Database.Tables.ShowBlogTags
     Insert (..),
 
     -- * Queries
-    getAllShowBlogTags,
     getShowBlogTagByName,
-    getShowBlogTagById,
     insertShowBlogTag,
   )
 where
@@ -31,7 +29,6 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
-import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -122,23 +119,11 @@ newtype Insert = Insert {sbtiName :: Text}
 --------------------------------------------------------------------------------
 -- Queries
 
--- | Get all show blog tags ordered by name.
-getAllShowBlogTags :: Hasql.Statement () [Model]
-getAllShowBlogTags = run $ select $ orderBy (sbtmName >$< asc) do
-  each showBlogTagSchema
-
 -- | Get show blog tag by name.
 getShowBlogTagByName :: Text -> Hasql.Statement () (Maybe Model)
 getShowBlogTagByName tagName = fmap listToMaybe $ run $ select do
   tag <- each showBlogTagSchema
   where_ $ sbtmName tag ==. lit tagName
-  pure tag
-
--- | Get show blog tag by ID.
-getShowBlogTagById :: Id -> Hasql.Statement () (Maybe Model)
-getShowBlogTagById tagId = fmap listToMaybe $ run $ select do
-  tag <- each showBlogTagSchema
-  where_ $ sbtmId tag ==. lit tagId
   pure tag
 
 -- | Insert a new show blog tag and return its ID.

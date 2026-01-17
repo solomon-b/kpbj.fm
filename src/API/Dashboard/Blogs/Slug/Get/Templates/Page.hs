@@ -3,8 +3,6 @@
 
 module API.Dashboard.Blogs.Slug.Get.Templates.Page
   ( template,
-    errorTemplate,
-    notFoundTemplate,
   )
 where
 
@@ -165,17 +163,3 @@ renderStatusBadge Published =
   Lucid.span_ [class_ $ base ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "PUBLISHED"
 renderStatusBadge Deleted =
   Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DELETED"
-
---------------------------------------------------------------------------------
-
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
-    Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Error Loading Blog Post"
-    Lucid.p_ [class_ $ base [Tokens.textGray700, Tokens.mb6]] $ Lucid.toHtml errorMsg
-
-notFoundTemplate :: Lucid.Html ()
-notFoundTemplate = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
-    Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Blog Post Not Found"
-    Lucid.p_ [class_ $ base [Tokens.textGray700, Tokens.mb6]] "We couldn't find the blog post you're looking for."

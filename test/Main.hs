@@ -16,6 +16,7 @@ import Effects.Database.Tables.ShowsSpec qualified as Shows
 import Effects.Database.Tables.StagedUploadsSpec qualified as StagedUploads
 import Effects.Database.Tables.UserMetadataSpec qualified as UserMetadata
 import Effects.Database.Tables.UserRoleSpec qualified as UserRole
+import Effects.MarkdownSpec qualified as Markdown
 import Effects.MimeTypeValidationSpec qualified as MimeTypeValidation
 import Effects.StagedUploadsSpec qualified as StagedUploadsEffects
 import System.Environment (lookupEnv)
@@ -42,6 +43,7 @@ main = do
   -- Pure tests that don't need database
   hspecWith cfg $ parallel $ do
     ContentSanitization.spec
+    Markdown.spec
     Slug.spec
     StorageBackend.spec
     FileUpload.spec

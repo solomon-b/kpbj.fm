@@ -27,6 +27,7 @@ import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (renderContentM)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
@@ -139,7 +140,8 @@ renderEvent hxRequest mUserInfo event = do
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (Events.emSlug event))
       pure $ Servant.noHeader html
     Right (Just author) -> do
-      let eventTemplate = template storageBackend event author
+      renderedDescription <- renderContentM (Events.emDescription event)
+      let eventTemplate = template storageBackend event author renderedDescription
       html <- renderTemplate hxRequest mUserInfo eventTemplate
       pure $ Servant.noHeader html
 

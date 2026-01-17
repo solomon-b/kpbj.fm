@@ -25,9 +25,7 @@ module Effects.Database.Tables.ShowTags
     ShowTagWithCount (..),
 
     -- * Queries
-    getAllShowTags,
     getShowTagByName,
-    getShowTagById,
     insertShowTag,
     getShowTagsWithCounts,
   )
@@ -37,7 +35,6 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
-import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -154,23 +151,11 @@ instance Display ShowTagWithCount where
 --------------------------------------------------------------------------------
 -- Queries
 
--- | Get all show tags ordered by name.
-getAllShowTags :: Hasql.Statement () [Model]
-getAllShowTags = run $ select $ orderBy (stName >$< asc) do
-  each showTagSchema
-
 -- | Get show tag by name.
 getShowTagByName :: Text -> Hasql.Statement () (Maybe Model)
 getShowTagByName tagName = fmap listToMaybe $ run $ select do
   tag <- each showTagSchema
   where_ $ stName tag ==. lit tagName
-  pure tag
-
--- | Get show tag by ID.
-getShowTagById :: Id -> Hasql.Statement () (Maybe Model)
-getShowTagById tagId = fmap listToMaybe $ run $ select do
-  tag <- each showTagSchema
-  where_ $ stId tag ==. lit tagId
   pure tag
 
 -- | Insert a new show tag and return its ID.

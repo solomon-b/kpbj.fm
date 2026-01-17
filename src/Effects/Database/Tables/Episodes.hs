@@ -37,32 +37,22 @@ module Effects.Database.Tables.Episodes
     -- * Queries
     getPublishedEpisodesForShow,
     getEpisodesForShowIncludingDrafts,
-    getAllEpisodes,
-    getEpisodesById,
     getEpisodeByShowAndNumber,
     getEpisodeById,
     getEpisodesByUser,
-    getRecentPublishedEpisodes,
     insertEpisode,
     updateEpisode,
     updateEpisodeFiles,
     updateScheduledSlot,
     deleteEpisode,
     publishEpisode,
-    isUserHostOfEpisodeShow,
     hardDeleteEpisode,
-
-    -- * Complex Queries (raw SQL)
-    getPublishedEpisodesWithFilters,
-    countPublishedEpisodesWithFilters,
 
     -- * Result Types
     EpisodeWithShow (..),
 
     -- * Tag Junction Queries
     getTagsForEpisode,
-    addTagToEpisode,
-    removeAllTagsFromEpisode,
     replaceEpisodeTags,
   )
 where
@@ -87,7 +77,7 @@ import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Enum, Insert, Update)
@@ -374,25 +364,6 @@ getEpisodesForShowIncludingDrafts showId' (Limit lim) (Offset off) =
             where_ $ ep.status /=. lit Deleted
             pure ep
 
--- | Get all non-deleted episodes.
-getAllEpisodes :: Hasql.Statement () [Model]
-getAllEpisodes =
-  run $
-    select $
-      orderBy ((.scheduledAt) >$< desc) do
-        each episodeSchema
-
--- | Get all non-deleted episodes for a show.
-getEpisodesById :: Shows.Id -> Hasql.Statement () [Model]
-getEpisodesById showId' =
-  run $
-    select $
-      orderBy ((.scheduledAt) >$< desc) do
-        ep <- each episodeSchema
-        where_ $ ep.showId ==. lit showId'
-        where_ $ ep.status /=. lit Deleted
-        pure ep
-
 -- | Get episode by show slug and episode number.
 --
 -- Uses raw SQL because it requires a JOIN with the shows table.
@@ -427,18 +398,6 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
             ep <- each episodeSchema
             where_ $ ep.createdBy ==. lit userId
             where_ $ ep.status /=. lit Deleted
-            pure ep
-
--- | Get recent published episodes across all shows.
-getRecentPublishedEpisodes :: Limit -> Offset -> Hasql.Statement () [Model]
-getRecentPublishedEpisodes (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy ((.publishedAt) >$< nullsLast desc) do
-            ep <- each episodeSchema
-            where_ $ ep.status ==. lit Published
             pure ep
 
 -- | Insert a new episode.
@@ -556,26 +515,6 @@ publishEpisode episodeId =
     RETURNING id
   |]
 
--- | Check if a user is a current host of the show for a given episode.
---
--- Returns True if the user is a current host, False otherwise.
--- Uses raw SQL because it requires JOINs with show_hosts table.
-isUserHostOfEpisodeShow :: User.Id -> Id -> Hasql.Statement () Bool
-isUserHostOfEpisodeShow userId episodeId =
-  let query =
-        interp
-          True
-          [sql|
-        SELECT EXISTS (
-          SELECT 1 FROM show_hosts sh
-          JOIN episodes e ON sh.show_id = e.show_id
-          WHERE e.id = #{episodeId}
-            AND sh.user_id = #{userId}
-            AND sh.left_at IS NULL
-        )
-      |]
-   in maybe False getOneColumn <$> query
-
 -- | Hard delete an episode (use with caution - prefer deleteEpisode for soft delete).
 hardDeleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
 hardDeleteEpisode episodeId =
@@ -588,95 +527,6 @@ hardDeleteEpisode episodeId =
             deleteWhere = \_ ep -> ep.id ==. lit episodeId,
             returning = Returning (.id)
           }
-
---------------------------------------------------------------------------------
--- Complex Queries (raw SQL)
---
--- These use raw SQL because they involve complex joins, aggregation,
--- or dynamic filtering that would be verbose to express in rel8.
-
--- | Get published episodes with show details and filters for archive page.
---
--- Returns episodes with show information, filtered by optional search, show_id, and date range.
-getPublishedEpisodesWithFilters ::
-  UTCTime ->
-  Maybe Text ->
-  Maybe UTCTime ->
-  Maybe UTCTime ->
-  Text ->
-  Limit ->
-  Offset ->
-  Hasql.Statement () [EpisodeWithShow]
-getPublishedEpisodesWithFilters currentTime mSearch mDateFrom mDateTo sortBy (Limit lim) (Offset off) =
-  case sortBy of
-    "longest" ->
-      interp
-        False
-        [sql|
-    SELECT
-      e.id, e.show_id, e.description, e.episode_number,
-      e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-      e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at, e.status, e.created_by,
-      e.created_at, e.updated_at,
-      s.title, s.slug,
-      COALESCE(um.display_name, u.email)
-    FROM episodes e
-    JOIN shows s ON e.show_id = s.id
-    JOIN show_hosts sh ON s.id = sh.show_id AND sh.is_primary = true AND sh.left_at IS NULL
-    JOIN users u ON sh.user_id = u.id
-    LEFT JOIN user_metadata um ON u.id = um.user_id
-    WHERE e.status = 'published'
-      AND e.scheduled_at <= #{currentTime}
-      AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
-      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
-    ORDER BY e.duration_seconds DESC NULLS LAST, e.published_at DESC
-    LIMIT #{lim} OFFSET #{off}
-  |]
-    _ ->
-      interp
-        False
-        [sql|
-    SELECT
-      e.id, e.show_id, e.description, e.episode_number,
-      e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-      e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at, e.status, e.created_by,
-      e.created_at, e.updated_at,
-      s.title, s.slug,
-      COALESCE(um.display_name, u.email)
-    FROM episodes e
-    JOIN shows s ON e.show_id = s.id
-    JOIN show_hosts sh ON s.id = sh.show_id AND sh.is_primary = true AND sh.left_at IS NULL
-    JOIN users u ON sh.user_id = u.id
-    LEFT JOIN user_metadata um ON u.id = um.user_id
-    WHERE e.status = 'published'
-      AND e.scheduled_at <= #{currentTime}
-      AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
-      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
-    ORDER BY e.published_at DESC NULLS LAST, e.created_at DESC
-    LIMIT #{lim} OFFSET #{off}
-  |]
-
--- | Count published episodes with filters for pagination.
-countPublishedEpisodesWithFilters ::
-  Maybe Text ->
-  Maybe UTCTime ->
-  Maybe UTCTime ->
-  Hasql.Statement () Int64
-countPublishedEpisodesWithFilters mSearch mDateFrom mDateTo =
-  maybe 0 getOneColumn
-    <$> interp
-      False
-      [sql|
-    SELECT COUNT(*)
-    FROM episodes e
-    JOIN shows s ON e.show_id = s.id
-    WHERE e.status = 'published'
-      AND (#{mSearch}::text IS NULL OR e.description ILIKE '%' || #{mSearch}::text || '%' OR s.title ILIKE '%' || #{mSearch}::text || '%')
-      AND (#{mDateFrom}::timestamptz IS NULL OR e.published_at >= #{mDateFrom}::timestamptz)
-      AND (#{mDateTo}::timestamptz IS NULL OR e.published_at <= #{mDateTo}::timestamptz)
-  |]
 
 --------------------------------------------------------------------------------
 -- Tag Junction Queries
@@ -692,31 +542,6 @@ getTagsForEpisode episodeId =
     INNER JOIN episode_tag_assignments eta ON et.id = eta.tag_id
     WHERE eta.episode_id = #{episodeId}
     ORDER BY et.name
-  |]
-
--- | Add a tag to an episode.
---
--- Uses ON CONFLICT DO NOTHING for idempotent behavior.
-addTagToEpisode :: Id -> EpisodeTags.Id -> Hasql.Statement () ()
-addTagToEpisode episodeId tagId =
-  interp
-    False
-    [sql|
-    INSERT INTO episode_tag_assignments (episode_id, tag_id)
-    VALUES (#{episodeId}, #{tagId})
-    ON CONFLICT DO NOTHING
-  |]
-
--- | Remove all tag assignments from an episode.
---
--- Used when updating an episode's tags (clear all, then re-add).
-removeAllTagsFromEpisode :: Id -> Hasql.Statement () ()
-removeAllTagsFromEpisode episodeId =
-  interp
-    False
-    [sql|
-    DELETE FROM episode_tag_assignments
-    WHERE episode_id = #{episodeId}
   |]
 
 -- | Replace all tags for an episode with a new set of tags.

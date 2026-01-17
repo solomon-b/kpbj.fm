@@ -29,7 +29,6 @@ module Effects.Database.Tables.Events
     getPublishedEvents,
     getEventBySlug,
     getEventById,
-    getEventsByAuthor,
     insertEvent,
     updateEvent,
     deleteEvent,
@@ -263,18 +262,6 @@ getEventById eventId = fmap listToMaybe $ run $ select do
   event <- each eventSchema
   where_ $ emId event ==. lit eventId
   pure event
-
--- | Get events by author.
-getEventsByAuthor :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getEventsByAuthor authorId (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy (emStartsAt >$< desc) do
-            event <- each eventSchema
-            where_ $ emAuthorId event ==. lit authorId
-            pure event
 
 -- | Insert a new event.
 insertEvent :: Insert -> Hasql.Statement () Id

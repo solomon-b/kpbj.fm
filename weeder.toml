@@ -22,7 +22,20 @@ root-modules = [
   # HTMX/Alpine attributes used across all templates
   "^Lucid\\.Extras$",
   # Utility functions used throughout
-  "^Utils$"
+  "^Utils$",
+  # Background job for cleaning up expired staged uploads
+  "^Effects\\.StagedUploadCleanup$",
+  # Future standalone library for Tailwind style composition
+  "^Design\\.StyleBuilder$",
+  # Design tokens - library of reusable styling constants
+  "^Design\\.Tokens$",
+  # Form builder DSL - library for declarative form construction
+  "^Component\\.Form\\.Builder.*$",
+  # Test utilities - reusable assertion helpers and generators
+  "^Test\\.Database\\.Expectation$",
+  "^Test\\.Database\\.Property\\.Assert$",
+  "^Test\\.Database\\.Monad$",
+  "^Test\\.Gen\\.Text$"
 ]
 
 # Type class instance handling

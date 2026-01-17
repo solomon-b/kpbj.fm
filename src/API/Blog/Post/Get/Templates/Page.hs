@@ -10,6 +10,7 @@ where
 
 import API.Links (blogLinks)
 import API.Types
+import Component.Layout qualified as Layout
 import Component.Tags qualified as Tags
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
@@ -18,14 +19,12 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
-import Design.Lucid qualified as Layout
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import Servant.Links qualified as Links
@@ -50,8 +49,8 @@ blogTagToLink tag =
     }
 
 -- | Main blog post template
-template :: StorageBackend -> BlogPosts.Model -> UserMetadata.Model -> [BlogTags.Model] -> Lucid.Html ()
-template backend post author tags = do
+template :: StorageBackend -> BlogPosts.Model -> UserMetadata.Model -> [BlogTags.Model] -> Lucid.Html () -> Lucid.Html ()
+template backend post author tags renderedContent = do
   -- Blog Post Content
   Lucid.article_ [class_ $ base [Tokens.cardBase, Tokens.fullWidth]] $ do
     -- Post Header
@@ -94,7 +93,7 @@ template backend post author tags = do
           Tags.renderTags (map blogTagToLink tags)
 
     -- Post Content
-    renderContent (BlogPosts.bpmContent post)
+    renderedContent
 
     -- Post Footer
     Lucid.footer_ [Lucid.class_ "mt-8 pt-8 border-t border-gray-300"] $ do

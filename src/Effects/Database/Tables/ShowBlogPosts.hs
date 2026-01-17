@@ -26,15 +26,10 @@ module Effects.Database.Tables.ShowBlogPosts
     -- * Queries
     getShowBlogPosts,
     getPublishedShowBlogPosts,
-    getAllRecentShowBlogPosts,
-    getShowBlogPostBySlug,
     getShowBlogPostById,
-    getShowBlogPostsByAuthor,
-    getRecentPublishedShowBlogPosts,
     insertShowBlogPost,
     updateShowBlogPost,
     deleteShowBlogPost,
-    canUserEditShowBlogPost,
     getPublishedShowBlogPostsBySlug,
     getPublishedShowBlogPostsByShowAndTag,
     countPublishedShowBlogPosts,
@@ -45,11 +40,6 @@ module Effects.Database.Tables.ShowBlogPosts
     getTagsForShowBlogPost,
     addTagToShowBlogPost,
     removeTagFromShowBlogPost,
-    getShowBlogPostsByTag,
-    getShowBlogTagsWithCounts,
-
-    -- * Result Types
-    ShowBlogTagWithCount (..),
   )
 where
 
@@ -57,7 +47,6 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Coerce (coerce)
-import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -180,20 +169,6 @@ data Insert = Insert
   deriving (Display) via (RecordInstance Insert)
 
 --------------------------------------------------------------------------------
--- Result Types
-
--- | Show blog tag with count for aggregate queries.
-data ShowBlogTagWithCount = ShowBlogTagWithCount
-  { sbtwcId :: ShowBlogTags.Id,
-    sbtwcName :: Text,
-    sbtwcCreatedAt :: UTCTime,
-    sbtwcCount :: Int64
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance ShowBlogTagWithCount)
-
---------------------------------------------------------------------------------
 -- Queries
 
 -- | Get blog posts for a show (any status) ordered by status then publication date.
@@ -222,62 +197,12 @@ getPublishedShowBlogPosts showIdVal (Limit lim) (Offset off) =
     LIMIT #{lim} OFFSET #{off}
   |]
 
--- | Get all recent published show blog posts across all shows (for admin dashboard).
-getAllRecentShowBlogPosts :: Limit -> Hasql.Statement () [Model]
-getAllRecentShowBlogPosts (Limit lim) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        orderBy (publishedAt >$< nullsLast desc) do
-          post <- each showBlogPostSchema
-          where_ $ status post ==. lit Published
-          pure post
-
--- | Get show blog post by show slug and post slug.
---
--- Uses raw SQL because it joins with the shows table.
-getShowBlogPostBySlug :: Text -> Text -> Hasql.Statement () (Maybe Model)
-getShowBlogPostBySlug showSlug postSlug =
-  interp
-    False
-    [sql|
-    SELECT sbp.id, sbp.show_id, sbp.title, sbp.slug, sbp.content, sbp.excerpt, sbp.author_id, sbp.status, sbp.published_at, sbp.created_at, sbp.updated_at
-    FROM show_blog_posts sbp
-    JOIN shows s ON sbp.show_id = s.id
-    WHERE s.slug = #{showSlug} AND sbp.slug = #{postSlug}
-  |]
-
 -- | Get show blog post by ID.
 getShowBlogPostById :: Id -> Hasql.Statement () (Maybe Model)
 getShowBlogPostById postId = fmap listToMaybe $ run $ select do
   post <- each showBlogPostSchema
   where_ $ (.id) post ==. lit postId
   pure post
-
--- | Get show blog posts by author.
-getShowBlogPostsByAuthor :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowBlogPostsByAuthor authorIdVal (Limit lim) (Offset off) =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
-    FROM show_blog_posts
-    WHERE author_id = #{authorIdVal}
-    ORDER BY created_at DESC
-    LIMIT #{lim} OFFSET #{off}
-  |]
-
--- | Get recent published show blog posts across all shows.
-getRecentPublishedShowBlogPosts :: Limit -> Offset -> Hasql.Statement () [Model]
-getRecentPublishedShowBlogPosts (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy (publishedAt >$< nullsLast desc) do
-            post <- each showBlogPostSchema
-            where_ $ status post ==. lit Published
-            pure post
 
 -- | Insert a new show blog post.
 insertShowBlogPost :: Insert -> Hasql.Statement () Id
@@ -343,23 +268,6 @@ deleteShowBlogPost postId =
             deleteWhere = \_ post -> (.id) post ==. lit postId,
             returning = Returning (.id)
           }
-
--- | Check if user can edit show blog post (must be host of the show).
---
--- Uses raw SQL because it joins multiple tables.
-canUserEditShowBlogPost :: User.Id -> Id -> Hasql.Statement () Bool
-canUserEditShowBlogPost userId postId =
-  let query =
-        interp
-          False
-          [sql|
-        SELECT EXISTS(
-          SELECT 1 FROM show_blog_posts sbp
-          JOIN show_hosts sh ON sbp.show_id = sh.show_id
-          WHERE sbp.id = #{postId} AND sh.user_id = #{userId} AND sh.left_at IS NULL
-        )
-      |]
-   in maybe False getOneColumn <$> query
 
 -- | Get published blog posts for a show by show slug.
 --
@@ -473,35 +381,4 @@ removeTagFromShowBlogPost postId tagId =
     [sql|
     DELETE FROM show_blog_post_tags
     WHERE post_id = #{postId} AND tag_id = #{tagId}
-  |]
-
--- | Get show blog posts with specific tag.
-getShowBlogPostsByTag :: ShowBlogTags.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowBlogPostsByTag tagId (Limit lim) (Offset off) =
-  interp
-    False
-    [sql|
-    SELECT sbp.id, sbp.show_id, sbp.title, sbp.slug, sbp.content, sbp.excerpt, sbp.author_id, sbp.status, sbp.published_at, sbp.created_at, sbp.updated_at
-    FROM show_blog_posts sbp
-    JOIN show_blog_post_tags sbpt ON sbp.id = sbpt.post_id
-    WHERE sbpt.tag_id = #{tagId} AND sbp.status = 'published'
-    ORDER BY sbp.published_at DESC NULLS LAST, sbp.created_at DESC
-    LIMIT #{lim} OFFSET #{off}
-  |]
-
--- | Get show blog tags with their usage counts (only tags used by published posts).
---
--- Uses raw SQL because this query involves multiple joins and aggregation.
-getShowBlogTagsWithCounts :: Hasql.Statement () [ShowBlogTagWithCount]
-getShowBlogTagsWithCounts =
-  interp
-    False
-    [sql|
-    SELECT sbt.id, sbt.name, sbt.created_at, COUNT(sbpt.post_id)::bigint as post_count
-    FROM show_blog_tags sbt
-    LEFT JOIN show_blog_post_tags sbpt ON sbt.id = sbpt.tag_id
-    LEFT JOIN show_blog_posts sbp ON sbpt.post_id = sbp.id AND sbp.status = 'published'
-    GROUP BY sbt.id, sbt.name, sbt.created_at
-    HAVING COUNT(sbpt.post_id) > 0
-    ORDER BY COUNT(sbpt.post_id) DESC, sbt.name
   |]

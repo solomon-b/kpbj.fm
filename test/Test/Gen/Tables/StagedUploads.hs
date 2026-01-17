@@ -2,13 +2,11 @@ module Test.Gen.Tables.StagedUploads where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.IO.Class (MonadIO (..))
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
-import Effects.StagedUploads (generateSecureToken)
 import Hedgehog (MonadGen (..))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
@@ -47,26 +45,6 @@ completeInsert userId token partial =
       siFileSize = psiFileSize partial,
       siUploadType = psiUploadType partial
     }
-
--- | Generate a StagedUploads.Insert with the given user ID
-stagedUploadInsertGen :: (MonadIO m, MonadGen m) => User.Id -> m StagedUploads.Insert
-stagedUploadInsertGen userId = do
-  siToken <- liftIO generateSecureToken
-  siOriginalName <- genOriginalFilename
-  siStoragePath <- genStoragePath
-  siMimeType <- genMimeType
-  siFileSize <- genFileSize
-  siUploadType <- genUploadType
-  pure
-    StagedUploads.Insert
-      { siToken = siToken,
-        siUserId = userId,
-        siOriginalName = siOriginalName,
-        siStoragePath = siStoragePath,
-        siMimeType = siMimeType,
-        siFileSize = siFileSize,
-        siUploadType = siUploadType
-      }
 
 -- | Generate a realistic original filename
 genOriginalFilename :: (MonadGen m) => m Text

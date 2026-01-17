@@ -26,17 +26,13 @@ module Effects.Database.Tables.Shows
     Insert (..),
 
     -- * Queries
-    getActiveShows,
     getShowBySlug,
     getShowById,
-    getShowsByStatus,
-    getAllShows,
     getShowsFiltered,
     insertShow,
     updateShow,
 
     -- * Show Host Queries
-    getShowForUser,
     getShowsForUser,
     getAllActiveShows,
     searchShows,
@@ -234,16 +230,6 @@ data Insert = Insert
 --------------------------------------------------------------------------------
 -- Queries
 
--- | Get all active shows ordered by title.
-getActiveShows :: Hasql.Statement () [Model]
-getActiveShows =
-  run $
-    select $
-      orderBy (title >$< asc) do
-        s <- each showSchema
-        where_ $ status s ==. lit Active
-        pure s
-
 -- | Get show by slug.
 getShowBySlug :: Slug -> Hasql.Statement () (Maybe Model)
 getShowBySlug showSlug = fmap listToMaybe $ run $ select do
@@ -257,29 +243,6 @@ getShowById showId = fmap listToMaybe $ run $ select do
   showRec <- each showSchema
   where_ $ id showRec ==. lit showId {- HLINT ignore "Redundant id" -}
   pure showRec
-
--- | Get shows by status with pagination.
-getShowsByStatus :: Text -> Limit -> Offset -> Hasql.Statement () [Model]
-getShowsByStatus statusText (Limit lim) (Offset off) =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, logo_url, banner_url, status, created_at, updated_at
-    FROM shows
-    WHERE status = #{statusText}
-    ORDER BY title
-    LIMIT #{lim} OFFSET #{off}
-  |]
-
--- | Get all shows with pagination.
-getAllShows :: Limit -> Offset -> Hasql.Statement () [Model]
-getAllShows (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy (title >$< asc) do
-            each showSchema
 
 -- | Get shows with optional tag/status filters and configurable sorting.
 --
@@ -367,19 +330,6 @@ updateShow showId Insert {..} =
 
 --------------------------------------------------------------------------------
 -- Show Host Queries (Junction table queries - use raw SQL)
-
--- | Get show for a user (first active host assignment).
-getShowForUser :: User.Id -> Hasql.Statement () (Maybe Model)
-getShowForUser userId =
-  interp
-    False
-    [sql|
-    SELECT id, title, slug, description, logo_url, banner_url, status, created_at, updated_at
-    FROM shows s
-    JOIN show_hosts sh ON s.id = sh.show_id
-    WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
-    LIMIT 1
-  |]
 
 -- | Get shows for a user (active host assignments).
 getShowsForUser :: User.Id -> Hasql.Statement () [Model]

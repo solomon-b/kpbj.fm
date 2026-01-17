@@ -2,13 +2,11 @@ module API.Dashboard.Events.Slug.Edit.Post.Route where
 
 --------------------------------------------------------------------------------
 
-import Data.Foldable (fold)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
-import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Observability qualified as Observability
 import Lucid qualified
@@ -43,7 +41,6 @@ data EventEditForm = EventEditForm
     eefLocationName :: Text,
     eefLocationAddress :: Text,
     eefStatus :: Text,
-    eefTags :: [Text],
     eefPosterImage :: Maybe (FileData Mem),
     eefPosterImageClear :: Bool -- True if user explicitly removed the poster image
   }
@@ -59,7 +56,6 @@ instance FromMultipart Mem EventEditForm where
       <*> lookupInput "location_name" multipartData
       <*> lookupInput "location_address" multipartData
       <*> lookupInput "status" multipartData
-      <*> pure (parseTags $ fold $ either (const Nothing) Just (lookupInput "tags" multipartData))
       <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
       <*> pure (parseClearFlag "poster_image_clear")
     where
@@ -74,13 +70,6 @@ instance FromMultipart Mem EventEditForm where
       parseClearFlag name = case lookupInput name multipartData of
         Right "true" -> True
         _ -> False
-
--- | Parse comma-separated tags
-parseTags :: Text -> [Text]
-parseTags tagText =
-  filter (not . Text.null) $
-    map (Sanitize.sanitizePlainText . Text.strip) $
-      Text.splitOn "," tagText
 
 -- | Parse event status from text
 parseStatus :: Text -> Maybe Events.Status

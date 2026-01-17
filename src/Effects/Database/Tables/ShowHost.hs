@@ -32,7 +32,6 @@ module Effects.Database.Tables.ShowHost
     isUserHostOfShow,
     isUserHostOfShowSlug,
     addHostToShow,
-    removeHostFromShow,
   )
 where
 
@@ -327,7 +326,3 @@ addHostToShow showId userId =
         shiRole = Host,
         shiIsPrimary = False
       }
-
--- | Remove host from show (convenience alias for removeShowHost).
-removeHostFromShow :: Shows.Id -> User.Id -> Hasql.Statement () ()
-removeHostFromShow = removeShowHost
