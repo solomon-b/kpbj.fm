@@ -7,21 +7,18 @@ module API.Dashboard.StationBlog.Slug.Edit.Post.Handler (handler) where
 import API.Dashboard.StationBlog.Slug.Edit.Post.Route (BlogEditForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
-import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, void)
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Foldable (traverse_)
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
@@ -29,14 +26,11 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.PostStatus (decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.FileUpload (uploadBlogHeroImage)
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -46,24 +40,12 @@ import Servant qualified
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   BlogEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer blogPostId slug cookie editForm =
   handleRedirectErrors "Station blog update" (dashboardStationBlogLinks.editGet blogPostId slug) $ do
     -- 1. Require authentication and staff role
@@ -85,21 +67,10 @@ handler _tracer blogPostId slug cookie editForm =
     updateBlogPost blogPost oldTags editForm
 
 updateBlogPost ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   BlogPosts.Model ->
   [BlogTags.Model] ->
   BlogEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 updateBlogPost blogPost oldTags editForm = do
   -- 4. Validate status
   parsedStatus <- requireJust "Invalid blog post status value." (decodeBlogPost (befStatus editForm))

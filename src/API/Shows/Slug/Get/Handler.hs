@@ -8,25 +8,21 @@ module API.Shows.Slug.Get.Handler where
 
 import API.Shows.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import App.Monad (AppM)
+import Control.Monad.Reader (asks)
 import Data.Functor ((<&>))
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Clock (MonadClock, currentSystemTime)
-import Effects.Database.Class (MonadDB (..))
+import Effects.Clock (currentSystemTime)
+import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -48,24 +44,12 @@ episodesPerPage :: Int64
 episodesPerPage = 10
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env,
-    Has StorageBackend env,
-    MonadClock m
-  ) =>
   Tracer ->
   Slug ->
   Maybe Int ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
   backend <- asks getter
@@ -91,12 +75,11 @@ handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
           renderTemplate hxRequest mUserInfo showTemplate
 
 fetchShowDetails ::
-  (MonadDB m) =>
   UTCTime ->
   Shows.Model ->
   Limit ->
   Offset ->
-  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model], [ShowTags.Model]))
+  AppM (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model], [ShowTags.Model]))
 fetchShowDetails now showModel limit offset = runDBTransaction $ do
   episodes <- TRX.statement () $ Episodes.getPublishedEpisodesForShow now showModel.id limit offset
   hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id

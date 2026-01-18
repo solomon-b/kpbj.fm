@@ -7,17 +7,15 @@ module API.Dashboard.Profile.Edit.Post.Handler where
 
 import API.Links (dashboardLinks, rootLink)
 import API.Types (DashboardRoutes (..))
-import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwUserSuspended, throwValidationError)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (when)
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
-import Data.Has (Has, getter)
+import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Reader (asks)
+import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
@@ -28,13 +26,10 @@ import Domain.Types.FileUpload qualified
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -45,23 +40,11 @@ import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, looku
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   Maybe Cookie ->
   Maybe HxRequest ->
   MultipartData Mem ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer cookie (foldHxReq -> _hxRequest) multipartData =
   handleRedirectErrors "Profile update" dashboardLinks.profileEditGet $ do
     -- 1. Require authentication
@@ -99,10 +82,9 @@ parseFormFields formInputs =
     Right result -> pure result
 
 handleAvatarUpload ::
-  (MonadUnliftIO m, Log.MonadLog m, MonadThrow m, MonadMask m, MonadIO m, MonadReader env m, Has StorageBackend env, Has (Maybe AWS.Env) env) =>
   User.Model ->
   MultipartData Mem ->
-  m (Maybe Text, Bool) -- (Maybe new path, should clear)
+  AppM (Maybe Text, Bool) -- (Maybe new path, should clear)
 handleAvatarUpload user multipartData = do
   -- Check if user wants to clear the avatar
   let avatarClear = case lookupInput "avatar_clear" multipartData of
@@ -122,21 +104,13 @@ handleAvatarUpload user multipartData = do
           pure (Just $ Text.pack $ Domain.Types.FileUpload.uploadResultStoragePath result, False)
 
 updateUserProfile ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadThrow m
-  ) =>
   User.Model ->
   Maybe Text ->
   Bool -> -- avatarClear: if True and no new avatar, clear existing
   DisplayName ->
   FullName ->
   UserMetadata.ColorScheme ->
-  m ()
+  AppM ()
 updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme = do
   updateResult <- execTransactionSpan $ do
     maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata (User.mId user))

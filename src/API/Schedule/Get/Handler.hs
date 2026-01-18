@@ -6,26 +6,21 @@ module API.Schedule.Get.Handler where
 
 import API.Schedule.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import App.Monad (AppM)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (asks)
 import Data.Coerce (coerce)
 import Data.Either (isLeft, rights)
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Maybe (fromMaybe)
 import Data.Time (addDays, getCurrentTime, utcToLocalTime)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..))
-import Domain.Types.StorageBackend (StorageBackend)
 import Domain.Types.WeekOffset (WeekOffset (..))
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -34,22 +29,11 @@ import OrphanInstances.DayOfWeek (fromDayOfWeek, toDayOfWeek)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env,
-    Has StorageBackend env
-  ) =>
   Tracer ->
   Maybe WeekOffset ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer (fromMaybe 0 -> WeekOffset weekOffset) (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
   storageBackend <- asks getter
   getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do

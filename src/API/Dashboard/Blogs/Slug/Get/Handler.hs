@@ -12,26 +12,18 @@ import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
-import Data.Has (Has)
 import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
-import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
@@ -40,22 +32,12 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Tracer ->
   Slug ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show blog post detail" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
@@ -97,15 +79,8 @@ actionButton showModel =
 
 -- | Fetch show by slug, throwing NotFound if not found
 fetchShowOrNotFound ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   Slug ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShowOrNotFound slug =
   execQuerySpan (Shows.getShowBySlug slug) >>= \case
     Left err -> throwDatabaseError err
@@ -114,17 +89,10 @@ fetchShowOrNotFound slug =
 
 -- | Verify user has access to the show (admin or assigned host)
 requireShowAccess ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Model ->
   UserMetadata.Model ->
   Shows.Model ->
-  m ()
+  AppM ()
 requireShowAccess user userMetadata showModel =
   if UserMetadata.isAdmin userMetadata.mUserRole
     then pure ()
@@ -136,16 +104,9 @@ requireShowAccess user userMetadata showModel =
 
 -- | Fetch blog post by ID and verify it belongs to the show
 fetchBlogPostOrNotFound ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   ShowBlogPosts.Id ->
   Shows.Model ->
-  m ShowBlogPosts.Model
+  AppM ShowBlogPosts.Model
 fetchBlogPostOrNotFound postId showModel =
   execQuerySpan (ShowBlogPosts.getShowBlogPostById postId) >>= \case
     Left err -> throwDatabaseError err
@@ -156,16 +117,9 @@ fetchBlogPostOrNotFound postId showModel =
 
 -- | Fetch shows for user based on role
 fetchShowsForUser ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Model ->
   UserMetadata.Model ->
-  m [Shows.Model]
+  AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
     then fromRight [] <$> execQuerySpan Shows.getAllActiveShows

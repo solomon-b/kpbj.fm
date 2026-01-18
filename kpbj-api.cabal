@@ -314,6 +314,7 @@ library
     App.Common
     App.CustomContext
     App.Handler.Combinators
+    App.Monad
     App.Storage
     App.Handler.Error
     Component.ActionsDropdown

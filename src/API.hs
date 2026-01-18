@@ -106,21 +106,10 @@ import API.User.Logout.Get.Handler qualified as User.Logout.Get
 import API.User.Logout.Post.Handler qualified as User.Logout.Post
 import API.User.Register.Get.Handler qualified as User.Register.Get
 import API.User.Register.Post.Handler qualified as User.Register.Post
-import Amazonka qualified as AWS
 import App qualified
-import App.Config (Environment (..), Hostname)
+import App.Config (Environment (..))
 import App.CustomContext (initCustomContext)
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Clock (MonadClock)
-import Effects.Database.Class (MonadDB)
-import Hasql.Pool qualified as HSQL.Pool
-import Log (MonadLog)
-import OpenTelemetry.Trace (Tracer)
+import App.Monad (AppM)
 import Servant qualified
 import System.Environment (lookupEnv)
 
@@ -145,24 +134,7 @@ runApi = do
 
 --------------------------------------------------------------------------------
 
-server ::
-  ( Has Tracer env,
-    MonadCatch m,
-    MonadMask m,
-    MonadLog m,
-    MonadUnliftIO m,
-    MonadClock m,
-    MonadDB m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Environment env,
-    Has Hostname env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
-  Environment ->
-  Servant.ServerT API m
+server :: Environment -> Servant.ServerT API AppM
 server env =
   Routes
     { rootGet = Root.Get.handler,

@@ -11,46 +11,28 @@ import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
-import Data.Has (Has)
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
-import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Tracer ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episode upload form" apiLinks.rootGet $ do
     -- 1. Require authentication and authorization (host of show or staff+)
@@ -72,16 +54,9 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
 
 -- | Fetch shows based on user role (admins see all, hosts see their own)
 fetchShowsForUser ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Model ->
   UserMetadata.Model ->
-  m [Shows.Model]
+  AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isStaffOrHigher userMetadata.mUserRole
     then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
@@ -89,15 +64,8 @@ fetchShowsForUser user userMetadata =
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   Slug ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShowOrNotFound showSlug =
   execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
@@ -106,14 +74,7 @@ fetchShowOrNotFound showSlug =
 
 -- | Fetch upcoming unscheduled dates for a show
 fetchUpcomingDates ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   Shows.Id ->
-  m [ShowSchedule.UpcomingShowDate]
+  AppM [ShowSchedule.UpcomingShowDate]
 fetchUpcomingDates showId =
   fromRight [] <$> execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showId 4)

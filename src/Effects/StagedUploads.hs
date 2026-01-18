@@ -23,10 +23,9 @@ where
 --------------------------------------------------------------------------------
 
 import Amazonka qualified as AWS
+import App.Monad (AppM)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
-import Data.Has (Has)
+import Control.Monad.Reader (asks)
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -35,15 +34,12 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID.V4
 import Domain.Types.FileStorage (BucketType (..), DateHierarchy (..), ResourceType (..), dateHierarchyFromTime)
 import Domain.Types.StorageBackend (StorageBackend (..))
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Storage.Local qualified as Local
 import Effects.Storage.S3 qualified as S3
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
-import OpenTelemetry.Trace (Tracer)
 import System.FilePath (takeExtension)
 
 --------------------------------------------------------------------------------
@@ -83,17 +79,10 @@ data ClaimError
 --
 -- On success, marks the upload as 'claimed' and returns the storage path.
 claimStagedUpload ::
-  ( MonadDB m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    Log.MonadLog m
-  ) =>
   User.Id ->
   Text ->
   StagedUploads.UploadType ->
-  m (Either ClaimError Text)
+  AppM (Either ClaimError Text)
 claimStagedUpload userId tokenText expectedType = do
   let token = StagedUploads.Token tokenText
   result <- execQuerySpan (StagedUploads.claimUpload token userId)
@@ -128,17 +117,10 @@ claimErrorToText = \case
 -- the error type and wraps the result in Maybe for compatibility with
 -- file upload handlers that accept both staged and direct uploads.
 claimStagedUploadMaybe ::
-  ( MonadDB m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    Log.MonadLog m
-  ) =>
   User.Id ->
   Text ->
   StagedUploads.UploadType ->
-  m (Either Text (Maybe Text))
+  AppM (Either Text (Maybe Text))
 claimStagedUploadMaybe userId tokenText expectedType = do
   result <- claimStagedUpload userId tokenText expectedType
   pure $ case result of
@@ -156,16 +138,6 @@ claimStagedUploadMaybe userId tokenText expectedType = do
 -- Use this instead of 'claimStagedUpload' when you need the file in its
 -- final archive location (e.g., episode audio files organized by air date).
 claimAndRelocateUpload ::
-  ( MonadDB m,
-    MonadIO m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env,
-    Log.MonadLog m
-  ) =>
   -- | User ID (for authorization)
   User.Id ->
   -- | Upload token
@@ -180,7 +152,7 @@ claimAndRelocateUpload ::
   UTCTime ->
   -- | Filename prefix (e.g., show slug)
   Text ->
-  m (Either Text Text)
+  AppM (Either Text Text)
 claimAndRelocateUpload userId tokenText expectedType destBucket destResource airDate filenamePrefix = do
   -- First claim the upload
   claimResult <- claimStagedUpload userId tokenText expectedType

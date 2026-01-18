@@ -7,16 +7,13 @@ module API.Dashboard.Users.Edit.Post.Handler where
 
 import API.Links (dashboardUsersLinks)
 import API.Types
-import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
-import Data.Has (Has, getter)
+import Control.Monad.Reader (asks)
+import Data.Has (getter)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -27,13 +24,10 @@ import Domain.Types.DisplayName qualified as DisplayName
 import Domain.Types.FileUpload qualified
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -53,23 +47,11 @@ userDetailUrl userId =
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   User.Id ->
   Maybe Cookie ->
   MultipartData Mem ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer targetUserId cookie multipartData =
   handleRedirectErrors "User edit" (dashboardUsersLinks.detail targetUserId) $ do
     -- Require admin authentication

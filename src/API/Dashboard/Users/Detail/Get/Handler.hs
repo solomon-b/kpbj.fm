@@ -11,24 +11,17 @@ import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
-import Data.Has (Has)
 import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -37,21 +30,11 @@ import OpenTelemetry.Trace (Tracer)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Tracer ->
   User.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer targetUserId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "User detail" apiLinks.rootGet $ do
     -- 1. Require authentication and admin role
@@ -73,16 +56,9 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) =
 
 -- | Fetch shows based on user role (admins see all, staff see their assigned shows)
 fetchShowsForUser ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Model ->
   UserMetadata.Model ->
-  m [Shows.Model]
+  AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
     then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
@@ -90,15 +66,8 @@ fetchShowsForUser user userMetadata =
 
 -- | Fetch target user and their metadata, or throw NotFound
 fetchTargetUserOrNotFound ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Id ->
-  m (User.Model, UserMetadata.Model)
+  AppM (User.Model, UserMetadata.Model)
 fetchTargetUserOrNotFound targetUserId = do
   userDataResult <- execTransactionSpan $ do
     maybeTargetUser <- HT.statement () (User.getUser targetUserId)
@@ -113,15 +82,8 @@ fetchTargetUserOrNotFound targetUserId = do
 
 -- | Fetch user activity (shows they host, episodes they created)
 fetchUserActivity ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Id ->
-  m ([Shows.Model], [Episodes.Model])
+  AppM ([Shows.Model], [Episodes.Model])
 fetchUserActivity targetUserId = do
   additionalData <- execTransactionSpan $ do
     shows' <- HT.statement () (Shows.getShowsForUser targetUserId)

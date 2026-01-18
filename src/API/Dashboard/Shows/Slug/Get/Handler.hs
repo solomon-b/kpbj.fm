@@ -12,25 +12,22 @@ import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleHtmlErrors, throwNotFound)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.Reader (asks)
 import Data.Either (fromRight)
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe)
 import Data.Time (UTCTime)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Clock (MonadClock, currentSystemTime)
+import Effects.Clock (currentSystemTime)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -55,25 +52,13 @@ episodesPerPage :: Int64
 episodesPerPage = 10
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env,
-    Has StorageBackend env,
-    MonadClock m
-  ) =>
   Tracer ->
   Shows.Id ->
   Slug ->
   Maybe Int ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer showId showSlug mPage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show details" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
@@ -96,16 +81,9 @@ handler _tracer showId showSlug mPage cookie (foldHxReq -> hxRequest) =
 
 -- | Fetch shows based on user role (admins see all, hosts see their own)
 fetchShowsForUser ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Model ->
   UserMetadata.Model ->
-  m [Shows.Model]
+  AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
     then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
@@ -113,20 +91,13 @@ fetchShowsForUser user userMetadata =
 
 -- | Render show details page within dashboard frame
 renderShowDetails ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadClock m,
-    MonadCatch m,
-    MonadReader env m,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   StorageBackend ->
   HxRequest ->
   UserMetadata.Model ->
   [Shows.Model] ->
   Shows.Model ->
   Maybe Int ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 renderShowDetails backend hxRequest userMetadata allShows showModel mPage = do
   let page = fromMaybe 1 mPage
       limit = fromIntegral episodesPerPage
@@ -142,12 +113,11 @@ renderShowDetails backend hxRequest userMetadata allShows showModel mPage = do
       renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
 
 fetchShowDetails ::
-  (MonadDB m) =>
   UTCTime ->
   Shows.Model ->
   Limit ->
   Offset ->
-  m (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model], [ShowTags.Model]))
+  AppM (Either HSQL.Pool.UsageError ([ShowHost.ShowHostWithUser], [ShowSchedule.ScheduleTemplate Result], [Episodes.Model], [ShowBlogPosts.Model], [ShowTags.Model]))
 fetchShowDetails now showModel limit offset = runDBTransaction $ do
   episodes <- TRX.statement () $ Episodes.getPublishedEpisodesForShow now showModel.id limit offset
   hosts <- TRX.statement () $ ShowHost.getShowHostsWithUsers showModel.id

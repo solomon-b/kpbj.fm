@@ -9,23 +9,18 @@ import API.Links (dashboardBlogsLinks, rootLink)
 import API.Types (DashboardBlogsRoutes (..))
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireJust)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (void)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Foldable (traverse_)
-import Data.Has (Has)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execTransactionSpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
@@ -33,7 +28,6 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -52,21 +46,12 @@ parseStatus _ = Nothing
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Tracer ->
   Slug ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
   ShowBlogEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer showSlug postId cookie editForm =
   handleRedirectErrors "Blog post update" (dashboardBlogsLinks.editGet showSlug postId) $ do
     -- 1. Require authentication and host role
@@ -82,18 +67,11 @@ handler _tracer showSlug postId cookie editForm =
       else updateBlogPost showSlug postId showModel blogPost oldTags editForm
 
 fetchBlogPostWithContext ::
-  ( MonadUnliftIO m,
-    Has Tracer env,
-    MonadReader env m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadThrow m
-  ) =>
   User.Model ->
   UserMetadata.Model ->
   Slug ->
   ShowBlogPosts.Id ->
-  m (ShowBlogPosts.Model, Shows.Model, [ShowBlogTags.Model], Bool)
+  AppM (ShowBlogPosts.Model, Shows.Model, [ShowBlogTags.Model], Bool)
 fetchBlogPostWithContext user userMetadata showSlug postId = do
   mResult <- execTransactionSpan $ runMaybeT $ do
     post <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)
@@ -114,20 +92,13 @@ fetchBlogPostWithContext user userMetadata showSlug postId = do
     Right (Just result) -> pure result
 
 updateBlogPost ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m
-  ) =>
   Slug ->
   ShowBlogPosts.Id ->
   Shows.Model ->
   ShowBlogPosts.Model ->
   [ShowBlogTags.Model] ->
   ShowBlogEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 updateBlogPost _showSlug _postId showModel blogPost oldTags editForm = do
   -- 4. Validate status
   parsedStatus <- requireJust "Invalid blog post status value." (parseStatus (sbefStatus editForm))

@@ -11,27 +11,20 @@ import API.Types (Routes (..))
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotAuthorized)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad (guard, unless)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Either (fromRight)
-import Data.Has (Has)
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -40,21 +33,11 @@ import OpenTelemetry.Trace (Tracer)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Tracer ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "New blog post form" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
@@ -75,17 +58,10 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
     renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ newBlogPostForm showModel
 
 fetchShowBySlug ::
-  ( MonadUnliftIO m,
-    Has Tracer env,
-    MonadReader env m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadThrow m
-  ) =>
   User.Model ->
   UserMetadata.Model ->
   Slug ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShowBySlug user userMetadata showSlug = do
   mResult <- execTransactionSpan $ runMaybeT $ do
     showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)

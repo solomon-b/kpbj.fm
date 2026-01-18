@@ -7,17 +7,14 @@ import API.Types
 import API.User.Register.Post.Route (Register (..), RegisterParsed (..))
 import App.Auth qualified as Auth
 import App.Errors (Forbidden (..), InternalServerError (..), throwErr)
+import App.Monad (AppM)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow (..))
-import Control.Monad.Catch.Pure (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor (first)
 import Data.Foldable (foldl')
-import Data.Has (Has)
 import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
@@ -29,13 +26,10 @@ import Data.Text.Encoding qualified as Text
 import Data.Validation
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.EmailAddress qualified as EmailAddress
-import Effects.Clock (MonadClock)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpanThrow)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Interpolate (OneRow (..))
-import Hasql.Pool qualified
 import Log qualified
 import Network.HTTP.Simple qualified as HTTP
 import Network.HTTP.Types.Status qualified as HTTP
@@ -64,21 +58,11 @@ instance Display ValidationError where
 --------------------------------------------------------------------------------
 
 handler ::
-  ( MonadClock m,
-    MonadReader env m,
-    Has OTEL.Tracer env,
-    Has Hasql.Pool.Pool env,
-    Log.MonadLog m,
-    MonadDB m,
-    MonadThrow m,
-    MonadUnliftIO m,
-    MonadCatch m
-  ) =>
   OTEL.Tracer ->
   SockAddr ->
   Maybe Text ->
   Register ->
-  m
+  AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
@@ -97,21 +81,11 @@ handler _tracer sockAddr mUserAgent req@Register {..} = do
           registerUser sockAddr mUserAgent parsedRequest urNewsletter
 
 registerUser ::
-  ( MonadClock m,
-    MonadReader env m,
-    Has OTEL.Tracer env,
-    Has Hasql.Pool.Pool env,
-    Log.MonadLog m,
-    MonadDB m,
-    MonadThrow m,
-    MonadUnliftIO m,
-    MonadCatch m
-  ) =>
   SockAddr ->
   Maybe Text ->
   RegisterParsed ->
   Maybe Bool ->
-  m
+  AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
@@ -171,12 +145,10 @@ subscribeToNewsletter email = do
     else Log.logInfo "Newsletter subscription failed" (email, HTTP.statusCode status)
 
 logValidationFailure ::
-  ( Log.MonadLog m
-  ) =>
   Text ->
   Register ->
   [ValidationError] ->
-  m
+  AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text

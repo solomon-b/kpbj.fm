@@ -7,17 +7,13 @@ import API.Links (dashboardBlogsLinks, rootLink)
 import API.Types (DashboardBlogsRoutes (..))
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireRight)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (guard, unless, void)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Foldable (traverse_)
-import Data.Has (Has)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -26,7 +22,6 @@ import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
@@ -34,7 +29,6 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -44,20 +38,11 @@ import Servant qualified
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Tracer ->
   Slug ->
   Maybe Cookie ->
   NewShowBlogPostForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer showSlug cookie form =
   handleRedirectErrors "Show blog post creation" (dashboardBlogsLinks.newGet showSlug) $ do
     -- 1. Require authentication and host role
@@ -101,17 +86,10 @@ validateNewShowBlogPost form showId authorId = do
       }
 
 fetchShowBySlug ::
-  ( MonadUnliftIO m,
-    Has Tracer env,
-    MonadReader env m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadThrow m
-  ) =>
   User.Model ->
   UserMetadata.Model ->
   Slug ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShowBySlug user userMetadata showSlug = do
   mResult <- execTransactionSpan $ runMaybeT $ do
     showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
@@ -128,18 +106,9 @@ fetchShowBySlug user userMetadata showSlug = do
 
 -- | Create tags for a show blog post
 createPostTags ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   ShowBlogPosts.Id ->
   NewShowBlogPostForm ->
-  m ()
+  AppM ()
 createPostTags postId form = do
   let tags = nsbpfTags form
   unless (null tags) $
@@ -147,18 +116,9 @@ createPostTags postId form = do
 
 -- | Create a new tag or associate an existing one with a post
 createOrAssociateTag ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   ShowBlogPosts.Id ->
   Text ->
-  m ()
+  AppM ()
 createOrAssociateTag postId tagName =
   execQuerySpan (ShowBlogTags.getShowBlogTagByName tagName) >>= \case
     Right (Just existingTag) -> do
@@ -176,19 +136,10 @@ createOrAssociateTag postId tagName =
 
 -- | Handle blog post creation after validation passes
 handlePostCreation ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   ShowBlogPosts.Insert ->
   NewShowBlogPostForm ->
   Shows.Model ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handlePostCreation blogPostData form showModel = do
   postId <-
     execQuerySpan (ShowBlogPosts.insertShowBlogPost blogPostData) >>= \case
