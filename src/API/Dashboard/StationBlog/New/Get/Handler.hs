@@ -20,6 +20,7 @@ import Data.Either (fromRight)
 import Data.Has (Has)
 import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -41,7 +42,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   Tracer ->
   Maybe Cookie ->

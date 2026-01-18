@@ -18,6 +18,7 @@ import Data.Time (addDays, getCurrentTime, utcToLocalTime)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.StorageBackend (StorageBackend)
 import Domain.Types.WeekOffset (WeekOffset (..))
@@ -41,6 +42,7 @@ handler ::
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env,
     Has StorageBackend env
   ) =>
   Tracer ->

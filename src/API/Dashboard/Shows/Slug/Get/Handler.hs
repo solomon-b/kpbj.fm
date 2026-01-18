@@ -24,6 +24,7 @@ import Data.List (find)
 import Data.Maybe (fromMaybe)
 import Data.Time (UTCTime)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -62,6 +63,7 @@ handler ::
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env,
     Has StorageBackend env,
     MonadClock m
   ) =>
@@ -114,7 +116,9 @@ renderShowDetails ::
   ( Log.MonadLog m,
     MonadDB m,
     MonadClock m,
-    MonadCatch m
+    MonadCatch m,
+    MonadReader env m,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   StorageBackend ->
   HxRequest ->

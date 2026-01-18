@@ -11,12 +11,13 @@ import Component.DashboardFrame qualified as DashboardFrame
 import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Coerce (coerce)
-import Data.Has (Has)
+import Data.Has (Has, getter)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..))
 import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
@@ -53,28 +54,44 @@ getUserInfo (coerce -> cookie) =
           Log.logAttention "Failed to query user_metadata" (Aeson.object ["user.id" .= user.mId])
           pure Nothing
 
--- | Render template with proper HTMX handling and suspension status
+-- | Render template with proper HTMX handling and suspension status.
 --
 -- Shows a warning banner at the top of every page for suspended users.
 -- Pass NotSuspended for unauthenticated users or when suspension status is unknown.
-renderTemplate :: (Log.MonadLog m, MonadCatch m) => HxRequest -> Maybe UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
-renderTemplate hxRequest mUserInfo templateContent =
+-- Includes Google Analytics tracking if GOOGLE_ANALYTICS_GTAG is configured.
+renderTemplate ::
+  ( Log.MonadLog m,
+    MonadCatch m,
+    MonadReader env m,
+    Has (Maybe GoogleAnalyticsId) env
+  ) =>
+  HxRequest ->
+  Maybe UserMetadata.Model ->
+  Lucid.Html () ->
+  m (Lucid.Html ())
+renderTemplate hxRequest mUserInfo templateContent = do
+  mGoogleAnalyticsId <- asks getter
   case (mUserInfo, hxRequest) of
     (Just userInfo, IsNotHxRequest) ->
-      loadFrameWithUser userInfo templateContent
+      loadFrameWithUser mGoogleAnalyticsId userInfo templateContent
     (_, IsHxRequest) ->
       loadContentOnly templateContent
     (_, IsNotHxRequest) ->
-      loadFrame templateContent
+      loadFrame mGoogleAnalyticsId templateContent
 
--- | Render dashboard template with separate full-page layout
+-- | Render dashboard template with separate full-page layout.
 --
 -- The dashboard uses its own frame with a left sidebar navigation,
 -- completely separate from the main site's header/navigation.
 -- Stats appear in the top bar (schedule info, counts, etc.).
 -- The action button appears in the top bar (e.g., "New Episode", "New Post").
+-- Includes Google Analytics tracking if GOOGLE_ANALYTICS_GTAG is configured.
 renderDashboardTemplate ::
-  (Log.MonadLog m, MonadCatch m) =>
+  ( Log.MonadLog m,
+    MonadCatch m,
+    MonadReader env m,
+    Has (Maybe GoogleAnalyticsId) env
+  ) =>
   HxRequest ->
   UserMetadata.Model ->
   [Shows.Model] ->
@@ -84,9 +101,10 @@ renderDashboardTemplate ::
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   m (Lucid.Html ())
-renderDashboardTemplate hxRequest userInfo allShows selectedShow activeNav statsContent actionButton templateContent =
+renderDashboardTemplate hxRequest userInfo allShows selectedShow activeNav statsContent actionButton templateContent = do
+  mGoogleAnalyticsId <- asks getter
   case hxRequest of
     IsHxRequest ->
       DashboardFrame.loadDashboardContentOnly templateContent
     IsNotHxRequest ->
-      DashboardFrame.loadDashboardFrame userInfo allShows selectedShow activeNav statsContent actionButton templateContent
+      DashboardFrame.loadDashboardFrame mGoogleAnalyticsId userInfo allShows selectedShow activeNav statsContent actionButton templateContent
