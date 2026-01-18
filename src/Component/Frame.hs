@@ -7,6 +7,7 @@ module Component.Frame where
 import API.Links (apiLinks, dashboardLinks, scheduleLink, showsLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
+import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -546,9 +547,11 @@ authWidget mUser =
       Just user -> do
         Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500"] "•"
         Lucid.span_ [class_ $ base [Tokens.textGray800, "dark:text-gray-200", Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
+        -- Dashboard is only available to hosts and above (Host, Staff, Admin)
         -- Dashboard uses a completely different frame layout (sidebar navigation),
         -- so we do a full page navigation instead of HTMX content swap
-        Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], class_ $ base [Tokens.linkText, "dark:text-blue-400", Tokens.fontBold]] "Dashboard"
+        when (UserMetadata.isHostOrHigher user.mUserRole) $
+          Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], class_ $ base [Tokens.linkText, "dark:text-blue-400", Tokens.fontBold]] "Dashboard"
         Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
 
 logo :: Lucid.Html ()
@@ -649,13 +652,15 @@ mobileNavLinks mUser =
       Nothing -> do
         mobileNavLink "Log In" userLoginGetUrl
         mobileNavLink "Sign Up" userRegisterGetUrl
-      Just _user -> do
-        Lucid.a_
-          [ Lucid.href_ [i|/#{dashboardGetUrl}|],
-            xOnClick_ "menuOpen = false",
-            class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
-          ]
-          "Dashboard"
+      Just user -> do
+        -- Dashboard is only available to hosts and above (Host, Staff, Admin)
+        when (UserMetadata.isHostOrHigher user.mUserRole) $
+          Lucid.a_
+            [ Lucid.href_ [i|/#{dashboardGetUrl}|],
+              xOnClick_ "menuOpen = false",
+              class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
+            ]
+            "Dashboard"
         Lucid.a_
           [ Lucid.href_ [i|/#{userLogoutGetUrl}|],
             hxGet_ [i|/#{userLogoutGetUrl}|],
