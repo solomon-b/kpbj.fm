@@ -310,7 +310,9 @@ library
     API.User.Register.Get.Templates.Form
     API.User.Register.Post.Handler
     API.User.Register.Post.Route
+    App.Analytics
     App.Common
+    App.CustomContext
     App.Handler.Combinators
     App.Storage
     App.Handler.Error
@@ -346,6 +348,7 @@ library
     Domain.Types.PostStatus
     Domain.Types.Cookie
     Domain.Types.FileStorage
+    Domain.Types.GoogleAnalyticsId
     Domain.Types.FileUpload
     Domain.Types.Filter
     Domain.Types.HxRequest

@@ -20,6 +20,7 @@ primary_region = 'lax'
   APP_WARP_PORT = '4000'
   APP_WARP_SERVERNAME = 'kpbj.fm'
   APP_WARP_TIMEOUT = '100'
+  APP_GOOGLE_ANALYTICS_GTAG = 'G-ST01RRVLDB'
 
 [[services]]
   protocol = 'tcp'

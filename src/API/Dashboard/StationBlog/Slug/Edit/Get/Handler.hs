@@ -27,6 +27,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
 import Domain.Types.StorageBackend (StorageBackend)
@@ -54,6 +55,7 @@ handler ::
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env,
     Has StorageBackend env
   ) =>
   Tracer ->

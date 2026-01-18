@@ -2,7 +2,7 @@
 
 module App.Storage
   ( -- * Storage Context
-    StorageContext,
+    StorageContext (..),
     initStorageContext,
 
     -- * Re-exports
@@ -18,7 +18,6 @@ where
 
 import Amazonka qualified as AWS
 import App.Config (Environment (..))
-import App.Context (AppContext (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Has qualified as Has
 import Data.Text (Text)
@@ -31,8 +30,7 @@ import System.Environment (lookupEnv)
 
 -- | Storage context containing backend configuration and AWS environment.
 --
--- This is passed as the custom context to the application and can be accessed
--- via the 'Has' typeclass in handlers.
+-- This is accessed via the 'Has' typeclass in handlers.
 data StorageContext = StorageContext
   { storageBackend :: StorageBackend,
     awsEnv :: Maybe AWS.Env
@@ -45,16 +43,6 @@ instance Has.Has StorageBackend StorageContext where
 instance Has.Has (Maybe AWS.Env) StorageContext where
   getter = awsEnv
   modifier f ctx = ctx {awsEnv = f (awsEnv ctx)}
-
--- | Orphan instance to access StorageBackend from AppContext with StorageContext.
-instance Has.Has StorageBackend (AppContext StorageContext) where
-  getter = storageBackend . appCustom
-  modifier f ctx = ctx {appCustom = (appCustom ctx) {storageBackend = f (storageBackend (appCustom ctx))}}
-
--- | Orphan instance to access AWS.Env from AppContext with StorageContext.
-instance Has.Has (Maybe AWS.Env) (AppContext StorageContext) where
-  getter = awsEnv . appCustom
-  modifier f ctx = ctx {appCustom = (appCustom ctx) {awsEnv = f (awsEnv (appCustom ctx))}}
 
 --------------------------------------------------------------------------------
 

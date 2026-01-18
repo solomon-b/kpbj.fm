@@ -24,6 +24,7 @@ import Data.List (find)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -52,7 +53,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   Tracer ->
   Slug ->

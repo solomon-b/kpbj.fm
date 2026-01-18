@@ -109,11 +109,12 @@ import API.User.Register.Post.Handler qualified as User.Register.Post
 import Amazonka qualified as AWS
 import App qualified
 import App.Config (Environment (..), Hostname)
-import App.Storage (initStorageContext)
+import App.CustomContext (initCustomContext)
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader (MonadReader)
 import Data.Has (Has)
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Clock (MonadClock)
 import Effects.Database.Class (MonadDB)
@@ -133,14 +134,14 @@ loadEnvironment = do
     Just "Production" -> Production
     _ -> Development
 
--- | Run the API server with the given storage context.
+-- | Run the API server with the custom context.
 runApi :: IO ()
 runApi = do
   env <- loadEnvironment
   putStrLn $ "Starting KPBJ.FM in " <> show env <> " mode"
 
-  storageCtx <- initStorageContext env
-  App.runApp @API server storageCtx
+  customCtx <- initCustomContext env
+  App.runApp @API server customCtx
 
 --------------------------------------------------------------------------------
 
@@ -157,7 +158,8 @@ server ::
     Has Environment env,
     Has Hostname env,
     Has StorageBackend env,
-    Has (Maybe AWS.Env) env
+    Has (Maybe AWS.Env) env,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   Environment ->
   Servant.ServerT API m

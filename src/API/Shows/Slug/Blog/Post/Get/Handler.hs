@@ -20,6 +20,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug, mkSlug)
 import Effects.Database.Class (MonadDB)
@@ -45,7 +46,8 @@ handlerWithSlug ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   Tracer ->
   Shows.Id ->
@@ -65,7 +67,8 @@ handlerWithoutSlug ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   Tracer ->
   Shows.Id ->
@@ -84,7 +87,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   Tracer ->
   Shows.Id ->
@@ -129,7 +133,8 @@ renderPost ::
     Log.MonadLog m,
     MonadDB m,
     MonadUnliftIO m,
-    MonadCatch m
+    MonadCatch m,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   HxRequest ->
   Maybe UserMetadata.Model ->
@@ -161,7 +166,7 @@ renderPost hxRequest mUserInfo post = do
       pure $ Servant.noHeader html
 
 renderRedirect ::
-  (MonadReader env m, MonadUnliftIO m, MonadCatch m, Log.MonadLog m) =>
+  (MonadReader env m, MonadUnliftIO m, MonadCatch m, Log.MonadLog m, Has (Maybe GoogleAnalyticsId) env) =>
   HxRequest ->
   Maybe UserMetadata.Model ->
   Text ->

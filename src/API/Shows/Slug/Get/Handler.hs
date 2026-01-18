@@ -19,6 +19,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Domain.Types.Cookie (Cookie (..))
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -55,6 +56,7 @@ handler ::
     MonadIO m,
     MonadDB m,
     Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env,
     Has StorageBackend env,
     MonadClock m
   ) =>

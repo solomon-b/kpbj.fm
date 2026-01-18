@@ -19,6 +19,7 @@ import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
 import Data.Has (Has)
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB)
@@ -42,7 +43,8 @@ handler ::
     MonadCatch m,
     MonadIO m,
     MonadDB m,
-    Has HSQL.Pool.Pool env
+    Has HSQL.Pool.Pool env,
+    Has (Maybe GoogleAnalyticsId) env
   ) =>
   Tracer ->
   Slug ->

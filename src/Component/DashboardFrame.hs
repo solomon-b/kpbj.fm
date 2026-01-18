@@ -13,7 +13,7 @@ where
 import API.Links (apiLinks, dashboardBlogsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardUsersLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
-import Component.Frame (bannerFromUrlScript)
+import Component.Frame (bannerFromUrlScript, googleAnalyticsScript)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Maybe (fromMaybe)
@@ -23,6 +23,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Design (base, class_, class_')
 import Design.Tokens qualified as Tokens
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -103,6 +104,7 @@ isShowScoped = \case
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
+  Maybe GoogleAnalyticsId ->
   UserMetadata.Model ->
   [Shows.Model] ->
   Maybe Shows.Model ->
@@ -111,9 +113,10 @@ template ::
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   Lucid.Html ()
-template userMeta allShows selectedShow activeNav statsContent actionButton main =
+template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsContent actionButton main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
+      googleAnalyticsScript mGoogleAnalyticsId
       Lucid.title_ "Dashboard | KPBJ 95.9FM"
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"]
@@ -323,6 +326,7 @@ topBar activeNav allShows selectedShow statsContent actionButton =
 -- | Load dashboard frame (full page)
 loadDashboardFrame ::
   (Log.MonadLog m, MonadThrow m) =>
+  Maybe GoogleAnalyticsId ->
   UserMetadata.Model ->
   [Shows.Model] ->
   Maybe Shows.Model ->
@@ -331,8 +335,8 @@ loadDashboardFrame ::
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   m (Lucid.Html ())
-loadDashboardFrame user allShows selectedShow nav statsContent actionButton content =
-  pure $ template user allShows selectedShow nav statsContent actionButton content
+loadDashboardFrame mGoogleAnalyticsId user allShows selectedShow nav statsContent actionButton content =
+  pure $ template mGoogleAnalyticsId user allShows selectedShow nav statsContent actionButton content
 
 -- | Load content only for HTMX requests
 loadDashboardContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())

@@ -14,6 +14,7 @@ import Data.Text (Text)
 import Design (base, class_, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
+import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId (..))
 import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
@@ -477,6 +478,29 @@ htmxIndicatorStyles =
   \.htmx-request .htmx-indicator { display: flex; } \
   \.htmx-request #load-more-sentinel { visibility: hidden; }"
 
+-- | Google Analytics 4 gtag.js script.
+--
+-- Renders the standard GA4 tracking code when a measurement ID is provided.
+-- Returns mempty when no ID is configured, effectively disabling tracking.
+googleAnalyticsScript :: Maybe GoogleAnalyticsId -> Lucid.Html ()
+googleAnalyticsScript Nothing = mempty
+googleAnalyticsScript (Just (GoogleAnalyticsId gtagId)) = do
+  Lucid.script_
+    [ Lucid.async_ "true",
+      Lucid.src_ [i|https://www.googletagmanager.com/gtag/js?id=#{gtagId}|]
+    ]
+    (mempty @Text)
+  Lucid.script_
+    []
+    ( [i|
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '#{gtagId}');
+    |] ::
+        Text
+    )
+
 -- | JavaScript to highlight the active navigation link based on current URL
 activeNavScript :: Text
 activeNavScript =
@@ -708,10 +732,11 @@ suspensionBanner Suspended =
       Lucid.p_ [class_ $ base [Tokens.textSm, "mt-2"]] $
         Lucid.toHtml @Text "If you believe this is an error, please contact us at contact@kpbj.fm"
 
-template :: Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
-template mUser main =
+template :: Maybe GoogleAnalyticsId -> Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
+template mGoogleAnalyticsId mUser main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
+      googleAnalyticsScript mGoogleAnalyticsId
       Lucid.meta_ [Lucid.name_ "viewport", Lucid.content_ "width=device-width, initial-scale=1.0"]
       Lucid.title_ "KPBJ 95.9FM"
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
@@ -824,11 +849,11 @@ template mUser main =
 
 --------------------------------------------------------------------------------
 
-loadFrame :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())
-loadFrame = pure . template Nothing
+loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> Lucid.Html () -> m (Lucid.Html ())
+loadFrame mGoogleAnalyticsId = pure . template mGoogleAnalyticsId Nothing
 
-loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
-loadFrameWithUser user = pure . template (Just user)
+loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
+loadFrameWithUser mGoogleAnalyticsId user = pure . template mGoogleAnalyticsId (Just user)
 
 -- | Load content-only for HTMX responses
 loadContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())
