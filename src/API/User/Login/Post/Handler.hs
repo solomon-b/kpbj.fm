@@ -7,24 +7,17 @@ import API.Types
 import API.User.Login.Post.Route (Login (..))
 import App.Auth qualified as Auth
 import App.Errors (InternalServerError (..), throwErr)
-import Control.Monad.Catch (MonadCatch, MonadThrow (..))
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import App.Monad (AppM)
 import Data.Aeson (ToJSON, (.=))
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
 import Data.Maybe (fromMaybe)
 import Data.Password.Argon2 (PasswordCheck (..), checkPassword)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.EmailAddress
-import Effects.Clock (MonadClock)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpanThrow)
 import Effects.Database.Tables.ServerSessions qualified as Session
 import Effects.Database.Tables.User qualified as User
-import Hasql.Pool qualified
 import Log qualified
 import Network.Socket
 import OpenTelemetry.Trace qualified as OTEL
@@ -34,23 +27,12 @@ import Web.HttpApiData qualified as Http
 --------------------------------------------------------------------------------
 
 handler ::
-  ( MonadClock m,
-    MonadReader env m,
-    Has Hasql.Pool.Pool env,
-    MonadIO m,
-    Log.MonadLog m,
-    MonadDB m,
-    MonadThrow m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has OTEL.Tracer env
-  ) =>
   OTEL.Tracer ->
   SockAddr ->
   Maybe Text ->
   Login ->
   Maybe Text ->
-  m
+  AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
@@ -71,20 +53,11 @@ handler _tracer sockAddr mUserAgent Login {..} redirectQueryParam = do
       invalidCredentialResponse ulEmail (Aeson.object [("field", "email"), "value" .= ulEmail])
 
 attemptLogin ::
-  ( MonadClock m,
-    MonadUnliftIO m,
-    Has OTEL.Tracer env,
-    Has Hasql.Pool.Pool env,
-    MonadReader env m,
-    MonadThrow m,
-    MonadDB m,
-    Log.MonadLog m
-  ) =>
   SockAddr ->
   Maybe Text ->
   Text ->
   User.Model ->
-  m
+  AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
@@ -104,12 +77,10 @@ attemptLogin sockAddr mUserAgent redirectLink user = do
        in pure $ Servant.addHeader (Auth.mkCookieSession sessionId) $ Servant.addHeader redirectLink Servant.NoContent
 
 invalidCredentialResponse ::
-  ( Log.MonadLog m,
-    ToJSON details
-  ) =>
+  (ToJSON details) =>
   EmailAddress ->
   details ->
-  m
+  AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text

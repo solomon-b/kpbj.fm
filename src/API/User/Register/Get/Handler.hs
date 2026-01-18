@@ -3,37 +3,26 @@ module API.User.Register.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.User.Register.Get.Templates.Form (template)
+import App.Monad (AppM)
 import Component.Frame (loadContentOnly, loadFrame)
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
-import Data.Has (Has, getter)
+import Control.Monad.Reader (asks)
+import Data.Has (getter)
 import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
-import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace qualified as Trace
 
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Applicative m,
-    Has Trace.Tracer env,
-    MonadCatch m,
-    Log.MonadLog m,
-    MonadUnliftIO m,
-    MonadReader env m,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Trace.Tracer ->
   Maybe Text ->
   Maybe EmailAddress ->
   Maybe DisplayName ->
   Maybe FullName ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer hxRequest emailAddress displayName fullName = do
   mGoogleAnalyticsId <- asks getter
   let registerForm = template displayName fullName emailAddress Nothing

@@ -11,15 +11,14 @@ import API.Blog.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad (forM)
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (asks)
 import Data.Functor ((<&>))
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -28,12 +27,9 @@ import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.DisplayName (mkDisplayNameUnsafe)
 import Domain.Types.FullName (mkFullNameUnsafe)
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
@@ -53,23 +49,12 @@ rootGetUrl = Links.linkURI apiLinks.rootGet
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env,
-    Has StorageBackend env
-  ) =>
   Tracer ->
   Maybe Int64 ->
   Maybe Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   storageBackend <- asks getter
   let page = fromMaybe 1 maybePage
@@ -104,16 +89,10 @@ handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
           renderTemplate hxRequest mUserInfo blogTemplate
 
 getBlogPostResults ::
-  ( MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env
-  ) =>
   Limit ->
   Offset ->
   Maybe Text ->
-  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
+  AppM (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
 getBlogPostResults limit offset maybeTag = do
   case maybeTag of
     Just tagName ->
@@ -128,15 +107,9 @@ getBlogPostResults limit offset maybeTag = do
       getPostsWithTags limit offset
 
 getPostsWithTags ::
-  ( MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env
-  ) =>
   Limit ->
   Offset ->
-  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
+  AppM (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
 getPostsWithTags limit offset =
   execTransactionSpan $ do
     posts <- HT.statement () $ BlogPosts.getPublishedBlogPosts limit offset
@@ -147,16 +120,10 @@ getPostsWithTags limit offset =
       pure (post, author, tags)
 
 getPostsWithTagsFiltered ::
-  ( MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env
-  ) =>
   BlogTags.Model ->
   Limit ->
   Offset ->
-  m (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
+  AppM (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
 getPostsWithTagsFiltered tag limit offset =
   execTransactionSpan $ do
     posts <- HT.statement () $ BlogPosts.getPostsByTag tag.btmId limit offset

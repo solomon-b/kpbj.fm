@@ -7,26 +7,21 @@ module API.Dashboard.Episodes.Slug.Publish.Post.Handler where
 import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError, throwDatabaseError, throwNotAuthorized, throwNotFound, throwValidationError)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (when)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.IO.Class (liftIO)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
 import Data.Text (Text)
 import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -34,20 +29,11 @@ import OpenTelemetry.Trace (Tracer)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer showSlug episodeNumber cookie =
   handlePublishErrors $ do
     -- 1. Require authentication
@@ -74,15 +60,8 @@ handler _tracer showSlug episodeNumber cookie =
 -- Data Fetching
 
 fetchShow ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadThrow m,
-    Has Tracer env
-  ) =>
   Slug ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShow showSlug =
   execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
@@ -90,16 +69,9 @@ fetchShow showSlug =
     Right (Just showModel) -> pure showModel
 
 fetchEpisode ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadThrow m,
-    Has Tracer env
-  ) =>
   Slug ->
   Episodes.EpisodeNumber ->
-  m Episodes.Model
+  AppM Episodes.Model
 fetchEpisode showSlug episodeNumber =
   execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
     Left err -> throwDatabaseError err
@@ -110,20 +82,18 @@ fetchEpisode showSlug episodeNumber =
 -- Validation
 
 requireNotAlreadyPublished ::
-  (MonadThrow m, Log.MonadLog m) =>
   Episodes.Model ->
-  m ()
+  AppM ()
 requireNotAlreadyPublished episode =
   when (episode.status == Episodes.Published) $ do
     Log.logInfo "Publish failed: Episode already published" (Aeson.object ["episodeId" .= episode.id])
     throwValidationError "This episode is already published."
 
 requireNotPastUnlessStaff ::
-  (MonadThrow m, Log.MonadLog m) =>
   UTCTime ->
   Episodes.Model ->
   UserMetadata.Model ->
-  m ()
+  AppM ()
 requireNotPastUnlessStaff currentTime episode userMeta = do
   let isPast = episode.scheduledAt <= currentTime
       isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole
@@ -137,18 +107,10 @@ requireNotPastUnlessStaff currentTime episode userMeta = do
 -- Publish Execution
 
 publishEpisode ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Shows.Model ->
   Episodes.Model ->
   UserMetadata.Model ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 publishEpisode showModel episode userMeta = do
   execQuerySpan (Episodes.publishEpisode episode.id) >>= \case
     Left err -> do
@@ -167,9 +129,8 @@ publishEpisode showModel episode userMeta = do
 -- Error Handling
 
 handlePublishErrors ::
-  (MonadCatch m, Log.MonadLog m) =>
-  m (Lucid.Html ()) ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ()) ->
+  AppM (Lucid.Html ())
 handlePublishErrors action =
   action `catchHandlerError` \err -> do
     logHandlerError "Episode publish" err

@@ -5,20 +5,17 @@ module API.Dashboard.StationBlog.New.Post.Handler (handler) where
 import API.Dashboard.StationBlog.New.Post.Route (NewBlogPostForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
-import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, void)
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Foldable (traverse_)
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -27,15 +24,12 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload (uploadBlogHeroImage)
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -44,22 +38,10 @@ import Servant qualified
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   Maybe Cookie ->
   NewBlogPostForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer cookie form =
   handleRedirectErrors "Blog post creation" dashboardStationBlogLinks.newGet $ do
     -- 1. Require authentication and staff role
@@ -78,9 +60,8 @@ handler _tracer cookie form =
 
 -- | Handle hero image upload
 handleHeroImageUpload ::
-  (MonadUnliftIO m, Log.MonadLog m, MonadReader env m, MonadMask m, MonadIO m, Has StorageBackend env, Has (Maybe AWS.Env) env) =>
   NewBlogPostForm ->
-  m (Maybe Text)
+  AppM (Maybe Text)
 handleHeroImageUpload form = case nbpfHeroImage form of
   Nothing -> pure Nothing
   Just heroImageFile -> do
@@ -125,18 +106,9 @@ validateNewBlogPost form authorId heroImagePath = do
 
 -- | Create tags for a blog post
 createPostTags ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   BlogPosts.Id ->
   NewBlogPostForm ->
-  m ()
+  AppM ()
 createPostTags postId form = do
   let tags = nbpfTags form
   unless (null tags) $
@@ -144,18 +116,9 @@ createPostTags postId form = do
 
 -- | Create a new tag or associate an existing one with a post
 createOrAssociateTag ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   BlogPosts.Id ->
   Text ->
-  m ()
+  AppM ()
 createOrAssociateTag postId tagName =
   execQuerySpan (BlogTags.getTagByName tagName) >>= \case
     Right (Just existingTag) -> do
@@ -172,18 +135,9 @@ createOrAssociateTag postId tagName =
 
 -- | Handle blog post creation after validation passes
 handlePostCreation ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   BlogPosts.Insert ->
   NewBlogPostForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handlePostCreation blogPostData form = do
   postId <- insertBlogPost blogPostData
   createPostTags postId form
@@ -205,15 +159,8 @@ handlePostCreation blogPostData form = do
       pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
 
 insertBlogPost ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   BlogPosts.Insert ->
-  m BlogPosts.Id
+  AppM BlogPosts.Id
 insertBlogPost blogPostData =
   execQuerySpan (BlogPosts.insertBlogPost blogPostData) >>= \case
     Left err -> throwDatabaseError err

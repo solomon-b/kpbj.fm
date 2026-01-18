@@ -7,33 +7,27 @@ module API.Dashboard.Events.Slug.Edit.Post.Handler (handler) where
 import API.Dashboard.Events.Slug.Edit.Post.Route (EventEditForm (..), parseDateTime, parseStatus)
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
-import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (uploadEventPosterImage)
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -43,24 +37,12 @@ import Servant qualified
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   Events.Id ->
   Slug ->
   Maybe Cookie ->
   EventEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer eventId slug cookie editForm =
   handleRedirectErrors "Event update" (dashboardEventsLinks.editGet eventId slug) $ do
     -- 1. Require authentication and staff role
@@ -81,21 +63,10 @@ handler _tracer eventId slug cookie editForm =
       else updateEvent eventId event editForm
 
 updateEvent ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Events.Id ->
   Events.Model ->
   EventEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 updateEvent eventId event editForm = do
   -- 4. Parse and validate form data
   parsedStatus <- requireJust "Invalid event status value." (parseStatus (eefStatus editForm))

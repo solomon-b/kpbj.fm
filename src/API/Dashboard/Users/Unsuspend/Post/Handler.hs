@@ -7,23 +7,19 @@ module API.Dashboard.Users.Unsuspend.Post.Handler where
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleBannerErrors)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
-import Effects.Database.Class (MonadDB, runDBTransaction)
+import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
@@ -32,19 +28,10 @@ import OpenTelemetry.Trace (Tracer)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Tracer ->
   User.Id ->
   Maybe Cookie ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer targetUserId cookie =
   handleBannerErrors "User unsuspend" $ do
     -- Require admin authentication
@@ -68,15 +55,8 @@ data UnsuspendResult
 
 -- | Execute user unsuspension with database operations
 executeUnsuspension ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
   User.Id ->
-  m UnsuspendResult
+  AppM UnsuspendResult
 executeUnsuspension targetUserId = do
   result <- runDBTransaction $ runMaybeT $ do
     _ <- MaybeT $ TRX.statement () (UserMetadata.getUserWithMetadataById targetUserId)

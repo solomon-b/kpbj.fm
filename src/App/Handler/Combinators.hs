@@ -24,22 +24,16 @@ where
 
 import App.Common (getUserInfo)
 import App.Handler.Error (throwDatabaseError, throwNotAuthenticated, throwNotAuthorized, throwValidationError)
+import App.Monad (AppM)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (MonadThrow)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
-import Log qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
@@ -52,17 +46,7 @@ import OpenTelemetry.Trace (Tracer)
 --   (user, userMeta) <- requireAuth cookie
 --   -- ... rest of handler with guaranteed authenticated user
 -- @
-requireAuth ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadThrow m
-  ) =>
-  Maybe Cookie ->
-  m (User.Model, UserMetadata.Model)
+requireAuth :: Maybe Cookie -> AppM (User.Model, UserMetadata.Model)
 requireAuth cookie =
   getUserInfo cookie >>= \case
     Nothing -> throwNotAuthenticated
@@ -153,20 +137,13 @@ requireAdminNotSuspended msg userMetadata =
 --   -- ... rest of handler
 -- @
 requireShowHostOrStaff ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadThrow m,
-    Has Tracer env
-  ) =>
   -- | User ID to check
   User.Id ->
   -- | Show slug to check host membership
   Slug ->
   -- | User metadata to check role and suspension
   UserMetadata.Model ->
-  m ()
+  AppM ()
 requireShowHostOrStaff userId showSlug userMetadata = do
   -- Suspended users can never proceed
   when (UserMetadata.isSuspended userMetadata) $

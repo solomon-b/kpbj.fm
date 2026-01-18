@@ -8,21 +8,19 @@ module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
 import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackInfo (..), parseStatus)
 import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
-import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth)
 import App.Handler.Error
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, when)
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Either (partitionEithers)
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -35,9 +33,7 @@ import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -50,7 +46,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (isEmptyUpload)
 import Effects.FileUpload qualified as FileUpload
 import Effects.StagedUploads (claimAndRelocateUpload)
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -61,24 +56,12 @@ import Text.Read (readMaybe)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   EpisodeEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer showSlug episodeNumber cookie editForm =
   handleRedirectErrors "Episode update" (dashboardEpisodesLinks.editGet showSlug episodeNumber) $ do
     -- 1. Require authentication
@@ -105,19 +88,11 @@ handler _tracer showSlug episodeNumber cookie editForm =
 type EpisodeEditContext = (Episodes.Model, Shows.Model, Bool)
 
 fetchEpisodeContext ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadThrow m
-  ) =>
   Slug ->
   Episodes.EpisodeNumber ->
   User.Model ->
   UserMetadata.Model ->
-  m EpisodeEditContext
+  AppM EpisodeEditContext
 fetchEpisodeContext showSlug episodeNumber user userMetadata = do
   mResult <- execTransactionSpan $ runMaybeT $ do
     episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
@@ -160,19 +135,6 @@ isScheduledInPast now episode = episode.scheduledAt <= now
 --------------------------------------------------------------------------------
 
 updateEpisode ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadThrow m,
-    MonadIO m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Slug ->
   Episodes.EpisodeNumber ->
   User.Model ->
@@ -180,7 +142,7 @@ updateEpisode ::
   Episodes.Model ->
   Shows.Model ->
   EpisodeEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel editForm = do
   currentTime <- liftIO getCurrentTime
   let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
@@ -216,26 +178,25 @@ updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel edit
 --------------------------------------------------------------------------------
 -- Validation Helpers
 
-validateStatus :: (MonadThrow m) => Text -> m Episodes.Status
+validateStatus :: Text -> AppM Episodes.Status
 validateStatus statusText =
   case parseStatus statusText of
     Nothing -> throwValidationError "Invalid episode status value."
     Just s -> pure s
 
 validateStatusChangePermission ::
-  (MonadThrow m, Log.MonadLog m) =>
   -- | isPast
   Bool ->
   Bool -> -- isStaffOrAdmin
   Episodes.Model ->
   Episodes.Status ->
-  m ()
+  AppM ()
 validateStatusChangePermission isPast isStaffOrAdmin episode newStatus = do
   let statusChanged = newStatus /= episode.status
   when (statusChanged && isPast && not isStaffOrAdmin) $ do
     throwValidationError "This episode's scheduled date has passed. Only staff or admin users can change the status of past episodes."
 
-validateDescription :: (MonadThrow m) => Maybe Text -> m Text
+validateDescription :: Maybe Text -> AppM Text
 validateDescription mDescription = do
   let sanitized = maybe "" Sanitize.sanitizeUserContent mDescription
   case Sanitize.validateContentLength 10000 sanitized of
@@ -246,17 +207,6 @@ validateDescription mDescription = do
 -- Optional Updates (accumulate warnings)
 
 execOptionalUpdates ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadMask m,
-    MonadIO m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   User.Id ->
   UTCTime ->
   Bool -> -- isStaffOrAdmin
@@ -264,7 +214,7 @@ execOptionalUpdates ::
   Episodes.Model ->
   Shows.Model ->
   EpisodeEditForm ->
-  m [Text] -- Returns list of warning messages
+  AppM [Text] -- Returns list of warning messages
 execOptionalUpdates userId currentTime isStaffOrAdmin isPast episode showModel editForm = do
   let allowFileUpload = isScheduledInFuture currentTime episode || isStaffOrAdmin
 
@@ -288,23 +238,12 @@ execOptionalUpdates userId currentTime isStaffOrAdmin isPast episode showModel e
 -- Audio supports both staged uploads (tokens) and direct file uploads.
 -- Artwork only uses direct file uploads (no staged upload for images).
 processFileUploadsWithWarning ::
-  ( MonadIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadMask m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   User.Id ->
   Bool -> -- allowFileUpload
   Shows.Model ->
   Episodes.Model ->
   EpisodeEditForm ->
-  m [Text]
+  AppM [Text]
 processFileUploadsWithWarning userId allowFileUpload showModel episode editForm =
   let hasFileUploads = isJust (eefArtworkFile editForm) || eefAudioClear editForm || eefArtworkClear editForm
       hasStagedUploads = isJust (eefAudioToken editForm)
@@ -338,18 +277,11 @@ processFileUploadsWithWarning userId allowFileUpload showModel episode editForm 
 
 -- | Process schedule update, returning a warning if it fails
 processScheduleUpdate ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Bool -> -- isPast
   Bool -> -- isStaffOrAdmin
   Episodes.Model ->
   EpisodeEditForm ->
-  m [Text]
+  AppM [Text]
 processScheduleUpdate isPast isStaffOrAdmin episode editForm =
   case eefScheduledDate editForm of
     Nothing -> pure []
@@ -387,16 +319,9 @@ processScheduleUpdate isPast isStaffOrAdmin episode editForm =
 
 -- | Process track updates, returning a warning if it fails
 processTrackUpdates ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Episodes.Id ->
   Maybe Text ->
-  m [Text]
+  AppM [Text]
 processTrackUpdates episodeId mTracksJson = do
   result <- updateTracksFromJson episodeId mTracksJson
   case result of
@@ -420,22 +345,11 @@ makeSuccessBanner warnings =
 --
 -- Artwork uses direct form submission (small files don't benefit from staged uploads).
 processFileUploads ::
-  ( MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadMask m,
-    MonadIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   User.Id ->
   Shows.Model ->
   Episodes.Model ->
   EpisodeEditForm ->
-  m (Either Text (Maybe Text, Maybe Text))
+  AppM (Either Text (Maybe Text, Maybe Text))
 processFileUploads userId showModel episode editForm = do
   storageBackend <- asks getter
   mAwsEnv <- asks getter
@@ -490,17 +404,9 @@ processFileUploads userId showModel episode editForm = do
 -- Strategy: Delete all existing tracks and insert new ones from JSON.
 -- Track numbers are auto-calculated from array position (1-indexed).
 updateTracksFromJson ::
-  ( MonadIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env
-  ) =>
   Episodes.Id ->
   Maybe Text ->
-  m (Either Text ())
+  AppM (Either Text ())
 updateTracksFromJson episodeId mTracksJson = do
   -- Delete all existing tracks for this episode
   deleteResult <- execQuerySpan (EpisodeTrack.deleteAllTracksForEpisode episodeId)
@@ -531,17 +437,9 @@ updateTracksFromJson episodeId mTracksJson = do
 
 -- | Insert a single track with the given track number.
 insertTrack ::
-  ( MonadIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env
-  ) =>
   Episodes.Id ->
   (Int, TrackInfo) ->
-  m (Either Text EpisodeTrack.Id)
+  AppM (Either Text EpisodeTrack.Id)
 insertTrack episodeId (trackNum, track) = do
   let trackInsert =
         EpisodeTrack.Insert

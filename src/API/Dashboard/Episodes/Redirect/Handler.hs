@@ -10,27 +10,20 @@ import API.Types
 import App.Common (renderDashboardTemplate, renderTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (handleHtmlErrors)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Component.Redirect (redirectTemplate)
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
-import Data.Has (Has)
 import Data.List (uncons)
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -45,20 +38,10 @@ dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesLinks.list 
 
 -- | Handler that redirects to the first show's episodes page
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Tracer ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes redirect" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
@@ -88,16 +71,9 @@ renderNoShowsEmptyState =
 
 -- | Fetch shows based on user role (admins see all, hosts see their own)
 fetchShowsForUser ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Model ->
   UserMetadata.Model ->
-  m [Shows.Model]
+  AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
     then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
