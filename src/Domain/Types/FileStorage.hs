@@ -94,6 +94,22 @@ buildStorageKey bucketType resourceType dateHier filename =
       filename
     ]
 
+-- | Build a flat storage key without date hierarchy.
+--
+-- Used for staging area where files await claiming. No date organization
+-- since files will be moved to their final location with the correct date
+-- when claimed.
+--
+-- Example: temp/staging/abc123def456.mp3
+buildStagingKey :: BucketType -> Text -> Text -> Text
+buildStagingKey bucketType subdir filename =
+  Text.intercalate
+    "/"
+    [ bucketTypePath bucketType,
+      subdir,
+      filename
+    ]
+
 -- | Generate unique filename with timestamp
 generateUniqueFilename :: Text -> Text -> Random.StdGen -> Text
 generateUniqueFilename prefix extension seed =

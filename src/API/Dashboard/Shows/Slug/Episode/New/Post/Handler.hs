@@ -28,6 +28,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -44,7 +45,7 @@ import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
-import Effects.StagedUploads (claimStagedUploadMaybe)
+import Effects.StagedUploads (claimAndRelocateUpload)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
@@ -340,8 +341,9 @@ data ParsedEpisodeData = ParsedEpisodeData
 
 -- | Process file uploads (audio and artwork)
 --
--- Audio uses staged uploads only - file is uploaded via XHR before form submission,
--- and we receive a token to claim the upload.
+-- Audio uses staged uploads - file is uploaded via XHR before form submission,
+-- and we receive a token to claim the upload. The file is then moved from
+-- the staging area to its final location based on the air date.
 --
 -- Artwork uses direct form submission (small files don't benefit from staged uploads).
 processFileUploads ::
@@ -352,6 +354,8 @@ processFileUploads ::
     MonadUnliftIO m,
     Has HSQL.Pool.Pool env,
     Has Tracer env,
+    Has StorageBackend env,
+    Has (Maybe AWS.Env) env,
     Log.MonadLog m
   ) =>
   -- | Storage backend
@@ -360,11 +364,11 @@ processFileUploads ::
   Maybe AWS.Env ->
   -- | User ID (for claiming staged uploads)
   User.Id ->
-  -- | Show slug (for artwork file organization)
+  -- | Show slug (for file organization)
   Slug ->
   -- | Episode slug (for artwork filename)
   Slug ->
-  -- | Scheduled date (for artwork file organization)
+  -- | Scheduled date (air date for file organization)
   Maybe UTCTime ->
   -- | Episode status (audio only required for published)
   Episodes.Status ->
@@ -375,10 +379,28 @@ processFileUploads ::
   -- | (audioPath, artworkPath)
   m (Either Text (Maybe Text, Maybe Text))
 processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate status mArtworkFile mAudioToken = do
+  -- Get the air date for file organization (use current time as fallback)
+  airDate <- case mScheduledDate of
+    Just d -> pure d
+    Nothing -> liftIO getCurrentTime
+
   -- Process main audio file (required for published, optional for draft)
-  -- Audio is always uploaded via staged upload - we only receive a token here
+  -- Audio is uploaded via staged upload, then moved to final location with air date
   audioResult <- case mAudioToken of
-    Just token -> claimStagedUploadMaybe userId token StagedUploads.EpisodeAudio
+    Just token -> do
+      -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
+      result <-
+        claimAndRelocateUpload
+          userId
+          token
+          StagedUploads.EpisodeAudio
+          AudioBucket
+          EpisodeAudio
+          airDate
+          (display showSlug)
+      pure $ case result of
+        Left err -> Left err
+        Right path -> Right (Just path)
     Nothing ->
       case status of
         Episodes.Draft -> pure $ Right Nothing -- Audio optional for drafts
