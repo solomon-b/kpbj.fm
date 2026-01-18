@@ -75,7 +75,6 @@ spec = describe "Effects.StagedUploads" $ do
       decodeUploadType "invalid_type" `shouldBe` Nothing
       decodeUploadType "" `shouldBe` Nothing
       decodeUploadType "EPISODE_AUDIO" `shouldBe` Nothing -- Case sensitive
-
   describe "Status" $ do
     it "all constructors are covered by encoding" $ hedgehog $ do
       status <- forAll genStatus

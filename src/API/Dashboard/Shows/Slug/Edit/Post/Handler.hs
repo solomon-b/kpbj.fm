@@ -8,18 +8,16 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler (handler) where
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..), ShowEditForm (..))
 import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
-import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (forM_, when)
-import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.Reader (asks)
 import Data.Aeson qualified as Aeson
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Int (Int64)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
@@ -32,8 +30,6 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -42,7 +38,6 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -69,20 +64,12 @@ parseStatus _ = Nothing
 
 -- | Process logo/banner file uploads
 processShowArtworkUploads ::
-  ( MonadUnliftIO m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadMask m,
-    MonadIO m,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Slug ->
   -- | Logo file
   Maybe (FileData Mem) ->
   -- | Banner file
   Maybe (FileData Mem) ->
-  m (Either Text (Maybe Text, Maybe Text)) -- (logoPath, bannerPath)
+  AppM (Either Text (Maybe Text, Maybe Text)) -- (logoPath, bannerPath)
 processShowArtworkUploads showSlug mLogoFile mBannerFile = do
   storageBackend <- asks getter
   mAwsEnv <- asks getter
@@ -121,23 +108,11 @@ processShowArtworkUploads showSlug mLogoFile mBannerFile = do
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   Slug ->
   Maybe Cookie ->
   ShowEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer slug cookie editForm =
   handleRedirectErrors "Show edit" apiLinks.rootGet $ do
     -- 1. Require authentication and authorization (host of show or staff+)
@@ -152,15 +127,8 @@ handler _tracer slug cookie editForm =
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   Slug ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShowOrNotFound slug =
   execQuerySpan (Shows.getShowBySlug slug) >>= \case
     Left err -> throwDatabaseError err
@@ -168,22 +136,10 @@ fetchShowOrNotFound slug =
     Right (Just showModel) -> pure showModel
 
 updateShow ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   UserMetadata.Model ->
   Shows.Model ->
   ShowEditForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 updateShow userMetadata showModel editForm = do
   let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
       editUrl = dashboardShowEditGetUrl showModel.slug
@@ -385,15 +341,9 @@ parseTimeOfDay t = parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack t)
 
 -- | Check for schedule conflicts with other shows
 checkScheduleConflicts ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has Tracer env
-  ) =>
   Shows.Id ->
   [ScheduleSlotInfo] ->
-  m (Either Text ())
+  AppM (Either Text ())
 checkScheduleConflicts showId = go
   where
     go [] = pure (Right ())
@@ -416,18 +366,9 @@ checkScheduleConflicts showId = go
 -- then creates new templates effective from today. This preserves historical schedule
 -- data for tracking purposes.
 updateSchedulesForShow ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Shows.Id ->
   [ScheduleSlotInfo] ->
-  m ()
+  AppM ()
 updateSchedulesForShow showId newSchedules = do
   today <- liftIO $ utctDay <$> getCurrentTime
 
@@ -502,18 +443,9 @@ updateSchedulesForShow showId newSchedules = do
 -- 2. Adds hosts that are new to the list
 -- 3. Promotes users to Host role if they aren't already Host or higher
 updateHostsForShow ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Shows.Id ->
   [User.Id] ->
-  m ()
+  AppM ()
 updateHostsForShow showId newHostIds = do
   let newHostSet = Set.fromList newHostIds
 
@@ -565,15 +497,9 @@ updateHostsForShow showId newHostIds = do
 -- Clears all existing tags and re-adds tags from the comma-separated input.
 -- Uses a create-or-reuse pattern: if a tag exists, it's reused; otherwise created.
 processShowTags ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadDB m
-  ) =>
   Shows.Id ->
   Maybe Text ->
-  m ()
+  AppM ()
 processShowTags showId mTagsText = do
   -- First, remove all existing tags from this show
   _ <- execQuerySpan (Shows.removeAllTagsFromShow showId)

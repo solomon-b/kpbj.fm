@@ -2,10 +2,10 @@ module API.Media.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad.Reader (MonadReader)
+import App.Monad (AppM)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
-handler :: (MonadReader env m) => Servant.ServerT Servant.Raw m
+handler :: Servant.ServerT Servant.Raw AppM
 handler = Servant.serveDirectoryWebApp "/tmp/kpbj"

@@ -8,22 +8,16 @@ import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad (unless)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -31,20 +25,11 @@ import OpenTelemetry.Trace (Tracer)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Tracer ->
   Events.Id ->
   Slug ->
   Maybe Cookie ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer eventId _eventSlug cookie =
   handleBannerErrors "Event delete" $ do
     -- 1. Require authentication and staff role
@@ -66,16 +51,8 @@ handler _tracer eventId _eventSlug cookie =
 -- Helpers
 
 fetchEvent ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadThrow m
-  ) =>
   Events.Id ->
-  m Events.Model
+  AppM Events.Model
 fetchEvent eventId =
   execQuerySpan (Events.getEventById eventId) >>= \case
     Left err -> throwDatabaseError err
@@ -83,16 +60,8 @@ fetchEvent eventId =
     Right (Just event) -> pure event
 
 deleteEvent ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadThrow m
-  ) =>
   Events.Model ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 deleteEvent event =
   execQuerySpan (Events.deleteEvent event.emId) >>= \case
     Left err -> throwDatabaseError err

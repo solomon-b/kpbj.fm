@@ -16,22 +16,18 @@ where
 --------------------------------------------------------------------------------
 
 import Amazonka qualified as AWS
+import App.Monad (AppM)
 import Control.Exception qualified
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
-import Data.Has (Has)
+import Control.Monad.Reader (asks)
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.StorageBackend (LocalStorageConfig (..), StorageBackend (..))
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Storage.S3 qualified as S3
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
-import OpenTelemetry.Trace (Tracer)
 import System.Directory (removeFile)
 import System.FilePath ((</>))
 
@@ -45,18 +41,7 @@ import System.FilePath ((</>))
 -- 3. Deletes the database record
 --
 -- Returns the count of cleaned up uploads.
-cleanupExpiredUploads ::
-  ( MonadIO m,
-    MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
-  m Int
+cleanupExpiredUploads :: AppM Int
 cleanupExpiredUploads = do
   backend <- asks (Has.getter @StorageBackend)
   mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
@@ -78,18 +63,10 @@ cleanupExpiredUploads = do
 
 -- | Clean up a list of expired uploads.
 cleanupUploads ::
-  ( MonadIO m,
-    MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env
-  ) =>
   StorageBackend ->
   Maybe AWS.Env ->
   [StagedUploads.Model] ->
-  m Int
+  AppM Int
 cleanupUploads backend mAwsEnv uploads = do
   cleanedCount <- go 0 uploads
   pure cleanedCount
@@ -101,18 +78,10 @@ cleanupUploads backend mAwsEnv uploads = do
 
 -- | Clean up a single expired upload.
 cleanupSingleUpload ::
-  ( MonadIO m,
-    MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env
-  ) =>
   StorageBackend ->
   Maybe AWS.Env ->
   StagedUploads.Model ->
-  m Bool
+  AppM Bool
 cleanupSingleUpload backend mAwsEnv upload = do
   let uploadId = StagedUploads.id upload
       storagePath = StagedUploads.storagePath upload

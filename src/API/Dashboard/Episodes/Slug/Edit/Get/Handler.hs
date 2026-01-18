@@ -11,25 +11,21 @@ import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad (unless)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -39,7 +35,6 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -49,23 +44,12 @@ import Servant qualified
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env,
-    Has StorageBackend env
-  ) =>
   Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
   handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
     -- 1. Require authentication
@@ -106,19 +90,11 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
 type EpisodeContext = (Episodes.Model, Shows.Model, [EpisodeTrack.Model], Bool)
 
 fetchEpisodeContext ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadThrow m
-  ) =>
   Slug ->
   Episodes.EpisodeNumber ->
   User.Model ->
   UserMetadata.Model ->
-  m EpisodeContext
+  AppM EpisodeContext
 fetchEpisodeContext showSlug episodeNumber user userMetadata = do
   mResult <- execTransactionSpan $ runMaybeT $ do
     episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
@@ -135,15 +111,8 @@ fetchEpisodeContext showSlug episodeNumber user userMetadata = do
     Right (Just ctx) -> pure ctx
 
 fetchEpisodeTags ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
   Episodes.Id ->
-  m [EpisodeTags.Model]
+  AppM [EpisodeTags.Model]
 fetchEpisodeTags episodeId =
   execQuerySpan (Episodes.getTagsForEpisode episodeId) >>= \case
     Left err -> do
@@ -152,15 +121,8 @@ fetchEpisodeTags episodeId =
     Right tags -> pure tags
 
 fetchCurrentSlot ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
   Episodes.Model ->
-  m (Maybe ShowSchedule.UpcomingShowDate)
+  AppM (Maybe ShowSchedule.UpcomingShowDate)
 fetchCurrentSlot episode =
   execQuerySpan (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId) >>= \case
     Left err -> do
@@ -171,15 +133,8 @@ fetchCurrentSlot episode =
       pure $ Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate episode.scheduledAt
 
 fetchUpcomingDates ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
   Shows.Id ->
-  m [ShowSchedule.UpcomingShowDate]
+  AppM [ShowSchedule.UpcomingShowDate]
 fetchUpcomingDates showId =
   execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showId (Limit 52)) >>= \case
     Left err -> do
@@ -188,16 +143,9 @@ fetchUpcomingDates showId =
     Right dates -> pure dates
 
 fetchUserShows ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m
-  ) =>
   User.Model ->
   UserMetadata.Model ->
-  m [Shows.Model]
+  AppM [Shows.Model]
 fetchUserShows user userMetadata = do
   let query =
         if UserMetadata.isAdmin userMetadata.mUserRole

@@ -8,19 +8,13 @@ import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotFound)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -28,20 +22,11 @@ import OpenTelemetry.Trace (Tracer)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Tracer ->
   BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer postId _postSlug cookie =
   handleBannerErrors "Blog delete" $ do
     -- 1. Require authentication
@@ -66,16 +51,8 @@ handler _tracer postId _postSlug cookie =
 -- Inline Helpers
 
 fetchBlogPost ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadThrow m
-  ) =>
   BlogPosts.Id ->
-  m BlogPosts.Model
+  AppM BlogPosts.Model
 fetchBlogPost postId =
   execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
     Left err -> throwDatabaseError err
@@ -83,16 +60,8 @@ fetchBlogPost postId =
     Right (Just post) -> pure post
 
 execDeleteBlogPost ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    MonadUnliftIO m,
-    MonadThrow m
-  ) =>
   BlogPosts.Model ->
-  m ()
+  AppM ()
 execDeleteBlogPost blogPost =
   execQuerySpan (BlogPosts.deleteBlogPost blogPost.bpmId) >>= \case
     Left err -> throwDatabaseError err

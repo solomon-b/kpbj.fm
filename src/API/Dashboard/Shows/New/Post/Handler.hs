@@ -8,19 +8,17 @@ module API.Dashboard.Shows.New.Post.Handler (handler) where
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..), ScheduleSlotInfo (..))
 import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
-import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (handleRedirectErrors)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (forM_, void)
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -30,9 +28,7 @@ import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -41,7 +37,6 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -64,22 +59,10 @@ dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail 
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   Maybe Cookie ->
   NewShowForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer cookie form =
   handleRedirectErrors "Show creation" apiLinks.rootGet $ do
     -- 1. Require authentication and admin role
@@ -128,18 +111,10 @@ validateNewShow form = do
 
 -- | Process logo/banner file uploads
 processShowArtworkUploads ::
-  ( MonadUnliftIO m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadMask m,
-    MonadIO m,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Slug.Slug ->
   Maybe (FileData Mem) ->
   Maybe (FileData Mem) ->
-  m (Either Text (Maybe Text, Maybe Text))
+  AppM (Either Text (Maybe Text, Maybe Text))
 processShowArtworkUploads showSlug mLogoFile mBannerFile = do
   -- TODO: Why is the aws env separate from the storage backend?
   storageBackend <- asks getter
@@ -178,21 +153,9 @@ processShowArtworkUploads showSlug mLogoFile mBannerFile = do
 
 -- | Handle show creation after validation passes
 handleShowCreation ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Shows.Insert ->
   NewShowForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handleShowCreation showData form = do
   -- Parse schedules first to check for conflicts before creating the show
   case parseSchedules (nsfSchedulesJson form) of
@@ -260,19 +223,9 @@ handleShowCreation showData form = do
 
 -- | Assign hosts to a show and auto-promote regular users to Host role
 assignHostsToShow ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Shows.Id ->
   [User.Id] ->
-  m ()
+  AppM ()
 assignHostsToShow showId hostIds = do
   -- Make the first host the primary host
   forM_ (zip hostIds [0 :: Int ..]) $ \(userId, idx) -> do
@@ -296,18 +249,8 @@ assignHostsToShow showId hostIds = do
 
 -- | Promote a regular User to Host role if they are not already Host/Staff/Admin
 promoteUserToHostIfNeeded ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   User.Id ->
-  m ()
+  AppM ()
 promoteUserToHostIfNeeded userId = do
   execQuerySpan (UserMetadata.getUserMetadata userId) >>= \case
     Left dbError ->
@@ -332,15 +275,9 @@ promoteUserToHostIfNeeded userId = do
 
 -- | Process comma-separated tags and associate them with a show
 processShowTags ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadDB m
-  ) =>
   Shows.Id ->
   Maybe Text ->
-  m ()
+  AppM ()
 processShowTags _ Nothing = pure ()
 processShowTags showId (Just tagsText) = do
   let tagNames = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," tagsText
@@ -392,15 +329,9 @@ parseTimeOfDay t = parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack t)
 --
 -- For new show creation, pass Shows.Id 0 to check against ALL active shows.
 checkScheduleConflicts ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has Tracer env
-  ) =>
   Shows.Id ->
   [ScheduleSlotInfo] ->
-  m (Either Text ())
+  AppM (Either Text ())
 checkScheduleConflicts showId = go
   where
     go [] = pure (Right ())
@@ -419,19 +350,9 @@ checkScheduleConflicts showId = go
 
 -- | Create schedules for a newly created show
 createSchedulesForShow ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadMask m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env
-  ) =>
   Shows.Id ->
   [ScheduleSlotInfo] ->
-  m ()
+  AppM ()
 createSchedulesForShow showId slots = do
   today <- liftIO $ utctDay <$> getCurrentTime
 
