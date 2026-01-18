@@ -12,30 +12,22 @@ import API.Types (DashboardShowsRoutes (..), Routes (..))
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Data.Either (fromRight)
-import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isNothing, listToMaybe)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Search (Search (..))
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
-import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
@@ -43,23 +35,13 @@ import OpenTelemetry.Trace (Tracer)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Tracer ->
   Maybe Int64 ->
   Maybe (Filter Text) ->
   Maybe (Filter Shows.Status) ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
@@ -147,21 +129,11 @@ filtersUI queryFilter statusFilter = do
     selectedWhen cond = [Lucid.selected_ "selected" | cond]
 
 getShowResults ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Limit ->
   Offset ->
   Maybe Text ->
   Maybe Shows.Status ->
-  m [Shows.ShowWithHostInfo]
+  AppM [Shows.ShowWithHostInfo]
 getShowResults limit offset queryFilter statusFilter = do
   showsResult <-
     case (queryFilter, statusFilter) of

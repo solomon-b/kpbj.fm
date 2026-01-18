@@ -10,31 +10,26 @@ import API.Shows.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Shows.Get.Templates.Page (template)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Coerce (coerce)
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
 import Domain.Types.ShowSortBy (ShowSortBy (..))
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
@@ -52,17 +47,6 @@ rootGetUrl = Links.linkURI apiLinks.rootGet
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env,
-    Has StorageBackend env
-  ) =>
   Tracer ->
   Maybe PageNumber ->
   Maybe (Filter ShowTags.Id) ->
@@ -71,7 +55,7 @@ handler ::
   Maybe (Filter ShowSortBy) ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSearchFilter maybeSortByFilter (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
   storageBackend <- asks getter
   let maybeTagId = maybeTagIdFilter >>= getFilter
@@ -112,19 +96,13 @@ handler _tracer (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSe
                 renderTemplate htmxRequest mUserInfo showsTemplate
 
 getShows ::
-  ( MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    Has Tracer env
-  ) =>
   Limit ->
   Offset ->
   Maybe Search ->
   Maybe ShowTags.Id ->
   Maybe Shows.Status ->
   ShowSortBy ->
-  m (Either HSQL.Pool.UsageError [Shows.Model])
+  AppM (Either HSQL.Pool.UsageError [Shows.Model])
 getShows limit offset maybeSearch maybeTagId maybeStatus sortBy = do
   case maybeSearch of
     Just (Search searchTerm)

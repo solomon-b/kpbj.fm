@@ -25,19 +25,16 @@ where
 --------------------------------------------------------------------------------
 
 import Amazonka qualified as AWS
+import App.Monad (AppM)
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
 import Data.ByteString qualified as BS
-import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.FileStorage (BucketType (..))
 import Domain.Types.FileUpload (UploadError (..))
 import Domain.Types.StorageBackend (StorageBackend (..))
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
@@ -45,9 +42,7 @@ import Effects.StagedUploadCleanup (deleteFile)
 import Effects.StagedUploads (generateSecureToken)
 import Effects.Storage.Local qualified as Local (storeFileStagingLocal)
 import Effects.Storage.S3 qualified as S3 (storeFileStagingS3)
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
-import OpenTelemetry.Trace (Tracer)
 import System.IO (hClose)
 import System.IO.Temp qualified as Temp
 
@@ -88,15 +83,6 @@ data ProcessConfig = ProcessConfig
 -- 3. Creates the staged upload database record
 -- 4. Cleans up on failure
 processStagedUpload ::
-  ( MonadIO m,
-    MonadMask m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env
-  ) =>
   ProcessConfig ->
   StorageBackend ->
   Maybe AWS.Env ->
@@ -104,7 +90,7 @@ processStagedUpload ::
   Text -> -- Original filename
   Text -> -- Browser MIME type
   BS.ByteString -> -- File content
-  m (Either Text (StagedUploads.Token, Text, Text, Int64))
+  AppM (Either Text (StagedUploads.Token, Text, Text, Int64))
 -- Returns: (token, originalName, mimeType, fileSize)
 processStagedUpload config backend mAwsEnv userId originalName browserMimeType content = do
   let fileSize = fromIntegral $ BS.length content

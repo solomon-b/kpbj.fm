@@ -11,23 +11,19 @@ import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.Reader (asks)
 import Data.Bool (bool)
 import Data.Either (fromRight)
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -38,29 +34,17 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
-import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env,
-    Has StorageBackend env
-  ) =>
   Tracer ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer slug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show edit" apiLinks.rootGet $ do
     -- 1. Require authentication and authorization (host of show or staff+)
@@ -97,15 +81,8 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) =
 
 -- | Fetch show by slug, throwing NotFound if not found
 fetchShowOrNotFound ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   Slug ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShowOrNotFound slug =
   execQuerySpan (Shows.getShowBySlug slug) >>= \case
     Left err -> throwDatabaseError err
@@ -114,16 +91,9 @@ fetchShowOrNotFound slug =
 
 -- | Fetch shows for user based on role
 fetchShowsForUser ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   User.Model ->
   UserMetadata.Model ->
-  m [Shows.Model]
+  AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
     then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
@@ -131,15 +101,8 @@ fetchShowsForUser user userMetadata =
 
 -- | Fetch staff-only data for the edit form (schedules and hosts)
 fetchStaffData ::
-  ( Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadDB m,
-    Has Tracer env
-  ) =>
   Shows.Id ->
-  m (Either HSQL.Pool.UsageError (Text, [UserMetadata.UserWithMetadata], Set User.Id))
+  AppM (Either HSQL.Pool.UsageError (Text, [UserMetadata.UserWithMetadata], Set User.Id))
 fetchStaffData showId = runDBTransaction $ do
   schedulesJson <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showId
   eligibleHosts <- TRX.statement () $ UserMetadata.getAllUsersWithPagination 1000 0

@@ -10,14 +10,12 @@ import API.Types
 import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
+import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (asks)
 import Data.Aeson qualified as Aeson
-import Data.Has (Has)
 import Data.Has qualified as Has
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
@@ -34,7 +32,6 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTracks
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -46,7 +43,6 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Effects.StagedUploads (claimAndRelocateUpload)
-import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -60,24 +56,11 @@ import Utils (partitionEithers)
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadIO m,
-    MonadMask m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   Slug ->
   Maybe Cookie ->
   EpisodeUploadForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler _tracer showSlug cookie form =
   handleRedirectErrors "Episode upload" apiLinks.rootGet $ do
     -- 1. Require authentication
@@ -92,15 +75,8 @@ handler _tracer showSlug cookie form =
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   Slug ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShowOrNotFound showSlug =
   execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
@@ -109,24 +85,11 @@ fetchShowOrNotFound showSlug =
 
 -- | Process the episode upload and return appropriate response
 processEpisodeUploadAndRespond ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadIO m,
-    MonadMask m,
-    MonadCatch m,
-    MonadIO m,
-    MonadUnliftIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   UserMetadata.Model ->
   User.Model ->
   Shows.Model ->
   EpisodeUploadForm ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 processEpisodeUploadAndRespond userMetadata user showModel form = do
   let newEpisodeUri = Links.linkURI $ dashboardShowsLinks.episodeNewGet showModel.slug
       newEpisodeUrl = [i|/#{newEpisodeUri}|] :: Text
@@ -142,16 +105,9 @@ processEpisodeUploadAndRespond userMetadata user showModel form = do
 
 -- | Handle successful upload by redirecting to episode page with banner
 handleUploadSuccess ::
-  ( Log.MonadLog m,
-    MonadDB m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env
-  ) =>
   Shows.Model ->
   Episodes.Id ->
-  m (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handleUploadSuccess showModel episodeId = do
   -- Fetch the created episode
   execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
@@ -171,22 +127,11 @@ handleUploadSuccess showModel episodeId = do
 
 -- | Process episode upload form
 processEpisodeUpload ::
-  ( MonadIO m,
-    MonadMask m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   UserMetadata.Model ->
   User.Model ->
   Shows.Model ->
   EpisodeUploadForm ->
-  m (Either Text Episodes.Id)
+  AppM (Either Text Episodes.Id)
 processEpisodeUpload userMetadata user showModel form = do
   -- Get storage configuration from context
   backend <- asks (Has.getter @StorageBackend)
@@ -347,17 +292,6 @@ data ParsedEpisodeData = ParsedEpisodeData
 --
 -- Artwork uses direct form submission (small files don't benefit from staged uploads).
 processFileUploads ::
-  ( MonadIO m,
-    MonadMask m,
-    MonadDB m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env,
-    Log.MonadLog m
-  ) =>
   -- | Storage backend
   StorageBackend ->
   -- | AWS environment (for S3)
@@ -377,7 +311,7 @@ processFileUploads ::
   -- | Audio token (staged upload)
   Maybe Text ->
   -- | (audioPath, artworkPath)
-  m (Either Text (Maybe Text, Maybe Text))
+  AppM (Either Text (Maybe Text, Maybe Text))
 processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate status mArtworkFile mAudioToken = do
   -- Get the air date for file organization (use current time as fallback)
   airDate <- case mScheduledDate of
@@ -426,17 +360,9 @@ processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate st
 
 -- | Insert track listings for episode
 insertTracks ::
-  ( MonadIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env
-  ) =>
   Episodes.Id ->
   [TrackInfo] ->
-  m (Either Text [EpisodeTracks.Id])
+  AppM (Either Text [EpisodeTracks.Id])
 insertTracks episodeId tracks = do
   results <- mapM (insertTrack episodeId) (zip [1 ..] tracks)
   let (errors, trackIds) = partitionEithers results
@@ -448,17 +374,9 @@ insertTracks episodeId tracks = do
       pure $ Left "Failed to insert some tracks"
   where
     insertTrack ::
-      ( MonadIO m,
-        MonadDB m,
-        Log.MonadLog m,
-        MonadReader env m,
-        MonadUnliftIO m,
-        Has HSQL.Pool.Pool env,
-        Has Tracer env
-      ) =>
       Episodes.Id ->
       (Int64, TrackInfo) ->
-      m (Either Text EpisodeTracks.Id)
+      AppM (Either Text EpisodeTracks.Id)
     insertTrack epId (trackNum, track) = do
       let trackInsert =
             EpisodeTracks.Insert

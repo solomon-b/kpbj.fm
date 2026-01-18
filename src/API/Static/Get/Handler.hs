@@ -3,13 +3,12 @@ module API.Static.Get.Handler where
 --------------------------------------------------------------------------------
 
 import App.Config (Environment (..))
-import Control.Monad.Reader (MonadReader)
-import Data.Has (Has)
+import App.Monad (AppM)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
-handler :: (MonadReader env m, Has Environment env) => Environment -> Servant.ServerT Servant.Raw m
+handler :: Environment -> Servant.ServerT Servant.Raw AppM
 handler = \case
   -- TODO: Safe Links here?
   Production -> Servant.serveDirectoryWebApp "/static"

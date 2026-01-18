@@ -13,49 +13,30 @@ import API.Uploads.Audio.Post.Route (UploadApiResponse (..))
 import API.Uploads.Shared (ExtensionMapper, ProcessConfig (..), processStagedUpload)
 import API.Uploads.Types (AudioUploadForm (..), UploadResponse (..))
 import Amazonka qualified as AWS
-import App.Config (Hostname (..))
 import App.Handler.Combinators (requireAuth)
+import App.Monad (AppM)
 import Control.Exception (SomeException)
-import Control.Monad.Catch (MonadCatch, MonadMask, try)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.Catch (try)
+import Control.Monad.Reader (asks)
 import Data.ByteString.Lazy qualified as BSL
-import Data.Has (Has)
 import Data.Has qualified as Has
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.CSRF (validateOriginStrict)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Tables.User qualified as User
 import Effects.MimeTypeValidation qualified as MimeValidation
-import Hasql.Pool qualified as HSQL.Pool
-import Log qualified
 import OpenTelemetry.Trace (Tracer)
 import Servant.Multipart (fdFileCType, fdFileName, fdPayload)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadIO m,
-    MonadMask m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadDB m,
-    Has.Has Hostname env,
-    Has HSQL.Pool.Pool env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   Tracer ->
   Maybe Cookie ->
   Maybe Origin ->
   AudioUploadForm ->
-  m UploadApiResponse
+  AppM UploadApiResponse
 handler _tracer cookie mOrigin form = do
   -- Validate CSRF (Origin header required for XHR-only endpoints)
   -- Localhost origins (any port) are automatically allowed for development.
@@ -73,20 +54,9 @@ handler _tracer cookie mOrigin form = do
 
 -- | Process the audio file upload.
 processAudioUpload ::
-  ( MonadIO m,
-    MonadMask m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    Has HSQL.Pool.Pool env,
-    Has Tracer env,
-    Has StorageBackend env,
-    Has (Maybe AWS.Env) env
-  ) =>
   User.Model ->
   AudioUploadForm ->
-  m UploadApiResponse
+  AppM UploadApiResponse
 processAudioUpload user form = do
   backend <- asks (Has.getter @StorageBackend)
   mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))

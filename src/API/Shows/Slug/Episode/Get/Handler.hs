@@ -8,26 +8,19 @@ module API.Shows.Slug.Episode.Get.Handler where
 import API.Shows.Slug.Episode.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError, throwDatabaseError, throwNotFound)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader, asks)
+import App.Monad (AppM)
+import Control.Monad.Reader (asks)
 import Data.Either (fromRight)
 import Data.Functor ((<&>))
-import Data.Has (Has, getter)
+import Data.Has (getter)
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
-import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
 
@@ -35,23 +28,12 @@ import OpenTelemetry.Trace (Tracer)
 
 -- | Handler for episode detail page by show slug and episode number.
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env,
-    Has StorageBackend env
-  ) =>
   Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
   backend <- asks getter
@@ -73,16 +55,9 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
 -- Data Fetching
 
 fetchEpisode ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadThrow m,
-    Has Tracer env
-  ) =>
   Slug ->
   Episodes.EpisodeNumber ->
-  m Episodes.Model
+  AppM Episodes.Model
 fetchEpisode showSlug episodeNumber =
   execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
     Left err -> throwDatabaseError err
@@ -90,15 +65,8 @@ fetchEpisode showSlug episodeNumber =
     Right (Just episode) -> pure episode
 
 fetchShow ::
-  ( MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadThrow m,
-    Has Tracer env
-  ) =>
   Shows.Id ->
-  m Shows.Model
+  AppM Shows.Model
 fetchShow showId =
   execQuerySpan (Shows.getShowById showId) >>= \case
     Left err -> throwDatabaseError err
@@ -109,13 +77,12 @@ fetchShow showId =
 -- Error Handling
 
 handleEpisodePageErrors ::
-  (MonadCatch m, Log.MonadLog m, MonadReader env m, Has (Maybe GoogleAnalyticsId) env) =>
   HxRequest ->
   Maybe UserMetadata.Model ->
   Slug ->
   Episodes.EpisodeNumber ->
-  m (Lucid.Html ()) ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ()) ->
+  AppM (Lucid.Html ())
 handleEpisodePageErrors hxRequest mUserInfo showSlug episodeNumber action =
   action `catchHandlerError` \err -> do
     logHandlerError "Episode page" err

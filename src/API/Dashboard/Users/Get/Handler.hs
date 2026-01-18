@@ -13,13 +13,10 @@ import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
+import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.IO.Class (liftIO)
 import Data.Either (fromRight)
-import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isNothing, listToMaybe, maybeToList)
 import Data.String.Interpolate (i)
@@ -27,18 +24,14 @@ import Data.Text (Text)
 import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.UserSortBy (UserSortBy (..))
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL.Pool
-import Log qualified
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
 import OpenTelemetry.Trace (Tracer)
@@ -47,16 +40,6 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 handler ::
-  ( Has Tracer env,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadUnliftIO m,
-    MonadCatch m,
-    MonadIO m,
-    MonadDB m,
-    Has HSQL.Pool.Pool env,
-    Has (Maybe GoogleAnalyticsId) env
-  ) =>
   Tracer ->
   Maybe Int64 ->
   Maybe (Filter Text) ->
@@ -64,7 +47,7 @@ handler ::
   Maybe (Filter UserSortBy) ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  m (Lucid.Html ())
+  AppM (Lucid.Html ())
 handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Users list" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
@@ -155,19 +138,12 @@ filtersUI queryFilter roleFilter sortBy = do
     selectedWhen cond = [Lucid.selected_ "selected" | cond]
 
 fetchUsers ::
-  ( MonadUnliftIO m,
-    MonadDB m,
-    Log.MonadLog m,
-    MonadReader env m,
-    MonadCatch m,
-    Has Tracer env
-  ) =>
   Limit ->
   Offset ->
   Maybe Text ->
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
-  m [UserMetadata.UserWithMetadata]
+  AppM [UserMetadata.UserWithMetadata]
 fetchUsers limit offset maybeQuery (maybeToList -> roles) sortBy = do
   result <- case maybeQuery of
     Just query ->
