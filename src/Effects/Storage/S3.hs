@@ -3,6 +3,8 @@
 module Effects.Storage.S3
   ( -- * S3 Storage Operations
     storeFileS3,
+    storeFileStagingS3,
+    moveFileS3,
     deleteFileS3,
 
     -- * Error Types
@@ -23,7 +25,7 @@ import Control.Monad.Trans.Resource (runResourceT)
 import Data.ByteString qualified as BS
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.FileStorage (BucketType, DateHierarchy, ResourceType, buildStorageKey)
+import Domain.Types.FileStorage (BucketType, DateHierarchy, ResourceType, buildStagingKey, buildStorageKey)
 import Domain.Types.StorageBackend (S3StorageConfig (..))
 
 --------------------------------------------------------------------------------
@@ -145,3 +147,81 @@ deleteFileS3 awsEnv config objectKey = liftIO $ do
   case result of
     Right _ -> pure $ Right ()
     Left err -> pure $ Left $ formatS3Error $ classifyS3Error err
+
+-- | Store a file to a flat staging area in S3 (no date hierarchy).
+--
+-- Used for staged uploads that will be moved to their final location
+-- when claimed.
+storeFileStagingS3 ::
+  (MonadIO m) =>
+  AWS.Env ->
+  S3StorageConfig ->
+  BucketType ->
+  -- | Subdirectory within bucket (e.g., "staging")
+  Text ->
+  -- | Filename
+  Text ->
+  -- | File content
+  BS.ByteString ->
+  -- | MIME type
+  Text ->
+  m (Either Text Text)
+storeFileStagingS3 awsEnv config bucketType subdir filename content mimeType = liftIO $ do
+  let objectKey = buildStagingKey bucketType subdir filename
+      bucket = S3.BucketName (s3BucketName config)
+      key = S3.ObjectKey objectKey
+      body = AWS.toBody content
+
+  result <- Exception.try $ runResourceT $ do
+    let req =
+          S3.newPutObject bucket key body
+            & putObject_contentType ?~ mimeType
+    AWS.send awsEnv req
+
+  case result of
+    Right _ -> pure $ Right objectKey
+    Left err -> pure $ Left $ formatS3Error $ classifyS3Error err
+
+-- | Move a file from one S3 location to another.
+--
+-- S3 doesn't have a native move operation, so this copies the object
+-- to the new location and then deletes the original.
+moveFileS3 ::
+  (MonadIO m) =>
+  AWS.Env ->
+  S3StorageConfig ->
+  -- | Source object key
+  Text ->
+  -- | Destination bucket type
+  BucketType ->
+  -- | Destination resource type
+  ResourceType ->
+  -- | Destination date hierarchy
+  DateHierarchy ->
+  -- | Destination filename
+  Text ->
+  m (Either Text Text)
+moveFileS3 awsEnv config sourceKey destBucketType destResourceType destDateHier destFilename = liftIO $ do
+  let destKey = buildStorageKey destBucketType destResourceType destDateHier destFilename
+      bucket = S3.BucketName (s3BucketName config)
+      srcKeyObj = S3.ObjectKey sourceKey
+      destKeyObj = S3.ObjectKey destKey
+      -- CopySource format: "bucket/key"
+      copySource = s3BucketName config <> "/" <> sourceKey
+
+  -- Copy to new location
+  copyResult <- Exception.try $ runResourceT $ do
+    let req = S3.newCopyObject bucket copySource destKeyObj
+    AWS.send awsEnv req
+
+  case copyResult of
+    Left err -> pure $ Left $ formatS3Error $ classifyS3Error err
+    Right _ -> do
+      -- Delete original
+      deleteResult <- Exception.try $ runResourceT $ do
+        let req = S3.newDeleteObject bucket srcKeyObj
+        AWS.send awsEnv req
+
+      case deleteResult of
+        Left err -> pure $ Left $ "File copied but failed to delete original: " <> formatS3Error (classifyS3Error err)
+        Right _ -> pure $ Right destKey

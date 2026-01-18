@@ -1,19 +1,25 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Effects.Storage.Local
   ( -- * Local Storage Operations
     storeFileLocal,
+    storeFileStagingLocal,
+    moveFileLocal,
     buildLocalPath,
+    buildLocalStagingPath,
   )
 where
 
 --------------------------------------------------------------------------------
 
+import Control.Exception qualified as Exception
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString qualified as BS
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.FileStorage (BucketType, DateHierarchy (..), ResourceType, bucketTypePath, buildStorageKey, resourceTypePath)
+import Domain.Types.FileStorage (BucketType, DateHierarchy (..), ResourceType, bucketTypePath, buildStagingKey, buildStorageKey, resourceTypePath)
 import Domain.Types.StorageBackend (LocalStorageConfig (..))
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, renameFile)
 import System.FilePath (takeDirectory, (</>))
 
 --------------------------------------------------------------------------------
@@ -64,3 +70,81 @@ buildLocalPath config bucketType resourceType dateHier filename =
     </> Text.unpack (dateDay dateHier)
     </> Text.unpack (resourceTypePath resourceType)
     </> Text.unpack filename
+
+-- | Store a file to a flat staging area (no date hierarchy).
+--
+-- Used for staged uploads that will be moved to their final location
+-- when claimed.
+storeFileStagingLocal ::
+  (MonadIO m) =>
+  LocalStorageConfig ->
+  BucketType ->
+  -- | Subdirectory within bucket (e.g., "staging")
+  Text ->
+  -- | Filename
+  Text ->
+  -- | File content
+  BS.ByteString ->
+  m (Either Text Text)
+storeFileStagingLocal config bucketType subdir filename content = liftIO $ do
+  let fullPath = buildLocalStagingPath config bucketType subdir filename
+      objectKey = buildStagingKey bucketType subdir filename
+
+  -- Create directory structure
+  createDirectoryIfMissing True (takeDirectory fullPath)
+
+  -- Write file
+  BS.writeFile fullPath content
+
+  pure $ Right objectKey
+
+-- | Build the full local filesystem path for a staging file (no date hierarchy).
+--
+-- Example: /tmp/kpbj/temp/staging/abc123def456.mp3
+buildLocalStagingPath ::
+  LocalStorageConfig ->
+  BucketType ->
+  -- | Subdirectory within bucket
+  Text ->
+  -- | Filename
+  Text ->
+  FilePath
+buildLocalStagingPath config bucketType subdir filename =
+  localStorageRoot config
+    </> Text.unpack (bucketTypePath bucketType)
+    </> Text.unpack subdir
+    </> Text.unpack filename
+
+-- | Move a file from one storage location to another.
+--
+-- Used when claiming staged uploads to move them to their final location
+-- with the correct date hierarchy.
+moveFileLocal ::
+  (MonadIO m) =>
+  LocalStorageConfig ->
+  -- | Source object key (relative path)
+  Text ->
+  -- | Destination bucket type
+  BucketType ->
+  -- | Destination resource type
+  ResourceType ->
+  -- | Destination date hierarchy
+  DateHierarchy ->
+  -- | Destination filename
+  Text ->
+  m (Either Text Text)
+moveFileLocal config sourceKey destBucketType destResourceType destDateHier destFilename = liftIO $ do
+  let sourcePath = localStorageRoot config </> Text.unpack sourceKey
+      destPath = buildLocalPath config destBucketType destResourceType destDateHier destFilename
+      destKey = buildStorageKey destBucketType destResourceType destDateHier destFilename
+
+  -- Create destination directory
+  createDirectoryIfMissing True (takeDirectory destPath)
+
+  -- Move the file
+  result <- Exception.try $ renameFile sourcePath destPath
+  case result of
+    Left (err :: Exception.IOException) ->
+      pure $ Left $ "Failed to move file: " <> Text.pack (show err)
+    Right () ->
+      pure $ Right destKey

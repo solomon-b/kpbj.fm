@@ -26,10 +26,12 @@ import Data.Has (Has, getter)
 import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -47,7 +49,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (isEmptyUpload)
 import Effects.FileUpload qualified as FileUpload
-import Effects.StagedUploads (claimStagedUploadMaybe)
+import Effects.StagedUploads (claimAndRelocateUpload)
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
@@ -412,8 +414,9 @@ makeSuccessBanner warnings =
 
 -- | Process file uploads for episode editing
 --
--- Audio uses staged uploads only - file is uploaded via XHR before form submission,
--- and we receive a token to claim the upload.
+-- Audio uses staged uploads - file is uploaded via XHR before form submission,
+-- and we receive a token to claim the upload. The file is then moved from
+-- the staging area to its final location based on the episode's air date.
 --
 -- Artwork uses direct form submission (small files don't benefit from staged uploads).
 processFileUploads ::
@@ -441,9 +444,22 @@ processFileUploads userId showModel episode editForm = do
   currentTime <- liftIO getCurrentTime
   let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
 
-  -- Process audio: staged upload only (file uploaded via XHR, we receive a token)
+  -- Process audio: staged upload, then move to final location with air date
   audioResult <- case eefAudioToken editForm of
-    Just token -> claimStagedUploadMaybe userId token StagedUploads.EpisodeAudio
+    Just token -> do
+      -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
+      result <-
+        claimAndRelocateUpload
+          userId
+          token
+          StagedUploads.EpisodeAudio
+          AudioBucket
+          EpisodeAudio
+          episode.scheduledAt
+          (display showModel.slug)
+      pure $ case result of
+        Left err -> Left err
+        Right path -> Right (Just path)
     Nothing -> pure $ Right Nothing
 
   -- Process artwork: direct upload only (no staged upload for images)

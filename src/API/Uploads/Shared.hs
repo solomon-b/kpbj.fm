@@ -19,9 +19,6 @@ module API.Uploads.Shared
 
     -- * Extension Mapping
     ExtensionMapper,
-
-    -- * Common Helpers
-    storeFile,
   )
 where
 
@@ -37,8 +34,7 @@ import Data.Has (Has)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (getCurrentTime)
-import Domain.Types.FileStorage (BucketType (..), DateHierarchy, ResourceType (..), dateHierarchyFromTime, generateUniqueFilename)
+import Domain.Types.FileStorage (BucketType (..))
 import Domain.Types.FileUpload (UploadError (..))
 import Domain.Types.StorageBackend (StorageBackend (..))
 import Effects.Database.Class (MonadDB)
@@ -47,14 +43,13 @@ import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.StagedUploadCleanup (deleteFile)
 import Effects.StagedUploads (generateSecureToken)
-import Effects.Storage.Local qualified as Local
-import Effects.Storage.S3 qualified as S3
+import Effects.Storage.Local qualified as Local (storeFileStagingLocal)
+import Effects.Storage.S3 qualified as S3 (storeFileStagingS3)
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import OpenTelemetry.Trace (Tracer)
 import System.IO (hClose)
 import System.IO.Temp qualified as Temp
-import System.Random qualified as Random
 
 --------------------------------------------------------------------------------
 -- Types
@@ -121,8 +116,8 @@ processStagedUpload config backend mAwsEnv userId originalName browserMimeType c
       -- Generate cryptographically secure token
       token <- generateSecureToken
 
-      -- Store the file with validation
-      storeResult <- storeValidatedFile config backend mAwsEnv browserMimeType content
+      -- Store the file with validation (pass token for unique filename)
+      storeResult <- storeValidatedFile config backend mAwsEnv token browserMimeType content
 
       case storeResult of
         Left err -> do
@@ -157,16 +152,20 @@ processStagedUpload config backend mAwsEnv userId originalName browserMimeType c
 --------------------------------------------------------------------------------
 -- File Storage
 
--- | Store a file with MIME validation.
+-- | Store a file with MIME validation to a flat staging area.
+--
+-- Staged files are stored without date hierarchy since the final location
+-- (with correct air date) is determined when the upload is claimed.
 storeValidatedFile ::
   (MonadIO m, MonadMask m, Log.MonadLog m) =>
   ProcessConfig ->
   StorageBackend ->
   Maybe AWS.Env ->
+  StagedUploads.Token -> -- Token for unique filename
   Text -> -- Browser MIME type
   BS.ByteString -> -- Content
   m (Either UploadError (Text, Text))
-storeValidatedFile config backend mAwsEnv browserMimeType content = do
+storeValidatedFile config backend mAwsEnv token browserMimeType content = do
   let filename = Text.unpack (pcTempFilePrefix config) <> "upload"
 
   -- Write to temp file for MIME validation
@@ -180,15 +179,13 @@ storeValidatedFile config backend mAwsEnv browserMimeType content = do
     case mimeResult of
       Left err -> pure $ Left $ UnsupportedFileType err
       Right actualMimeType -> do
-        -- Get current time and generate unique filename
-        time <- liftIO getCurrentTime
-        seed <- liftIO Random.getStdGen
-        let dateHier = dateHierarchyFromTime time
-            extension = pcExtensionMapper config actualMimeType
-            uniqueFilename = generateUniqueFilename "staged" extension seed
+        -- Use token UUID for unique filename (cryptographically secure)
+        let extension = pcExtensionMapper config actualMimeType
+            tokenText = StagedUploads.unToken token
+            uniqueFilename = "staged_" <> tokenText <> "." <> extension
 
-        -- Store the file
-        storeResult <- storeFile backend mAwsEnv TempBucket TempUpload dateHier uniqueFilename content actualMimeType
+        -- Store the file to flat staging area
+        storeResult <- storeFileStaging backend mAwsEnv TempBucket "staging" uniqueFilename content actualMimeType
 
         case storeResult of
           Left err -> pure $ Left $ StorageError err
@@ -197,29 +194,32 @@ storeValidatedFile config backend mAwsEnv browserMimeType content = do
 --------------------------------------------------------------------------------
 -- Helpers
 
--- | Store a file using the configured storage backend.
-storeFile ::
+-- | Store a file to a flat staging area using the configured storage backend.
+--
+-- Unlike 'storeFile', this does not use date hierarchy - files are stored
+-- in a flat structure and will be moved to the correct location when claimed.
+storeFileStaging ::
   (MonadIO m) =>
   StorageBackend ->
   Maybe AWS.Env ->
   BucketType ->
-  ResourceType ->
-  DateHierarchy ->
+  -- | Subdirectory within bucket (e.g., "staging")
+  Text ->
   Text ->
   BS.ByteString ->
   Text ->
   m (Either Text Text)
-storeFile backend mAwsEnv bucketType resourceType dateHier filename content mimeType =
+storeFileStaging backend mAwsEnv bucketType subdir filename content mimeType =
   case backend of
     LocalStorage config -> do
-      result <- Local.storeFileLocal config bucketType resourceType dateHier filename content
+      result <- Local.storeFileStagingLocal config bucketType subdir filename content
       pure $ case result of
         Left err -> Left err
         Right objectKey -> Right objectKey
     S3Storage config -> case mAwsEnv of
       Nothing -> pure $ Left "S3 storage requires AWS environment"
       Just awsEnv -> do
-        result <- S3.storeFileS3 awsEnv config bucketType resourceType dateHier filename content mimeType
+        result <- S3.storeFileStagingS3 awsEnv config bucketType subdir filename content mimeType
         pure $ case result of
           Left err -> Left err
           Right objectKey -> Right objectKey
