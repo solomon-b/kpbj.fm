@@ -566,8 +566,7 @@ authWidget mUser =
   Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.textGray600, "dark:text-gray-400"]] $ do
     case mUser of
       Nothing -> do
-        Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200"] "Login"
-        Lucid.a_ [Lucid.href_ [i|/#{userRegisterGetUrl}|], hxGet_ [i|/#{userRegisterGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200"] "Sign Up"
+        Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200"] "Host Login"
       Just user -> do
         Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500"] "•"
         Lucid.span_ [class_ $ base [Tokens.textGray800, "dark:text-gray-200", Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
@@ -674,8 +673,7 @@ mobileNavLinks mUser =
     -- Auth links
     case mUser of
       Nothing -> do
-        mobileNavLink "Log In" userLoginGetUrl
-        mobileNavLink "Sign Up" userRegisterGetUrl
+        mobileNavLink "Host Login" userLoginGetUrl
       Just user -> do
         -- Dashboard is only available to hosts and above (Host, Staff, Admin)
         when (UserMetadata.isHostOrHigher user.mUserRole) $
