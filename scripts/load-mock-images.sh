@@ -27,20 +27,21 @@ echo "Target: $TARGET_ROOT"
 echo ""
 
 # Create target directory structure
+# Path structure: {bucket}/{resource}/{year}/{month}/{day}/
 echo "Creating directory structure..."
-mkdir -p "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/avatars"
-mkdir -p "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/logos"
-mkdir -p "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/banners"
-mkdir -p "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/artwork"
-mkdir -p "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/event-posters"
-mkdir -p "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/blog-heroes"
+mkdir -p "$TARGET_ROOT/images/avatars/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY"
+mkdir -p "$TARGET_ROOT/images/logos/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY"
+mkdir -p "$TARGET_ROOT/images/banners/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY"
+mkdir -p "$TARGET_ROOT/images/artwork/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY"
+mkdir -p "$TARGET_ROOT/images/event-posters/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY"
+mkdir -p "$TARGET_ROOT/images/blog-heroes/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY"
 
 # Copy avatars
 echo ""
 echo "Copying avatars..."
 if [ -d "$MOCK_DATA_DIR/avatars" ]; then
     count=$(find "$MOCK_DATA_DIR/avatars" -type f | wc -l)
-    cp "$MOCK_DATA_DIR/avatars/"* "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/avatars/" 2>/dev/null || true
+    cp "$MOCK_DATA_DIR/avatars/"* "$TARGET_ROOT/images/avatars/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/" 2>/dev/null || true
     echo "  Copied $count avatar files"
 else
     echo "  No avatars directory found"
@@ -51,7 +52,7 @@ echo ""
 echo "Copying show logos..."
 if [ -d "$MOCK_DATA_DIR/shows/logos" ]; then
     count=$(find "$MOCK_DATA_DIR/shows/logos" -type f | wc -l)
-    cp "$MOCK_DATA_DIR/shows/logos/"* "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/logos/" 2>/dev/null || true
+    cp "$MOCK_DATA_DIR/shows/logos/"* "$TARGET_ROOT/images/logos/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/" 2>/dev/null || true
     echo "  Copied $count logo files"
 else
     echo "  No show logos directory found"
@@ -62,7 +63,7 @@ echo ""
 echo "Copying show banners..."
 if [ -d "$MOCK_DATA_DIR/shows/banners" ]; then
     count=$(find "$MOCK_DATA_DIR/shows/banners" -type f | wc -l)
-    cp "$MOCK_DATA_DIR/shows/banners/"* "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/banners/" 2>/dev/null || true
+    cp "$MOCK_DATA_DIR/shows/banners/"* "$TARGET_ROOT/images/banners/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/" 2>/dev/null || true
     echo "  Copied $count banner files"
 else
     echo "  No show banners directory found"
@@ -73,7 +74,7 @@ echo ""
 echo "Copying episode artwork..."
 if [ -d "$MOCK_DATA_DIR/episodes/artwork" ]; then
     count=$(find "$MOCK_DATA_DIR/episodes/artwork" -type f | wc -l)
-    cp "$MOCK_DATA_DIR/episodes/artwork/"* "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/artwork/" 2>/dev/null || true
+    cp "$MOCK_DATA_DIR/episodes/artwork/"* "$TARGET_ROOT/images/artwork/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/" 2>/dev/null || true
     echo "  Copied $count artwork files"
 else
     echo "  No episode artwork directory found"
@@ -84,7 +85,7 @@ echo ""
 echo "Copying event posters..."
 if [ -d "$MOCK_DATA_DIR/events/posters" ]; then
     count=$(find "$MOCK_DATA_DIR/events/posters" -type f | wc -l)
-    cp "$MOCK_DATA_DIR/events/posters/"* "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/event-posters/" 2>/dev/null || true
+    cp "$MOCK_DATA_DIR/events/posters/"* "$TARGET_ROOT/images/event-posters/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/" 2>/dev/null || true
     echo "  Copied $count event poster files"
 else
     echo "  No event posters directory found"
@@ -95,7 +96,7 @@ echo ""
 echo "Copying blog hero images..."
 if [ -d "$MOCK_DATA_DIR/blog/heroes" ]; then
     count=$(find "$MOCK_DATA_DIR/blog/heroes" -type f | wc -l)
-    cp "$MOCK_DATA_DIR/blog/heroes/"* "$TARGET_ROOT/images/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/blog-heroes/" 2>/dev/null || true
+    cp "$MOCK_DATA_DIR/blog/heroes/"* "$TARGET_ROOT/images/blog-heroes/$MOCK_YEAR/$MOCK_MONTH/$MOCK_DAY/" 2>/dev/null || true
     echo "  Copied $count blog hero files"
 else
     echo "  No blog heroes directory found"
