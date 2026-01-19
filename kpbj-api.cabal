@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               kpbj-api
-version:            0.3.0.0
+version:            0.3.1.0
 license:            Apache-2.0
 license-file:       LICENSE_HASKELL
 author:             Solomon Bothwell
@@ -120,6 +120,8 @@ library
     API.Blog.Post.Get.Handler
     API.Blog.Post.Get.Route
     API.Blog.Post.Get.Templates.Page
+    API.Debug.Version.Get.Handler
+    API.Debug.Version.Get.Route
     API.Donate.Get.Handler
     API.Donate.Get.Route
     API.Donate.Get.Templates
@@ -432,6 +434,10 @@ library
     OrphanInstances.Rel8
     OrphanInstances.TimeOfDay
     Utils
+  autogen-modules:
+    Paths_kpbj_api
+  other-modules:
+    Paths_kpbj_api
   hs-source-dirs: src
   default-language: Haskell2010
   ghc-options:    -Wall -threaded -Werror -Wno-missed-extra-shared-lib -fwrite-ide-info

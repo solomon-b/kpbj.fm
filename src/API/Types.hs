@@ -84,6 +84,7 @@ import API.Dashboard.Users.Get.Route qualified as Dashboard.Users.Get
 import API.Dashboard.Users.Role.Patch.Route qualified as Dashboard.Users.Role.Patch
 import API.Dashboard.Users.Suspend.Post.Route qualified as Dashboard.Users.Suspend.Post
 import API.Dashboard.Users.Unsuspend.Post.Route qualified as Dashboard.Users.Unsuspend.Post
+import API.Debug.Version.Get.Route qualified as Debug.Version.Get
 import API.Donate.Get.Route qualified as Donate.Get
 import API.Events.Event.Get.Route qualified as Events.Event.Get
 import API.Events.Get.Route qualified as Events.Get
@@ -151,7 +152,9 @@ data Routes mode = Routes
     -- | @/dashboard/...@ - Admin dashboard routes
     dashboard :: mode :- NamedRoutes DashboardRoutes,
     -- | @/api/uploads/...@ - Staged file upload API routes
-    uploads :: mode :- NamedRoutes UploadRoutes
+    uploads :: mode :- NamedRoutes UploadRoutes,
+    -- | @GET /debug/version@ - Version info for debugging
+    debugVersion :: mode :- Debug.Version.Get.Route
   }
   deriving stock (Generic)
 
