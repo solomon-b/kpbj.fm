@@ -20,6 +20,7 @@ module API.Types
     DashboardBlogsRoutes (..),
     DashboardEventsRoutes (..),
     DashboardStationBlogRoutes (..),
+    DashboardStationIdsRoutes (..),
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
     UploadRoutes (..),
@@ -71,6 +72,10 @@ import API.Dashboard.StationBlog.Slug.Delete.Route qualified as Dashboard.Statio
 import API.Dashboard.StationBlog.Slug.Edit.Get.Route qualified as Dashboard.StationBlog.Slug.Edit.Get
 import API.Dashboard.StationBlog.Slug.Edit.Post.Route qualified as Dashboard.StationBlog.Slug.Edit.Post
 import API.Dashboard.StationBlog.Slug.Get.Route qualified as Dashboard.StationBlog.Slug.Get
+import API.Dashboard.StationIds.Get.Route qualified as Dashboard.StationIds.Get
+import API.Dashboard.StationIds.Id.Delete.Route qualified as Dashboard.StationIds.Id.Delete
+import API.Dashboard.StationIds.New.Get.Route qualified as Dashboard.StationIds.New.Get
+import API.Dashboard.StationIds.New.Post.Route qualified as Dashboard.StationIds.New.Post
 import API.Dashboard.Users.Delete.Route qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Route qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Route qualified as Dashboard.Users.Edit.Get
@@ -255,7 +260,9 @@ data DashboardHostRoutes mode = DashboardHostRoutes
   { -- | @/dashboard/episodes/...@ - Episode management routes
     episodes :: mode :- NamedRoutes DashboardEpisodesRoutes,
     -- | @/dashboard/blogs/...@ - Show blog management routes
-    blogs :: mode :- NamedRoutes DashboardBlogsRoutes
+    blogs :: mode :- NamedRoutes DashboardBlogsRoutes,
+    -- | @/dashboard/station-ids/...@ - Station ID management routes
+    stationIds :: mode :- NamedRoutes DashboardStationIdsRoutes
   }
   deriving stock (Generic)
 
@@ -397,6 +404,21 @@ data DashboardUsersRoutes mode = DashboardUsersRoutes
     unsuspendPost :: mode :- Dashboard.Users.Unsuspend.Post.Route,
     -- | @DELETE /dashboard/users/:id@ - Delete user
     delete :: mode :- Dashboard.Users.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard station ID management routes under @/dashboard/station-ids@.
+--
+-- Allows hosts to upload, view, play, and download station identification audio clips.
+data DashboardStationIdsRoutes mode = DashboardStationIdsRoutes
+  { -- | @GET /dashboard/station-ids@ - Station ID list
+    list :: mode :- Dashboard.StationIds.Get.Route,
+    -- | @GET /dashboard/station-ids/new@ - New station ID form
+    newGet :: mode :- Dashboard.StationIds.New.Get.Route,
+    -- | @POST /dashboard/station-ids/new@ - Create station ID
+    newPost :: mode :- Dashboard.StationIds.New.Post.Route,
+    -- | @DELETE /dashboard/station-ids/:id@ - Delete station ID
+    delete :: mode :- Dashboard.StationIds.Id.Delete.Route
   }
   deriving stock (Generic)
 

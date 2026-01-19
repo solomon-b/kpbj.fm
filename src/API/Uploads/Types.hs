@@ -72,4 +72,5 @@ parseUploadType multipartData =
   case lookupInput "upload_type" multipartData of
     Left _ -> Left "upload_type is required"
     Right "episode_audio" -> Right StagedUploads.EpisodeAudio
+    Right "station_id_audio" -> Right StagedUploads.StationIdAudio
     Right other -> Left $ "Invalid upload_type: " <> Text.unpack other
