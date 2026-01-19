@@ -70,8 +70,8 @@ loginFormConfig postUrl =
 loginForm :: Text -> FormBuilder
 loginForm emailValue = do
   textField "email" $ do
-    label "Email or Username"
-    placeholder "your@email.com or username"
+    label "Email"
+    placeholder "your@email.com"
     value emailValue
     required
 
