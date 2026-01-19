@@ -88,6 +88,7 @@ import API.Dashboard.Users.Get.Handler qualified as Dashboard.Users.Get
 import API.Dashboard.Users.Role.Patch.Handler qualified as Dashboard.Users.Role.Patch
 import API.Dashboard.Users.Suspend.Post.Handler qualified as Dashboard.Users.Suspend.Post
 import API.Dashboard.Users.Unsuspend.Post.Handler qualified as Dashboard.Users.Unsuspend.Post
+import API.Debug.Version.Get.Handler qualified as Debug.Version.Get
 import API.Donate.Get.Handler qualified as Donate.Get
 import API.Events.Event.Get.Handler qualified as Events.Event.Get
 import API.Events.Get.Handler qualified as Events.Get
@@ -162,7 +163,8 @@ server env =
       shows = showsRoutes,
       user = userRoutes,
       dashboard = dashboardRoutes,
-      uploads = uploadRoutes
+      uploads = uploadRoutes,
+      debugVersion = Debug.Version.Get.handler
     }
   where
     blogRoutes =
