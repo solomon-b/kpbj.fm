@@ -5,8 +5,7 @@ module API.User.Register.Post.Handler where
 import API.Links (userLinks)
 import API.Types
 import API.User.Register.Post.Route (Register (..), RegisterParsed (..))
-import App.Auth qualified as Auth
-import App.Errors (Forbidden (..), InternalServerError (..), throwErr)
+import App.Errors (Forbidden (..), throwErr)
 import App.Monad (AppM)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow (..))
@@ -19,7 +18,6 @@ import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Text.Display (Display, display)
 import Data.Text.Display.Core (Display (..))
 import Data.Text.Encoding qualified as Text
@@ -29,6 +27,7 @@ import Domain.Types.EmailAddress qualified as EmailAddress
 import Effects.Database.Execute (execQuerySpanThrow)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.EmailVerification qualified as EmailVerification
 import Hasql.Interpolate (OneRow (..))
 import Log qualified
 import Network.HTTP.Simple qualified as HTTP
@@ -92,7 +91,7 @@ registerUser ::
          ]
         Servant.NoContent
     )
-registerUser sockAddr mUserAgent RegisterParsed {..} newsletterSubscription = do
+registerUser _sockAddr _mUserAgent RegisterParsed {..} newsletterSubscription = do
   Log.logInfo "Registering New User" urpEmail
   OneRow uid <- execQuerySpanThrow $ User.insertUser $ User.ModelInsert urpEmail urpPassword
   _ <- execQuerySpanThrow $ UserMetadata.insertUserMetadata $ UserMetadata.Insert uid urpDisplayName urpFullName Nothing UserMetadata.User UserMetadata.Automatic
@@ -102,11 +101,12 @@ registerUser sockAddr mUserAgent RegisterParsed {..} newsletterSubscription = do
     Just _user -> do
       when (isJust newsletterSubscription) (subscribeToNewsletter urpEmail)
 
-      Auth.login uid sockAddr mUserAgent >>= \case
-        Left err ->
-          throwErr $ InternalServerError $ Text.pack $ show err
-        Right sessionId -> do
-          pure $ Servant.addHeader (Auth.mkCookieSession sessionId) $ Servant.addHeader "/" Servant.NoContent
+      -- Send verification email instead of auto-login
+      _ <- EmailVerification.createAndSendVerification uid urpEmail
+
+      -- Redirect to the "check your email" page
+      let redirectUrl = "/" <> Http.toUrlPiece (userLinks.verifyEmailSentGet (Just urpEmail))
+      pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
 
 parsePassword ::
   ( Monad m,

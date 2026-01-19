@@ -10,6 +10,7 @@ module App.CustomContext
     StorageBackend (..),
     AnalyticsConfig (..),
     GoogleAnalyticsId (..),
+    SmtpConfig (..),
   )
 where
 
@@ -19,6 +20,7 @@ import Amazonka qualified as AWS
 import App.Analytics (AnalyticsConfig (..), GoogleAnalyticsId (..), initAnalyticsConfig)
 import App.Config (Environment (..))
 import App.Context (AppContext (..))
+import App.Smtp (SmtpConfig (..), initSmtpConfig)
 import App.Storage (StorageBackend (..), StorageContext (..), initStorageContext)
 import Control.Monad.IO.Class (MonadIO)
 import Data.Has qualified as Has
@@ -31,7 +33,8 @@ import Data.Has qualified as Has
 -- via the 'Has' typeclass.
 data CustomContext = CustomContext
   { storageContext :: StorageContext,
-    analyticsConfig :: AnalyticsConfig
+    analyticsConfig :: AnalyticsConfig,
+    smtpConfig :: Maybe SmtpConfig
   }
 
 --------------------------------------------------------------------------------
@@ -44,6 +47,10 @@ instance Has.Has StorageContext CustomContext where
 instance Has.Has AnalyticsConfig CustomContext where
   getter = analyticsConfig
   modifier f ctx = ctx {analyticsConfig = f (analyticsConfig ctx)}
+
+instance Has.Has (Maybe SmtpConfig) CustomContext where
+  getter = smtpConfig
+  modifier f ctx = ctx {smtpConfig = f (smtpConfig ctx)}
 
 instance Has.Has StorageBackend CustomContext where
   getter = storageBackend . storageContext
@@ -98,6 +105,10 @@ instance Has.Has (Maybe GoogleAnalyticsId) (AppContext CustomContext) where
   getter = Has.getter @(Maybe GoogleAnalyticsId) . appCustom
   modifier f ctx = ctx {appCustom = Has.modifier @(Maybe GoogleAnalyticsId) f (appCustom ctx)}
 
+instance Has.Has (Maybe SmtpConfig) (AppContext CustomContext) where
+  getter = Has.getter @(Maybe SmtpConfig) . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @(Maybe SmtpConfig) f (appCustom ctx)}
+
 --------------------------------------------------------------------------------
 
 -- | Initialize the complete custom context.
@@ -107,8 +118,10 @@ initCustomContext :: (MonadIO m) => Environment -> m CustomContext
 initCustomContext env = do
   storage <- initStorageContext env
   analytics <- initAnalyticsConfig
+  smtp <- initSmtpConfig
   pure
     CustomContext
       { storageContext = storage,
-        analyticsConfig = analytics
+        analyticsConfig = analytics,
+        smtpConfig = smtp
       }
