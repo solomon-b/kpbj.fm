@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 -- | Shared operations for staged file uploads.
 --
 -- This module provides:

@@ -1282,7 +1282,7 @@ renderStagedAudioField styles field uploadUrl uploadType = do
       -- Dashed border container
       Lucid.div_ [Lucid.class_ (fsAudioContainerClasses styles)] $ do
         -- Hidden file input (no name attribute - file is uploaded via XHR, only token is submitted)
-        Lucid.input_ $
+        Lucid.input_
           [ Lucid.type_ "file",
             Lucid.id_ inputId,
             Lucid.accept_ "audio/*",

@@ -28,7 +28,7 @@ data StorageBackend
   deriving stock (Show, Eq)
 
 -- | Local filesystem storage configuration.
-data LocalStorageConfig = LocalStorageConfig
+newtype LocalStorageConfig = LocalStorageConfig
   { -- | Root directory for file storage (e.g., "/tmp/kpbj")
     localStorageRoot :: FilePath
   }

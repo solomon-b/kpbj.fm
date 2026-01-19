@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 -- | Handler for staged audio file uploads.
 --
 -- This endpoint allows authenticated users to upload audio files in the background
