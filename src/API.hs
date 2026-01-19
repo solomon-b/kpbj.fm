@@ -111,6 +111,9 @@ import API.User.Logout.Get.Handler qualified as User.Logout.Get
 import API.User.Logout.Post.Handler qualified as User.Logout.Post
 import API.User.Register.Get.Handler qualified as User.Register.Get
 import API.User.Register.Post.Handler qualified as User.Register.Post
+import API.User.VerifyEmail.Get.Handler qualified as User.VerifyEmail.Get
+import API.User.VerifyEmailResend.Post.Handler qualified as User.VerifyEmailResend.Post
+import API.User.VerifyEmailSent.Get.Handler qualified as User.VerifyEmailSent.Get
 import App qualified
 import App.Config (Environment (..))
 import App.CustomContext (initCustomContext)
@@ -199,7 +202,10 @@ server env =
           logoutGet = User.Logout.Get.handler,
           logoutPost = User.Logout.Post.handler,
           registerGet = User.Register.Get.handler,
-          registerPost = User.Register.Post.handler
+          registerPost = User.Register.Post.handler,
+          verifyEmailGet = User.VerifyEmail.Get.handler,
+          verifyEmailSentGet = User.VerifyEmailSent.Get.handler,
+          verifyEmailResendPost = User.VerifyEmailResend.Post.handler
         }
 
     dashboardRoutes =

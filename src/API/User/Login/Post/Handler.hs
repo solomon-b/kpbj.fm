@@ -15,7 +15,8 @@ import Data.Password.Argon2 (PasswordCheck (..), checkPassword)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.EmailAddress
-import Effects.Database.Execute (execQuerySpanThrow)
+import Effects.Database.Execute (execQuerySpan, execQuerySpanThrow)
+import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
 import Effects.Database.Tables.ServerSessions qualified as Session
 import Effects.Database.Tables.User qualified as User
 import Log qualified
@@ -44,8 +45,17 @@ handler _tracer sockAddr mUserAgent Login {..} redirectQueryParam = do
     Just user
       | checkPassword ulPassword (User.mPassword user) == PasswordCheckSuccess -> do
           Log.logInfo "Login Attempt" ulEmail
-          let redirectLink = fromMaybe (Http.toUrlPiece apiLinks.rootGet) redirectQueryParam
-          attemptLogin sockAddr mUserAgent redirectLink user
+          -- Check if email is verified
+          isVerifiedResult <- execQuerySpan (VerificationTokens.isUserEmailVerified (User.mId user))
+          case isVerifiedResult of
+            Right (Just _) -> do
+              -- Email is verified, proceed with login
+              let redirectLink = fromMaybe (Http.toUrlPiece apiLinks.rootGet) redirectQueryParam
+              attemptLogin sockAddr mUserAgent redirectLink user
+            _ -> do
+              -- Email not verified or query failed - redirect to verify-email/sent page
+              Log.logInfo "Login blocked - email not verified" ulEmail
+              emailNotVerifiedResponse ulEmail
     Just _user -> do
       Log.logInfo "Login Attempt" ulEmail
       invalidCredentialResponse ulEmail (Aeson.object [("field", "password"), "value" .= ulPassword])
@@ -90,3 +100,16 @@ invalidCredentialResponse ::
 invalidCredentialResponse emailAddress details = do
   Log.logInfo "Invalid Credentials" details
   pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing $ Just emailAddress)) Servant.NoContent
+
+emailNotVerifiedResponse ::
+  EmailAddress ->
+  AppM
+    ( Servant.Headers
+        '[ Servant.Header "Set-Cookie" Text,
+           Servant.Header "HX-Redirect" Text
+         ]
+        Servant.NoContent
+    )
+emailNotVerifiedResponse emailAddress = do
+  Log.logInfo "Email not verified" emailAddress
+  pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.verifyEmailSentGet $ Just emailAddress)) Servant.NoContent
