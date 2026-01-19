@@ -6,5 +6,5 @@ INSERT INTO users (email, password) VALUES
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO user_metadata (user_id, display_name, full_name, avatar_url, user_role)
-SELECT u.id, 'Admin', 'KPBJ Administrator', 'images/2025/01/01/avatars/admin.jpg', 'Admin'
+SELECT u.id, 'Admin', 'KPBJ Administrator', 'images/avatars/2025/01/01/admin.jpg', 'Admin'
 FROM users u WHERE u.email = 'admin@kpbj.fm';

@@ -11,7 +11,7 @@ SELECT * FROM (VALUES
     '2025-08-08 22:00:00-07'::timestamptz,
     'KPBJ Community Plaza',
     '123 Radio Street, Portland, OR 97201',
-    'images/2025/01/01/event-posters/summer-block-party-2025-08-08.jpg',
+    'images/event-posters/2025/01/01/summer-block-party-2025-08-08.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -23,7 +23,7 @@ SELECT * FROM (VALUES
     '2025-08-17 03:00:00-07'::timestamptz,
     'The Underground',
     '456 Basement Ave, Portland, OR 97214',
-    'images/2025/01/01/event-posters/late-night-techno-dj-aurelia-2025-08-16.jpg',
+    'images/event-posters/2025/01/01/late-night-techno-dj-aurelia-2025-08-16.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -35,7 +35,7 @@ SELECT * FROM (VALUES
     '2025-08-22 16:00:00-07'::timestamptz,
     'KPBJ Studio Parking Lot',
     '123 Radio Street, Portland, OR 97201',
-    'images/2025/01/01/event-posters/record-fair-swap-meet-2025-08-22.jpg',
+    'images/event-posters/2025/01/01/record-fair-swap-meet-2025-08-22.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -47,7 +47,7 @@ SELECT * FROM (VALUES
     '2025-08-30 23:30:00-07'::timestamptz,
     'The Velvet Room',
     '789 Music Lane, Portland, OR 97212',
-    'images/2025/01/01/event-posters/indie-rock-showcase-2025-08-30.jpg',
+    'images/event-posters/2025/01/01/indie-rock-showcase-2025-08-30.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -59,7 +59,7 @@ SELECT * FROM (VALUES
     '2025-09-05 22:00:00-07'::timestamptz,
     'The Crystal Ballroom',
     '1332 W Burnside St, Portland, OR 97209',
-    'images/2025/01/01/event-posters/kpbj-fundraiser-jazz-night-2025-09-05.jpg',
+    'images/event-posters/2025/01/01/kpbj-fundraiser-jazz-night-2025-09-05.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -71,7 +71,7 @@ SELECT * FROM (VALUES
     '2025-09-13 18:00:00-07'::timestamptz,
     'The Firehouse',
     '555 Youth Plaza, Portland, OR 97202',
-    'images/2025/01/01/event-posters/all-ages-punk-matinee-2025-09-13.jpg',
+    'images/event-posters/2025/01/01/all-ages-punk-matinee-2025-09-13.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -83,7 +83,7 @@ SELECT * FROM (VALUES
     '2025-09-19 23:00:00-07'::timestamptz,
     'KPBJ Live Room',
     '123 Radio Street, Portland, OR 97201',
-    'images/2025/01/01/event-posters/open-mic-night-2025-09-19.jpg',
+    'images/event-posters/2025/01/01/open-mic-night-2025-09-19.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -95,7 +95,7 @@ SELECT * FROM (VALUES
     '2025-09-28 01:00:00-07'::timestamptz,
     'Rooftop Garden Bar',
     '999 Sky View Terrace, Portland, OR 97205',
-    'images/2025/01/01/event-posters/autumn-dj-showcase-2025-09-27.jpg',
+    'images/event-posters/2025/01/01/autumn-dj-showcase-2025-09-27.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -107,7 +107,7 @@ SELECT * FROM (VALUES
     '2025-10-05 02:00:00-07'::timestamptz,
     'The Underground',
     '456 Basement Ave, Portland, OR 97214',
-    'images/2025/01/01/event-posters/halloween-costume-party-dance-night-2025-10-04.jpg',
+    'images/event-posters/2025/01/01/halloween-costume-party-dance-night-2025-10-04.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -119,7 +119,7 @@ SELECT * FROM (VALUES
     '2025-10-11 20:30:00-07'::timestamptz,
     'KPBJ Live Room',
     '123 Radio Street, Portland, OR 97201',
-    'images/2025/01/01/event-posters/local-legends-portland-music-history-panel-2025-10-11.jpg',
+    'images/event-posters/2025/01/01/local-legends-portland-music-history-panel-2025-10-11.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -131,7 +131,7 @@ SELECT * FROM (VALUES
     '2025-10-18 22:00:00-07'::timestamptz,
     'The Velvet Room',
     '789 Music Lane, Portland, OR 97212',
-    'images/2025/01/01/event-posters/acoustic-songwriter-circle-2025-10-18.jpg',
+    'images/event-posters/2025/01/01/acoustic-songwriter-circle-2025-10-18.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   ),
@@ -143,7 +143,7 @@ SELECT * FROM (VALUES
     '2025-10-25 21:00:00-07'::timestamptz,
     'KPBJ Community Plaza',
     '123 Radio Street, Portland, OR 97201',
-    'images/2025/01/01/event-posters/kpbj-fall-fundraiser-silent-auction-2025-10-25.jpg',
+    'images/event-posters/2025/01/01/kpbj-fall-fundraiser-silent-auction-2025-10-25.jpg',
     'published',
     (SELECT id FROM users WHERE email = 'staff@kpbj.fm')
   )
