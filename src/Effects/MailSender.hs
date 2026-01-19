@@ -9,6 +9,8 @@ module Effects.MailSender
     sendEmail,
     sendVerificationEmail,
     sendVerificationEmailAsync,
+    sendPasswordResetEmail,
+    sendPasswordResetEmailAsync,
 
     -- * Mail Building
     buildSimpleMail,
@@ -32,6 +34,7 @@ import Data.Text.Lazy qualified as LT
 import Log qualified
 import Network.Mail.Mime qualified as Mime
 import Network.Mail.SMTP qualified as SMTP
+import System.IO (hPutStrLn, stderr)
 
 --------------------------------------------------------------------------------
 
@@ -158,9 +161,9 @@ sendVerificationEmailAsync config toEmail token = do
     result <- Async.race (threadDelay (30 * 1000000)) (try $ sendMailWithConfig config mail)
     case result of
       Left () ->
-        putStrLn $ "[Email] Timeout sending to " <> Text.unpack toEmail
+        hPutStrLn stderr $ "[Email] ERROR: Timeout sending to " <> Text.unpack toEmail
       Right (Left (e :: SomeException)) ->
-        putStrLn $ "[Email] Failed to send to " <> Text.unpack toEmail <> ": " <> show e
+        hPutStrLn stderr $ "[Email] ERROR: Failed to send to " <> Text.unpack toEmail <> ": " <> show e
       Right (Right ()) ->
         putStrLn $ "[Email] Sent verification email to " <> Text.unpack toEmail
 
@@ -208,6 +211,118 @@ buildVerificationMail config toEmail token =
               "    <p style=\"color: #666; font-size: 14px; word-break: break-all;\">" <> verificationUrl <> "</p>",
               "    <p style=\"color: #666; font-size: 14px;\">This link will expire in 24 hours.</p>",
               "    <p style=\"color: #666; font-size: 14px;\">If you didn't create an account with us, you can safely ignore this email.</p>",
+              "  </div>",
+              "  <div style=\"border-top: 1px solid #eee; padding-top: 20px; text-align: center; color: #666; font-size: 12px;\">",
+              "    <p>KPBJ 95.9FM Community Radio</p>",
+              "  </div>",
+              "</body>",
+              "</html>"
+            ]
+   in buildSimpleMail
+        (smtpFromEmail config)
+        (smtpFromName config)
+        toEmail
+        subject
+        plainBody
+        htmlBody
+
+--------------------------------------------------------------------------------
+
+-- | Send a password reset email to a user.
+--
+-- Builds and sends an email with a password reset link.
+sendPasswordResetEmail ::
+  -- | SMTP configuration
+  SmtpConfig ->
+  -- | Recipient email address
+  Text ->
+  -- | Reset token
+  Text ->
+  AppM Bool
+sendPasswordResetEmail config toEmail token = do
+  let mail = buildPasswordResetMail config toEmail token
+  sendEmail mail
+
+-- | Send a password reset email asynchronously (fire-and-forget).
+--
+-- Spawns a background thread to send the email so the request handler
+-- doesn't block waiting for SMTP. Logs success/failure in the background.
+-- Times out after 30 seconds to avoid hanging threads.
+sendPasswordResetEmailAsync ::
+  -- | SMTP configuration
+  SmtpConfig ->
+  -- | Recipient email address
+  Text ->
+  -- | Reset token
+  Text ->
+  AppM ()
+sendPasswordResetEmailAsync config toEmail token = do
+  let mail = buildPasswordResetMail config toEmail token
+  Log.logInfo "Queuing password reset email" toEmail
+  liftIO $ void $ Async.async $ do
+    putStrLn $ "[Email] Starting password reset send to " <> Text.unpack toEmail
+    result <- Async.race (threadDelay (30 * 1000000)) (try $ sendMailWithConfig config mail)
+    case result of
+      Left () ->
+        hPutStrLn stderr $ "[Email] ERROR: Timeout sending password reset to " <> Text.unpack toEmail
+      Right (Left (e :: SomeException)) ->
+        hPutStrLn stderr $ "[Email] ERROR: Failed to send password reset to " <> Text.unpack toEmail <> ": " <> show e
+      Right (Right ()) ->
+        putStrLn $ "[Email] Sent password reset email to " <> Text.unpack toEmail
+
+-- | Build the password reset email.
+buildPasswordResetMail :: SmtpConfig -> Text -> Text -> Mime.Mail
+buildPasswordResetMail config toEmail token =
+  let resetUrl = smtpBaseUrl config <> "/user/reset-password?token=" <> token
+      subject = "Reset your password - KPBJ 95.9FM"
+      plainBody =
+        LT.fromStrict $
+          Text.unlines
+            [ "Password Reset Request",
+              "",
+              "We received a request to reset your password for your KPBJ 95.9FM account.",
+              "",
+              "Click the link below to reset your password:",
+              "",
+              resetUrl,
+              "",
+              "This link will expire in 1 hour.",
+              "",
+              "If you didn't request a password reset, you can safely ignore this email.",
+              "Your password will not be changed unless you click the link above.",
+              "",
+              "For security reasons, do not share this link with anyone.",
+              "",
+              "Thanks,",
+              "The KPBJ Team"
+            ]
+      htmlBody =
+        LT.fromStrict $
+          Text.unlines
+            [ "<!DOCTYPE html>",
+              "<html>",
+              "<head>",
+              "  <meta charset=\"utf-8\">",
+              "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">",
+              "</head>",
+              "<body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;\">",
+              "  <div style=\"background-color: #1a1a1a; padding: 20px; text-align: center;\">",
+              "    <h1 style=\"color: #fff; margin: 0;\">KPBJ 95.9FM</h1>",
+              "  </div>",
+              "  <div style=\"padding: 30px 20px;\">",
+              "    <h2 style=\"color: #1a1a1a; margin-top: 0;\">Password Reset Request</h2>",
+              "    <p>We received a request to reset your password for your KPBJ 95.9FM account.</p>",
+              "    <p>Click the button below to reset your password:</p>",
+              "    <div style=\"text-align: center; margin: 30px 0;\">",
+              "      <a href=\"" <> resetUrl <> "\" style=\"background-color: #1a1a1a; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;\">Reset Password</a>",
+              "    </div>",
+              "    <p style=\"color: #666; font-size: 14px;\">Or copy and paste this link into your browser:</p>",
+              "    <p style=\"color: #666; font-size: 14px; word-break: break-all;\">" <> resetUrl <> "</p>",
+              "    <p style=\"color: #666; font-size: 14px;\">This link will expire in 1 hour.</p>",
+              "    <p style=\"color: #666; font-size: 14px;\">If you didn't request a password reset, you can safely ignore this email. Your password will not be changed unless you click the link above.</p>",
+              "    <div style=\"background-color: #fff3cd; border: 1px solid #ffc107; padding: 12px; margin-top: 20px; border-radius: 4px;\">",
+              "      <p style=\"color: #856404; font-size: 14px; margin: 0;\"><strong>Security Notice:</strong> Do not share this link with anyone.</p>",
+              "    </div>",
               "  </div>",
               "  <div style=\"border-top: 1px solid #eee; padding-top: 20px; text-align: center; color: #666; font-size: 12px;\">",
               "    <p>KPBJ 95.9FM Community Radio</p>",

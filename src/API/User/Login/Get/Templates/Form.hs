@@ -28,6 +28,9 @@ userLoginPostUrl = Link.linkURI . userLinks.loginPost . Just
 userRegisterGetUrl :: Link.URI
 userRegisterGetUrl = Link.linkURI (userLinks.registerGet Nothing Nothing Nothing)
 
+userForgotPasswordGetUrl :: Link.URI
+userForgotPasswordGetUrl = Link.linkURI userLinks.forgotPasswordGet
+
 --------------------------------------------------------------------------------
 
 template :: Maybe EmailAddress -> Maybe Text -> Lucid.Html ()
@@ -95,8 +98,8 @@ rememberMeRow =
       Lucid.input_ [Lucid.type_ "checkbox", Lucid.id_ "remember", Lucid.name_ "remember", Lucid.class_ "mr-2"]
       Lucid.label_ [Lucid.for_ "remember"] "Remember me"
     Lucid.a_
-      [ Lucid.href_ "#",
-        hxGet_ "/forgot-password",
+      [ Lucid.href_ [i|/#{userForgotPasswordGetUrl}|],
+        hxGet_ [i|/#{userForgotPasswordGetUrl}|],
         hxSwap_ "innerHTML",
         hxTarget_ "body",
         hxPushUrl_ "true",

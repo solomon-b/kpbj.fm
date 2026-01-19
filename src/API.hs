@@ -105,12 +105,16 @@ import API.Static.Get.Handler qualified as Static.Get
 import API.TermsOfService.Get.Handler qualified as TermsOfService.Get
 import API.Types
 import API.Uploads.Audio.Post.Handler qualified as Uploads.Audio.Post
+import API.User.ForgotPassword.Get.Handler qualified as User.ForgotPassword.Get
+import API.User.ForgotPassword.Post.Handler qualified as User.ForgotPassword.Post
 import API.User.Login.Get.Handler qualified as User.Login.Get
 import API.User.Login.Post.Handler qualified as User.Login.Post
 import API.User.Logout.Get.Handler qualified as User.Logout.Get
 import API.User.Logout.Post.Handler qualified as User.Logout.Post
 import API.User.Register.Get.Handler qualified as User.Register.Get
 import API.User.Register.Post.Handler qualified as User.Register.Post
+import API.User.ResetPassword.Get.Handler qualified as User.ResetPassword.Get
+import API.User.ResetPassword.Post.Handler qualified as User.ResetPassword.Post
 import API.User.VerifyEmail.Get.Handler qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Handler qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Handler qualified as User.VerifyEmailSent.Get
@@ -205,7 +209,11 @@ server env =
           registerPost = User.Register.Post.handler,
           verifyEmailGet = User.VerifyEmail.Get.handler,
           verifyEmailSentGet = User.VerifyEmailSent.Get.handler,
-          verifyEmailResendPost = User.VerifyEmailResend.Post.handler
+          verifyEmailResendPost = User.VerifyEmailResend.Post.handler,
+          forgotPasswordGet = User.ForgotPassword.Get.handler,
+          forgotPasswordPost = User.ForgotPassword.Post.handler,
+          resetPasswordGet = User.ResetPassword.Get.handler,
+          resetPasswordPost = User.ResetPassword.Post.handler
         }
 
     dashboardRoutes =
