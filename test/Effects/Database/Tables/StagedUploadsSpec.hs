@@ -141,8 +141,7 @@ prop_claimUploadWrongUser cfg = do
         _ <- TRX.statement () (UUT.insert stagedUploadInsert)
 
         -- Try to claim as user2 (should fail)
-        claimed <- TRX.statement () (UUT.claimUpload token userId2)
-        pure claimed
+        TRX.statement () (UUT.claimUpload token userId2)
 
       assert $ do
         mClaimed <- assertRight result

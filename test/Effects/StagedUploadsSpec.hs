@@ -2,6 +2,7 @@ module Effects.StagedUploadsSpec (spec) where
 
 --------------------------------------------------------------------------------
 
+import Data.Char (isAsciiLower, isDigit)
 import Data.List (nub)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -106,7 +107,7 @@ isHexChar c = c `elem` ("0123456789abcdef" :: String)
 
 -- | Check if a character is URL-safe (alphanumeric)
 isUrlSafe :: Char -> Bool
-isUrlSafe c = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+isUrlSafe c = isAsciiLower c || isDigit c
 
 -- | Encode UploadType to database string (matches EncodeValue instance)
 encodeUploadType :: UploadType -> Text

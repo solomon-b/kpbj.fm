@@ -67,9 +67,7 @@ cleanupUploads ::
   Maybe AWS.Env ->
   [StagedUploads.Model] ->
   AppM Int
-cleanupUploads backend mAwsEnv uploads = do
-  cleanedCount <- go 0 uploads
-  pure cleanedCount
+cleanupUploads backend mAwsEnv = go 0
   where
     go count [] = pure count
     go count (upload : rest) = do

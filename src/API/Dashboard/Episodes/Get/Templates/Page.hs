@@ -38,8 +38,7 @@ template ::
   Int64 ->
   Bool ->
   Lucid.Html ()
-template userMeta selectedShow episodes currentPage hasMore =
-  renderEpisodesSection userMeta selectedShow episodes currentPage hasMore
+template = renderEpisodesSection
 
 -- | Episodes table section
 renderEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Int64 -> Bool -> Lucid.Html ()

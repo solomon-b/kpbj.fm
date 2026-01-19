@@ -8,10 +8,11 @@ where
 import API.Links (showsLinks)
 import API.Types
 import Data.List (sortBy)
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (DayOfWeek (..), TimeOfDay (..))
-import Design (also, base, class_, desktop, when)
+import Design (also, base, class_, desktop, unless, when)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
@@ -164,7 +165,7 @@ renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
       isLiveShow = isShowLive currentDayOfWeek currentTimeOfDay dayOfWeek (ShowSchedule.sswdStartTime show') (ShowSchedule.sswdEndTime show')
       mBannerPath = ShowSchedule.sswdBannerUrl show'
       mLogoPath = ShowSchedule.sswdLogoUrl show'
-      hasImage = maybe False (const True) mLogoPath || maybe False (const True) mBannerPath
+      hasImage = isJust mLogoPath || isJust mBannerPath
 
   Lucid.div_ [showRowStyles] $ do
     -- Time label on left (with LIVE indicator below if applicable)
@@ -222,10 +223,10 @@ showCardStyles isLive hasImage = class_ $ do
   -- Aspect ratio: 4:3 on mobile (logo), 3:1 on desktop (banner)
   base ["aspect-[4/3]"]
   desktop ["aspect-[3/1]"]
-  when (not hasImage) $ base [Tokens.bgWhite]
+  unless hasImage $ base [Tokens.bgWhite]
   base ["border", "border-gray-300"]
   when isLive $ base [Tokens.border2, "border-gray-800"]
-  when (not hasImage) $ also ["hover:bg-gray-50"]
+  unless hasImage $ also ["hover:bg-gray-50"]
   when hasImage $ also ["hover:opacity-90"]
 
 -- | Image shown on mobile (logo, 4:3 aspect ratio)
