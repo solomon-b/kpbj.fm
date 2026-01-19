@@ -15,6 +15,7 @@ where
 --------------------------------------------------------------------------------
 
 import API.Links (eventsLinks)
+import Data.Foldable (for_)
 import API.Types
 import Data.String.Interpolate (i)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -160,6 +161,4 @@ renderDateAndLocation variant event =
 -- | Render event description (pre-rendered HTML).
 renderDescription :: Maybe (Lucid.Html ()) -> Lucid.Html ()
 renderDescription mRenderedDescription =
-  case mRenderedDescription of
-    Just rendered -> Lucid.div_ [class_ $ base [Tokens.mt4]] rendered
-    Nothing -> pure ()
+  for_ mRenderedDescription (Lucid.div_ [class_ $ base [Tokens.mt4]])

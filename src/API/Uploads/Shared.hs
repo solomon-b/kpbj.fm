@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 -- | Shared logic for staged file upload handlers.
 --
 -- This module provides the common upload processing pipeline used by

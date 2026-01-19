@@ -118,7 +118,7 @@ renderFormHeader =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [T.text2xl, T.fontBold, T.mb2]] "CREATE NEW SHOW"
-        Lucid.div_ [class_ $ base ["text-gray-300", T.textSm]] $
+        Lucid.div_ [class_ $ base ["text-gray-300", T.textSm]]
           "Add a new show to the station"
       Lucid.div_ $ do
         Lucid.a_

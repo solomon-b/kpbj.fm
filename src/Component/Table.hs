@@ -337,5 +337,5 @@ renderSentinelRow columnCount targetId = \case
         renderSentinel nextUrl targetId
   Nothing ->
     Lucid.tr_ [] $
-      Lucid.td_ [Lucid.colspan_ [i|#{columnCount}|]] $
+      Lucid.td_ [Lucid.colspan_ [i|#{columnCount}|]]
         renderEndOfContent
