@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardBlogsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardUsersLinks, userLinks)
+import API.Links (apiLinks, dashboardBlogsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardStationIdsLinks, dashboardUsersLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
 import Component.Frame (bannerFromUrlScript, googleAnalyticsScript)
@@ -64,6 +64,9 @@ dashboardEventsGetUrl = Links.linkURI $ dashboardEventsLinks.list Nothing
 dashboardShowSettingsUrl :: Slug -> Links.URI
 dashboardShowSettingsUrl slug = Links.linkURI $ dashboardShowsLinks.editGet slug
 
+dashboardStationIdsGetUrl :: Links.URI
+dashboardStationIdsGetUrl = Links.linkURI $ dashboardStationIdsLinks.list Nothing
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -76,6 +79,7 @@ data DashboardNav
   | NavShows
   | NavStationBlog
   | NavEvents
+  | NavStationIds
   deriving (Eq, Show)
 
 -- | Get display title for navigation item
@@ -89,6 +93,7 @@ navTitle = \case
   NavShows -> "Shows"
   NavStationBlog -> "Station Blog"
   NavEvents -> "Events"
+  NavStationIds -> "Station IDs"
 
 -- | Check if navigation requires show context
 isShowScoped :: DashboardNav -> Bool
@@ -101,6 +106,7 @@ isShowScoped = \case
   NavShows -> False
   NavStationBlog -> False
   NavEvents -> False
+  NavStationIds -> False
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
@@ -168,6 +174,7 @@ sidebar userMeta activeNav selectedShow =
           navItem "EPISODES" NavEpisodes activeNav selectedShow
           -- navItem "BLOG" NavBlog activeNav selectedShow
           navItem "SHOW SETTINGS" NavSettings activeNav selectedShow
+          staffNavItem "STATION IDS" NavStationIds activeNav
 
       -- Staff/Admin section - shown only for Staff or higher roles
       when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
@@ -278,6 +285,7 @@ staffNavUrl = \case
   NavShows -> Just dashboardShowsGetUrl
   NavStationBlog -> Just dashboardStationBlogGetUrl
   NavEvents -> Just dashboardEventsGetUrl
+  NavStationIds -> Just dashboardStationIdsGetUrl
   other -> navUrl other Nothing
 
 -- | Get URL for navigation item
@@ -295,6 +303,7 @@ navUrl nav mShow =
         NavShows -> Just dashboardShowsGetUrl
         NavStationBlog -> Just dashboardStationBlogGetUrl
         NavEvents -> Just dashboardEventsGetUrl
+        NavStationIds -> Just dashboardStationIdsGetUrl
 
 -- | Top bar with page title, show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()

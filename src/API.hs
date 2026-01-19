@@ -21,6 +21,7 @@ module API
     DashboardBlogsRoutes (..),
     DashboardEventsRoutes (..),
     DashboardStationBlogRoutes (..),
+    DashboardStationIdsRoutes (..),
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
     UploadRoutes (..),
@@ -75,6 +76,10 @@ import API.Dashboard.StationBlog.Slug.Delete.Handler qualified as Dashboard.Stat
 import API.Dashboard.StationBlog.Slug.Edit.Get.Handler qualified as Dashboard.StationBlog.Slug.Edit.Get
 import API.Dashboard.StationBlog.Slug.Edit.Post.Handler qualified as Dashboard.StationBlog.Slug.Edit.Post
 import API.Dashboard.StationBlog.Slug.Get.Handler qualified as Dashboard.StationBlog.Slug.Get
+import API.Dashboard.StationIds.Get.Handler qualified as Dashboard.StationIds.Get
+import API.Dashboard.StationIds.Id.Delete.Handler qualified as Dashboard.StationIds.Id.Delete
+import API.Dashboard.StationIds.New.Get.Handler qualified as Dashboard.StationIds.New.Get
+import API.Dashboard.StationIds.New.Post.Handler qualified as Dashboard.StationIds.New.Post
 import API.Dashboard.Users.Delete.Handler qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Handler qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Handler qualified as Dashboard.Users.Edit.Get
@@ -210,7 +215,16 @@ server env =
     dashboardHostRoutes =
       DashboardHostRoutes
         { episodes = dashboardEpisodesRoutes,
-          blogs = dashboardBlogsRoutes
+          blogs = dashboardBlogsRoutes,
+          stationIds = dashboardStationIdsRoutes
+        }
+
+    dashboardStationIdsRoutes =
+      DashboardStationIdsRoutes
+        { list = Dashboard.StationIds.Get.handler,
+          newGet = Dashboard.StationIds.New.Get.handler,
+          newPost = Dashboard.StationIds.New.Post.handler,
+          delete = Dashboard.StationIds.Id.Delete.handler
         }
 
     dashboardAdminRoutes =
