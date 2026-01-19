@@ -95,10 +95,10 @@ registerForm displayNameValue fullNameValue emailValue = do
 
   -- Account info section
   textField "displayName" $ do
-    label "Username"
-    placeholder "Choose a unique username"
+    label "Host Name"
+    placeholder "Choose a unique name for yourself"
     value displayNameValue
-    hint "This will be your public display name on the site"
+    hint "This is the name you will use as a show host, appearing on your show profile page, the schedule, etc"
     required
 
   passwordField "password" $ do
