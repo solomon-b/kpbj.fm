@@ -69,7 +69,7 @@ defaultTimeDisplayClasses = class_' $ base [Tokens.textSm, "font-mono", "w-28", 
 -- automatically switch to previewing newly selected files.
 render :: Config -> Lucid.Html ()
 render Config {..} = do
-  let fileInputSelector = maybe "" (\fid -> "#" <> fid) fileInputId
+  let fileInputSelector = maybe "" ("#" <>) fileInputId
       containerCls = fromMaybe defaultContainerClasses containerClasses
       buttonCls = fromMaybe defaultButtonClasses buttonClasses
       progressBarCls = fromMaybe defaultProgressBarClasses progressBarClasses

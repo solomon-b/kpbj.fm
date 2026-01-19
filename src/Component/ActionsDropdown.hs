@@ -185,9 +185,7 @@ actionToDataAttrs (HtmxAction {haValue, haMethod, haUrl, haTarget, haSwap, haCon
     Lucid.data_ (haValue <> "-swap") (swapToText haSwap)
   ]
     <> maybe [] (\c -> [Lucid.data_ (haValue <> "-confirm") c]) haConfirm
-    <> if null haValues
-      then []
-      else [Lucid.data_ (haValue <> "-values") (encodeValues haValues)]
+    <> [Lucid.data_ (haValue <> "-values") (encodeValues haValues) | not (null haValues)]
 
 methodToText :: Method -> Text
 methodToText = \case

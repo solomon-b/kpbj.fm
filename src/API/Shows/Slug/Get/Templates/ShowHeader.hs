@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module API.Shows.Slug.Get.Templates.ShowHeader
   ( renderShowHeader,

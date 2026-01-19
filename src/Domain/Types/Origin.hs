@@ -50,7 +50,7 @@ isAllowedOrigin :: Origin -> Hostname -> Bool
 isAllowedOrigin origin hostname =
   isLocalhostOrigin origin
     || normalizeOrigin (unOrigin origin)
-      == (normalizeOrigin $ getHostName hostname)
+      == normalizeOrigin (getHostName hostname)
 
 -- | Check if an origin is localhost (any port).
 --
