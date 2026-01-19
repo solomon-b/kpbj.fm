@@ -149,7 +149,8 @@ renderInlineAudioPlayer audioUrl _uniqueId =
       -- Play/Pause button
       Lucid.button_
         [ Lucid.type_ "button",
-          xOnClick_ [i|
+          xOnClick_
+            [i|
             if (!$refs.audioPlayer) return;
             if (playing) {
               $refs.audioPlayer.pause();
