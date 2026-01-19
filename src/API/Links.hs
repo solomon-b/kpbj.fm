@@ -35,6 +35,7 @@ module API.Links
     dashboardEpisodesLinks,
     dashboardBlogsLinks,
     dashboardStationBlogLinks,
+    dashboardStationIdsLinks,
     dashboardShowsLinks,
     dashboardEventsLinks,
     dashboardUsersLinks,
@@ -122,6 +123,10 @@ dashboardBlogsLinks = blogs dashboardHostLinks
 -- | Dashboard station blog route links
 dashboardStationBlogLinks :: DashboardStationBlogRoutes (AsLink Link)
 dashboardStationBlogLinks = stationBlog dashboardAdminLinks
+
+-- | Dashboard station IDs route links
+dashboardStationIdsLinks :: DashboardStationIdsRoutes (AsLink Link)
+dashboardStationIdsLinks = dashboardHostLinks.stationIds
 
 -- | Dashboard shows route links
 dashboardShowsLinks :: DashboardShowsRoutes (AsLink Link)
