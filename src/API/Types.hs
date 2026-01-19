@@ -105,6 +105,9 @@ import API.User.Logout.Get.Route qualified as User.Logout.Get
 import API.User.Logout.Post.Route qualified as User.Logout.Post
 import API.User.Register.Get.Route qualified as User.Register.Get
 import API.User.Register.Post.Route qualified as User.Register.Post
+import API.User.VerifyEmail.Get.Route qualified as User.VerifyEmail.Get
+import API.User.VerifyEmailResend.Post.Route qualified as User.VerifyEmailResend.Post
+import API.User.VerifyEmailSent.Get.Route qualified as User.VerifyEmailSent.Get
 import GHC.Generics (Generic)
 import Servant (NamedRoutes, (:-))
 
@@ -216,7 +219,7 @@ newtype ShowEpisodesRoutes mode = ShowEpisodesRoutes
 
 -- | User authentication routes under @/user@.
 --
--- Handles login, logout, and registration flows.
+-- Handles login, logout, registration, and email verification flows.
 data UserRoutes mode = UserRoutes
   { -- | @GET /user/login@ - Login page
     loginGet :: mode :- User.Login.Get.Route,
@@ -229,7 +232,13 @@ data UserRoutes mode = UserRoutes
     -- | @GET /user/register@ - Registration page
     registerGet :: mode :- User.Register.Get.Route,
     -- | @POST /user/register@ - Process registration
-    registerPost :: mode :- User.Register.Post.Route
+    registerPost :: mode :- User.Register.Post.Route,
+    -- | @GET /user/verify-email@ - Verify email via token
+    verifyEmailGet :: mode :- User.VerifyEmail.Get.Route,
+    -- | @GET /user/verify-email/sent@ - "Check your email" page
+    verifyEmailSentGet :: mode :- User.VerifyEmailSent.Get.Route,
+    -- | @POST /user/verify-email/resend@ - Resend verification email
+    verifyEmailResendPost :: mode :- User.VerifyEmailResend.Post.Route
   }
   deriving stock (Generic)
 

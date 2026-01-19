@@ -53,6 +53,7 @@ library
                   , amazonka
                   , amazonka-s3
                   , aeson
+                  , async
                   , base
                   , bytestring
                   , conduit
@@ -83,9 +84,11 @@ library
                   , password
                   , random
                   , resourcet
+                  , mime-mail
                   , servant
                   , servant-multipart
                   , servant-server
+                  , smtp-mail
                   , string-interpolate
                   , temporary
                   , text
@@ -321,11 +324,19 @@ library
     API.User.Register.Get.Templates.Form
     API.User.Register.Post.Handler
     API.User.Register.Post.Route
+    API.User.VerifyEmail.Get.Handler
+    API.User.VerifyEmail.Get.Route
+    API.User.VerifyEmailResend.Post.Handler
+    API.User.VerifyEmailResend.Post.Route
+    API.User.VerifyEmailSent.Get.Handler
+    API.User.VerifyEmailSent.Get.Route
+    API.User.VerifyEmailSent.Get.Templates.Page
     App.Analytics
     App.Common
     App.CustomContext
     App.Handler.Combinators
     App.Monad
+    App.Smtp
     App.Storage
     App.Handler.Error
     Component.ActionsDropdown
@@ -376,6 +387,7 @@ library
     Domain.Types.WeekOffset
     Effects.Database.Tables.BlogPosts
     Effects.Database.Tables.BlogTags
+    Effects.Database.Tables.EmailVerificationTokens
     Effects.Database.Tables.Episodes
     Effects.Database.Tables.EpisodeTags
     Effects.Database.Tables.EpisodeTrack
@@ -392,7 +404,9 @@ library
     Effects.AWS
     Effects.ContentSanitization
     Effects.CSRF
+    Effects.EmailVerification
     Effects.FileUpload
+    Effects.MailSender
     Effects.Markdown
     Effects.MimeTypeValidation
     Effects.StagedUploadCleanup
