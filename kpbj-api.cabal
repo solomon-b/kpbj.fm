@@ -331,6 +331,17 @@ library
     API.User.VerifyEmailSent.Get.Handler
     API.User.VerifyEmailSent.Get.Route
     API.User.VerifyEmailSent.Get.Templates.Page
+    API.User.ForgotPassword.Get.Handler
+    API.User.ForgotPassword.Get.Route
+    API.User.ForgotPassword.Get.Templates.Page
+    API.User.ForgotPassword.Post.Handler
+    API.User.ForgotPassword.Post.Route
+    API.User.ResetPassword.Get.Handler
+    API.User.ResetPassword.Get.Route
+    API.User.ResetPassword.Get.Templates.Page
+    API.User.ResetPassword.Get.Templates.InvalidToken
+    API.User.ResetPassword.Post.Handler
+    API.User.ResetPassword.Post.Route
     App.Analytics
     App.Common
     App.CustomContext
@@ -392,6 +403,7 @@ library
     Effects.Database.Tables.EpisodeTags
     Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
+    Effects.Database.Tables.PasswordResetTokens
     Effects.Database.Tables.Shows
     Effects.Database.Tables.ShowBlogPosts
     Effects.Database.Tables.ShowBlogTags
@@ -407,6 +419,7 @@ library
     Effects.EmailVerification
     Effects.FileUpload
     Effects.MailSender
+    Effects.PasswordReset
     Effects.Markdown
     Effects.MimeTypeValidation
     Effects.StagedUploadCleanup

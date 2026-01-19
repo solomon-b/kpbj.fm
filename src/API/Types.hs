@@ -99,12 +99,16 @@ import API.Shows.Slug.Get.Route qualified as Show.Get
 import API.Static.Get.Route qualified as Static.Get
 import API.TermsOfService.Get.Route qualified as TermsOfService.Get
 import API.Uploads.Audio.Post.Route qualified as Uploads.Audio.Post
+import API.User.ForgotPassword.Get.Route qualified as User.ForgotPassword.Get
+import API.User.ForgotPassword.Post.Route qualified as User.ForgotPassword.Post
 import API.User.Login.Get.Route qualified as User.Login.Get
 import API.User.Login.Post.Route qualified as User.Login.Post
 import API.User.Logout.Get.Route qualified as User.Logout.Get
 import API.User.Logout.Post.Route qualified as User.Logout.Post
 import API.User.Register.Get.Route qualified as User.Register.Get
 import API.User.Register.Post.Route qualified as User.Register.Post
+import API.User.ResetPassword.Get.Route qualified as User.ResetPassword.Get
+import API.User.ResetPassword.Post.Route qualified as User.ResetPassword.Post
 import API.User.VerifyEmail.Get.Route qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Route qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Route qualified as User.VerifyEmailSent.Get
@@ -219,7 +223,7 @@ newtype ShowEpisodesRoutes mode = ShowEpisodesRoutes
 
 -- | User authentication routes under @/user@.
 --
--- Handles login, logout, registration, and email verification flows.
+-- Handles login, logout, registration, email verification, and password reset flows.
 data UserRoutes mode = UserRoutes
   { -- | @GET /user/login@ - Login page
     loginGet :: mode :- User.Login.Get.Route,
@@ -238,7 +242,15 @@ data UserRoutes mode = UserRoutes
     -- | @GET /user/verify-email/sent@ - "Check your email" page
     verifyEmailSentGet :: mode :- User.VerifyEmailSent.Get.Route,
     -- | @POST /user/verify-email/resend@ - Resend verification email
-    verifyEmailResendPost :: mode :- User.VerifyEmailResend.Post.Route
+    verifyEmailResendPost :: mode :- User.VerifyEmailResend.Post.Route,
+    -- | @GET /user/forgot-password@ - Forgot password page
+    forgotPasswordGet :: mode :- User.ForgotPassword.Get.Route,
+    -- | @POST /user/forgot-password@ - Process forgot password form
+    forgotPasswordPost :: mode :- User.ForgotPassword.Post.Route,
+    -- | @GET /user/reset-password@ - Reset password page (with token)
+    resetPasswordGet :: mode :- User.ResetPassword.Get.Route,
+    -- | @POST /user/reset-password@ - Process password reset form
+    resetPasswordPost :: mode :- User.ResetPassword.Post.Route
   }
   deriving stock (Generic)
 
