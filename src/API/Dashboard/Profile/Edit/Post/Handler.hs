@@ -98,7 +98,9 @@ handleAvatarUpload user multipartData = do
       mAwsEnv <- asks getter
       uploadResult <- FileUpload.uploadUserAvatar storageBackend mAwsEnv (display (User.mId user)) avatarFile
       case uploadResult of
-        Left _err -> throwValidationError "Failed to upload avatar image"
+        Left err -> do
+          Log.logAttention "Avatar upload failed" (Text.pack $ show err)
+          throwValidationError "Failed to upload avatar image"
         Right Nothing -> pure (Nothing, avatarClear)
         Right (Just result) ->
           pure (Just $ Text.pack $ Domain.Types.FileUpload.uploadResultStoragePath result, False)
