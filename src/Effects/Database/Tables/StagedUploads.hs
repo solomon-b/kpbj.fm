@@ -88,11 +88,13 @@ newtype Token = Token {unToken :: Text}
 -- that benefit from background uploading. Image uploads use direct form submission.
 data UploadType
   = EpisodeAudio
+  | StationIdAudio
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded, Read)
   deriving anyclass (FromJSON, ToJSON)
 
 instance Display UploadType where
   displayBuilder EpisodeAudio = "episode_audio"
+  displayBuilder StationIdAudio = "station_id_audio"
 
 instance DecodeValue UploadType where
   decodeValue = Decoders.enum decodeUploadType
@@ -100,14 +102,17 @@ instance DecodeValue UploadType where
 decodeUploadType :: Text -> Maybe UploadType
 decodeUploadType = \case
   "episode_audio" -> Just EpisodeAudio
+  "station_id_audio" -> Just StationIdAudio
   _ -> Nothing
 
 instance EncodeValue UploadType where
   encodeValue = Encoders.enum $ \case
     EpisodeAudio -> "episode_audio"
+    StationIdAudio -> "station_id_audio"
 
 instance Servant.FromHttpApiData UploadType where
   parseUrlPiece "episode_audio" = Right EpisodeAudio
+  parseUrlPiece "station_id_audio" = Right StationIdAudio
   parseUrlPiece invalid = Left $ "Invalid UploadType: " <> invalid
 
 instance Servant.ToHttpApiData UploadType where

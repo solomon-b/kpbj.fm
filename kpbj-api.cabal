@@ -187,6 +187,17 @@ library
     API.Dashboard.StationBlog.Slug.Get.Handler
     API.Dashboard.StationBlog.Slug.Get.Route
     API.Dashboard.StationBlog.Slug.Get.Templates.Page
+    API.Dashboard.StationIds.Get.Handler
+    API.Dashboard.StationIds.Get.Route
+    API.Dashboard.StationIds.Get.Templates.ItemsFragment
+    API.Dashboard.StationIds.Get.Templates.Page
+    API.Dashboard.StationIds.Id.Delete.Handler
+    API.Dashboard.StationIds.Id.Delete.Route
+    API.Dashboard.StationIds.New.Get.Handler
+    API.Dashboard.StationIds.New.Get.Route
+    API.Dashboard.StationIds.New.Get.Templates.Form
+    API.Dashboard.StationIds.New.Post.Handler
+    API.Dashboard.StationIds.New.Post.Route
     API.Dashboard.Episodes.Slug.Delete.Handler
     API.Dashboard.Episodes.Slug.Delete.Route
     API.Dashboard.Episodes.Slug.DiscardDraft.Handler
@@ -376,6 +387,7 @@ library
     Effects.Database.Tables.ShowSchedule
     Effects.Database.Tables.ShowTags
     Effects.Database.Tables.StagedUploads
+    Effects.Database.Tables.StationIds
     Effects.Database.Tables.UserMetadata
     Effects.AWS
     Effects.ContentSanitization
