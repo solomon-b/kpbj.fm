@@ -17,7 +17,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString qualified as BS
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.FileStorage (BucketType, DateHierarchy (..), ResourceType, bucketTypePath, buildStagingKey, buildStorageKey, resourceTypePath)
+import Domain.Types.FileStorage (BucketType, DateHierarchy, ResourceType, buildStagingKey, buildStorageKey)
 import Domain.Types.StorageBackend (LocalStorageConfig (..))
 import System.Directory (createDirectoryIfMissing, renameFile)
 import System.FilePath (takeDirectory, (</>))
@@ -53,7 +53,11 @@ storeFileLocal config bucketType resourceType dateHier filename content = liftIO
 
 -- | Build the full local filesystem path for a file.
 --
--- Example: /tmp/kpbj/images/2024/01/15/logos/show-slug_abc123.png
+-- Uses 'buildStorageKey' to ensure the path structure stays consistent
+-- between the filesystem path and the database-stored object key.
+--
+-- Structure: {root}/{bucket}/{resource}/{year}/{month}/{day}/{filename}
+-- Example: /tmp/kpbj/images/logos/2024/01/15/show-slug_abc123.png
 buildLocalPath ::
   LocalStorageConfig ->
   BucketType ->
@@ -64,12 +68,7 @@ buildLocalPath ::
   FilePath
 buildLocalPath config bucketType resourceType dateHier filename =
   localStorageRoot config
-    </> Text.unpack (bucketTypePath bucketType)
-    </> Text.unpack (dateYear dateHier)
-    </> Text.unpack (dateMonth dateHier)
-    </> Text.unpack (dateDay dateHier)
-    </> Text.unpack (resourceTypePath resourceType)
-    </> Text.unpack filename
+    </> Text.unpack (buildStorageKey bucketType resourceType dateHier filename)
 
 -- | Store a file to a flat staging area (no date hierarchy).
 --
@@ -100,6 +99,8 @@ storeFileStagingLocal config bucketType subdir filename content = liftIO $ do
 
 -- | Build the full local filesystem path for a staging file (no date hierarchy).
 --
+-- Uses 'buildStagingKey' to ensure consistency with the database-stored path.
+--
 -- Example: /tmp/kpbj/temp/staging/abc123def456.mp3
 buildLocalStagingPath ::
   LocalStorageConfig ->
@@ -111,9 +112,7 @@ buildLocalStagingPath ::
   FilePath
 buildLocalStagingPath config bucketType subdir filename =
   localStorageRoot config
-    </> Text.unpack (bucketTypePath bucketType)
-    </> Text.unpack subdir
-    </> Text.unpack filename
+    </> Text.unpack (buildStagingKey bucketType subdir filename)
 
 -- | Move a file from one storage location to another.
 --

@@ -7,7 +7,7 @@ INSERT INTO users (email, password) VALUES
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO user_metadata (user_id, display_name, full_name, avatar_url, user_role)
-SELECT u.id, 'Staff Member', 'KPBJ Staff', 'images/2025/01/01/avatars/staff.jpg', 'Staff'
+SELECT u.id, 'Staff Member', 'KPBJ Staff', 'images/avatars/2025/01/01/staff.jpg', 'Staff'
 FROM users u WHERE u.email = 'staff@kpbj.fm';
 
 -- Regular listener accounts
@@ -20,7 +20,7 @@ INSERT INTO users (email, password) VALUES
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO user_metadata (user_id, display_name, full_name, avatar_url, user_role)
-SELECT u.id, 'RadioHead42', 'Alex Thompson', 'images/2025/01/01/avatars/radiovolunteer.jpg', 'User'
+SELECT u.id, 'RadioHead42', 'Alex Thompson', 'images/avatars/2025/01/01/radiovolunteer.jpg', 'User'
 FROM users u WHERE u.email = 'listener@example.com';
 
 INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
@@ -28,7 +28,7 @@ SELECT u.id, 'JazzCat', 'Maria Santos', 'User'
 FROM users u WHERE u.email = 'musicfan@example.com';
 
 INSERT INTO user_metadata (user_id, display_name, full_name, avatar_url, user_role)
-SELECT u.id, 'VinylJunkie', 'Sam Chen', 'images/2025/01/01/avatars/vinylhead.jpg', 'User'
+SELECT u.id, 'VinylJunkie', 'Sam Chen', 'images/avatars/2025/01/01/vinylhead.jpg', 'User'
 FROM users u WHERE u.email = 'vinyl.collector@example.com';
 
 INSERT INTO user_metadata (user_id, display_name, full_name, user_role)
@@ -36,5 +36,5 @@ SELECT u.id, 'PDXBeats', 'Jordan Rivera', 'User'
 FROM users u WHERE u.email = 'portland.local@example.com';
 
 INSERT INTO user_metadata (user_id, display_name, full_name, avatar_url, user_role)
-SELECT u.id, 'MidnightListener', 'Casey Park', 'images/2025/01/01/avatars/midnightlistener.jpg', 'User'
+SELECT u.id, 'MidnightListener', 'Casey Park', 'images/avatars/2025/01/01/midnightlistener.jpg', 'User'
 FROM users u WHERE u.email = 'nightowl@example.com';

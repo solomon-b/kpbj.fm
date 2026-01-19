@@ -45,7 +45,7 @@ SELECT
     show_id,
     schedule_template_id,
     description,
-    'images/2025/01/01/artwork/' || show_slug || '-ep' || episode_num || '.jpg' as artwork_url,
+    'images/artwork/2025/01/01/' || show_slug || '-ep' || episode_num || '.jpg' as artwork_url,
     status,
     scheduled_at,
     published_at,

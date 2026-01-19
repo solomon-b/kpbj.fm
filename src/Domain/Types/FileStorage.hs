@@ -83,16 +83,17 @@ dateHierarchyFromTime time =
 -- This key is environment-independent and used as the path in S3 or
 -- the relative path for local storage. It is what gets stored in the database.
 --
--- Example: audio/2024/09/27/episodes/show-slug_abc123.mp3
+-- Structure: {bucket}/{resource}/{year}/{month}/{day}/{filename}
+-- Example: audio/episodes/2024/09/27/show-slug_2024-09-27_abc123.mp3
 buildStorageKey :: BucketType -> ResourceType -> DateHierarchy -> Text -> Text
 buildStorageKey bucketType resourceType dateHier filename =
   Text.intercalate
     "/"
     [ bucketTypePath bucketType,
+      resourceTypePath resourceType,
       dateYear dateHier,
       dateMonth dateHier,
       dateDay dateHier,
-      resourceTypePath resourceType,
       filename
     ]
 
