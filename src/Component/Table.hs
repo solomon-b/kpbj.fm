@@ -267,7 +267,7 @@ rowAttrs rowId =
 --
 -- @
 -- Lucid.td_ (clickableCellAttrs "/users/123") $
---   Lucid.toHtml userName
+--   Lucid.toHtml hostName
 -- @
 clickableCellAttrs :: Text -> [Lucid.Attributes]
 clickableCellAttrs url =
