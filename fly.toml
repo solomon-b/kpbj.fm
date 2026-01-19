@@ -21,6 +21,12 @@ primary_region = 'lax'
   APP_WARP_SERVERNAME = 'kpbj.fm'
   APP_WARP_TIMEOUT = '100'
   APP_GOOGLE_ANALYTICS_GTAG = 'G-ST01RRVLDB'
+  APP_SMTP_SERVER = "smtp.gmail.com"
+  APP_SMTP_PORT = 587
+  APP_SMTP_USERNAME = "noreply@kpbj.fm"
+  APP_SMTP_FROM_EMAIL = "noreply@kpbj.fm"
+  APP_SMTP_FROM_NAME = "KPBJ 95.9FM"
+  APP_BASE_URL = "https://kpbj.fm"
 
 [[services]]
   protocol = 'tcp'
