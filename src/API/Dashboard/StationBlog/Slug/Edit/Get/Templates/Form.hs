@@ -121,7 +121,7 @@ renderFormHeader blogPost userMeta postBackUrl =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT BLOG POST"
-        Lucid.div_ [class_ $ base ["text-gray-300", Tokens.textSm]] $ do
+        Lucid.div_ [class_ $ base ["text-gray-300 dark:text-gray-500", Tokens.textSm]] $ do
           Lucid.strong_ "Post: "
           Lucid.toHtml blogPost.bpmTitle
           " • "

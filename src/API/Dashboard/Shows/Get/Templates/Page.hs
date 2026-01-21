@@ -79,7 +79,7 @@ renderShowRow showInfo =
       showEditUrl = Links.linkURI $ dashboardShowsLinks.editGet showInfo.swhiSlug
    in do
         Lucid.tr_
-          [Lucid.class_ "border-b-2 border-gray-200 hover:bg-gray-50"]
+          [Lucid.class_ "border-b-2 border-gray-200 dark:border-gray-600 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:bg-gray-700"]
           $ do
             Lucid.td_ (clickableCellAttrs showDetailUrl) $
               Lucid.span_ [Lucid.class_ Tokens.fontBold] $
@@ -90,10 +90,10 @@ renderShowRow showInfo =
 
             Lucid.td_ (clickableCellAttrs showDetailUrl) $ do
               case showInfo.swhiHostNames of
-                Nothing -> Lucid.span_ [Lucid.class_ "text-gray-400 italic"] "No hosts"
+                Nothing -> Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500 italic"] "No hosts"
                 Just names -> do
                   Lucid.span_ [] $ Lucid.toHtml names
-                  Lucid.span_ [Lucid.class_ "text-gray-500 ml-2"] $
+                  Lucid.span_ [Lucid.class_ "text-gray-500 dark:text-gray-400 ml-2"] $
                     Lucid.toHtml $
                       "(" <> show showInfo.swhiHostCount <> ")"
 
@@ -112,7 +112,7 @@ renderShowRow showInfo =
                     ""
                   -- Visible dropdown
                   Lucid.select_
-                    [ Lucid.class_ "p-2 border border-gray-400 text-xs bg-white",
+                    [ Lucid.class_ "p-2 border border-gray-400 dark:border-gray-500 text-xs bg-white dark:bg-gray-800",
                       xOnChange_
                         [i|
                       const action = $el.value;
@@ -139,7 +139,7 @@ renderStatusBadge status = do
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do
-  Lucid.div_ [class_ $ base ["bg-gray-50", Tokens.border2, "border-gray-300", "p-12", "text-center"]] $ do
+  Lucid.div_ [class_ $ base ["bg-gray-50 dark:bg-gray-700", Tokens.border2, "border-gray-300 dark:border-gray-600", "p-12", "text-center"]] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] $
       case maybeQuery of
         Nothing -> "No shows found. Create your first show!"

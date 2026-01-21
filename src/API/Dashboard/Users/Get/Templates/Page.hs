@@ -187,7 +187,7 @@ renderRoleBadge role = do
         UserMetadata.Admin -> ("bg-red-100", "text-red-800", "Admin") :: (Text, Text, Text)
         UserMetadata.Staff -> ("bg-purple-100", "text-purple-800", "Staff")
         UserMetadata.Host -> ("bg-blue-100", "text-blue-800", "Host")
-        UserMetadata.User -> ("bg-gray-100", "text-gray-800", "User")
+        UserMetadata.User -> ("bg-gray-100 dark:bg-gray-700", "text-gray-800 dark:text-gray-200", "User")
 
   Lucid.span_
     [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{bgClass} #{textClass}|]]
@@ -206,8 +206,8 @@ renderStatusBadge = \case
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do
-  Lucid.div_ [Lucid.class_ "bg-gray-50 border-2 border-gray-300 p-12 text-center"] $ do
-    Lucid.p_ [Lucid.class_ "text-xl text-gray-600"] $
+  Lucid.div_ [Lucid.class_ "bg-gray-50 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 p-12 text-center"] $ do
+    Lucid.p_ [Lucid.class_ "text-xl text-gray-600 dark:text-gray-400"] $
       case maybeQuery of
         Nothing -> "No users found."
         Just query -> Lucid.toHtml $ "No users found matching \"" <> query <> "\"."

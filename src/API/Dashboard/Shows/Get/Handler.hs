@@ -108,12 +108,12 @@ filtersUI queryFilter statusFilter = do
           Lucid.name_ "q",
           Lucid.value_ (fromMaybe "" queryFilter),
           Lucid.placeholder_ "Search...",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 w-32"
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 w-32"
         ]
       -- Status filter
       Lucid.select_
         [ Lucid.name_ "status",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300"
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600"
         ]
         $ do
           Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (isNothing statusFilter)) "All Statuses"

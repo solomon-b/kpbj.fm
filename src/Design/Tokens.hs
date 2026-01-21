@@ -70,19 +70,34 @@ module Design.Tokens
 
     -- * Borders
     border2,
-    borderGray800,
+    borderGray200,
+    borderGray300,
     borderGray400,
+    borderGray600,
+    borderGray800,
     cardBorder,
 
     -- * Colors
     bgWhite,
+    bgGray50,
     bgGray100,
+    bgGray200,
+    bgGray300,
     bgGray800,
     bgGray900,
+    textGray400,
+    textGray500,
     textGray600,
     textGray700,
     textGray800,
+    textGray900,
     textWhite,
+
+    -- * Hover Colors
+    hoverBgGray50,
+    hoverBgGray100,
+    hoverBgGray200,
+    hoverBgGray700,
 
     -- * Semantic Colors (Notifications)
     successBg,
@@ -271,81 +286,121 @@ containerPadding = cls [px4, md px6, lg px8]
 border2 :: Text
 border2 = "border-2"
 
-borderGray800 :: Text
-borderGray800 = "border-gray-800"
+borderGray200 :: Text
+borderGray200 = "border-gray-200 dark:border-gray-600"
+
+borderGray300 :: Text
+borderGray300 = "border-gray-300 dark:border-gray-600"
 
 borderGray400 :: Text
-borderGray400 = "border-gray-400"
+borderGray400 = "border-gray-400 dark:border-gray-500"
+
+borderGray600 :: Text
+borderGray600 = "border-gray-600 dark:border-gray-500"
+
+borderGray800 :: Text
+borderGray800 = "border-gray-800 dark:border-gray-600"
 
 -- | Standard card border style.
 cardBorder :: Text
 cardBorder = cls [border2, borderGray800]
 
 --------------------------------------------------------------------------------
--- Colors
+-- Colors (with dark mode variants)
 
 bgWhite :: Text
-bgWhite = "bg-white"
+bgWhite = "bg-white dark:bg-gray-800"
+
+bgGray50 :: Text
+bgGray50 = "bg-gray-50 dark:bg-gray-700"
 
 bgGray100 :: Text
-bgGray100 = "bg-gray-100"
+bgGray100 = "bg-gray-100 dark:bg-gray-700"
+
+bgGray200 :: Text
+bgGray200 = "bg-gray-200 dark:bg-gray-600"
+
+bgGray300 :: Text
+bgGray300 = "bg-gray-300 dark:bg-gray-600"
 
 bgGray800 :: Text
-bgGray800 = "bg-gray-800"
+bgGray800 = "bg-gray-800 dark:bg-gray-900"
 
 bgGray900 :: Text
 bgGray900 = "bg-gray-900"
 
+textGray400 :: Text
+textGray400 = "text-gray-400 dark:text-gray-500"
+
+textGray500 :: Text
+textGray500 = "text-gray-500 dark:text-gray-400"
+
 textGray600 :: Text
-textGray600 = "text-gray-600"
+textGray600 = "text-gray-600 dark:text-gray-400"
 
 textGray700 :: Text
-textGray700 = "text-gray-700"
+textGray700 = "text-gray-700 dark:text-gray-300"
 
 textGray800 :: Text
-textGray800 = "text-gray-800"
+textGray800 = "text-gray-800 dark:text-gray-200"
+
+textGray900 :: Text
+textGray900 = "text-gray-900 dark:text-gray-100"
 
 textWhite :: Text
 textWhite = "text-white"
 
+-- Hover backgrounds
+hoverBgGray50 :: Text
+hoverBgGray50 = "hover:bg-gray-50 dark:hover:bg-gray-700"
+
+hoverBgGray100 :: Text
+hoverBgGray100 = "hover:bg-gray-100 dark:hover:bg-gray-700"
+
+hoverBgGray200 :: Text
+hoverBgGray200 = "hover:bg-gray-200 dark:hover:bg-gray-600"
+
+hoverBgGray700 :: Text
+hoverBgGray700 = "hover:bg-gray-700 dark:hover:bg-gray-600"
+
 --------------------------------------------------------------------------------
--- Semantic Colors (Notifications)
+-- Semantic Colors (Notifications, with dark mode variants)
 
 successBg :: Text
-successBg = "bg-green-100"
+successBg = "bg-green-100 dark:bg-green-900"
 
 successBorder :: Text
-successBorder = "border-green-600"
+successBorder = "border-green-600 dark:border-green-500"
 
 successText :: Text
-successText = "text-green-800"
+successText = "text-green-800 dark:text-green-200"
 
 errorBg :: Text
-errorBg = "bg-red-100"
+errorBg = "bg-red-100 dark:bg-red-900"
 
 errorBorder :: Text
-errorBorder = "border-red-600"
+errorBorder = "border-red-600 dark:border-red-500"
 
 errorText :: Text
-errorText = "text-red-800"
+errorText = "text-red-800 dark:text-red-200"
 
 warningBg :: Text
-warningBg = "bg-yellow-100"
+warningBg = "bg-yellow-100 dark:bg-yellow-900"
 
 warningBorder :: Text
-warningBorder = "border-yellow-600"
+warningBorder = "border-yellow-600 dark:border-yellow-500"
 
 warningText :: Text
-warningText = "text-yellow-800"
+warningText = "text-yellow-800 dark:text-yellow-200"
 
 infoBg :: Text
-infoBg = "bg-blue-100"
+infoBg = "bg-blue-100 dark:bg-blue-900"
 
 infoBorder :: Text
-infoBorder = "border-blue-600"
+infoBorder = "border-blue-600 dark:border-blue-500"
 
 infoText :: Text
-infoText = "text-blue-800"
+infoText = "text-blue-800 dark:text-blue-200"
 
 --------------------------------------------------------------------------------
 -- Layout
@@ -379,11 +434,11 @@ buttonPrimary = cls [bgGray800, textWhite, px4, md px6, py2, md "py-3", fontBold
 
 -- | Secondary button styling.
 buttonSecondary :: Text
-buttonSecondary = cls [bgWhite, textGray800, cardBorder, px4, py2, fontBold, "hover:bg-gray-100"]
+buttonSecondary = cls [bgWhite, textGray800, cardBorder, px4, py2, fontBold, "hover:bg-gray-100 dark:hover:bg-gray-700"]
 
 -- | Text link styling.
 linkText :: Text
-linkText = "text-blue-600 hover:text-blue-800 hover:underline"
+linkText = "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
 
 -- | Navigation link styling.
 navLink :: Text

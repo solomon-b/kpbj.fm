@@ -116,10 +116,10 @@ renderStationIdRow stationId =
             Lucid.a_
               [ Lucid.href_ audioUrl,
                 Lucid.download_ "",
-                Lucid.class_ "p-2 rounded hover:bg-gray-100 transition-colors",
+                Lucid.class_ "p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors",
                 Lucid.title_ "Download"
               ]
-              $ Lucid.i_ [Lucid.class_ "fa-solid fa-download text-gray-600"] mempty
+              $ Lucid.i_ [Lucid.class_ "fa-solid fa-download text-gray-600 dark:text-gray-400"] mempty
             -- Delete dropdown
             ActionsDropdown.render
               [ ActionsDropdown.htmxDeleteAction
@@ -161,18 +161,18 @@ renderInlineAudioPlayer audioUrl _uniqueId =
               $refs.audioPlayer.onended = () => { playing = false; };
             }
           |],
-          class_ $ base ["p-2", "rounded", "hover:bg-gray-100", "transition-colors"]
+          class_ $ base ["p-2", "rounded", "hover:bg-gray-100 dark:hover:bg-gray-700", "transition-colors"]
         ]
         $ do
           -- Play icon (shown when not playing)
           Lucid.i_
-            [ Lucid.class_ "fa-solid fa-play text-gray-600",
+            [ Lucid.class_ "fa-solid fa-play text-gray-600 dark:text-gray-400",
               Lucid.term "x-show" "!playing"
             ]
             mempty
           -- Pause icon (shown when playing)
           Lucid.i_
-            [ Lucid.class_ "fa-solid fa-pause text-gray-600",
+            [ Lucid.class_ "fa-solid fa-pause text-gray-600 dark:text-gray-400",
               Lucid.term "x-show" "playing"
             ]
             mempty
@@ -180,9 +180,9 @@ renderInlineAudioPlayer audioUrl _uniqueId =
 -- | Render empty state when no station IDs exist
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base ["bg-gray-50", Tokens.border2, "border-gray-300", "p-12", "text-center"]] $ do
+  Lucid.div_ [class_ $ base ["bg-gray-50 dark:bg-gray-700", Tokens.border2, "border-gray-300 dark:border-gray-600", "p-12", "text-center"]] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] "No station IDs uploaded yet."
-    Lucid.p_ [class_ $ base ["text-gray-500", "mt-2"]] "Upload a new station ID to get started."
+    Lucid.p_ [class_ $ base ["text-gray-500 dark:text-gray-400", "mt-2"]] "Upload a new station ID to get started."
 
 -- | Format a datetime for display
 formatDateTime :: UTCTime -> String

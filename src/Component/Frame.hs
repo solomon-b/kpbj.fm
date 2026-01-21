@@ -615,7 +615,7 @@ mobileHeader :: Maybe UserMetadata.Model -> Lucid.Html ()
 mobileHeader _mUser =
   Lucid.div_
     [ class_ $ do
-        base ["flex", "items-center", Tokens.fullWidth, Tokens.px4, "py-3", Tokens.bgWhite, "dark:bg-gray-800"]
+        base ["flex", "items-center", Tokens.fullWidth, Tokens.px4, "py-3", Tokens.bgWhite]
         tablet ["hidden"]
     ]
     $ do
@@ -638,7 +638,7 @@ mobileMenuOverlay mUser =
     [ xShow_ "menuOpen",
       xOnClickOutside_ "menuOpen = false",
       xTransition_,
-      class_ $ base ["fixed", "inset-0", "z-50", Tokens.bgWhite, "dark:bg-gray-900", "flex", "flex-col", Tokens.p6]
+      class_ $ base ["fixed", "inset-0", "z-50", Tokens.bgWhite, "flex", "flex-col", Tokens.p6]
     ]
     $ do
       -- Close button row
@@ -752,7 +752,7 @@ template mGoogleAnalyticsId mUser main =
       Lucid.style_ [] htmxIndicatorStyles
     Lucid.body_
       [ class_ $ do
-          base ["font-mono", Tokens.textGray800, "dark:text-gray-200", "dark:bg-gray-900", "min-h-screen", "flex", "flex-col", "pb-20"]
+          base ["font-mono", Tokens.textGray800, "dark:bg-gray-800", "min-h-screen", "flex", "flex-col", "pb-20"]
           tablet ["pb-0"]
       ]
       $ do
@@ -772,7 +772,7 @@ template mGoogleAnalyticsId mUser main =
             -- Desktop header (hidden on mobile)
             Lucid.header_
               [ class_ $ do
-                  base ["hidden", Tokens.bgWhite, "dark:bg-gray-800", Tokens.p4]
+                  base ["hidden", Tokens.bgWhite, Tokens.p4]
                   tablet ["block"]
               ]
               $ do
