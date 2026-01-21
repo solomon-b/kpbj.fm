@@ -125,7 +125,7 @@ renderPagination showModel currentPage episodeCount = do
             "Previous"
         else
           Lucid.span_
-            [class_ $ base ["bg-gray-300", "text-gray-500", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
+            [class_ $ base ["bg-gray-300 dark:bg-gray-600", "text-gray-500 dark:text-gray-400", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Previous"
 
       -- Page indicator
@@ -147,7 +147,7 @@ renderPagination showModel currentPage episodeCount = do
             "Next"
         else
           Lucid.span_
-            [class_ $ base ["bg-gray-300", "text-gray-500", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
+            [class_ $ base ["bg-gray-300 dark:bg-gray-600", "text-gray-500 dark:text-gray-400", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Next"
 
 -- Helper function to render blog content

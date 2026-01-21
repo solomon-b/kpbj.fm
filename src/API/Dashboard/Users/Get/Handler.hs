@@ -104,12 +104,12 @@ filtersUI queryFilter roleFilter sortBy = do
           Lucid.name_ "q",
           Lucid.value_ (fromMaybe "" queryFilter),
           Lucid.placeholder_ "Search...",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 w-32"
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 w-32"
         ]
       -- Role filter
       Lucid.select_
         [ Lucid.name_ "role",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300"
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600"
         ]
         $ do
           Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (isNothing roleFilter)) "All Roles"
@@ -120,7 +120,7 @@ filtersUI queryFilter roleFilter sortBy = do
       -- Sort filter
       Lucid.select_
         [ Lucid.name_ "sort",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300"
+          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600"
         ]
         $ do
           Lucid.option_ ([Lucid.value_ "newest"] <> selectedWhen (sortBy == JoinDateNewest)) "Newest"

@@ -26,12 +26,12 @@ template event mAuthor = do
         renderStatusBadge event.emStatus
 
       -- Metadata
-      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.textGray600, "mt-4", "pt-4", "border-t", "border-gray-200"]] $ do
+      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.textGray600, "mt-4", "pt-4", "border-t", "border-gray-200 dark:border-gray-600"]] $ do
         Lucid.div_ [] $ do
           Lucid.span_ [Lucid.class_ Tokens.fontBold] "Organizer: "
           case mAuthor of
             Just author -> Lucid.toHtml author.mDisplayName
-            Nothing -> Lucid.span_ [Lucid.class_ "text-gray-400"] "Unknown"
+            Nothing -> Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500"] "Unknown"
         Lucid.div_ [] $ do
           Lucid.span_ [Lucid.class_ Tokens.fontBold] "Created: "
           Lucid.toHtml $ formatDateTime event.emCreatedAt

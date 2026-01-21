@@ -40,7 +40,7 @@ renderLatestEpisode backend showModel episode tracks = do
 
     -- Episode header with image and info
     Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
-      Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
+      Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300 dark:bg-gray-600", "border", "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
         case episode.artworkUrl of
           Just artworkPath -> Lucid.img_ [Lucid.src_ (buildMediaUrl backend artworkPath), Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
           Nothing -> "[EP IMG]"
@@ -87,7 +87,7 @@ renderLatestEpisode backend showModel episode tracks = do
             episodeMetadata :: Text.Text
             episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
         Lucid.div_
-          [ class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-600", Tokens.p4, Tokens.mb4],
+          [ class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-600 dark:border-gray-500", Tokens.p4, Tokens.mb4],
             xData_
               [i|{
               playerId: '#{playerId}',
@@ -144,7 +144,7 @@ renderLatestEpisode backend showModel episode tracks = do
                   xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
                 ]
                 "▶ PLAY"
-              Lucid.div_ [class_ $ base ["flex-grow", "bg-gray-300", "h-2", "rounded", "relative"]] $ do
+              Lucid.div_ [class_ $ base ["flex-grow", "bg-gray-300 dark:bg-gray-600", "h-2", "rounded", "relative"]] $ do
                 Lucid.div_
                   [ class_ $ base [Tokens.bgGray800, "h-2", "rounded", "absolute", "top-0", "left-0"],
                     Lucid.style_ "",
@@ -174,7 +174,7 @@ renderLatestEpisode backend showModel episode tracks = do
   where
     renderTrack :: EpisodeTrack.Model -> Lucid.Html ()
     renderTrack track = do
-      Lucid.div_ [class_ $ base ["flex", "justify-between", Tokens.p2, "hover:bg-gray-50"]] $ do
+      Lucid.div_ [class_ $ base ["flex", "justify-between", Tokens.p2, "hover:bg-gray-50 dark:hover:bg-gray-700"]] $ do
         Lucid.div_ $ do
           Lucid.span_ [Lucid.class_ "font-medium"] $ "\"" <> Lucid.toHtml track.title <> "\""
           " - "
@@ -185,7 +185,7 @@ renderEpisodeCard :: StorageBackend -> Shows.Model -> Episodes.Model -> Lucid.Ht
 renderEpisodeCard backend showModel episode = do
   Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
     -- Episode thumbnail
-    Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300", "border", "border-gray-600", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
+    Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300 dark:bg-gray-600", "border", "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
       case episode.artworkUrl of
         Just artworkPath -> Lucid.img_ [Lucid.src_ (buildMediaUrl backend artworkPath), Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
         Nothing -> "[EP IMG]"
@@ -234,7 +234,7 @@ renderEpisodeCard backend showModel episode = do
               episodeMetadata :: Text.Text
               episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
           Lucid.div_
-            [ Lucid.class_ "bg-gray-100 border-2 border-gray-600 p-4 mb-4",
+            [ Lucid.class_ "bg-gray-100 dark:bg-gray-700 border-2 border-gray-600 dark:border-gray-500 p-4 mb-4",
               xData_
                 [i|{
                 playerId: '#{playerId}',

@@ -59,7 +59,7 @@ template backend _userMeta showModel episode tracks tags = do
     Lucid.div_ [class_ $ base ["border-b-2", "border-gray-800", Tokens.p6]] $ do
       Lucid.div_ [class_ $ base ["flex", Tokens.gap6, Tokens.mb6]] $ do
         -- Episode artwork
-        Lucid.div_ [class_ $ base ["w-48", "h-48", "bg-gray-300", "border-2", "border-gray-600", "flex", "items-center", "justify-center", "text-xs", "flex-shrink-0"]] $ do
+        Lucid.div_ [class_ $ base ["w-48", "h-48", "bg-gray-300 dark:bg-gray-600", "border-2", "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", "text-xs", "flex-shrink-0"]] $ do
           case episode.artworkUrl of
             Just artworkPath ->
               Lucid.img_
@@ -172,7 +172,7 @@ template backend _userMeta showModel episode tracks tags = do
 renderTag :: EpisodeTags.Model -> Lucid.Html ()
 renderTag tag =
   Lucid.span_
-    [class_ $ base ["bg-gray-200", "text-gray-800", "px-2", "py-1", "text-xs", "font-mono"]]
+    [class_ $ base ["bg-gray-200 dark:bg-gray-600", "text-gray-800 dark:text-gray-200", "px-2", "py-1", "text-xs", "font-mono"]]
     $ Lucid.toHtml
     $ "#" <> EpisodeTags.etName tag
 
@@ -180,7 +180,7 @@ renderTag tag =
 
 renderTrackRow :: EpisodeTrack.Model -> Lucid.Html ()
 renderTrackRow track = do
-  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", "p-3", "hover:bg-gray-50", "border-b", "border-gray-200"]] $ do
+  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", "p-3", "hover:bg-gray-50 dark:hover:bg-gray-700", "border-b", "border-gray-200 dark:border-gray-600"]] $ do
     -- Track number
     Lucid.div_ [class_ $ base ["w-8", "flex-shrink-0", Tokens.textGray600, "font-mono", Tokens.textSm]] $
       Lucid.toHtml (show track.trackNumber <> ".")

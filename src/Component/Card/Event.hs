@@ -54,7 +54,7 @@ eventGetUrl eventId slug = Links.linkURI $ eventsLinks.detailWithSlug eventId sl
 -- For the Summary variant, the description parameter is ignored.
 renderEventCard :: StorageBackend -> Variant -> Events.Model -> Maybe (Lucid.Html ()) -> Lucid.Html ()
 renderEventCard backend variant event mRenderedDescription = do
-  Lucid.article_ [class_ $ base [Tokens.bgWhite, "dark:bg-gray-800"]] $ do
+  Lucid.article_ [class_ $ base [Tokens.bgWhite]] $ do
     case variant of
       Summary -> do
         -- Vertical stack layout for summary
@@ -109,7 +109,7 @@ renderImage backend event =
         ]
     Nothing ->
       Lucid.div_
-        [class_ $ base [Tokens.fullWidth, "aspect-square", "bg-gray-300", "dark:bg-gray-700", "flex", "items-center", "justify-center", Tokens.textLg, "border", "border-gray-300"]]
+        [class_ $ base [Tokens.fullWidth, "aspect-square", Tokens.bgGray100, "flex", "items-center", "justify-center", Tokens.textLg, "border", "border-gray-300"]]
         "[NO POSTER]"
 
 -- | Render event title.
@@ -139,11 +139,11 @@ renderDateAndLocation variant event =
     Lucid.div_ $ do
       case variant of
         Summary -> pure ()
-        Detail -> Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.textGray800, "dark:text-gray-200"]] "DATE & TIME"
-      Lucid.div_ [Lucid.class_ [i|#{Tokens.textGray600} dark:text-gray-400|]] $
+        Detail -> Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.textGray800]] "DATE & TIME"
+      Lucid.div_ [Lucid.class_ Tokens.textGray600] $
         Lucid.toHtml $
           formatTime defaultTimeLocale "%A, %B %d, %Y" event.emStartsAt
-      Lucid.div_ [Lucid.class_ [i|#{Tokens.textGray600} dark:text-gray-400|]] $
+      Lucid.div_ [Lucid.class_ Tokens.textGray600] $
         Lucid.toHtml $
           formatTime defaultTimeLocale "%l:%M %p" event.emStartsAt
             <> " - "
@@ -154,9 +154,9 @@ renderDateAndLocation variant event =
       Summary -> pure ()
       Detail ->
         Lucid.div_ $ do
-          Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.textGray800, "dark:text-gray-200"]] "LOCATION"
-          Lucid.div_ [Lucid.class_ [i|#{Tokens.textGray600} dark:text-gray-400|]] $ Lucid.toHtml event.emLocationName
-          Lucid.div_ [Lucid.class_ [i|#{Tokens.textGray600} dark:text-gray-400|]] $ Lucid.toHtml event.emLocationAddress
+          Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.textGray800]] "LOCATION"
+          Lucid.div_ [Lucid.class_ Tokens.textGray600] $ Lucid.toHtml event.emLocationName
+          Lucid.div_ [Lucid.class_ Tokens.textGray600] $ Lucid.toHtml event.emLocationAddress
 
 -- | Render event description (pre-rendered HTML).
 renderDescription :: Maybe (Lucid.Html ()) -> Lucid.Html ()

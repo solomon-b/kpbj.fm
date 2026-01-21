@@ -106,7 +106,7 @@ template _userMeta showModel blogPost tags = do
           Nothing ->
             Lucid.div_ $ do
               Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700]] "Published: "
-              Lucid.span_ [class_ $ base ["text-gray-500", "italic"]] "Not published"
+              Lucid.span_ [class_ $ base ["text-gray-500 dark:text-gray-400", "italic"]] "Not published"
 
         -- Created date
         Lucid.div_ $ do
@@ -128,7 +128,7 @@ template _userMeta showModel blogPost tags = do
     -- Excerpt section (if present)
     case blogPost.excerpt of
       Just excerpt -> do
-        Lucid.div_ [class_ $ base ["border-b-2", Tokens.borderGray800, Tokens.p6, "bg-gray-50"]] $ do
+        Lucid.div_ [class_ $ base ["border-b-2", Tokens.borderGray800, Tokens.p6, "bg-gray-50 dark:bg-gray-700"]] $ do
           Lucid.h2_ [class_ $ base [Tokens.textSm, Tokens.fontBold, "uppercase", Tokens.textGray600, Tokens.mb2]] "Excerpt"
           Lucid.p_ [class_ $ base [Tokens.textGray700, "italic"]] $ Lucid.toHtml excerpt
       Nothing -> mempty

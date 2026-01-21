@@ -46,7 +46,7 @@ renderShowHeader backend showModel hosts schedules tags = do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
-        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-square", "bg-gray-300", Tokens.border2, "border-gray-600", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-square", "bg-gray-300 dark:bg-gray-600", Tokens.border2, "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
           case showModel.logoUrl of
             Just logoPath -> do
               let logoAlt = showModel.title <> " logo"
@@ -105,7 +105,7 @@ renderShowHeader backend showModel hosts schedules tags = do
                   hxTarget_ "#main-content",
                   hxPushUrl_ "true",
                   hxSwap_ "innerHTML",
-                  class_ $ base [Tokens.px3, "py-1", Tokens.textSm, "border", "border-gray-400", "bg-gray-100", "hover:bg-gray-200", "transition-colors"]
+                  class_ $ base [Tokens.px3, "py-1", Tokens.textSm, "border", "border-gray-400 dark:border-gray-500", "bg-gray-100 dark:bg-gray-700", "hover:bg-gray-200 dark:hover:bg-gray-600", "transition-colors"]
                 ]
                 $ Lucid.toHtml (ShowTags.stName tag)
   where
