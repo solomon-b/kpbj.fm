@@ -6,6 +6,8 @@
 app = 'kpbj-fm'
 primary_region = 'lax'
 
+# Note: In CI, the image is specified via --image flag with a version-tagged image
+# This fallback uses :latest which points to the most recent production release
 [build]
   image = 'ghcr.io/solomon-b/kpbj.fm:latest'
 
