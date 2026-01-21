@@ -79,6 +79,10 @@
 \i 18_episode_tag_assignments.sql
 
 \echo ''
+\echo '19. Verifying all user accounts...'
+\i 19_verify_users.sql
+
+\echo ''
 \echo '=========================================='
 \echo 'Summary'
 \echo '=========================================='
