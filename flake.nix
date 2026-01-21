@@ -20,8 +20,28 @@
               web-server-core.overlays.web-server-core
             ];
           };
+          amazonkaSrc = pkgs.fetchgit {
+            url = "https://github.com/brendanhay/amazonka.git";
+            rev = "a7d699be1076e2aad05a1930ca3937ffea954ad8";
+            sha256 = "sha256-cCRhHH/IgM7tPy8rXHTSRec1zxohO8NWxSVZEG1OjQw=";
+          };
           hsPkgs = pkgs.haskellPackages.override {
             overrides = hfinal: hprev: {
+              amazonka = pkgs.haskell.lib.dontCheck
+                (hfinal.callCabal2nix "amazonka" (amazonkaSrc + "/lib/amazonka") { });
+
+              amazonka-core = pkgs.haskell.lib.dontCheck
+                (hfinal.callCabal2nix "amazonka-core" (amazonkaSrc + "/lib/amazonka-core") { });
+
+              amazonka-s3 = pkgs.haskell.lib.dontCheck
+                (hfinal.callCabal2nix "amazonka-s3" (amazonkaSrc + "/lib/services/amazonka-s3") { });
+
+              amazonka-sso = pkgs.haskell.lib.dontCheck
+                (hfinal.callCabal2nix "amazonka-sso" (amazonkaSrc + "/lib/services/amazonka-sso") { });
+
+              amazonka-sts = pkgs.haskell.lib.dontCheck
+                (hfinal.callCabal2nix "amazonka-sts" (amazonkaSrc + "/lib/services/amazonka-sts") { });
+
               hasql = pkgs.haskell.lib.dontCheck hfinal.hasql_1_9_1_2;
 
               hasql-pool = pkgs.haskell.lib.dontCheck hfinal.hasql-pool_1_3_0_1;
@@ -45,7 +65,7 @@
               tmp-postgres = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "tmp-postgres"
                 (pkgs.fetchgit {
                   url = "https://github.com/jfischoff/tmp-postgres.git";
-                  rev = "refs/heads/master";
+                  rev = "7f2467a6d6d5f6db7eed59919a6773fe006cf22b";
                   sha256 = "sha256-dE1OQN7I4Lxy6RBdLCvm75Z9D/Hu+9G4ejV2pEtvL1A=";
                 })
                 { });
