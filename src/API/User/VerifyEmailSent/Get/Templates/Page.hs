@@ -4,12 +4,33 @@ module API.User.VerifyEmailSent.Get.Templates.Page (template) where
 
 --------------------------------------------------------------------------------
 
+import API.Links (userLinks)
+import API.Types (UserRoutes (loginGet, verifyEmailResendPost))
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
 import Lucid.Extras (hxPost_, hxSwap_, hxTarget_)
+import Servant.Links qualified as Links
+
+--------------------------------------------------------------------------------
+
+-- | URI for the login page.
+userLoginGetUri :: Links.URI
+userLoginGetUri = Links.linkURI (userLinks.loginGet Nothing Nothing)
+
+-- | URI for resending verification email.
+verifyEmailResendPostUri :: Links.URI
+verifyEmailResendPostUri = Links.linkURI userLinks.verifyEmailResendPost
+
+-- | URL for the login page.
+loginUrl :: Text
+loginUrl = [i|/#{userLoginGetUri}|]
+
+-- | URL for resending verification email.
+resendUrl :: Text
+resendUrl = [i|/#{verifyEmailResendPostUri}|]
 
 --------------------------------------------------------------------------------
 
@@ -78,12 +99,7 @@ template mEmail = do
       Lucid.p_ [Lucid.class_ "mt-6 text-center text-sm text-gray-600"] $ do
         "Already verified? "
         Lucid.a_
-          [ Lucid.href_ "/user/login",
+          [ Lucid.href_ loginUrl,
             Lucid.class_ "font-semibold text-gray-900 hover:underline"
           ]
           "Log in"
-
---------------------------------------------------------------------------------
-
-resendUrl :: Text
-resendUrl = [i|/user/verify-email/resend|]
