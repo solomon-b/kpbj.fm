@@ -6,6 +6,8 @@
 app = 'kpbj-fm-staging'
 primary_region = 'lax'
 
+# Note: In CI, the image is specified via --image flag with a SHA-tagged version
+# This fallback is only used for manual deploys (not recommended for staging)
 [build]
   image = 'ghcr.io/solomon-b/kpbj.fm:latest'
 

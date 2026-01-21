@@ -122,18 +122,47 @@
           packages = flake-utils.lib.flattenTree {
             kpbj-api = hsPkgs.kpbj-api;
 
-            docker = import ./docker.nix {
-              inherit pkgs;
-              kpbj-api = hsPkgs.kpbj-api;
-            };
+            # Docker image with configurable tag
+            # For local builds: nix build .#docker (uses cabal version)
+            # For CI builds: IMAGE_TAG=sha-xxx nix build .#docker --impure (uses IMAGE_TAG)
+            docker =
+              let
+                # Use IMAGE_TAG env var if set (requires --impure), otherwise use cabal version
+                envTag = builtins.getEnv "IMAGE_TAG";
+                tag = if envTag != "" then envTag else hsPkgs.kpbj-api.version;
+              in
+              import ./docker.nix {
+                inherit pkgs;
+                kpbj-api = hsPkgs.kpbj-api;
+                imageTag = tag;
+              };
 
+            # Publish script that builds and pushes docker image
+            # Usage: IMAGE_TAG=0.3.2 nix run .#publish --impure
+            # Set PUSH_LATEST=true to also push :latest tag
             publish = pkgs.writeShellScriptBin "publish" ''
-              nix build .#docker
+              set -euo pipefail
+
+              if [ -z "''${IMAGE_TAG:-}" ]; then
+                echo "ERROR: IMAGE_TAG environment variable is required"
+                echo "Usage: IMAGE_TAG=0.3.2 nix run .#publish --impure"
+                exit 1
+              fi
+
+              echo "Building docker image with tag: $IMAGE_TAG"
+              nix build .#docker --impure
+
               image=$(docker load -i result | sed -n 's#^Loaded image: \([a-zA-Z0-9\.\/\-\:]*\)#\1#p')
-              docker push $image
-              # Also tag and push as latest
-              docker tag $image ghcr.io/solomon-b/kpbj.fm:latest
-              docker push ghcr.io/solomon-b/kpbj.fm:latest
+              echo "Loaded image: $image"
+              docker push "$image"
+
+              if [ "''${PUSH_LATEST:-false}" = "true" ]; then
+                echo "Also tagging and pushing as :latest"
+                docker tag "$image" ghcr.io/solomon-b/kpbj.fm:latest
+                docker push ghcr.io/solomon-b/kpbj.fm:latest
+              fi
+
+              echo "Done! Pushed: $image"
             '';
           };
 
