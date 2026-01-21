@@ -54,7 +54,7 @@ renderEpisodeCard backend showModel episode = do
   -- Note: Audio playback is delegated to the persistent navbar player,
   -- so no local audio element is needed here.
   Lucid.div_
-    [ class_ $ base [Tokens.bgWhite, "dark:bg-gray-800"],
+    [ class_ $ base [Tokens.bgWhite],
       xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata
     ]
     $ do
@@ -77,7 +77,7 @@ renderArtworkWithPlayer backend epUrl mArtworkUrl =
         hxGet_ [i|/#{epUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "dark:bg-gray-700", "flex", "items-center", "justify-center", Tokens.textXs, "block", "border", "border-gray-300"]
+        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", Tokens.bgGray100, "flex", "items-center", "justify-center", Tokens.textXs, "block", "border", "border-gray-300"]
       ]
       $ case mArtworkUrl of
         Just artworkPath ->
@@ -111,7 +111,7 @@ renderPlayButton =
 -- | Render episode date.
 renderEpisodeDate :: UTCTime -> Lucid.Html ()
 renderEpisodeDate scheduledAt =
-  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "dark:text-gray-400"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] $ do
     let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
     Lucid.toHtml dateStr
 

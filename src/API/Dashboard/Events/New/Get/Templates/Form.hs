@@ -122,7 +122,7 @@ renderFormHeader userMeta =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "NEW EVENT"
-        Lucid.div_ [class_ $ base ["text-gray-300", Tokens.textSm]] $ do
+        Lucid.div_ [class_ $ base ["text-gray-300 dark:text-gray-500", Tokens.textSm]] $ do
           Lucid.strong_ "Organizer: "
           Lucid.toHtml userMeta.mDisplayName
       Lucid.div_ [Lucid.class_ "text-center"] $ do
