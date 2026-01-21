@@ -26,6 +26,7 @@ import App.Smtp (SmtpConfig)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (asks)
 import Data.Has qualified as Has
+import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
@@ -68,7 +69,13 @@ data VerificationError
     EmailSendFailed
   | -- | SMTP not configured
     SmtpNotConfigured
+  | -- | Rate limited - includes seconds until next request allowed
+    RateLimited Int
   deriving stock (Show, Eq)
+
+-- | Cooldown period between resend requests in seconds.
+resendCooldownSeconds :: Int64
+resendCooldownSeconds = 60
 
 -- | Convert a VerificationError to user-friendly text.
 verificationErrorToText :: VerificationError -> Text
@@ -78,6 +85,7 @@ verificationErrorToText = \case
   UserNotFound -> "User account not found."
   EmailSendFailed -> "Failed to send verification email. Please try again."
   SmtpNotConfigured -> "Email service is not configured."
+  RateLimited secs -> "Please wait " <> Text.pack (show secs) <> " seconds before requesting another email."
 
 --------------------------------------------------------------------------------
 -- Verification Operations
@@ -194,6 +202,7 @@ verifyEmail tokenText = do
 --
 -- Creates a new token and sends the verification email.
 -- Invalidates any existing pending tokens.
+-- Rate limited to one request per 'resendCooldownSeconds'.
 resendVerification ::
   -- | User ID
   User.Id ->
@@ -201,7 +210,32 @@ resendVerification ::
   EmailAddress ->
   AppM (Either VerificationError ())
 resendVerification userId email = do
-  result <- createAndSendVerification userId email
-  case result of
+  -- Check rate limit first
+  rateLimitResult <- checkResendRateLimit userId
+  case rateLimitResult of
     Left err -> pure $ Left err
-    Right _ -> pure $ Right ()
+    Right () -> do
+      result <- createAndSendVerification userId email
+      case result of
+        Left err -> pure $ Left err
+        Right _ -> pure $ Right ()
+
+-- | Check if the user is rate limited for resending verification emails.
+--
+-- Returns Left RateLimited if rate limited, Right () if the request is allowed.
+checkResendRateLimit :: User.Id -> AppM (Either VerificationError ())
+checkResendRateLimit userId = do
+  -- Check if a token was created within the cooldown period
+  recentTokenResult <- execQuerySpan (VerificationTokens.getLastTokenCreatedAt userId resendCooldownSeconds)
+  case recentTokenResult of
+    Left err -> do
+      Log.logInfo "Failed to check rate limit" (Text.pack $ show err)
+      -- Allow the request if we can't check - fail open for UX
+      pure $ Right ()
+    Right Nothing ->
+      -- No recent token, allow the request
+      pure $ Right ()
+    Right (Just _) -> do
+      -- Recent token exists, rate limit
+      Log.logInfo "Resend rate limited" (display userId)
+      pure $ Left $ RateLimited (fromIntegral resendCooldownSeconds)
