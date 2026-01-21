@@ -28,6 +28,7 @@ module Effects.Database.Tables.EmailVerificationTokens
     verifyToken,
     invalidateForUser,
     getLatestPendingForUser,
+    getLastTokenCreatedAt,
     deleteExpired,
 
     -- * User Verification Status
@@ -231,6 +232,23 @@ getLatestPendingForUser userId =
     WHERE user_id = #{userId}
       AND status = 'pending'
       AND expires_at > NOW()
+    ORDER BY created_at DESC
+    LIMIT 1
+  |]
+
+-- | Check if a token was created within the given number of seconds.
+--
+-- Used for rate limiting - returns True if a token exists that was created
+-- within the specified cooldown period.
+getLastTokenCreatedAt :: User.Id -> Int64 -> Hasql.Statement () (Maybe Id)
+getLastTokenCreatedAt userId cooldownSeconds =
+  interp
+    False
+    [sql|
+    SELECT id
+    FROM email_verification_tokens
+    WHERE user_id = #{userId}
+      AND created_at > NOW() - (#{cooldownSeconds} || ' seconds')::INTERVAL
     ORDER BY created_at DESC
     LIMIT 1
   |]
