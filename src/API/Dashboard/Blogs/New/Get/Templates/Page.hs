@@ -97,7 +97,7 @@ renderFormHeader showModel =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "NEW BLOG POST"
-        Lucid.div_ [class_ $ base ["text-gray-300", Tokens.textSm]] $ do
+        Lucid.div_ [class_ $ base ["text-gray-300 dark:text-gray-500", Tokens.textSm]] $ do
           Lucid.strong_ "Show: "
           Lucid.toHtml (Shows.title showModel)
       Lucid.div_ [class_ $ base ["text-center", "flex", Tokens.gap4]] $ do

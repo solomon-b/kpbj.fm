@@ -96,10 +96,10 @@ template backend currentTime showModel episode tracks episodeTags mCurrentSlot u
                   Lucid.div_ $ do
                     Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
                     Lucid.div_
-                      [Lucid.class_ "w-full p-3 border-2 border-gray-300 bg-gray-50 font-mono text-sm"]
+                      [Lucid.class_ "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-50 font-mono text-sm"]
                       (Lucid.toHtml $ "Current: " <> display episode.scheduledAt)
                     Lucid.p_
-                      [Lucid.class_ "text-sm text-gray-600 mt-2 italic"]
+                      [Lucid.class_ "text-sm text-gray-600 dark:text-gray-400 mt-2 italic"]
                       "Schedule template not found. To change, cancel and create a new episode."
               Just currentSlot ->
                 if null upcomingDates
@@ -107,10 +107,10 @@ template backend currentTime showModel episode tracks episodeTags mCurrentSlot u
                     Lucid.div_ $ do
                       Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
                       Lucid.div_
-                        [Lucid.class_ "w-full p-3 border-2 border-gray-300 bg-gray-50 font-mono text-sm"]
+                        [Lucid.class_ "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-50 font-mono text-sm"]
                         (Lucid.toHtml $ display currentSlot <> " (Current)")
                       Lucid.p_
-                        [Lucid.class_ "text-sm text-gray-600 mt-2 italic"]
+                        [Lucid.class_ "text-sm text-gray-600 dark:text-gray-400 mt-2 italic"]
                         "No other available time slots. To change, cancel and create a new episode."
                   else selectField "scheduled_date" $ do
                     label "Scheduled Date"

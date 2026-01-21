@@ -120,25 +120,25 @@ defaultFormStyles :: FormStyles
 defaultFormStyles =
   FormStyles
     { fsTextInputClasses =
-        "w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600 focus:outline-none",
+        "w-full p-3 border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 font-mono focus:border-blue-600 focus:outline-none",
       fsTextInputErrorClasses =
-        "w-full p-3 border-2 border-red-500 font-mono focus:border-red-600 focus:outline-none",
+        "w-full p-3 border-2 border-red-500 bg-white dark:bg-gray-800 font-mono focus:border-red-600 focus:outline-none",
       fsTextInputDisabledClasses =
-        "w-full p-3 border-2 border-gray-300 bg-gray-100 text-gray-600 font-mono cursor-not-allowed",
+        "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-mono cursor-not-allowed",
       fsTextareaClasses =
-        "w-full p-3 border-2 border-gray-400 font-mono leading-relaxed focus:border-blue-600 focus:outline-none",
+        "w-full p-3 border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 font-mono leading-relaxed focus:border-blue-600 focus:outline-none",
       fsTextareaErrorClasses =
-        "w-full p-3 border-2 border-red-500 font-mono leading-relaxed focus:border-red-600 focus:outline-none",
+        "w-full p-3 border-2 border-red-500 bg-white dark:bg-gray-800 font-mono leading-relaxed focus:border-red-600 focus:outline-none",
       fsTextareaDisabledClasses =
-        "w-full p-3 border-2 border-gray-300 bg-gray-100 text-gray-600 font-mono leading-relaxed cursor-not-allowed",
+        "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-mono leading-relaxed cursor-not-allowed",
       fsSelectClasses =
-        "w-full p-3 border-2 border-gray-400 font-mono focus:border-blue-600 focus:outline-none",
+        "w-full p-3 border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 font-mono focus:border-blue-600 focus:outline-none",
       fsSelectErrorClasses =
-        "w-full p-3 border-2 border-red-500 font-mono focus:border-red-600 focus:outline-none",
+        "w-full p-3 border-2 border-red-500 bg-white dark:bg-gray-800 font-mono focus:border-red-600 focus:outline-none",
       fsSelectDisabledClasses =
-        "w-full p-3 border-2 border-gray-300 bg-gray-100 text-gray-600 font-mono cursor-not-allowed",
+        "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-mono cursor-not-allowed",
       fsFileUploadClasses =
-        "border-2 border-dashed border-gray-400 p-6 text-center cursor-pointer hover:border-gray-600 transition-colors",
+        "border-2 border-dashed border-gray-400 dark:border-gray-500 p-6 text-center cursor-pointer hover:border-gray-600 dark:hover:border-gray-400 transition-colors",
       fsFileUploadErrorClasses =
         "border-2 border-dashed border-red-500 p-6 text-center cursor-pointer",
       fsRadioGroupClasses =
@@ -152,11 +152,11 @@ defaultFormStyles =
       fsLabelClasses =
         "block font-bold mb-2",
       fsErrorMessageClasses =
-        "mt-1 text-sm text-red-600",
+        "mt-1 text-sm text-red-600 dark:text-red-400",
       fsHintClasses =
-        "text-xs text-gray-600 mt-1",
+        "text-xs text-gray-600 dark:text-gray-400 mt-1",
       fsSectionContainerClasses =
-        "bg-white p-6",
+        "bg-white dark:bg-gray-800 p-6",
       fsSectionTitleClasses =
         "text-xl font-bold mb-4 pb-2",
       fsSectionContentClasses =
@@ -166,27 +166,27 @@ defaultFormStyles =
       fsTitleClasses =
         "text-2xl font-bold",
       fsSubtitleClasses =
-        "text-gray-600 mt-2",
+        "text-gray-600 dark:text-gray-400 mt-2",
       fsButtonContainerClasses =
         "flex gap-4 justify-end",
       fsSubmitButtonClasses =
-        "bg-gray-800 text-white font-bold py-3 px-6 hover:bg-gray-700 transition-colors",
+        "bg-gray-800 dark:bg-gray-700 text-white font-bold py-3 px-6 hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors",
       fsCancelButtonClasses =
-        "bg-gray-300 text-gray-800 font-bold py-3 px-6 hover:bg-gray-400 transition-colors",
+        "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-6 hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors",
       -- Image picker defaults
       fsImageDropZoneClasses =
-        "border-2 border-dashed border-gray-300 p-6 cursor-pointer transition-all duration-150 hover:border-gray-400 hover:bg-gray-50",
+        "border-2 border-dashed border-gray-300 dark:border-gray-600 p-6 cursor-pointer transition-all duration-150 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700",
       fsImageDropZoneDraggingClasses =
-        "border-2 border-dashed border-purple-500 bg-purple-50 p-6 cursor-pointer transition-all duration-150",
+        "border-2 border-dashed border-purple-500 bg-purple-50 dark:bg-purple-900 p-6 cursor-pointer transition-all duration-150",
       fsImageDropZoneErrorClasses =
-        "border-2 border-dashed border-red-500 bg-red-50 p-6 cursor-pointer transition-all duration-150",
+        "border-2 border-dashed border-red-500 bg-red-50 dark:bg-red-900 p-6 cursor-pointer transition-all duration-150",
       fsImagePreviewClasses =
-        "border-2 border-gray-300 bg-gray-100 relative group overflow-hidden",
+        "border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 relative group overflow-hidden",
       fsImageActionButtonClasses =
-        "text-sm text-red-600 hover:text-red-800 underline",
+        "text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 underline",
       -- Audio picker defaults
       fsAudioContainerClasses =
-        "border-2 border-dashed border-gray-400 p-6 text-center",
+        "border-2 border-dashed border-gray-400 dark:border-gray-500 p-6 text-center",
       fsAudioButtonClasses =
         "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block",
       -- Toggle switch defaults

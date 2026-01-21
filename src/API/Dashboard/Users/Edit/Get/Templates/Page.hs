@@ -110,7 +110,7 @@ renderFormHeader user _metadata = do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [T.text2xl, T.fontBold, T.mb2]] "EDIT USER"
-        Lucid.div_ [class_ $ base ["text-gray-300", T.textSm]] $ do
+        Lucid.div_ [class_ $ base ["text-gray-300 dark:text-gray-500", T.textSm]] $ do
           Lucid.strong_ "Editing: "
           Lucid.toHtml $ display user.mEmail
       Lucid.div_ $ do

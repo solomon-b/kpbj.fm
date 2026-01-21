@@ -105,7 +105,7 @@ renderPostRow post =
           Lucid.td_ (clickableCellAttrs detailUrl) $ do
             case publishedAt of
               Just pubAt -> Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatDateTime pubAt)
-              Nothing -> Lucid.span_ [class_ $ base ["text-gray-400", Tokens.textSm]] "—"
+              Nothing -> Lucid.span_ [class_ $ base ["text-gray-400 dark:text-gray-500", Tokens.textSm]] "—"
 
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
             ActionsDropdown.render
@@ -125,7 +125,7 @@ renderStatusBadge status = do
   let (bgClass, textClass, statusText) = case status of
         Published -> ("bg-green-100", "text-green-800", "Published") :: (Text, Text, Text)
         Draft -> ("bg-yellow-100", "text-yellow-800", "Draft")
-        Deleted -> ("bg-gray-100", "text-gray-800", "Deleted")
+        Deleted -> ("bg-gray-100 dark:bg-gray-700", "text-gray-800 dark:text-gray-200", "Deleted")
 
   Lucid.span_
     [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{bgClass} #{textClass}|]]
@@ -133,9 +133,9 @@ renderStatusBadge status = do
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base ["bg-gray-50", Tokens.border2, "border-gray-300", "p-12", "text-center"]] $ do
+  Lucid.div_ [class_ $ base ["bg-gray-50 dark:bg-gray-700", Tokens.border2, "border-gray-300 dark:border-gray-600", "p-12", "text-center"]] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] "No blog posts found."
-    Lucid.p_ [class_ $ base ["text-gray-500", "mt-2"]] "Create a new post to get started."
+    Lucid.p_ [class_ $ base ["text-gray-500 dark:text-gray-400", "mt-2"]] "Create a new post to get started."
 
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"

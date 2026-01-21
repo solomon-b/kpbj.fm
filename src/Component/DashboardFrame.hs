@@ -220,7 +220,7 @@ showSelector activeNav allShows selectedShow =
       Lucid.select_
         [ Lucid.id_ "show-selector",
           Lucid.name_ "show",
-          class_ $ base ["px-3", "py-1", "border", "border-gray-300", Tokens.bgWhite, Tokens.textSm, "font-medium"],
+          class_ $ base ["px-3", "py-1", "border", Tokens.borderGray300, Tokens.bgWhite, Tokens.textSm, "font-medium"],
           onchange_ "window.location.href = this.options[this.selectedIndex].dataset.url"
         ]
         $ mapM_ (renderShowOption activeNav selectedShow) allShows
@@ -308,7 +308,7 @@ navUrl nav mShow =
 -- | Top bar with page title, show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
 topBar activeNav allShows selectedShow statsContent actionButton =
-  Lucid.header_ [class_ $ base [Tokens.bgWhite, "border-b", "border-gray-200", Tokens.px8, Tokens.py4]] $ do
+  Lucid.header_ [class_ $ base [Tokens.bgWhite, "border-b", Tokens.borderGray200, Tokens.px8, Tokens.py4]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       -- Left side: page title and show selector
       Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
@@ -319,14 +319,14 @@ topBar activeNav allShows selectedShow statsContent actionButton =
           showSelector activeNav allShows selectedShow
         -- Stats (schedule info, counts, etc.)
         case statsContent of
-          Just stats -> Lucid.div_ [class_ $ base [Tokens.textSm, "text-gray-500", "border-l", "border-gray-300", "pl-4"]] stats
+          Just stats -> Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray500, "border-l", Tokens.borderGray300, "pl-4"]] stats
           Nothing -> mempty
       -- Right side: action button and back to site link
       Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
         fromMaybe mempty actionButton
         Lucid.a_
           [ Lucid.href_ [i|/#{rootGetUrl}|],
-            class_ $ base [Tokens.textSm, "text-gray-500", "hover:text-gray-800"]
+            class_ $ base [Tokens.textSm, Tokens.textGray500, "hover:text-gray-800 dark:hover:text-gray-200"]
           ]
           "Back to Site"
 

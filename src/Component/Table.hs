@@ -256,7 +256,7 @@ renderTableFragment columnCount targetId nextPageUrl rowContent = do
 rowAttrs :: Text -> [Lucid.Attributes]
 rowAttrs rowId =
   [ Lucid.id_ rowId,
-    class_ $ base ["border-b-2", "border-gray-200", "hover:bg-gray-50"]
+    class_ $ base ["border-b-2", Tokens.borderGray200, Tokens.hoverBgGray50]
   ]
 
 -- | Clickable cell attributes for navigation.

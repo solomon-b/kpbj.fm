@@ -83,7 +83,7 @@ renderRoleDropdown :: User.Id -> UserMetadata.UserRole -> Lucid.Html ()
 renderRoleDropdown userId currentRole =
   Lucid.select_
     [ Lucid.name_ "role",
-      Lucid.class_ "p-2 border-2 border-gray-800 bg-white font-bold",
+      Lucid.class_ "p-2 border-2 border-gray-800 bg-white dark:bg-gray-800 font-bold",
       hxPatch_ [i|/#{rolePatchUrl}|],
       hxTarget_ "#role-dropdown-container",
       hxSwap_ "outerHTML"
