@@ -222,9 +222,71 @@ mock-data:
 #-------------------------------------------------------------------------------
 ## Deployment
 
-# Build and publish Docker image to container registry
+# Build and publish Docker image to container registry (for local testing)
+# In CI, use the GitHub Actions workflows instead
 publish:
   nix run .#publish
+
+# Create a release PR that bumps the version
+# Usage: just release-pr 0.3.2
+release-pr VERSION:
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  VERSION="{{VERSION}}"
+
+  # Validate version format (X.Y.Z)
+  if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "ERROR: Invalid version format. Expected X.Y.Z (e.g., 0.3.2)"
+    exit 1
+  fi
+
+  # Check for uncommitted changes (ignores untracked files)
+  if [ -n "$(git status --porcelain | grep -v '^??')" ]; then
+    echo "ERROR: You have uncommitted changes. Please commit or stash them first."
+    exit 1
+  fi
+
+  # Ensure we're on main and up to date
+  git checkout main
+  git pull origin main
+
+  # Create release branch
+  BRANCH="release/$VERSION"
+  echo "Creating branch: $BRANCH"
+  git checkout -b "$BRANCH"
+
+  # Update cabal version
+  echo "Updating kpbj-api.cabal version to $VERSION"
+  sed -i "s/^version:.*$/version:            $VERSION/" kpbj-api.cabal
+
+  # Verify the change
+  CABAL_VERSION=$(grep -oP '^version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' kpbj-api.cabal)
+  if [ "$CABAL_VERSION" != "$VERSION" ]; then
+    echo "ERROR: Failed to update cabal version"
+    exit 1
+  fi
+
+  # Commit and push
+  git add kpbj-api.cabal
+  git commit -m "chore: bump version to $VERSION"
+  git push -u origin "$BRANCH"
+
+  # Create PR
+  echo "Creating pull request..."
+  PR_BODY="## Release v${VERSION}
+
+  This PR bumps the version to ${VERSION}
+
+  When merged, a git tag v${VERSION} will be automatically created, which triggers the production deployment"
+
+  gh pr create \
+    --title "Release v$VERSION" \
+    --body "$PR_BODY" \
+    --base main
+
+  echo ""
+  echo "Release PR created! Once merged, v$VERSION will be automatically tagged and deployed to production."
 
 #-------------------------------------------------------------------------------
 ## Fly.io Staging
