@@ -203,6 +203,17 @@ library
     API.Dashboard.StationIds.New.Get.Templates.Form
     API.Dashboard.StationIds.New.Post.Handler
     API.Dashboard.StationIds.New.Post.Route
+    API.Dashboard.EphemeralUploads.Get.Handler
+    API.Dashboard.EphemeralUploads.Get.Route
+    API.Dashboard.EphemeralUploads.Get.Templates.ItemsFragment
+    API.Dashboard.EphemeralUploads.Get.Templates.Page
+    API.Dashboard.EphemeralUploads.Id.Delete.Handler
+    API.Dashboard.EphemeralUploads.Id.Delete.Route
+    API.Dashboard.EphemeralUploads.New.Get.Handler
+    API.Dashboard.EphemeralUploads.New.Get.Route
+    API.Dashboard.EphemeralUploads.New.Get.Templates.Form
+    API.Dashboard.EphemeralUploads.New.Post.Handler
+    API.Dashboard.EphemeralUploads.New.Post.Route
     API.Dashboard.Episodes.Slug.Delete.Handler
     API.Dashboard.Episodes.Slug.Delete.Route
     API.Dashboard.Episodes.Slug.DiscardDraft.Handler
@@ -416,6 +427,7 @@ library
     Effects.Database.Tables.ShowTags
     Effects.Database.Tables.StagedUploads
     Effects.Database.Tables.StationIds
+    Effects.Database.Tables.EphemeralUploads
     Effects.Database.Tables.UserMetadata
     Effects.AWS
     Effects.BackgroundJobs

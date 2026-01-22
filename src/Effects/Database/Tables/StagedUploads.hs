@@ -89,12 +89,14 @@ newtype Token = Token {unToken :: Text}
 data UploadType
   = EpisodeAudio
   | StationIdAudio
+  | EphemeralAudio
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded, Read)
   deriving anyclass (FromJSON, ToJSON)
 
 instance Display UploadType where
   displayBuilder EpisodeAudio = "episode_audio"
   displayBuilder StationIdAudio = "station_id_audio"
+  displayBuilder EphemeralAudio = "ephemeral_audio"
 
 instance DecodeValue UploadType where
   decodeValue = Decoders.enum decodeUploadType
@@ -103,16 +105,19 @@ decodeUploadType :: Text -> Maybe UploadType
 decodeUploadType = \case
   "episode_audio" -> Just EpisodeAudio
   "station_id_audio" -> Just StationIdAudio
+  "ephemeral_audio" -> Just EphemeralAudio
   _ -> Nothing
 
 instance EncodeValue UploadType where
   encodeValue = Encoders.enum $ \case
     EpisodeAudio -> "episode_audio"
     StationIdAudio -> "station_id_audio"
+    EphemeralAudio -> "ephemeral_audio"
 
 instance Servant.FromHttpApiData UploadType where
   parseUrlPiece "episode_audio" = Right EpisodeAudio
   parseUrlPiece "station_id_audio" = Right StationIdAudio
+  parseUrlPiece "ephemeral_audio" = Right EphemeralAudio
   parseUrlPiece invalid = Left $ "Invalid UploadType: " <> invalid
 
 instance Servant.ToHttpApiData UploadType where

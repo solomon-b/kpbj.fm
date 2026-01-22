@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Ephemeral Uploads** - Hosts can upload random audio clips for nighttime playback, with full CRUD operations and inline audio preview
 - **Auto-Login After Email Verification** - Users are now automatically logged in after verifying their email address, eliminating the need to enter credentials again
 - **Host Assignment Emails** - Automatic email notifications when hosts are assigned to shows, with show name and timeslot information
 - **Optional Show Descriptions** - Show descriptions are now optional when creating/editing shows
@@ -14,6 +15,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Release Notes Integration** - `just release-pr` now auto-generates release notes from CHANGELOG.md
 
 ### Fixes
+- **Ephemeral Upload File Cleanup** - Deleting an ephemeral upload now removes the audio file from storage (previously only deleted the database record)
 - Fixed dashboard authentication requirements for admin routes
 - **Role-Aware Auth Redirects** - Dashboard authorization failures now redirect based on user role (dashboard users stay in dashboard, public users go to home)
 - Fixed user avatar display on user detail page (now renders image in header instead of raw URL)
