@@ -253,9 +253,9 @@ getShowHostsWithUsers showId =
       hd.bandcamp_url
 
     FROM show_hosts sh
-    JOIN host_details hd ON hd.user_id = sh.user_id
     JOIN users u ON sh.user_id = u.id
     JOIN user_metadata um ON u.id = um.user_id
+    LEFT JOIN host_details hd ON hd.user_id = sh.user_id
     WHERE sh.show_id = #{showId} AND sh.left_at IS NULL
     ORDER BY sh.is_primary DESC, sh.joined_at ASC
   |]
