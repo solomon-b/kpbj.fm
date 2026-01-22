@@ -58,7 +58,7 @@ instance FromMultipart Mem NewShowForm where
   fromMultipart multipartData =
     NewShowForm
       <$> lookupInput "title" multipartData
-      <*> lookupInput "description" multipartData
+      <*> pure (fromRight "" (lookupInput "description" multipartData))
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
