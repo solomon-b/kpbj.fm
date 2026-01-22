@@ -15,15 +15,15 @@ spec :: Spec
 spec = describe "Domain.Types.FileUpload" $ do
   describe "File type validation" $ do
     describe "isAudioFile" $ do
-      it "accepts valid audio MIME types" $ do
+      it "accepts MP3 MIME type" $ do
         isAudioFile "audio/mpeg" `shouldBe` True
-        isAudioFile "audio/wav" `shouldBe` True
-        isAudioFile "audio/flac" `shouldBe` True
-        isAudioFile "audio/aac" `shouldBe` True
-        isAudioFile "audio/ogg" `shouldBe` True
-        isAudioFile "audio/x-m4a" `shouldBe` True
 
-      it "rejects non-audio MIME types" $ do
+      it "rejects non-MP3 audio and other MIME types" $ do
+        isAudioFile "audio/wav" `shouldBe` False
+        isAudioFile "audio/flac" `shouldBe` False
+        isAudioFile "audio/aac" `shouldBe` False
+        isAudioFile "audio/ogg" `shouldBe` False
+        isAudioFile "audio/x-m4a" `shouldBe` False
         isAudioFile "image/jpeg" `shouldBe` False
         isAudioFile "video/mp4" `shouldBe` False
         isAudioFile "text/plain" `shouldBe` False
@@ -89,9 +89,9 @@ spec = describe "Domain.Types.FileUpload" $ do
         validateFileName longFilename `shouldBe` Left (InvalidFileName "Filename too long")
 
     describe "validateFileType" $ do
-      it "validates audio files for AudioBucket" $ do
+      it "validates MP3 files for AudioBucket" $ do
         validateFileType AudioBucket "audio/mpeg" `shouldBe` Right ()
-        validateFileType AudioBucket "audio/wav" `shouldBe` Right ()
+        validateFileType AudioBucket "audio/wav" `shouldBe` Left (UnsupportedFileType "Audio files only. Got: audio/wav")
         validateFileType AudioBucket "image/jpeg" `shouldBe` Left (UnsupportedFileType "Audio files only. Got: image/jpeg")
 
       it "validates image files for ImageBucket" $ do

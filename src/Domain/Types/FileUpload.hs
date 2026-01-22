@@ -58,12 +58,7 @@ isImageFile mimeType = mimeType `elem` allowedImageTypes
 
 allowedAudioTypes :: [Text]
 allowedAudioTypes =
-  [ "audio/mpeg",
-    "audio/wav",
-    "audio/flac",
-    "audio/aac",
-    "audio/ogg",
-    "audio/x-m4a"
+  [ "audio/mpeg"
   ]
 
 allowedImageTypes :: [Text]
