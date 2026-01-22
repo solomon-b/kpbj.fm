@@ -26,6 +26,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - Disabled signup link on login form (invite-only registration)
 - Added CHANGELOG.md for tracking releases
 - **MP3-Only Audio Uploads** - Restricted audio uploads to MP3 format only (client and server-side validation)
+- **Standardized Email Styling** - All emails now use plain text with consistent 90s monospace ASCII art styling
 
 ---
 
