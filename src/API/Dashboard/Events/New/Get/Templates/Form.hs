@@ -73,7 +73,7 @@ template userMeta = do
         imageField "poster_image" $ do
           label "Event Poster Image"
           maxSize 10
-          aspectRatio (9, 16)
+          aspectRatio (3, 4)
 
       -- Date & Time Section
       section "DATE & TIME" $ do
