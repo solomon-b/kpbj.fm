@@ -15,6 +15,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Fixes
 - Fixed dashboard authentication requirements for admin routes
 - **Role-Aware Auth Redirects** - Dashboard authorization failures now redirect based on user role (dashboard users stay in dashboard, public users go to home)
+- Fixed user avatar display on user detail page (now renders image in header instead of raw URL)
 - Fixed TBD display for shows without scheduled timeslots
 - Fixed show edit form cancel button redirect
 - Fixed display of hosts without host_details records
