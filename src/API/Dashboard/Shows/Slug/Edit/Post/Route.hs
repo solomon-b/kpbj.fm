@@ -62,7 +62,7 @@ instance FromMultipart Mem ShowEditForm where
   fromMultipart multipartData =
     ShowEditForm
       <$> lookupInput "title" multipartData
-      <*> lookupInput "description" multipartData
+      <*> pure (fromRight "" (lookupInput "description" multipartData))
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (parseClearFlag "logo_file_clear" multipartData)
