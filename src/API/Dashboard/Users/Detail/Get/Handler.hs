@@ -13,6 +13,8 @@ import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad.Reader (asks)
+import Data.Has (getter)
 import Data.Either (fromRight)
 import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
@@ -41,18 +43,21 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
 
-    -- 2. Fetch shows for sidebar
+    -- 2. Get storage backend for avatar URLs
+    backend <- asks getter
+
+    -- 3. Fetch shows for sidebar
     allShows <- fetchShowsForUser user userMetadata
     let selectedShow = listToMaybe allShows
 
-    -- 3. Fetch target user and their metadata
+    -- 4. Fetch target user and their metadata
     (targetUser, targetMetadata) <- fetchTargetUserOrNotFound targetUserId
 
-    -- 4. Fetch additional info: shows they host, episodes they created
+    -- 5. Fetch additional info: shows they host, episodes they created
     (shows', episodes) <- fetchUserActivity targetUserId
 
-    -- 5. Render page
-    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing (template targetUser targetMetadata shows' episodes)
+    -- 6. Render page
+    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers Nothing Nothing (template backend targetUser targetMetadata shows' episodes)
 
 -- | Fetch shows based on user role (admins see all, staff see their assigned shows)
 fetchShowsForUser ::
