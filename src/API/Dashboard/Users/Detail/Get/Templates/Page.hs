@@ -12,6 +12,7 @@ import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -21,28 +22,29 @@ import Lucid.Extras
 import Servant.Links qualified as Links
 
 template ::
+  StorageBackend ->
   User.Model ->
   UserMetadata.Model ->
   [Shows.Model] ->
   [Episodes.Model] ->
   Lucid.Html ()
-template user metadata userShows userEpisodes = do
+template backend user metadata userShows userEpisodes = do
   -- User profile section
   Lucid.section_ [Lucid.class_ "bg-white dark:bg-gray-800 border-2 border-gray-800 dark:border-gray-600 p-8 mb-8 w-full"] $ do
     Lucid.div_ [Lucid.class_ "flex justify-between items-start"] $ do
-      Lucid.div_ $ do
-        Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-2"] $
-          Lucid.toHtml (display metadata.mDisplayName)
-        Lucid.p_ [Lucid.class_ "text-gray-600 dark:text-gray-400 text-lg"] $
-          Lucid.toHtml (display user.mEmail)
+      -- Avatar and name
+      Lucid.div_ [Lucid.class_ "flex items-center gap-6"] $ do
+        renderHeaderAvatar backend metadata.mAvatarUrl
+        Lucid.div_ $ do
+          Lucid.h1_ [Lucid.class_ "text-3xl font-bold mb-2"] $
+            Lucid.toHtml (display metadata.mDisplayName)
+          Lucid.p_ [Lucid.class_ "text-gray-600 dark:text-gray-400 text-lg"] $
+            Lucid.toHtml (display user.mEmail)
 
     -- User metadata grid
     Lucid.div_ [Lucid.class_ "grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t-2 border-gray-200 dark:border-gray-600"] $ do
       renderField "Full Name" (Text.unpack $ display metadata.mFullName)
       renderRoleField user.mId metadata.mUserRole
-      case metadata.mAvatarUrl of
-        Nothing -> renderField "Avatar" ("No avatar set" :: String)
-        Just url -> renderField "Avatar" (Text.unpack url)
 
   -- Shows section
   unless (null userShows) $ do
@@ -63,6 +65,22 @@ renderField label value = do
   Lucid.div_ $ do
     Lucid.dt_ [Lucid.class_ "font-bold text-gray-700 dark:text-gray-300 mb-1"] $ Lucid.toHtml label
     Lucid.dd_ [Lucid.class_ "text-gray-900 dark:text-gray-100"] $ Lucid.toHtml value
+
+renderHeaderAvatar :: StorageBackend -> Maybe Text.Text -> Lucid.Html ()
+renderHeaderAvatar backend mAvatarPath =
+  case mAvatarPath of
+    Nothing ->
+      -- Placeholder avatar
+      Lucid.div_
+        [ Lucid.class_ "w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-gray-800 dark:border-gray-600 flex items-center justify-center"
+        ]
+        $ Lucid.span_ [Lucid.class_ "text-2xl text-gray-500 dark:text-gray-400"] "?"
+    Just path ->
+      Lucid.img_
+        [ Lucid.src_ (buildMediaUrl backend path),
+          Lucid.alt_ "User avatar",
+          Lucid.class_ "w-20 h-20 rounded-full object-cover border-2 border-gray-800 dark:border-gray-600"
+        ]
 
 renderRoleField :: User.Id -> UserMetadata.UserRole -> Lucid.Html ()
 renderRoleField userId currentRole = do
