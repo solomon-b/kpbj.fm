@@ -416,6 +416,7 @@ library
     Effects.Database.Tables.StationIds
     Effects.Database.Tables.UserMetadata
     Effects.AWS
+    Effects.BackgroundJobs
     Effects.ContentSanitization
     Effects.CSRF
     Effects.EmailVerification

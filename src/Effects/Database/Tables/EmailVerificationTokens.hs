@@ -30,6 +30,7 @@ module Effects.Database.Tables.EmailVerificationTokens
     getLatestPendingForUser,
     getLastTokenCreatedAt,
     deleteExpired,
+    deleteOlderThanDays,
 
     -- * User Verification Status
     isUserEmailVerified,
@@ -255,7 +256,7 @@ getLastTokenCreatedAt userId cooldownSeconds =
 
 -- | Delete all expired tokens.
 --
--- This is used for cleanup jobs.
+-- This is used for cleanup jobs. Only deletes pending tokens that have expired.
 deleteExpired :: Hasql.Statement () ()
 deleteExpired =
   interp
@@ -264,6 +265,20 @@ deleteExpired =
     DELETE FROM email_verification_tokens
     WHERE expires_at < NOW()
       AND status = 'pending'
+  |]
+
+-- | Delete all tokens older than the specified number of days.
+--
+-- This purges old tokens regardless of status (verified, expired, pending)
+-- for data hygiene. Used to prevent unbounded table growth while maintaining
+-- a reasonable audit trail.
+deleteOlderThanDays :: Int64 -> Hasql.Statement () ()
+deleteOlderThanDays days =
+  interp
+    False
+    [sql|
+    DELETE FROM email_verification_tokens
+    WHERE created_at < NOW() - (#{days} || ' days')::INTERVAL
   |]
 
 --------------------------------------------------------------------------------
