@@ -751,14 +751,14 @@ generate_episode_art() {
     echo "  Episode Art: ${show_slug} EP${episode_num}"
 }
 
-# Generate event poster (2:3 - 600x900)
+# Generate event poster (3:4 - 600x800)
 generate_event_poster() {
     local slug="$1"
     local title="$2"
     local theme="$3"
     local output="$OUTPUT_DIR/events/posters/${slug}.jpg"
 
-    generate_image "$slug" "$title" "$theme" 600 900 "$output" "poster"
+    generate_image "$slug" "$title" "$theme" 600 800 "$output" "poster"
     echo "  Event Poster: $slug"
 }
 
@@ -844,7 +844,7 @@ echo "  Banners: $count (1200x400, 3:1)"
 echo "  Episode artwork: $((count * 3)) (500x500, 1:1)"
 echo ""
 echo "Events:"
-echo "  Posters: $event_count (600x900, 2:3)"
+echo "  Posters: $event_count (600x800, 3:4)"
 echo ""
 echo "Blog:"
 echo "  Hero images: $blog_count (1200x675, 16:9)"

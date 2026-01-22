@@ -15,8 +15,8 @@ where
 --------------------------------------------------------------------------------
 
 import API.Links (eventsLinks)
-import Data.Foldable (for_)
 import API.Types
+import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_, desktop, tablet)
@@ -105,11 +105,11 @@ renderImage backend event =
       Lucid.img_
         [ Lucid.src_ (buildMediaUrl backend posterUrl),
           Lucid.alt_ (event.emTitle <> " poster"),
-          class_ $ base [Tokens.fullWidth, "aspect-square", "object-cover", "border", "border-gray-300"]
+          class_ $ base [Tokens.fullWidth, "aspect-[3/4]", "object-cover", "border", "border-gray-300"]
         ]
     Nothing ->
       Lucid.div_
-        [class_ $ base [Tokens.fullWidth, "aspect-square", Tokens.bgGray100, "flex", "items-center", "justify-center", Tokens.textLg, "border", "border-gray-300"]]
+        [class_ $ base [Tokens.fullWidth, "aspect-[3/4]", Tokens.bgGray100, "flex", "items-center", "justify-center", Tokens.textLg, "border", "border-gray-300"]]
         "[NO POSTER]"
 
 -- | Render event title.

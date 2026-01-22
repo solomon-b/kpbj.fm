@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Chores
+- **Event Poster Ratio** - Changed event poster image aspect ratio from 9:16 to 3:4
 
 ---
 
