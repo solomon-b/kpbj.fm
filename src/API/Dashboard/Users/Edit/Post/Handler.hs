@@ -7,7 +7,7 @@ module API.Dashboard.Users.Edit.Post.Handler where
 
 import API.Links (dashboardUsersLinks)
 import API.Types
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Combinators (requireStaffNotSuspended, requireAuth)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -56,7 +56,7 @@ handler _tracer targetUserId cookie multipartData =
   handleRedirectErrors "User edit" (dashboardUsersLinks.detail targetUserId) $ do
     -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "You do not have permission to edit users." userMetadata
+    requireStaffNotSuspended "You do not have permission to edit users." userMetadata
 
     -- Parse form fields
     let formInputs = inputs multipartData

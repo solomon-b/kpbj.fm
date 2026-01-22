@@ -100,7 +100,7 @@ requireShowAccess user userMetadata showModel =
       userShows <- fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
       if any (\s -> s.id == showModel.id) userShows
         then pure ()
-        else throwNotAuthorized "You don't have access to this show."
+        else throwNotAuthorized "You don't have access to this show." (Just userMetadata.mUserRole)
 
 -- | Fetch shows for user based on role
 fetchShowsForUser ::

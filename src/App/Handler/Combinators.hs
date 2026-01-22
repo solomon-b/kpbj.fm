@@ -73,7 +73,7 @@ requireHostNotSuspended ::
   m ()
 requireHostNotSuspended msg userMetadata =
   unless (UserMetadata.isHostOrHigher userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
-    throwNotAuthorized msg
+    throwNotAuthorized msg (Just userMetadata.mUserRole)
 
 --------------------------------------------------------------------------------
 
@@ -96,7 +96,7 @@ requireStaffNotSuspended ::
   m ()
 requireStaffNotSuspended msg userMetadata =
   unless (UserMetadata.isStaffOrHigher userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
-    throwNotAuthorized msg
+    throwNotAuthorized msg (Just userMetadata.mUserRole)
 
 --------------------------------------------------------------------------------
 
@@ -119,7 +119,7 @@ requireAdminNotSuspended ::
   m ()
 requireAdminNotSuspended msg userMetadata =
   unless (UserMetadata.isAdmin userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
-    throwNotAuthorized msg
+    throwNotAuthorized msg (Just userMetadata.mUserRole)
 
 --------------------------------------------------------------------------------
 
@@ -147,7 +147,7 @@ requireShowHostOrStaff ::
 requireShowHostOrStaff userId showSlug userMetadata = do
   -- Suspended users can never proceed
   when (UserMetadata.isSuspended userMetadata) $
-    throwNotAuthorized msg
+    throwNotAuthorized msg (Just userMetadata.mUserRole)
 
   -- Staff+ can always proceed (they're not suspended at this point)
   let isStaffOrHigher = UserMetadata.isStaffOrHigher userMetadata.mUserRole
@@ -158,7 +158,7 @@ requireShowHostOrStaff userId showSlug userMetadata = do
       Left err -> throwDatabaseError err
       Right isHost ->
         unless isHost $
-          throwNotAuthorized msg
+          throwNotAuthorized msg (Just userMetadata.mUserRole)
   where
     msg = "You don't have permission to access this show."
 

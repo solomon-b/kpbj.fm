@@ -49,13 +49,14 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (rootLink, userLinks)
-import API.Types (UserRoutes (..))
+import API.Links (apiLinks, dashboardLinks, rootLink, userLinks)
+import API.Types (DashboardRoutes (..), Routes (..), UserRoutes (..))
 import Component.Banner (BannerType (..), renderBanner)
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch, MonadThrow, catch, throwM)
 import Data.Text (Text)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Hasql.Pool (UsageError)
 import Log qualified
 import Lucid qualified
@@ -72,8 +73,11 @@ import Servant.Links (Link)
 data HandlerError
   = -- | User is not authenticated (no valid session)
     NotAuthenticated
-  | -- | User is authenticated but lacks permission for this action
-    NotAuthorized Text
+  | -- | User is authenticated but lacks permission for this action.
+    -- Includes the user's role so error handlers can redirect appropriately:
+    -- - Users with no dashboard access (User role) go to public site
+    -- - Users with dashboard access (Host+) go to dashboard home
+    NotAuthorized Text (Maybe UserRole)
   | -- | Requested resource does not exist
     NotFound Text
   | -- | Database query or transaction failed
@@ -95,9 +99,13 @@ instance Exception HandlerError
 throwNotAuthenticated :: (MonadThrow m) => m a
 throwNotAuthenticated = throwM NotAuthenticated
 
--- | Throw NotAuthorized error with a message.
-throwNotAuthorized :: (MonadThrow m) => Text -> m a
-throwNotAuthorized = throwM . NotAuthorized
+-- | Throw NotAuthorized error with a message and user role.
+--
+-- The role is used by error handlers to redirect appropriately:
+-- - Users with no dashboard access (User role) go to public site
+-- - Users with dashboard access (Host+) go to dashboard home
+throwNotAuthorized :: (MonadThrow m) => Text -> Maybe UserRole -> m a
+throwNotAuthorized msg role = throwM $ NotAuthorized msg role
 
 -- | Throw NotFound error with the resource name.
 throwNotFound :: (MonadThrow m) => Text -> m a
@@ -169,7 +177,7 @@ handleRedirectErrors actionName defaultUrl action =
 logHandlerError :: (Log.MonadLog m) => Text -> HandlerError -> m ()
 logHandlerError actionName = \case
   NotAuthenticated -> Log.logInfo_ $ actionName <> ": not authenticated"
-  NotAuthorized msg -> Log.logInfo (actionName <> ": not authorized") msg
+  NotAuthorized msg mRole -> Log.logInfo (actionName <> ": not authorized") (msg, fmap show mRole)
   NotFound resource -> Log.logInfo (actionName <> ": not found") resource
   DatabaseError dbErr -> Log.logAttention (actionName <> ": database error") (show dbErr)
   UserSuspended -> Log.logInfo_ $ actionName <> ": user suspended"
@@ -179,6 +187,18 @@ logHandlerError actionName = \case
 -- | Login link for authentication errors.
 loginLink :: Link
 loginLink = userLinks.loginGet Nothing Nothing
+
+-- | Determine redirect URL for NotAuthorized based on user role.
+--
+-- - Users with dashboard access (Host, Staff, Admin) go to dashboard home
+-- - Users without dashboard access (User role or Nothing) go to public home
+notAuthorizedRedirect :: Maybe UserRole -> Link
+notAuthorizedRedirect = \case
+  Just Host -> dashboardLinks.home
+  Just Staff -> dashboardLinks.home
+  Just Admin -> dashboardLinks.home
+  Just User -> apiLinks.rootGet
+  Nothing -> apiLinks.rootGet
 
 -- | Create redirect response based on error type.
 mkErrorRedirect ::
@@ -193,8 +213,8 @@ mkErrorRedirect defaultLink = \case
         banner = BannerParams Error "Login Required" "Please log in to continue."
      in Servant.addHeader (buildRedirectUrl url banner) $
           redirectWithBanner url banner
-  NotAuthorized msg ->
-    let url = rootLink defaultLink
+  NotAuthorized msg mRole ->
+    let url = rootLink (notAuthorizedRedirect mRole)
         banner = BannerParams Error "Access Denied" msg
      in Servant.addHeader (buildRedirectUrl url banner) $
           redirectWithBanner url banner
@@ -257,7 +277,7 @@ mkErrorBanner :: HandlerError -> Lucid.Html ()
 mkErrorBanner = \case
   NotAuthenticated ->
     renderBanner Error "Authentication Required" "You must be logged in to perform this action."
-  NotAuthorized msg ->
+  NotAuthorized msg _ ->
     renderBanner Error "Access Denied" msg
   NotFound resource ->
     renderBanner Error "Not Found" (resource <> " not found.")
@@ -313,8 +333,8 @@ mkHtmlErrorRedirect defaultLink = \case
     let url = rootLink loginLink
         banner = BannerParams Error "Login Required" "Please log in to continue."
      in redirectWithBanner url banner
-  NotAuthorized msg ->
-    let url = rootLink defaultLink
+  NotAuthorized msg mRole ->
+    let url = rootLink (notAuthorizedRedirect mRole)
         banner = BannerParams Error "Access Denied" msg
      in redirectWithBanner url banner
   NotFound resource ->

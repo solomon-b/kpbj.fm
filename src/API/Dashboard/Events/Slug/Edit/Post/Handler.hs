@@ -59,7 +59,7 @@ handler _tracer eventId slug cookie editForm =
 
     -- 3. Check authorization: must be staff/admin or the creator
     if not (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole)
-      then throwNotAuthorized "You can only edit events you created or have staff permissions."
+      then throwNotAuthorized "You can only edit events you created or have staff permissions." (Just userMetadata.mUserRole)
       else updateEvent eventId event editForm
 
 updateEvent ::

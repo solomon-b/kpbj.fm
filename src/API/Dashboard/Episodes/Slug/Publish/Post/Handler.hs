@@ -101,7 +101,7 @@ requireNotPastUnlessStaff currentTime episode userMeta = do
     Log.logInfo
       "Publish failed: Past episode, user not staff"
       (Aeson.object ["episodeId" .= episode.id])
-    throwNotAuthorized "This episode's scheduled date has passed. Only staff or admin users can publish past episodes."
+    throwNotAuthorized "This episode's scheduled date has passed. Only staff or admin users can publish past episodes." (Just userMeta.mUserRole)
 
 --------------------------------------------------------------------------------
 -- Publish Execution
@@ -139,7 +139,7 @@ handlePublishErrors action =
 errorMessage :: HandlerError -> Text
 errorMessage = \case
   NotAuthenticated -> "You must be logged in to publish episodes."
-  NotAuthorized msg -> msg
+  NotAuthorized msg _ -> msg
   NotFound resource -> resource <> " not found."
   DatabaseError _ -> "Database error. Please try again or contact support."
   ValidationError msg -> msg
