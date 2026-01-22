@@ -22,6 +22,7 @@ module API
     DashboardEventsRoutes (..),
     DashboardStationBlogRoutes (..),
     DashboardStationIdsRoutes (..),
+    DashboardEphemeralUploadsRoutes (..),
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
     UploadRoutes (..),
@@ -43,6 +44,10 @@ import API.Dashboard.Blogs.Slug.Delete.Handler qualified as Dashboard.Blogs.Slug
 import API.Dashboard.Blogs.Slug.Edit.Get.Handler qualified as Dashboard.Blogs.Slug.Edit.Get
 import API.Dashboard.Blogs.Slug.Edit.Post.Handler qualified as Dashboard.Blogs.Slug.Edit.Post
 import API.Dashboard.Blogs.Slug.Get.Handler qualified as Dashboard.Blogs.Slug.Get
+import API.Dashboard.EphemeralUploads.Get.Handler qualified as Dashboard.EphemeralUploads.Get
+import API.Dashboard.EphemeralUploads.Id.Delete.Handler qualified as Dashboard.EphemeralUploads.Id.Delete
+import API.Dashboard.EphemeralUploads.New.Get.Handler qualified as Dashboard.EphemeralUploads.New.Get
+import API.Dashboard.EphemeralUploads.New.Post.Handler qualified as Dashboard.EphemeralUploads.New.Post
 import API.Dashboard.Episodes.Get.Handler qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Redirect.Handler qualified as Dashboard.Episodes.Redirect
 import API.Dashboard.Episodes.Slug.Delete.Handler qualified as Dashboard.Episodes.Slug.Delete
@@ -260,7 +265,8 @@ server env =
       DashboardHostRoutes
         { episodes = dashboardEpisodesRoutes,
           blogs = dashboardBlogsRoutes,
-          stationIds = dashboardStationIdsRoutes
+          stationIds = dashboardStationIdsRoutes,
+          ephemeralUploads = dashboardEphemeralUploadsRoutes
         }
 
     dashboardStationIdsRoutes =
@@ -269,6 +275,14 @@ server env =
           newGet = Dashboard.StationIds.New.Get.handler,
           newPost = Dashboard.StationIds.New.Post.handler,
           delete = Dashboard.StationIds.Id.Delete.handler
+        }
+
+    dashboardEphemeralUploadsRoutes =
+      DashboardEphemeralUploadsRoutes
+        { list = Dashboard.EphemeralUploads.Get.handler,
+          newGet = Dashboard.EphemeralUploads.New.Get.handler,
+          newPost = Dashboard.EphemeralUploads.New.Post.handler,
+          delete = Dashboard.EphemeralUploads.Id.Delete.handler
         }
 
     dashboardAdminRoutes =
