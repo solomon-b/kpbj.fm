@@ -16,11 +16,11 @@ primary_region = 'lax'
 
 [env]
   APP_ENVIRONMENT = 'Production'
-  APP_HOSTNAME = 'https://kpbj-fm-staging.fly.dev'
+  APP_HOSTNAME = 'https://staging.kpbj.fm'
   APP_OBSERVABILITY_EXPORTER = 'StdOut'
   APP_OBSERVABILITY_VERBOSITY = 'Brief'
   APP_WARP_PORT = '4000'
-  APP_WARP_SERVERNAME = 'kpbj-fm-staging.fly.dev'
+  APP_WARP_SERVERNAME = 'staging.kpbj.fm'
   APP_WARP_TIMEOUT = '100'
 
   APP_SMTP_SERVER = "smtp.gmail.com"
@@ -28,7 +28,7 @@ primary_region = 'lax'
   APP_SMTP_USERNAME = "noreply@kpbj.fm"
   APP_SMTP_FROM_EMAIL = "noreply@kpbj.fm"
   APP_SMTP_FROM_NAME = "KPBJ 95.9FM"
-  APP_BASE_URL = "https://kpbj-fm-staging.fly.dev"
+  APP_BASE_URL = "https://staging.kpbj.fm"
 
   AWS_ACCESS_KEY_ID="tid_HYzcxENXqyQRdEGrGMdkOzzLtcAeDRETMOrznzIMieQUHOnLwj"
   AWS_ENDPOINT_URL_S3="https://fly.storage.tigris.dev"
