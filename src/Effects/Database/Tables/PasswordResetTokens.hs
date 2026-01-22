@@ -29,6 +29,7 @@ module Effects.Database.Tables.PasswordResetTokens
     expirePendingForUser,
     countRecentForEmail,
     deleteExpired,
+    deleteOlderThanDays,
   )
 where
 
@@ -229,7 +230,7 @@ countRecentForEmail email =
 
 -- | Delete all expired tokens.
 --
--- This is used for cleanup jobs.
+-- This is used for cleanup jobs. Only deletes pending tokens that have expired.
 deleteExpired :: Hasql.Statement () ()
 deleteExpired =
   interp
@@ -238,4 +239,18 @@ deleteExpired =
     DELETE FROM password_reset_tokens
     WHERE expires_at < NOW()
       AND status = 'pending'
+  |]
+
+-- | Delete all tokens older than the specified number of days.
+--
+-- This purges old tokens regardless of status (used, expired, pending)
+-- for data hygiene. Used to prevent unbounded table growth while maintaining
+-- a reasonable audit trail.
+deleteOlderThanDays :: Int64 -> Hasql.Statement () ()
+deleteOlderThanDays days =
+  interp
+    False
+    [sql|
+    DELETE FROM password_reset_tokens
+    WHERE created_at < NOW() - (#{days} || ' days')::INTERVAL
   |]

@@ -4,6 +4,7 @@
 -- - Creating verification tokens for new users
 -- - Verifying email addresses via token
 -- - Resending verification emails
+-- - Cleaning up expired tokens
 module Effects.EmailVerification
   ( -- * Token Generation
     generateVerificationToken,
@@ -71,6 +72,8 @@ data VerificationError
     SmtpNotConfigured
   | -- | Rate limited - includes seconds until next request allowed
     RateLimited Int
+  | -- | Email is already verified
+    AlreadyVerified
   deriving stock (Show, Eq)
 
 -- | Cooldown period between resend requests in seconds.
@@ -86,6 +89,7 @@ verificationErrorToText = \case
   EmailSendFailed -> "Failed to send verification email. Please try again."
   SmtpNotConfigured -> "Email service is not configured."
   RateLimited secs -> "Please wait " <> Text.pack (show secs) <> " seconds before requesting another email."
+  AlreadyVerified -> "Your email is already verified."
 
 --------------------------------------------------------------------------------
 -- Verification Operations
@@ -203,6 +207,7 @@ verifyEmail tokenText = do
 -- Creates a new token and sends the verification email.
 -- Invalidates any existing pending tokens.
 -- Rate limited to one request per 'resendCooldownSeconds'.
+-- Returns 'AlreadyVerified' if the user's email is already verified.
 resendVerification ::
   -- | User ID
   User.Id ->
@@ -210,15 +215,26 @@ resendVerification ::
   EmailAddress ->
   AppM (Either VerificationError ())
 resendVerification userId email = do
-  -- Check rate limit first
-  rateLimitResult <- checkResendRateLimit userId
-  case rateLimitResult of
-    Left err -> pure $ Left err
-    Right () -> do
-      result <- createAndSendVerification userId email
-      case result of
+  -- Check if already verified first
+  verifiedResult <- execQuerySpan (VerificationTokens.isUserEmailVerified userId)
+  case verifiedResult of
+    Left err -> do
+      Log.logInfo "Failed to check verification status" (Text.pack $ show err)
+      pure $ Left $ VerificationDbError "Failed to check verification status"
+    Right (Just _) -> do
+      -- User is already verified
+      Log.logInfo "Resend skipped - email already verified" (display userId)
+      pure $ Left AlreadyVerified
+    Right Nothing -> do
+      -- User not verified, proceed with rate limit check and resend
+      rateLimitResult <- checkResendRateLimit userId
+      case rateLimitResult of
         Left err -> pure $ Left err
-        Right _ -> pure $ Right ()
+        Right () -> do
+          result <- createAndSendVerification userId email
+          case result of
+            Left err -> pure $ Left err
+            Right _ -> pure $ Right ()
 
 -- | Check if the user is rate limited for resending verification emails.
 --
