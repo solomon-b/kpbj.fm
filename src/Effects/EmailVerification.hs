@@ -181,11 +181,11 @@ createAndSendVerificationWithConfig smtpConfig userId email = do
 -- 2. Marks the token as verified
 -- 3. Updates the user's email_verified flag
 --
--- Returns the verified email address on success.
+-- Returns the user ID and verified email address on success.
 verifyEmail ::
   -- | Verification token
   Text ->
-  AppM (Either VerificationError Text)
+  AppM (Either VerificationError (User.Id, Text))
 verifyEmail tokenText = do
   let token = VerificationTokens.Token tokenText
 
@@ -200,7 +200,7 @@ verifyEmail tokenText = do
       pure $ Left TokenInvalid
     Right (Just verifiedToken) -> do
       Log.logInfo "Email verified successfully" (VerificationTokens.email verifiedToken)
-      pure $ Right $ VerificationTokens.email verifiedToken
+      pure $ Right (VerificationTokens.userId verifiedToken, VerificationTokens.email verifiedToken)
 
 -- | Resend verification email for a user.
 --

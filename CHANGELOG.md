@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Auto-Login After Email Verification** - Users are now automatically logged in after verifying their email address, eliminating the need to enter credentials again
 - **Host Assignment Emails** - Automatic email notifications when hosts are assigned to shows, with show name and timeslot information
 - **Optional Show Descriptions** - Show descriptions are now optional when creating/editing shows
 - **Background Cleanup Jobs** - Automated cleanup of expired staged uploads and other maintenance tasks
