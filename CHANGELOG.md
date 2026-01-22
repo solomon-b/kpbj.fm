@@ -16,6 +16,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Release Notes Integration** - `just release-pr` now auto-generates release notes from CHANGELOG.md
 
 ### Fixes
+- **Dashboard Dark Mode** - Fixed dark/light mode toggle not working in dashboard (was always automatic mode)
 - **Ephemeral Upload File Cleanup** - Deleting an ephemeral upload now removes the audio file from storage (previously only deleted the database record)
 - Fixed dashboard authentication requirements for admin routes
 - **Role-Aware Auth Redirects** - Dashboard authorization failures now redirect based on user role (dashboard users stay in dashboard, public users go to home)
