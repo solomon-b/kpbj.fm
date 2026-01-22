@@ -62,7 +62,7 @@ renderShowHeader backend showModel hosts schedules tags = do
             -- Show host information
             Lucid.span_ [Lucid.class_ Tokens.fontBold] "Host: "
             case hosts of
-              [] -> "TBD"
+              [] -> ""
               (ShowHost.ShowHostWithUser {displayName = dn} : otherHosts) -> do
                 Lucid.toHtml dn
                 unless (null otherHosts) $ do
@@ -73,7 +73,7 @@ renderShowHeader backend showModel hosts schedules tags = do
             -- Show schedule information
             Lucid.span_ [Lucid.class_ Tokens.fontBold] "Schedule: "
             case schedules of
-              [] -> "TBD"
+              [] -> ""
               (ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stStartTime = st, stEndTime = et} : _) -> do
                 case mDow of
                   Nothing -> "One-time show"
