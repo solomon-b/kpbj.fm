@@ -201,64 +201,47 @@ sendVerificationEmailAsync config toEmail token = do
       Right (Right ()) ->
         putStrLn $ "[Email] Sent verification email to " <> Text.unpack toEmail
 
--- | Build the verification email.
+-- | Build the verification email (plain text only).
 buildVerificationMail :: SmtpConfig -> Text -> Text -> Mime.Mail
 buildVerificationMail config toEmail token =
   let verificationUrl = smtpBaseUrl config <> "/user/verify-email?token=" <> token
       subject = "Verify your email address - KPBJ 95.9FM"
       plainBody =
-        LT.fromStrict $
-          Text.unlines
-            [ "Welcome to KPBJ 95.9FM!",
-              "",
-              "Please verify your email address by clicking the link below:",
-              "",
-              verificationUrl,
-              "",
-              "This link will expire in 24 hours.",
-              "",
-              "If you didn't create an account with us, you can safely ignore this email.",
-              "",
-              "Thanks,",
-              "The KPBJ Team"
-            ]
-      htmlBody =
-        LT.fromStrict $
-          Text.unlines
-            [ "<!DOCTYPE html>",
-              "<html>",
-              "<head>",
-              "  <meta charset=\"utf-8\">",
-              "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">",
-              "</head>",
-              "<body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;\">",
-              "  <div style=\"background-color: #1a1a1a; padding: 20px; text-align: center;\">",
-              "    <h1 style=\"color: #fff; margin: 0;\">KPBJ 95.9FM</h1>",
-              "  </div>",
-              "  <div style=\"padding: 30px 20px;\">",
-              "    <h2 style=\"color: #1a1a1a; margin-top: 0;\">Welcome to KPBJ!</h2>",
-              "    <p>Please verify your email address by clicking the button below:</p>",
-              "    <div style=\"text-align: center; margin: 30px 0;\">",
-              "      <a href=\"" <> verificationUrl <> "\" style=\"background-color: #1a1a1a; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;\">Verify Email Address</a>",
-              "    </div>",
-              "    <p style=\"color: #666; font-size: 14px;\">Or copy and paste this link into your browser:</p>",
-              "    <p style=\"color: #666; font-size: 14px; word-break: break-all;\">" <> verificationUrl <> "</p>",
-              "    <p style=\"color: #666; font-size: 14px;\">This link will expire in 24 hours.</p>",
-              "    <p style=\"color: #666; font-size: 14px;\">If you didn't create an account with us, you can safely ignore this email.</p>",
-              "  </div>",
-              "  <div style=\"border-top: 1px solid #eee; padding-top: 20px; text-align: center; color: #666; font-size: 12px;\">",
-              "    <p>KPBJ 95.9FM Community Radio</p>",
-              "  </div>",
-              "</body>",
-              "</html>"
-            ]
-   in buildSimpleMail
+        LT.fromStrict
+          [i|
+================================================================
+                    KPBJ 95.9FM COMMUNITY RADIO
+================================================================
+
+Welcome to KPBJ Radio!
+
+Please verify your email address to complete your registration.
+
+VERIFY YOUR EMAIL
+-----------------
+Click or copy this link into your browser:
+
+#{verificationUrl}
+
+This link will expire in 24 hours.
+
+DIDN'T SIGN UP?
+---------------
+If you didn't create an account with us, you can safely
+ignore this email.
+
+--
+The KPBJ Team
+https://kpbj.fm
+
+================================================================
+|]
+   in buildPlainTextMail
         (smtpFromEmail config)
         (smtpFromName config)
         toEmail
         subject
         plainBody
-        htmlBody
 
 --------------------------------------------------------------------------------
 
@@ -304,73 +287,52 @@ sendPasswordResetEmailAsync config toEmail token = do
       Right (Right ()) ->
         putStrLn $ "[Email] Sent password reset email to " <> Text.unpack toEmail
 
--- | Build the password reset email.
+-- | Build the password reset email (plain text only).
 buildPasswordResetMail :: SmtpConfig -> Text -> Text -> Mime.Mail
 buildPasswordResetMail config toEmail token =
   let resetUrl = smtpBaseUrl config <> "/user/reset-password?token=" <> token
       subject = "Reset your password - KPBJ 95.9FM"
       plainBody =
-        LT.fromStrict $
-          Text.unlines
-            [ "Password Reset Request",
-              "",
-              "We received a request to reset your password for your KPBJ 95.9FM account.",
-              "",
-              "Click the link below to reset your password:",
-              "",
-              resetUrl,
-              "",
-              "This link will expire in 1 hour.",
-              "",
-              "If you didn't request a password reset, you can safely ignore this email.",
-              "Your password will not be changed unless you click the link above.",
-              "",
-              "For security reasons, do not share this link with anyone.",
-              "",
-              "Thanks,",
-              "The KPBJ Team"
-            ]
-      htmlBody =
-        LT.fromStrict $
-          Text.unlines
-            [ "<!DOCTYPE html>",
-              "<html>",
-              "<head>",
-              "  <meta charset=\"utf-8\">",
-              "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">",
-              "</head>",
-              "<body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;\">",
-              "  <div style=\"background-color: #1a1a1a; padding: 20px; text-align: center;\">",
-              "    <h1 style=\"color: #fff; margin: 0;\">KPBJ 95.9FM</h1>",
-              "  </div>",
-              "  <div style=\"padding: 30px 20px;\">",
-              "    <h2 style=\"color: #1a1a1a; margin-top: 0;\">Password Reset Request</h2>",
-              "    <p>We received a request to reset your password for your KPBJ 95.9FM account.</p>",
-              "    <p>Click the button below to reset your password:</p>",
-              "    <div style=\"text-align: center; margin: 30px 0;\">",
-              "      <a href=\"" <> resetUrl <> "\" style=\"background-color: #1a1a1a; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;\">Reset Password</a>",
-              "    </div>",
-              "    <p style=\"color: #666; font-size: 14px;\">Or copy and paste this link into your browser:</p>",
-              "    <p style=\"color: #666; font-size: 14px; word-break: break-all;\">" <> resetUrl <> "</p>",
-              "    <p style=\"color: #666; font-size: 14px;\">This link will expire in 1 hour.</p>",
-              "    <p style=\"color: #666; font-size: 14px;\">If you didn't request a password reset, you can safely ignore this email. Your password will not be changed unless you click the link above.</p>",
-              "    <div style=\"background-color: #fff3cd; border: 1px solid #ffc107; padding: 12px; margin-top: 20px; border-radius: 4px;\">",
-              "      <p style=\"color: #856404; font-size: 14px; margin: 0;\"><strong>Security Notice:</strong> Do not share this link with anyone.</p>",
-              "    </div>",
-              "  </div>",
-              "  <div style=\"border-top: 1px solid #eee; padding-top: 20px; text-align: center; color: #666; font-size: 12px;\">",
-              "    <p>KPBJ 95.9FM Community Radio</p>",
-              "  </div>",
-              "</body>",
-              "</html>"
-            ]
-   in buildSimpleMail
+        LT.fromStrict
+          [i|
+================================================================
+                    KPBJ 95.9FM COMMUNITY RADIO
+================================================================
+
+Password Reset Request
+
+We received a request to reset your password for your
+KPBJ 95.9FM account.
+
+RESET YOUR PASSWORD
+-------------------
+Click or copy this link into your browser:
+
+#{resetUrl}
+
+This link will expire in 1 hour.
+
+DIDN'T REQUEST THIS?
+--------------------
+If you didn't request a password reset, you can safely
+ignore this email. Your password will not be changed
+unless you click the link above.
+
+*** SECURITY NOTICE ***
+Do not share this link with anyone.
+
+--
+The KPBJ Team
+https://kpbj.fm
+
+================================================================
+|]
+   in buildPlainTextMail
         (smtpFromEmail config)
         (smtpFromName config)
         toEmail
         subject
         plainBody
-        htmlBody
 
 --------------------------------------------------------------------------------
 -- Host Assignment Email
