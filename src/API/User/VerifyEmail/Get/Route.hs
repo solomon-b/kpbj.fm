@@ -3,6 +3,8 @@ module API.User.VerifyEmail.Get.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
+import Domain.Types.HxRedirect (HxRedirect)
+import Domain.Types.SetCookie (SetCookie)
 import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
@@ -14,13 +16,23 @@ import Text.HTML (HTML)
 -- | Route for verifying an email address via token.
 --
 -- Users arrive here by clicking the verification link in their email.
--- The token query parameter is required.
+-- On successful verification, the user is automatically logged in via
+-- session cookie and redirected to the home page.
 type Route =
   Observability.WithSpan
     "GET /user/verify-email"
     ( "user"
         :> "verify-email"
+        :> Servant.RemoteHost
+        :> Servant.Header "User-Agent" Text
         :> Servant.Header "HX-Request" Text
         :> Servant.QueryParam "token" Text
-        :> Servant.Get '[HTML] (Lucid.Html ())
+        :> Servant.Get
+             '[HTML]
+             ( Servant.Headers
+                 '[ Servant.Header "Set-Cookie" SetCookie,
+                    Servant.Header "HX-Redirect" HxRedirect
+                  ]
+                 (Lucid.Html ())
+             )
     )
