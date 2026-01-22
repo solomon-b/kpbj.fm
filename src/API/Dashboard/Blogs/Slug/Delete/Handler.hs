@@ -47,7 +47,7 @@ handler _tracer showSlug postId cookie =
     isHost <- checkIsHost user userMetadata showModel.id
     let isAuthorized = isHost && not (UserMetadata.isSuspended userMetadata)
     unless isAuthorized $
-      throwNotAuthorized "You don't have permission to delete this blog post."
+      throwNotAuthorized "You don't have permission to delete this blog post." (Just userMetadata.mUserRole)
 
     -- 5. Delete the blog post
     deleteBlogPost blogPost

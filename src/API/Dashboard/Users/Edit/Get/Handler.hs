@@ -9,7 +9,7 @@ import API.Dashboard.Users.Edit.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -39,7 +39,7 @@ handler _tracer targetUserId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "User edit" apiLinks.rootGet $ do
     -- 1. Require authentication and admin role
     (user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "You do not have permission to access this page." userMetadata
+    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
 
     -- 2. Get storage backend
     backend <- asks getter

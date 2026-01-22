@@ -748,6 +748,7 @@ template mGoogleAnalyticsId mUser main =
       Lucid.script_ [] playerScript
       Lucid.script_ [] (darkModeScript (UserMetadata.mColorScheme <$> mUser))
       Lucid.script_ [] activeNavScript
+      Lucid.script_ [] bannerFromUrlScript
       Lucid.style_ [] marqueeStyles
       Lucid.style_ [] htmxIndicatorStyles
     Lucid.body_

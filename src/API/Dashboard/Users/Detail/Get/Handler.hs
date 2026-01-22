@@ -6,10 +6,10 @@ module API.Dashboard.Users.Detail.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Users.Detail.Get.Templates.Page (template)
-import API.Links (apiLinks)
+import API.Links (dashboardLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -36,10 +36,10 @@ handler ::
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handler _tracer targetUserId cookie (foldHxReq -> hxRequest) =
-  handleHtmlErrors "User detail" apiLinks.rootGet $ do
+  handleHtmlErrors "User detail" dashboardLinks.home $ do
     -- 1. Require authentication and admin role
     (user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "You do not have permission to access this page." userMetadata
+    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
 
     -- 2. Fetch shows for sidebar
     allShows <- fetchShowsForUser user userMetadata

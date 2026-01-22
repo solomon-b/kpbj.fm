@@ -9,7 +9,7 @@ import API.Dashboard.Shows.New.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
 import App.Common (renderDashboardTemplate)
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -31,7 +31,7 @@ handler _tracer cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "New show form" apiLinks.rootGet $ do
     -- 1. Require authentication and admin role
     (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "You do not have permission to access this page." userMetadata
+    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
 
     -- 2. Fetch all users for the host selection dropdown
     eligibleHostsResult <- execQuerySpan (UserMetadata.getAllUsersWithPagination 1000 0)

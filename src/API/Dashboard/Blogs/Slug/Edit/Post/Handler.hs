@@ -63,7 +63,7 @@ handler _tracer showSlug postId cookie editForm =
 
     -- 3. Verify user is authorized to edit this post
     if not (blogPost.authorId == User.mId user || isHost)
-      then throwNotAuthorized "You are not authorized to edit this blog post."
+      then throwNotAuthorized "You are not authorized to edit this blog post." (Just userMetadata.mUserRole)
       else updateBlogPost showSlug postId showModel blogPost oldTags editForm
 
 fetchBlogPostWithContext ::

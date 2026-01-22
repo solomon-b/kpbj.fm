@@ -51,7 +51,7 @@ handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) =
 
     -- 3. Verify user is authorized to edit this post
     if not (isHost || User.mId user == post.authorId)
-      then throwNotAuthorized "You are not authorized to edit this blog post."
+      then throwNotAuthorized "You are not authorized to edit this blog post." (Just userMetadata.mUserRole)
       else do
         Log.logInfo "Authorized user accessing blog post edit form" post.id
 
