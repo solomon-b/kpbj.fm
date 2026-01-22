@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardLinks, scheduleLink, showsLinks, userLinks)
+import API.Links (apiLinks, dashboardLinks, eventsLinks, scheduleLink, showsLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
 import Control.Monad (when)
@@ -50,6 +50,9 @@ scheduleGetUrl = Link.linkURI $ scheduleLink Nothing
 
 showsGetUrl :: Link.URI
 showsGetUrl = Link.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Nothing
+
+eventsGetUrl :: Link.URI
+eventsGetUrl = Link.linkURI eventsLinks.list
 
 --------------------------------------------------------------------------------
 
@@ -659,7 +662,7 @@ mobileNavLinks mUser =
     mobileNavLink "Shows" showsGetUrl
     mobileNavLink "Schedule" scheduleGetUrl
     mobileNavLink "Donate" donateGetUrl
-    -- mobileNavLink "Events" eventsGetUrl
+    mobileNavLink "Events" eventsGetUrl
     -- mobileNavLink "Blog" blogGetUrl
     mobileNavLink "About" aboutGetUrl
     Lucid.a_
@@ -714,7 +717,7 @@ navigation =
     Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsGetUrl}|], hxGet_ [i|/#{showsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Shows"
     Lucid.a_ [Lucid.id_ "nav-schedule", Lucid.href_ [i|/#{scheduleGetUrl}|], hxGet_ [i|/#{scheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Schedule"
     Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Donate"
-    -- Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Events"
+    Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Events"
     -- Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Blog"
     Lucid.a_ [Lucid.id_ "nav-about", Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "About"
     Lucid.a_ [Lucid.id_ "nav-contact", Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ navLinkDark] "Contact"

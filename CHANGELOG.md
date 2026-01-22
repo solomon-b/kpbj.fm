@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Public Events Page** - Re-enabled the Events page in the public site navigation (desktop and mobile)
 - **Ephemeral Uploads** - Hosts can upload random audio clips for nighttime playback, with full CRUD operations and inline audio preview
 - **Auto-Login After Email Verification** - Users are now automatically logged in after verifying their email address, eliminating the need to enter credentials again
 - **Host Assignment Emails** - Automatic email notifications when hosts are assigned to shows, with show name and timeslot information
