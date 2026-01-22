@@ -101,7 +101,7 @@ fetchShowBySlug user userMetadata showSlug = do
 
   case mResult of
     Left err -> throwDatabaseError err
-    Right Nothing -> throwNotAuthorized "You must be a host of this show to create blog posts."
+    Right Nothing -> throwNotAuthorized "You must be a host of this show to create blog posts." (Just userMetadata.mUserRole)
     Right (Just sm) -> pure sm
 
 -- | Create tags for a show blog post

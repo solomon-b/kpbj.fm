@@ -41,7 +41,7 @@ handler _tracer targetUserId cookie SuspendForm {..} =
     -- 1. Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
     unless (UserMetadata.isAdmin userMetadata.mUserRole) $
-      throwNotAuthorized "Only admins can suspend users."
+      throwNotAuthorized "Only admins can suspend users." (Just userMetadata.mUserRole)
 
     -- 2. Execute the suspension
     Log.logInfo "Suspending user" (Aeson.object ["targetUserId" .= display targetUserId, "reason" .= sfReason])

@@ -40,7 +40,7 @@ handler _tracer stationIdId cookie =
         isAuthorized = isCreator || isStaffOrAdmin
 
     unless isAuthorized $
-      throwNotAuthorized "You can only delete station IDs you created."
+      throwNotAuthorized "You can only delete station IDs you created." (Just userMetadata.mUserRole)
 
     -- 4. Delete the station ID
     deleteStationId stationId

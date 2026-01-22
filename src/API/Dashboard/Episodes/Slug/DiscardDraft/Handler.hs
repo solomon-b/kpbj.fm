@@ -135,7 +135,7 @@ handleDiscardErrors action =
 errorMessage :: HandlerError -> Text
 errorMessage = \case
   NotAuthenticated -> "You must be logged in to discard episodes."
-  NotAuthorized msg -> msg
+  NotAuthorized msg _ -> msg
   NotFound resource -> resource <> " not found."
   DatabaseError _ -> "Database error. Please try again or contact support."
   ValidationError msg -> msg
