@@ -73,4 +73,5 @@ parseUploadType multipartData =
     Left _ -> Left "upload_type is required"
     Right "episode_audio" -> Right StagedUploads.EpisodeAudio
     Right "station_id_audio" -> Right StagedUploads.StationIdAudio
+    Right "ephemeral_audio" -> Right StagedUploads.EphemeralAudio
     Right other -> Left $ "Invalid upload_type: " <> Text.unpack other

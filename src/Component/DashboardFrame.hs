@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardBlogsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardStationIdsLinks, dashboardUsersLinks, userLinks)
+import API.Links (apiLinks, dashboardBlogsLinks, dashboardEphemeralUploadsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardStationIdsLinks, dashboardUsersLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
 import Component.Frame (bannerFromUrlScript, googleAnalyticsScript)
@@ -67,6 +67,9 @@ dashboardShowSettingsUrl slug = Links.linkURI $ dashboardShowsLinks.editGet slug
 dashboardStationIdsGetUrl :: Links.URI
 dashboardStationIdsGetUrl = Links.linkURI $ dashboardStationIdsLinks.list Nothing
 
+dashboardEphemeralUploadsGetUrl :: Links.URI
+dashboardEphemeralUploadsGetUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.list Nothing
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -80,6 +83,7 @@ data DashboardNav
   | NavStationBlog
   | NavEvents
   | NavStationIds
+  | NavEphemeralUploads
   deriving (Eq, Show)
 
 -- | Get display title for navigation item
@@ -94,6 +98,7 @@ navTitle = \case
   NavStationBlog -> "Station Blog"
   NavEvents -> "Events"
   NavStationIds -> "Station IDs"
+  NavEphemeralUploads -> "Ephemeral Uploads"
 
 -- | Check if navigation requires show context
 isShowScoped :: DashboardNav -> Bool
@@ -107,6 +112,7 @@ isShowScoped = \case
   NavStationBlog -> False
   NavEvents -> False
   NavStationIds -> False
+  NavEphemeralUploads -> False
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
@@ -175,6 +181,7 @@ sidebar userMeta activeNav selectedShow =
           -- navItem "BLOG" NavBlog activeNav selectedShow
           navItem "SHOW SETTINGS" NavSettings activeNav selectedShow
           staffNavItem "STATION IDS" NavStationIds activeNav
+          staffNavItem "EPHEMERAL" NavEphemeralUploads activeNav
 
       -- Staff/Admin section - shown only for Staff or higher roles
       when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
@@ -286,6 +293,7 @@ staffNavUrl = \case
   NavStationBlog -> Just dashboardStationBlogGetUrl
   NavEvents -> Just dashboardEventsGetUrl
   NavStationIds -> Just dashboardStationIdsGetUrl
+  NavEphemeralUploads -> Just dashboardEphemeralUploadsGetUrl
   other -> navUrl other Nothing
 
 -- | Get URL for navigation item
@@ -304,6 +312,7 @@ navUrl nav mShow =
         NavStationBlog -> Just dashboardStationBlogGetUrl
         NavEvents -> Just dashboardEventsGetUrl
         NavStationIds -> Just dashboardStationIdsGetUrl
+        NavEphemeralUploads -> Just dashboardEphemeralUploadsGetUrl
 
 -- | Top bar with page title, show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()

@@ -21,6 +21,7 @@ module API.Types
     DashboardEventsRoutes (..),
     DashboardStationBlogRoutes (..),
     DashboardStationIdsRoutes (..),
+    DashboardEphemeralUploadsRoutes (..),
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
     UploadRoutes (..),
@@ -39,6 +40,10 @@ import API.Dashboard.Blogs.Slug.Delete.Route qualified as Dashboard.Blogs.Slug.D
 import API.Dashboard.Blogs.Slug.Edit.Get.Route qualified as Dashboard.Blogs.Slug.Edit.Get
 import API.Dashboard.Blogs.Slug.Edit.Post.Route qualified as Dashboard.Blogs.Slug.Edit.Post
 import API.Dashboard.Blogs.Slug.Get.Route qualified as Dashboard.Blogs.Slug.Get
+import API.Dashboard.EphemeralUploads.Get.Route qualified as Dashboard.EphemeralUploads.Get
+import API.Dashboard.EphemeralUploads.Id.Delete.Route qualified as Dashboard.EphemeralUploads.Id.Delete
+import API.Dashboard.EphemeralUploads.New.Get.Route qualified as Dashboard.EphemeralUploads.New.Get
+import API.Dashboard.EphemeralUploads.New.Post.Route qualified as Dashboard.EphemeralUploads.New.Post
 import API.Dashboard.Episodes.Get.Route qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Redirect.Route qualified as Dashboard.Episodes.Redirect
 import API.Dashboard.Episodes.Slug.Delete.Route qualified as Dashboard.Episodes.Slug.Delete
@@ -286,7 +291,9 @@ data DashboardHostRoutes mode = DashboardHostRoutes
     -- | @/dashboard/blogs/...@ - Show blog management routes
     blogs :: mode :- NamedRoutes DashboardBlogsRoutes,
     -- | @/dashboard/station-ids/...@ - Station ID management routes
-    stationIds :: mode :- NamedRoutes DashboardStationIdsRoutes
+    stationIds :: mode :- NamedRoutes DashboardStationIdsRoutes,
+    -- | @/dashboard/ephemeral-uploads/...@ - Ephemeral upload management routes
+    ephemeralUploads :: mode :- NamedRoutes DashboardEphemeralUploadsRoutes
   }
   deriving stock (Generic)
 
@@ -443,6 +450,21 @@ data DashboardStationIdsRoutes mode = DashboardStationIdsRoutes
     newPost :: mode :- Dashboard.StationIds.New.Post.Route,
     -- | @DELETE /dashboard/station-ids/:id@ - Delete station ID
     delete :: mode :- Dashboard.StationIds.Id.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard ephemeral upload management routes under @/dashboard/ephemeral-uploads@.
+--
+-- Allows hosts to upload, view, play, and download ephemeral audio clips for nighttime playback.
+data DashboardEphemeralUploadsRoutes mode = DashboardEphemeralUploadsRoutes
+  { -- | @GET /dashboard/ephemeral-uploads@ - Ephemeral upload list
+    list :: mode :- Dashboard.EphemeralUploads.Get.Route,
+    -- | @GET /dashboard/ephemeral-uploads/new@ - New ephemeral upload form
+    newGet :: mode :- Dashboard.EphemeralUploads.New.Get.Route,
+    -- | @POST /dashboard/ephemeral-uploads/new@ - Create ephemeral upload
+    newPost :: mode :- Dashboard.EphemeralUploads.New.Post.Route,
+    -- | @DELETE /dashboard/ephemeral-uploads/:id@ - Delete ephemeral upload
+    delete :: mode :- Dashboard.EphemeralUploads.Id.Delete.Route
   }
   deriving stock (Generic)
 
