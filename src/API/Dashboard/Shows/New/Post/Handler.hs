@@ -37,6 +37,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
+import Effects.HostNotifications qualified as HostNotifications
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -209,6 +210,11 @@ handleShowCreation showData form = do
                   execQuerySpan (Shows.getShowById showId) >>= \case
                     Right (Just createdShow) -> do
                       Log.logInfo "Successfully created show" (Aeson.object ["title" .= Shows.siTitle finalShowData, "id" .= show showId])
+
+                      -- Send host assignment notification emails
+                      let mTimeslot = buildTimeslotDescription schedules
+                      HostNotifications.sendHostAssignmentNotifications createdShow mTimeslot (nsfHosts form)
+
                       let showSlug = createdShow.slug
                           showTitle = createdShow.title
                           detailLink = dashboardShowDetailUrl showId showSlug
@@ -393,3 +399,22 @@ createSchedulesForShow showId slots = do
                 Log.logInfo "Created schedule for show" (Aeson.object ["showId" .= show showId, "day" .= show dow])
       _ ->
         Log.logInfo "Invalid schedule slot data - skipping" (Aeson.object ["slot" .= Aeson.toJSON slot])
+
+--------------------------------------------------------------------------------
+-- Helper Functions
+
+-- | Build a human-readable timeslot description from schedule slots.
+--
+-- Returns Nothing if no valid schedules, otherwise returns a formatted string
+-- like "Fridays 8:00 PM - 10:00 PM PT"
+buildTimeslotDescription :: [ScheduleSlotInfo] -> Maybe Text
+buildTimeslotDescription [] = Nothing
+buildTimeslotDescription (slot : _) =
+  -- Just use the first schedule slot for the email
+  case ( parseDayOfWeek (dayOfWeek slot),
+         parseTimeOfDay (startTime slot),
+         parseTimeOfDay (endTime slot)
+       ) of
+    (Just dow, Just start, Just end) ->
+      Just $ HostNotifications.formatTimeslotDescription dow start end
+    _ -> Nothing
