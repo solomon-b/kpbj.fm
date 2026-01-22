@@ -13,7 +13,7 @@ where
 import API.Links (apiLinks, dashboardBlogsLinks, dashboardEphemeralUploadsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardStationIdsLinks, dashboardUsersLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
-import Component.Frame (bannerFromUrlScript, googleAnalyticsScript)
+import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Maybe (fromMaybe)
@@ -137,7 +137,8 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
       Lucid.script_ [Lucid.src_ "https://unpkg.com/htmx.org@2.0.0"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"] (mempty @Text)
       Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
-      Lucid.script_ [] ("tailwind.config = { theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
+      Lucid.script_ [] ("tailwind.config = { darkMode: 'class', theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
+      Lucid.script_ [] (darkModeScript (Just userMeta.mColorScheme))
     Lucid.body_ [class_ $ base ["font-mono", Tokens.textGray800, Tokens.bgGray100]] $ do
       -- Full height flex container
       Lucid.div_ [class_ $ base ["min-h-screen", "flex"]] $ do
