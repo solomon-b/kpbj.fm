@@ -26,6 +26,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - Fixed safe link usage in email verification templates
 
 ### Chores
+- **Event Poster Ratio** - Changed event poster image aspect ratio from 2:3 to 9:16 to match Instagram Stories format
 - Disabled signup link on login form (invite-only registration)
 - Added CHANGELOG.md for tracking releases
 - **MP3-Only Audio Uploads** - Restricted audio uploads to MP3 format only (client and server-side validation)

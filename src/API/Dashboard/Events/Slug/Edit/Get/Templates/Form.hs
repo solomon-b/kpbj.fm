@@ -92,7 +92,7 @@ template backend event userMeta = do
         imageField "poster_image" $ do
           label "Event Poster Image"
           maxSize 10
-          aspectRatio (2, 3)
+          aspectRatio (9, 16)
           currentFile imageUrl
 
       -- Date & Time Section
