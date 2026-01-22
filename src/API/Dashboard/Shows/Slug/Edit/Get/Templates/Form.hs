@@ -139,7 +139,7 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
         section "SCHEDULE" $ do
           plain renderScheduleSection
 
-      cancelButton [i|/#{showBackUrl}|] "CANCEL"
+      cancelButton [i|/#{dashboardShowsGetUrl}|] "CANCEL"
       submitButton "UPDATE SHOW"
 
 --------------------------------------------------------------------------------
