@@ -25,6 +25,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Chores
 - Disabled signup link on login form (invite-only registration)
 - Added CHANGELOG.md for tracking releases
+- **MP3-Only Audio Uploads** - Restricted audio uploads to MP3 format only (client and server-side validation)
 
 ---
 

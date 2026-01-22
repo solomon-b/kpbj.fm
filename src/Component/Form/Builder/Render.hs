@@ -1285,7 +1285,7 @@ renderStagedAudioField styles field uploadUrl uploadType = do
         Lucid.input_
           [ Lucid.type_ "file",
             Lucid.id_ inputId,
-            Lucid.accept_ "audio/*",
+            Lucid.accept_ "audio/mpeg,.mp3",
             Lucid.class_ "hidden",
             xOnChange_ "handleFileSelect($event)"
           ]
@@ -1364,7 +1364,7 @@ renderStagedAudioField styles field uploadUrl uploadType = do
               ]
               "CHOOSE AUDIO FILE"
             Lucid.p_ [Lucid.class_ (fsHintClasses styles <> " mt-2")] $
-              Lucid.toHtml ([i|MP3, WAV, FLAC accepted • Max #{maxSizeMB}MB|] :: Text)
+              Lucid.toHtml ([i|MP3 only • Max #{maxSizeMB}MB|] :: Text)
 
         -- Uploaded file display
         Lucid.div_
