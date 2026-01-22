@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Mail sending effect for the application.
@@ -11,9 +12,15 @@ module Effects.MailSender
     sendVerificationEmailAsync,
     sendPasswordResetEmail,
     sendPasswordResetEmailAsync,
+    sendHostAssignmentEmail,
+    sendHostAssignmentEmailAsync,
 
     -- * Mail Building
     buildSimpleMail,
+    buildPlainTextMail,
+
+    -- * Host Assignment Email Data
+    HostAssignmentInfo (..),
   )
 where
 
@@ -28,6 +35,8 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Data.Has (getter)
+import Data.Maybe (fromMaybe)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
@@ -121,6 +130,31 @@ buildSimpleMail fromEmail fromName toEmail subject plainBody htmlBody =
             Mime.htmlPart htmlBody
           ]
         ]
+    }
+
+-- | Build a plain-text-only email (no HTML).
+--
+-- For that 90s monospace vibe.
+buildPlainTextMail ::
+  -- | From email address
+  Text ->
+  -- | From display name
+  Text ->
+  -- | To email address
+  Text ->
+  -- | Subject
+  Text ->
+  -- | Plain text body
+  LT.Text ->
+  Mime.Mail
+buildPlainTextMail fromEmail fromName toEmail subject plainBody =
+  Mime.Mail
+    { Mime.mailFrom = Mime.Address (Just fromName) fromEmail,
+      Mime.mailTo = [Mime.Address Nothing toEmail],
+      Mime.mailCc = [],
+      Mime.mailBcc = [],
+      Mime.mailHeaders = [("Subject", subject)],
+      Mime.mailParts = [[Mime.plainPart plainBody]]
     }
 
 --------------------------------------------------------------------------------
@@ -337,3 +371,114 @@ buildPasswordResetMail config toEmail token =
         subject
         plainBody
         htmlBody
+
+--------------------------------------------------------------------------------
+-- Host Assignment Email
+
+-- | Information needed to send a host assignment notification email.
+data HostAssignmentInfo = HostAssignmentInfo
+  { -- | The host's display name
+    haiHostName :: Text,
+    -- | The name of the show
+    haiShowTitle :: Text,
+    -- | Full URL to the show page (built with safe links)
+    haiShowUrl :: Text,
+    -- | Full URL to the host dashboard (built with safe links)
+    haiDashboardUrl :: Text,
+    -- | Human-readable timeslot description (e.g., "Fridays 8:00 PM - 10:00 PM PT")
+    haiTimeslot :: Maybe Text
+  }
+  deriving stock (Show, Eq)
+
+-- | Send a host assignment notification email.
+--
+-- Builds and sends an email welcoming a host to their new show.
+sendHostAssignmentEmail ::
+  -- | SMTP configuration
+  SmtpConfig ->
+  -- | Recipient email address
+  Text ->
+  -- | Host assignment information
+  HostAssignmentInfo ->
+  AppM Bool
+sendHostAssignmentEmail config toEmail info = do
+  let mail = buildHostAssignmentMail config toEmail info
+  sendEmail mail
+
+-- | Send a host assignment notification email asynchronously (fire-and-forget).
+--
+-- Spawns a background thread to send the email so the request handler
+-- doesn't block waiting for SMTP. Logs success/failure in the background.
+-- Times out after 30 seconds to avoid hanging threads.
+sendHostAssignmentEmailAsync ::
+  -- | SMTP configuration
+  SmtpConfig ->
+  -- | Recipient email address
+  Text ->
+  -- | Host assignment information
+  HostAssignmentInfo ->
+  AppM ()
+sendHostAssignmentEmailAsync config toEmail info = do
+  let mail = buildHostAssignmentMail config toEmail info
+  Log.logInfo "Queuing host assignment email" toEmail
+  liftIO $ void $ Async.async $ do
+    putStrLn $ "[Email] Starting host assignment send to " <> Text.unpack toEmail
+    result <- Async.race (threadDelay (30 * 1000000)) (try $ sendMailWithConfig config mail)
+    case result of
+      Left () ->
+        hPutStrLn stderr $ "[Email] ERROR: Timeout sending host assignment to " <> Text.unpack toEmail
+      Right (Left (e :: SomeException)) ->
+        hPutStrLn stderr $ "[Email] ERROR: Failed to send host assignment to " <> Text.unpack toEmail <> ": " <> show e
+      Right (Right ()) ->
+        putStrLn $ "[Email] Sent host assignment email to " <> Text.unpack toEmail
+
+-- | Build the host assignment notification email (plain text only).
+buildHostAssignmentMail :: SmtpConfig -> Text -> HostAssignmentInfo -> Mime.Mail
+buildHostAssignmentMail config toEmail HostAssignmentInfo {..} =
+  let timeslotText = fromMaybe "TBD" haiTimeslot
+      subject = "Welcome to " <> haiShowTitle <> " - KPBJ 95.9FM"
+
+      plainBody =
+        LT.fromStrict
+          [i|
+================================================================
+                    KPBJ 95.9FM COMMUNITY RADIO
+================================================================
+
+Welcome to KPBJ Radio, #{haiHostName}!
+
+You've been added as a host for "#{haiShowTitle}".
+
+YOUR TIMESLOT
+-------------
+#{timeslotText}
+
+WHAT'S NEXT
+-----------
+1. Visit your host dashboard:
+   #{haiDashboardUrl}
+
+2. Check out your show page:
+   #{haiShowUrl}
+
+3. Start preparing your episodes!
+   Upload audio, add track listings, write blog posts.
+
+NEED HELP?
+----------
+Questions about hosting? Reach out to station staff.
+
+We're excited to have you on the airwaves!
+
+--
+The KPBJ Team
+https://kpbj.fm
+
+================================================================
+|]
+   in buildPlainTextMail
+        (smtpFromEmail config)
+        (smtpFromName config)
+        toEmail
+        subject
+        plainBody

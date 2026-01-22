@@ -38,6 +38,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
+import Effects.HostNotifications qualified as HostNotifications
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
@@ -217,8 +218,11 @@ updateShow userMetadata showModel editForm = do
                       Right () -> do
                         -- Update schedules
                         updateSchedulesForShow showModel.id schedules
-                        -- Update hosts
-                        updateHostsForShow showModel.id (sefHosts editForm)
+                        -- Update hosts and get newly added ones
+                        newlyAddedHosts <- updateHostsForShow showModel.id (sefHosts editForm)
+                        -- Send notification emails to newly added hosts
+                        let mTimeslot = buildTimeslotDescription schedules
+                        HostNotifications.sendHostAssignmentNotifications showModel mTimeslot newlyAddedHosts
                         redirectToShowPage showModel.id generatedSlug
                 else redirectToShowPage showModel.id generatedSlug
   where
@@ -442,10 +446,12 @@ updateSchedulesForShow showId newSchedules = do
 -- 1. Removes hosts that are no longer in the list
 -- 2. Adds hosts that are new to the list
 -- 3. Promotes users to Host role if they aren't already Host or higher
+--
+-- Returns the list of newly added host IDs (for sending notification emails).
 updateHostsForShow ::
   Shows.Id ->
   [User.Id] ->
-  AppM ()
+  AppM [User.Id]
 updateHostsForShow showId newHostIds = do
   let newHostSet = Set.fromList newHostIds
 
@@ -489,6 +495,9 @@ updateHostsForShow showId newHostIds = do
 
   Log.logInfo "Host update complete" (show showId, "removed" :: Text, length hostsToRemove, "added" :: Text, length hostsToAdd)
 
+  -- Return newly added hosts for notification
+  pure hostsToAdd
+
 --------------------------------------------------------------------------------
 -- Tag Processing Helpers
 
@@ -525,3 +534,22 @@ processShowTags showId mTagsText = do
                 Log.logInfo "Created and associated new tag with show" (show showId, tagName)
               Left err ->
                 Log.logInfo "Failed to create tag" (tagName, show err)
+
+--------------------------------------------------------------------------------
+-- Notification Helpers
+
+-- | Build a human-readable timeslot description from schedule slots.
+--
+-- Returns Nothing if no valid schedules, otherwise returns a formatted string
+-- like "Fridays 8:00 PM - 10:00 PM PT"
+buildTimeslotDescription :: [ScheduleSlotInfo] -> Maybe Text
+buildTimeslotDescription [] = Nothing
+buildTimeslotDescription (slot : _) =
+  -- Just use the first schedule slot for the email
+  case ( parseDayOfWeek (dayOfWeek slot),
+         parseTimeOfDay (startTime slot),
+         parseTimeOfDay (endTime slot)
+       ) of
+    (Just dow, Just start, Just end) ->
+      Just $ HostNotifications.formatTimeslotDescription dow start end
+    _ -> Nothing
