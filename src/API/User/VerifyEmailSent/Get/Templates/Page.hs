@@ -37,8 +37,7 @@ resendUrl = [i|/#{verifyEmailResendPostUri}|]
 -- | Template for the "check your email" page.
 template :: Maybe EmailAddress -> Lucid.Html ()
 template mEmail = do
-  Lucid.div_ [Lucid.class_ "min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4"] $ do
-    Lucid.div_ [Lucid.class_ "max-w-md w-full space-y-8 bg-white p-8 border-2 border-gray-800"] $ do
+    Lucid.div_ [Lucid.class_ "max-w-md w-full space-y-8 bg-white p-8"] $ do
       -- Email icon
       Lucid.div_ [Lucid.class_ "text-center"] $ do
         Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-blue-100"] $ do
