@@ -383,6 +383,8 @@ library
     Design.Tokens
     Domain.Types.PostStatus
     Domain.Types.Cookie
+    Domain.Types.HxRedirect
+    Domain.Types.SetCookie
     Domain.Types.FileStorage
     Domain.Types.GoogleAnalyticsId
     Domain.Types.FileUpload
