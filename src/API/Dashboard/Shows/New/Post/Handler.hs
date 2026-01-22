@@ -8,7 +8,7 @@ module API.Dashboard.Shows.New.Post.Handler (handler) where
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..), ScheduleSlotInfo (..))
 import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -67,7 +67,7 @@ handler _tracer cookie form =
   handleRedirectErrors "Show creation" apiLinks.rootGet $ do
     -- 1. Require authentication and admin role
     (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only Admin users can create shows." userMetadata
+    requireStaffNotSuspended "Only Admin users can create shows." userMetadata
 
     -- 2. Validate form data
     case validateNewShow form of
