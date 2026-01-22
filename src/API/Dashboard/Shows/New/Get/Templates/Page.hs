@@ -67,8 +67,6 @@ template eligibleHosts = do
         textareaField "description" 6 $ do
           label "Description"
           placeholder "Describe your show. What kind of music do you play? What's your show's vibe?"
-          required
-          minLength 10
           maxLength 5000
 
         textField "tags" $ do

@@ -53,7 +53,6 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
   when isStaff $ renderScheduleManagementScript schedulesJson
   where
     showSlug = showModel.slug
-    showBackUrl = showGetUrl showSlug
     postUrl = [i|/dashboard/shows/#{display showSlug}/edit|]
     logoUrl = maybe "" (buildMediaUrl backend) showModel.logoUrl
     bannerUrl = maybe "" (buildMediaUrl backend) showModel.bannerUrl
@@ -83,8 +82,6 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
           label "Description"
           placeholder "Describe your show. What kind of music do you play? What's your show's vibe?"
           value showModel.description
-          required
-          minLength 10
           maxLength 5000
 
         textField "tags" $ do
