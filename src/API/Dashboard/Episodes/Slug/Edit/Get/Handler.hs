@@ -64,7 +64,7 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
     -- 4. Check authorization
     let isAuthorized = episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
     unless isAuthorized $
-      throwNotAuthorized "You can only edit your own episodes."
+      throwNotAuthorized "You can only edit your own episodes." (Just userMetadata.mUserRole)
 
     -- 5. Fetch additional data for the edit form
     Log.logInfo "Authorized user accessing episode edit form" episode.id

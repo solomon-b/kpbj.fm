@@ -10,8 +10,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Background Cleanup Jobs** - Automated cleanup of expired staged uploads and other maintenance tasks
 - **Email Rate Limiting** - Verification emails are now rate-limited to prevent abuse (60-second cooldown)
 - **Manual Deploy Trigger** - Production deployments can now be triggered manually via GitHub Actions
+- **Release Notes Integration** - `just release-pr` now auto-generates release notes from CHANGELOG.md
 
 ### Fixes
+- Fixed dashboard authentication requirements for admin routes
+- **Role-Aware Auth Redirects** - Dashboard authorization failures now redirect based on user role (dashboard users stay in dashboard, public users go to home)
 - Fixed TBD display for shows without scheduled timeslots
 - Fixed show edit form cancel button redirect
 - Fixed display of hosts without host_details records
@@ -20,6 +23,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Chores
 - Disabled signup link on login form (invite-only registration)
+- Added CHANGELOG.md for tracking releases
 
 ---
 

@@ -62,7 +62,7 @@ handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) =
 
     -- 5. Check authorization: must be staff/admin or the creator
     if not (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole)
-      then throwNotAuthorized "You can only edit events you created or have staff permissions."
+      then throwNotAuthorized "You can only edit events you created or have staff permissions." (Just userMetadata.mUserRole)
       else do
         Log.logInfo "Authorized user accessing event edit form" event.emId
         let editTemplate = template storageBackend event userMetadata

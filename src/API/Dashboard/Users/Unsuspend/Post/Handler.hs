@@ -5,7 +5,7 @@ module API.Dashboard.Users.Unsuspend.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Handler.Combinators (requireStaffNotSuspended, requireAuth)
 import App.Handler.Error (handleBannerErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -36,7 +36,7 @@ handler _tracer targetUserId cookie =
   handleBannerErrors "User unsuspend" $ do
     -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can unsuspend users." userMetadata
+    requireStaffNotSuspended "Only admins can unsuspend users." userMetadata
 
     -- Execute unsuspension
     Log.logInfo "Unsuspending user" (Aeson.object ["targetUserId" .= display targetUserId])

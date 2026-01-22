@@ -76,7 +76,7 @@ handler _tracer showSlug episodeNumber cookie editForm =
             || isHost
             || UserMetadata.isStaffOrHigher userMetadata.mUserRole
     unless isAuthorized $
-      throwNotAuthorized "You can only edit episodes you created, or episodes for shows you host."
+      throwNotAuthorized "You can only edit episodes you created, or episodes for shows you host." (Just userMetadata.mUserRole)
 
     -- 4. Perform the update
     updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm

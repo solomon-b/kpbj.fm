@@ -42,7 +42,7 @@ handler _tracer eventId _eventSlug cookie =
     -- 3. Check authorization: must be staff/admin or the creator
     let isAuthorized = event.emAuthorId == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
     unless isAuthorized $
-      throwNotAuthorized "You don't have permission to delete this event."
+      throwNotAuthorized "You don't have permission to delete this event." (Just userMetadata.mUserRole)
 
     -- 4. Delete the event
     deleteEvent event

@@ -73,5 +73,5 @@ fetchShowBySlug user userMetadata showSlug = do
 
   case mResult of
     Left err -> throwDatabaseError err
-    Right Nothing -> throwNotAuthorized "You are not authorized to create blog posts for this show."
+    Right Nothing -> throwNotAuthorized "You are not authorized to create blog posts for this show." (Just userMetadata.mUserRole)
     Right (Just sm) -> pure sm
