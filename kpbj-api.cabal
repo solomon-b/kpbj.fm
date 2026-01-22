@@ -421,6 +421,7 @@ library
     Effects.CSRF
     Effects.EmailVerification
     Effects.FileUpload
+    Effects.HostNotifications
     Effects.MailSender
     Effects.PasswordReset
     Effects.Markdown
