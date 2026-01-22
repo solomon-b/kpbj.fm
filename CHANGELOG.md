@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.3.3] - 2026-01-22
+
 ### Features
 - **Public Events Page** - Re-enabled the Events page in the public site navigation (desktop and mobile)
 - **Ephemeral Uploads** - Hosts can upload random audio clips for nighttime playback, with full CRUD operations and inline audio preview
