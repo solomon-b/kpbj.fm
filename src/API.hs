@@ -125,7 +125,6 @@ import API.User.VerifyEmail.Get.Handler qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Handler qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Handler qualified as User.VerifyEmailSent.Get
 import App qualified
-import App.Config (Environment (..))
 import App.CustomContext (initCustomContext)
 import App.Monad (AppM)
 import Control.Concurrent.Async qualified as Async
@@ -145,8 +144,7 @@ import Text.Read (readMaybe)
 -- then spawns background cleanup jobs alongside the main server using the shared pool.
 runApi :: IO ()
 runApi = do
-  env <- loadEnvironment
-  customCtx <- initCustomContext env
+  customCtx <- initCustomContext
   App.withAppResources customCtx $ \appCtx -> do
     -- Extract the shared database pool from the app context
     let pool = Has.getter @HSQL.Pool.Pool appCtx
@@ -160,15 +158,7 @@ runApi = do
     -- query may be interrupted. This is acceptable since cleanup queries are
     -- idempotent DELETEs that will run again on next startup.
     Async.withAsync (BackgroundJobs.runCleanupLoop cleanupInterval pool) $ \_cleanupJob -> do
-      App.runServer @API server appCtx
-
--- | Load environment from APP_ENVIRONMENT env var.
-loadEnvironment :: IO Environment
-loadEnvironment = do
-  mEnv <- lookupEnv "APP_ENVIRONMENT"
-  pure $ case mEnv of
-    Just "Production" -> Production
-    _ -> Development
+      App.runServer @API (const server) appCtx
 
 -- | Load cleanup interval from APP_CLEANUP_INTERVAL_SECONDS env var.
 --
@@ -180,8 +170,8 @@ loadCleanupInterval = do
 
 --------------------------------------------------------------------------------
 
-server :: Environment -> Servant.ServerT API AppM
-server env =
+server :: Servant.ServerT API AppM
+server =
   Routes
     { rootGet = Root.Get.handler,
       staticRangePngGet = Static.RangePng.Get.handler,

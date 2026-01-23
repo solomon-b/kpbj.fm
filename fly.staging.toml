@@ -15,7 +15,6 @@ primary_region = 'lax'
   release_command = "-c '/bin/sqlx migrate run --source /migrations'"
 
 [env]
-  APP_ENVIRONMENT = 'Production'
   APP_HOSTNAME = 'https://staging.kpbj.fm'
   APP_OBSERVABILITY_EXPORTER = 'StdOut'
   APP_OBSERVABILITY_VERBOSITY = 'Brief'
