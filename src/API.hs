@@ -107,7 +107,7 @@ import API.Shows.Slug.Blog.Get.Handler qualified as Show.Blog.Get
 import API.Shows.Slug.Blog.Post.Get.Handler qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Get.Handler qualified as Episodes.Get
 import API.Shows.Slug.Get.Handler qualified as Show.Get
-import API.Static.Get.Handler qualified as Static.Get
+import API.Static.RangePng.Get.Handler qualified as Static.RangePng.Get
 import API.TermsOfService.Get.Handler qualified as TermsOfService.Get
 import API.Types
 import API.Uploads.Audio.Post.Handler qualified as Uploads.Audio.Post
@@ -184,7 +184,7 @@ server :: Environment -> Servant.ServerT API AppM
 server env =
   Routes
     { rootGet = Root.Get.handler,
-      staticGet = Static.Get.handler env,
+      staticRangePngGet = Static.RangePng.Get.handler,
       mediaGet = Media.Get.handler,
       aboutGet = About.Get.handler,
       donateGet = Donate.Get.handler,

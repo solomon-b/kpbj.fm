@@ -63,6 +63,7 @@ library
                   , directory
                   , exceptions
                   , extra
+                  , file-embed
                   , filepath
                   , hasql
                   , hasql-interpolate
@@ -313,8 +314,9 @@ library
     API.Shows.Slug.Blog.Post.Get.Handler
     API.Shows.Slug.Blog.Post.Get.Route
     API.Shows.Slug.Blog.Post.Get.Templates.Page
-    API.Static.Get.Handler
-    API.Static.Get.Route
+    API.Static.RangePng.Get.Handler
+    API.Static.RangePng.Get.Route
+    Assets.Embedded
     API.TermsOfService.Get.Handler
     API.TermsOfService.Get.Route
     API.TermsOfService.Get.Templates
