@@ -102,7 +102,7 @@ import API.Shows.Slug.Blog.Get.Route qualified as Show.Blog.Get
 import API.Shows.Slug.Blog.Post.Get.Route qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Get.Route qualified as Episodes.Get
 import API.Shows.Slug.Get.Route qualified as Show.Get
-import API.Static.Get.Route qualified as Static.Get
+import API.Static.RangePng.Get.Route qualified as Static.RangePng.Get
 import API.TermsOfService.Get.Route qualified as TermsOfService.Get
 import API.Uploads.Audio.Post.Route qualified as Uploads.Audio.Post
 import API.User.ForgotPassword.Get.Route qualified as User.ForgotPassword.Get
@@ -132,8 +132,8 @@ type API = NamedRoutes Routes
 data Routes mode = Routes
   { -- | @GET /@ - Home page
     rootGet :: mode :- Root.Get.Route,
-    -- | @GET /static@ - Static file serving
-    staticGet :: mode :- Static.Get.Route,
+    -- | @GET /static/range.png@ - Embedded range.png image
+    staticRangePngGet :: mode :- Static.RangePng.Get.Route,
     -- | @GET /media@ - Media file serving
     mediaGet :: mode :- Media.Get.Route,
     -- | @GET /about@ - About page

@@ -6,6 +6,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Chores
 - **Event Poster Ratio** - Changed event poster image aspect ratio from 9:16 to 3:4
+- **Embedded Static Assets** - Static files (range.png) are now embedded at compile time using `file-embed`, removing the need for filesystem-based static file serving
 
 ---
 
