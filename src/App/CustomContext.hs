@@ -18,7 +18,6 @@ where
 
 import Amazonka qualified as AWS
 import App.Analytics (AnalyticsConfig (..), GoogleAnalyticsId (..), initAnalyticsConfig)
-import App.Config (Environment (..))
 import App.Context (AppContext (..))
 import App.Smtp (SmtpConfig (..), initSmtpConfig)
 import App.Storage (StorageBackend (..), StorageContext (..), initStorageContext)
@@ -114,9 +113,9 @@ instance Has.Has (Maybe SmtpConfig) (AppContext CustomContext) where
 -- | Initialize the complete custom context.
 --
 -- Loads all subsystem configurations from environment variables.
-initCustomContext :: (MonadIO m) => Environment -> m CustomContext
-initCustomContext env = do
-  storage <- initStorageContext env
+initCustomContext :: (MonadIO m) => m CustomContext
+initCustomContext = do
+  storage <- initStorageContext
   analytics <- initAnalyticsConfig
   smtp <- initSmtpConfig
   pure
