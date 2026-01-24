@@ -27,6 +27,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
@@ -41,7 +42,7 @@ template ::
   Lucid.Html ()
 template posts currentPage hasMore = do
   -- Blog posts table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null posts
       then renderEmptyState
       else
@@ -133,9 +134,9 @@ renderStatusBadge status = do
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base ["bg-gray-50 dark:bg-gray-700", Tokens.border2, "border-gray-300 dark:border-gray-600", "p-12", "text-center"]] $ do
-    Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] "No blog posts found."
-    Lucid.p_ [class_ $ base ["text-gray-500 dark:text-gray-400", "mt-2"]] "Create a new post to get started."
+  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+    Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No blog posts found."
+    Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Create a new post to get started."
 
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"

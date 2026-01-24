@@ -47,16 +47,16 @@ template backend _userMeta showModel episode tracks tags = do
         hxGet_ [i|/#{backUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.textGray600, "hover:text-gray-900", Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
+        class_ $ base [Tokens.textGray600, "hover:text-gray-800 dark:hover:text-white", Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
       ]
       $ do
         Lucid.i_ [Lucid.class_ "fa-solid fa-arrow-left"] mempty
         "Back to Episodes"
 
   -- Main episode container
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded"]] $ do
     -- Episode header with artwork
-    Lucid.div_ [class_ $ base ["border-b-2", "border-gray-800", Tokens.p6]] $ do
+    Lucid.div_ [class_ $ base ["border-b", Tokens.borderGray600, Tokens.p6]] $ do
       Lucid.div_ [class_ $ base ["flex", Tokens.gap6, Tokens.mb6]] $ do
         -- Episode artwork
         Lucid.div_ [class_ $ base ["w-48", "h-48", "bg-gray-300 dark:bg-gray-600", "border-2", "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", "text-xs", "flex-shrink-0"]] $ do
@@ -81,7 +81,7 @@ template backend _userMeta showModel episode tracks tags = do
           Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.mb4]] $ do
             -- Status
             Lucid.div_ $ do
-              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700]] "Status: "
+              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Status: "
               case episode.status of
                 Episodes.Draft ->
                   Lucid.span_ [class_ $ base ["inline-block", "bg-yellow-100", "text-yellow-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DRAFT"
@@ -92,7 +92,7 @@ template backend _userMeta showModel episode tracks tags = do
 
             -- Aired/Scheduled date
             Lucid.div_ $ do
-              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700]] "Scheduled: "
+              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Scheduled: "
               let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" episode.scheduledAt
               Lucid.toHtml dateStr
 
@@ -100,7 +100,7 @@ template backend _userMeta showModel episode tracks tags = do
             case episode.publishedAt of
               Just publishedAt -> do
                 Lucid.div_ $ do
-                  Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700]] "Published: "
+                  Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Published: "
                   let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" publishedAt
                   Lucid.toHtml dateStr
               Nothing -> mempty
@@ -111,7 +111,7 @@ template backend _userMeta showModel episode tracks tags = do
                 let hours = duration `div` 3600
                     minutes = (duration `mod` 3600) `div` 60
                 Lucid.div_ $ do
-                  Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700]] "Duration: "
+                  Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Duration: "
                   if hours > 0
                     then Lucid.toHtml (show hours) <> "h " <> Lucid.toHtml (show minutes) <> "min"
                     else Lucid.toHtml (show minutes) <> "min"
@@ -119,13 +119,13 @@ template backend _userMeta showModel episode tracks tags = do
 
           -- Episode description
           case episode.description of
-            Just desc -> Lucid.p_ [class_ $ base [Tokens.textGray700, "leading-relaxed"]] $ Lucid.toHtml desc
+            Just desc -> Lucid.p_ [class_ $ base [Tokens.textGray600, "leading-relaxed"]] $ Lucid.toHtml desc
             Nothing -> mempty
 
           -- Episode tags
           unless (null tags) $ do
             Lucid.div_ [class_ $ base [Tokens.mt4]] $ do
-              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray700, "mr-2"]] "Tags:"
+              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600, "mr-2"]] "Tags:"
               Lucid.div_ [class_ $ base ["inline-flex", "flex-wrap", Tokens.gap2]] $ do
                 mapM_ renderTag tags
 
@@ -142,7 +142,7 @@ template backend _userMeta showModel episode tracks tags = do
             episodeMetadata :: Text
             episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
 
-        Lucid.div_ [class_ $ base ["border-b-2", "border-gray-800", Tokens.p6]] $ do
+        Lucid.div_ [class_ $ base ["border-b", Tokens.borderGray600, Tokens.p6]] $ do
           Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase"]] "Preview Audio"
           WaveformPlayer.render
             WaveformPlayer.Config
@@ -161,7 +161,7 @@ template backend _userMeta showModel episode tracks tags = do
     -- Track listing section
     unless (null tracks) $ do
       Lucid.div_ [class_ $ base [Tokens.p6]] $ do
-        Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", "pb-2"]] $
+        Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray600, "pb-2"]] $
           "Track Listing (" <> Lucid.toHtml (show (length tracks)) <> " tracks)"
 
         Lucid.div_ [Lucid.class_ "space-y-1"] $ do
@@ -172,7 +172,7 @@ template backend _userMeta showModel episode tracks tags = do
 renderTag :: EpisodeTags.Model -> Lucid.Html ()
 renderTag tag =
   Lucid.span_
-    [class_ $ base ["bg-gray-200 dark:bg-gray-600", "text-gray-800 dark:text-gray-200", "px-2", "py-1", "text-xs", "font-mono"]]
+    [class_ $ base [Tokens.bgGray100, Tokens.textGray600, "px-2", "py-1", "text-xs", "font-mono", "rounded"]]
     $ Lucid.toHtml
     $ "#" <> EpisodeTags.etName tag
 
@@ -180,15 +180,15 @@ renderTag tag =
 
 renderTrackRow :: EpisodeTrack.Model -> Lucid.Html ()
 renderTrackRow track = do
-  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", "p-3", "hover:bg-gray-50 dark:hover:bg-gray-700", "border-b", "border-gray-200 dark:border-gray-600"]] $ do
+  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", "p-3", Tokens.hoverBgGray100, "border-b", Tokens.borderGray600]] $ do
     -- Track number
     Lucid.div_ [class_ $ base ["w-8", "flex-shrink-0", Tokens.textGray600, "font-mono", Tokens.textSm]] $
       Lucid.toHtml (show track.trackNumber <> ".")
 
     -- Track info
     Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-      Lucid.div_ [Lucid.class_ "font-medium"] $ do
+      Lucid.div_ [class_ $ base ["font-medium", Tokens.textGray800]] $ do
         "\"" <> Lucid.toHtml track.title <> "\""
 
-      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray700]] $ do
+      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] $ do
         Lucid.toHtml track.artist

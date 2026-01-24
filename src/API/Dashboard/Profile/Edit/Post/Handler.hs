@@ -54,13 +54,13 @@ handler _tracer cookie (foldHxReq -> _hxRequest) multipartData =
     when (UserMetadata.isSuspended userMetadata) throwUserSuspended
 
     -- 3. Parse and validate form fields
-    (newDisplayName, newFullName, newColorScheme) <- parseFormFields (inputs multipartData)
+    (newDisplayName, newFullName, newColorScheme, newTheme) <- parseFormFields (inputs multipartData)
 
     -- 4. Handle avatar upload if provided
     (maybeAvatarPath, avatarClear) <- handleAvatarUpload user multipartData
 
     -- 5. Update user metadata
-    updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme
+    updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme newTheme
 
     -- 6. Success redirect
     Log.logInfo "Profile updated successfully" ()
@@ -75,7 +75,7 @@ handler _tracer cookie (foldHxReq -> _hxRequest) multipartData =
 parseFormFields ::
   (MonadThrow m) =>
   [Input] ->
-  m (DisplayName, FullName, UserMetadata.ColorScheme)
+  m (DisplayName, FullName, UserMetadata.ColorScheme, UserMetadata.ThemeName)
 parseFormFields formInputs =
   case extractFormFields formInputs of
     Left errorMsg -> throwValidationError errorMsg
@@ -112,8 +112,9 @@ updateUserProfile ::
   DisplayName ->
   FullName ->
   UserMetadata.ColorScheme ->
+  UserMetadata.ThemeName ->
   AppM ()
-updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme = do
+updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme newTheme = do
   updateResult <- execTransactionSpan $ do
     maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata (User.mId user))
     case maybeMetadata of
@@ -129,7 +130,8 @@ updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName ne
                 { UserMetadata.uDisplayName = Just newDisplayName,
                   UserMetadata.uFullName = Just newFullName,
                   UserMetadata.uAvatarUrl = Just finalAvatarUrl,
-                  UserMetadata.uColorScheme = Just newColorScheme
+                  UserMetadata.uColorScheme = Just newColorScheme,
+                  UserMetadata.uTheme = Just newTheme
                 }
         _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
         pure $ Just ()
@@ -139,7 +141,7 @@ updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName ne
     Right Nothing -> throwNotFound "User metadata"
     Right (Just ()) -> pure ()
 
-extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.ColorScheme)
+extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.ColorScheme, UserMetadata.ThemeName)
 extractFormFields formInputs = do
   -- Convert Input to (Text, Text) for lookup
   let inputPairs = [(iName input, iValue input) | input <- formInputs]
@@ -148,6 +150,7 @@ extractFormFields formInputs = do
   displayNameText <- maybe (Left "Missing display_name") Right $ lookup "display_name" inputPairs
   fullNameText <- maybe (Left "Missing full_name") Right $ lookup "full_name" inputPairs
   colorSchemeText <- maybe (Left "Missing color_scheme") Right $ lookup "color_scheme" inputPairs
+  themeText <- maybe (Left "Missing theme") Right $ lookup "theme" inputPairs
 
   -- Parse display name
   displayName <- case DisplayName.mkDisplayName displayNameText of
@@ -166,4 +169,10 @@ extractFormFields formInputs = do
     "DarkMode" -> Right UserMetadata.DarkMode
     _ -> Left "Invalid color scheme"
 
-  pure (displayName, fullName, colorScheme)
+  -- Parse theme
+  theme <- case themeText of
+    "Default" -> Right UserMetadata.Default
+    "Solarized" -> Right UserMetadata.Solarized
+    _ -> Left "Invalid theme"
+
+  pure (displayName, fullName, colorScheme, theme)

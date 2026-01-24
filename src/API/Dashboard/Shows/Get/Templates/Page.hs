@@ -43,7 +43,7 @@ template ::
   Lucid.Html ()
 template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   -- Shows table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null theShowList
       then renderEmptyState maybeQuery
       else

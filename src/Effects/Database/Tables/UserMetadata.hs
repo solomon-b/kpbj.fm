@@ -23,6 +23,10 @@ module Effects.Database.Tables.UserMetadata
     -- * Color Scheme
     ColorScheme (..),
 
+    -- * Theme Name
+    ThemeName (..),
+    getTheme,
+
     -- * Id Type
     Id (..),
 
@@ -72,6 +76,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (UTCTime)
+import Design.Theme qualified
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
@@ -244,6 +249,41 @@ instance EncodeValue ColorScheme where
     DarkMode -> "DarkMode"
 
 --------------------------------------------------------------------------------
+-- Theme Name
+
+-- | User's preferred theme for the UI
+data ThemeName = Default | Solarized
+  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
+  deriving anyclass (FromJSON, ToJSON)
+  deriving (DBType) via (Rel8.Enum ThemeName)
+
+-- | DBEnum instance for ThemeName to map to PostgreSQL theme_name enum type
+instance Rel8.DBEnum ThemeName where
+  enumTypeName = Rel8.QualifiedName {Rel8.name = "theme_name", Rel8.schema = Nothing}
+
+instance DBEq ThemeName
+
+instance Display ThemeName where
+  displayBuilder Default = "Default"
+  displayBuilder Solarized = "Solarized"
+
+instance DecodeValue ThemeName where
+  decodeValue = Decoders.enum $ \case
+    "Default" -> Just Default
+    "Solarized" -> Just Solarized
+    _ -> Nothing
+
+instance EncodeValue ThemeName where
+  encodeValue = Encoders.enum $ \case
+    Default -> "Default"
+    Solarized -> "Solarized"
+
+-- | Get the Theme corresponding to a ThemeName
+getTheme :: ThemeName -> Design.Theme.Theme
+getTheme Default = Design.Theme.defaultTheme
+getTheme Solarized = Design.Theme.solarizedTheme
+
+--------------------------------------------------------------------------------
 -- Id Type
 
 -- | Newtype wrapper for user_metadata primary keys.
@@ -278,6 +318,7 @@ data UserMetadata f = UserMetadata
     umAvatarUrl :: Column f (Maybe Text),
     umUserRole :: Column f UserRole,
     umColorScheme :: Column f ColorScheme,
+    umTheme :: Column f ThemeName,
     umCreatedAt :: Column f UTCTime,
     umUpdatedAt :: Column f UTCTime
   }
@@ -316,6 +357,7 @@ userMetadataSchema =
             umAvatarUrl = "avatar_url",
             umUserRole = "user_role",
             umColorScheme = "color_scheme",
+            umTheme = "theme",
             umCreatedAt = "created_at",
             umUpdatedAt = "updated_at"
           }
@@ -336,6 +378,7 @@ data Model = Model
     mAvatarUrl :: Maybe Text,
     mUserRole :: UserRole,
     mColorScheme :: ColorScheme,
+    mTheme :: ThemeName,
     mSuspensionStatus :: SuspensionStatus
   }
   deriving stock (Generic, Show, Eq)
@@ -356,7 +399,8 @@ data Insert = Insert
     iFullName :: FullName,
     iAvatarUrl :: Maybe Text,
     iUserRole :: UserRole,
-    iColorScheme :: ColorScheme
+    iColorScheme :: ColorScheme,
+    iTheme :: ThemeName
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Insert)
@@ -369,7 +413,8 @@ data Update = Update
   { uDisplayName :: Maybe DisplayName,
     uFullName :: Maybe FullName,
     uAvatarUrl :: Maybe (Maybe Text),
-    uColorScheme :: Maybe ColorScheme
+    uColorScheme :: Maybe ColorScheme,
+    uTheme :: Maybe ThemeName
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Update)
@@ -404,7 +449,8 @@ data UserWithMetadataInsert = UserWithMetadataInsert
     uwmiFullName :: FullName,
     uwmiAvatarUrl :: Maybe Text,
     uwmiUserRole :: UserRole,
-    uwmiColorScheme :: ColorScheme
+    uwmiColorScheme :: ColorScheme,
+    uwmiTheme :: ThemeName
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance UserWithMetadataInsert)
@@ -423,7 +469,7 @@ getUserMetadata userId =
   interp
     False
     [sql|
-    SELECT um.id, um.user_id, um.display_name, um.full_name, um.avatar_url, um.user_role, um.color_scheme, u.suspension_status
+    SELECT um.id, um.user_id, um.display_name, um.full_name, um.avatar_url, um.user_role, um.color_scheme, um.theme, u.suspension_status
     FROM user_metadata um
     INNER JOIN users u ON um.user_id = u.id
     WHERE um.user_id = #{userId}
@@ -448,6 +494,7 @@ insertUserMetadata Insert {..} =
                       umAvatarUrl = lit iAvatarUrl,
                       umUserRole = lit iUserRole,
                       umColorScheme = lit iColorScheme,
+                      umTheme = lit iTheme,
                       umCreatedAt = now,
                       umUpdatedAt = now
                     }
@@ -740,6 +787,10 @@ updateUserMetadata metadataId Update {..} =
           WHEN #{hasColorSchemeUpdate} THEN #{colorSchemeValue}::color_scheme
           ELSE color_scheme
         END,
+        theme = CASE
+          WHEN #{hasThemeUpdate} THEN #{themeValue}::theme_name
+          ELSE theme
+        END,
         updated_at = NOW()
       WHERE id = #{metadataId}
       RETURNING id
@@ -755,6 +806,12 @@ updateUserMetadata metadataId Update {..} =
     -- When hasColorSchemeUpdate is True, uColorScheme is guaranteed to be Just
     -- We use a default that won't be used due to the CASE WHEN guard
     colorSchemeValue = fromMaybe Automatic uColorScheme
+    hasThemeUpdate = case uTheme of
+      Nothing -> False
+      Just _ -> True
+    -- When hasThemeUpdate is True, uTheme is guaranteed to be Just
+    -- We use a default that won't be used due to the CASE WHEN guard
+    themeValue = fromMaybe Default uTheme
 
 --------------------------------------------------------------------------------
 -- User Deletion

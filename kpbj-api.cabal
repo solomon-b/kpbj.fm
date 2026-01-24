@@ -393,6 +393,7 @@ library
     Design
     Design.StyleBuilder
     Design.StyleBuilder.Internal
+    Design.Theme
     Design.Tokens
     Domain.Types.PostStatus
     Domain.Types.Cookie

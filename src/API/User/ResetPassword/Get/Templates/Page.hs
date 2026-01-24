@@ -45,7 +45,8 @@ template token mError =
             maybe mempty errorAlert mError
 
             -- Instructions
-            Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "mb-6"]]
+            Lucid.p_
+              [class_ $ base [Tokens.textSm, Tokens.textGray600, "mb-6"]]
               "Enter your new password below."
 
             -- Reset password form using form builder

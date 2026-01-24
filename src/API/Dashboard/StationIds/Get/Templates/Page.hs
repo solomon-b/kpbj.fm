@@ -24,6 +24,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageNumber (PageNumber (..))
 import Effects.Database.Tables.StationIds qualified as StationIds
@@ -43,7 +44,7 @@ template ::
   Lucid.Html ()
 template stationIds (PageNumber pageNum) hasMore _userMeta = do
   -- Station IDs table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null stationIds
       then renderEmptyState
       else
@@ -180,9 +181,9 @@ renderInlineAudioPlayer audioUrl _uniqueId =
 -- | Render empty state when no station IDs exist
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base ["bg-gray-50 dark:bg-gray-700", Tokens.border2, "border-gray-300 dark:border-gray-600", "p-12", "text-center"]] $ do
-    Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] "No station IDs uploaded yet."
-    Lucid.p_ [class_ $ base ["text-gray-500 dark:text-gray-400", "mt-2"]] "Upload a new station ID to get started."
+  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+    Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No station IDs uploaded yet."
+    Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Upload a new station ID to get started."
 
 -- | Format a datetime for display
 formatDateTime :: UTCTime -> String

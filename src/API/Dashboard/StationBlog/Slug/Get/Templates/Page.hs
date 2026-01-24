@@ -26,7 +26,7 @@ template ::
 template post tags mAuthor = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Header with title
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
       Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
         Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
           Lucid.toHtml post.bpmTitle
@@ -54,7 +54,7 @@ template post tags mAuthor = do
     -- Tags
     if null tags
       then mempty
-      else Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+      else Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
         Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Tags"
         Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $
           mapM_ renderTag tags
@@ -62,16 +62,16 @@ template post tags mAuthor = do
     -- Excerpt
     case post.bpmExcerpt of
       Just excerpt | not (Text.null excerpt) ->
-        Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+        Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
           Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Excerpt"
-          Lucid.p_ [class_ $ base [Tokens.textGray700]] $
+          Lucid.p_ [class_ $ base [Tokens.textGray600]] $
             Lucid.toHtml excerpt
       _ -> mempty
 
     -- Content preview
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Content"
-      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.textGray700, "whitespace-pre-wrap"]] $
+      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.textGray600, "whitespace-pre-wrap"]] $
         Lucid.toHtml $
           truncateContent 2000 post.bpmContent
 

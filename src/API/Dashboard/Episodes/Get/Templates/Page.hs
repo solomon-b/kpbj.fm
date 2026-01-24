@@ -43,7 +43,7 @@ template = renderEpisodesSection
 -- | Episodes table section
 renderEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Int64 -> Bool -> Lucid.Html ()
 renderEpisodesSection userMeta selectedShow episodes currentPage hasMore = do
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden"]] $
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden"]] $
     case (episodes, selectedShow) of
       ([], _) ->
         renderEmptyState

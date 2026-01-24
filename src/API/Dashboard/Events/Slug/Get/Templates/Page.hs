@@ -19,7 +19,7 @@ template ::
 template event mAuthor = do
   Lucid.div_ [Lucid.class_ Tokens.fullWidth] $ do
     -- Header with title
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
       Lucid.div_ [Lucid.class_ Tokens.mb4] $ do
         Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
           Lucid.toHtml event.emTitle
@@ -40,7 +40,7 @@ template event mAuthor = do
           Lucid.toHtml $ formatDateTime event.emUpdatedAt
 
     -- Date & Time
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Date & Time"
       Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm]] $ do
         Lucid.div_ [] $ do
@@ -51,7 +51,7 @@ template event mAuthor = do
           Lucid.toHtml $ formatDateTimeFull event.emEndsAt
 
     -- Location
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Location"
       Lucid.div_ [Lucid.class_ Tokens.textSm] $ do
         Lucid.p_ [Lucid.class_ Tokens.fontBold] $
@@ -60,9 +60,9 @@ template event mAuthor = do
           Lucid.toHtml event.emLocationAddress
 
     -- Description
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Description"
-      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.textGray700, "whitespace-pre-wrap"]] $
+      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.textGray600, "whitespace-pre-wrap"]] $
         Lucid.toHtml $
           truncateContent 2000 event.emDescription
 

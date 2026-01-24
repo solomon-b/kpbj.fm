@@ -12,6 +12,7 @@ import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_, tablet)
+import Design.Theme (defaultTheme, themeCSS)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId (..))
@@ -474,11 +475,17 @@ marqueeStyles =
     }
   |]
 
--- | CSS for HTMX infinite scroll loading indicators
+-- | CSS for HTMX infinite scroll loading indicators.
+--
+-- When using @hx-indicator="#some-id"@, HTMX adds the @htmx-request@ class
+-- directly to the indicator element itself. We need both selectors:
+--
+--   * @.htmx-request .htmx-indicator@ - indicator is a descendant of requesting element
+--   * @.htmx-request.htmx-indicator@ - indicator element has both classes (hx-indicator case)
 htmxIndicatorStyles :: Text
 htmxIndicatorStyles =
-  ".htmx-indicator { display: none; } \
-  \.htmx-request .htmx-indicator { display: flex; } \
+  ".htmx-indicator { display: none !important; } \
+  \.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: flex !important; } \
   \.htmx-request #load-more-sentinel { visibility: hidden; }"
 
 -- | Google Analytics 4 gtag.js script.
@@ -740,6 +747,10 @@ template mGoogleAnalyticsId mUser main =
       googleAnalyticsScript mGoogleAnalyticsId
       Lucid.meta_ [Lucid.name_ "viewport", Lucid.content_ "width=device-width, initial-scale=1.0"]
       Lucid.title_ "KPBJ 95.9FM"
+      -- Theme CSS (must be before Tailwind for CSS variable availability)
+      -- Use user's theme preference if available, otherwise default theme
+      let theme = maybe defaultTheme (UserMetadata.getTheme . UserMetadata.mTheme) mUser
+      Lucid.style_ [] (themeCSS theme)
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"]
       Lucid.script_ [Lucid.src_ "https://cdn.tailwindcss.com"] (mempty @Text)
@@ -756,7 +767,7 @@ template mGoogleAnalyticsId mUser main =
       Lucid.style_ [] htmxIndicatorStyles
     Lucid.body_
       [ class_ $ do
-          base ["font-mono", Tokens.textGray800, "dark:bg-gray-800", "min-h-screen", "flex", "flex-col", "pb-20"]
+          base ["font-mono", Tokens.textGray800, Tokens.bgWhite, "min-h-screen", "flex", "flex-col", "pb-20"]
           tablet ["pb-0"]
       ]
       $ do

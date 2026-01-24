@@ -93,6 +93,13 @@ template backend user metadata =
         colorSchemeOption metadata "LightMode" "Light Mode" "Always use light theme" UserMetadata.LightMode
         colorSchemeOption metadata "DarkMode" "Dark Mode" "Always use dark theme" UserMetadata.DarkMode
 
+      -- Theme
+      radioField "theme" do
+        label "Theme"
+        hint "Choose your color palette"
+        themeOption metadata "Default" "Default" "KPBJ brutalist style with high contrast" UserMetadata.Default
+        themeOption metadata "Solarized" "Solarized" "Precision colors designed for readability" UserMetadata.Solarized
+
       -- Buttons
       cancelButton [i|/#{dashboardEpisodesRedirectUrl}|] "CANCEL"
       submitButton "SAVE CHANGES"
@@ -104,12 +111,19 @@ colorSchemeOption metadata val lbl desc scheme =
     then addOptionSelectedWithDesc val lbl desc
     else addOptionWithDesc val lbl desc
 
+-- | Helper to add a theme option, selecting it if it matches current setting
+themeOption :: UserMetadata.Model -> Text -> Text -> Text -> UserMetadata.ThemeName -> FieldBuilder
+themeOption metadata val lbl desc themeName =
+  if metadata.mTheme == themeName
+    then addOptionSelectedWithDesc val lbl desc
+    else addOptionWithDesc val lbl desc
+
 -- | Role display field (read-only)
 roleField :: UserMetadata.Model -> Lucid.Html ()
 roleField metadata =
   Lucid.div_ $ do
     Lucid.label_ [class_ $ base ["block", T.fontBold, T.mb2]] "Role"
-    Lucid.div_ [class_ $ base [T.p3, T.border2, "border-gray-300 dark:border-gray-600", T.bgGray100]] $
+    Lucid.div_ [class_ $ base [T.p3, "border", T.borderGray600, T.bgGray900]] $
       Lucid.span_ [class_ $ base ["inline-flex", "items-center", T.px3, "py-1", T.textSm, T.fontBold, T.bgGray800, T.textWhite]] $
         Lucid.toHtml $
           show metadata.mUserRole

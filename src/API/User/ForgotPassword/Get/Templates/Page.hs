@@ -41,7 +41,8 @@ template =
           pageHeader "FORGOT PASSWORD"
 
           -- Instructions
-          Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "mb-6"]]
+          Lucid.p_
+            [class_ $ base [Tokens.textSm, Tokens.textGray600, "mb-6"]]
             "Enter your email address and we'll send you a link to reset your password."
 
           -- Forgot password form using form builder

@@ -35,7 +35,7 @@ episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showS
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: StorageBackend -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
 renderLatestEpisode backend showModel episode tracks = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6, Tokens.mb8]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb8]] $ do
     Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Latest Episode"
 
     -- Episode header with image and info

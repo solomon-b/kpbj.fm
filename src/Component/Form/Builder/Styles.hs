@@ -1,7 +1,8 @@
 -- | Form styling configuration.
 --
 -- This module provides customizable CSS classes for form elements.
--- The 'defaultFormStyles' works well with Tailwind CSS.
+-- The 'defaultFormStyles' works well with Tailwind CSS and uses
+-- theme-aware tokens from Design.Theme.
 module Component.Form.Builder.Styles
   ( FormStyles (..),
     defaultFormStyles,
@@ -11,6 +12,7 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
+import Design.Theme qualified as Theme
 
 --------------------------------------------------------------------------------
 
@@ -120,90 +122,90 @@ defaultFormStyles :: FormStyles
 defaultFormStyles =
   FormStyles
     { fsTextInputClasses =
-        "w-full p-3 border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 font-mono focus:border-blue-600 focus:outline-none",
+        "w-full p-3 border " <> Theme.borderDefault <> " " <> Theme.bgMain <> " " <> Theme.fgPrimary <> " font-mono focus:border-[var(--theme-info)] focus:outline-none",
       fsTextInputErrorClasses =
-        "w-full p-3 border-2 border-red-500 bg-white dark:bg-gray-800 font-mono focus:border-red-600 focus:outline-none",
+        "w-full p-3 border border-[var(--theme-error)] " <> Theme.bgMain <> " " <> Theme.fgPrimary <> " font-mono focus:border-[var(--theme-error)] focus:outline-none",
       fsTextInputDisabledClasses =
-        "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-mono cursor-not-allowed",
+        "w-full p-3 border " <> Theme.borderMuted <> " " <> Theme.bgAlt <> " " <> Theme.fgMuted <> " font-mono cursor-not-allowed",
       fsTextareaClasses =
-        "w-full p-3 border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 font-mono leading-relaxed focus:border-blue-600 focus:outline-none",
+        "w-full p-3 border " <> Theme.borderDefault <> " " <> Theme.bgMain <> " " <> Theme.fgPrimary <> " font-mono leading-relaxed focus:border-[var(--theme-info)] focus:outline-none",
       fsTextareaErrorClasses =
-        "w-full p-3 border-2 border-red-500 bg-white dark:bg-gray-800 font-mono leading-relaxed focus:border-red-600 focus:outline-none",
+        "w-full p-3 border border-[var(--theme-error)] " <> Theme.bgMain <> " " <> Theme.fgPrimary <> " font-mono leading-relaxed focus:border-[var(--theme-error)] focus:outline-none",
       fsTextareaDisabledClasses =
-        "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-mono leading-relaxed cursor-not-allowed",
+        "w-full p-3 border " <> Theme.borderMuted <> " " <> Theme.bgAlt <> " " <> Theme.fgMuted <> " font-mono leading-relaxed cursor-not-allowed",
       fsSelectClasses =
-        "w-full p-3 border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 font-mono focus:border-blue-600 focus:outline-none",
+        "w-full p-3 border " <> Theme.borderDefault <> " " <> Theme.bgMain <> " " <> Theme.fgPrimary <> " font-mono focus:border-[var(--theme-info)] focus:outline-none",
       fsSelectErrorClasses =
-        "w-full p-3 border-2 border-red-500 bg-white dark:bg-gray-800 font-mono focus:border-red-600 focus:outline-none",
+        "w-full p-3 border border-[var(--theme-error)] " <> Theme.bgMain <> " " <> Theme.fgPrimary <> " font-mono focus:border-[var(--theme-error)] focus:outline-none",
       fsSelectDisabledClasses =
-        "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-mono cursor-not-allowed",
+        "w-full p-3 border " <> Theme.borderMuted <> " " <> Theme.bgAlt <> " " <> Theme.fgMuted <> " font-mono cursor-not-allowed",
       fsFileUploadClasses =
-        "border-2 border-dashed border-gray-400 dark:border-gray-500 p-6 text-center cursor-pointer hover:border-gray-600 dark:hover:border-gray-400 transition-colors",
+        "border border-dashed " <> Theme.borderDefault <> " p-6 text-center cursor-pointer " <> Theme.hoverBg <> " transition-colors",
       fsFileUploadErrorClasses =
-        "border-2 border-dashed border-red-500 p-6 text-center cursor-pointer",
+        "border border-dashed border-[var(--theme-error)] p-6 text-center cursor-pointer",
       fsRadioGroupClasses =
         "space-y-2",
       fsRadioGroupErrorClasses =
-        "space-y-2 p-2 border-2 border-red-500 -m-2",
+        "space-y-2 p-2 border border-[var(--theme-error)] -m-2",
       fsRadioLabelClasses =
-        "flex items-center gap-2 cursor-pointer",
+        "flex items-center gap-2 cursor-pointer " <> Theme.fgPrimary,
       fsCheckboxLabelClasses =
-        "flex items-center gap-2 cursor-pointer",
+        "flex items-center gap-2 cursor-pointer " <> Theme.fgPrimary,
       fsLabelClasses =
-        "block font-bold mb-2",
+        "block font-bold mb-2 " <> Theme.fgPrimary,
       fsErrorMessageClasses =
-        "mt-1 text-sm text-red-600 dark:text-red-400",
+        "mt-1 text-sm " <> Theme.error,
       fsHintClasses =
-        "text-xs text-gray-600 dark:text-gray-400 mt-1",
+        "text-xs " <> Theme.fgMuted <> " mt-1",
       fsSectionContainerClasses =
-        "bg-white dark:bg-gray-800 p-6",
+        Theme.bgAlt <> " rounded p-6",
       fsSectionTitleClasses =
-        "text-xl font-bold mb-4 pb-2",
+        "text-xl font-bold mb-4 pb-2 " <> Theme.fgPrimary,
       fsSectionContentClasses =
         "space-y-6",
       fsFormClasses =
         "space-y-8 w-full",
       fsTitleClasses =
-        "text-2xl font-bold",
+        "text-2xl font-bold " <> Theme.fgPrimary,
       fsSubtitleClasses =
-        "text-gray-600 dark:text-gray-400 mt-2",
+        Theme.fgMuted <> " mt-2",
       fsButtonContainerClasses =
         "flex gap-4 justify-end",
       fsSubmitButtonClasses =
-        "bg-gray-800 dark:bg-gray-700 text-white font-bold py-3 px-6 hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors",
+        Theme.accent <> " " <> Theme.accentFg <> " font-bold py-3 px-6 " <> Theme.accentHover <> " transition-colors",
       fsCancelButtonClasses =
-        "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-6 hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors",
+        Theme.bgAlt <> " " <> Theme.fgPrimary <> " font-bold py-3 px-6 " <> Theme.hoverBg <> " transition-colors",
       -- Image picker defaults
       fsImageDropZoneClasses =
-        "border-2 border-dashed border-gray-300 dark:border-gray-600 p-6 cursor-pointer transition-all duration-150 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700",
+        "border border-dashed " <> Theme.borderDefault <> " p-6 cursor-pointer transition-all duration-150 " <> Theme.hoverBg,
       fsImageDropZoneDraggingClasses =
-        "border-2 border-dashed border-purple-500 bg-purple-50 dark:bg-purple-900 p-6 cursor-pointer transition-all duration-150",
+        "border border-dashed border-[var(--theme-info)] bg-[var(--theme-info)]/10 p-6 cursor-pointer transition-all duration-150",
       fsImageDropZoneErrorClasses =
-        "border-2 border-dashed border-red-500 bg-red-50 dark:bg-red-900 p-6 cursor-pointer transition-all duration-150",
+        "border border-dashed border-[var(--theme-error)] bg-[var(--theme-error)]/10 p-6 cursor-pointer transition-all duration-150",
       fsImagePreviewClasses =
-        "border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 relative group overflow-hidden",
+        "border " <> Theme.borderDefault <> " " <> Theme.bgAlt <> " relative group overflow-hidden",
       fsImageActionButtonClasses =
-        "text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 underline",
+        "text-sm " <> Theme.error <> " hover:opacity-80 underline",
       -- Audio picker defaults
       fsAudioContainerClasses =
-        "border-2 border-dashed border-gray-400 dark:border-gray-500 p-6 text-center",
+        "border border-dashed " <> Theme.borderDefault <> " p-6 text-center",
       fsAudioButtonClasses =
-        "bg-blue-600 text-white px-6 py-3 font-bold hover:bg-blue-700 inline-block",
+        "bg-[var(--theme-info)] " <> Theme.fgInverse <> " px-6 py-3 font-bold hover:opacity-90 inline-block",
       -- Toggle switch defaults
       fsToggleContainerClasses =
         "flex items-center gap-3",
       fsToggleOffLabelClasses =
-        "text-sm font-bold text-gray-600",
+        "text-sm font-bold " <> Theme.fgMuted,
       fsToggleOnLabelClasses =
-        "text-sm font-bold text-gray-600",
+        "text-sm font-bold " <> Theme.fgMuted,
       fsToggleSwitchClasses =
         "relative inline-flex items-center cursor-pointer",
       fsToggleSwitchDisabledClasses =
         "relative inline-flex items-center cursor-not-allowed opacity-50",
       fsToggleTrackClasses =
-        "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600",
+        "w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--theme-info)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--theme-success)]",
       fsToggleTrackCheckedClasses =
-        "w-11 h-6 bg-green-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer after:translate-x-full after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all",
+        "w-11 h-6 bg-[var(--theme-success)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--theme-info)] rounded-full peer after:translate-x-full after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all",
       fsToggleTrackDisabledClasses =
         "w-11 h-6 bg-gray-300 rounded-full peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-400"
     }

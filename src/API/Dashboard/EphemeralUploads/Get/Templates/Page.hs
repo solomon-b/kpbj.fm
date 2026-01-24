@@ -24,6 +24,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
@@ -45,7 +46,7 @@ template ::
   Lucid.Html ()
 template backend ephemeralUploads (PageNumber pageNum) hasMore _userMeta = do
   -- Ephemeral uploads table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null ephemeralUploads
       then renderEmptyState
       else
@@ -173,9 +174,9 @@ renderInlineAudioPlayer audioUrl _uniqueId =
 -- | Render empty state when no ephemeral uploads exist
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base ["bg-gray-50 dark:bg-gray-700", Tokens.border2, "border-gray-300 dark:border-gray-600", "p-12", "text-center"]] $ do
-    Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] "No ephemeral uploads yet."
-    Lucid.p_ [class_ $ base ["text-gray-500 dark:text-gray-400", "mt-2"]] "Upload a new ephemeral clip to get started."
+  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+    Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No ephemeral uploads yet."
+    Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Upload a new ephemeral clip to get started."
 
 -- | Format a datetime for display
 formatDateTime :: UTCTime -> String
