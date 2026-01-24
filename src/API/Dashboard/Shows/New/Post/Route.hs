@@ -37,7 +37,6 @@ data NewShowForm = NewShowForm
     nsfDescription :: Text,
     nsfTags :: Maybe Text, -- Comma-separated tag names
     nsfLogoFile :: Maybe (FileData Mem),
-    nsfBannerFile :: Maybe (FileData Mem),
     nsfStatus :: Text,
     nsfHosts :: [User.Id],
     nsfSchedulesJson :: Maybe Text
@@ -61,7 +60,6 @@ instance FromMultipart Mem NewShowForm where
       <*> pure (fromRight "" (lookupInput "description" multipartData))
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
       <*> lookupInput "status" multipartData
       <*> pure (parseHosts $ fromRight [] (lookupInputs "hosts" multipartData))
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedules_json" multipartData))

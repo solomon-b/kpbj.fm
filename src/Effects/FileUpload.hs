@@ -4,7 +4,6 @@ module Effects.FileUpload
   ( -- * File upload functions
     uploadEpisodeArtwork,
     uploadShowLogo,
-    uploadShowBanner,
     uploadBlogHeroImage,
     uploadEventPosterImage,
     uploadUserAvatar,
@@ -144,60 +143,6 @@ uploadShowLogo backend mAwsEnv showSlug fileData
 
         -- Store file using appropriate backend
         objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket ShowLogo dateHier filename content actualMimeType
-
-        pure $
-          Just
-            UploadResult
-              { uploadResultOriginalName = originalName,
-                uploadResultStoragePath = Text.unpack objectKey,
-                uploadResultMimeType = actualMimeType,
-                uploadResultFileSize = fileSize
-              }
-
--- | Upload a banner image for a show.
---
--- Validates the image file using both browser-provided MIME type and magic byte detection,
--- then stores it using the configured storage backend.
---
--- Returns 'Nothing' if no file was provided (empty upload).
--- Banner files are optional for shows but when provided must pass validation.
-uploadShowBanner ::
-  (MonadIO m, MonadMask m, Log.MonadLog m) =>
-  -- | Storage backend configuration
-  StorageBackend ->
-  -- | AWS environment (required for S3, Nothing for local)
-  Maybe AWS.Env ->
-  -- | Show slug for directory organization
-  Slug ->
-  -- | Uploaded banner file data
-  FileData Mem ->
-  m (Either UploadError (Maybe UploadResult))
-uploadShowBanner backend mAwsEnv showSlug fileData
-  | isEmptyUpload fileData = pure (Right Nothing)
-  | otherwise =
-      withTempUpload fileData $ \tempPath content -> runExceptT $ do
-        let originalName = fdFileName fileData
-            browserMimeType = fdFileCType fileData
-            fileSize = fromIntegral $ BS.length content
-
-        -- Get time and random seed
-        time <- liftIO getCurrentTime
-        seed <- liftIO Random.getStdGen
-
-        -- Validate with browser-provided MIME type and file size
-        liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
-
-        -- Validate actual file content against magic bytes
-        actualMimeType <- ExceptT $ do
-          either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
-
-        -- Generate filename and date hierarchy
-        let dateHier = dateHierarchyFromTime time
-            extension = getExtensionFromMimeType actualMimeType
-            filename = generateUniqueFilename (display showSlug <> "-banner") extension seed
-
-        -- Store file using appropriate backend
-        objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket ShowBanner dateHier filename content actualMimeType
 
         pure $
           Just

@@ -40,8 +40,6 @@ data ShowEditForm = ShowEditForm
     sefTags :: Maybe Text, -- Comma-separated tag names
     sefLogoFile :: Maybe (FileData Mem),
     sefLogoClear :: Bool, -- True if user explicitly removed the logo
-    sefBannerFile :: Maybe (FileData Mem),
-    sefBannerClear :: Bool, -- True if user explicitly removed the banner
     sefStatus :: Text,
     sefHosts :: [User.Id],
     sefSchedulesJson :: Maybe Text
@@ -66,8 +64,6 @@ instance FromMultipart Mem ShowEditForm where
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "tags" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "logo_file" multipartData))
       <*> pure (parseClearFlag "logo_file_clear" multipartData)
-      <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "banner_file" multipartData))
-      <*> pure (parseClearFlag "banner_file_clear" multipartData)
       <*> lookupInput "status" multipartData
       <*> pure (parseHosts $ fromRight [] (lookupInputs "hosts" multipartData))
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedules_json" multipartData))
