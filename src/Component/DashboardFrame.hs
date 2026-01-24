@@ -13,7 +13,7 @@ where
 import API.Links (apiLinks, dashboardBlogsLinks, dashboardEphemeralUploadsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardStationBlogLinks, dashboardStationIdsLinks, dashboardUsersLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
-import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript)
+import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript, htmxIndicatorStyles)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Maybe (fromMaybe)
@@ -22,6 +22,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Design (base, class_, class_')
+import Design.Theme (themeCSS)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.Slug (Slug)
@@ -130,6 +132,11 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
     Lucid.head_ $ do
       googleAnalyticsScript mGoogleAnalyticsId
       Lucid.title_ "Dashboard | KPBJ 95.9FM"
+      -- Theme CSS (must be before Tailwind for CSS variable availability)
+      let theme = UserMetadata.getTheme userMeta.mTheme
+      Lucid.style_ [] (themeCSS theme)
+      -- HTMX indicator CSS (hides loading indicators until request in flight)
+      Lucid.style_ [] htmxIndicatorStyles
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"]
       Lucid.script_ [Lucid.src_ "https://cdn.tailwindcss.com"] (mempty @Text)
@@ -149,7 +156,7 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
           -- Top bar with page title, show selector, stats, and action button
           topBar activeNav allShows selectedShow statsContent actionButton
           -- Banner container
-          Lucid.div_ [Lucid.class_ Tokens.px8] $
+          Lucid.div_ [class_ $ base [Tokens.px8, Tokens.mt8]] $
             Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
           -- Main content (use same ID as main site for HTMX compatibility)
           Lucid.main_ [class_ $ base ["flex-1", Tokens.p8], Lucid.id_ "main-content"] main
@@ -163,12 +170,12 @@ sidebar ::
   Maybe Shows.Model ->
   Lucid.Html ()
 sidebar userMeta activeNav selectedShow =
-  Lucid.aside_ [class_ $ base ["w-64", Tokens.bgGray900, Tokens.textWhite, "flex", "flex-col", "h-screen", "sticky", "top-0"]] $ do
-    -- Logo / Brand
-    Lucid.div_ [class_ $ base [Tokens.p4, "border-b", "border-gray-700", "shrink-0"]] $ do
+  Lucid.aside_ [class_ $ base ["w-64", Theme.bgMain, Tokens.textWhite, "flex", "flex-col", "h-screen", "sticky", "top-0"]] $ do
+    -- Logo / Brand (h-16 = 64px to align with top bar)
+    Lucid.div_ [class_ $ base [Tokens.p4, "border-b", Theme.borderMuted, "shrink-0", "h-16", "flex", "flex-col", "justify-center"]] $ do
       Lucid.a_
         [ Lucid.href_ [i|/#{rootGetUrl}|],
-          class_ $ base [Tokens.textLg, Tokens.fontBold, "hover:text-gray-300", "block"]
+          class_ $ base [Tokens.textLg, Theme.fgPrimary, Tokens.fontBold, "hover:text-gray-300", "block"]
         ]
         "KPBJ 95.9FM"
       Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", "mt-1"]] "Dashboard"
@@ -186,7 +193,7 @@ sidebar userMeta activeNav selectedShow =
 
       -- Staff/Admin section - shown only for Staff or higher roles
       when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
-        Lucid.div_ [class_ $ base ["border-t", "border-gray-700", "mt-4", "pt-4"]] $ do
+        Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
           Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", Tokens.px4, Tokens.mb2]] "ADMIN"
           Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
             staffNavItem "USERS" NavUsers activeNav
@@ -195,7 +202,7 @@ sidebar userMeta activeNav selectedShow =
             staffNavItem "EVENTS" NavEvents activeNav
 
     -- User info at bottom (always visible)
-    Lucid.div_ [class_ $ base [Tokens.p4, "border-t", "border-gray-700", "shrink-0", "mt-auto"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.p4, "border-t", Theme.borderMuted, "shrink-0", "mt-auto"]] $ do
       Lucid.div_ [class_ $ base [Tokens.textSm, "text-gray-400", Tokens.mb2]] $ do
         Lucid.span_ [class_ $ base ["block", Tokens.fontBold, Tokens.textWhite]] $
           Lucid.toHtml userMeta.mDisplayName
@@ -221,14 +228,14 @@ showSelector activeNav allShows selectedShow =
     [] -> mempty
     [singleShow] ->
       -- Single show - just display it as text
-      Lucid.span_ [Lucid.class_ Tokens.textGray600] $ do
+      Lucid.span_ [Lucid.class_ Tokens.textGray400] $ do
         Lucid.toHtml singleShow.title
     _ -> do
       -- Multiple shows - dropdown with JS redirect
       Lucid.select_
         [ Lucid.id_ "show-selector",
           Lucid.name_ "show",
-          class_ $ base ["px-3", "py-1", "border", Tokens.borderGray300, Tokens.bgWhite, Tokens.textSm, "font-medium"],
+          class_ $ base ["px-3", "py-1", "border", Tokens.borderGray600, Tokens.bgGray900, Tokens.textWhite, Tokens.textSm, "font-medium"],
           onchange_ "window.location.href = this.options[this.selectedIndex].dataset.url"
         ]
         $ mapM_ (renderShowOption activeNav selectedShow) allShows
@@ -318,8 +325,8 @@ navUrl nav mShow =
 -- | Top bar with page title, show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
 topBar activeNav allShows selectedShow statsContent actionButton =
-  Lucid.header_ [class_ $ base [Tokens.bgWhite, "border-b", Tokens.borderGray200, Tokens.px8, Tokens.py4]] $ do
-    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
+  Lucid.header_ [class_ $ base [Tokens.bgWhite, Tokens.px8, "sticky", "top-0", "z-10", "border-b", Theme.borderMuted, "h-16", "flex", "items-center"]] $ do
+    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", "w-full"]] $ do
       -- Left side: page title and show selector
       Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
         Lucid.h1_ [class_ $ base [Tokens.textXl, Tokens.fontBold]] $
@@ -336,7 +343,7 @@ topBar activeNav allShows selectedShow statsContent actionButton =
         fromMaybe mempty actionButton
         Lucid.a_
           [ Lucid.href_ [i|/#{rootGetUrl}|],
-            class_ $ base [Tokens.textSm, Tokens.textGray500, "hover:text-gray-800 dark:hover:text-gray-200"]
+            class_ $ base [Tokens.textSm, Tokens.textGray500, "hover:text-gray-800"]
           ]
           "Back to Site"
 

@@ -19,6 +19,9 @@ genUserRole = Gen.enumBounded
 genColorScheme :: (MonadGen m) => m UserMetadata.ColorScheme
 genColorScheme = Gen.enumBounded
 
+genThemeName :: (MonadGen m) => m UserMetadata.ThemeName
+genThemeName = Gen.enumBounded
+
 userWithMetadataInsertGen :: (MonadIO m, MonadGen m) => m UserMetadata.UserWithMetadataInsert
 userWithMetadataInsertGen = do
   uwmiEmail <- genEmail
@@ -28,4 +31,5 @@ userWithMetadataInsertGen = do
   uwmiAvatarUrl <- Gen.maybe genUrl
   uwmiUserRole <- genUserRole
   uwmiColorScheme <- genColorScheme
+  uwmiTheme <- genThemeName
   pure UserMetadata.UserWithMetadataInsert {..}

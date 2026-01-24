@@ -42,7 +42,7 @@ renderShowHeader backend showModel hosts schedules tags = do
         Lucid.img_ [Lucid.src_ (buildMediaUrl backend bannerPath), Lucid.alt_ bannerAlt, class_ $ base [Tokens.fullWidth, "h-auto", "object-cover"]]
     Nothing -> mempty
 
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do

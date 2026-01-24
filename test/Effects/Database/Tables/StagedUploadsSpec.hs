@@ -50,7 +50,7 @@ prop_insertGetByToken cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Setup: Create user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata) (UserMetadata.uwmiTheme userWithMetadata)
 
         -- Complete the insert with user ID and token
         let stagedUploadInsert = completeInsert userId token partialUpload
@@ -97,7 +97,7 @@ prop_claimUpload cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Setup: Create user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata) (UserMetadata.uwmiTheme userWithMetadata)
 
         -- Insert staged upload
         let stagedUploadInsert = completeInsert userId token partialUpload
@@ -131,10 +131,10 @@ prop_claimUploadWrongUser cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Setup: Create two users
         (OneRow userId1) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata1) (UserMetadata.uwmiPassword userWithMetadata1)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId1 (UserMetadata.uwmiDisplayName userWithMetadata1) (UserMetadata.uwmiFullName userWithMetadata1) (UserMetadata.uwmiAvatarUrl userWithMetadata1) (UserMetadata.uwmiUserRole userWithMetadata1) (UserMetadata.uwmiColorScheme userWithMetadata1)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId1 (UserMetadata.uwmiDisplayName userWithMetadata1) (UserMetadata.uwmiFullName userWithMetadata1) (UserMetadata.uwmiAvatarUrl userWithMetadata1) (UserMetadata.uwmiUserRole userWithMetadata1) (UserMetadata.uwmiColorScheme userWithMetadata1) (UserMetadata.uwmiTheme userWithMetadata1)
 
         (OneRow userId2) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata2) (UserMetadata.uwmiPassword userWithMetadata2)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId2 (UserMetadata.uwmiDisplayName userWithMetadata2) (UserMetadata.uwmiFullName userWithMetadata2) (UserMetadata.uwmiAvatarUrl userWithMetadata2) (UserMetadata.uwmiUserRole userWithMetadata2) (UserMetadata.uwmiColorScheme userWithMetadata2)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId2 (UserMetadata.uwmiDisplayName userWithMetadata2) (UserMetadata.uwmiFullName userWithMetadata2) (UserMetadata.uwmiAvatarUrl userWithMetadata2) (UserMetadata.uwmiUserRole userWithMetadata2) (UserMetadata.uwmiColorScheme userWithMetadata2) (UserMetadata.uwmiTheme userWithMetadata2)
 
         -- Insert staged upload for user1
         let stagedUploadInsert = completeInsert userId1 token partialUpload
@@ -159,7 +159,7 @@ prop_claimUploadAlreadyClaimed cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Setup: Create user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata) (UserMetadata.uwmiTheme userWithMetadata)
 
         -- Insert staged upload
         let stagedUploadInsert = completeInsert userId token partialUpload
@@ -190,7 +190,7 @@ prop_deleteByToken cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Setup: Create user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata) (UserMetadata.uwmiTheme userWithMetadata)
 
         -- Insert staged upload
         let stagedUploadInsert = completeInsert userId token partialUpload
@@ -221,7 +221,7 @@ prop_deleteById cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Setup: Create user
         (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata)
+        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata) (UserMetadata.uwmiTheme userWithMetadata)
 
         -- Insert staged upload
         let stagedUploadInsert = completeInsert userId token partialUpload

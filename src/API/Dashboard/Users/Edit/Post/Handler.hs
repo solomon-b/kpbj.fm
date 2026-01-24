@@ -7,7 +7,7 @@ module API.Dashboard.Users.Edit.Post.Handler where
 
 import API.Links (dashboardUsersLinks)
 import API.Types
-import App.Handler.Combinators (requireStaffNotSuspended, requireAuth)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -102,13 +102,14 @@ handler _tracer targetUserId cookie multipartData =
                   | avatarClear -> Nothing
                   | otherwise -> currentMetadata.mAvatarUrl
 
-          -- Update metadata fields (color scheme is not editable by admins, users set it themselves)
+          -- Update metadata fields (color scheme and theme are not editable by admins, users set it themselves)
           let metadataUpdate =
                 UserMetadata.Update
                   { UserMetadata.uDisplayName = Just newDisplayName,
                     UserMetadata.uFullName = Just newFullName,
                     UserMetadata.uAvatarUrl = Just finalAvatarUrl,
-                    UserMetadata.uColorScheme = Nothing
+                    UserMetadata.uColorScheme = Nothing,
+                    UserMetadata.uTheme = Nothing
                   }
           _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
 

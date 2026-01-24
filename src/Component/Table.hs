@@ -34,6 +34,7 @@ import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
@@ -88,7 +89,7 @@ renderTable ::
   Lucid.Html () ->
   Lucid.Html ()
 renderTable config bodyContent =
-  Lucid.div_ [Lucid.class_ config.wrapperClass] $
+  Lucid.div_ [class_ $ base [config.wrapperClass, "border-l", "border-r", "border-b", Theme.borderMuted]] $
     Lucid.table_ [Lucid.class_ config.tableClass] $ do
       Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
         Lucid.tr_ $
@@ -117,7 +118,7 @@ renderTableWithBodyId ::
   Lucid.Html () ->
   Lucid.Html ()
 renderTableWithBodyId bodyId config bodyContent =
-  Lucid.div_ [Lucid.class_ config.wrapperClass] $
+  Lucid.div_ [class_ $ base [config.wrapperClass, "border-l", "border-r", "border-b", Theme.borderMuted]] $
     Lucid.table_ [Lucid.class_ config.tableClass] $ do
       Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
         Lucid.tr_ $
@@ -256,7 +257,7 @@ renderTableFragment columnCount targetId nextPageUrl rowContent = do
 rowAttrs :: Text -> [Lucid.Attributes]
 rowAttrs rowId =
   [ Lucid.id_ rowId,
-    class_ $ base ["border-b-2", Tokens.borderGray200, Tokens.hoverBgGray50]
+    class_ $ base ["border-b", Theme.borderMuted, Theme.hoverBg]
   ]
 
 -- | Clickable cell attributes for navigation.
@@ -306,7 +307,7 @@ renderNoscriptPagination config = do
         Lucid.div_ [] mempty
 
     -- Page indicator
-    Lucid.span_ [class_ $ base [Tokens.textGray600, Tokens.fontBold]] $
+    Lucid.span_ [class_ $ base [Tokens.textGray400, Tokens.fontBold]] $
       Lucid.toHtml $
         "Page " <> show config.pcCurrentPage
 
@@ -337,5 +338,6 @@ renderSentinelRow columnCount targetId = \case
         renderSentinel nextUrl targetId
   Nothing ->
     Lucid.tr_ [] $
-      Lucid.td_ [Lucid.colspan_ [i|#{columnCount}|]]
+      Lucid.td_
+        [Lucid.colspan_ [i|#{columnCount}|]]
         renderEndOfContent

@@ -143,6 +143,7 @@ defaultAuthor =
       UserMetadata.mFullName = mkFullNameUnsafe "Unknown",
       UserMetadata.mAvatarUrl = Nothing,
       UserMetadata.mUserRole = UserMetadata.User,
-      UserMetadata.mSuspensionStatus = UserMetadata.NotSuspended,
-      UserMetadata.mColorScheme = UserMetadata.Automatic
+      UserMetadata.mColorScheme = UserMetadata.Automatic,
+      UserMetadata.mTheme = UserMetadata.Default,
+      UserMetadata.mSuspensionStatus = UserMetadata.NotSuspended
     }

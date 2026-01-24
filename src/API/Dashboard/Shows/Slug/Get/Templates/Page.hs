@@ -76,7 +76,7 @@ renderEpisodesContent :: StorageBackend -> Shows.Model -> [Episodes.Model] -> In
 renderEpisodesContent backend showModel episodes currentPage = do
   if null episodes
     then do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p8, "text-center"]] $ do
         Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Episodes Yet"
         Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any episodes yet. Check back soon!"
     else do
@@ -88,12 +88,12 @@ renderEpisodesContent backend showModel episodes currentPage = do
             then do
               renderLatestEpisode backend showModel latestEpisode []
               unless (null otherEpisodes) $ do
-                Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+                Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6]] $ do
                   Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Previous Episodes"
                   mapM_ (renderEpisodeCard backend showModel) otherEpisodes
             else do
               -- On subsequent pages, show all episodes as cards
-              Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p6]] $ do
+              Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6]] $ do
                 Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Episodes"
                 mapM_ (renderEpisodeCard backend showModel) episodes
 
@@ -155,7 +155,7 @@ renderBlogContent :: StorageBackend -> Shows.Model -> [ShowBlogPosts.Model] -> L
 renderBlogContent backend showModel blogPosts = do
   if null blogPosts
     then do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p8, "text-center"]] $ do
         Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Blog Posts Yet"
         Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any blog posts yet. Check back soon!"
     else do

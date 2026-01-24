@@ -246,7 +246,8 @@ renderTableBody :: Lucid.Html ()
 renderTableBody =
   Lucid.tbody_ $ do
     -- Track rows
-    Lucid.template_ [xFor_ "(track, index) in tracks", xKey_ "index"]
+    Lucid.template_
+      [xFor_ "(track, index) in tracks", xKey_ "index"]
       renderTrackRow
     -- Add row (always present)
     renderAddRow

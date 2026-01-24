@@ -21,6 +21,7 @@ import Component.Table
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
@@ -41,7 +42,7 @@ template = renderBlogSection
 -- | Blog posts table section
 renderBlogSection :: Maybe Shows.Model -> [ShowBlogPosts.Model] -> Int64 -> Bool -> Lucid.Html ()
 renderBlogSection selectedShow blogPosts currentPage hasMore = do
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden"]] $
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden"]] $
     case (blogPosts, selectedShow) of
       ([], _) ->
         renderEmptyState
@@ -76,6 +77,6 @@ renderBlogSection selectedShow blogPosts currentPage hasMore = do
 -- | Empty state when no blog posts exist
 renderEmptyState :: Lucid.Html ()
 renderEmptyState =
-  Lucid.div_ [class_ $ base [Tokens.textGray600, "text-center", Tokens.p8]] $ do
+  Lucid.div_ [class_ $ base [Theme.fgMuted, "text-center", Tokens.p8]] $ do
     Lucid.p_ "No blog posts yet."
     Lucid.p_ [class_ $ base [Tokens.textSm, "mt-2"]] "Share your thoughts with your audience!"

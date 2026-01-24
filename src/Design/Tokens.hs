@@ -2,6 +2,14 @@
 --
 -- This module defines the visual language of the site as reusable constants.
 -- Using these tokens ensures consistency across all templates.
+--
+-- = Color System
+--
+-- Color tokens are powered by the centralized theme system in "Design.Theme".
+-- Colors are defined as CSS custom properties, allowing runtime theme switching
+-- and automatic light/dark mode support without @dark:@ prefixes.
+--
+-- See "Design.Theme" for the underlying implementation and available themes.
 module Design.Tokens
   ( -- * Responsive Visibility
     hideOnMobile,
@@ -61,6 +69,7 @@ module Design.Tokens
     mb6,
     mb8,
     mt4,
+    mt8,
     pb2,
 
     -- * Responsive Spacing
@@ -77,7 +86,11 @@ module Design.Tokens
     borderGray800,
     cardBorder,
 
-    -- * Colors
+    -- * Colors (Theme-Aware)
+
+    --
+    -- These tokens automatically adapt to light/dark mode via CSS custom properties.
+    -- No @dark:@ prefixes needed - the theme handles mode switching.
     bgWhite,
     bgGray50,
     bgGray100,
@@ -100,6 +113,9 @@ module Design.Tokens
     hoverBgGray700,
 
     -- * Semantic Colors (Notifications)
+
+    --
+    -- Theme-aware status colors for banners, alerts, and feedback.
     successBg,
     successBorder,
     successText,
@@ -133,6 +149,7 @@ where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Design.StyleBuilder.Internal (cls, lg, md)
+import Design.Theme qualified as Theme
 
 --------------------------------------------------------------------------------
 -- Typography
@@ -262,6 +279,9 @@ mb8 = "mb-8"
 mt4 :: Text
 mt4 = "mt-4"
 
+mt8 :: Text
+mt8 = "mt-8"
+
 pb2 :: Text
 pb2 = "pb-2"
 
@@ -281,126 +301,153 @@ containerPadding :: Text
 containerPadding = cls [px4, md px6, lg px8]
 
 --------------------------------------------------------------------------------
--- Borders
+-- Borders (Theme-Aware)
 
 border2 :: Text
 border2 = "border-2"
 
+-- | Muted border (subtle dividers, inputs)
 borderGray200 :: Text
-borderGray200 = "border-gray-200 dark:border-gray-600"
+borderGray200 = Theme.borderMuted
 
+-- | Muted border (alias)
 borderGray300 :: Text
-borderGray300 = "border-gray-300 dark:border-gray-600"
+borderGray300 = Theme.borderMuted
 
+-- | Medium border
 borderGray400 :: Text
-borderGray400 = "border-gray-400 dark:border-gray-500"
+borderGray400 = Theme.borderMuted
 
+-- | Default border (cards, sections)
 borderGray600 :: Text
-borderGray600 = "border-gray-600 dark:border-gray-500"
+borderGray600 = Theme.borderDefault
 
+-- | Strong border (brutalist style)
 borderGray800 :: Text
-borderGray800 = "border-gray-800 dark:border-gray-600"
+borderGray800 = Theme.borderDefault
 
 -- | Standard card border style.
 cardBorder :: Text
-cardBorder = cls [border2, borderGray800]
+cardBorder = cls [border2, Theme.borderDefault]
 
 --------------------------------------------------------------------------------
--- Colors (with dark mode variants)
+-- Colors (Theme-Aware via CSS Custom Properties)
+--
+-- These tokens use the centralized theme system. Colors automatically adapt
+-- to light/dark mode without requiring dark: prefixes in templates.
+-- The theme CSS variables are set in Component.Frame via Design.Theme.themeCSS.
 
+-- | Main background - white in light mode, dark gray in dark mode
 bgWhite :: Text
-bgWhite = "bg-white dark:bg-gray-800"
+bgWhite = Theme.bgMain
 
+-- | Subtle card background
 bgGray50 :: Text
-bgGray50 = "bg-gray-50 dark:bg-gray-700"
+bgGray50 = Theme.bgAlt
 
+-- | Muted section background
 bgGray100 :: Text
-bgGray100 = "bg-gray-100 dark:bg-gray-700"
+bgGray100 = Theme.bgAlt
 
+-- | Secondary muted background
 bgGray200 :: Text
-bgGray200 = "bg-gray-200 dark:bg-gray-600"
+bgGray200 = Theme.bgAlt
 
+-- | Tertiary muted background
 bgGray300 :: Text
-bgGray300 = "bg-gray-300 dark:bg-gray-600"
+bgGray300 = Theme.bgAlt
 
+-- | Inverse/dark background
 bgGray800 :: Text
-bgGray800 = "bg-gray-800 dark:bg-gray-900"
+bgGray800 = Theme.bgInverse
 
+-- | Deep inverse background
 bgGray900 :: Text
-bgGray900 = "bg-gray-900"
+bgGray900 = Theme.bgInverse
 
+-- | Muted/disabled text
 textGray400 :: Text
-textGray400 = "text-gray-400 dark:text-gray-500"
+textGray400 = Theme.fgMuted
 
+-- | Muted text (alias)
 textGray500 :: Text
-textGray500 = "text-gray-500 dark:text-gray-400"
+textGray500 = Theme.fgMuted
 
+-- | Secondary muted text
 textGray600 :: Text
-textGray600 = "text-gray-600 dark:text-gray-400"
+textGray600 = Theme.fgMuted
 
+-- | Secondary text
 textGray700 :: Text
-textGray700 = "text-gray-700 dark:text-gray-300"
+textGray700 = Theme.fgMuted
 
+-- | Primary text
 textGray800 :: Text
-textGray800 = "text-gray-800 dark:text-gray-200"
+textGray800 = Theme.fgPrimary
 
+-- | Strong primary text
 textGray900 :: Text
-textGray900 = "text-gray-900 dark:text-gray-100"
+textGray900 = Theme.fgPrimary
 
+-- | Inverse text (for dark backgrounds)
 textWhite :: Text
-textWhite = "text-white"
+textWhite = Theme.fgInverse
 
 -- Hover backgrounds
 hoverBgGray50 :: Text
-hoverBgGray50 = "hover:bg-gray-50 dark:hover:bg-gray-700"
+hoverBgGray50 = Theme.hoverBg
 
 hoverBgGray100 :: Text
-hoverBgGray100 = "hover:bg-gray-100 dark:hover:bg-gray-700"
+hoverBgGray100 = Theme.hoverBg
 
 hoverBgGray200 :: Text
-hoverBgGray200 = "hover:bg-gray-200 dark:hover:bg-gray-600"
+hoverBgGray200 = Theme.hoverBg
 
 hoverBgGray700 :: Text
-hoverBgGray700 = "hover:bg-gray-700 dark:hover:bg-gray-600"
+hoverBgGray700 = Theme.hoverBg
 
 --------------------------------------------------------------------------------
--- Semantic Colors (Notifications, with dark mode variants)
+-- Semantic Colors (Notifications)
+--
+-- Theme-aware status colors for banners, alerts, and feedback.
+-- These automatically adapt to light/dark mode.
+-- For flexibility, we provide text, bg, and border variants using the same base color.
 
 successBg :: Text
-successBg = "bg-green-100 dark:bg-green-900"
+successBg = "bg-[var(--theme-success)]/10"
 
 successBorder :: Text
-successBorder = "border-green-600 dark:border-green-500"
+successBorder = "border-[var(--theme-success)]"
 
 successText :: Text
-successText = "text-green-800 dark:text-green-200"
+successText = Theme.success
 
 errorBg :: Text
-errorBg = "bg-red-100 dark:bg-red-900"
+errorBg = "bg-[var(--theme-error)]/10"
 
 errorBorder :: Text
-errorBorder = "border-red-600 dark:border-red-500"
+errorBorder = "border-[var(--theme-error)]"
 
 errorText :: Text
-errorText = "text-red-800 dark:text-red-200"
+errorText = Theme.error
 
 warningBg :: Text
-warningBg = "bg-yellow-100 dark:bg-yellow-900"
+warningBg = "bg-[var(--theme-warning)]/10"
 
 warningBorder :: Text
-warningBorder = "border-yellow-600 dark:border-yellow-500"
+warningBorder = "border-[var(--theme-warning)]"
 
 warningText :: Text
-warningText = "text-yellow-800 dark:text-yellow-200"
+warningText = Theme.warning
 
 infoBg :: Text
-infoBg = "bg-blue-100 dark:bg-blue-900"
+infoBg = "bg-[var(--theme-info)]/10"
 
 infoBorder :: Text
-infoBorder = "border-blue-600 dark:border-blue-500"
+infoBorder = "border-[var(--theme-info)]"
 
 infoText :: Text
-infoText = "text-blue-800 dark:text-blue-200"
+infoText = Theme.info
 
 --------------------------------------------------------------------------------
 -- Layout
@@ -430,15 +477,15 @@ sectionBase = cls [bgWhite, cardBorder, p6, md p8, mb6, md mb8, fullWidth]
 
 -- | Primary button styling.
 buttonPrimary :: Text
-buttonPrimary = cls [bgGray800, textWhite, px4, md px6, py2, md "py-3", fontBold, "hover:bg-gray-700"]
+buttonPrimary = cls [Theme.accent, Theme.accentFg, Theme.accentHover, px4, md px6, py2, md "py-3", fontBold]
 
 -- | Secondary button styling.
 buttonSecondary :: Text
-buttonSecondary = cls [bgWhite, textGray800, cardBorder, px4, py2, fontBold, "hover:bg-gray-100 dark:hover:bg-gray-700"]
+buttonSecondary = cls [bgWhite, textGray800, cardBorder, px4, py2, fontBold, Theme.hoverBg]
 
 -- | Text link styling.
 linkText :: Text
-linkText = "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
+linkText = "text-[var(--theme-info)] hover:underline"
 
 -- | Navigation link styling.
 navLink :: Text

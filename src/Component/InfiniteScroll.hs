@@ -63,7 +63,7 @@ renderLoadingIndicator =
     [ Lucid.id_ "loading-indicator",
       class_ $ base ["htmx-indicator", "flex", "justify-center", "py-8"]
     ]
-    $ Lucid.div_ [class_ $ base ["flex", "items-center", "gap-2", Tokens.textGray600]]
+    $ Lucid.div_ [class_ $ base ["flex", "items-center", "gap-2"]]
     $ do
       -- Simple spinner using CSS animation
       Lucid.div_

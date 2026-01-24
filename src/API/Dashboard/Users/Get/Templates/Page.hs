@@ -47,7 +47,7 @@ template ::
   Lucid.Html ()
 template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   -- User table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null users
       then renderEmptyState maybeQuery
       else
@@ -206,8 +206,8 @@ renderStatusBadge = \case
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do
-  Lucid.div_ [Lucid.class_ "bg-gray-50 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 p-12 text-center"] $ do
-    Lucid.p_ [Lucid.class_ "text-xl text-gray-600 dark:text-gray-400"] $
+  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.textGray600, "p-12", "text-center"]] $ do
+    Lucid.p_ [Lucid.class_ "text-xl"] $
       case maybeQuery of
         Nothing -> "No users found."
         Just query -> Lucid.toHtml $ "No users found matching \"" <> query <> "\"."
