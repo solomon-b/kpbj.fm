@@ -67,30 +67,32 @@ renderSchedule backend scheduledShows currentDayOfWeek currentTimeOfDay = do
       alpineData = [i|{ currentDay: #{initialDayIndex} }|]
 
   Lucid.div_ [containerStyles, xData_ alpineData] $ do
-    -- Mobile header row: "Schedule" on left, day nav on right
-    Lucid.div_ [mobileHeaderRowStyles] $ do
-      -- Title on left
-      Lucid.h1_ [mobileHeaderTitleStyles] "Schedule"
+    -- Header row: "Schedule" on left, day nav on right
+    Lucid.div_ [headerRowStyles] $ do
+      -- Spacer to align with time column (hidden on mobile)
+      Lucid.div_ [headerSpacerStyles] mempty
+      -- Header content (aligns with card)
+      Lucid.div_ [headerContentStyles] $ do
+        Lucid.h1_ [headerTitleStyles] "Schedule"
+        -- Day navigation
+        Lucid.div_ [dayNavStyles] $ do
+          -- Previous day button
+          Lucid.button_
+            [ dayNavButtonStyles,
+              xOnClick_ "currentDay = currentDay > 0 ? currentDay - 1 : 6"
+            ]
+            "←"
 
-      -- Day navigation on right
-      Lucid.div_ [mobileDayNavStyles] $ do
-        -- Previous day button
-        Lucid.button_
-          [ mobileDayNavButtonStyles,
-            xOnClick_ "currentDay = currentDay > 0 ? currentDay - 1 : 6"
-          ]
-          "←"
+          -- Current day label
+          Lucid.span_ [dayLabelStyles] $ do
+            mapM_ (renderDayLabel currentDayOfWeek) (zip [0 ..] daysOfWeek)
 
-        -- Current day label
-        Lucid.span_ [mobileDayLabelStyles] $ do
-          mapM_ (renderDayLabel currentDayOfWeek) (zip [0 ..] daysOfWeek)
-
-        -- Next day button
-        Lucid.button_
-          [ mobileDayNavButtonStyles,
-            xOnClick_ "currentDay = currentDay < 6 ? currentDay + 1 : 0"
-          ]
-          "→"
+          -- Next day button
+          Lucid.button_
+            [ dayNavButtonStyles,
+              xOnClick_ "currentDay = currentDay < 6 ? currentDay + 1 : 0"
+            ]
+            "→"
 
     -- Day content panels (one per day, shown/hidden by Alpine)
     mapM_ (renderMobileDayPanel backend scheduledShows currentDayOfWeek currentTimeOfDay) (zip [0 ..] daysOfWeek)
@@ -102,25 +104,36 @@ containerStyles :: Attributes
 containerStyles = class_ $ do
   base ["space-y-4"]
 
-mobileHeaderRowStyles :: Attributes
-mobileHeaderRowStyles = class_ $ do
-  base ["flex", "justify-between", "items-center", Tokens.mb4]
+headerRowStyles :: Attributes
+headerRowStyles = class_ $ do
+  base ["flex", "items-center", Tokens.mb4, "gap-3"]
+  desktop ["justify-center"]
 
-mobileHeaderTitleStyles :: Attributes
-mobileHeaderTitleStyles = class_ $ do
+headerSpacerStyles :: Attributes
+headerSpacerStyles = class_ $ do
+  base ["hidden"]
+  desktop ["block", "w-20", "flex-shrink-0"]
+
+headerContentStyles :: Attributes
+headerContentStyles = class_ $ do
+  base ["flex", "justify-between", "items-center", "flex-grow"]
+  desktop ["flex-grow-0", "w-1/2"]
+
+headerTitleStyles :: Attributes
+headerTitleStyles = class_ $ do
   base [Tokens.text2xl, Tokens.fontBold]
 
-mobileDayNavStyles :: Attributes
-mobileDayNavStyles = class_ $ do
+dayNavStyles :: Attributes
+dayNavStyles = class_ $ do
   base ["flex", "items-center"]
 
-mobileDayNavButtonStyles :: Attributes
-mobileDayNavButtonStyles = class_ $ do
+dayNavButtonStyles :: Attributes
+dayNavButtonStyles = class_ $ do
   base [Tokens.textXl, "font-black", Tokens.px3, Tokens.py2]
   also ["hover:text-gray-600", "cursor-pointer"]
 
-mobileDayLabelStyles :: Attributes
-mobileDayLabelStyles = class_ $ do
+dayLabelStyles :: Attributes
+dayLabelStyles = class_ $ do
   base [Tokens.fontBold, Tokens.textLg]
 
 -- | Render a day label that shows/hides based on Alpine state
@@ -157,15 +170,14 @@ mobileEmptyStyles :: Attributes
 mobileEmptyStyles = class_ $ do
   base [Tokens.textGray600, "text-center", Tokens.py4, "italic"]
 
--- | Render a single show card (with responsive image: logo on mobile, banner on desktop)
+-- | Render a single show card with logo image
 renderShowCard :: StorageBackend -> Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
 renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
   let showUrl = showGetUrl (ShowSchedule.sswdShowSlug show')
       startTimeText = formatTimeOfDay (ShowSchedule.sswdStartTime show')
       isLiveShow = isShowLive currentDayOfWeek currentTimeOfDay dayOfWeek (ShowSchedule.sswdStartTime show') (ShowSchedule.sswdEndTime show')
-      mBannerPath = ShowSchedule.sswdBannerUrl show'
       mLogoPath = ShowSchedule.sswdLogoUrl show'
-      hasImage = isJust mLogoPath || isJust mBannerPath
+      hasImage = isJust mLogoPath
 
   Lucid.div_ [showRowStyles] $ do
     -- Time label on left (with LIVE indicator below if applicable)
@@ -184,21 +196,13 @@ renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
         showCardStyles isLiveShow hasImage
       ]
       $ do
-        -- Background images (logo on mobile, banner on desktop)
+        -- Logo image
         case mLogoPath of
           Just logoPath ->
             Lucid.img_
               [ Lucid.src_ (buildMediaUrl backend logoPath),
                 Lucid.alt_ "",
-                mobileImageStyles
-              ]
-          Nothing -> mempty
-        case mBannerPath of
-          Just bannerPath ->
-            Lucid.img_
-              [ Lucid.src_ (buildMediaUrl backend bannerPath),
-                Lucid.alt_ "",
-                desktopImageStyles
+                logoImageStyles
               ]
           Nothing -> mempty
         -- Show title (with text shadow when there's an image for readability)
@@ -207,6 +211,7 @@ renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
 showRowStyles :: Attributes
 showRowStyles = class_ $ do
   base ["flex", "items-start", "gap-3"]
+  desktop ["justify-center"]
 
 timeContainerStyles :: Attributes
 timeContainerStyles = class_ $ do
@@ -220,26 +225,18 @@ showCardStyles :: Bool -> Bool -> Attributes
 showCardStyles isLive hasImage = class_ $ do
   base [Tokens.p3, "block", "flex", "items-end", "flex-grow"]
   base ["relative", "overflow-hidden"]
-  -- Aspect ratio: 4:3 on mobile (logo), 3:1 on desktop (banner)
   base ["aspect-[4/3]"]
-  desktop ["aspect-[3/1]"]
+  desktop ["flex-grow-0", "w-1/2"]
   unless hasImage $ base [Tokens.bgWhite]
   base ["border", "border-gray-300"]
   when isLive $ base [Tokens.border2, "border-gray-800"]
   unless hasImage $ also ["hover:bg-gray-50"]
   when hasImage $ also ["hover:opacity-90"]
 
--- | Image shown on mobile (logo, 4:3 aspect ratio)
-mobileImageStyles :: Attributes
-mobileImageStyles = class_ $ do
+-- | Logo image styles
+logoImageStyles :: Attributes
+logoImageStyles = class_ $ do
   base ["absolute", "inset-0", "w-full", "h-full", "object-cover"]
-  desktop ["hidden"]
-
--- | Image shown on desktop (banner, 3:1 aspect ratio)
-desktopImageStyles :: Attributes
-desktopImageStyles = class_ $ do
-  base ["absolute", "inset-0", "w-full", "h-full", "object-cover", "hidden"]
-  desktop ["block"]
 
 showTitleStyles :: Bool -> Attributes
 showTitleStyles hasImage = class_ $ do

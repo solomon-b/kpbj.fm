@@ -106,23 +106,21 @@ validateNewShow form = do
                 Shows.siSlug = slug,
                 Shows.siDescription = sanitizedDescription,
                 Shows.siLogoUrl = Nothing, -- Will be set after file upload
-                Shows.siBannerUrl = Nothing, -- Will be set after file upload
                 Shows.siStatus = status
               }
 
--- | Process logo/banner file uploads
+-- | Process logo file upload
 processShowArtworkUploads ::
   Slug.Slug ->
   Maybe (FileData Mem) ->
-  Maybe (FileData Mem) ->
-  AppM (Either Text (Maybe Text, Maybe Text))
-processShowArtworkUploads showSlug mLogoFile mBannerFile = do
+  AppM (Either Text (Maybe Text))
+processShowArtworkUploads showSlug mLogoFile = do
   -- TODO: Why is the aws env separate from the storage backend?
   storageBackend <- asks getter
   mAwsEnv <- asks getter
 
   -- Process logo file (optional)
-  logoResult <- case mLogoFile of
+  case mLogoFile of
     Nothing ->
       pure $ Right Nothing
     Just logoFile -> do
@@ -133,24 +131,6 @@ processShowArtworkUploads showSlug mLogoFile mBannerFile = do
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
           pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
-
-  -- Process banner file (optional)
-  bannerResult <- case mBannerFile of
-    Nothing ->
-      pure $ Right Nothing
-    Just bannerFile -> do
-      FileUpload.uploadShowBanner storageBackend mAwsEnv showSlug bannerFile >>= \case
-        Left err -> do
-          Log.logInfo "Failed to upload banner file" (Text.pack $ show err)
-          pure $ Left $ Text.pack $ show err
-        Right Nothing -> pure $ Right Nothing -- No file selected
-        Right (Just uploadResult) ->
-          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
-
-  case (logoResult, bannerResult) of
-    (Left logoErr, _) -> pure $ Left logoErr
-    (Right _logoPath, Left bannerErr) -> pure $ Left bannerErr
-    (Right mLogoPath, Right mBannerPath) -> pure $ Right (mLogoPath, mBannerPath)
 
 -- | Handle show creation after validation passes
 handleShowCreation ::
@@ -176,19 +156,18 @@ handleShowCreation showData form = do
           pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
         Right () -> do
           -- No conflicts, proceed with file uploads
-          uploadResults <- processShowArtworkUploads showData.siSlug (nsfLogoFile form) (nsfBannerFile form)
+          uploadResults <- processShowArtworkUploads showData.siSlug (nsfLogoFile form)
 
           case uploadResults of
             Left uploadErr -> do
               Log.logInfo "Failed to upload show artwork" uploadErr
               let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
               pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-            Right (mLogoPath, mBannerPath) -> do
+            Right mLogoPath -> do
               -- Update show data with file paths
               let finalShowData =
                     showData
-                      { Shows.siLogoUrl = mLogoPath,
-                        Shows.siBannerUrl = mBannerPath
+                      { Shows.siLogoUrl = mLogoPath
                       }
 
               execQuerySpan (Shows.insertShow finalShowData) >>= \case

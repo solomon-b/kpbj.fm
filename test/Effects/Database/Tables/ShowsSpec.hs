@@ -42,7 +42,6 @@ prop_insertSelect cfg = do
         UUT.siSlug showInsert === UUT.slug selected
         UUT.siDescription showInsert === UUT.description selected
         UUT.siLogoUrl showInsert === UUT.logoUrl selected
-        UUT.siBannerUrl showInsert === UUT.bannerUrl selected
         UUT.siStatus showInsert === UUT.status selected
         insertedId === UUT.id selected
 

@@ -55,7 +55,6 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
     showSlug = showModel.slug
     postUrl = [i|/dashboard/shows/#{display showSlug}/edit|]
     logoUrl = maybe "" (buildMediaUrl backend) showModel.logoUrl
-    bannerUrl = maybe "" (buildMediaUrl backend) showModel.bannerUrl
 
     config :: FormConfig
     config =
@@ -119,12 +118,6 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
           maxSize 10
           aspectRatio (4, 3)
           currentFile logoUrl
-
-        imageField "banner_file" $ do
-          label "Banner Image"
-          maxSize 10
-          aspectRatio (3, 1)
-          currentFile bannerUrl
 
       -- Hosts Section (staff only)
       when isStaff $ do

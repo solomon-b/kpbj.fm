@@ -32,14 +32,6 @@ import Servant.Links qualified as Links
 -- | Render show header with info
 renderShowHeader :: StorageBackend -> Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowTags.Model] -> Lucid.Html ()
 renderShowHeader backend showModel hosts schedules tags = do
-  -- Banner Image (if present)
-  case showModel.bannerUrl of
-    Just bannerPath -> do
-      let bannerAlt = showModel.title <> " banner"
-      Lucid.div_ [class_ $ base [Tokens.fullWidth, Tokens.mb8, "border", "border-gray-300", "overflow-hidden"]] $ do
-        Lucid.img_ [Lucid.src_ (buildMediaUrl backend bannerPath), Lucid.alt_ bannerAlt, Lucid.class_ "w-full h-auto object-cover"]
-    Nothing -> mempty
-
   Lucid.section_ [class_ $ do { base [Tokens.bgWhite, Tokens.mb8, Tokens.fullWidth]; desktop [Tokens.p8] }] $ do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo

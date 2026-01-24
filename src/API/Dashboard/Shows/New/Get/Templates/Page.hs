@@ -91,11 +91,6 @@ template eligibleHosts = do
           maxSize 10
           aspectRatio (4, 3)
 
-        imageField "banner_file" $ do
-          label "Banner Image"
-          maxSize 10
-          aspectRatio (3, 1)
-
       -- Hosts Section
       section "HOSTS" $ do
         plain $ renderHostsMultiSelect eligibleHosts

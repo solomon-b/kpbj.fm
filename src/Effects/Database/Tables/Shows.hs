@@ -162,7 +162,6 @@ data Show f = Show
     slug :: Column f Slug,
     description :: Column f Text,
     logoUrl :: Column f (Maybe Text),
-    bannerUrl :: Column f (Maybe Text),
     status :: Column f Status,
     createdAt :: Column f UTCTime,
     updatedAt :: Column f UTCTime
@@ -205,7 +204,6 @@ showSchema =
             slug = "slug",
             description = "description",
             logoUrl = "logo_url",
-            bannerUrl = "banner_url",
             status = "status",
             createdAt = "created_at",
             updatedAt = "updated_at"
@@ -221,7 +219,6 @@ data Insert = Insert
     siSlug :: Slug,
     siDescription :: Text,
     siLogoUrl :: Maybe Text,
-    siBannerUrl :: Maybe Text,
     siStatus :: Status
   }
   deriving stock (Generic, Prelude.Show, Eq)
@@ -254,7 +251,7 @@ getShowsFiltered maybeTagId maybeStatus sortBy (Limit lim) (Offset off) =
   interp
     False
     [sql|
-    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url, s.status, s.created_at, s.updated_at
+    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at
     FROM shows s
     WHERE (#{maybeTagIdInt}::bigint IS NULL OR EXISTS (
       SELECT 1 FROM show_tag_assignments sta WHERE sta.show_id = s.id AND sta.tag_id = #{maybeTagIdInt}::bigint
@@ -301,7 +298,6 @@ insertShow Insert {..} =
                       slug = lit siSlug,
                       description = lit siDescription,
                       logoUrl = lit siLogoUrl,
-                      bannerUrl = lit siBannerUrl,
                       status = lit siStatus,
                       createdAt = now,
                       updatedAt = now
@@ -321,7 +317,7 @@ updateShow showId Insert {..} =
     [sql|
     UPDATE shows
     SET title = #{siTitle}, slug = #{siSlug}, description = #{siDescription},
-        logo_url = #{siLogoUrl}, banner_url = #{siBannerUrl},
+        logo_url = #{siLogoUrl},
         status = #{siStatus},
         updated_at = NOW()
     WHERE id = #{showId}
@@ -337,7 +333,7 @@ getShowsForUser userId =
   interp
     False
     [sql|
-    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url, s.status, s.created_at, s.updated_at
+    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at
     FROM shows s
     JOIN show_hosts sh ON s.id = sh.show_id
     WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
@@ -363,7 +359,7 @@ searchShows (Search searchTerm) (Limit lim) (Offset off) =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, logo_url, banner_url, status, created_at, updated_at
+    SELECT id, title, slug, description, logo_url, status, created_at, updated_at
     FROM shows
     WHERE (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern})
     ORDER BY
@@ -390,7 +386,6 @@ data ShowWithHostInfo = ShowWithHostInfo
     swhiSlug :: Slug,
     swhiDescription :: Text,
     swhiLogoUrl :: Maybe Text,
-    swhiBannerUrl :: Maybe Text,
     swhiStatus :: Status,
     swhiCreatedAt :: UTCTime,
     swhiUpdatedAt :: UTCTime,
@@ -411,7 +406,7 @@ getAllShowsWithHostInfo (Limit lim) (Offset off) =
     False
     [sql|
     SELECT
-      s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url,
+      s.id, s.title, s.slug, s.description, s.logo_url,
       s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
@@ -430,7 +425,7 @@ getShowsByStatusWithHostInfo showStatus (Limit lim) (Offset off) =
     False
     [sql|
     SELECT
-      s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url,
+      s.id, s.title, s.slug, s.description, s.logo_url,
       s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
@@ -450,7 +445,7 @@ searchShowsWithHostInfo (Search searchTerm) (Limit lim) (Offset off) =
     False
     [sql|
     SELECT
-      s.id, s.title, s.slug, s.description, s.logo_url, s.banner_url,
+      s.id, s.title, s.slug, s.description, s.logo_url,
       s.status, s.created_at, s.updated_at,
       COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
       STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names

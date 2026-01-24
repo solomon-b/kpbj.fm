@@ -63,20 +63,18 @@ parseStatus "active" = Just Shows.Active
 parseStatus "inactive" = Just Shows.Inactive
 parseStatus _ = Nothing
 
--- | Process logo/banner file uploads
+-- | Process logo file upload
 processShowArtworkUploads ::
   Slug ->
   -- | Logo file
   Maybe (FileData Mem) ->
-  -- | Banner file
-  Maybe (FileData Mem) ->
-  AppM (Either Text (Maybe Text, Maybe Text)) -- (logoPath, bannerPath)
-processShowArtworkUploads showSlug mLogoFile mBannerFile = do
+  AppM (Either Text (Maybe Text))
+processShowArtworkUploads showSlug mLogoFile = do
   storageBackend <- asks getter
   mAwsEnv <- asks getter
 
   -- Process logo file (optional)
-  logoResult <- case mLogoFile of
+  case mLogoFile of
     Nothing ->
       pure $ Right Nothing
     Just logoFile -> do
@@ -87,24 +85,6 @@ processShowArtworkUploads showSlug mLogoFile mBannerFile = do
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
           pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
-
-  -- Process banner file (optional)
-  bannerResult <- case mBannerFile of
-    Nothing ->
-      pure $ Right Nothing
-    Just bannerFile -> do
-      FileUpload.uploadShowBanner storageBackend mAwsEnv showSlug bannerFile >>= \case
-        Left err -> do
-          Log.logInfo "Failed to upload banner file" (Text.pack $ show err)
-          pure $ Left $ Text.pack $ show err -- File validation failed, reject entire operation
-        Right Nothing -> pure $ Right Nothing -- No file selected
-        Right (Just uploadResult) ->
-          pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
-
-  case (logoResult, bannerResult) of
-    (Left logoErr, _) -> pure $ Left logoErr
-    (Right logoPath, Left _bannerErr) -> pure $ Right (logoPath, Nothing)
-    (Right logoPath, Right bannerPath) -> pure $ Right (logoPath, bannerPath)
 
 --------------------------------------------------------------------------------
 
@@ -159,30 +139,25 @@ updateShow userMetadata showModel editForm = do
           generatedSlug = Slug.mkSlug (sefTitle editForm)
 
       -- Process file uploads
-      uploadResults <- processShowArtworkUploads generatedSlug (sefLogoFile editForm) (sefBannerFile editForm)
+      uploadResults <- processShowArtworkUploads generatedSlug (sefLogoFile editForm)
 
       case uploadResults of
         Left uploadErr -> do
           Log.logInfo "Failed to upload show artwork" uploadErr
           let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
           pure (Servant.noHeader (redirectWithBanner editUrl banner))
-        Right (mLogoPath, mBannerPath) -> do
-          -- Determine final URLs based on: new upload > explicit clear > keep existing
+        Right mLogoPath -> do
+          -- Determine final URL based on: new upload > explicit clear > keep existing
           let finalLogoUrl = case (mLogoPath, sefLogoClear editForm) of
                 (Just path, _) -> Just path -- New file uploaded
                 (Nothing, True) -> Nothing -- User explicitly cleared
                 (Nothing, False) -> showModel.logoUrl -- Keep existing
-              finalBannerUrl = case (mBannerPath, sefBannerClear editForm) of
-                (Just path, _) -> Just path -- New file uploaded
-                (Nothing, True) -> Nothing -- User explicitly cleared
-                (Nothing, False) -> showModel.bannerUrl -- Keep existing
               updateData =
                 Shows.Insert
                   { siTitle = sefTitle editForm,
                     siSlug = generatedSlug,
                     siDescription = sefDescription editForm,
                     siLogoUrl = finalLogoUrl,
-                    siBannerUrl = finalBannerUrl,
                     siStatus = finalStatus
                   }
 
