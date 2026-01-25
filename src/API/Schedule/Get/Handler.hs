@@ -24,7 +24,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Log qualified
 import Lucid qualified
 import OpenTelemetry.Trace (Tracer)
-import OrphanInstances.DayOfWeek (fromDayOfWeek, toDayOfWeek)
+import OrphanInstances.DayOfWeek (toDayOfWeek)
 
 --------------------------------------------------------------------------------
 
@@ -44,16 +44,13 @@ handler _tracer (fromMaybe 0 -> WeekOffset weekOffset) (coerce -> cookie) (fromM
         today = localDay nowPacific
         currentTime = localTimeOfDay nowPacific
         (_, _, todayDayOfWeek) = toDayOfWeek <$> toWeekDate today
-        -- Calculate days to subtract to get to Monday (start of week)
-        daysFromMonday = fromDayOfWeek todayDayOfWeek
-        currentWeekStart = addDays (negate daysFromMonday) today
-        -- Apply week offset (7 days per week)
-        weekStart = addDays (fromIntegral weekOffset * 7) currentWeekStart
-        -- Only pass current day/time if viewing current week
+        -- Start from today and show next 7 days (rolling week view)
+        weekStart = addDays (fromIntegral weekOffset * 7) today
+        -- Only pass current day/time if viewing current week (offset = 0)
         currentDayOfWeek = if weekOffset == 0 then Just todayDayOfWeek else Nothing
         currentTimeOfDay = if weekOffset == 0 then Just currentTime else Nothing
 
-        -- Generate all 7 days of the week
+        -- Generate all 7 days starting from today
         weekDays = [addDays i weekStart | i <- [0 .. 6]]
 
     -- Fetch schedule for each day of the week
