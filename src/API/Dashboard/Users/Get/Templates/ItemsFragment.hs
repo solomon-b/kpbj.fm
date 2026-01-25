@@ -34,6 +34,8 @@ import Servant.Links qualified as Links
 -- This is returned for HTMX requests when page > 1, and gets appended
 -- to the existing table body.
 renderItemsFragment ::
+  -- | Viewer's role (for permission checks)
+  UserMetadata.UserRole ->
   UTCTime ->
   [UserMetadata.UserWithMetadata] ->
   Int64 ->
@@ -42,12 +44,12 @@ renderItemsFragment ::
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
   Lucid.Html ()
-renderItemsFragment now users currentPage hasMore maybeQuery maybeRoleFilter sortBy =
+renderItemsFragment viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sortBy =
   renderTableFragment
     6 -- Number of columns
     "#users-table-body"
     (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
-    (mapM_ (renderUserRow now) users)
+    (mapM_ (renderUserRow viewerRole now) users)
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
     nextPageUrl :: Links.URI

@@ -79,7 +79,8 @@ renderUnsuspendResult now = \case
     Log.logInfo "User unsuspended successfully" (Aeson.object ["userId" .= display updatedUser.uwmUserId, "email" .= display updatedUser.uwmEmail])
     pure $ do
       -- Return the updated row (will replace the old row)
-      renderUserRow now updatedUser
+      -- Viewer is Admin since this is an admin-only action
+      renderUserRow UserMetadata.Admin now updatedUser
       -- Also send an OOB success banner
       renderBanner Success "User Unsuspended" (display updatedUser.uwmDisplayName <> "'s suspension has been lifted. They can now use the site normally.")
   TargetUserNotFound uid -> do
