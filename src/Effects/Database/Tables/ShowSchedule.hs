@@ -383,7 +383,7 @@ getScheduledShowsForDate targetDate =
       st.end_time::time,
       s.slug,
       s.title,
-      COALESCE(um.display_name, um.full_name) as host_name,
+      COALESCE(um.display_name, um.full_name, 'TBD') as host_name,
       s.logo_url
     FROM schedule_templates st
     JOIN schedule_template_validity stv ON stv.template_id = st.id

@@ -8,6 +8,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Dynamic Pages** - Added support for dynamic CMS-style pages
 - **Theme System** - New theme system for customizable site styling
 - **Soft Delete for Shows** - Admins can now delete shows via the dashboard (soft delete preserves data while hiding from all queries)
+- **Rolling Schedule View** - Schedule page now shows today + next 6 days instead of the current Mon-Sun week
 
 ### Fixes
 - **Verification Sent Template** - Fixed verification sent email template
