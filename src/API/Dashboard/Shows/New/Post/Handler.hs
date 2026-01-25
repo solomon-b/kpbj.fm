@@ -212,25 +212,22 @@ assignHostsToShow ::
   [User.Id] ->
   AppM ()
 assignHostsToShow showId hostIds = do
-  -- Make the first host the primary host
-  forM_ (zip hostIds [0 :: Int ..]) $ \(userId, idx) -> do
+  forM_ hostIds $ \userId -> do
     -- Check if user needs to be promoted to Host role
     promoteUserToHostIfNeeded userId
 
-    let isPrimary = idx == 0
-        hostInsert =
+    let hostInsert =
           ShowHost.Insert
             { ShowHost.shiId = showId,
               ShowHost.shiUserId = userId,
-              ShowHost.shiRole = ShowHost.Host,
-              ShowHost.shiIsPrimary = isPrimary
+              ShowHost.shiRole = ShowHost.Host
             }
     result <- execQuerySpan (ShowHost.insertShowHost hostInsert)
     case result of
       Left dbError ->
         Log.logInfo "Failed to assign host to show" (Aeson.object ["userId" .= show userId, "error" .= Text.pack (show dbError)])
       Right () ->
-        Log.logInfo "Assigned host to show" (Aeson.object ["userId" .= show userId, "isPrimary" .= isPrimary])
+        Log.logInfo "Assigned host to show" (Aeson.object ["userId" .= show userId])
 
 -- | Promote a regular User to Host role if they are not already Host/Staff/Admin
 promoteUserToHostIfNeeded ::

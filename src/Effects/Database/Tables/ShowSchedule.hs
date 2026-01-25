@@ -365,7 +365,7 @@ getScheduledShowsForDate targetDate =
   interp
     False
     [sql|
-    SELECT DISTINCT
+    SELECT
       #{targetDate}::date as show_date,
       COALESCE(
         st.day_of_week,
@@ -383,12 +383,15 @@ getScheduledShowsForDate targetDate =
       st.end_time::time,
       s.slug,
       s.title,
-      COALESCE(um.display_name, um.full_name, 'TBD') as host_name,
+      COALESCE(
+        STRING_AGG(COALESCE(um.display_name, um.full_name), ', ' ORDER BY sh.joined_at),
+        'TBD'
+      ) as host_names,
       s.logo_url
     FROM schedule_templates st
     JOIN schedule_template_validity stv ON stv.template_id = st.id
     JOIN shows s ON s.id = st.show_id
-    LEFT JOIN show_hosts sh ON sh.show_id = s.id AND sh.left_at IS NULL AND sh.is_primary = TRUE
+    LEFT JOIN show_hosts sh ON sh.show_id = s.id AND sh.left_at IS NULL
     LEFT JOIN users u ON u.id = sh.user_id
     LEFT JOIN user_metadata um ON um.user_id = u.id
     WHERE s.status = 'active'
@@ -416,6 +419,7 @@ getScheduledShowsForDate targetDate =
         (st.day_of_week IS NULL
          AND stv.effective_from = #{targetDate}::date)
       )
+    GROUP BY st.id, st.day_of_week, st.start_time, st.end_time, s.slug, s.title, s.logo_url
     ORDER BY st.start_time
   |]
 

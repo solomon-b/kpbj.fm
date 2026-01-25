@@ -61,15 +61,14 @@ prop_createShowHostRelationship cfg = do
 
         -- Create show-host relationship
         let hostRole = UUT.Host
-            isPrimary = True
-        TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId hostRole isPrimary
+        TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId hostRole
 
         -- Get hosts for show
         hosts <- TRX.statement () $ UUT.getShowHosts showId
-        pure (showId, userId, hostRole, isPrimary, hosts)
+        pure (showId, userId, hostRole, hosts)
 
       assert $ do
-        (expectedShowId, expectedUserId, expectedRole, expectedIsPrimary, hosts) <- assertRight result
+        (expectedShowId, expectedUserId, expectedRole, hosts) <- assertRight result
         length hosts === 1
         let host = case hosts of
               (h : _) -> h
@@ -77,7 +76,6 @@ prop_createShowHostRelationship cfg = do
         host.shmShowId === expectedShowId
         host.shmUserId === expectedUserId
         host.shmRole === expectedRole
-        host.shmIsPrimary === expectedIsPrimary
 
 -- Test retrieving hosts for a show
 prop_getHostsForShow :: TestDBConfig -> PropertyT IO ()
@@ -107,8 +105,7 @@ prop_getHostsForShow cfg = do
 
         -- Create show-host relationship
         let hostRole = UUT.Host
-            isPrimary = True
-        TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId hostRole isPrimary
+        TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId hostRole
 
         -- Get hosts for show
         hosts <- TRX.statement () $ UUT.getShowHosts showId

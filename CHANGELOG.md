@@ -18,6 +18,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Embedded Static Assets** - Static files (range.png) are now embedded at compile time using `file-embed`, removing the need for filesystem-based static file serving
 - **Remove Banner Images** - Removed banner images from the codebase
 - **Remove APP_ENVIRONMENT** - Removed APP_ENVIRONMENT configuration variable
+- **Remove Primary Host Concept** - Schedule page now shows all hosts for a show instead of just a "primary" host
 
 ---
 
