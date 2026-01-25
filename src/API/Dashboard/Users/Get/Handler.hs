@@ -79,13 +79,14 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
     let users = take (fromIntegral limit) allUsers
         hasMore = length allUsers > fromIntegral limit
 
-    let viewerRole = userMetadata.mUserRole
+    let viewerId = User.mId user
+        viewerRole = userMetadata.mUserRole
 
     if isAppendRequest
       then
-        pure $ renderItemsFragment viewerRole now users page hasMore queryFilter roleFilter sortBy
+        pure $ renderItemsFragment viewerId viewerRole now users page hasMore queryFilter roleFilter sortBy
       else do
-        let usersTemplate = template viewerRole now users page hasMore queryFilter roleFilter sortBy
+        let usersTemplate = template viewerId viewerRole now users page hasMore queryFilter roleFilter sortBy
             filtersContent = Just $ filtersUI queryFilter roleFilter sortBy
         renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers filtersContent Nothing usersTemplate
 

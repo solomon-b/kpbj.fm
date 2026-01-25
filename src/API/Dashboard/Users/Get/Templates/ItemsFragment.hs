@@ -23,6 +23,7 @@ import Data.Text (Text)
 import Data.Time (UTCTime)
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.UserSortBy (UserSortBy (..))
+import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Servant.Links qualified as Links
@@ -34,6 +35,8 @@ import Servant.Links qualified as Links
 -- This is returned for HTMX requests when page > 1, and gets appended
 -- to the existing table body.
 renderItemsFragment ::
+  -- | Viewer's user ID (to prevent self-deletion)
+  User.Id ->
   -- | Viewer's role (for permission checks)
   UserMetadata.UserRole ->
   UTCTime ->
@@ -44,12 +47,12 @@ renderItemsFragment ::
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
   Lucid.Html ()
-renderItemsFragment viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sortBy =
+renderItemsFragment viewerId viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sortBy =
   renderTableFragment
     6 -- Number of columns
     "#users-table-body"
     (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
-    (mapM_ (renderUserRow viewerRole now) users)
+    (mapM_ (renderUserRow viewerId viewerRole now) users)
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
     nextPageUrl :: Links.URI

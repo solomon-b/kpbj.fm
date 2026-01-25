@@ -39,7 +39,7 @@ handler ::
 handler _tracer targetUserId cookie SuspendForm {..} =
   handleBannerErrors "User suspend" $ do
     -- 1. Require admin authentication
-    (_user, userMetadata) <- requireAuth cookie
+    (user, userMetadata) <- requireAuth cookie
     unless (UserMetadata.isAdmin userMetadata.mUserRole) $
       throwNotAuthorized "Only admins can suspend users." (Just userMetadata.mUserRole)
 
@@ -47,7 +47,7 @@ handler _tracer targetUserId cookie SuspendForm {..} =
     Log.logInfo "Suspending user" (Aeson.object ["targetUserId" .= display targetUserId, "reason" .= sfReason])
     now <- liftIO getCurrentTime
     result <- executeSuspension targetUserId sfReason
-    renderSuspendResult now result
+    renderSuspendResult (User.mId user) now result
 
 --------------------------------------------------------------------------------
 
@@ -79,14 +79,14 @@ executeSuspension targetUserId reason = do
       SuspendSuccess updatedUser
 
 -- | Render the appropriate HTML response based on suspension result
-renderSuspendResult :: (Log.MonadLog m) => UTCTime -> SuspendResult -> m (Lucid.Html ())
-renderSuspendResult now = \case
+renderSuspendResult :: (Log.MonadLog m) => User.Id -> UTCTime -> SuspendResult -> m (Lucid.Html ())
+renderSuspendResult viewerId now = \case
   SuspendSuccess updatedUser -> do
     Log.logInfo "User suspended successfully" (Aeson.object ["userId" .= display updatedUser.uwmUserId, "email" .= display updatedUser.uwmEmail])
     pure $ do
       -- Return the updated row (will replace the old row)
       -- Viewer is Admin since this is an admin-only action
-      renderUserRow UserMetadata.Admin now updatedUser
+      renderUserRow viewerId UserMetadata.Admin now updatedUser
       -- Also send an OOB success banner
       renderBanner Warning "User Suspended" (display updatedUser.uwmEmail <> " has been suspended. They will see a warning banner and cannot perform host actions.")
   TargetUserNotFound uid -> do

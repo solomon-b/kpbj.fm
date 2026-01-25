@@ -31,12 +31,15 @@ import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.UserSortBy (UserSortBy (..))
+import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Servant.Links qualified as Links
 
 -- | Users list template (filters are now in the top bar)
 template ::
+  -- | Viewer's user ID (to prevent self-deletion)
+  User.Id ->
   -- | Viewer's role (for permission checks)
   UserMetadata.UserRole ->
   UTCTime ->
@@ -47,7 +50,7 @@ template ::
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
   Lucid.Html ()
-template viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
+template viewerId viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   -- User table or empty state
   Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null users
@@ -73,7 +76,7 @@ template viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sor
                       pcCurrentPage = currentPage
                     }
             }
-          (mapM_ (renderUserRow viewerRole now) users)
+          (mapM_ (renderUserRow viewerId viewerRole now) users)
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
     nextPageUrl :: Links.URI
@@ -94,12 +97,14 @@ template viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sor
           maybeSortFilter
 
 renderUserRow ::
+  -- | Viewer's user ID (to prevent self-deletion)
+  User.Id ->
   -- | Viewer's role (for permission checks)
   UserMetadata.UserRole ->
   UTCTime ->
   UserMetadata.UserWithMetadata ->
   Lucid.Html ()
-renderUserRow viewerRole now user =
+renderUserRow viewerId viewerRole now user =
   let userId = user.uwmUserId
       displayName = user.uwmDisplayName
       email = user.uwmEmail
@@ -186,7 +191,7 @@ renderUserRow viewerRole now user =
                        rowTarget
                        ActionsDropdown.SwapOuterHTML
                        deleteConfirmMessage
-                     | viewerRole == UserMetadata.Admin
+                     | viewerRole == UserMetadata.Admin && viewerId /= userId
                    ]
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
