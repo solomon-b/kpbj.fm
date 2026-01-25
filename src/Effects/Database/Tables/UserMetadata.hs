@@ -25,6 +25,11 @@ module Effects.Database.Tables.UserMetadata
 
     -- * Theme Name
     ThemeName (..),
+    pattern DefaultTheme,
+    pattern SolarizedTheme,
+    pattern GruvboxTheme,
+    pattern DraculaTheme,
+    pattern NordTheme,
     getTheme,
 
     -- * Id Type
@@ -251,37 +256,42 @@ instance EncodeValue ColorScheme where
 --------------------------------------------------------------------------------
 -- Theme Name
 
--- | User's preferred theme for the UI
-data ThemeName = Default | Solarized
-  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
-  deriving anyclass (FromJSON, ToJSON)
-  deriving (DBType) via (Rel8.Enum ThemeName)
+-- | User's preferred theme for the UI.
+--
+-- Stored as text in the database for flexibility when adding new themes.
+newtype ThemeName = ThemeName {unThemeName :: Text}
+  deriving stock (Generic)
+  deriving newtype (Show, Eq, Ord, DBType, DBEq)
+  deriving newtype (DecodeValue, EncodeValue)
+  deriving newtype (FromJSON, ToJSON, Display)
 
--- | DBEnum instance for ThemeName to map to PostgreSQL theme_name enum type
-instance Rel8.DBEnum ThemeName where
-  enumTypeName = Rel8.QualifiedName {Rel8.name = "theme_name", Rel8.schema = Nothing}
+-- | Pattern synonyms for known themes
+pattern DefaultTheme :: ThemeName
+pattern DefaultTheme = ThemeName "Default"
 
-instance DBEq ThemeName
+pattern SolarizedTheme :: ThemeName
+pattern SolarizedTheme = ThemeName "Solarized"
 
-instance Display ThemeName where
-  displayBuilder Default = "Default"
-  displayBuilder Solarized = "Solarized"
+pattern GruvboxTheme :: ThemeName
+pattern GruvboxTheme = ThemeName "Gruvbox"
 
-instance DecodeValue ThemeName where
-  decodeValue = Decoders.enum $ \case
-    "Default" -> Just Default
-    "Solarized" -> Just Solarized
-    _ -> Nothing
+pattern DraculaTheme :: ThemeName
+pattern DraculaTheme = ThemeName "Dracula"
 
-instance EncodeValue ThemeName where
-  encodeValue = Encoders.enum $ \case
-    Default -> "Default"
-    Solarized -> "Solarized"
+pattern NordTheme :: ThemeName
+pattern NordTheme = ThemeName "Nord"
 
--- | Get the Theme corresponding to a ThemeName
+-- | Get the Theme corresponding to a ThemeName.
+--
+-- Falls back to defaultTheme for unknown theme names.
 getTheme :: ThemeName -> Design.Theme.Theme
-getTheme Default = Design.Theme.defaultTheme
-getTheme Solarized = Design.Theme.solarizedTheme
+getTheme (ThemeName name) = case name of
+  "Default" -> Design.Theme.defaultTheme
+  "Solarized" -> Design.Theme.solarizedTheme
+  "Gruvbox" -> Design.Theme.gruvboxTheme
+  "Dracula" -> Design.Theme.draculaTheme
+  "Nord" -> Design.Theme.nordTheme
+  _ -> Design.Theme.defaultTheme
 
 --------------------------------------------------------------------------------
 -- Id Type
@@ -788,7 +798,7 @@ updateUserMetadata metadataId Update {..} =
           ELSE color_scheme
         END,
         theme = CASE
-          WHEN #{hasThemeUpdate} THEN #{themeValue}::theme_name
+          WHEN #{hasThemeUpdate} THEN #{themeValue}
           ELSE theme
         END,
         updated_at = NOW()
@@ -811,7 +821,7 @@ updateUserMetadata metadataId Update {..} =
       Just _ -> True
     -- When hasThemeUpdate is True, uTheme is guaranteed to be Just
     -- We use a default that won't be used due to the CASE WHEN guard
-    themeValue = fromMaybe Default uTheme
+    themeValue = fromMaybe DefaultTheme uTheme
 
 --------------------------------------------------------------------------------
 -- User Deletion
