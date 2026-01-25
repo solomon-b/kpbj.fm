@@ -40,6 +40,7 @@ module API.Links
     dashboardShowsLinks,
     dashboardEventsLinks,
     dashboardUsersLinks,
+    dashboardSitePagesLinks,
   )
 where
 
@@ -144,3 +145,7 @@ dashboardEventsLinks = dashboardAdminLinks.events
 -- | Dashboard users route links
 dashboardUsersLinks :: DashboardUsersRoutes (AsLink Link)
 dashboardUsersLinks = dashboardAdminLinks.users
+
+-- | Dashboard site pages route links
+dashboardSitePagesLinks :: DashboardSitePagesRoutes (AsLink Link)
+dashboardSitePagesLinks = dashboardAdminLinks.sitePages

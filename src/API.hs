@@ -25,6 +25,7 @@ module API
     DashboardEphemeralUploadsRoutes (..),
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
+    DashboardSitePagesRoutes (..),
     UploadRoutes (..),
 
     -- * Re-exports from API.Links (for backward compatibility)
@@ -74,6 +75,12 @@ import API.Dashboard.Shows.Slug.Edit.Post.Handler qualified as Dashboard.Shows.S
 import API.Dashboard.Shows.Slug.Episode.New.Get.Handler qualified as Dashboard.Shows.Slug.Episode.New.Get
 import API.Dashboard.Shows.Slug.Episode.New.Post.Handler qualified as Dashboard.Shows.Slug.Episode.New.Post
 import API.Dashboard.Shows.Slug.Get.Handler qualified as Dashboard.Shows.Slug.Get
+import API.Dashboard.SitePages.Get.Handler qualified as Dashboard.SitePages.Get
+import API.Dashboard.SitePages.Slug.Edit.Get.Handler qualified as Dashboard.SitePages.Slug.Edit.Get
+import API.Dashboard.SitePages.Slug.Edit.Post.Handler qualified as Dashboard.SitePages.Slug.Edit.Post
+import API.Dashboard.SitePages.Slug.History.Get.Handler qualified as Dashboard.SitePages.Slug.History.Get
+import API.Dashboard.SitePages.Slug.Revisions.Id.Get.Handler qualified as Dashboard.SitePages.Slug.Revisions.Id.Get
+import API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler qualified as Dashboard.SitePages.Slug.Revisions.Id.Restore.Post
 import API.Dashboard.StationBlog.Get.Handler qualified as Dashboard.StationBlog.Get
 import API.Dashboard.StationBlog.New.Get.Handler qualified as Dashboard.StationBlog.New.Get
 import API.Dashboard.StationBlog.New.Post.Handler qualified as Dashboard.StationBlog.New.Post
@@ -280,7 +287,18 @@ server =
         { stationBlog = dashboardStationBlogRoutes,
           shows = dashboardShowsRoutes,
           events = dashboardEventsRoutes,
-          users = dashboardUsersRoutes
+          users = dashboardUsersRoutes,
+          sitePages = dashboardSitePagesRoutes
+        }
+
+    dashboardSitePagesRoutes =
+      DashboardSitePagesRoutes
+        { list = Dashboard.SitePages.Get.handler,
+          editGet = Dashboard.SitePages.Slug.Edit.Get.handler,
+          editPost = Dashboard.SitePages.Slug.Edit.Post.handler,
+          historyGet = Dashboard.SitePages.Slug.History.Get.handler,
+          revisionGet = Dashboard.SitePages.Slug.Revisions.Id.Get.handler,
+          revisionRestorePost = Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.handler
         }
 
     dashboardEpisodesRoutes =
