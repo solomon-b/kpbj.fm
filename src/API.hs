@@ -70,6 +70,7 @@ import API.Dashboard.Profile.Edit.Post.Handler qualified as Dashboard.Profile.Ed
 import API.Dashboard.Shows.Get.Handler qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get.Handler qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Handler qualified as Dashboard.Shows.New.Post
+import API.Dashboard.Shows.Slug.Delete.Handler qualified as Dashboard.Shows.Slug.Delete
 import API.Dashboard.Shows.Slug.Edit.Get.Handler qualified as Dashboard.Shows.Slug.Edit.Get
 import API.Dashboard.Shows.Slug.Edit.Post.Handler qualified as Dashboard.Shows.Slug.Edit.Post
 import API.Dashboard.Shows.Slug.Episode.New.Get.Handler qualified as Dashboard.Shows.Slug.Episode.New.Get
@@ -353,6 +354,7 @@ server =
           detail = Dashboard.Shows.Slug.Get.handler,
           editGet = Dashboard.Shows.Slug.Edit.Get.handler,
           editPost = Dashboard.Shows.Slug.Edit.Post.handler,
+          delete = Dashboard.Shows.Slug.Delete.handler,
           episodeNewGet = Dashboard.Shows.Slug.Episode.New.Get.handler,
           episodeNewPost = Dashboard.Shows.Slug.Episode.New.Post.handler
         }

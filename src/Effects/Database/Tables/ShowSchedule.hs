@@ -225,6 +225,7 @@ newtype ConflictingShowTitle = ConflictingShowTitle {getConflictingShowTitle :: 
 -- Returns the title of the conflicting show if there's a conflict, Nothing otherwise.
 -- Checks for overlapping time ranges on the same day of week with overlapping weeks.
 -- Uses raw SQL because of complex overlap logic and array operations.
+-- Excludes soft-deleted shows.
 checkTimeSlotConflict ::
   Shows.Id ->
   DayOfWeek ->
@@ -242,6 +243,7 @@ checkTimeSlotConflict excludeShowId dow weeks start end =
     JOIN schedule_template_validity stv ON stv.template_id = st.id
     JOIN shows s ON s.id = st.show_id
     WHERE s.status = 'active'
+      AND s.deleted_at IS NULL
       AND st.show_id != #{excludeShowId}
       AND st.day_of_week = #{dow}::day_of_week
       AND stv.effective_from <= CURRENT_DATE
@@ -357,6 +359,7 @@ instance Display ScheduledShowWithDetails where
 -- Returns both recurring and one-time shows scheduled for the given date.
 -- Used for rendering actual weekly schedules (not just templates).
 -- Uses raw SQL because of complex date arithmetic and CASE expressions.
+-- Excludes soft-deleted shows.
 getScheduledShowsForDate :: Day -> Hasql.Statement () [ScheduledShowWithDetails]
 getScheduledShowsForDate targetDate =
   interp
@@ -389,6 +392,7 @@ getScheduledShowsForDate targetDate =
     LEFT JOIN users u ON u.id = sh.user_id
     LEFT JOIN user_metadata um ON um.user_id = u.id
     WHERE s.status = 'active'
+      AND s.deleted_at IS NULL
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
       AND (

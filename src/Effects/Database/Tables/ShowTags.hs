@@ -181,6 +181,7 @@ insertShowTag Insert {..} =
 -- | Get all show tags with counts of active shows using each tag.
 --
 -- Only returns tags that have at least one active show associated.
+-- Excludes soft-deleted shows.
 -- Ordered by count descending, then name ascending.
 getShowTagsWithCounts :: Hasql.Statement () [ShowTagWithCount]
 getShowTagsWithCounts =
@@ -195,7 +196,7 @@ getShowTagsWithCounts =
       FROM show_tags st
       INNER JOIN show_tag_assignments sta ON st.id = sta.tag_id
       INNER JOIN shows s ON sta.show_id = s.id
-      WHERE s.status = 'active'
+      WHERE s.status = 'active' AND s.deleted_at IS NULL
       GROUP BY st.id, st.name, st.created_at
       HAVING COUNT(sta.show_id) > 0
       ORDER BY COUNT(sta.show_id) DESC, st.name ASC
