@@ -12,7 +12,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.Get.Templates.Page (renderShowRow)
+import API.Dashboard.Shows.Get.Templates.Page (IsAdmin, renderShowRow)
 import API.Links (dashboardShowsLinks)
 import API.Types
 import Component.Table (renderTableFragment)
@@ -31,18 +31,19 @@ import Servant.Links qualified as Links
 -- This is returned for HTMX requests when page > 1, and gets appended
 -- to the existing table body.
 renderItemsFragment ::
+  IsAdmin ->
   [Shows.ShowWithHostInfo] ->
   Int64 ->
   Bool ->
   Maybe Text ->
   Maybe Shows.Status ->
   Lucid.Html ()
-renderItemsFragment theShows currentPage hasMore maybeQuery maybeStatusFilter =
+renderItemsFragment isAdmin theShows currentPage hasMore maybeQuery maybeStatusFilter =
   renderTableFragment
     4 -- Number of columns (was incorrectly 5 before)
     "#shows-table-body"
     (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
-    (mapM_ renderShowRow theShows)
+    (mapM_ (renderShowRow isAdmin) theShows)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))

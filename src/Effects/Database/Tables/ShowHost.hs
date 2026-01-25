@@ -301,7 +301,7 @@ isUserHostOfShow userId showId =
       |]
    in maybe False getOneColumn <$> query
 
--- | Check if user is host of show by slug.
+-- | Check if user is host of show by slug (excludes soft-deleted shows).
 isUserHostOfShowSlug :: User.Id -> Slug -> Hasql.Statement () Bool
 isUserHostOfShowSlug userId slug =
   let query =
@@ -311,7 +311,7 @@ isUserHostOfShowSlug userId slug =
         SELECT EXISTS(
           SELECT 1 FROM show_hosts
           JOIN shows on shows.id = show_hosts.show_id
-          WHERE user_id = #{userId} AND slug = #{slug} AND left_at IS NULL
+          WHERE user_id = #{userId} AND slug = #{slug} AND left_at IS NULL AND shows.deleted_at IS NULL
         )
       |]
    in maybe False getOneColumn <$> query

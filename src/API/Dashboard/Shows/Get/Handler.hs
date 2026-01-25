@@ -56,25 +56,28 @@ handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -
         queryFilter = getFilter =<< queryFilterParam
         isAppendRequest = hxRequest == IsHxRequest && page > 1
 
-    -- 3. Fetch shows for sidebar
+    -- 3. Check if user is admin (for delete button visibility)
+    let isAdmin = UserMetadata.isAdmin userMetadata.mUserRole
+
+    -- 4. Fetch shows for sidebar
     sidebarShowsResult <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
+      if isAdmin
         then execQuerySpan Shows.getAllActiveShows
         else execQuerySpan (Shows.getShowsForUser (User.mId user))
     let sidebarShows = fromRight [] sidebarShowsResult
         selectedShow = listToMaybe sidebarShows
 
-    -- 4. Fetch shows for main content
+    -- 5. Fetch shows for main content
     allShowsResult <- getShowResults limit offset queryFilter statusFilter
 
-    -- 5. Render response
+    -- 6. Render response
     let theShows = take (fromIntegral limit) allShowsResult
         hasMore = length allShowsResult > fromIntegral limit
 
     if isAppendRequest
-      then pure $ renderItemsFragment theShows page hasMore queryFilter statusFilter
+      then pure $ renderItemsFragment isAdmin theShows page hasMore queryFilter statusFilter
       else do
-        let showsTemplate = template theShows page hasMore queryFilter statusFilter
+        let showsTemplate = template isAdmin theShows page hasMore queryFilter statusFilter
             filtersContent = Just $ filtersUI queryFilter statusFilter
         renderDashboardTemplate hxRequest userMetadata sidebarShows selectedShow NavShows filtersContent newShowButton showsTemplate
   where

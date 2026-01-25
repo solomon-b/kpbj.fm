@@ -37,6 +37,9 @@ module Effects.Database.Tables.Shows
     getAllActiveShows,
     searchShows,
 
+    -- * Soft Delete
+    softDeleteShow,
+
     -- * Admin Queries
     ShowWithHostInfo (..),
     getAllShowsWithHostInfo,
@@ -164,7 +167,8 @@ data Show f = Show
     logoUrl :: Column f (Maybe Text),
     status :: Column f Status,
     createdAt :: Column f UTCTime,
-    updatedAt :: Column f UTCTime
+    updatedAt :: Column f UTCTime,
+    deletedAt :: Column f (Maybe UTCTime)
   }
   deriving stock (Generic)
   deriving anyclass (Rel8able)
@@ -206,7 +210,8 @@ showSchema =
             logoUrl = "logo_url",
             status = "status",
             createdAt = "created_at",
-            updatedAt = "updated_at"
+            updatedAt = "updated_at",
+            deletedAt = "deleted_at"
           }
     }
 
@@ -227,18 +232,20 @@ data Insert = Insert
 --------------------------------------------------------------------------------
 -- Queries
 
--- | Get show by slug.
+-- | Get show by slug (excludes soft-deleted shows).
 getShowBySlug :: Slug -> Hasql.Statement () (Maybe Model)
 getShowBySlug showSlug = fmap listToMaybe $ run $ select do
   s <- each showSchema
   where_ $ slug s ==. lit showSlug
+  where_ $ isNull (deletedAt s)
   pure s
 
--- | Get show by ID.
+-- | Get show by ID (excludes soft-deleted shows).
 getShowById :: Id -> Hasql.Statement () (Maybe Model)
 getShowById showId = fmap listToMaybe $ run $ select do
   showRec <- each showSchema
   where_ $ id showRec ==. lit showId {- HLINT ignore "Redundant id" -}
+  where_ $ isNull (deletedAt showRec)
   pure showRec
 
 -- | Get shows with optional tag/status filters and configurable sorting.
@@ -246,16 +253,18 @@ getShowById showId = fmap listToMaybe $ run $ select do
 -- This is the primary query for the public shows listing page.
 -- Supports sorting by name (A-Z, Z-A) or creation date (newest, oldest).
 -- When a tag filter is provided, uses JOIN to filter by tag assignment.
+-- Excludes soft-deleted shows.
 getShowsFiltered :: Maybe ShowTags.Id -> Maybe Status -> ShowSortBy -> Limit -> Offset -> Hasql.Statement () [Model]
 getShowsFiltered maybeTagId maybeStatus sortBy (Limit lim) (Offset off) =
   interp
     False
     [sql|
-    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at
+    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at, s.deleted_at
     FROM shows s
-    WHERE (#{maybeTagIdInt}::bigint IS NULL OR EXISTS (
-      SELECT 1 FROM show_tag_assignments sta WHERE sta.show_id = s.id AND sta.tag_id = #{maybeTagIdInt}::bigint
-    ))
+    WHERE s.deleted_at IS NULL
+      AND (#{maybeTagIdInt}::bigint IS NULL OR EXISTS (
+        SELECT 1 FROM show_tag_assignments sta WHERE sta.show_id = s.id AND sta.tag_id = #{maybeTagIdInt}::bigint
+      ))
       AND (#{maybeStatusText}::show_status IS NULL OR s.status = #{maybeStatusText}::show_status)
     ORDER BY
       CASE WHEN #{sortOrder} = 'name_az' THEN s.title END ASC,
@@ -300,7 +309,8 @@ insertShow Insert {..} =
                       logoUrl = lit siLogoUrl,
                       status = lit siStatus,
                       createdAt = now,
-                      updatedAt = now
+                      updatedAt = now,
+                      deletedAt = Rel8.null
                     }
                 ],
             onConflict = Abort,
@@ -324,23 +334,38 @@ updateShow showId Insert {..} =
     RETURNING id
   |]
 
+-- | Soft delete a show by setting deleted_at timestamp.
+--
+-- Returns the show ID if successfully deleted, Nothing if already deleted or not found.
+softDeleteShow :: Id -> Hasql.Statement () (Maybe Id)
+softDeleteShow showId =
+  listToMaybe
+    <$> interp
+      True
+      [sql|
+    UPDATE shows
+    SET deleted_at = NOW()
+    WHERE id = #{showId} AND deleted_at IS NULL
+    RETURNING id
+  |]
+
 --------------------------------------------------------------------------------
 -- Show Host Queries (Junction table queries - use raw SQL)
 
--- | Get shows for a user (active host assignments).
+-- | Get shows for a user (active host assignments, excludes soft-deleted shows).
 getShowsForUser :: User.Id -> Hasql.Statement () [Model]
 getShowsForUser userId =
   interp
     False
     [sql|
-    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at
+    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at, s.deleted_at
     FROM shows s
     JOIN show_hosts sh ON s.id = sh.show_id
-    WHERE sh.user_id = #{userId} AND sh.left_at IS NULL
+    WHERE sh.user_id = #{userId} AND sh.left_at IS NULL AND s.deleted_at IS NULL
     ORDER BY s.title
   |]
 
--- | Get all active shows (for admin dashboard).
+-- | Get all active shows (for admin dashboard, excludes soft-deleted shows).
 getAllActiveShows :: Hasql.Statement () [Model]
 getAllActiveShows =
   run $
@@ -348,20 +373,22 @@ getAllActiveShows =
       orderBy (title >$< asc) do
         s <- each showSchema
         where_ $ status s ==. lit Active
+        where_ $ isNull (deletedAt s)
         pure s
 
 -- | Search shows by text query with pagination.
 --
 -- Uses raw SQL because of ILIKE pattern matching and complex ordering.
--- Searches title and description fields.
+-- Searches title and description fields. Excludes soft-deleted shows.
 searchShows :: Search -> Limit -> Offset -> Hasql.Statement () [Model]
 searchShows (Search searchTerm) (Limit lim) (Offset off) =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, logo_url, status, created_at, updated_at
+    SELECT id, title, slug, description, logo_url, status, created_at, updated_at, deleted_at
     FROM shows
-    WHERE (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern})
+    WHERE deleted_at IS NULL
+      AND (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern})
     ORDER BY
       CASE
         WHEN title ILIKE #{searchPattern} THEN 1
@@ -399,7 +426,7 @@ data ShowWithHostInfo = ShowWithHostInfo
 -- | Get all shows with host count and host names for admin listing.
 --
 -- Returns shows with aggregated host information, ordered by creation date.
--- Only counts active hosts (where left_at IS NULL).
+-- Only counts active hosts (where left_at IS NULL). Excludes soft-deleted shows.
 getAllShowsWithHostInfo :: Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
 getAllShowsWithHostInfo (Limit lim) (Offset off) =
   interp
@@ -413,12 +440,15 @@ getAllShowsWithHostInfo (Limit lim) (Offset off) =
     FROM shows s
     LEFT JOIN show_hosts sh ON s.id = sh.show_id
     LEFT JOIN user_metadata um ON sh.user_id = um.user_id
+    WHERE s.deleted_at IS NULL
     GROUP BY s.id
     ORDER BY s.created_at DESC
     LIMIT #{lim} OFFSET #{off}
   |]
 
 -- | Get shows filtered by status with host info for admin listing.
+--
+-- Excludes soft-deleted shows.
 getShowsByStatusWithHostInfo :: Status -> Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
 getShowsByStatusWithHostInfo showStatus (Limit lim) (Offset off) =
   interp
@@ -432,13 +462,15 @@ getShowsByStatusWithHostInfo showStatus (Limit lim) (Offset off) =
     FROM shows s
     LEFT JOIN show_hosts sh ON s.id = sh.show_id
     LEFT JOIN user_metadata um ON sh.user_id = um.user_id
-    WHERE s.status = #{showStatus}
+    WHERE s.status = #{showStatus} AND s.deleted_at IS NULL
     GROUP BY s.id
     ORDER BY s.created_at DESC
     LIMIT #{lim} OFFSET #{off}
   |]
 
 -- | Search shows with host info for admin listing.
+--
+-- Excludes soft-deleted shows.
 searchShowsWithHostInfo :: Search -> Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
 searchShowsWithHostInfo (Search searchTerm) (Limit lim) (Offset off) =
   interp
@@ -452,7 +484,8 @@ searchShowsWithHostInfo (Search searchTerm) (Limit lim) (Offset off) =
     FROM shows s
     LEFT JOIN show_hosts sh ON s.id = sh.show_id
     LEFT JOIN user_metadata um ON sh.user_id = um.user_id
-    WHERE (s.title ILIKE #{searchPattern} OR s.description ILIKE #{searchPattern})
+    WHERE s.deleted_at IS NULL
+      AND (s.title ILIKE #{searchPattern} OR s.description ILIKE #{searchPattern})
     GROUP BY s.id
     ORDER BY
       CASE

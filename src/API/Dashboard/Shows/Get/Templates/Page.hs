@@ -5,6 +5,9 @@
 module API.Dashboard.Shows.Get.Templates.Page
   ( template,
     renderShowRow,
+
+    -- * Re-exports for ItemsFragment
+    IsAdmin,
   )
 where
 
@@ -23,25 +26,30 @@ import Component.Table
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xOnChange_, xOnClick_, xRef_)
+import Lucid.Extras (hxConfirm_, hxDelete_, hxGet_, hxPushUrl_, hxSwap_, hxTarget_, xData_, xOnChange_, xOnClick_, xRef_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
+-- | Type alias for readability.
+type IsAdmin = Bool
+
 -- | Shows list template (filters are now in the top bar)
 template ::
+  IsAdmin ->
   [Shows.ShowWithHostInfo] ->
   Int64 ->
   Bool ->
   Maybe Text ->
   Maybe Shows.Status ->
   Lucid.Html ()
-template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
+template isAdmin theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   -- Shows table or empty state
   Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null theShowList
@@ -65,18 +73,21 @@ template theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
                       pcCurrentPage = currentPage
                     }
             }
-          (mapM_ renderShowRow theShowList)
+          (mapM_ (renderShowRow isAdmin) theShowList)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))
     prevPageUrl :: Links.URI
     prevPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage - 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))
 
-renderShowRow :: Shows.ShowWithHostInfo -> Lucid.Html ()
-renderShowRow showInfo =
-  let showDetailUri = Links.linkURI $ dashboardShowsLinks.detail showInfo.swhiId showInfo.swhiSlug Nothing
+renderShowRow :: IsAdmin -> Shows.ShowWithHostInfo -> Lucid.Html ()
+renderShowRow isAdmin showInfo =
+  let showSlug = showInfo.swhiSlug
+      showTitle = showInfo.swhiTitle
+      showDetailUri = Links.linkURI $ dashboardShowsLinks.detail showInfo.swhiId showSlug Nothing
       showDetailUrl = [i|/#{showDetailUri}|]
-      showEditUrl = Links.linkURI $ dashboardShowsLinks.editGet showInfo.swhiSlug
+      showEditUrl = Links.linkURI $ dashboardShowsLinks.editGet showSlug
+      showDeleteUrl = [i|/dashboard/shows/#{display showSlug}|]
    in do
         Lucid.tr_
           [Lucid.class_ "border-b-2 border-gray-200 dark:border-gray-600 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:bg-gray-700"]
@@ -110,6 +121,19 @@ renderShowRow showInfo =
                       Lucid.class_ "hidden"
                     ]
                     ""
+                  -- Hidden button for Delete (admin only) - HTMX handles the request
+                  if isAdmin
+                    then
+                      Lucid.button_
+                        [ hxDelete_ showDeleteUrl,
+                          hxTarget_ "closest tr",
+                          hxSwap_ "outerHTML swap:1s",
+                          hxConfirm_ [i|Are you sure you want to delete "#{showTitle}"? This action cannot be undone.|],
+                          xRef_ "deleteBtn",
+                          Lucid.class_ "hidden"
+                        ]
+                        ""
+                    else mempty
                   -- Visible dropdown
                   Lucid.select_
                     [ Lucid.class_ "p-2 border border-gray-400 dark:border-gray-500 text-xs bg-white dark:bg-gray-800",
@@ -119,6 +143,8 @@ renderShowRow showInfo =
                       $el.value = '';
                       if (action === 'edit') {
                         $refs.editLink.click();
+                      } else if (action === 'delete') {
+                        $refs.deleteBtn.click();
                       }
                     |],
                       xOnClick_ "event.stopPropagation()"
@@ -126,6 +152,9 @@ renderShowRow showInfo =
                     $ do
                       Lucid.option_ [Lucid.value_ ""] "Actions..."
                       Lucid.option_ [Lucid.value_ "edit"] "Edit"
+                      if isAdmin
+                        then Lucid.option_ [Lucid.value_ "delete"] "Delete"
+                        else mempty
 
 renderStatusBadge :: Shows.Status -> Lucid.Html ()
 renderStatusBadge status = do

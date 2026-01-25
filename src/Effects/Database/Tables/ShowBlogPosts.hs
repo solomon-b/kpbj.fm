@@ -272,6 +272,7 @@ deleteShowBlogPost postId =
 -- | Get published blog posts for a show by show slug.
 --
 -- Uses raw SQL because it joins with the shows table.
+-- Excludes soft-deleted shows.
 getPublishedShowBlogPostsBySlug :: Text -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedShowBlogPostsBySlug showSlug (Limit lim) (Offset off) =
   interp
@@ -280,7 +281,7 @@ getPublishedShowBlogPostsBySlug showSlug (Limit lim) (Offset off) =
     SELECT sbp.id, sbp.show_id, sbp.title, sbp.slug, sbp.content, sbp.excerpt, sbp.author_id, sbp.status, sbp.published_at, sbp.created_at, sbp.updated_at
     FROM show_blog_posts sbp
     JOIN shows s ON sbp.show_id = s.id
-    WHERE s.slug = #{showSlug} AND sbp.status = 'published'
+    WHERE s.slug = #{showSlug} AND s.deleted_at IS NULL AND sbp.status = 'published'
     ORDER BY sbp.published_at DESC NULLS LAST, sbp.created_at DESC
     LIMIT #{lim} OFFSET #{off}
   |]

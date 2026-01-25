@@ -66,6 +66,7 @@ import API.Dashboard.Profile.Edit.Post.Route qualified as Dashboard.Profile.Edit
 import API.Dashboard.Shows.Get.Route qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get.Route qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Route qualified as Dashboard.Shows.New.Post
+import API.Dashboard.Shows.Slug.Delete.Route qualified as Dashboard.Shows.Slug.Delete
 import API.Dashboard.Shows.Slug.Edit.Get.Route qualified as Dashboard.Shows.Slug.Edit.Get
 import API.Dashboard.Shows.Slug.Edit.Post.Route qualified as Dashboard.Shows.Slug.Edit.Post
 import API.Dashboard.Shows.Slug.Episode.New.Get.Route qualified as Dashboard.Shows.Slug.Episode.New.Get
@@ -417,6 +418,8 @@ data DashboardShowsRoutes mode = DashboardShowsRoutes
     editGet :: mode :- Dashboard.Shows.Slug.Edit.Get.Route,
     -- | @POST /dashboard/shows/:slug/edit@ - Update show
     editPost :: mode :- Dashboard.Shows.Slug.Edit.Post.Route,
+    -- | @DELETE /dashboard/shows/:slug@ - Delete show (soft delete)
+    delete :: mode :- Dashboard.Shows.Slug.Delete.Route,
     -- | @GET /dashboard/shows/:slug/episodes/new@ - New episode upload form
     episodeNewGet :: mode :- Dashboard.Shows.Slug.Episode.New.Get.Route,
     -- | @POST /dashboard/shows/:slug/episodes/new@ - Create new episode
