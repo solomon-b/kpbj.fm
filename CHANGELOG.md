@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.3.4] - 2026-01-25
+
 ### Features
 - **Dynamic Pages** - Added support for dynamic CMS-style pages
 - **Theme System** - New theme system for customizable site styling
