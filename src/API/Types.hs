@@ -24,6 +24,7 @@ module API.Types
     DashboardEphemeralUploadsRoutes (..),
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
+    DashboardSitePagesRoutes (..),
     UploadRoutes (..),
   )
 where
@@ -70,6 +71,12 @@ import API.Dashboard.Shows.Slug.Edit.Post.Route qualified as Dashboard.Shows.Slu
 import API.Dashboard.Shows.Slug.Episode.New.Get.Route qualified as Dashboard.Shows.Slug.Episode.New.Get
 import API.Dashboard.Shows.Slug.Episode.New.Post.Route qualified as Dashboard.Shows.Slug.Episode.New.Post
 import API.Dashboard.Shows.Slug.Get.Route qualified as Dashboard.Shows.Slug.Get
+import API.Dashboard.SitePages.Get.Route qualified as Dashboard.SitePages.Get
+import API.Dashboard.SitePages.Slug.Edit.Get.Route qualified as Dashboard.SitePages.Slug.Edit.Get
+import API.Dashboard.SitePages.Slug.Edit.Post.Route qualified as Dashboard.SitePages.Slug.Edit.Post
+import API.Dashboard.SitePages.Slug.History.Get.Route qualified as Dashboard.SitePages.Slug.History.Get
+import API.Dashboard.SitePages.Slug.Revisions.Id.Get.Route qualified as Dashboard.SitePages.Slug.Revisions.Id.Get
+import API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route qualified as Dashboard.SitePages.Slug.Revisions.Id.Restore.Post
 import API.Dashboard.StationBlog.Get.Route qualified as Dashboard.StationBlog.Get
 import API.Dashboard.StationBlog.New.Get.Route qualified as Dashboard.StationBlog.New.Get
 import API.Dashboard.StationBlog.New.Post.Route qualified as Dashboard.StationBlog.New.Post
@@ -299,7 +306,7 @@ data DashboardHostRoutes mode = DashboardHostRoutes
 
 -- | Admin-only dashboard routes.
 --
--- Routes for admins to manage station blog, shows, events, and users.
+-- Routes for admins to manage station blog, shows, events, users, and site pages.
 data DashboardAdminRoutes mode = DashboardAdminRoutes
   { -- | @/dashboard/station-blog/...@ - Station blog management routes
     stationBlog :: mode :- NamedRoutes DashboardStationBlogRoutes,
@@ -308,7 +315,9 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @/dashboard/events/...@ - Event management routes
     events :: mode :- NamedRoutes DashboardEventsRoutes,
     -- | @/dashboard/users/...@ - User management routes
-    users :: mode :- NamedRoutes DashboardUsersRoutes
+    users :: mode :- NamedRoutes DashboardUsersRoutes,
+    -- | @/dashboard/site-pages/...@ - Site pages management routes
+    sitePages :: mode :- NamedRoutes DashboardSitePagesRoutes
   }
   deriving stock (Generic)
 
@@ -465,6 +474,26 @@ data DashboardEphemeralUploadsRoutes mode = DashboardEphemeralUploadsRoutes
     newPost :: mode :- Dashboard.EphemeralUploads.New.Post.Route,
     -- | @DELETE /dashboard/ephemeral-uploads/:id@ - Delete ephemeral upload
     delete :: mode :- Dashboard.EphemeralUploads.Id.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard site pages management routes under @/dashboard/site-pages@.
+--
+-- For staff and admins to edit About, Privacy Policy, Terms of Service pages
+-- with revision history and rollback functionality.
+data DashboardSitePagesRoutes mode = DashboardSitePagesRoutes
+  { -- | @GET /dashboard/site-pages@ - Site pages list
+    list :: mode :- Dashboard.SitePages.Get.Route,
+    -- | @GET /dashboard/site-pages/:slug/edit@ - Edit site page form
+    editGet :: mode :- Dashboard.SitePages.Slug.Edit.Get.Route,
+    -- | @POST /dashboard/site-pages/:slug/edit@ - Update site page
+    editPost :: mode :- Dashboard.SitePages.Slug.Edit.Post.Route,
+    -- | @GET /dashboard/site-pages/:slug/history@ - View revision history
+    historyGet :: mode :- Dashboard.SitePages.Slug.History.Get.Route,
+    -- | @GET /dashboard/site-pages/:slug/revisions/:id@ - View specific revision
+    revisionGet :: mode :- Dashboard.SitePages.Slug.Revisions.Id.Get.Route,
+    -- | @POST /dashboard/site-pages/:slug/revisions/:id/restore@ - Restore revision
+    revisionRestorePost :: mode :- Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route
   }
   deriving stock (Generic)
 

@@ -60,6 +60,7 @@ library
                   , containers
                   , data-has
                   , deriving-aeson
+                  , Diff
                   , directory
                   , exceptions
                   , extra
@@ -301,6 +302,22 @@ library
     API.Dashboard.Shows.Slug.Get.Templates.Episode
     API.Dashboard.Shows.Slug.Get.Templates.Page
     API.Dashboard.Shows.Slug.Get.Templates.ShowHeader
+    API.Dashboard.SitePages.Get.Handler
+    API.Dashboard.SitePages.Get.Route
+    API.Dashboard.SitePages.Get.Templates.Page
+    API.Dashboard.SitePages.Slug.Edit.Get.Handler
+    API.Dashboard.SitePages.Slug.Edit.Get.Route
+    API.Dashboard.SitePages.Slug.Edit.Get.Templates.Form
+    API.Dashboard.SitePages.Slug.Edit.Post.Handler
+    API.Dashboard.SitePages.Slug.Edit.Post.Route
+    API.Dashboard.SitePages.Slug.History.Get.Handler
+    API.Dashboard.SitePages.Slug.History.Get.Route
+    API.Dashboard.SitePages.Slug.History.Get.Templates.Page
+    API.Dashboard.SitePages.Slug.Revisions.Id.Get.Handler
+    API.Dashboard.SitePages.Slug.Revisions.Id.Get.Route
+    API.Dashboard.SitePages.Slug.Revisions.Id.Get.Templates.Page
+    API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler
+    API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route
     API.Shows.Slug.Episode.Get.Handler
     API.Shows.Slug.Episode.Get.Route
     API.Shows.Slug.Episode.Get.Templates.Page
@@ -428,6 +445,8 @@ library
     Effects.Database.Tables.ShowHost
     Effects.Database.Tables.ShowSchedule
     Effects.Database.Tables.ShowTags
+    Effects.Database.Tables.SitePages
+    Effects.Database.Tables.SitePageRevisions
     Effects.Database.Tables.StagedUploads
     Effects.Database.Tables.StationIds
     Effects.Database.Tables.EphemeralUploads
@@ -435,6 +454,7 @@ library
     Effects.AWS
     Effects.BackgroundJobs
     Effects.ContentSanitization
+    Effects.Diff
     Effects.CSRF
     Effects.EmailVerification
     Effects.FileUpload
@@ -510,6 +530,7 @@ test-suite kpbj-api-test
        Domain.Types.SlugSpec
        Domain.Types.StorageBackendSpec
        Effects.ContentSanitizationSpec
+       Effects.DiffSpec
        Effects.MarkdownSpec
        Effects.Database.Tables.BlogPostsSpec
        Effects.Database.Tables.EpisodesSpec
@@ -517,6 +538,8 @@ test-suite kpbj-api-test
        Effects.Database.Tables.ShowHostSpec
        Effects.Database.Tables.ShowScheduleSpec
        Effects.Database.Tables.ShowsSpec
+       Effects.Database.Tables.SitePageRevisionsSpec
+       Effects.Database.Tables.SitePagesSpec
        Effects.Database.Tables.StagedUploadsSpec
        Effects.Database.Tables.UserMetadataSpec
        Effects.Database.Tables.UserRoleSpec
@@ -535,6 +558,8 @@ test-suite kpbj-api-test
        Test.Gen.Tables.Events
        Test.Gen.Tables.Shows
        Test.Gen.Tables.ShowSchedule
+       Test.Gen.Tables.SitePageRevisions
+       Test.Gen.Tables.SitePages
        Test.Gen.Tables.StagedUploads
        Test.Gen.Tables.UserMetadata
        Test.Gen.Text

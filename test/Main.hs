@@ -13,9 +13,12 @@ import Effects.Database.Tables.EventsSpec qualified as Events
 import Effects.Database.Tables.ShowHostSpec qualified as ShowHost
 import Effects.Database.Tables.ShowScheduleSpec qualified as ShowSchedule
 import Effects.Database.Tables.ShowsSpec qualified as Shows
+import Effects.Database.Tables.SitePageRevisionsSpec qualified as SitePageRevisions
+import Effects.Database.Tables.SitePagesSpec qualified as SitePages
 import Effects.Database.Tables.StagedUploadsSpec qualified as StagedUploads
 import Effects.Database.Tables.UserMetadataSpec qualified as UserMetadata
 import Effects.Database.Tables.UserRoleSpec qualified as UserRole
+import Effects.DiffSpec qualified as Diff
 import Effects.MarkdownSpec qualified as Markdown
 import Effects.MimeTypeValidationSpec qualified as MimeTypeValidation
 import Effects.StagedUploadsSpec qualified as StagedUploadsEffects
@@ -43,6 +46,7 @@ main = do
   -- Pure tests that don't need database
   hspecWith cfg $ parallel $ do
     ContentSanitization.spec
+    Diff.spec
     Markdown.spec
     Slug.spec
     StorageBackend.spec
@@ -62,3 +66,5 @@ main = do
     ShowHost.spec
     ShowSchedule.spec
     StagedUploads.spec
+    SitePages.spec
+    SitePageRevisions.spec
