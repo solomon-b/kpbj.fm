@@ -97,8 +97,11 @@ template backend user metadata =
       radioField "theme" do
         label "Theme"
         hint "Choose your color palette"
-        themeOption metadata "Default" "Default" "KPBJ brutalist style with high contrast" UserMetadata.Default
-        themeOption metadata "Solarized" "Solarized" "Precision colors designed for readability" UserMetadata.Solarized
+        themeOption metadata "Default" "Default" "KPBJ brutalist style with high contrast" UserMetadata.DefaultTheme
+        themeOption metadata "Solarized" "Solarized" "Precision colors designed for readability" UserMetadata.SolarizedTheme
+        themeOption metadata "Gruvbox" "Gruvbox" "Retro groove with warm, earthy tones" UserMetadata.GruvboxTheme
+        themeOption metadata "Dracula" "Dracula" "Dark theme with vibrant purple accents" UserMetadata.DraculaTheme
+        themeOption metadata "Nord" "Nord" "Arctic-inspired calm blue palette" UserMetadata.NordTheme
 
       -- Buttons
       cancelButton [i|/#{dashboardEpisodesRedirectUrl}|] "CANCEL"

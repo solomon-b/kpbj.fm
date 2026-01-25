@@ -4,8 +4,15 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **New Themes** - Added Gruvbox, Dracula, and Nord color themes with light and dark variants
+
+### Chores
+- **Theme Storage** - Changed theme preference storage from PostgreSQL enum to text for easier extensibility
+
 ### Fixes
 - **Events Page Ordering** - Public events page now displays latest events at the top (ordered by start date descending)
+- **Markdown Theme Colors** - Markdown content now properly uses theme colors instead of hardcoded values
 
 ---
 

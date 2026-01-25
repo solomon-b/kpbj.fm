@@ -144,6 +144,6 @@ defaultAuthor =
       UserMetadata.mAvatarUrl = Nothing,
       UserMetadata.mUserRole = UserMetadata.User,
       UserMetadata.mColorScheme = UserMetadata.Automatic,
-      UserMetadata.mTheme = UserMetadata.Default,
+      UserMetadata.mTheme = UserMetadata.DefaultTheme,
       UserMetadata.mSuspensionStatus = UserMetadata.NotSuspended
     }

@@ -205,7 +205,7 @@ withAuth = beforeWith getAuth
           uid <- TRX.statement () $ User.insertUser $ User.ModelInsert (mkEmailAddress "user@host.com") pass
           u <- TRX.statement () $ User.getUser $ getOneRow uid
           -- Create user_metadata for the test user
-          _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert (getOneRow uid) (mkDisplayNameUnsafe "Test User") (mkFullNameUnsafe "Test User") Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.Default
+          _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert (getOneRow uid) (mkDisplayNameUnsafe "Test User") (mkFullNameUnsafe "Test User") Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
           sm <- TRX.statement () $ ServerSessions.insertServerSession $ ServerSessions.ServerSessionInsert (getOneRow uid) Nothing Nothing (read "2099-01-01 10:30:20 UTC")
           pure $ Authz (fromMaybe (error "withAuth failure: Failed to look up user") u) (getOneRow sm)
         case auth of

@@ -169,10 +169,7 @@ extractFormFields formInputs = do
     "DarkMode" -> Right UserMetadata.DarkMode
     _ -> Left "Invalid color scheme"
 
-  -- Parse theme
-  theme <- case themeText of
-    "Default" -> Right UserMetadata.Default
-    "Solarized" -> Right UserMetadata.Solarized
-    _ -> Left "Invalid theme"
+  -- Parse theme (stored as text, so any value is valid)
+  let theme = UserMetadata.ThemeName themeText
 
   pure (displayName, fullName, colorScheme, theme)

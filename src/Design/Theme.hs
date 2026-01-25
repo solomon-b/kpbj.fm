@@ -43,6 +43,9 @@ module Design.Theme
     -- * Built-in Themes
     defaultTheme,
     solarizedTheme,
+    gruvboxTheme,
+    draculaTheme,
+    nordTheme,
 
     -- * CSS Generation
     themeCSS,
@@ -198,6 +201,158 @@ solarizedTheme =
             pFgInverse = "#002b36", -- base03
             pHover = "#073642", -- base02
             pAccentHover = "#2aa198" -- cyan
+          }
+    }
+
+-- | Gruvbox theme by Pavel Pertsev.
+--
+-- A retro groove color scheme with warm, earthy tones. Designed for
+-- extended coding sessions with reduced eye strain while maintaining
+-- good contrast and readability.
+--
+-- See: https://github.com/morhetz/gruvbox
+gruvboxTheme :: Theme
+gruvboxTheme =
+  Theme
+    { themeName = "gruvbox",
+      themeLight =
+        Palette
+          { pBg = "#fbf1c7", -- light0
+            pBgAlt = "#ebdbb2", -- light1
+            pFg = "#3c3836", -- dark1
+            pFgMuted = "#7c6f64", -- dark4
+            pBorder = "#3c3836", -- dark1
+            pBorderMuted = "#bdae93", -- light3
+            pAccent = "#076678", -- blue (dark)
+            pAccentFg = "#fbf1c7", -- light0
+            pSuccess = "#79740e", -- green (dark)
+            pError = "#9d0006", -- red (dark)
+            pWarning = "#b57614", -- yellow (dark)
+            pInfo = "#076678", -- blue (dark)
+            pBgInverse = "#282828", -- dark0
+            pFgInverse = "#fbf1c7", -- light0
+            pHover = "#ebdbb2", -- light1
+            pAccentHover = "#458588" -- blue (neutral)
+          },
+      themeDark =
+        Palette
+          { pBg = "#282828", -- dark0
+            pBgAlt = "#3c3836", -- dark1
+            pFg = "#ebdbb2", -- light1
+            pFgMuted = "#a89984", -- light4
+            pBorder = "#504945", -- dark2
+            pBorderMuted = "#504945", -- dark2
+            pAccent = "#83a598", -- blue
+            pAccentFg = "#282828", -- dark0
+            pSuccess = "#b8bb26", -- green
+            pError = "#fb4934", -- red
+            pWarning = "#fabd2f", -- yellow
+            pInfo = "#83a598", -- blue
+            pBgInverse = "#fbf1c7", -- light0
+            pFgInverse = "#282828", -- dark0
+            pHover = "#3c3836", -- dark1
+            pAccentHover = "#8ec07c" -- aqua
+          }
+    }
+
+-- | Dracula theme by Zeno Rocha.
+--
+-- A dark theme with vibrant colors inspired by Dracula. Features high
+-- contrast with purple and pink accent colors on a dark background.
+--
+-- See: https://draculatheme.com/
+draculaTheme :: Theme
+draculaTheme =
+  Theme
+    { themeName = "dracula",
+      themeLight =
+        Palette
+          { pBg = "#f8f8f2", -- foreground as bg for light mode
+            pBgAlt = "#e6e6e6", -- slightly darker
+            pFg = "#282a36", -- background as fg for light mode
+            pFgMuted = "#6272a4", -- comment
+            pBorder = "#282a36", -- background
+            pBorderMuted = "#d6d6d6", -- muted border
+            pAccent = "#bd93f9", -- purple
+            pAccentFg = "#f8f8f2", -- foreground
+            pSuccess = "#50fa7b", -- green
+            pError = "#ff5555", -- red
+            pWarning = "#f1fa8c", -- yellow
+            pInfo = "#8be9fd", -- cyan
+            pBgInverse = "#282a36", -- background
+            pFgInverse = "#f8f8f2", -- foreground
+            pHover = "#e6e6e6", -- slightly darker
+            pAccentHover = "#ff79c6" -- pink
+          },
+      themeDark =
+        Palette
+          { pBg = "#282a36", -- background
+            pBgAlt = "#44475a", -- current line
+            pFg = "#f8f8f2", -- foreground
+            pFgMuted = "#6272a4", -- comment
+            pBorder = "#44475a", -- current line
+            pBorderMuted = "#44475a", -- current line
+            pAccent = "#bd93f9", -- purple
+            pAccentFg = "#282a36", -- background
+            pSuccess = "#50fa7b", -- green
+            pError = "#ff5555", -- red
+            pWarning = "#f1fa8c", -- yellow
+            pInfo = "#8be9fd", -- cyan
+            pBgInverse = "#f8f8f2", -- foreground
+            pFgInverse = "#282a36", -- background
+            pHover = "#44475a", -- current line
+            pAccentHover = "#ff79c6" -- pink
+          }
+    }
+
+-- | Nord theme by Arctic Ice Studio.
+--
+-- An arctic, north-bluish color palette inspired by the beauty of the
+-- arctic. Designed for clean, uncluttered design patterns with a calm
+-- and harmonious color scheme.
+--
+-- See: https://www.nordtheme.com/
+nordTheme :: Theme
+nordTheme =
+  Theme
+    { themeName = "nord",
+      themeLight =
+        Palette
+          { pBg = "#eceff4", -- snow storm 2
+            pBgAlt = "#e5e9f0", -- snow storm 1
+            pFg = "#2e3440", -- polar night 0
+            pFgMuted = "#4c566a", -- polar night 3
+            pBorder = "#2e3440", -- polar night 0
+            pBorderMuted = "#d8dee9", -- snow storm 0
+            pAccent = "#5e81ac", -- frost 3
+            pAccentFg = "#eceff4", -- snow storm 2
+            pSuccess = "#a3be8c", -- aurora green
+            pError = "#bf616a", -- aurora red
+            pWarning = "#ebcb8b", -- aurora yellow
+            pInfo = "#81a1c1", -- frost 2
+            pBgInverse = "#2e3440", -- polar night 0
+            pFgInverse = "#eceff4", -- snow storm 2
+            pHover = "#e5e9f0", -- snow storm 1
+            pAccentHover = "#81a1c1" -- frost 2
+          },
+      themeDark =
+        Palette
+          { pBg = "#2e3440", -- polar night 0
+            pBgAlt = "#3b4252", -- polar night 1
+            pFg = "#eceff4", -- snow storm 2
+            pFgMuted = "#d8dee9", -- snow storm 0
+            pBorder = "#4c566a", -- polar night 3
+            pBorderMuted = "#4c566a", -- polar night 3
+            pAccent = "#88c0d0", -- frost 1
+            pAccentFg = "#2e3440", -- polar night 0
+            pSuccess = "#a3be8c", -- aurora green
+            pError = "#bf616a", -- aurora red
+            pWarning = "#ebcb8b", -- aurora yellow
+            pInfo = "#81a1c1", -- frost 2
+            pBgInverse = "#eceff4", -- snow storm 2
+            pFgInverse = "#2e3440", -- polar night 0
+            pHover = "#3b4252", -- polar night 1
+            pAccentHover = "#8fbcbb" -- frost 0
           }
     }
 
