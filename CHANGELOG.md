@@ -4,9 +4,18 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Dynamic Pages** - Added support for dynamic CMS-style pages
+- **Theme System** - New theme system for customizable site styling
+
+### Fixes
+- **Verification Sent Template** - Fixed verification sent email template
+
 ### Chores
 - **Event Poster Ratio** - Changed event poster image aspect ratio from 9:16 to 3:4
 - **Embedded Static Assets** - Static files (range.png) are now embedded at compile time using `file-embed`, removing the need for filesystem-based static file serving
+- **Remove Banner Images** - Removed banner images from the codebase
+- **Remove APP_ENVIRONMENT** - Removed APP_ENVIRONMENT configuration variable
 
 ---
 
