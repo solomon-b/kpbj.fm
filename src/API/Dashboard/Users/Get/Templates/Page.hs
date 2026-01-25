@@ -37,6 +37,8 @@ import Servant.Links qualified as Links
 
 -- | Users list template (filters are now in the top bar)
 template ::
+  -- | Viewer's role (for permission checks)
+  UserMetadata.UserRole ->
   UTCTime ->
   [UserMetadata.UserWithMetadata] ->
   Int64 ->
@@ -45,7 +47,7 @@ template ::
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
   Lucid.Html ()
-template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
+template viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   -- User table or empty state
   Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null users
@@ -71,7 +73,7 @@ template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
                       pcCurrentPage = currentPage
                     }
             }
-          (mapM_ (renderUserRow now) users)
+          (mapM_ (renderUserRow viewerRole now) users)
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
     nextPageUrl :: Links.URI
@@ -91,8 +93,13 @@ template now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
           (Just . Filter $ maybeRoleFilter)
           maybeSortFilter
 
-renderUserRow :: UTCTime -> UserMetadata.UserWithMetadata -> Lucid.Html ()
-renderUserRow now user =
+renderUserRow ::
+  -- | Viewer's role (for permission checks)
+  UserMetadata.UserRole ->
+  UTCTime ->
+  UserMetadata.UserWithMetadata ->
+  Lucid.Html ()
+renderUserRow viewerRole now user =
   let userId = user.uwmUserId
       displayName = user.uwmDisplayName
       email = user.uwmEmail
@@ -179,6 +186,7 @@ renderUserRow now user =
                        rowTarget
                        ActionsDropdown.SwapOuterHTML
                        deleteConfirmMessage
+                     | viewerRole == UserMetadata.Admin
                    ]
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()

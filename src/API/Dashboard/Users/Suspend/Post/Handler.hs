@@ -85,7 +85,8 @@ renderSuspendResult now = \case
     Log.logInfo "User suspended successfully" (Aeson.object ["userId" .= display updatedUser.uwmUserId, "email" .= display updatedUser.uwmEmail])
     pure $ do
       -- Return the updated row (will replace the old row)
-      renderUserRow now updatedUser
+      -- Viewer is Admin since this is an admin-only action
+      renderUserRow UserMetadata.Admin now updatedUser
       -- Also send an OOB success banner
       renderBanner Warning "User Suspended" (display updatedUser.uwmEmail <> " has been suspended. They will see a warning banner and cannot perform host actions.")
   TargetUserNotFound uid -> do
