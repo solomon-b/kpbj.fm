@@ -244,7 +244,7 @@ getPublishedEvents (Limit lim) (Offset off) =
     select $
       Rel8.limit (fromIntegral lim) $
         Rel8.offset (fromIntegral off) $
-          orderBy (emStartsAt >$< asc) do
+          orderBy (emStartsAt >$< desc) do
             event <- each eventSchema
             where_ $ emStatus event ==. lit Published
             pure event
