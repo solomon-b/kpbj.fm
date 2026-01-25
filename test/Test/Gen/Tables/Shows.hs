@@ -17,7 +17,7 @@ showInsertGen :: (MonadGen m) => m Shows.Insert
 showInsertGen = do
   siTitle <- genText
   siSlug <- genSlug
-  siDescription <- genText
+  siDescription <- Gen.maybe genText
   siLogoUrl <- Gen.maybe genUrl
   siStatus <- genShowStatus
   pure Shows.Insert {..}
