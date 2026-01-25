@@ -35,14 +35,14 @@ handler ::
 handler _tracer targetUserId cookie =
   handleBannerErrors "User unsuspend" $ do
     -- Require admin authentication
-    (_user, userMetadata) <- requireAuth cookie
+    (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "Only admins can unsuspend users." userMetadata
 
     -- Execute unsuspension
     Log.logInfo "Unsuspending user" (Aeson.object ["targetUserId" .= display targetUserId])
     now <- liftIO getCurrentTime
     result <- executeUnsuspension targetUserId
-    renderUnsuspendResult now result
+    renderUnsuspendResult (User.mId user) now result
 
 --------------------------------------------------------------------------------
 
@@ -73,14 +73,14 @@ executeUnsuspension targetUserId = do
       UnsuspendSuccess updatedUser
 
 -- | Render the appropriate HTML response based on unsuspension result
-renderUnsuspendResult :: (Log.MonadLog m) => UTCTime -> UnsuspendResult -> m (Lucid.Html ())
-renderUnsuspendResult now = \case
+renderUnsuspendResult :: (Log.MonadLog m) => User.Id -> UTCTime -> UnsuspendResult -> m (Lucid.Html ())
+renderUnsuspendResult viewerId now = \case
   UnsuspendSuccess updatedUser -> do
     Log.logInfo "User unsuspended successfully" (Aeson.object ["userId" .= display updatedUser.uwmUserId, "email" .= display updatedUser.uwmEmail])
     pure $ do
       -- Return the updated row (will replace the old row)
       -- Viewer is Admin since this is an admin-only action
-      renderUserRow UserMetadata.Admin now updatedUser
+      renderUserRow viewerId UserMetadata.Admin now updatedUser
       -- Also send an OOB success banner
       renderBanner Success "User Unsuspended" (display updatedUser.uwmDisplayName <> "'s suspension has been lifted. They can now use the site normally.")
   TargetUserNotFound uid -> do
