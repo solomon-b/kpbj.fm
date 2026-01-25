@@ -119,7 +119,6 @@ data ShowHost f = ShowHost
   { shmShowId :: Column f Shows.Id,
     shmUserId :: Column f User.Id,
     shmRole :: Column f HostRole,
-    shmIsPrimary :: Column f Bool,
     shmJoinedAt :: Column f UTCTime,
     shmLeftAt :: Column f (Maybe UTCTime)
   }
@@ -159,7 +158,6 @@ showHostSchema =
           { shmShowId = "show_id",
             shmUserId = "user_id",
             shmRole = "role",
-            shmIsPrimary = "is_primary",
             shmJoinedAt = "joined_at",
             shmLeftAt = "left_at"
           }
@@ -172,8 +170,7 @@ showHostSchema =
 data Insert = Insert
   { shiId :: Shows.Id,
     shiUserId :: User.Id,
-    shiRole :: HostRole,
-    shiIsPrimary :: Bool
+    shiRole :: HostRole
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Insert)
@@ -186,7 +183,6 @@ data ShowHostWithUser = ShowHostWithUser
   { showId :: Shows.Id,
     userId :: User.Id,
     role :: HostRole,
-    isPrimary :: Bool,
     joinedAt :: UTCTime,
     leftAt :: Maybe UTCTime,
     userEmail :: Text,
@@ -214,7 +210,7 @@ getShowHosts :: Shows.Id -> Hasql.Statement () [Model]
 getShowHosts showId =
   run $
     select $
-      orderBy ((shmIsPrimary >$< desc) <> (shmJoinedAt >$< asc)) do
+      orderBy (shmJoinedAt >$< asc) do
         sh <- each showHostSchema
         where_ $ shmShowId sh ==. lit showId
         where_ $ isNull (shmLeftAt sh)
@@ -233,7 +229,6 @@ getShowHostsWithUsers showId =
       sh.show_id,
       sh.user_id,
       sh.role,
-      sh.is_primary,
       sh.joined_at,
       sh.left_at,
 
@@ -257,7 +252,7 @@ getShowHostsWithUsers showId =
     JOIN user_metadata um ON u.id = um.user_id
     LEFT JOIN host_details hd ON hd.user_id = sh.user_id
     WHERE sh.show_id = #{showId} AND sh.left_at IS NULL
-    ORDER BY sh.is_primary DESC, sh.joined_at ASC
+    ORDER BY sh.joined_at ASC
   |]
 
 -- | Add host to show.
@@ -268,10 +263,10 @@ insertShowHost Insert {..} =
   interp
     False
     [sql|
-    INSERT INTO show_hosts(show_id, user_id, role, is_primary, joined_at)
-    VALUES (#{shiId}, #{shiUserId}, #{shiRole}, #{shiIsPrimary}, NOW())
+    INSERT INTO show_hosts(show_id, user_id, role, joined_at)
+    VALUES (#{shiId}, #{shiUserId}, #{shiRole}, NOW())
     ON CONFLICT (show_id, user_id)
-    DO UPDATE SET role = #{shiRole}, is_primary = #{shiIsPrimary}, left_at = NULL
+    DO UPDATE SET role = #{shiRole}, left_at = NULL
   |]
 
 -- | Remove host from show (set left_at timestamp).
@@ -323,6 +318,5 @@ addHostToShow showId userId =
     Insert
       { shiId = showId,
         shiUserId = userId,
-        shiRole = Host,
-        shiIsPrimary = False
+        shiRole = Host
       }
