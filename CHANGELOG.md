@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixes
+- **Events Page Ordering** - Public events page now displays latest events at the top (ordered by start date descending)
 
 ---
 
