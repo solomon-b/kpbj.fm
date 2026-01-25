@@ -81,10 +81,11 @@ renderShowHeader backend showModel hosts schedules tags = do
                           Saturday -> "Saturday"
                     Lucid.toHtml $ dayName <> "s " <> formatTimeOfDay st <> " - " <> formatTimeOfDay et
 
-        -- Show Description
-        Lucid.div_ [Lucid.class_ Tokens.mb6] $ do
-          Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, "mb-3", "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "About The Show"
-          Lucid.p_ [class_ $ base [Tokens.mb4, "leading-relaxed"]] $ Lucid.toHtml showModel.description
+        -- Show Description (only if present)
+        forM_ showModel.description $ \description ->
+          Lucid.div_ [Lucid.class_ Tokens.mb6] $ do
+            Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, "mb-3", "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "About The Show"
+            Lucid.p_ [class_ $ base [Tokens.mb4, "leading-relaxed"]] $ Lucid.toHtml description
 
         -- Tags
         unless (null tags) $ do

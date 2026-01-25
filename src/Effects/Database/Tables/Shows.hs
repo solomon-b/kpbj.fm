@@ -163,7 +163,7 @@ data Show f = Show
   { id :: Column f Id,
     title :: Column f Text,
     slug :: Column f Slug,
-    description :: Column f Text,
+    description :: Column f (Maybe Text),
     logoUrl :: Column f (Maybe Text),
     status :: Column f Status,
     createdAt :: Column f UTCTime,
@@ -222,7 +222,7 @@ showSchema =
 data Insert = Insert
   { siTitle :: Text,
     siSlug :: Slug,
-    siDescription :: Text,
+    siDescription :: Maybe Text,
     siLogoUrl :: Maybe Text,
     siStatus :: Status
   }
@@ -411,7 +411,7 @@ data ShowWithHostInfo = ShowWithHostInfo
   { swhiId :: Id,
     swhiTitle :: Text,
     swhiSlug :: Slug,
-    swhiDescription :: Text,
+    swhiDescription :: Maybe Text,
     swhiLogoUrl :: Maybe Text,
     swhiStatus :: Status,
     swhiCreatedAt :: UTCTime,

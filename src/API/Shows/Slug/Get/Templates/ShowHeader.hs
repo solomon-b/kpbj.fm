@@ -10,7 +10,7 @@ where
 import API.Links (showsLinks)
 import API.Types
 import Component.Tags qualified as Tags
-import Control.Monad (unless)
+import Control.Monad (forM_, unless)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..))
@@ -79,9 +79,10 @@ renderShowHeader backend showModel hosts schedules tags = do
                             Saturday -> "Saturday"
                       Lucid.toHtml $ dayName <> "s " <> formatTimeOfDay st <> " - " <> formatTimeOfDay et
 
-        -- Show Description
-        Lucid.div_ [class_ $ do { base [Tokens.mb6, "pb-4", "border-b", "border-gray-800"]; desktop ["border-b-0", "pb-0"] }] $ do
-          Lucid.p_ [class_ $ base ["leading-relaxed"]] $ Lucid.toHtml showModel.description
+        -- Show Description (only if present)
+        forM_ showModel.description $ \description ->
+          Lucid.div_ [class_ $ do { base [Tokens.mb6, "pb-4", "border-b", "border-gray-800"]; desktop ["border-b-0", "pb-0"] }] $ do
+            Lucid.p_ [class_ $ base ["leading-relaxed"]] $ Lucid.toHtml description
 
         -- Tags
         unless (null tags) $

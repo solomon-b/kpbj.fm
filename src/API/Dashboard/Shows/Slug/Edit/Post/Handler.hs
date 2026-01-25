@@ -152,11 +152,17 @@ updateShow userMetadata showModel editForm = do
                 (Just path, _) -> Just path -- New file uploaded
                 (Nothing, True) -> Nothing -- User explicitly cleared
                 (Nothing, False) -> showModel.logoUrl -- Keep existing
+
+              -- Treat empty description as Nothing
+              mDescription =
+                let desc = sefDescription editForm
+                 in if Text.null (Text.strip desc) then Nothing else Just desc
+
               updateData =
                 Shows.Insert
                   { siTitle = sefTitle editForm,
                     siSlug = generatedSlug,
-                    siDescription = sefDescription editForm,
+                    siDescription = mDescription,
                     siLogoUrl = finalLogoUrl,
                     siStatus = finalStatus
                   }

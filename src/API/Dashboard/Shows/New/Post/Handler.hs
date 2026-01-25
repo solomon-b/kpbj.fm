@@ -88,6 +88,12 @@ validateNewShow form = do
       sanitizedTitle = Sanitize.sanitizeTitle (nsfTitle form)
       sanitizedDescription = Sanitize.sanitizeUserContent (nsfDescription form)
 
+      -- Treat empty description as Nothing
+      mDescription =
+        if Text.null (Text.strip sanitizedDescription)
+          then Nothing
+          else Just sanitizedDescription
+
       status = case nsfStatus form of
         "active" -> Shows.Active
         "inactive" -> Shows.Inactive
@@ -97,17 +103,14 @@ validateNewShow form = do
   if Text.null (Text.strip sanitizedTitle)
     then Left "Title is required"
     else
-      if Text.null (Text.strip sanitizedDescription)
-        then Left "Description is required"
-        else
-          Right $
-            Shows.Insert
-              { Shows.siTitle = sanitizedTitle,
-                Shows.siSlug = slug,
-                Shows.siDescription = sanitizedDescription,
-                Shows.siLogoUrl = Nothing, -- Will be set after file upload
-                Shows.siStatus = status
-              }
+      Right $
+        Shows.Insert
+          { Shows.siTitle = sanitizedTitle,
+            Shows.siSlug = slug,
+            Shows.siDescription = mDescription,
+            Shows.siLogoUrl = Nothing, -- Will be set after file upload
+            Shows.siStatus = status
+          }
 
 -- | Process logo file upload
 processShowArtworkUploads ::
