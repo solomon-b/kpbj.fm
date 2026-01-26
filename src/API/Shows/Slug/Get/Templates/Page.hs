@@ -30,7 +30,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras
+import Lucid.HTMX
 import Rel8 (Result)
 import Servant.Links qualified as Links
 

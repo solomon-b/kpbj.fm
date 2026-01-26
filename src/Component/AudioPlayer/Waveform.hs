@@ -21,7 +21,7 @@ import Data.Text (Text)
 import Design (base, class_, class_')
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras (xBindStyle_, xData_, xOnClick_, xRef_, xText_)
+import Lucid.Alpine
 
 --------------------------------------------------------------------------------
 

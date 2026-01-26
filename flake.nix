@@ -50,6 +50,10 @@
 
               kpbj-api = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-api" ./. { });
 
+              lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./lib/lucid-form-builder { });
+
+              lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./lib/lucid-htmx-alpine { });
+
               text-builder = pkgs.haskell.lib.dontCheck hfinal.text-builder_1_0_0_3;
 
               # rel8 1.7.0.0 for hasql 1.9 compatibility

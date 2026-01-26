@@ -1,4 +1,6 @@
 packages: .
+         lib/lucid-htmx-alpine
+         lib/lucid-form-builder
 
 source-repository-package
   type: git

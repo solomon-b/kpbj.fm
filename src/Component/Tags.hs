@@ -11,7 +11,7 @@ where
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

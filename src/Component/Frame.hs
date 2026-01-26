@@ -12,6 +12,7 @@ import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_, tablet)
+import Design.FormStyles (formBuilderCSS)
 import Design.Theme (defaultTheme, themeCSS)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
@@ -20,7 +21,8 @@ import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xInit_, xModel_, xOnClickOutside_, xOnClick_, xOnInput_, xRef_, xShow_, xText_, xTransition_)
+import Lucid.Alpine
+import Lucid.HTMX
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------
@@ -765,6 +767,7 @@ template mGoogleAnalyticsId mUser main =
       Lucid.script_ [] bannerFromUrlScript
       Lucid.style_ [] marqueeStyles
       Lucid.style_ [] htmxIndicatorStyles
+      Lucid.style_ [] formBuilderCSS
     Lucid.body_
       [ class_ $ do
           base ["font-mono", Tokens.textGray800, Tokens.bgWhite, "min-h-screen", "flex", "flex-col", "pb-20"]

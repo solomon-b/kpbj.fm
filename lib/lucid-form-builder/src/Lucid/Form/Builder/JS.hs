@@ -3,9 +3,6 @@
 -- This module provides a deep embedding of JavaScript expressions,
 -- allowing type-safe composition of validation logic without string interpolation.
 --
--- Inspired by the experimental 'Component.Form.JSArrow' module but using
--- a simpler ADT representation instead of Arrow abstraction.
---
 -- Example:
 --
 -- > -- Check that email contains @ and is non-empty
@@ -18,7 +15,7 @@
 -- > -- Render to JavaScript
 -- > renderExpr emailValidation
 -- > -- "(value.trim().length > 0) && (value.includes('@'))"
-module Component.Form.Builder.JS
+module Lucid.Form.Builder.JS
   ( -- * Core Types
     JSExpr (..),
     JSValue (..),

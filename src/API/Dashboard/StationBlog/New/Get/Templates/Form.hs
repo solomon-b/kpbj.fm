@@ -9,12 +9,12 @@ where
 
 import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
-import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Lucid.Form.Builder
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

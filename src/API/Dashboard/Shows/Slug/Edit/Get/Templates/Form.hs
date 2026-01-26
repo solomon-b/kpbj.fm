@@ -11,7 +11,6 @@ where
 
 import API.Links (apiLinks)
 import API.Types
-import Component.Form.Builder
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.Set (Set)
@@ -31,7 +30,9 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xRef_, xShow_)
+import Lucid.Alpine
+import Lucid.Form.Builder
+import Lucid.HTMX
 import Rel8 (Result)
 import Servant.Links qualified as Links
 

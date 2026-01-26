@@ -18,7 +18,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 template ::

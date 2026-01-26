@@ -28,7 +28,7 @@ import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
 import Effects.Database.Tables.SitePages qualified as SitePages
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

@@ -26,7 +26,7 @@
 -- >       label "Biography"
 -- >       maxLength 500
 -- >       hint "Tell us about yourself"
-module Component.Form.Builder.Core
+module Lucid.Form.Builder.Core
   ( -- * Builder Type
     FormBuilder,
     runFormBuilder,
@@ -69,11 +69,11 @@ where
 
 --------------------------------------------------------------------------------
 
-import Component.Form.Builder.Field (FieldBuilder, FieldBuilderState (..), runFieldBuilder)
-import Component.Form.Builder.Types
 import Control.Monad.Writer.Strict (Writer, execWriter, tell)
 import Data.Text (Text)
 import Lucid qualified
+import Lucid.Form.Builder.Field (FieldBuilder, FieldBuilderState (..), runFieldBuilder)
+import Lucid.Form.Builder.Types
 
 --------------------------------------------------------------------------------
 -- Types

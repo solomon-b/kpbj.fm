@@ -12,14 +12,14 @@ where
 
 import API.Links (userLinks)
 import API.Types
-import Component.Form.Builder
 import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras
+import Lucid.Form.Builder
+import Lucid.HTMX
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------

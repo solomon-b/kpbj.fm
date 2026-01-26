@@ -9,7 +9,6 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types
-import Component.Form.Builder
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -19,6 +18,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Lucid.Form.Builder
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

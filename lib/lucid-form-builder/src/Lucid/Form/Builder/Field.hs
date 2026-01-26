@@ -12,7 +12,7 @@
 -- >   required
 -- >   pattern' "[^@]+@[^@]+"
 -- >   hint "We'll never share your email"
-module Component.Form.Builder.Field
+module Lucid.Form.Builder.Field
   ( -- * Builder Type
     FieldBuilder,
     FieldBuilderState (..),
@@ -61,10 +61,11 @@ where
 
 --------------------------------------------------------------------------------
 
-import Component.Form.Builder.Types
+import Control.Applicative ((<|>))
 import Control.Monad.Writer.Strict (Writer, execWriter, tell)
 import Data.Text (Text)
 import Lucid qualified
+import Lucid.Form.Builder.Types
 
 --------------------------------------------------------------------------------
 -- Types
@@ -117,10 +118,6 @@ mergeConfigs c1 c2 =
       fcChecked = fcChecked c1 || fcChecked c2,
       fcDescriptionHtml = fcDescriptionHtml c2 <|> fcDescriptionHtml c1
     }
-  where
-    (<|>) :: Maybe a -> Maybe a -> Maybe a
-    Nothing <|> y = y
-    x <|> _ = x
 
 -- | Merge two validation configs.
 mergeValidation :: ValidationConfig -> ValidationConfig -> ValidationConfig
@@ -132,10 +129,6 @@ mergeValidation v1 v2 =
       vcPattern = vcPattern v2 <|> vcPattern v1,
       vcCustomRules = vcCustomRules v1 <> vcCustomRules v2
     }
-  where
-    (<|>) :: Maybe a -> Maybe a -> Maybe a
-    Nothing <|> y = y
-    x <|> _ = x
 
 -- | Tell with just a config update.
 tellConfig :: (FieldConfig -> FieldConfig) -> FieldBuilder

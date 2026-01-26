@@ -34,7 +34,7 @@ import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import GHC.Generics (Generic)
 import Lucid qualified
-import Lucid.Extras
+import Lucid.Alpine
 
 --------------------------------------------------------------------------------
 

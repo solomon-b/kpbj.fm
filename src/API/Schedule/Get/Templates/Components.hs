@@ -18,8 +18,9 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
+import Lucid.Alpine
 import Lucid.Base (Attributes)
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xData_, xOnClick_, xShow_)
+import Lucid.HTMX
 import OrphanInstances.DayOfWeek (fromDayOfWeek)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links

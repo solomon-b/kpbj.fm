@@ -1,8 +1,8 @@
--- | Alpine.js state generation for Form V2.
+-- | Alpine.js state generation for form validation.
 --
 -- This module generates the Alpine.js x-data object for validated forms,
 -- including field state initialization, validators, and helper methods.
-module Component.Form.Builder.Alpine
+module Lucid.Form.Builder.Alpine
   ( -- * State Generation
     generateAlpineState,
 
@@ -15,11 +15,11 @@ where
 
 --------------------------------------------------------------------------------
 
-import Component.Form.Builder.JS hiding (field)
-import Component.Form.Builder.Types
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Lucid.Form.Builder.JS hiding (field)
+import Lucid.Form.Builder.Types
 
 --------------------------------------------------------------------------------
 -- State Generation

@@ -105,6 +105,8 @@ library
                   , wai-extra
                   , web-server-core
                   , witherable
+                  , lucid-htmx-alpine
+                  , lucid-form-builder
                   , xmlhtml
                   , xmlhtml-lens
                   , xss-sanitize
@@ -393,14 +395,6 @@ library
     Component.Card.Episode
     Component.Card.Event
     Component.Card.Show
-    Component.Form.Builder
-    Component.Form.Builder.Alpine
-    Component.Form.Builder.Core
-    Component.Form.Builder.Field
-    Component.Form.Builder.JS
-    Component.Form.Builder.Render
-    Component.Form.Builder.Styles
-    Component.Form.Builder.Types
     Component.DashboardFrame
     Component.Frame
     Component.Layout
@@ -414,6 +408,7 @@ library
     Design.StyleBuilder.Internal
     Design.Theme
     Design.Tokens
+    Design.FormStyles
     Domain.Types.PostStatus
     Domain.Types.Cookie
     Domain.Types.HxRedirect
@@ -470,7 +465,6 @@ library
     Effects.Storage.Local
     Effects.Storage.S3
     Helpers.RelativeTime
-    Lucid.Extras
     OrphanInstances.DayOfWeek
     OrphanInstances.Rel8
     OrphanInstances.TimeOfDay

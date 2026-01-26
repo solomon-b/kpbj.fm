@@ -9,7 +9,6 @@ where
 
 import API.Links (dashboardBlogsLinks)
 import API.Types
-import Component.Form.Builder
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -20,7 +19,8 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.Form.Builder
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

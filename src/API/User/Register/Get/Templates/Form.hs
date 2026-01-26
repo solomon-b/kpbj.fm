@@ -10,7 +10,6 @@ where
 
 import API.Links (apiLinks, userLinks)
 import API.Types
-import Component.Form.Builder
 import Component.PageHeader (pageHeader)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -22,7 +21,8 @@ import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
 import Lucid qualified
-import Lucid.Extras
+import Lucid.Form.Builder
+import Lucid.HTMX
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------

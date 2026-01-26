@@ -10,7 +10,6 @@ where
 
 import API.Links (showEpisodesLinks)
 import API.Types
-import Component.Form.Builder
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -26,6 +25,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Lucid.Form.Builder
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

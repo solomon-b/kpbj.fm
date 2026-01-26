@@ -8,6 +8,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **New Themes** - Added Gruvbox, Dracula, and Nord color themes with light and dark variants
 
 ### Chores
+- **Factor out Lucid Libraries** - Pulls out lucid-form-builder and lucid-htmx-alpine as standalone packages
 - **Theme Storage** - Changed theme preference storage from PostgreSQL enum to text for easier extensibility
 - **Prod to Staging Copy** - Added `just prod-to-staging`, `just prod-to-staging-db`, and `just prod-to-staging-s3` commands to copy production data to staging with PII sanitization for User/Host accounts
 

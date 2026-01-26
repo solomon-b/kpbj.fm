@@ -1,0 +1,44 @@
+cabal-version:      3.0
+name:               lucid-form-builder
+version:            0.1.0.0
+synopsis:           Monadic form builder for Lucid2 with Alpine.js validation
+description:
+    A declarative form builder using Writer monads for composing HTML forms.
+    Outputs semantic CSS classes for framework-agnostic styling.
+    Integrates with Alpine.js for client-side validation.
+license:            Apache-2.0
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+library
+  default-language: Haskell2010
+  default-extensions:
+      DataKinds
+      DerivingStrategies
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      ImportQualifiedPost
+      LambdaCase
+      OverloadedStrings
+      QuasiQuotes
+      RecordWildCards
+      StrictData
+  build-depends:
+      base >=4.14 && <5
+    , lucid2
+    , lucid-htmx-alpine
+    , mtl
+    , string-interpolate
+    , text
+  exposed-modules:
+      Lucid.Form.Builder
+    , Lucid.Form.Builder.Types
+    , Lucid.Form.Builder.Core
+    , Lucid.Form.Builder.Field
+    , Lucid.Form.Builder.Render
+    , Lucid.Form.Builder.Alpine
+    , Lucid.Form.Builder.JS
+  hs-source-dirs: src
+  ghc-options: -Wall

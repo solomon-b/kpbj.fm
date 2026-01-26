@@ -27,7 +27,7 @@ import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.HTMX
 import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------

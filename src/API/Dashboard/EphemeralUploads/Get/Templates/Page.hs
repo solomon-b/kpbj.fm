@@ -31,7 +31,7 @@ import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (xData_, xOnClick_, xRef_)
+import Lucid.Alpine
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

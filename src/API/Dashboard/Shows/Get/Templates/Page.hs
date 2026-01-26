@@ -32,7 +32,8 @@ import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxConfirm_, hxDelete_, hxGet_, hxPushUrl_, hxSwap_, hxTarget_, xData_, xOnChange_, xOnClick_, xRef_)
+import Lucid.Alpine
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

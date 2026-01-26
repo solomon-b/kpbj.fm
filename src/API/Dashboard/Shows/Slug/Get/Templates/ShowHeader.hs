@@ -24,7 +24,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxSwap_, hxTarget_)
+import Lucid.HTMX
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Rel8 (Result)
 import Servant.Links qualified as Links

@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
-import Lucid.Extras (hxPost_, hxSwap_, hxTarget_)
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
