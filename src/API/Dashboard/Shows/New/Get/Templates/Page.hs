@@ -10,7 +10,6 @@ where
 
 import API.Links (apiLinks)
 import API.Types
-import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -18,7 +17,9 @@ import Design (base, class_)
 import Design.Tokens qualified as T
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_, xBindClass_, xData_, xModel_, xRef_, xShow_)
+import Lucid.Alpine
+import Lucid.Form.Builder
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

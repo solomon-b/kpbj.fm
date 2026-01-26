@@ -7,7 +7,6 @@ module API.User.Login.Get.Templates.Form where
 
 import API.Links (userLinks)
 import API.Types
-import Component.Form.Builder
 import Component.PageHeader (pageHeader)
 import Data.Maybe (fromMaybe, isJust)
 import Data.String.Interpolate (i)
@@ -17,7 +16,8 @@ import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
-import Lucid.Extras
+import Lucid.Form.Builder
+import Lucid.HTMX
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------

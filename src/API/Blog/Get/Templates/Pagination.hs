@@ -13,7 +13,7 @@ import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 -- | Render pagination controls (used as noscript fallback for infinite scroll)

@@ -31,7 +31,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.HTMX
 import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 

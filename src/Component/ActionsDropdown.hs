@@ -30,7 +30,7 @@ import Data.Text qualified as Text
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras
+import Lucid.Alpine
 
 --------------------------------------------------------------------------------
 

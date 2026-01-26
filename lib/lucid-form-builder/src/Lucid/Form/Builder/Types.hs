@@ -1,8 +1,8 @@
--- | Core types for the Form V2 builder.
+-- | Core types for the form builder.
 --
 -- This module defines the data structures accumulated by the Writer monad
 -- when building forms declaratively.
-module Component.Form.Builder.Types
+module Lucid.Form.Builder.Types
   ( -- * Form State
     FormState (..),
     emptyFormState,
@@ -34,6 +34,7 @@ where
 
 --------------------------------------------------------------------------------
 
+import Control.Applicative ((<|>))
 import Data.Text (Text)
 import Lucid qualified
 
@@ -62,10 +63,6 @@ data FormState = FormState
 instance Semigroup FormState where
   FormState e1 h1 t1 st1 f1 fh1 <> FormState e2 h2 t2 st2 f2 fh2 =
     FormState (e1 <> e2) (h1 <> h2) (t2 <|> t1) (st2 <|> st1) (f1 <> f2) (fh2 <|> fh1)
-    where
-      (<|>) :: Maybe a -> Maybe a -> Maybe a
-      Nothing <|> y = y
-      x <|> _ = x
 
 instance Monoid FormState where
   mempty = emptyFormState

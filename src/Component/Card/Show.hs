@@ -17,7 +17,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

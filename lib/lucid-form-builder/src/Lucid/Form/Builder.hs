@@ -1,11 +1,12 @@
--- | Form Builder: Writer Monad-Based Form Builder
+-- | Form Builder: Writer Monad-Based Form Builder with Semantic CSS Classes
 --
--- This module provides a declarative API for building forms using @do@ notation,
--- inspired by the 'Design.StyleBuilder' pattern.
+-- This module provides a declarative API for building forms using @do@ notation.
+-- The renderer outputs semantic CSS classes (fb-*) that can be styled by the
+-- consuming application.
 --
 -- = Example Usage
 --
--- > import Component.Form.Builder
+-- > import Lucid.Form.Builder
 -- >
 -- > myForm :: Lucid.Html ()
 -- > myForm = renderForm config formBuilder
@@ -40,14 +41,16 @@
 -- >           label "Profile Picture"
 -- >           maxSize 5
 --
--- = Key Features
+-- = Semantic CSS Classes
 --
--- * __Monadic API__: Build forms with @do@ notation
--- * __Type-safe validation__: Composable validation rules
--- * __Alpine.js integration__: Automatic client-side validation
--- * __HTMX support__: Progressive enhancement
--- * __Full field types__: Text, textarea, select, radio, file, datetime, number, checkbox
-module Component.Form.Builder
+-- The form builder outputs semantic classes with the @fb-@ prefix:
+--
+-- * Form structure: @fb-form@, @fb-title@, @fb-section@, @fb-footer@
+-- * Fields: @fb-field@, @fb-label@, @fb-input@, @fb-textarea@, @fb-select@
+-- * States: @fb-field--disabled@, @fb-input--error@, @fb-toggle--checked@
+--
+-- Style these classes in your app's CSS (e.g., with Tailwind's @@apply).
+module Lucid.Form.Builder
   ( -- * Form Building
     FormBuilder,
     renderForm,
@@ -134,10 +137,6 @@ module Component.Form.Builder
     SelectOption (..),
     FormFooterItem (..),
 
-    -- * Styles
-    FormStyles (..),
-    defaultFormStyles,
-
     -- * JS Expressions (for advanced custom validation)
     JSExpr,
     JS.str,
@@ -169,7 +168,8 @@ where
 
 --------------------------------------------------------------------------------
 
-import Component.Form.Builder.Core
+import Control.Monad (unless, when)
+import Lucid.Form.Builder.Core
   ( FormBuilder,
     audioField,
     cancelButton,
@@ -196,7 +196,7 @@ import Component.Form.Builder.Core
     textareaField,
     toggleField,
   )
-import Component.Form.Builder.Field
+import Lucid.Form.Builder.Field
   ( FieldBuilder,
     addOption,
     addOptionSelected,
@@ -224,13 +224,11 @@ import Component.Form.Builder.Field
     required,
     value,
   )
-import Component.Form.Builder.JS (JSExpr)
-import Component.Form.Builder.JS qualified as JS
-import Component.Form.Builder.Render
+import Lucid.Form.Builder.JS (JSExpr)
+import Lucid.Form.Builder.JS qualified as JS
+import Lucid.Form.Builder.Render
   ( FormConfig (..),
     defaultFormConfig,
     renderForm,
   )
-import Component.Form.Builder.Styles (FormStyles (..), defaultFormStyles)
-import Component.Form.Builder.Types (FormFooterItem (..), SelectOption (..))
-import Control.Monad (unless, when)
+import Lucid.Form.Builder.Types (FormFooterItem (..), SelectOption (..))

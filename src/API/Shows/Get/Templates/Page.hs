@@ -27,7 +27,7 @@ import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (xData_, xOnClick_, xShow_, xTransitionEnterEnd_, xTransitionEnterStart_, xTransitionEnter_, xTransitionLeaveEnd_, xTransitionLeaveStart_, xTransitionLeave_)
+import Lucid.Alpine
 import Servant.Links qualified as Links
 
 -- | Main shows list template

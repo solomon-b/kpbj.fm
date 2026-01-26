@@ -23,7 +23,9 @@ import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Extras (d_, hxGet_, hxPushUrl_, hxTarget_, path_, svg_, viewBox_, xData_, xOnClick_, xShow_)
+import Lucid.Alpine
+import Lucid.HTML5.Extra
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

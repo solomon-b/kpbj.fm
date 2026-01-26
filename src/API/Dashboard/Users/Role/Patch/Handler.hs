@@ -21,7 +21,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxPatch_, hxSwap_, hxTarget_)
+import Lucid.HTMX
 import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 

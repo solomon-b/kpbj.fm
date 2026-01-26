@@ -14,7 +14,7 @@ import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras
+import Lucid.HTMX
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------

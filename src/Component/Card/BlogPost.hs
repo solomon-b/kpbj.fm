@@ -31,7 +31,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Helpers.RelativeTime (formatRelativeTime)
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

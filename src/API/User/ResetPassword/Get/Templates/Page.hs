@@ -11,7 +11,6 @@ where
 
 import API.Links (userLinks)
 import API.Types
-import Component.Form.Builder
 import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -19,6 +18,7 @@ import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.PasswordResetTokens (Token (..))
 import Lucid qualified
+import Lucid.Form.Builder
 import Servant.Links qualified as Link
 
 --------------------------------------------------------------------------------

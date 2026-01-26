@@ -22,6 +22,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Design (base, class_, class_')
+import Design.FormStyles (formBuilderCSS)
 import Design.Theme (themeCSS)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
@@ -31,7 +32,8 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import Lucid.Extras (hxGet_, onchange_)
+import Lucid.Alpine
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -143,6 +145,8 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
       Lucid.style_ [] (themeCSS theme)
       -- HTMX indicator CSS (hides loading indicators until request in flight)
       Lucid.style_ [] htmxIndicatorStyles
+      -- Form builder semantic classes
+      Lucid.style_ [] formBuilderCSS
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"]
       Lucid.script_ [Lucid.src_ "https://cdn.tailwindcss.com"] (mempty @Text)

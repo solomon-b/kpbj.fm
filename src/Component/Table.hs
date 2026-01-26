@@ -37,7 +37,7 @@ import Design (base, class_)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxPushUrl_, hxTarget_)
+import Lucid.HTMX
 
 --------------------------------------------------------------------------------
 

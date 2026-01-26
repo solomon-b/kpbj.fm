@@ -30,7 +30,7 @@ import Domain.Types.PageNumber (PageNumber (..))
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Extras (xData_, xOnClick_, xRef_)
+import Lucid.Alpine
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

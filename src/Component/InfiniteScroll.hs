@@ -21,7 +21,7 @@ import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
-import Lucid.Extras (hxGet_, hxIndicator_, hxSwap_, hxTarget_, hxTrigger_)
+import Lucid.HTMX
 
 --------------------------------------------------------------------------------
 

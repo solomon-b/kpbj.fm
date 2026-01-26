@@ -9,9 +9,9 @@ where
 
 import API.Links (dashboardStationIdsLinks)
 import API.Types
-import Component.Form.Builder
 import Data.String.Interpolate (i)
 import Lucid qualified
+import Lucid.Form.Builder
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------

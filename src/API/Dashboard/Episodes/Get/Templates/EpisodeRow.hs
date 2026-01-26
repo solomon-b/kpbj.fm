@@ -20,8 +20,9 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Lucid.Alpine
 import Lucid.Base qualified as LucidBase
-import Lucid.Extras (hxDelete_, hxGet_, hxPost_, hxPushUrl_, hxSwap_, hxTarget_, xData_, xOnChange_, xRef_)
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
