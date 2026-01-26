@@ -530,6 +530,10 @@ PROD_DB_APP := "kpbj-postgres"
 PROD_DB_NAME := "kpbj_fm"
 PROD_CONFIG := "fly.toml"
 
+PROD_TIGRIS_BUCKET := "production-kpbj-storage"
+STAGING_TIGRIS_BUCKET := "staging-kpbj-storage"
+TIGRIS_ENDPOINT := "https://fly.storage.tigris.dev"
+
 # Deploy to production
 prod-deploy:
   fly deploy -c {{PROD_CONFIG}}
@@ -573,3 +577,21 @@ prod-secrets:
 # View production machines
 prod-machines:
   fly machines list --app {{PROD_APP}}
+
+#-------------------------------------------------------------------------------
+## Production to Staging Copy
+
+# Copy production database to staging with PII sanitization
+# Requires PROD_DB_PASSWORD and STAGING_DB_PASSWORD env vars
+prod-to-staging-db:
+  ./scripts/prod-to-staging-db.sh
+
+# Copy production Tigris S3 bucket to staging
+# Usage: just prod-to-staging-s3 <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
+prod-to-staging-s3 PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
+  ./scripts/prod-to-staging-s3.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+
+# Copy both production database and S3 bucket to staging
+# Usage: just prod-to-staging <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
+prod-to-staging PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
+  ./scripts/prod-to-staging.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
