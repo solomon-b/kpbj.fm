@@ -9,6 +9,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Chores
 - **Theme Storage** - Changed theme preference storage from PostgreSQL enum to text for easier extensibility
+- **Prod to Staging Copy** - Added `just prod-to-staging`, `just prod-to-staging-db`, and `just prod-to-staging-s3` commands to copy production data to staging with PII sanitization for User/Host accounts
 
 ### Fixes
 - **Events Page Ordering** - Public events page now displays latest events at the top (ordered by start date descending)
