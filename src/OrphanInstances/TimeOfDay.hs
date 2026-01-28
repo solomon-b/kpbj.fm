@@ -4,11 +4,14 @@ module OrphanInstances.TimeOfDay
   ( formatTimeOfDay,
     add12Hours,
     formatScheduleDual,
+    formatWeeksOfMonth,
   )
 where
 
 --------------------------------------------------------------------------------
 
+import Data.Int (Int64)
+import Data.List (sort)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (TimeOfDay (..))
@@ -58,3 +61,28 @@ formatScheduleDual start end airsTwice
         <> formatTimeOfDay (add12Hours end)
   | otherwise =
       formatTimeOfDay start <> " - " <> formatTimeOfDay end
+
+-- | Format weeks of month as ordinal prefix.
+--
+-- Returns empty string for weekly shows (all weeks or Nothing).
+-- For specific weeks, returns ordinals like "1st", "1st & 3rd", etc.
+--
+-- Examples:
+--   Nothing        -> ""
+--   Just [1,2,3,4,5] -> ""
+--   Just [1]       -> "1st "
+--   Just [1,3]     -> "1st & 3rd "
+--   Just [2,4]     -> "2nd & 4th "
+formatWeeksOfMonth :: Maybe [Int64] -> Text
+formatWeeksOfMonth Nothing = ""
+formatWeeksOfMonth (Just weeks)
+  | sort weeks == [1, 2, 3, 4, 5] = ""
+  | otherwise = Text.intercalate " & " (map ordinal (sort weeks)) <> " "
+  where
+    ordinal :: Int64 -> Text
+    ordinal 1 = "1st"
+    ordinal 2 = "2nd"
+    ordinal 3 = "3rd"
+    ordinal 4 = "4th"
+    ordinal 5 = "5th"
+    ordinal n = Text.pack (show n) <> "th"
