@@ -25,7 +25,7 @@ import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.HTMX
-import OrphanInstances.TimeOfDay (formatScheduleDual)
+import OrphanInstances.TimeOfDay (formatScheduleDual, formatWeeksOfMonth)
 import Rel8 (Result)
 import Servant.Links qualified as Links
 
@@ -66,7 +66,7 @@ renderShowHeader backend showModel hosts schedules tags = do
             Lucid.span_ [Lucid.class_ Tokens.fontBold] "Schedule: "
             case schedules of
               [] -> ""
-              (ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stStartTime = st, stEndTime = et, stAirsTwiceDaily = airsTwice} : _) -> do
+              (ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stWeeksOfMonth = weeksOfMonth, stStartTime = st, stEndTime = et, stAirsTwiceDaily = airsTwice} : _) -> do
                 case mDow of
                   Nothing -> "One-time show"
                   Just dow -> do
@@ -79,7 +79,7 @@ renderShowHeader backend showModel hosts schedules tags = do
                           Thursday -> "Thursday"
                           Friday -> "Friday"
                           Saturday -> "Saturday"
-                    Lucid.toHtml $ dayName <> "s " <> formatScheduleDual st et airsTwice
+                    Lucid.toHtml $ formatWeeksOfMonth weeksOfMonth <> dayName <> "s " <> formatScheduleDual st et airsTwice
 
         -- Show Description (only if present)
         forM_ showModel.description $ \description ->
