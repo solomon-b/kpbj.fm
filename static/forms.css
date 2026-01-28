@@ -632,13 +632,62 @@
   text-align: center;
 }
 
-.fb-audio-player {
+/* Embedded Audio Player (matches Component.AudioPlayer.Waveform) */
+.fb-player {
   margin-bottom: 1rem;
 }
 
-.fb-audio-placeholder {
-  color: var(--theme-fg-muted);
+.fb-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background-color: var(--theme-bg-muted);
+  border: 2px solid var(--theme-border);
+}
+
+.fb-player-button {
+  flex-shrink: 0;
+  padding: 0.75rem 2rem;
+  background-color: var(--theme-fg);
+  color: var(--theme-bg);
+  font-weight: 700;
+  font-size: 1.125rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.fb-player-button:hover {
+  background-color: var(--theme-fg-muted);
+}
+
+.fb-player-progress {
+  flex: 1;
+  height: 2rem;
+  background-color: var(--theme-border);
+  cursor: pointer;
+  position: relative;
+  border-radius: 0.25rem;
+}
+
+.fb-player-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: var(--theme-fg);
+  border-radius: 0.25rem;
+  transition: width 0.1s linear;
+}
+
+.fb-player-time {
+  flex-shrink: 0;
   font-size: 0.875rem;
+  font-family: var(--font-mono);
+  color: var(--theme-fg);
+  min-width: 7rem;
+  text-align: right;
 }
 
 .fb-audio-button-wrapper {

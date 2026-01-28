@@ -1049,7 +1049,7 @@ renderImageField field = do
                   "Apply Crop"
 
 --------------------------------------------------------------------------------
--- Audio Field (placeholder - needs AudioPlayer component from app)
+-- Audio Field
 
 renderAudioField :: Field -> Lucid.Html ()
 renderAudioField field = do
@@ -1059,6 +1059,7 @@ renderAudioField field = do
       isReq = vcRequired val
       labelText = fromMaybe name (fcLabel cfg) <> if isReq then " *" else ""
       inputId = name <> "-input"
+      playerId = name <> "-player"
 
   Lucid.div_ [Lucid.class_ "fb-field"] $ do
     -- Label
@@ -1070,9 +1071,28 @@ renderAudioField field = do
 
     -- Audio container
     Lucid.div_ [Lucid.class_ "fb-audio-container"] $ do
-      -- Placeholder for audio player (app must provide)
-      Lucid.div_ [Lucid.class_ "fb-audio-player", makeAttributes "data-player-id" (name <> "-player")] $
-        Lucid.p_ [Lucid.class_ "fb-audio-placeholder"] "Audio player component required"
+      -- Audio player with Alpine state
+      Lucid.div_
+        [ Lucid.class_ "fb-player",
+          xData_ (audioPlayerAlpineScript playerId "" ("#" <> inputId))
+        ]
+        $ do
+          Lucid.audio_ [xRef_ "audio", Lucid.preload_ "metadata"] mempty
+
+          -- Player controls (always visible)
+          Lucid.div_ [Lucid.class_ "fb-player-controls"] $ do
+            Lucid.button_
+              [ Lucid.type_ "button",
+                Lucid.class_ "fb-player-button",
+                xOnClick_ "toggle()",
+                xText_ "isPlaying ? 'PAUSE' : 'PLAY'"
+              ]
+              "PLAY"
+
+            Lucid.div_ [Lucid.class_ "fb-player-progress", xOnClick_ "seek($event)"] $
+              Lucid.div_ [Lucid.class_ "fb-player-progress-fill", xBindStyle_ "{ width: progress + '%' }"] mempty
+
+            Lucid.span_ [Lucid.class_ "fb-player-time", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
 
       -- Hidden file input
       Lucid.input_ $
@@ -1092,18 +1112,152 @@ renderAudioField field = do
             then "MP3, WAV, FLAC accepted"
             else "MP3, WAV, FLAC accepted · Leave empty to keep current file"
 
+-- | Alpine.js script for the audio player, matching Component.AudioPlayer.Waveform.
+audioPlayerAlpineScript :: Text -> Text -> Text -> Text
+audioPlayerAlpineScript playerId' audioUrl' fileInputSelector =
+  [i|{
+  playerId: '#{escapeJsString playerId'}',
+  isPlaying: false,
+  originalUrl: '#{escapeJsString audioUrl'}',
+  audioUrl: '#{escapeJsString audioUrl'}',
+  currentTime: 0,
+  duration: 0,
+  blobUrl: null,
+  fileInputSelector: '#{escapeJsString fileInputSelector}',
+  init() {
+    const audio = this.$refs.audio;
+    audio.addEventListener('loadedmetadata', () => {
+      this.duration = audio.duration;
+    });
+    audio.addEventListener('timeupdate', () => {
+      this.currentTime = audio.currentTime;
+    });
+    audio.addEventListener('ended', () => {
+      this.isPlaying = false;
+    });
+
+    // Watch file input for changes if selector provided
+    if (this.fileInputSelector) {
+      const fileInput = document.querySelector(this.fileInputSelector);
+      if (fileInput) {
+        fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+      }
+    }
+
+    // Listen for clear events
+    window.addEventListener('waveform-player-clear', (e) => {
+      if (e.detail && e.detail.playerId === this.playerId) {
+        this.clearAudio();
+      }
+    });
+
+    // Load audio metadata if we have a URL
+    if (this.audioUrl) {
+      audio.src = this.audioUrl;
+    }
+  },
+  clearAudio() {
+    this.pause();
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = null;
+    }
+    this.audioUrl = '';
+    this.originalUrl = '';
+    const audio = this.$refs.audio;
+    audio.removeAttribute('src');
+    audio.load();
+    this.currentTime = 0;
+    this.duration = 0;
+  },
+  handleFileSelect(event) {
+    const file = event.target.files[0];
+
+    // Clean up old blob URL
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = null;
+    }
+
+    // If no file selected (cleared), reset to original URL
+    if (!file) {
+      this.pause();
+      this.audioUrl = this.originalUrl;
+      const audio = this.$refs.audio;
+      if (this.originalUrl) {
+        audio.src = this.originalUrl;
+      } else {
+        audio.removeAttribute('src');
+      }
+      this.currentTime = 0;
+      this.duration = 0;
+      return;
+    }
+
+    // Create new blob URL for the selected file
+    this.blobUrl = URL.createObjectURL(file);
+    this.audioUrl = this.blobUrl;
+
+    // Reset player state
+    this.pause();
+    const audio = this.$refs.audio;
+    audio.src = this.audioUrl;
+    this.currentTime = 0;
+    this.duration = 0;
+  },
+  toggle() {
+    this.isPlaying ? this.pause() : this.play();
+  },
+  play() {
+    if (typeof pauseOtherPlayers !== 'undefined') {
+      pauseOtherPlayers(this.playerId);
+    }
+    const audio = this.$refs.audio;
+    audio.play().then(() => { this.isPlaying = true; });
+  },
+  pause() {
+    const audio = this.$refs.audio;
+    audio.pause();
+    this.isPlaying = false;
+  },
+  seek(event) {
+    const bar = event.currentTarget;
+    const rect = bar.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const percent = x / rect.width;
+    const audio = this.$refs.audio;
+    if (this.duration) {
+      audio.currentTime = percent * this.duration;
+    }
+  },
+  formatTime(seconds) {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return hours + ':' + (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+    return mins + ':' + (secs < 10 ? '0' : '') + secs;
+  },
+  get progress() {
+    if (!this.duration) return 0;
+    return (this.currentTime / this.duration) * 100;
+  }
+}|]
+
 --------------------------------------------------------------------------------
 -- Staged Audio Field
 
 renderStagedAudioField :: Field -> Text -> Text -> Lucid.Html ()
 renderStagedAudioField field uploadUrl uploadType = do
   let name = fName field
-      nameJs = escapeJsString name
       cfg = fConfig field
       val = fValidation field
       isReq = vcRequired val
       labelText = fromMaybe name (fcLabel cfg) <> if isReq then " *" else ""
       existingUrl = fromMaybe "" (fcCurrentValue cfg)
+      existingUrlJs = escapeJsString existingUrl
       hasExisting = existingUrl /= ""
       inputId = name <> "-input"
       inputIdJs = escapeJsString inputId
@@ -1111,11 +1265,14 @@ renderStagedAudioField field uploadUrl uploadType = do
       maxSizeMB = fromMaybe 500 (fcMaxSizeMB cfg)
       uploadUrlJs = escapeJsString uploadUrl
       uploadTypeJs = escapeJsString uploadType
+      playerId = name <> "-player"
+      playerIdJs = escapeJsString playerId
 
-  -- Alpine.js state for this upload
+  -- Alpine.js state for this upload (includes player state)
   Lucid.div_
     [ xData_
         [i|{
+  // Upload state
   uploadToken: '',
   isUploading: false,
   uploadProgress: 0,
@@ -1124,6 +1281,40 @@ renderStagedAudioField field uploadUrl uploadType = do
   mimeType: '',
   uploadError: '',
   currentCleared: false,
+
+  // Player state (matching Component.AudioPlayer.Waveform)
+  playerId: '#{playerIdJs}',
+  isPlaying: false,
+  originalUrl: '#{existingUrlJs}',
+  audioUrl: '#{existingUrlJs}',
+  currentTime: 0,
+  duration: 0,
+  blobUrl: null,
+
+  init() {
+    const audio = this.$refs.audio;
+    audio.addEventListener('loadedmetadata', () => {
+      this.duration = audio.duration;
+    });
+    audio.addEventListener('timeupdate', () => {
+      this.currentTime = audio.currentTime;
+    });
+    audio.addEventListener('ended', () => {
+      this.isPlaying = false;
+    });
+
+    // Listen for clear events
+    window.addEventListener('waveform-player-clear', (e) => {
+      if (e.detail && e.detail.playerId === this.playerId) {
+        this.clearPlayer();
+      }
+    });
+
+    // Load audio metadata if we have a URL
+    if (this.audioUrl) {
+      audio.src = this.audioUrl;
+    }
+  },
 
   async handleFileSelect(event) {
     const file = event.target.files?.[0];
@@ -1144,6 +1335,17 @@ renderStagedAudioField field uploadUrl uploadType = do
     this.uploadProgress = 0;
     this.fileName = file.name;
     this.fileSize = file.size;
+
+    // Set up player preview with blob URL
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl);
+    }
+    this.blobUrl = URL.createObjectURL(file);
+    this.audioUrl = this.blobUrl;
+    this.pause();
+    this.$refs.audio.src = this.audioUrl;
+    this.currentTime = 0;
+    this.duration = 0;
 
     const formData = new FormData();
     formData.append('file', file);
@@ -1193,9 +1395,7 @@ renderStagedAudioField field uploadUrl uploadType = do
   clearUpload() {
     const input = document.getElementById('#{inputIdJs}');
     if (input) input.value = '';
-    window.dispatchEvent(new CustomEvent('waveform-player-clear', {
-      detail: { playerId: '#{nameJs}-player' }
-    }));
+    this.clearPlayer();
     this.uploadToken = '';
     this.fileName = '';
     this.fileSize = 0;
@@ -1204,6 +1404,57 @@ renderStagedAudioField field uploadUrl uploadType = do
     this.currentCleared = true;
   },
 
+  clearPlayer() {
+    this.pause();
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = null;
+    }
+    this.audioUrl = '';
+    this.originalUrl = '';
+    const audio = this.$refs.audio;
+    audio.removeAttribute('src');
+    audio.load();
+    this.currentTime = 0;
+    this.duration = 0;
+  },
+
+  // Player methods (matching Component.AudioPlayer.Waveform)
+  toggle() {
+    this.isPlaying ? this.pause() : this.play();
+  },
+  play() {
+    if (typeof pauseOtherPlayers !== 'undefined') {
+      pauseOtherPlayers(this.playerId);
+    }
+    const audio = this.$refs.audio;
+    audio.play().then(() => { this.isPlaying = true; });
+  },
+  pause() {
+    const audio = this.$refs.audio;
+    audio.pause();
+    this.isPlaying = false;
+  },
+  seek(event) {
+    const bar = event.currentTarget;
+    const rect = bar.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const percent = x / rect.width;
+    const audio = this.$refs.audio;
+    if (this.duration) {
+      audio.currentTime = percent * this.duration;
+    }
+  },
+  formatTime(seconds) {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return hours + ':' + (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+    return mins + ':' + (secs < 10 ? '0' : '') + secs;
+  },
   formatFileSize(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -1211,9 +1462,12 @@ renderStagedAudioField field uploadUrl uploadType = do
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + sizes[i];
   },
-
   triggerInput() {
     document.getElementById('#{inputIdJs}').click();
+  },
+  get progress() {
+    if (!this.duration) return 0;
+    return (this.currentTime / this.duration) * 100;
   }
 }|],
       Lucid.class_ "fb-field"
@@ -1251,9 +1505,24 @@ renderStagedAudioField field uploadUrl uploadType = do
             xOnChange_ "handleFileSelect($event)"
           ]
 
-        -- Audio player placeholder
-        Lucid.div_ [Lucid.class_ "fb-audio-player", makeAttributes "data-player-id" (name <> "-player"), makeAttributes "data-audio-url" existingUrl, makeAttributes "data-file-input-id" inputId] $
-          Lucid.p_ [Lucid.class_ "fb-audio-placeholder"] "Audio player component required"
+        -- Audio player (always visible, matching Component.AudioPlayer.Waveform)
+        Lucid.div_ [Lucid.class_ "fb-player"] $ do
+          Lucid.audio_ [xRef_ "audio", Lucid.preload_ "metadata"] mempty
+
+          -- Player controls (always visible)
+          Lucid.div_ [Lucid.class_ "fb-player-controls"] $ do
+            Lucid.button_
+              [ Lucid.type_ "button",
+                Lucid.class_ "fb-player-button",
+                xOnClick_ "toggle()",
+                xText_ "isPlaying ? 'PAUSE' : 'PLAY'"
+              ]
+              "PLAY"
+
+            Lucid.div_ [Lucid.class_ "fb-player-progress", xOnClick_ "seek($event)"] $
+              Lucid.div_ [Lucid.class_ "fb-player-progress-fill", xBindStyle_ "{ width: progress + '%' }"] mempty
+
+            Lucid.span_ [Lucid.class_ "fb-player-time", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
 
         -- Upload progress bar
         Lucid.div_
@@ -1272,7 +1541,7 @@ renderStagedAudioField field uploadUrl uploadType = do
                 ]
                 mempty
 
-        -- Current/existing file state
+        -- Current/existing file state (shows when we have existing audio but no new upload)
         when hasExisting
           $ Lucid.div_
             [ xShow_ "!uploadToken && !currentCleared",
