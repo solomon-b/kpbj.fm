@@ -1318,14 +1318,17 @@ renderStagedAudioField field uploadUrl uploadType = do
 
   async handleFileSelect(event) {
     const file = event.target.files?.[0];
+    console.log('[Upload] File selected:', file ? {name: file.name, size: file.size, type: file.type} : 'none');
     if (!file) return;
 
     if (file.size > #{maxSizeMB * 1024 * 1024}) {
+      console.log('[Upload] File too large:', file.size, '> limit:', #{maxSizeMB * 1024 * 1024});
       this.uploadError = 'File exceeds #{maxSizeMB}MB limit';
       return;
     }
 
     if (!file.type.startsWith('audio/')) {
+      console.log('[Upload] Invalid file type:', file.type);
       this.uploadError = 'Please select an audio file';
       return;
     }
@@ -1355,41 +1358,69 @@ renderStagedAudioField field uploadUrl uploadType = do
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) {
         this.uploadProgress = Math.round((e.loaded / e.total) * 100);
+        console.log('[Upload] Progress:', this.uploadProgress + '%');
       }
     });
 
     xhr.addEventListener('load', () => {
+      console.log('[Upload] Load event - status:', xhr.status, 'statusText:', xhr.statusText);
+      console.log('[Upload] Response:', xhr.responseText.substring(0, 500));
       this.isUploading = false;
       if (xhr.status === 200) {
         try {
           const response = JSON.parse(xhr.responseText);
           if (response.success) {
+            console.log('[Upload] Success - token:', response.data.token);
             this.uploadToken = response.data.token;
             this.mimeType = response.data.mimeType;
             this.currentCleared = false;
             this.uploadError = '';
           } else {
+            console.log('[Upload] Server returned error:', response.error);
             this.uploadError = response.error || 'Upload failed';
             this.clearUpload();
           }
         } catch (e) {
+          console.log('[Upload] JSON parse error:', e);
           this.uploadError = 'Invalid server response';
           this.clearUpload();
         }
       } else {
+        console.log('[Upload] Non-200 status:', xhr.status, xhr.statusText);
         this.uploadError = 'Upload failed: ' + xhr.statusText;
         this.clearUpload();
       }
     });
 
-    xhr.addEventListener('error', () => {
+    xhr.addEventListener('error', (e) => {
+      console.log('[Upload] XHR error event:', e);
       this.isUploading = false;
       this.uploadError = 'Network error during upload';
       this.clearUpload();
     });
 
+    xhr.addEventListener('abort', () => {
+      console.log('[Upload] XHR aborted');
+      this.isUploading = false;
+      this.uploadError = 'Upload aborted';
+      this.clearUpload();
+    });
+
+    xhr.addEventListener('timeout', () => {
+      console.log('[Upload] XHR timeout');
+      this.isUploading = false;
+      this.uploadError = 'Upload timed out';
+      this.clearUpload();
+    });
+
+    xhr.addEventListener('readystatechange', () => {
+      console.log('[Upload] ReadyState:', xhr.readyState, '| Status:', xhr.status);
+    });
+
+    console.log('[Upload] Starting XHR to:', '#{uploadUrlJs}');
     xhr.open('POST', '#{uploadUrlJs}');
     xhr.send(formData);
+    console.log('[Upload] XHR sent');
   },
 
   clearUpload() {
