@@ -355,7 +355,8 @@ createSchedulesForShow showId slots = do
                   ShowSchedule.stiWeeksOfMonth = Just (map fromIntegral (weeksOfMonth slot)),
                   ShowSchedule.stiStartTime = start,
                   ShowSchedule.stiEndTime = end,
-                  ShowSchedule.stiTimezone = "America/Los_Angeles"
+                  ShowSchedule.stiTimezone = "America/Los_Angeles",
+                  ShowSchedule.stiAirsTwiceDaily = False
                 }
 
         templateResult <- execQuerySpan (ShowSchedule.insertScheduleTemplate templateInsert)

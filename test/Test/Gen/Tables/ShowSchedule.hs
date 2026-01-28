@@ -74,6 +74,7 @@ genRecurringScheduleInsert showId = do
   dayOfWeek <- Just <$> genDayOfWeek
   weeksOfMonth <- Just <$> genWeeksOfMonth -- Must be Just for recurring shows
   timezone <- genTimezone
+  airsTwiceDaily <- Gen.bool
   pure
     ShowSchedule.ScheduleTemplateInsert
       { stiShowId = showId,
@@ -81,7 +82,8 @@ genRecurringScheduleInsert showId = do
         stiWeeksOfMonth = weeksOfMonth,
         stiStartTime = startTime,
         stiEndTime = endTime,
-        stiTimezone = timezone
+        stiTimezone = timezone,
+        stiAirsTwiceDaily = airsTwiceDaily
       }
 
 -- | Generate a one-time schedule template insert
@@ -89,6 +91,7 @@ genOneTimeScheduleInsert :: (MonadGen m) => Shows.Id -> m ShowSchedule.ScheduleT
 genOneTimeScheduleInsert showId = do
   (startTime, endTime) <- genTimeRange
   timezone <- genTimezone
+  airsTwiceDaily <- Gen.bool
   pure
     ShowSchedule.ScheduleTemplateInsert
       { stiShowId = showId,
@@ -96,7 +99,8 @@ genOneTimeScheduleInsert showId = do
         stiWeeksOfMonth = Nothing,
         stiStartTime = startTime,
         stiEndTime = endTime,
-        stiTimezone = timezone
+        stiTimezone = timezone,
+        stiAirsTwiceDaily = airsTwiceDaily
       }
 
 -- | Generate any schedule template insert (recurring or one-time)
