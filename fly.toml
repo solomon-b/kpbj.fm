@@ -15,11 +15,11 @@ primary_region = 'lax'
   release_command = "-c '/bin/sqlx migrate run --source /migrations'"
 
 [env]
-  APP_HOSTNAME = 'kpbj.fm'
+  APP_HOSTNAME = 'https://www.kpbj.fm'
   APP_OBSERVABILITY_EXPORTER = 'StdOut'
   APP_OBSERVABILITY_VERBOSITY = 'Brief'
   APP_WARP_PORT = '4000'
-  APP_WARP_SERVERNAME = 'kpbj.fm'
+  APP_WARP_SERVERNAME = 'www.kpbj.fm'
   APP_WARP_TIMEOUT = '100'
   APP_GOOGLE_ANALYTICS_GTAG = 'G-ST01RRVLDB'
 
@@ -28,7 +28,7 @@ primary_region = 'lax'
   APP_SMTP_USERNAME = "noreply@kpbj.fm"
   APP_SMTP_FROM_EMAIL = "noreply@kpbj.fm"
   APP_SMTP_FROM_NAME = "KPBJ 95.9FM"
-  APP_BASE_URL = "https://kpbj.fm"
+  APP_BASE_URL = "https://www.kpbj.fm"
 
 
   AWS_ACCESS_KEY_ID="tid_CuEAcDzWgbwrUbKtuPPHDtBtEkJkoMuYeNHYDIamIYjTXAiLpf"
