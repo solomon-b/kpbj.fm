@@ -40,6 +40,9 @@ primary_region = 'lax'
   protocol = 'tcp'
   internal_port = 4000
 
+  [services.http_options]
+    max_request_body_size = 524288000  # 500MB
+
 [[services.ports]]
     port = 80
     handlers = ['http']
