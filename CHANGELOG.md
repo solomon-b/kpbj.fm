@@ -14,6 +14,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Factor out Lucid Libraries** - Pulls out lucid-form-builder and lucid-htmx-alpine as standalone packages
 - **Theme Storage** - Changed theme preference storage from PostgreSQL enum to text for easier extensibility
 - **Prod to Staging Copy** - Added `just prod-to-staging`, `just prod-to-staging-db`, and `just prod-to-staging-s3` commands to copy production data to staging with PII sanitization for User/Host accounts
+- **Increased Upload Limit** - Fly.io max request body size increased to support larger audio file uploads
 
 ### Fixes
 - **Events Page Ordering** - Public events page now displays latest events at the top (ordered by start date descending)
