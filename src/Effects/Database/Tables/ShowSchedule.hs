@@ -92,7 +92,8 @@ data ScheduleTemplate f = ScheduleTemplate
     stStartTime :: Column f TimeOfDay,
     stEndTime :: Column f TimeOfDay,
     stTimezone :: Column f Text,
-    stCreatedAt :: Column f UTCTime
+    stCreatedAt :: Column f UTCTime,
+    stAirsTwiceDaily :: Column f Bool
   }
   deriving stock (Generic)
   deriving anyclass (Rel8able)
@@ -120,7 +121,8 @@ scheduleTemplateSchema =
             stStartTime = "start_time",
             stEndTime = "end_time",
             stTimezone = "timezone",
-            stCreatedAt = "created_at"
+            stCreatedAt = "created_at",
+            stAirsTwiceDaily = "airs_twice_daily"
           }
     }
 
@@ -131,7 +133,8 @@ data ScheduleTemplateInsert = ScheduleTemplateInsert
     stiWeeksOfMonth :: Maybe [Int64],
     stiStartTime :: TimeOfDay,
     stiEndTime :: TimeOfDay,
-    stiTimezone :: Text
+    stiTimezone :: Text,
+    stiAirsTwiceDaily :: Bool
   }
   deriving stock (Generic, Show, Eq)
 
@@ -206,7 +209,7 @@ getActiveScheduleTemplatesForShow showId =
   interp
     False
     [sql|
-    SELECT DISTINCT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at
+    SELECT DISTINCT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at, st.airs_twice_daily
     FROM schedule_templates st
     JOIN schedule_template_validity stv ON stv.template_id = st.id
     WHERE st.show_id = #{showId}
@@ -279,8 +282,8 @@ insertScheduleTemplate ScheduleTemplateInsert {..} =
     <$> interp
       False
       [sql|
-    INSERT INTO schedule_templates(show_id, day_of_week, weeks_of_month, start_time, end_time, timezone, created_at)
-    VALUES (#{stiShowId}, #{stiDayOfWeek}::day_of_week, #{stiWeeksOfMonth}, #{stiStartTime}, #{stiEndTime}, #{stiTimezone}, NOW())
+    INSERT INTO schedule_templates(show_id, day_of_week, weeks_of_month, start_time, end_time, timezone, created_at, airs_twice_daily)
+    VALUES (#{stiShowId}, #{stiDayOfWeek}::day_of_week, #{stiWeeksOfMonth}, #{stiStartTime}, #{stiEndTime}, #{stiTimezone}, NOW(), #{stiAirsTwiceDaily})
     RETURNING id
   |]
 
@@ -357,6 +360,7 @@ instance Display ScheduledShowWithDetails where
 -- | Get all scheduled shows for a specific date with show and host details.
 --
 -- Returns both recurring and one-time shows scheduled for the given date.
+-- For shows with airs_twice_daily = TRUE, returns two rows (primary and +12 hours).
 -- Used for rendering actual weekly schedules (not just templates).
 -- Uses raw SQL because of complex date arithmetic and CASE expressions.
 -- Excludes soft-deleted shows.
@@ -365,6 +369,7 @@ getScheduledShowsForDate targetDate =
   interp
     False
     [sql|
+    -- Primary airings (all shows)
     SELECT
       #{targetDate}::date as show_date,
       COALESCE(
@@ -420,7 +425,68 @@ getScheduledShowsForDate targetDate =
          AND stv.effective_from = #{targetDate}::date)
       )
     GROUP BY st.id, st.day_of_week, st.start_time, st.end_time, s.slug, s.title, s.logo_url
-    ORDER BY st.start_time
+
+    UNION ALL
+
+    -- Replay airings (+12 hours) for dual-airing shows
+    SELECT
+      #{targetDate}::date as show_date,
+      COALESCE(
+        st.day_of_week,
+        CASE EXTRACT(DOW FROM #{targetDate}::date)::INTEGER
+          WHEN 0 THEN 'sunday'::day_of_week
+          WHEN 1 THEN 'monday'::day_of_week
+          WHEN 2 THEN 'tuesday'::day_of_week
+          WHEN 3 THEN 'wednesday'::day_of_week
+          WHEN 4 THEN 'thursday'::day_of_week
+          WHEN 5 THEN 'friday'::day_of_week
+          WHEN 6 THEN 'saturday'::day_of_week
+        END
+      ) as day_of_week,
+      ((st.start_time + INTERVAL '12 hours')::time) as start_time,
+      ((st.end_time + INTERVAL '12 hours')::time) as end_time,
+      s.slug,
+      s.title,
+      COALESCE(
+        STRING_AGG(COALESCE(um.display_name, um.full_name), ', ' ORDER BY sh.joined_at),
+        'TBD'
+      ) as host_names,
+      s.logo_url
+    FROM schedule_templates st
+    JOIN schedule_template_validity stv ON stv.template_id = st.id
+    JOIN shows s ON s.id = st.show_id
+    LEFT JOIN show_hosts sh ON sh.show_id = s.id AND sh.left_at IS NULL
+    LEFT JOIN users u ON u.id = sh.user_id
+    LEFT JOIN user_metadata um ON um.user_id = u.id
+    WHERE s.status = 'active'
+      AND s.deleted_at IS NULL
+      AND st.airs_twice_daily = TRUE
+      AND stv.effective_from <= #{targetDate}::date
+      AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
+      AND (
+        -- Recurring shows: match day of week and week of month
+        (st.day_of_week IS NOT NULL
+         AND EXTRACT(DOW FROM #{targetDate}::date)::INTEGER =
+             CASE st.day_of_week::TEXT
+               WHEN 'sunday' THEN 0
+               WHEN 'monday' THEN 1
+               WHEN 'tuesday' THEN 2
+               WHEN 'wednesday' THEN 3
+               WHEN 'thursday' THEN 4
+               WHEN 'friday' THEN 5
+               WHEN 'saturday' THEN 6
+             END
+         AND (st.weeks_of_month IS NULL
+              OR CEIL(EXTRACT(DAY FROM #{targetDate}::date) / 7.0)::INTEGER = ANY(st.weeks_of_month))
+        )
+        OR
+        -- One-time shows: match exact date via validity period
+        (st.day_of_week IS NULL
+         AND stv.effective_from = #{targetDate}::date)
+      )
+    GROUP BY st.id, st.day_of_week, st.start_time, st.end_time, s.slug, s.title, s.logo_url
+
+    ORDER BY start_time
   |]
 
 --------------------------------------------------------------------------------

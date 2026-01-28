@@ -20,7 +20,14 @@ genColorScheme :: (MonadGen m) => m UserMetadata.ColorScheme
 genColorScheme = Gen.enumBounded
 
 genThemeName :: (MonadGen m) => m UserMetadata.ThemeName
-genThemeName = Gen.enumBounded
+genThemeName =
+  Gen.element
+    [ UserMetadata.DefaultTheme,
+      UserMetadata.SolarizedTheme,
+      UserMetadata.GruvboxTheme,
+      UserMetadata.DraculaTheme,
+      UserMetadata.NordTheme
+    ]
 
 userWithMetadataInsertGen :: (MonadIO m, MonadGen m) => m UserMetadata.UserWithMetadataInsert
 userWithMetadataInsertGen = do
