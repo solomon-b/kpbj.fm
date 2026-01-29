@@ -3,6 +3,7 @@
 
 module API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
   ( template,
+    EpisodeEditContext (..),
   )
 where
 
@@ -13,6 +14,7 @@ import API.Types
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime)
@@ -23,10 +25,38 @@ import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.Form.Builder
 import Servant.Links qualified as Links
+
+--------------------------------------------------------------------------------
+
+-- | Context required to render the episode edit form.
+--
+-- Groups all the data needed by the template into a single record,
+-- making the function signature cleaner and easier to maintain.
+data EpisodeEditContext = EpisodeEditContext
+  { -- | URL for audio uploads (environment-specific, bypasses Cloudflare in prod)
+    eecUploadUrl :: Text,
+    -- | Storage backend for building media URLs
+    eecBackend :: StorageBackend,
+    -- | Current time for determining if uploads are allowed
+    eecCurrentTime :: UTCTime,
+    -- | The show this episode belongs to
+    eecShow :: Shows.Model,
+    -- | The episode being edited
+    eecEpisode :: Episodes.Model,
+    -- | Track listing for the episode
+    eecTracks :: [EpisodeTrack.Model],
+    -- | Tags associated with the episode
+    eecTags :: [EpisodeTags.Model],
+    -- | Current schedule slot (if template exists)
+    eecCurrentSlot :: Maybe ShowSchedule.UpcomingShowDate,
+    -- | Available future schedule slots
+    eecUpcomingDates :: [ShowSchedule.UpcomingShowDate],
+    -- | Whether the user has staff-level permissions or higher
+    eecIsStaff :: Bool
+  }
 
 --------------------------------------------------------------------------------
 
@@ -39,17 +69,32 @@ episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showS
 isScheduledInFuture :: UTCTime -> Episodes.Model -> Bool
 isScheduledInFuture now episode = episode.scheduledAt > now
 
--- | Episode edit template
+-- | Episode edit template.
 --
--- The currentTime parameter is used to determine if the scheduled date has passed.
--- If the scheduled date is in the future, file upload fields are shown.
--- The isStaff parameter indicates if the user has staff-level permissions or higher.
--- The mCurrentSlot parameter contains the current episode's schedule slot formatted
--- as an UpcomingShowDate so it can be displayed consistently with other slots.
-template :: StorageBackend -> UTCTime -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Maybe ShowSchedule.UpcomingShowDate -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Bool -> Lucid.Html ()
-template backend currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates _userMeta isStaff = do
+-- Renders the edit form for an existing episode, including:
+--
+-- - Episode details (description, tags)
+-- - Schedule slot selection (if in future or user is staff)
+-- - Media file uploads (audio, artwork) if uploads are allowed
+-- - Track listing editor
+-- - Publish status toggle
+template :: EpisodeEditContext -> Lucid.Html ()
+template ctx = do
   renderForm config form
   where
+    -- Extract from context
+    showModel = ctx.eecShow
+    episode = ctx.eecEpisode
+    tracks = ctx.eecTracks
+    episodeTags = ctx.eecTags
+    mCurrentSlot = ctx.eecCurrentSlot
+    upcomingDates = ctx.eecUpcomingDates
+    isStaff = ctx.eecIsStaff
+    uploadUrl = ctx.eecUploadUrl
+    backend = ctx.eecBackend
+    currentTime = ctx.eecCurrentTime
+
+    -- Derived values
     showSlugText = display showModel.slug
     episodeNum = episode.episodeNumber
     episodeNumText = display episodeNum
@@ -136,7 +181,7 @@ template backend currentTime showModel episode tracks episodeTags mCurrentSlot u
 
       when allowFileUpload $ do
         section "MEDIA FILES" $ do
-          stagedAudioField "episode_audio" "/api/uploads/audio" "episode_audio" $ do
+          stagedAudioField "episode_audio" uploadUrl "episode_audio" $ do
             label "Episode Audio"
             maxSize 500
             currentFile audioUrl

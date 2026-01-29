@@ -508,8 +508,10 @@ data DashboardSitePagesRoutes mode = DashboardSitePagesRoutes
 --
 -- Currently only audio uploads use staged uploads since they are large files
 -- that benefit from background uploading. Image uploads use direct form submission.
-newtype UploadRoutes mode = UploadRoutes
+data UploadRoutes mode = UploadRoutes
   { -- | @POST /api/uploads/audio@ - Upload audio file and get token
-    audioPost :: mode :- Uploads.Audio.Post.Route
+    audioPost :: mode :- Uploads.Audio.Post.Route,
+    -- | @OPTIONS /api/uploads/audio@ - CORS preflight for cross-origin uploads
+    audioOptions :: mode :- Uploads.Audio.Post.OptionsRoute
   }
   deriving stock (Generic)

@@ -1419,6 +1419,8 @@ renderStagedAudioField field uploadUrl uploadType = do
 
     console.log('[Upload] Starting XHR to:', '#{uploadUrlJs}');
     xhr.open('POST', '#{uploadUrlJs}');
+    // Send cookies cross-origin
+    xhr.withCredentials = true;
     xhr.send(formData);
     console.log('[Upload] XHR sent');
   },

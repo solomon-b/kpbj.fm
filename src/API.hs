@@ -373,5 +373,6 @@ server =
 
     uploadRoutes =
       UploadRoutes
-        { audioPost = Uploads.Audio.Post.handler
+        { audioPost = Uploads.Audio.Post.handler,
+          audioOptions = Uploads.Audio.Post.optionsHandler
         }
