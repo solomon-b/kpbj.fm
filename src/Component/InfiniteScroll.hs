@@ -48,7 +48,7 @@ renderSentinel nextPageUrl targetSelector =
       hxTarget_ targetSelector,
       hxSwap_ "beforeend",
       hxIndicator_ "#loading-indicator",
-      class_ $ base ["h-1"] -- Minimal height so it triggers near content end
+      class_ $ base ["h-1", "col-span-full"] -- Span all grid columns to avoid blank spots
     ]
     mempty
 
@@ -89,6 +89,6 @@ renderEndOfContent :: Lucid.Html ()
 renderEndOfContent =
   Lucid.div_
     [ Lucid.id_ "end-of-content",
-      class_ $ base ["text-center", "py-8", Tokens.textGray600]
+      class_ $ base ["text-center", "py-8", Tokens.textGray600, "col-span-full"]
     ]
     mempty
