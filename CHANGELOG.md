@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixes
+- **Stream Player Now Playing** - Fixed stream player to show current track/DJ info from AzuraCast instead of hardcoded "KPBJ 95.9 FM". Now fetches from the AzuraCast Now Playing API and displays live DJ name or "Artist - Title" for playlist tracks
 
 ---
 

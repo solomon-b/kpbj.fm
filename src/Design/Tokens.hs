@@ -47,6 +47,7 @@ module Design.Tokens
     fontMedium,
 
     -- * Spacing Scale
+    gap1,
     gap2,
     gap4,
     gap6,
@@ -212,6 +213,9 @@ fontMedium = "font-medium"
 
 --------------------------------------------------------------------------------
 -- Spacing Scale
+
+gap1 :: Text
+gap1 = "gap-1"
 
 gap2 :: Text
 gap2 = "gap-2"
