@@ -3,8 +3,10 @@ module App.CookieSpec (spec) where
 --------------------------------------------------------------------------------
 
 import App.Config (Environment (..))
-import App.Cookie (getCookieDomain, mkCookieSessionWithDomain, mkExpireOldSessionCookie)
+import App.Cookie (lookupSessionId, mkCookieSessionWithDomain, mkExpireOldSessionCookie)
+import App.Domains (cookieName)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.UUID qualified as UUID
 import Effects.Database.Tables.ServerSessions qualified as ServerSessions
 import Hedgehog
@@ -36,22 +38,13 @@ genSessionId = do
 
 spec :: Spec
 spec = describe "App.Cookie" $ do
-  describe "getCookieDomain" $ do
-    it "returns empty string for Development" $ do
-      getCookieDomain Development `shouldBe` ""
-
-    it "returns .staging.kpbj.fm for Staging" $ do
-      getCookieDomain Staging `shouldBe` ".staging.kpbj.fm"
-
-    it "returns .kpbj.fm for Production" $ do
-      getCookieDomain Production `shouldBe` ".kpbj.fm"
-
   describe "mkCookieSessionWithDomain" $ do
-    it "always contains session-id key" $ hedgehog $ do
+    it "uses environment-specific cookie name" $ hedgehog $ do
       env <- forAll genEnvironment
       sessionId <- forAll genSessionId
       let cookie = mkCookieSessionWithDomain env sessionId
-      assert $ "session-id=" `Text.isPrefixOf` cookie
+          expectedPrefix = cookieName env <> "="
+      assert $ expectedPrefix `Text.isPrefixOf` cookie
 
     it "always contains SameSite=lax" $ hedgehog $ do
       env <- forAll genEnvironment
@@ -87,6 +80,16 @@ spec = describe "App.Cookie" $ do
       let cookie = mkCookieSessionWithDomain Staging sessionId
       assert $ "Domain=.staging.kpbj.fm" `Text.isInfixOf` cookie
 
+    it "Staging cookies use session-id-staging name" $ hedgehog $ do
+      sessionId <- forAll genSessionId
+      let cookie = mkCookieSessionWithDomain Staging sessionId
+      assert $ "session-id-staging=" `Text.isPrefixOf` cookie
+
+    it "Production cookies use session-id-production name" $ hedgehog $ do
+      sessionId <- forAll genSessionId
+      let cookie = mkCookieSessionWithDomain Production sessionId
+      assert $ "session-id-production=" `Text.isPrefixOf` cookie
+
     it "Production cookies have Domain=.kpbj.fm" $ hedgehog $ do
       sessionId <- forAll genSessionId
       let cookie = mkCookieSessionWithDomain Production sessionId
@@ -119,3 +122,36 @@ spec = describe "App.Cookie" $ do
       case mkExpireOldSessionCookie env of
         Nothing -> failure
         Just cookie -> assert $ not ("Domain=" `Text.isInfixOf` cookie)
+
+  describe "lookupSessionId" $ do
+    it "parses session-id cookie for Development" $ hedgehog $ do
+      sessionId <- forAll genSessionId
+      let cookieHeader = "session-id=" <> display sessionId
+      lookupSessionId Development cookieHeader === Just sessionId
+
+    it "parses session-id-production cookie for Production" $ hedgehog $ do
+      sessionId <- forAll genSessionId
+      let cookieHeader = "session-id-production=" <> display sessionId
+      lookupSessionId Production cookieHeader === Just sessionId
+
+    it "parses session-id-staging cookie for Staging" $ hedgehog $ do
+      sessionId <- forAll genSessionId
+      let cookieHeader = "session-id-staging=" <> display sessionId
+      lookupSessionId Staging cookieHeader === Just sessionId
+
+    it "ignores production cookie when looking up staging" $ hedgehog $ do
+      sessionId <- forAll genSessionId
+      let cookieHeader = "session-id-production=" <> display sessionId
+      lookupSessionId Staging cookieHeader === Nothing
+
+    it "ignores staging cookie when looking up production" $ hedgehog $ do
+      sessionId <- forAll genSessionId
+      let cookieHeader = "session-id-staging=" <> display sessionId
+      lookupSessionId Production cookieHeader === Nothing
+
+    it "finds correct cookie when multiple cookies present" $ hedgehog $ do
+      stagingId <- forAll genSessionId
+      prodId <- forAll genSessionId
+      let cookieHeader = "session-id-production=" <> display prodId <> "; session-id-staging=" <> display stagingId
+      lookupSessionId Staging cookieHeader === Just stagingId
+      lookupSessionId Production cookieHeader === Just prodId

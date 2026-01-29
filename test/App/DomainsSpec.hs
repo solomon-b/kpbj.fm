@@ -36,6 +36,26 @@ spec = describe "App.Domains" $ do
     it "returns kpbj.fm for Production" $ do
       baseDomain Production `shouldBe` "kpbj.fm"
 
+  describe "cookieName" $ do
+    it "returns session-id for Development" $ do
+      cookieName Development `shouldBe` "session-id"
+
+    it "returns session-id-staging for Staging" $ do
+      cookieName Staging `shouldBe` "session-id-staging"
+
+    it "returns session-id-production for Production" $ do
+      cookieName Production `shouldBe` "session-id-production"
+
+    it "Staging has unique cookie name to avoid collision with Production" $ do
+      -- staging.kpbj.fm is a subdomain of kpbj.fm, so production cookies
+      -- (Domain=.kpbj.fm) would be sent to staging. Different names prevent collision.
+      cookieName Staging `shouldNotBe` cookieName Production
+
+    it "all non-Development environments have unique cookie names" $ do
+      cookieName Staging `shouldNotBe` cookieName Production
+      cookieName Staging `shouldNotBe` cookieName Development
+      cookieName Production `shouldNotBe` cookieName Development
+
   describe "cookieDomain" $ do
     it "returns empty for Development" $ do
       cookieDomain Development `shouldBe` ""

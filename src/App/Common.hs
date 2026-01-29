@@ -6,6 +6,8 @@ module App.Common where
 --------------------------------------------------------------------------------
 
 import App.Auth qualified as Auth
+import App.Config (Environment)
+import App.Cookie qualified as Cookie
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav)
 import Component.DashboardFrame qualified as DashboardFrame
@@ -27,18 +29,25 @@ import Lucid qualified
 --------------------------------------------------------------------------------
 
 -- | Get user info from session cookie.
+--
+-- Uses environment-specific cookie names to avoid collisions between
+-- staging and production (since staging.kpbj.fm is a subdomain of kpbj.fm,
+-- production cookies with Domain=.kpbj.fm would otherwise be sent to staging).
 getUserInfo :: Maybe Cookie -> AppM (Maybe (User.Model, UserMetadata.Model))
-getUserInfo (coerce -> cookie) =
-  Auth.userLoginState cookie >>= \case
-    Auth.IsNotLoggedIn ->
-      pure Nothing
-    Auth.IsLoggedIn user ->
-      execQuerySpan (UserMetadata.getUserMetadata user.mId) >>= \case
-        Right userMetadata ->
-          pure ((user,) <$> userMetadata)
-        _ -> do
-          Log.logAttention "Failed to query user_metadata" (Aeson.object ["user.id" .= user.mId])
-          pure Nothing
+getUserInfo (coerce -> cookie) = do
+  env <- asks (getter @Environment)
+  case cookie >>= Cookie.lookupSessionId env of
+    Nothing -> pure Nothing
+    Just sessionId ->
+      Auth.getAuth sessionId >>= \case
+        Right (Just Auth.Authz {authzUser = user}) ->
+          execQuerySpan (UserMetadata.getUserMetadata user.mId) >>= \case
+            Right userMetadata ->
+              pure ((user,) <$> userMetadata)
+            _ -> do
+              Log.logAttention "Failed to query user_metadata" (Aeson.object ["user.id" .= user.mId])
+              pure Nothing
+        _ -> pure Nothing
 
 -- | Render template with proper HTMX handling and suspension status.
 --
