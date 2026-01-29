@@ -23,7 +23,8 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime, utctDay)
+import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime)
+import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
@@ -339,7 +340,11 @@ createSchedulesForShow ::
   [ScheduleSlotInfo] ->
   AppM ()
 createSchedulesForShow showId slots = do
-  today <- liftIO $ utctDay <$> getCurrentTime
+  -- Use Pacific time for "today" to match the schedule display
+  nowUtc <- liftIO getCurrentTime
+  let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
+      nowPacific = utcToLocalTime pacificTz nowUtc
+      today = localDay nowPacific
 
   forM_ slots $ \slot -> do
     case ( parseDayOfWeek (dayOfWeek slot),
