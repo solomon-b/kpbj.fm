@@ -21,7 +21,8 @@ import Data.List (find)
 import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
-import Data.Time (Day, getCurrentTime, utctDay)
+import Data.Time (Day, getCurrentTime)
+import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -58,8 +59,11 @@ handler _tracer showSlug maybePage cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
 
-    -- 2. Set up pagination
-    today <- liftIO $ utctDay <$> getCurrentTime
+    -- 2. Set up pagination (use Pacific time for "today")
+    nowUtc <- liftIO getCurrentTime
+    let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
+        nowPacific = utcToLocalTime pacificTz nowUtc
+        today = localDay nowPacific
     let page = fromMaybe 1 maybePage
         limit = 20 :: Limit
         offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
