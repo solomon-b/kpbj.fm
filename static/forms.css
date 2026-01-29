@@ -874,6 +874,26 @@
   transition: width 0.2s ease-in-out;
 }
 
+.fb-progress-bar--processing {
+  background: linear-gradient(
+    90deg,
+    var(--theme-info) 0%,
+    var(--theme-info-light, color-mix(in srgb, var(--theme-info) 70%, white)) 50%,
+    var(--theme-info) 100%
+  );
+  background-size: 200% 100%;
+  animation: progress-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 /* ==========================================================================
    Footer
    ========================================================================== */
