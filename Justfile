@@ -595,3 +595,21 @@ prod-to-staging-s3 PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
 # Usage: just prod-to-staging <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
 prod-to-staging PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
   ./scripts/prod-to-staging.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+
+#-------------------------------------------------------------------------------
+## Production to Local Dev Copy
+
+# Copy production database to local dev with PII sanitization
+# Requires PROD_DB_PASSWORD env var and local postgres running (just postgres-dev-start)
+prod-to-local-db:
+  ./scripts/prod-to-local-db.sh
+
+# Copy production Tigris S3 files to local dev (/tmp/kpbj)
+# Usage: just prod-to-local-files <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
+prod-to-local-files PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
+  ./scripts/prod-to-local-files.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+
+# Copy both production database and files to local dev
+# Usage: just prod-to-local <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
+prod-to-local PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
+  ./scripts/prod-to-local.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
