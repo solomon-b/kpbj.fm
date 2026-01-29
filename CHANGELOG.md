@@ -7,6 +7,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Features
 - **Schedule Page Dates** - Schedule page now shows the date (e.g., "Wednesday, Jan 28") in addition to the day of week
 
+### Chores
+- **Prod to Local Sync** - Added `just prod-to-local`, `just prod-to-local-db`, and `just prod-to-local-files` commands to copy production data to local development with PII sanitization
+
 ### Fixes
 - **Schedule Timezone Bug** - Fixed schedule template creation/editing using UTC instead of Pacific time, which caused an ~8 hour window where old and new templates could overlap incorrectly after editing
 - **Staging Login Cookie Collision** - Fixed issue where production cookies (Domain=.kpbj.fm) were sent to staging (staging.kpbj.fm) causing login failures. Each environment now uses a unique cookie name: `session-id-staging` and `session-id-production`
