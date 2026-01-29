@@ -203,39 +203,39 @@ applyTailwindStyles :: [Xml.Node] -> [Xml.Node]
 applyTailwindStyles nodes =
   nodes
     -- Headings
-    & set (traversed . _el "h1" . _elAttributes) [("class", "text-4xl font-bold mt-8 mb-4 text-gray-900")]
-    & set (traversed . _el "h2" . _elAttributes) [("class", "text-3xl font-bold mt-6 mb-3 text-gray-900")]
-    & set (traversed . _el "h3" . _elAttributes) [("class", "text-2xl font-bold mt-5 mb-2 text-gray-800")]
-    & set (traversed . _el "h4" . _elAttributes) [("class", "text-xl font-bold mt-4 mb-2 text-gray-800")]
-    & set (traversed . _el "h5" . _elAttributes) [("class", "text-lg font-bold mt-3 mb-2 text-gray-700")]
-    & set (traversed . _el "h6" . _elAttributes) [("class", "text-base font-bold mt-2 mb-1 text-gray-700")]
+    & set (traversed . _el "h1" . _elAttributes) [("class", "text-4xl font-bold mt-8 mb-4 text-[var(--theme-fg)]")]
+    & set (traversed . _el "h2" . _elAttributes) [("class", "text-3xl font-bold mt-6 mb-3 text-[var(--theme-fg)]")]
+    & set (traversed . _el "h3" . _elAttributes) [("class", "text-2xl font-bold mt-5 mb-2 text-[var(--theme-fg)]")]
+    & set (traversed . _el "h4" . _elAttributes) [("class", "text-xl font-bold mt-4 mb-2 text-[var(--theme-fg)]")]
+    & set (traversed . _el "h5" . _elAttributes) [("class", "text-lg font-bold mt-3 mb-2 text-[var(--theme-fg-muted)]")]
+    & set (traversed . _el "h6" . _elAttributes) [("class", "text-base font-bold mt-2 mb-1 text-[var(--theme-fg-muted)]")]
     -- Paragraphs
-    & set (traversed . _el "p" . _elAttributes) [("class", "my-4 text-gray-700 leading-relaxed")]
+    & set (traversed . _el "p" . _elAttributes) [("class", "my-4 text-[var(--theme-fg)] leading-relaxed")]
     -- Lists
-    & set (traversed . _el "ul" . _elAttributes) [("class", "list-disc list-inside my-4 ml-4 space-y-2 text-gray-700")]
-    & set (traversed . _el "ol" . _elAttributes) [("class", "list-decimal list-inside my-4 ml-4 space-y-2 text-gray-700")]
+    & set (traversed . _el "ul" . _elAttributes) [("class", "list-disc list-inside my-4 ml-4 space-y-2 text-[var(--theme-fg)]")]
+    & set (traversed . _el "ol" . _elAttributes) [("class", "list-decimal list-inside my-4 ml-4 space-y-2 text-[var(--theme-fg)]")]
     & set (traversed . _el "li" . _elAttributes) [("class", "leading-relaxed")]
     -- Task list checkboxes
     & over (traversed . _el "ul" . _Node . _el "li" . _Node . _el "input" . _elAttributes) (<> [("class", "mr-2")])
     -- Blockquotes
-    & set (traversed . _el "blockquote" . _elAttributes) [("class", "border-l-4 border-gray-400 pl-4 my-4 italic text-gray-600")]
+    & set (traversed . _el "blockquote" . _elAttributes) [("class", "border-l-4 border-[var(--theme-border-muted)] pl-4 my-4 italic text-[var(--theme-fg-muted)]")]
     -- Code blocks
-    & set (traversed . _el "pre" . _elAttributes) [("class", "bg-gray-100 border-2 border-gray-300 rounded-md p-4 my-4 overflow-x-auto font-mono text-sm")]
+    & set (traversed . _el "pre" . _elAttributes) [("class", "bg-[var(--theme-bg-alt)] border-2 border-[var(--theme-border-muted)] rounded-md p-4 my-4 overflow-x-auto font-mono text-sm text-[var(--theme-fg)]")]
     -- Inline code (inside paragraphs)
-    & over (traversed . _el "p" . _Node . _el "code" . _elAttributes) (<> [("class", "bg-gray-100 px-1.5 py-0.5 rounded font-mono text-sm text-gray-800")])
+    & over (traversed . _el "p" . _Node . _el "code" . _elAttributes) (<> [("class", "bg-[var(--theme-bg-alt)] px-1.5 py-0.5 rounded font-mono text-sm text-[var(--theme-fg)]")])
     -- Code inside pre blocks
     & set (traversed . _el "pre" . _Node . _el "code" . _elAttributes) [("class", "font-mono text-sm")]
     -- Links
-    & over (traversed . _el "a" . _elAttributes) (<> [("class", "text-blue-600 hover:text-blue-800 hover:underline")])
+    & over (traversed . _el "a" . _elAttributes) (<> [("class", "text-[var(--theme-info)] hover:text-[var(--theme-accent-hover)] hover:underline")])
     -- Images
-    & over (traversed . _el "img" . _elAttributes) (<> [("class", "max-w-full h-auto my-4 border-2 border-gray-300")])
+    & over (traversed . _el "img" . _elAttributes) (<> [("class", "max-w-full h-auto my-4 border-2 border-[var(--theme-border-muted)]")])
     -- Tables
-    & set (traversed . _el "table" . _elAttributes) [("class", "min-w-full border-collapse border-2 border-gray-300 my-4")]
-    & set (traversed . _el "thead" . _elAttributes) [("class", "bg-gray-100")]
-    & set (traversed . _el "th" . _elAttributes) [("class", "border border-gray-300 px-4 py-2 text-left font-bold")]
-    & set (traversed . _el "td" . _elAttributes) [("class", "border border-gray-300 px-4 py-2")]
+    & set (traversed . _el "table" . _elAttributes) [("class", "min-w-full border-collapse border-2 border-[var(--theme-border-muted)] my-4")]
+    & set (traversed . _el "thead" . _elAttributes) [("class", "bg-[var(--theme-bg-alt)]")]
+    & set (traversed . _el "th" . _elAttributes) [("class", "border border-[var(--theme-border-muted)] px-4 py-2 text-left font-bold text-[var(--theme-fg)]")]
+    & set (traversed . _el "td" . _elAttributes) [("class", "border border-[var(--theme-border-muted)] px-4 py-2 text-[var(--theme-fg)]")]
     -- Horizontal rules
-    & set (traversed . _el "hr" . _elAttributes) [("class", "my-8 border-t-2 border-gray-300")]
+    & set (traversed . _el "hr" . _elAttributes) [("class", "my-8 border-t-2 border-[var(--theme-border-muted)]")]
     -- Strong and emphasis
     & set (traversed . _el "strong" . _elAttributes) [("class", "font-bold")]
     & set (traversed . _el "em" . _elAttributes) [("class", "italic")]
