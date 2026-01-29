@@ -14,6 +14,7 @@ module App.Domains
     baseDomain,
 
     -- * Cookie Configuration
+    cookieName,
     cookieDomain,
 
     -- * Upload Configuration
@@ -48,6 +49,21 @@ baseDomain = \case
 
 --------------------------------------------------------------------------------
 -- Cookie Configuration
+
+-- | Get the session cookie name for the environment.
+--
+-- Different environments use different cookie names to prevent collisions
+-- when cookies from production (Domain=.kpbj.fm) would otherwise be sent
+-- to staging (staging.kpbj.fm is a subdomain of kpbj.fm).
+--
+-- - Development: "session-id"
+-- - Staging: "session-id-staging"
+-- - Production: "session-id-production"
+cookieName :: Environment -> Text
+cookieName = \case
+  Development -> "session-id"
+  Staging -> "session-id-staging"
+  Production -> "session-id-production"
 
 -- | Get the cookie Domain attribute for cross-subdomain authentication.
 --

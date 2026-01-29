@@ -11,7 +11,7 @@
 module App.Cookie
   ( mkCookieSessionWithDomain,
     mkExpireOldSessionCookie,
-    getCookieDomain,
+    lookupSessionId,
   )
 where
 
@@ -22,19 +22,22 @@ import App.Domains qualified as Domains
 import Data.Foldable (fold)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Data.Text.Encoding qualified as Text.Encoding
+import Data.UUID qualified as UUID
 import Effects.Database.Tables.ServerSessions qualified as ServerSessions
+import Web.Cookie (parseCookies)
 
 --------------------------------------------------------------------------------
 
 -- | Create a session cookie with the appropriate Domain attribute.
 --
 -- The Domain attribute allows the cookie to be shared across subdomains.
--- See "App.Domains" for the domain configuration per environment.
+-- See "App.Domains" for the domain and cookie name configuration per environment.
 mkCookieSessionWithDomain :: Environment -> ServerSessions.Id -> Text
 mkCookieSessionWithDomain env sId =
   let baseCookie =
         fold
-          [ "session-id",
+          [ Domains.cookieName env,
             "=",
             display sId,
             "; ",
@@ -46,17 +49,10 @@ mkCookieSessionWithDomain env sId =
             "; ",
             "Secure"
           ]
-      domainAttr = getCookieDomain env
+      domainAttr = Domains.cookieDomain env
    in case domainAttr of
         "" -> baseCookie
         domain -> baseCookie <> "; Domain=" <> domain
-
--- | Get the cookie Domain attribute based on environment.
---
--- Re-exports 'App.Domains.cookieDomain' for convenience.
--- See "App.Domains" for the full domain configuration.
-getCookieDomain :: Environment -> Text
-getCookieDomain = Domains.cookieDomain
 
 -- | Create a Set-Cookie header to expire the old session cookie (without Domain).
 --
@@ -111,3 +107,17 @@ mkExpireOldSessionCookie = \case
           "; ",
           "Max-Age=0"
         ]
+
+--------------------------------------------------------------------------------
+
+-- | Parse a session ID from a raw cookie header using the environment-specific cookie name.
+--
+-- This looks up the correct cookie name for the environment (e.g., "session-id-production"
+-- for production, "session-id-staging" for staging) and parses the UUID value.
+lookupSessionId :: Environment -> Text -> Maybe ServerSessions.Id
+lookupSessionId env cookieHeader =
+  let cookieBytes = Text.Encoding.encodeUtf8 cookieHeader
+      nameBytes = Text.Encoding.encodeUtf8 (Domains.cookieName env)
+   in lookup nameBytes (parseCookies cookieBytes)
+        >>= UUID.fromASCIIBytes
+        >>= Just . ServerSessions.Id
