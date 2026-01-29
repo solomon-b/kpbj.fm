@@ -54,9 +54,11 @@ validateFileContent filePath expectedMimeType allowedTypes = do
   case mimeResult of
     Left err -> pure $ Left err
     Right actualMimeType -> do
-      if any (mimeTypesMatch actualMimeType) allowedTypes
-        then pure $ Right actualMimeType
-        else pure $ Left $ "File type not allowed: " <> actualMimeType <> ". Allowed types: " <> Text.intercalate ", " allowedTypes
+      -- Clean the MIME type (strip charset suffix like "; charset=binary")
+      let cleanedMimeType = Text.takeWhile (/= ';') $ Text.strip actualMimeType
+      if any (mimeTypesMatch cleanedMimeType) allowedTypes
+        then pure $ Right cleanedMimeType
+        else pure $ Left $ "File type not allowed: " <> cleanedMimeType <> ". Allowed types: " <> Text.intercalate ", " allowedTypes
 
 -- | Validate audio file content
 validateAudioFile :: (MonadIO m, Log.MonadLog m) => FilePath -> Text -> m (Either Text Text)
