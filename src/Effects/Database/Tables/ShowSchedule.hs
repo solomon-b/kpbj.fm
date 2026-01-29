@@ -56,9 +56,10 @@ import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
 import Data.Time (Day, DayOfWeek (..), TimeOfDay, UTCTime, addUTCTime, dayOfWeek, utctDay)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (hoursToTimeZone, timeOfDayToTime, utcToLocalTime)
+import Data.Time.LocalTime (timeOfDayToTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
+import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
@@ -506,9 +507,8 @@ data UpcomingShowDate = UpcomingShowDate
 
 instance Display UpcomingShowDate where
   displayBuilder usd =
-    let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
-        startTimePacific = utcToLocalTime pacificTz (usdStartTime usd)
-        endTimePacific = utcToLocalTime pacificTz (usdEndTime usd)
+    let startTimePacific = utcToPacific (usdStartTime usd)
+        endTimePacific = utcToPacific (usdEndTime usd)
         formatTimeOfDay = Text.pack . formatTime defaultTimeLocale "%l:%M %p"
      in displayBuilder $
           dayOfWeekName (usdDayOfWeek usd)

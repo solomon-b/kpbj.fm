@@ -14,11 +14,11 @@ import API.Types
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
+import Domain.Types.Timezone (formatPacificDateLong)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -59,8 +59,7 @@ renderLatestEpisode backend showModel episode tracks = do
             ]
             $ Lucid.toHtml (show epNum)
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
-          let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" episode.scheduledAt
-          "Aired: " <> Lucid.toHtml dateStr
+          "Aired: " <> Lucid.toHtml (formatPacificDateLong episode.scheduledAt)
 
           case episode.durationSeconds of
             Just duration ->
@@ -206,8 +205,7 @@ renderEpisodeCard backend showModel episode = do
           $ Lucid.toHtml (show epNum)
 
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
-        let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" episode.scheduledAt
-        "Aired: " <> Lucid.toHtml dateStr
+        "Aired: " <> Lucid.toHtml (formatPacificDateLong episode.scheduledAt)
 
         case episode.durationSeconds of
           Just duration -> " • Duration: " <> Lucid.toHtml (show (duration `div` 60)) <> "min"

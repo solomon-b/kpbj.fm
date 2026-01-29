@@ -97,6 +97,7 @@ library
                   , text
                   , text-display
                   , time
+                  , tz
                   , transformers
                   , unliftio
                   , unliftio-core
@@ -429,6 +430,7 @@ library
     Domain.Types.ShowSortBy
     Domain.Types.Slug
     Domain.Types.StorageBackend
+    Domain.Types.Timezone
     Domain.Types.UserSortBy
     Domain.Types.WeekOffset
     Effects.Database.Tables.BlogPosts
