@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.4.0] - 2026-01-28
+
 ### Features
 - **New Themes** - Added Gruvbox, Dracula, and Nord color themes with light and dark variants
 - **AM/PM Show Replays** - Shows can now be scheduled as AM or PM replays of other shows
