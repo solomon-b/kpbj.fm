@@ -7,16 +7,11 @@
 -- (development mode), emails are logged to console instead of being sent.
 module Effects.MailSender
   ( -- * Mail Sending
-    sendEmail,
-    sendVerificationEmail,
     sendVerificationEmailAsync,
-    sendPasswordResetEmail,
     sendPasswordResetEmailAsync,
-    sendHostAssignmentEmail,
     sendHostAssignmentEmailAsync,
 
     -- * Mail Building
-    buildSimpleMail,
     buildPlainTextMail,
 
     -- * Host Assignment Email Data
@@ -33,8 +28,6 @@ import Control.Concurrent.Async qualified as Async
 import Control.Exception (SomeException, try)
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Reader (asks)
-import Data.Has (getter)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -46,42 +39,6 @@ import Network.Mail.SMTP qualified as SMTP
 import System.IO (hPutStrLn, stderr)
 
 --------------------------------------------------------------------------------
-
--- | Send an email using the configured SMTP settings.
---
--- When SMTP is not configured, the email is logged to console instead.
--- Returns True if the email was sent (or logged) successfully, False otherwise.
-sendEmail :: Mime.Mail -> AppM Bool
-sendEmail mail = do
-  mSmtpConfig <- asks getter
-  case mSmtpConfig of
-    Nothing -> do
-      -- SMTP not configured - log the email instead
-      Log.logInfo "Email (not sent - SMTP not configured)" $
-        Text.pack $
-          show (Mime.mailTo mail)
-      liftIO $ do
-        putStrLn "=== Email (SMTP not configured) ==="
-        putStrLn $ "To: " <> show (Mime.mailTo mail)
-        putStrLn $ "Subject: " <> getSubjectStr (Mime.mailHeaders mail)
-        putStrLn "==================================="
-      pure True
-    Just config -> do
-      Log.logInfo "Sending email" $ Text.pack $ show (Mime.mailTo mail)
-      result <- liftIO $ try $ sendMailWithConfig config mail
-      case result of
-        Left (e :: SomeException) -> do
-          Log.logInfo "Failed to send email" $ Text.pack $ show e
-          pure False
-        Right () -> do
-          Log.logInfo "Email sent successfully" $ Text.pack $ show (Mime.mailTo mail)
-          pure True
-  where
-    getSubjectStr :: Mime.Headers -> String
-    getSubjectStr [] = "(no subject)"
-    getSubjectStr ((name, value) : rest)
-      | name == "Subject" = Text.unpack value
-      | otherwise = getSubjectStr rest
 
 -- | Send email using SMTP with the given configuration.
 --
@@ -102,35 +59,6 @@ sendMailWithConfig SmtpConfig {..}
         (Text.unpack smtpPassword)
 
 --------------------------------------------------------------------------------
-
--- | Build a simple text/html email.
-buildSimpleMail ::
-  -- | From email address
-  Text ->
-  -- | From display name
-  Text ->
-  -- | To email address
-  Text ->
-  -- | Subject
-  Text ->
-  -- | Plain text body
-  LT.Text ->
-  -- | HTML body
-  LT.Text ->
-  Mime.Mail
-buildSimpleMail fromEmail fromName toEmail subject plainBody htmlBody =
-  Mime.Mail
-    { Mime.mailFrom = Mime.Address (Just fromName) fromEmail,
-      Mime.mailTo = [Mime.Address Nothing toEmail],
-      Mime.mailCc = [],
-      Mime.mailBcc = [],
-      Mime.mailHeaders = [("Subject", subject)],
-      Mime.mailParts =
-        [ [ Mime.plainPart plainBody,
-            Mime.htmlPart htmlBody
-          ]
-        ]
-    }
 
 -- | Build a plain-text-only email (no HTML).
 --
@@ -158,21 +86,6 @@ buildPlainTextMail fromEmail fromName toEmail subject plainBody =
     }
 
 --------------------------------------------------------------------------------
-
--- | Send a verification email to a user.
---
--- Builds and sends an email with a verification link.
-sendVerificationEmail ::
-  -- | SMTP configuration
-  SmtpConfig ->
-  -- | Recipient email address
-  Text ->
-  -- | Verification token
-  Text ->
-  AppM Bool
-sendVerificationEmail config toEmail token = do
-  let mail = buildVerificationMail config toEmail token
-  sendEmail mail
 
 -- | Send a verification email asynchronously (fire-and-forget).
 --
@@ -244,21 +157,6 @@ https://kpbj.fm
         plainBody
 
 --------------------------------------------------------------------------------
-
--- | Send a password reset email to a user.
---
--- Builds and sends an email with a password reset link.
-sendPasswordResetEmail ::
-  -- | SMTP configuration
-  SmtpConfig ->
-  -- | Recipient email address
-  Text ->
-  -- | Reset token
-  Text ->
-  AppM Bool
-sendPasswordResetEmail config toEmail token = do
-  let mail = buildPasswordResetMail config toEmail token
-  sendEmail mail
 
 -- | Send a password reset email asynchronously (fire-and-forget).
 --
@@ -351,21 +249,6 @@ data HostAssignmentInfo = HostAssignmentInfo
     haiTimeslot :: Maybe Text
   }
   deriving stock (Show, Eq)
-
--- | Send a host assignment notification email.
---
--- Builds and sends an email welcoming a host to their new show.
-sendHostAssignmentEmail ::
-  -- | SMTP configuration
-  SmtpConfig ->
-  -- | Recipient email address
-  Text ->
-  -- | Host assignment information
-  HostAssignmentInfo ->
-  AppM Bool
-sendHostAssignmentEmail config toEmail info = do
-  let mail = buildHostAssignmentMail config toEmail info
-  sendEmail mail
 
 -- | Send a host assignment notification email asynchronously (fire-and-forget).
 --

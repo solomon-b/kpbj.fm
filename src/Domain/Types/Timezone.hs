@@ -5,7 +5,6 @@
 module Domain.Types.Timezone
   ( -- * Pacific Time Conversion
     utcToPacific,
-    utcToPacificDay,
     formatPacificDate,
     formatPacificDateLong,
 
@@ -18,7 +17,7 @@ where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, LocalTime (..), UTCTime)
+import Data.Time (LocalTime (..), UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.Zones (TZ, loadSystemTZ, utcToLocalTimeTZ)
 import System.IO.Unsafe (unsafePerformIO)
@@ -39,14 +38,6 @@ pacificTZ = unsafePerformIO $ loadSystemTZ "America/Los_Angeles"
 -- based on the actual date.
 utcToPacific :: UTCTime -> LocalTime
 utcToPacific = utcToLocalTimeTZ pacificTZ
-
--- | Extract the Pacific date from a UTC time.
---
--- Use this when you need just the date portion (e.g., for episode scheduling).
--- A 7PM Pacific show stored as 3AM UTC the next day will correctly return
--- the Pacific date, not the UTC date.
-utcToPacificDay :: UTCTime -> Day
-utcToPacificDay = localDay . utcToPacific
 
 -- | Format a UTC time as a Pacific date string (e.g., "Feb 03, 2026").
 formatPacificDate :: UTCTime -> Text

@@ -24,10 +24,8 @@ module Effects.Database.Tables.EmailVerificationTokens
 
     -- * Queries
     insert,
-    getByToken,
     verifyToken,
     invalidateForUser,
-    getLatestPendingForUser,
     getLastTokenCreatedAt,
     deleteExpired,
     deleteOlderThanDays,
@@ -159,19 +157,6 @@ insert Insert {..} =
     RETURNING id
   |]
 
--- | Get a verification token by its token string.
---
--- Returns Nothing if the token doesn't exist.
-getByToken :: Token -> Hasql.Statement () (Maybe Model)
-getByToken token =
-  interp
-    False
-    [sql|
-    SELECT id, user_id, token, email, status, created_at, expires_at, verified_at
-    FROM email_verification_tokens
-    WHERE token = #{token}
-  |]
-
 -- | Verify a token, marking it as verified and updating the user.
 --
 -- This atomically:
@@ -218,23 +203,6 @@ invalidateForUser userId =
     SET status = 'expired'
     WHERE user_id = #{userId}
       AND status = 'pending'
-  |]
-
--- | Get the latest pending verification token for a user.
---
--- Returns Nothing if no pending token exists.
-getLatestPendingForUser :: User.Id -> Hasql.Statement () (Maybe Model)
-getLatestPendingForUser userId =
-  interp
-    False
-    [sql|
-    SELECT id, user_id, token, email, status, created_at, expires_at, verified_at
-    FROM email_verification_tokens
-    WHERE user_id = #{userId}
-      AND status = 'pending'
-      AND expires_at > NOW()
-    ORDER BY created_at DESC
-    LIMIT 1
   |]
 
 -- | Check if a token was created within the given number of seconds.

@@ -41,4 +41,4 @@ library
     , Lucid.Form.Builder.Alpine
     , Lucid.Form.Builder.JS
   hs-source-dirs: src
-  ghc-options: -Wall
+  ghc-options: -Wall -fwrite-ide-info

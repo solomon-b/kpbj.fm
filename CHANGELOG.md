@@ -4,6 +4,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+- **Dead Code Cleanup** - Removed unused functions: `utcToPacificDay`, `EmailVerificationTokens.getByToken`, `EmailVerificationTokens.getLatestPendingForUser`, sync email functions (`sendEmail`, `sendVerificationEmail`, `sendPasswordResetEmail`, `sendHostAssignmentEmail`), `buildSimpleMail`, `claimStagedUploadMaybe`
 ### Fixes
 - **Markdown Line Breaks** - Enabled hard line breaks in markdown rendering so single newlines render as `<br>` tags instead of being collapsed into spaces
 

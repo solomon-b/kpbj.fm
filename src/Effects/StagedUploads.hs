@@ -11,7 +11,6 @@ module Effects.StagedUploads
 
     -- * Upload Claiming
     claimStagedUpload,
-    claimStagedUploadMaybe,
     claimAndRelocateUpload,
     ClaimError (..),
     claimErrorToText,
@@ -108,22 +107,6 @@ claimErrorToText = \case
   ClaimDbError msg -> msg
   ClaimNotFound -> "Uploaded file not found or expired"
   ClaimTypeMismatch _ _ -> "Uploaded file type mismatch"
-
--- | Claim a staged upload, returning @Either Text (Maybe Text)@.
---
--- This is a convenience wrapper around 'claimStagedUpload' that converts
--- the error type and wraps the result in Maybe for compatibility with
--- file upload handlers that accept both staged and direct uploads.
-claimStagedUploadMaybe ::
-  User.Id ->
-  Text ->
-  StagedUploads.UploadType ->
-  AppM (Either Text (Maybe Text))
-claimStagedUploadMaybe userId tokenText expectedType = do
-  result <- claimStagedUpload userId tokenText expectedType
-  pure $ case result of
-    Left err -> Left $ claimErrorToText err
-    Right path -> Right $ Just path
 
 -- | Claim a staged upload and relocate it to the final storage location.
 --
