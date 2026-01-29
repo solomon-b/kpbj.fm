@@ -216,8 +216,8 @@ renderFooter mHtmxTarget items mHint =
           Lucid.button_
             [ Lucid.type_ "submit",
               Lucid.class_ "fb-submit",
-              xBindDisabled_ "isUploading",
-              xBindClass_ "{ 'fb-submit--loading': isUploading }"
+              xBindDisabled_ "isUploading || stagedUploading",
+              xBindClass_ "{ 'fb-submit--loading': isUploading || stagedUploading }"
             ]
             (Lucid.toHtml lbl)
         FooterCancel url lbl ->
@@ -1292,6 +1292,9 @@ renderStagedAudioField field uploadUrl uploadType = do
   blobUrl: null,
 
   init() {
+    // Initialize global staged upload counter
+    window.stagedUploadsInProgress = window.stagedUploadsInProgress || 0;
+
     const audio = this.$refs.audio;
     audio.addEventListener('loadedmetadata', () => {
       this.duration = audio.duration;
@@ -1316,6 +1319,16 @@ renderStagedAudioField field uploadUrl uploadType = do
     }
   },
 
+  startUploadTracking() {
+    window.stagedUploadsInProgress = (window.stagedUploadsInProgress || 0) + 1;
+    window.dispatchEvent(new CustomEvent('staged-upload-change'));
+  },
+
+  endUploadTracking() {
+    window.stagedUploadsInProgress = Math.max(0, (window.stagedUploadsInProgress || 0) - 1);
+    window.dispatchEvent(new CustomEvent('staged-upload-change'));
+  },
+
   async handleFileSelect(event) {
     const file = event.target.files?.[0];
     console.log('[Upload] File selected:', file ? {name: file.name, size: file.size, type: file.type} : 'none');
@@ -1338,6 +1351,7 @@ renderStagedAudioField field uploadUrl uploadType = do
     this.uploadProgress = 0;
     this.fileName = file.name;
     this.fileSize = file.size;
+    this.startUploadTracking();
 
     // Set up player preview with blob URL
     if (this.blobUrl) {
@@ -1366,6 +1380,7 @@ renderStagedAudioField field uploadUrl uploadType = do
       console.log('[Upload] Load event - status:', xhr.status, 'statusText:', xhr.statusText);
       console.log('[Upload] Response:', xhr.responseText.substring(0, 500));
       this.isUploading = false;
+      this.endUploadTracking();
       if (xhr.status === 200) {
         try {
           const response = JSON.parse(xhr.responseText);
@@ -1395,6 +1410,7 @@ renderStagedAudioField field uploadUrl uploadType = do
     xhr.addEventListener('error', (e) => {
       console.log('[Upload] XHR error event:', e);
       this.isUploading = false;
+      this.endUploadTracking();
       this.uploadError = 'Network error during upload';
       this.clearUpload();
     });
@@ -1402,6 +1418,7 @@ renderStagedAudioField field uploadUrl uploadType = do
     xhr.addEventListener('abort', () => {
       console.log('[Upload] XHR aborted');
       this.isUploading = false;
+      this.endUploadTracking();
       this.uploadError = 'Upload aborted';
       this.clearUpload();
     });
@@ -1409,6 +1426,7 @@ renderStagedAudioField field uploadUrl uploadType = do
     xhr.addEventListener('timeout', () => {
       console.log('[Upload] XHR timeout');
       this.isUploading = false;
+      this.endUploadTracking();
       this.uploadError = 'Upload timed out';
       this.clearUpload();
     });
@@ -1501,6 +1519,13 @@ renderStagedAudioField field uploadUrl uploadType = do
   get progress() {
     if (!this.duration) return 0;
     return (this.currentTime / this.duration) * 100;
+  },
+  get isProcessing() {
+    return this.uploadProgress >= 100 && this.isUploading && !this.uploadToken;
+  },
+  get uploadStatusText() {
+    if (this.isProcessing) return 'Processing...';
+    return this.uploadProgress + '%';
   }
 }|],
       Lucid.class_ "fb-field"
@@ -1566,11 +1591,12 @@ renderStagedAudioField field uploadUrl uploadType = do
           $ do
             Lucid.div_ [Lucid.class_ "fb-progress-header"] $ do
               Lucid.span_ [xText_ "fileName"] ""
-              Lucid.span_ [Lucid.class_ "fb-progress-text", xText_ "uploadProgress + '%'"] ""
+              Lucid.span_ [Lucid.class_ "fb-progress-text", xText_ "uploadStatusText"] ""
             Lucid.div_ [Lucid.class_ "fb-progress-track"] $
               Lucid.div_
                 [ Lucid.class_ "fb-progress-bar",
-                  xBindStyle_ "{ width: uploadProgress + '%' }"
+                  xBindStyle_ "{ width: uploadProgress + '%' }",
+                  xBindClass_ "{ 'fb-progress-bar--processing': isProcessing }"
                 ]
                 mempty
 
@@ -1690,6 +1716,29 @@ renderStagedImageField field uploadUrl uploadType = do
   uploadError: '',
   currentCleared: false,
 
+  init() {
+    window.stagedUploadsInProgress = window.stagedUploadsInProgress || 0;
+  },
+
+  startUploadTracking() {
+    window.stagedUploadsInProgress = (window.stagedUploadsInProgress || 0) + 1;
+    window.dispatchEvent(new CustomEvent('staged-upload-change'));
+  },
+
+  endUploadTracking() {
+    window.stagedUploadsInProgress = Math.max(0, (window.stagedUploadsInProgress || 0) - 1);
+    window.dispatchEvent(new CustomEvent('staged-upload-change'));
+  },
+
+  get isProcessing() {
+    return this.uploadProgress >= 100 && this.isUploading && !this.uploadToken;
+  },
+
+  get uploadStatusText() {
+    if (this.isProcessing) return 'Processing...';
+    return this.uploadProgress + '%';
+  },
+
   async handleFileSelect(event) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1712,6 +1761,7 @@ renderStagedImageField field uploadUrl uploadType = do
     this.uploadProgress = 0;
     this.fileName = file.name;
     this.fileSize = file.size;
+    this.startUploadTracking();
 
     const formData = new FormData();
     formData.append('file', file);
@@ -1726,6 +1776,7 @@ renderStagedImageField field uploadUrl uploadType = do
 
     xhr.addEventListener('load', () => {
       this.isUploading = false;
+      this.endUploadTracking();
       if (xhr.status === 200) {
         try {
           const response = JSON.parse(xhr.responseText);
@@ -1750,6 +1801,7 @@ renderStagedImageField field uploadUrl uploadType = do
 
     xhr.addEventListener('error', () => {
       this.isUploading = false;
+      this.endUploadTracking();
       this.uploadError = 'Network error during upload';
       this.clearUpload();
     });
@@ -1834,12 +1886,13 @@ renderStagedImageField field uploadUrl uploadType = do
               ]
               $ do
                 Lucid.div_ [Lucid.class_ "fb-progress-header"] $ do
-                  Lucid.span_ [] "Uploading..."
-                  Lucid.span_ [Lucid.class_ "fb-progress-text", xText_ "uploadProgress + '%'"] ""
+                  Lucid.span_ [xText_ "fileName"] ""
+                  Lucid.span_ [Lucid.class_ "fb-progress-text", xText_ "uploadStatusText"] ""
                 Lucid.div_ [Lucid.class_ "fb-progress-track"] $
                   Lucid.div_
                     [ Lucid.class_ "fb-progress-bar",
-                      xBindStyle_ "{ width: uploadProgress + '%' }"
+                      xBindStyle_ "{ width: uploadProgress + '%' }",
+                      xBindClass_ "{ 'fb-progress-bar--processing': isProcessing }"
                     ]
                     mempty
 

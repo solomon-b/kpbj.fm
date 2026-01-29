@@ -409,6 +409,15 @@ renderAlpineObject fieldInits methods validatorCalls =
            \  showErrors: false,\n\
            \  isUploading: false,\n\
            \  uploadProgress: 0,\n\
+           \  stagedUploading: false,\n\
+           \\n\
+           \  init() {\n\
+           \    // Track staged uploads (audio/image fields that upload separately)\n\
+           \    this.stagedUploading = (window.stagedUploadsInProgress || 0) > 0;\n\
+           \    window.addEventListener('staged-upload-change', () => {\n\
+           \      this.stagedUploading = (window.stagedUploadsInProgress || 0) > 0;\n\
+           \    });\n\
+           \  },\n\
            \\n\
            \  "
         <> methodsStr
