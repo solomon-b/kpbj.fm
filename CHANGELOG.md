@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Schedule Page Note** - Added informational note explaining that outside scheduled programming, KPBJ plays curated ephemeral content from hosts and DJs
 - **Schedule Page Dates** - Schedule page now shows the date (e.g., "Wednesday, Jan 28") in addition to the day of week
 
 ### Chores

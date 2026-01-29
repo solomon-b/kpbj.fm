@@ -26,8 +26,17 @@ template backend scheduledShows weekDays currentDayOfWeek currentTimeOfDay maybe
       Lucid.section_ [sectionStyles] $ do
         renderSchedule backend scheduledShows weekDays currentDayOfWeek currentTimeOfDay
 
+      -- Informational note about off-schedule programming
+      Lucid.p_ [noteStyles] $
+        "Outside of scheduled programming, we're playing a curated mix of ephemeral content from KPBJ hosts and DJs."
+
 --------------------------------------------------------------------------------
 -- Styles
+
+noteStyles :: Lucid.Attributes
+noteStyles = class_ $ do
+  base [Tokens.textSm, Tokens.textGray600, "text-center", "italic"]
+  base [Tokens.mt4]
 
 errorStyles :: Lucid.Attributes
 errorStyles = class_ $ do
