@@ -15,6 +15,14 @@ module App.Domains
 
     -- * Cookie Configuration
     cookieDomain,
+
+    -- * Upload Configuration
+    uploadsDomain,
+    uploadsBaseUrl,
+    audioUploadUrl,
+
+    -- * Allowed Origins (for CORS)
+    allowedOrigins,
   )
 where
 
@@ -22,6 +30,7 @@ where
 
 import App.Config (Environment (..))
 import Data.Text (Text)
+import Domain.Types.Origin (Origin)
 
 --------------------------------------------------------------------------------
 -- Base Domain
@@ -50,3 +59,57 @@ cookieDomain :: Environment -> Text
 cookieDomain = \case
   Development -> ""
   env -> "." <> baseDomain env
+
+--------------------------------------------------------------------------------
+-- Upload Configuration
+
+-- | Get the uploads subdomain for the environment.
+--
+-- - Development: empty (relative URLs)
+-- - Staging: "uploads.staging.kpbj.fm"
+-- - Production: "uploads.kpbj.fm"
+uploadsDomain :: Environment -> Text
+uploadsDomain = \case
+  Development -> ""
+  env -> "uploads." <> baseDomain env
+
+-- | Get the base URL for uploads (scheme + domain).
+--
+-- - Development: empty (use relative URLs)
+-- - Staging: "https://uploads.staging.kpbj.fm"
+-- - Production: "https://uploads.kpbj.fm"
+uploadsBaseUrl :: Environment -> Text
+uploadsBaseUrl = \case
+  Development -> ""
+  env -> "https://" <> uploadsDomain env
+
+-- | Get the full URL for audio uploads.
+--
+-- - Development: "/api/uploads/audio" (relative)
+-- - Staging: "https://uploads.staging.kpbj.fm/api/uploads/audio"
+-- - Production: "https://uploads.kpbj.fm/api/uploads/audio"
+audioUploadUrl :: Environment -> Text
+audioUploadUrl env = uploadsBaseUrl env <> "/api/uploads/audio"
+
+--------------------------------------------------------------------------------
+-- CORS Configuration
+
+-- | Get the list of allowed origins for CORS in the given environment.
+--
+-- These are the origins that are permitted to make cross-origin requests
+-- with credentials.
+allowedOrigins :: Environment -> [Origin]
+allowedOrigins = \case
+  Development ->
+    [ "http://localhost:4000"
+    ]
+  Staging ->
+    [ "https://staging.kpbj.fm",
+      "https://www.staging.kpbj.fm",
+      "https://uploads.staging.kpbj.fm"
+    ]
+  Production ->
+    [ "https://kpbj.fm",
+      "https://www.kpbj.fm",
+      "https://uploads.kpbj.fm"
+    ]

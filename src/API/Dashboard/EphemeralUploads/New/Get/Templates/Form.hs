@@ -10,6 +10,7 @@ where
 import API.Links (dashboardEphemeralUploadsLinks)
 import API.Types
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Lucid qualified
 import Lucid.Form.Builder
 import Servant.Links qualified as Links
@@ -25,8 +26,8 @@ ephemeralUploadListUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.list Not
 --------------------------------------------------------------------------------
 
 -- | Ephemeral upload form using FormBuilder
-ephemeralUploadForm :: Lucid.Html ()
-ephemeralUploadForm = do
+ephemeralUploadForm :: Text -> Lucid.Html ()
+ephemeralUploadForm uploadUrl = do
   renderForm config form
   where
     postUrl = [i|/#{ephemeralUploadNewPostUrl}|]
@@ -54,7 +55,7 @@ ephemeralUploadForm = do
 
       -- Audio File Section
       section "AUDIO FILE" $ do
-        stagedAudioField "audio_file" "/api/uploads/audio" "ephemeral_audio" $ do
+        stagedAudioField "audio_file" uploadUrl "ephemeral_audio" $ do
           label "Ephemeral Audio"
           hint "Upload an MP3, WAV, or other audio file. Maximum 50MB."
           maxSize 50

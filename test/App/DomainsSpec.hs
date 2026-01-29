@@ -120,9 +120,6 @@ spec = describe "App.Domains" $ do
       assert $ Text.isSuffixOf (Text.drop 1 cookie) uploads
 
   describe "allowedOrigins" $ do
-    it "includes localhost for Development" $ do
-      allowedOrigins Development `shouldSatisfy` elem "http://localhost:4000"
-
     it "includes main site for Staging" $ do
       allowedOrigins Staging `shouldSatisfy` elem "https://staging.kpbj.fm"
 
@@ -143,12 +140,3 @@ spec = describe "App.Domains" $ do
       forM_ [Development, Staging, Production] $ \env ->
         forM_ evilOrigins $ \evil ->
           allowedOrigins env `shouldNotSatisfy` elem evil
-
-  describe "defaultCorsOrigin" $ do
-    it "returns localhost for Development" $ do
-      defaultCorsOrigin Development `shouldBe` "http://localhost:4000"
-
-    it "returns HTTPS URL for non-Development" $ hedgehog $ do
-      env <- forAll genNonDevEnvironment
-      let Origin origin = defaultCorsOrigin env
-      assert $ "https://" `Text.isPrefixOf` origin

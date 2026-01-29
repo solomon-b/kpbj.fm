@@ -9,11 +9,15 @@ import API.Dashboard.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadFor
 import API.Links (apiLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
+import App.Config (Environment)
+import App.Domains (audioUploadUrl)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad.Reader (asks)
 import Data.Either (fromRight)
+import Data.Has qualified as Has
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -48,8 +52,12 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
     -- 4. Fetch upcoming dates for the show
     upcomingDates <- fetchUpcomingDates showModel.id
 
-    -- 5. Render the form
-    let content = episodeUploadForm showModel upcomingDates userMetadata
+    -- 5. Get upload URL (bypasses Cloudflare in production)
+    env <- asks (Has.getter @Environment)
+    let uploadUrl = audioUploadUrl env
+
+    -- 6. Render the form
+    let content = episodeUploadForm uploadUrl showModel upcomingDates userMetadata
     renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes Nothing Nothing content
 
 -- | Fetch shows based on user role (admins see all, hosts see their own)

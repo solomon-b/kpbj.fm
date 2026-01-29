@@ -20,6 +20,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Fixes
 - **Events Page Ordering** - Public events page now displays latest events at the top (ordered by start date descending)
 - **Markdown Theme Colors** - Markdown content now properly uses theme colors instead of hardcoded values
+- **Audio Upload CORS** - Fixed CORS errors preventing audio file uploads from completing
 - **Host Profile Schedule** - Fixed schedule display on host profile pages
 
 ---

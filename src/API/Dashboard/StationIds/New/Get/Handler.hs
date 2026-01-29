@@ -9,11 +9,15 @@ import API.Dashboard.StationIds.New.Get.Templates.Form (stationIdUploadForm)
 import API.Links (apiLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
+import App.Config (Environment)
+import App.Domains (audioUploadUrl)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad.Reader (asks)
 import Data.Either (fromRight)
+import Data.Has qualified as Has
 import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
@@ -45,6 +49,10 @@ handler _tracer cookie (foldHxReq -> hxRequest) =
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
-    -- 3. Render the form
-    let content = stationIdUploadForm
+    -- 3. Get upload URL (bypasses Cloudflare in production)
+    env <- asks (Has.getter @Environment)
+    let uploadUrl = audioUploadUrl env
+
+    -- 4. Render the form
+    let content = stationIdUploadForm uploadUrl
     renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationIds Nothing Nothing content

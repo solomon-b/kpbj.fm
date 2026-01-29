@@ -10,6 +10,7 @@ where
 import API.Links (dashboardStationIdsLinks)
 import API.Types
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Lucid qualified
 import Lucid.Form.Builder
 import Servant.Links qualified as Links
@@ -25,8 +26,8 @@ stationIdListUrl = Links.linkURI $ dashboardStationIdsLinks.list Nothing
 --------------------------------------------------------------------------------
 
 -- | Station ID upload form using FormBuilder
-stationIdUploadForm :: Lucid.Html ()
-stationIdUploadForm = do
+stationIdUploadForm :: Text -> Lucid.Html ()
+stationIdUploadForm uploadUrl = do
   renderForm config form
   where
     postUrl = [i|/#{stationIdNewPostUrl}|]
@@ -54,7 +55,7 @@ stationIdUploadForm = do
 
       -- Audio File Section
       section "AUDIO FILE" $ do
-        stagedAudioField "audio_file" "/api/uploads/audio" "station_id_audio" $ do
+        stagedAudioField "audio_file" uploadUrl "station_id_audio" $ do
           label "Station ID Audio"
           hint "Upload an MP3, WAV, or other audio file. Maximum 50MB."
           maxSize 50
