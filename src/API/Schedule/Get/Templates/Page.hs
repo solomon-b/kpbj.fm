@@ -4,7 +4,7 @@ module API.Schedule.Get.Templates.Page (template) where
 
 import API.Schedule.Get.Templates.Components (renderSchedule)
 import Data.Text (Text)
-import Data.Time (DayOfWeek, TimeOfDay)
+import Data.Time (Day, DayOfWeek, TimeOfDay)
 import Design (base, tablet)
 import Design.StyleBuilder (class_)
 import Design.Tokens qualified as Tokens
@@ -15,8 +15,8 @@ import Lucid qualified
 --------------------------------------------------------------------------------
 
 -- | Schedule page template (single-day view with day navigation)
-template :: StorageBackend -> [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Maybe Text -> Lucid.Html ()
-template backend scheduledShows currentDayOfWeek currentTimeOfDay maybeError = do
+template :: StorageBackend -> [ShowSchedule.ScheduledShowWithDetails] -> [Day] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Maybe Text -> Lucid.Html ()
+template backend scheduledShows weekDays currentDayOfWeek currentTimeOfDay maybeError = do
   -- Error message if present
   case maybeError of
     Just errorMsg -> Lucid.div_ [errorStyles] $ do
@@ -24,7 +24,7 @@ template backend scheduledShows currentDayOfWeek currentTimeOfDay maybeError = d
     Nothing -> do
       -- Schedule View
       Lucid.section_ [sectionStyles] $ do
-        renderSchedule backend scheduledShows currentDayOfWeek currentTimeOfDay
+        renderSchedule backend scheduledShows weekDays currentDayOfWeek currentTimeOfDay
 
 --------------------------------------------------------------------------------
 -- Styles
