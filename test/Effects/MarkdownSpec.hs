@@ -222,7 +222,7 @@ spec = do
     it "has sensible defaults" $ do
       mcTaskLists defaultMarkdownConfig `shouldBe` True
       mcCodeBlocks defaultMarkdownConfig `shouldBe` True
-      mcHardLineBreaks defaultMarkdownConfig `shouldBe` False
+      mcHardLineBreaks defaultMarkdownConfig `shouldBe` True
       mcStrikethrough defaultMarkdownConfig `shouldBe` True
       mcTables defaultMarkdownConfig `shouldBe` True
       mcFootnotes defaultMarkdownConfig `shouldBe` False
