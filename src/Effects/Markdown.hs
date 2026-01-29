@@ -109,7 +109,7 @@ defaultMarkdownConfig =
   MarkdownConfig
     { mcTaskLists = True,
       mcCodeBlocks = True,
-      mcHardLineBreaks = False,
+      mcHardLineBreaks = True,
       mcStrikethrough = True,
       mcTables = True,
       mcFootnotes = False

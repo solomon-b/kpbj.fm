@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixes
+- **Markdown Line Breaks** - Enabled hard line breaks in markdown rendering so single newlines render as `<br>` tags instead of being collapsed into spaces
 
 ---
 
