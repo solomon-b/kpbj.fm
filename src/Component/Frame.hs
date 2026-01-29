@@ -67,28 +67,18 @@ desktopMusicPlayer :: Lucid.Html ()
 desktopMusicPlayer =
   Lucid.div_
     [ class_ $ do
-        base [Tokens.px6, "text-center"]
+        base [Tokens.px6, "text-center", "flex", "flex-col", "items-center", Tokens.gap1]
         tablet ["block"]
     ]
     $ do
-      Lucid.div_ [class_ $ base ["inline-flex", "items-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
+      -- Line 1: Play/pause and volume
+      Lucid.div_ [class_ $ base ["flex", "items-center", "justify-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
         Lucid.button_
           [ Lucid.class_ "hover:text-gray-600 dark:hover:text-gray-400 cursor-pointer bg-transparent border-none",
             xOnClick_ "toggle()",
             xText_ "isPlaying ? '[ PAUSE ]' : '[ PLAY ]'"
           ]
           "[ PLAY ]"
-        Lucid.span_ [Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
-        -- Now playing info
-        Lucid.div_ [xText_ "currentShow || 'NOW PLAYING: KPBJ 95.9 FM'"] "NOW PLAYING: KPBJ 95.9 FM"
-        -- Back to Live button (only visible when in episode mode)
-        Lucid.span_ [xShow_ "mode === 'episode'", Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
-        Lucid.button_
-          [ xShow_ "mode === 'episode'",
-            xOnClick_ "playStream()",
-            Lucid.class_ "hover:text-gray-600 dark:hover:text-gray-400 text-xs uppercase cursor-pointer bg-transparent border-none"
-          ]
-          "[ BACK TO LIVE ]"
         Lucid.span_ [Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
         Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
           Lucid.span_ "VOL:"
@@ -100,6 +90,17 @@ desktopMusicPlayer =
               xOnInput_ "setVolume($event.target.value)",
               Lucid.class_ "w-20 h-1"
             ]
+      -- Line 2: Now playing info
+      Lucid.div_ [class_ $ base ["flex", "items-center", "justify-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
+        Lucid.div_ [xText_ "currentShow || 'NOW PLAYING: KPBJ 95.9 FM'"] "NOW PLAYING: KPBJ 95.9 FM"
+        -- Back to Live button (only visible when in episode mode)
+        Lucid.span_ [xShow_ "mode === 'episode'", Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
+        Lucid.button_
+          [ xShow_ "mode === 'episode'",
+            xOnClick_ "playStream()",
+            Lucid.class_ "hover:text-gray-600 dark:hover:text-gray-400 text-xs uppercase cursor-pointer bg-transparent border-none"
+          ]
+          "[ BACK TO LIVE ]"
 
 -- | Fixed mobile player at bottom of viewport
 -- Minimal UI: play/pause + show name only
@@ -173,7 +174,7 @@ musicPlayerWrapper content =
       isPlaying: false,
       volume: 80,
       streamUrl: 'https://kpbj.hasnoskills.com/listen/kpbj_test_station/radio.mp3',
-      metadataUrl: 'https://kpbj.hasnoskills.com/listen/kpbj_test_station/status-json.xsl',
+      metadataUrl: 'https://kpbj.hasnoskills.com/api/nowplaying/kpbj_test_station',
 
       // Playback mode: 'stream' for live radio, 'episode' for on-demand episodes
       mode: 'stream',
@@ -291,52 +292,30 @@ musicPlayerWrapper content =
 
       async fetchMetadata() {
         try {
-          // Try multiple approaches to get stream metadata
-          const response = await fetch(this.streamUrl, {
-            method: 'HEAD',
-            headers: {
-              'Icy-MetaData': '1'
+          const response = await fetch(this.metadataUrl);
+          const data = await response.json();
+
+          // Check if a live DJ is streaming
+          if (data.live && data.live.is_live) {
+            this.currentShow = data.live.streamer_name || 'Live DJ';
+          } else if (data.now_playing && data.now_playing.song) {
+            // Format: "Artist - Title" or just title
+            const song = data.now_playing.song;
+            if (song.artist && song.title) {
+              this.currentShow = song.artist + ' - ' + song.title;
+              this.currentArtist = song.artist;
+              this.currentTrack = song.title;
+            } else if (song.title) {
+              this.currentShow = song.title;
+              this.currentTrack = song.title;
+            } else {
+              this.currentShow = 'KPBJ 95.9 FM';
             }
-          });
-
-          const icyTitle = response.headers.get('icy-name') || response.headers.get('icy-description');
-          const icyGenre = response.headers.get('icy-genre');
-
-          console.log(icyTitle);
-
-          if (icyTitle) {
-            this.currentShow = icyTitle;
-            this.errorMessage = '';
-            console.log('Fetched metadata:', icyTitle);
-          } else {
-            // Fallback: parse common metadata formats
-            this.parseStreamTitle('KPBJ 95.9 FM - Community Radio');
           }
+          this.errorMessage = '';
         } catch (error) {
-          console.log('Metadata fetch failed, using default');
+          console.log('Metadata fetch failed:', error);
           this.currentShow = 'KPBJ 95.9 FM';
-          this.currentTrack = 'Live Community Radio';
-        }
-      },
-
-      parseStreamTitle(title) {
-        if (!title) return;
-
-        // Common patterns: "Artist - Track", "Show: Artist - Track", etc.
-        if (title.includes(' - ')) {
-          const parts = title.split(' - ');
-          if (parts.length >= 2) {
-            this.currentArtist = parts[0].trim();
-            this.currentTrack = parts.slice(1).join(' - ').trim();
-          }
-        } else if (title.includes(':')) {
-          const parts = title.split(':');
-          this.currentShow = parts[0].trim();
-          if (parts[1]) {
-            this.parseStreamTitle(parts[1].trim());
-          }
-        } else {
-          this.currentTrack = title.trim();
         }
       },
 
