@@ -16,7 +16,7 @@ import Lucid qualified
 template :: Maybe SitePages.Model -> Lucid.Html ()
 template mPage = do
   let content = maybe fallbackContent SitePages.spmContent mPage
-  Lucid.div_ [Lucid.class_ "prose prose-lg text-gray-800 max-w-4xl"] $ do
+  Lucid.div_ [Lucid.class_ "prose prose-lg text-[var(--theme-fg)] max-w-4xl"] $ do
     case renderMarkdownPure defaultMarkdownConfig content of
       Left _ -> Lucid.p_ "Content could not be rendered."
       Right html -> html

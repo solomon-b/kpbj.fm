@@ -132,7 +132,7 @@ spec = do
         case result of
           Right html -> do
             let rendered = Lucid.renderText html
-            rendered `shouldSatisfy` LText.isInfixOf "text-gray-700"
+            rendered `shouldSatisfy` LText.isInfixOf "text-[var(--theme-fg)]"
             rendered `shouldSatisfy` LText.isInfixOf "leading-relaxed"
           Left _ -> expectationFailure "Should have rendered"
 
@@ -141,7 +141,7 @@ spec = do
         case result of
           Right html -> do
             let rendered = Lucid.renderText html
-            rendered `shouldSatisfy` LText.isInfixOf "text-blue-600"
+            rendered `shouldSatisfy` LText.isInfixOf "text-[var(--theme-info)]"
             rendered `shouldSatisfy` LText.isInfixOf "hover:underline"
           Left _ -> expectationFailure "Should have rendered"
 
@@ -150,7 +150,7 @@ spec = do
         case result of
           Right html -> do
             let rendered = Lucid.renderText html
-            rendered `shouldSatisfy` LText.isInfixOf "bg-gray-100"
+            rendered `shouldSatisfy` LText.isInfixOf "bg-[var(--theme-bg-alt)]"
             rendered `shouldSatisfy` LText.isInfixOf "font-mono"
           Left _ -> expectationFailure "Should have rendered"
 

@@ -43,4 +43,4 @@ renderTags tags =
             $ "#" <> name
 
     tagStyle :: Text
-    tagStyle = "bg-gray-200 text-gray-800 px-2 py-1 text-xs font-mono hover:bg-gray-300 cursor-pointer"
+    tagStyle = "bg-[var(--theme-bg-alt)] text-[var(--theme-fg)] px-2 py-1 text-xs font-mono hover:bg-[var(--theme-hover)] cursor-pointer"
