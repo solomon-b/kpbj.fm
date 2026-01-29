@@ -8,10 +8,14 @@ where
 import API.Links (showsLinks)
 import API.Types
 import Data.List (sortBy)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Time (DayOfWeek (..), TimeOfDay (..))
+import Data.Text qualified as Text
+import Data.Time (Day, DayOfWeek (..), TimeOfDay (..))
+import Data.Time qualified as Time
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (also, base, class_, desktop, unless, when)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
@@ -59,9 +63,11 @@ isShowLive mCurrentDay mCurrentTime showDay startTime endTime =
     _ -> False
 
 -- | Render schedule (single day view with day navigation)
-renderSchedule :: StorageBackend -> [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
-renderSchedule backend scheduledShows currentDayOfWeek currentTimeOfDay = do
+renderSchedule :: StorageBackend -> [ShowSchedule.ScheduledShowWithDetails] -> [Day] -> Maybe DayOfWeek -> Maybe TimeOfDay -> Lucid.Html ()
+renderSchedule backend scheduledShows weekDays currentDayOfWeek currentTimeOfDay = do
   let daysOfWeek = [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+      -- Build a map from DayOfWeek to Date for the current week
+      dayToDate = Map.fromList [(Time.dayOfWeek d, d) | d <- weekDays]
       -- Default to current day, or Monday if not viewing current week
       initialDayIndex :: Int
       initialDayIndex = maybe 0 (fromIntegral . fromDayOfWeek) currentDayOfWeek
@@ -86,7 +92,7 @@ renderSchedule backend scheduledShows currentDayOfWeek currentTimeOfDay = do
 
           -- Current day label
           Lucid.span_ [dayLabelStyles] $ do
-            mapM_ (renderDayLabel currentDayOfWeek) (zip [0 ..] daysOfWeek)
+            mapM_ (renderDayLabel dayToDate currentDayOfWeek) (zip [0 ..] daysOfWeek)
 
           -- Next day button
           Lucid.button_
@@ -138,10 +144,13 @@ dayLabelStyles = class_ $ do
   base [Tokens.fontBold, Tokens.textLg]
 
 -- | Render a day label that shows/hides based on Alpine state
-renderDayLabel :: Maybe DayOfWeek -> (Int, DayOfWeek) -> Lucid.Html ()
-renderDayLabel currentDayOfWeek (idx, day) = do
+renderDayLabel :: Map.Map DayOfWeek Day -> Maybe DayOfWeek -> (Int, DayOfWeek) -> Lucid.Html ()
+renderDayLabel dayToDate currentDayOfWeek (idx, day) = do
   let isToday = Just day == currentDayOfWeek
-      dayText = if isToday then "Today" else dayOfWeekName day
+      dayName = if isToday then "Today" else dayOfWeekName day
+      mDate = Map.lookup day dayToDate
+      dateText = maybe "" (\d -> ", " <> Text.pack (formatTime defaultTimeLocale "%b %-d" d)) mDate
+      dayText = dayName <> dateText
       showCondition = [i|currentDay === #{idx :: Int}|]
   Lucid.span_ [xShow_ showCondition] $ Lucid.toHtml dayText
 

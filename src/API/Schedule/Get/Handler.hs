@@ -63,6 +63,6 @@ handler _tracer (fromMaybe 0 -> WeekOffset weekOffset) (coerce -> cookie) (fromM
     if hasScheduleError
       then do
         Log.logInfo_ "Failed to fetch schedule from database"
-        renderTemplate htmxRequest mUserInfo (template storageBackend [] currentDayOfWeek currentTimeOfDay (Just "Failed to load schedule. Please try again."))
+        renderTemplate htmxRequest mUserInfo (template storageBackend [] weekDays currentDayOfWeek currentTimeOfDay (Just "Failed to load schedule. Please try again."))
       else
-        renderTemplate htmxRequest mUserInfo (template storageBackend scheduledShows currentDayOfWeek currentTimeOfDay Nothing)
+        renderTemplate htmxRequest mUserInfo (template storageBackend scheduledShows weekDays currentDayOfWeek currentTimeOfDay Nothing)
