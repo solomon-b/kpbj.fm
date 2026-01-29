@@ -20,6 +20,7 @@ import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
+import Domain.Types.Timezone (formatPacificDateLong)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -90,11 +91,10 @@ template backend _userMeta showModel episode tracks tags = do
                 Episodes.Deleted ->
                   Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DELETED"
 
-            -- Aired/Scheduled date
+            -- Aired/Scheduled date (converted to Pacific time)
             Lucid.div_ $ do
               Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Scheduled: "
-              let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" episode.scheduledAt
-              Lucid.toHtml dateStr
+              Lucid.toHtml (formatPacificDateLong episode.scheduledAt)
 
             -- Published date
             case episode.publishedAt of

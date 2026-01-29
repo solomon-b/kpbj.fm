@@ -10,6 +10,7 @@ pkgs.dockerTools.buildImage {
     pathsToLink = [
       "/bin"
       "/etc"
+      "/share"
       "/static"
       "/migrations"
       "/tmp"
@@ -21,6 +22,11 @@ pkgs.dockerTools.buildImage {
       pkgs.gnutar
       pkgs.gzip
       pkgs.sqlx-cli
+      # Copy tzdata files (dereference symlinks to get actual files)
+      (pkgs.runCommand "tzdata-copy" { } ''
+        mkdir -p $out/share
+        cp -rL ${pkgs.tzdata}/share/zoneinfo $out/share/
+      '')
       (pkgs.haskell.lib.justStaticExecutables kpbj-api)
       ./.
       # Create /tmp directory for temporary file operations
@@ -42,6 +48,7 @@ pkgs.dockerTools.buildImage {
       "APP_WARP_TIMEOUT=100"
       "APP_OBSERVABILITY_VERBOSITY=Brief"
       "APP_OBSERVABILITY_EXPORTER=StdOut"
+      "TZDIR=/share/zoneinfo"
     ];
   };
 }

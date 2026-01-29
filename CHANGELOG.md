@@ -11,6 +11,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Prod to Local Sync** - Added `just prod-to-local`, `just prod-to-local-db`, and `just prod-to-local-files` commands to copy production data to local development with PII sanitization
 
 ### Fixes
+- **Episode Date Display Timezone** - Fixed episode scheduled dates displaying one day ahead (e.g., Feb 4th instead of Feb 3rd) for evening shows. The `scheduledAt` UTC timestamp is now properly converted to Pacific time before formatting. Added `tz` library dependency for DST-aware `America/Los_Angeles` timezone handling
 - **Schedule Timezone Bug** - Fixed schedule template creation/editing using UTC instead of Pacific time, which caused an ~8 hour window where old and new templates could overlap incorrectly after editing
 - **Staging Login Cookie Collision** - Fixed issue where production cookies (Domain=.kpbj.fm) were sent to staging (staging.kpbj.fm) causing login failures. Each environment now uses a unique cookie name: `session-id-staging` and `session-id-production`
 - **File Upload MIME Types** - Fixed file uploads being rejected due to MIME type charset suffixes (e.g., `audio/mpeg; charset=binary` was not matching `audio/mpeg`)

@@ -12,10 +12,10 @@ import API.Links (dashboardEpisodesLinks)
 import API.Types (DashboardEpisodesRoutes (..))
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
+import Domain.Types.Timezone (formatPacificDate)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -72,11 +72,10 @@ renderEpisodeTableRow userMeta showModel episode = do
             Lucid.toHtml $ Text.take 100 desc
             if Text.length desc > 100 then "..." else ""
 
-    -- Scheduled date
+    -- Scheduled date (converted to Pacific time)
     Lucid.td_ cellLinkAttrs $
       Lucid.toHtml $
-        Text.pack $
-          formatTime defaultTimeLocale "%b %d, %Y" episode.scheduledAt
+        formatPacificDate episode.scheduledAt
 
     -- Status
     Lucid.td_ cellLinkAttrs $
