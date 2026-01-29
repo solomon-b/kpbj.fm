@@ -454,7 +454,6 @@ library
     Effects.BackgroundJobs
     Effects.ContentSanitization
     Effects.Diff
-    Effects.CSRF
     Effects.EmailVerification
     Effects.FileUpload
     Effects.HostNotifications

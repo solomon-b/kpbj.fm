@@ -5,10 +5,12 @@ module API.Dashboard.Episodes.Slug.Edit.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (template)
+import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (EpisodeEditContext (..), template)
 import API.Links (dashboardEpisodesLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
+import App.Config (Environment)
+import App.Domains (audioUploadUrl)
 import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
@@ -19,6 +21,7 @@ import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
 import Data.Has (getter)
+import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
@@ -75,9 +78,25 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
     upcomingDates <- fetchUpcomingDates showModel.id
     allShows <- fetchUserShows user userMetadata
 
-    -- 6. Render the edit form
-    let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-        editTemplate = template backend currentTime showModel episode tracks episodeTags mCurrentSlot upcomingDates userMetadata isStaff
+    -- 6. Get upload URL (bypasses Cloudflare in production)
+    env <- asks (Has.getter @Environment)
+    let uploadUrl = audioUploadUrl env
+
+    -- 7. Render the edit form
+    let editContext =
+          EpisodeEditContext
+            { eecUploadUrl = uploadUrl,
+              eecBackend = backend,
+              eecCurrentTime = currentTime,
+              eecShow = showModel,
+              eecEpisode = episode,
+              eecTracks = tracks,
+              eecTags = episodeTags,
+              eecCurrentSlot = mCurrentSlot,
+              eecUpcomingDates = upcomingDates,
+              eecIsStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+            }
+        editTemplate = template editContext
         statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
 
     html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate

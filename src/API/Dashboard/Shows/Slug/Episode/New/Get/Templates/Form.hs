@@ -11,6 +11,7 @@ import API.Links (dashboardShowsLinks)
 import API.Types
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.String.Interpolate (i)
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.Types.Slug (Slug)
@@ -32,8 +33,14 @@ dashboardShowDetailUrl showId showSlug = Links.linkURI $ dashboardShowsLinks.det
 --------------------------------------------------------------------------------
 
 -- | Episode upload form using V2 FormBuilder
-episodeUploadForm :: Shows.Model -> [ShowSchedule.UpcomingShowDate] -> UserMetadata.Model -> Lucid.Html ()
-episodeUploadForm showModel upcomingDates userMeta = do
+episodeUploadForm ::
+  -- | Upload URL (bypasses Cloudflare in production)
+  Text ->
+  Shows.Model ->
+  [ShowSchedule.UpcomingShowDate] ->
+  UserMetadata.Model ->
+  Lucid.Html ()
+episodeUploadForm uploadUrl showModel upcomingDates userMeta = do
   renderForm config form
   renderAudioDurationScript
   where
@@ -87,7 +94,7 @@ episodeUploadForm showModel upcomingDates userMeta = do
 
       -- Media Files Section
       section "MEDIA FILES" $ do
-        stagedAudioField "audio_file" "/api/uploads/audio" "episode_audio" $ do
+        stagedAudioField "audio_file" uploadUrl "episode_audio" $ do
           label "Episode Audio"
           maxSize 500
 
