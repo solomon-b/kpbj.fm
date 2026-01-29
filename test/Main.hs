@@ -2,6 +2,8 @@ module Main where
 
 --------------------------------------------------------------------------------
 
+import App.CookieSpec qualified as Cookie
+import App.DomainsSpec qualified as Domains
 import Data.Maybe (fromMaybe)
 import Domain.Types.FileUploadSpec qualified as FileUpload
 import Domain.Types.SlugSpec qualified as Slug
@@ -45,6 +47,8 @@ main = do
 
   -- Pure tests that don't need database
   hspecWith cfg $ parallel $ do
+    Cookie.spec
+    Domains.spec
     ContentSanitization.spec
     Diff.spec
     Markdown.spec

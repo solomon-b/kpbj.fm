@@ -9,6 +9,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **AM/PM Show Replays** - Shows can now be scheduled as AM or PM replays of other shows
 - **Audio Preview in Upload Forms** - Episode upload form now includes an inline audio player to preview files before submitting
 - **Improved Upload UX** - File uploads now show "Processing..." status after transfer completes while server processes the file, with animated progress bar and disabled submit button to prevent premature form submission
+- **Cross-Subdomain Authentication** - Session cookies now set domain attribute for seamless authentication across subdomains
 
 ### Chores
 - **Factor out Lucid Libraries** - Pulls out lucid-form-builder and lucid-htmx-alpine as standalone packages

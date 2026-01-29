@@ -6,10 +6,14 @@ import API.Links (apiLinks, userLinks)
 import API.Types
 import API.User.Login.Post.Route (Login (..))
 import App.Auth qualified as Auth
+import App.Config (Environment)
+import App.Cookie qualified as Cookie
 import App.Errors (InternalServerError (..), throwErr)
 import App.Monad (AppM)
+import Control.Monad.Reader (asks)
 import Data.Aeson (ToJSON, (.=))
 import Data.Aeson qualified as Aeson
+import Data.Has qualified as Has
 import Data.Maybe (fromMaybe)
 import Data.Password.Argon2 (PasswordCheck (..), checkPassword)
 import Data.Text (Text)
@@ -36,6 +40,7 @@ handler ::
   AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
+           Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
          ]
         Servant.NoContent
@@ -70,21 +75,30 @@ attemptLogin ::
   AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
+           Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
          ]
         Servant.NoContent
     )
 attemptLogin sockAddr mUserAgent redirectLink user = do
+  env <- asks (Has.getter @Environment)
+  let expireOldCookie = fromMaybe "" $ Cookie.mkExpireOldSessionCookie env
   execQuerySpanThrow (Session.getServerSessionByUser (User.mId user)) >>= \case
     Nothing -> do
       Auth.login (User.mId user) sockAddr mUserAgent >>= \case
         Left err ->
           throwErr $ InternalServerError $ Text.pack $ show err
         Right sessionId -> do
-          pure $ Servant.addHeader (Auth.mkCookieSession sessionId) $ Servant.addHeader redirectLink Servant.NoContent
+          pure $
+            Servant.addHeader (Cookie.mkCookieSessionWithDomain env sessionId) $
+              Servant.addHeader expireOldCookie $
+                Servant.addHeader redirectLink Servant.NoContent
     Just session ->
       let sessionId = Session.mSessionId session
-       in pure $ Servant.addHeader (Auth.mkCookieSession sessionId) $ Servant.addHeader redirectLink Servant.NoContent
+       in pure $
+            Servant.addHeader (Cookie.mkCookieSessionWithDomain env sessionId) $
+              Servant.addHeader expireOldCookie $
+                Servant.addHeader redirectLink Servant.NoContent
 
 invalidCredentialResponse ::
   (ToJSON details) =>
@@ -93,23 +107,25 @@ invalidCredentialResponse ::
   AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
+           Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
          ]
         Servant.NoContent
     )
 invalidCredentialResponse emailAddress details = do
   Log.logInfo "Invalid Credentials" details
-  pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing $ Just emailAddress)) Servant.NoContent
+  pure $ Servant.noHeader $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing $ Just emailAddress)) Servant.NoContent
 
 emailNotVerifiedResponse ::
   EmailAddress ->
   AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
+           Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
          ]
         Servant.NoContent
     )
 emailNotVerifiedResponse emailAddress = do
   Log.logInfo "Email not verified" emailAddress
-  pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.verifyEmailSentGet $ Just emailAddress)) Servant.NoContent
+  pure $ Servant.noHeader $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.verifyEmailSentGet $ Just emailAddress)) Servant.NoContent

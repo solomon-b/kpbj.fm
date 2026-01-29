@@ -380,6 +380,8 @@ library
     API.User.ResetPassword.Post.Route
     App.Analytics
     App.Common
+    App.Cookie
+    App.Domains
     App.CustomContext
     App.Handler.Combinators
     App.Monad
@@ -522,6 +524,8 @@ test-suite kpbj-api-test
                     , uuid
                     , vector
     other-modules:
+       App.CookieSpec
+       App.DomainsSpec
        Domain.Types.FileUploadSpec
        Domain.Types.SlugSpec
        Domain.Types.StorageBackendSpec

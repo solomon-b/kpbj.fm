@@ -31,6 +31,7 @@ type Route =
              '[HTML]
              ( Servant.Headers
                  '[ Servant.Header "Set-Cookie" SetCookie,
+                    Servant.Header "Set-Cookie" SetCookie,
                     Servant.Header "HX-Redirect" HxRedirect
                   ]
                  (Lucid.Html ())
