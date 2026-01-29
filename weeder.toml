@@ -19,8 +19,6 @@ roots = [
 root-modules = [
   # Main API composition - Servant :<|> is invisible to HIE
   "^API$",
-  # HTMX/Alpine attributes used across all templates
-  "^Lucid\\.Extras$",
   # Utility functions used throughout
   "^Utils$",
   # Background job for cleaning up expired staged uploads
@@ -29,13 +27,17 @@ root-modules = [
   "^Design\\.StyleBuilder$",
   # Design tokens - library of reusable styling constants
   "^Design\\.Tokens$",
-  # Form builder DSL - library for declarative form construction
-  "^Component\\.Form\\.Builder.*$",
   # Test utilities - reusable assertion helpers and generators
   "^Test\\.Database\\.Expectation$",
   "^Test\\.Database\\.Property\\.Assert$",
   "^Test\\.Database\\.Monad$",
-  "^Test\\.Gen\\.Text$"
+  "^Test\\.Gen\\.Text$",
+  # lucid-htmx-alpine library - public API for HTMX/Alpine attributes
+  "^Lucid\\.HTMX$",
+  "^Lucid\\.Alpine$",
+  "^Lucid\\.HTML5\\.Extra$",
+  # lucid-form-builder library - public API for form construction
+  "^Lucid\\.Form\\.Builder.*$"
 ]
 
 # Type class instance handling

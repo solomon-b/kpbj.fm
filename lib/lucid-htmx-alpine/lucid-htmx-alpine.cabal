@@ -21,4 +21,4 @@ library
     , Lucid.HTMX
     , Lucid.HTML5.Extra
   hs-source-dirs: src
-  ghc-options: -Wall
+  ghc-options: -Wall -fwrite-ide-info
