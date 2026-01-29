@@ -27,6 +27,7 @@ import Design (base, class_)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageNumber (PageNumber (..))
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -37,12 +38,13 @@ import Servant.Links qualified as Links
 
 -- | Station IDs list template
 template ::
+  StorageBackend ->
   [StationIds.StationIdWithCreator] ->
   PageNumber ->
   Bool ->
   UserMetadata.Model ->
   Lucid.Html ()
-template stationIds (PageNumber pageNum) hasMore _userMeta = do
+template backend stationIds (PageNumber pageNum) hasMore _userMeta = do
   -- Station IDs table or empty state
   Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null stationIds
@@ -67,7 +69,7 @@ template stationIds (PageNumber pageNum) hasMore _userMeta = do
                       pcCurrentPage = pageNum
                     }
             }
-          (mapM_ renderStationIdRow stationIds)
+          (mapM_ (renderStationIdRow backend) stationIds)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardStationIdsLinks.list (Just (PageNumber (pageNum + 1)))
@@ -75,8 +77,8 @@ template stationIds (PageNumber pageNum) hasMore _userMeta = do
     prevPageUrl = Links.linkURI $ dashboardStationIdsLinks.list (Just (PageNumber (pageNum - 1)))
 
 -- | Render a single station ID row with audio player
-renderStationIdRow :: StationIds.StationIdWithCreator -> Lucid.Html ()
-renderStationIdRow stationId =
+renderStationIdRow :: StorageBackend -> StationIds.StationIdWithCreator -> Lucid.Html ()
+renderStationIdRow backend stationId =
   let stationIdId = stationId.siwcId
       title = stationId.siwcTitle
       creatorName = stationId.siwcCreatorDisplayName
@@ -89,7 +91,7 @@ renderStationIdRow stationId =
         "Are you sure you want to delete the station ID \""
           <> display title
           <> "\"? This action cannot be undone."
-      audioUrl = [i|/media/#{audioPath}|] :: Text
+      audioUrl = buildMediaUrl backend audioPath
    in do
         Lucid.tr_ (rowAttrs rowId) $ do
           -- Title cell
