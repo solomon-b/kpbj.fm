@@ -14,6 +14,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Schedule Timezone Bug** - Fixed schedule template creation/editing using UTC instead of Pacific time, which caused an ~8 hour window where old and new templates could overlap incorrectly after editing
 - **Staging Login Cookie Collision** - Fixed issue where production cookies (Domain=.kpbj.fm) were sent to staging (staging.kpbj.fm) causing login failures. Each environment now uses a unique cookie name: `session-id-staging` and `session-id-production`
 - **File Upload MIME Types** - Fixed file uploads being rejected due to MIME type charset suffixes (e.g., `audio/mpeg; charset=binary` was not matching `audio/mpeg`)
+- **Station ID Playback on S3** - Fixed station ID audio files not playing on staging/production. The template was hardcoding `/media/` URLs instead of using `buildMediaUrl` which generates proper S3 URLs in production
 
 ---
 

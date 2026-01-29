@@ -14,13 +14,16 @@ import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad.Reader (asks)
 import Data.Either (fromRight)
+import Data.Has qualified as Has
 import Data.Maybe (fromMaybe, listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuerySpan)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.StationIds qualified as StationIds
@@ -44,13 +47,16 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
 
-    -- 2. Set up pagination
+    -- 2. Get storage backend for building media URLs
+    backend <- asks (Has.getter @StorageBackend)
+
+    -- 3. Set up pagination
     let page@(PageNumber pageNum) = fromMaybe (PageNumber 1) maybePage
         limit = 20 :: Limit
         offset = fromIntegral $ (pageNum - 1) * fromIntegral limit :: Offset
         isAppendRequest = hxRequest == IsHxRequest && pageNum > 1
 
-    -- 3. Fetch shows for sidebar
+    -- 4. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
         then execQuerySpan Shows.getAllActiveShows
@@ -58,17 +64,17 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
-    -- 4. Fetch station IDs
+    -- 5. Fetch station IDs
     allStationIds <- fetchStationIds limit offset
 
-    -- 5. Render response
+    -- 6. Render response
     let stationIds = take (fromIntegral limit) allStationIds
         hasMore = length allStationIds > fromIntegral limit
 
     if isAppendRequest
-      then pure $ renderItemsFragment stationIds page hasMore
+      then pure $ renderItemsFragment backend stationIds page hasMore
       else do
-        let stationIdsTemplate = template stationIds page hasMore userMetadata
+        let stationIdsTemplate = template backend stationIds page hasMore userMetadata
         renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationIds Nothing (Just actionButton) stationIdsTemplate
 
 fetchStationIds :: Limit -> Offset -> AppM [StationIds.StationIdWithCreator]
