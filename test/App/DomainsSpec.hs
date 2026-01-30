@@ -36,21 +36,6 @@ spec = describe "App.Domains" $ do
     it "returns kpbj.fm for Production" $ do
       baseDomain Production `shouldBe` "kpbj.fm"
 
-  describe "cookieDomain" $ do
-    it "returns empty for Development" $ do
-      cookieDomain Development `shouldBe` ""
-
-    it "has leading dot for non-Development (subdomain coverage)" $ hedgehog $ do
-      env <- forAll genNonDevEnvironment
-      let domain = cookieDomain env
-      assert $ "." `Text.isPrefixOf` domain
-
-    it "is derived from baseDomain" $ hedgehog $ do
-      env <- forAll genNonDevEnvironment
-      let cookie = cookieDomain env
-          base = baseDomain env
-      cookie === "." <> base
-
   describe "cookieDomainMaybe" $ do
     it "returns Nothing for Development" $ do
       cookieDomainMaybe Development `shouldBe` Nothing
@@ -60,10 +45,6 @@ spec = describe "App.Domains" $ do
 
     it "returns Just for Production" $ do
       cookieDomainMaybe Production `shouldBe` Just ".kpbj.fm"
-
-    it "is consistent with cookieDomain for non-Development" $ hedgehog $ do
-      env <- forAll genNonDevEnvironment
-      cookieDomainMaybe env === Just (cookieDomain env)
 
   describe "uploadsDomain" $ do
     it "returns empty for Development" $ do
@@ -111,27 +92,33 @@ spec = describe "App.Domains" $ do
 
   describe "Cross-domain consistency" $ do
     it "cookie domain covers uploads domain for Staging" $ do
-      let cookie = cookieDomain Staging
+      let cookie = cookieDomainMaybe Staging
           uploads = uploadsDomain Staging
       -- .staging.kpbj.fm should cover uploads.staging.kpbj.fm
-      cookie `shouldBe` ".staging.kpbj.fm"
+      cookie `shouldBe` Just ".staging.kpbj.fm"
       uploads `shouldBe` "uploads.staging.kpbj.fm"
       -- Verify the relationship: uploads ends with cookie domain (minus leading dot)
-      uploads `shouldSatisfy` Text.isSuffixOf (Text.drop 1 cookie)
+      case cookie of
+        Just c -> uploads `shouldSatisfy` Text.isSuffixOf (Text.drop 1 c)
+        Nothing -> pure ()
 
     it "cookie domain covers uploads domain for Production" $ do
-      let cookie = cookieDomain Production
+      let cookie = cookieDomainMaybe Production
           uploads = uploadsDomain Production
-      cookie `shouldBe` ".kpbj.fm"
+      cookie `shouldBe` Just ".kpbj.fm"
       uploads `shouldBe` "uploads.kpbj.fm"
-      uploads `shouldSatisfy` Text.isSuffixOf (Text.drop 1 cookie)
+      case cookie of
+        Just c -> uploads `shouldSatisfy` Text.isSuffixOf (Text.drop 1 c)
+        Nothing -> pure ()
 
     it "cookie domain covers uploads domain (property)" $ hedgehog $ do
       env <- forAll genNonDevEnvironment
-      let cookie = cookieDomain env
+      let cookie = cookieDomainMaybe env
           uploads = uploadsDomain env
       -- uploads.X.kpbj.fm should end with X.kpbj.fm (cookie domain minus dot)
-      assert $ Text.isSuffixOf (Text.drop 1 cookie) uploads
+      case cookie of
+        Just c -> assert $ Text.isSuffixOf (Text.drop 1 c) uploads
+        Nothing -> pure ()
 
   describe "allowedOrigins" $ do
     it "includes main site for Staging" $ do

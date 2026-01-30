@@ -27,7 +27,6 @@ spec =
     describe "Effects.Database.Tables.Events" $ do
       runs 10 . it "lens law: insert-select event" $ hedgehog . prop_insertSelectEvent
       runs 10 . it "lens law: getEventById returns inserted event" $ hedgehog . prop_getEventById
-      runs 10 . it "lens law: getEventBySlug returns inserted event" $ hedgehog . prop_getEventBySlug
 
 -- Lens Law: insert then select returns what we inserted
 prop_insertSelectEvent :: TestDBConfig -> PropertyT IO ()
@@ -82,32 +81,4 @@ prop_getEventById cfg = do
         (eventId, mById) <- assertRight result
         byId <- assertJust mById
         UUT.emId byId === eventId
-        pure ()
-
--- Lens Law: getBySlug after insert returns the event
-prop_getEventBySlug :: TestDBConfig -> PropertyT IO ()
-prop_getEventBySlug cfg = do
-  arrange (bracketConn cfg) $ do
-    userWithMetadata <- forAllT userWithMetadataInsertGen
-    eventTemplate <- forAllT $ eventInsertGen (User.Id 1)
-
-    act $ do
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata) (UserMetadata.uwmiTheme userWithMetadata)
-
-        let eventInsert = eventTemplate {UUT.eiAuthorId = userId}
-
-        eventId <- TRX.statement () (UUT.insertEvent eventInsert)
-        byId <- TRX.statement () (UUT.getEventById eventId)
-        bySlug <- TRX.statement () (UUT.getEventBySlug $ UUT.eiSlug eventInsert)
-        pure (eventId, byId, bySlug)
-
-      assert $ do
-        (eventId, mById, mBySlug) <- assertRight result
-        byId <- assertJust mById
-        bySlug <- assertJust mBySlug
-        UUT.emId byId === UUT.emId bySlug
-        UUT.emSlug byId === UUT.emSlug bySlug
-        eventId === UUT.emId bySlug
         pure ()

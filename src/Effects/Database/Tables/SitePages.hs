@@ -20,8 +20,6 @@ module Effects.Database.Tables.SitePages
     -- * Queries
     getAllPages,
     getPageBySlug,
-    getPageById,
-    insertPage,
     updatePage,
   )
 where
@@ -108,28 +106,6 @@ getPageBySlug slug =
     SELECT id, slug, title, content, updated_at
     FROM site_pages
     WHERE slug = #{slug}
-  |]
-
--- | Get a site page by ID.
-getPageById :: Id -> Hasql.Statement () (Maybe Model)
-getPageById pageId =
-  interp
-    False
-    [sql|
-    SELECT id, slug, title, content, updated_at
-    FROM site_pages
-    WHERE id = #{pageId}
-  |]
-
--- | Insert a new site page.
-insertPage :: Insert -> Hasql.Statement () (Maybe Id)
-insertPage Insert {..} =
-  interp
-    False
-    [sql|
-    INSERT INTO site_pages (slug, title, content)
-    VALUES (#{spiSlug}, #{spiTitle}, #{spiContent})
-    RETURNING id
   |]
 
 -- | Update a site page and return the updated model.

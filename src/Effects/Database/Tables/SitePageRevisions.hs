@@ -21,9 +21,7 @@ module Effects.Database.Tables.SitePageRevisions
     -- * Queries
     getRevisionsForPage,
     getRevisionById,
-    getLatestRevision,
     insertRevision,
-    countRevisionsForPage,
   )
 where
 
@@ -36,7 +34,7 @@ import Data.Time (UTCTime)
 import Effects.Database.Tables.SitePages qualified as SitePages
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.UTCTime ()
 import Servant qualified
@@ -153,22 +151,6 @@ getRevisionById revisionId =
     WHERE id = #{revisionId}
   |]
 
--- | Get the latest revision for a page.
---
--- Orders by created_at DESC, then by id DESC to handle cases where
--- multiple revisions have the same timestamp (e.g., within a transaction).
-getLatestRevision :: SitePages.Id -> Hasql.Statement () (Maybe Model)
-getLatestRevision pageId =
-  interp
-    False
-    [sql|
-    SELECT id, page_id, content, edit_summary, created_at, created_by
-    FROM site_page_revisions
-    WHERE page_id = #{pageId}
-    ORDER BY created_at DESC, id DESC
-    LIMIT 1
-  |]
-
 -- | Insert a new revision.
 insertRevision :: Insert -> Hasql.Statement () (Maybe Id)
 insertRevision Insert {..} =
@@ -179,16 +161,3 @@ insertRevision Insert {..} =
     VALUES (#{spriPageId}, #{spriContent}, #{spriEditSummary}, #{spriCreatedBy})
     RETURNING id
   |]
-
--- | Count total revisions for a page.
-countRevisionsForPage :: SitePages.Id -> Hasql.Statement () Int64
-countRevisionsForPage pageId =
-  let query =
-        interp
-          False
-          [sql|
-    SELECT COUNT(*)::bigint
-    FROM site_page_revisions
-    WHERE page_id = #{pageId}
-  |]
-   in maybe 0 getOneColumn <$> query
