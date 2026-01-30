@@ -51,8 +51,8 @@ template emailAddress redirectLink =
             -- Login form using form builder
             renderForm (loginFormConfig postUrl) (loginForm emailValue)
 
--- Register section (outside form)
--- registerSection
+            -- Register section (outside form)
+            registerSection
 
 --------------------------------------------------------------------------------
 -- Form Configuration
@@ -107,9 +107,9 @@ rememberMeRow =
       ]
       "Forgot password?"
 
-_registerSection :: Lucid.Html ()
-_registerSection =
-  Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center"]] do
+registerSection :: Lucid.Html ()
+registerSection =
+  Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center", "invisible"]] do
     Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb4]] "Don't have an account yet?"
     Lucid.a_
       [ Lucid.href_ "#",
