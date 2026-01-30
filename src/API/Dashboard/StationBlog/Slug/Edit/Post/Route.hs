@@ -10,7 +10,6 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -21,18 +20,16 @@ import Web.FormUrlEncoded qualified as Form
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/station-blog/:id/:slug/edit"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/station-blog/:id/:slug/edit"
-    ( "dashboard"
-        :> "station-blog"
-        :> Servant.Capture "id" BlogPosts.Id
-        :> Servant.Capture "slug" Slug
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> MultipartForm Mem BlogEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "station-blog"
+    :> Servant.Capture "id" BlogPosts.Id
+    :> Servant.Capture "slug" Slug
+    :> "edit"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem BlogEditForm
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 
 --------------------------------------------------------------------------------
 

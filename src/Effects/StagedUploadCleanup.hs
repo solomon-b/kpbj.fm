@@ -24,7 +24,7 @@ import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.StorageBackend (LocalStorageConfig (..), StorageBackend (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Storage.S3 qualified as S3
 import Log qualified
@@ -47,7 +47,7 @@ cleanupExpiredUploads = do
   mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
 
   -- Get expired uploads
-  result <- execQuerySpan StagedUploads.getExpiredUploads
+  result <- execQuery StagedUploads.getExpiredUploads
   case result of
     Left err -> do
       Log.logInfo "Failed to query expired uploads" (Text.pack $ show err)
@@ -90,7 +90,7 @@ cleanupSingleUpload backend mAwsEnv upload = do
   if fileDeleted
     then do
       -- Delete database record
-      deleteResult <- execQuerySpan (StagedUploads.deleteById uploadId)
+      deleteResult <- execQuery (StagedUploads.deleteById uploadId)
       case deleteResult of
         Left err -> do
           Log.logInfo "Failed to delete staged upload record" (Text.pack $ show err)
@@ -104,7 +104,7 @@ cleanupSingleUpload backend mAwsEnv upload = do
     else do
       Log.logInfo "Failed to delete staged upload file" storagePath
       -- Still delete the database record even if file deletion failed
-      _ <- execQuerySpan (StagedUploads.deleteById uploadId)
+      _ <- execQuery (StagedUploads.deleteById uploadId)
       pure False
 
 -- | Delete a file from storage.

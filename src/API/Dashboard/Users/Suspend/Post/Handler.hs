@@ -26,17 +26,15 @@ import Hasql.Pool qualified as HSQL
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   User.Id ->
   Maybe Cookie ->
   SuspendForm ->
   AppM (Lucid.Html ())
-handler _tracer targetUserId cookie SuspendForm {..} =
+handler targetUserId cookie SuspendForm {..} =
   handleBannerErrors "User suspend" $ do
     -- 1. Require admin authentication
     (user, userMetadata) <- requireAuth cookie

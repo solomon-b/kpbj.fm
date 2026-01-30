@@ -24,7 +24,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Validation
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.EmailAddress qualified as EmailAddress
-import Effects.Database.Execute (execQuerySpanThrow)
+import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.EmailVerification qualified as EmailVerification
@@ -33,7 +33,6 @@ import Log qualified
 import Network.HTTP.Simple qualified as HTTP
 import Network.HTTP.Types.Status qualified as HTTP
 import Network.Socket (SockAddr)
-import OpenTelemetry.Trace qualified as OTEL
 import OrphanInstances.OneRow ()
 import OrphanInstances.Servant ()
 import Servant qualified
@@ -57,7 +56,6 @@ instance Display ValidationError where
 --------------------------------------------------------------------------------
 
 handler ::
-  OTEL.Tracer ->
   SockAddr ->
   Maybe Text ->
   Register ->
@@ -68,12 +66,12 @@ handler ::
          ]
         Servant.NoContent
     )
-handler _tracer sockAddr mUserAgent req@Register {..} = do
+handler sockAddr mUserAgent req@Register {..} = do
   validateRequest req >>= \case
     Failure errors ->
       logValidationFailure "POST /user/register Request validation failure" req errors
     Success parsedRequest -> do
-      execQuerySpanThrow (User.getUserByEmail urEmail) >>= \case
+      execQueryThrow (User.getUserByEmail urEmail) >>= \case
         Just _ ->
           logValidationFailure "Email address is already registered." req [InvalidEmailAddress]
         Nothing ->
@@ -93,9 +91,9 @@ registerUser ::
     )
 registerUser _sockAddr _mUserAgent RegisterParsed {..} newsletterSubscription = do
   Log.logInfo "Registering New User" urpEmail
-  OneRow uid <- execQuerySpanThrow $ User.insertUser $ User.ModelInsert urpEmail urpPassword
-  _ <- execQuerySpanThrow $ UserMetadata.insertUserMetadata $ UserMetadata.Insert uid urpDisplayName urpFullName Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
-  execQuerySpanThrow (User.getUser uid) >>= \case
+  OneRow uid <- execQueryThrow $ User.insertUser $ User.ModelInsert urpEmail urpPassword
+  _ <- execQueryThrow $ UserMetadata.insertUserMetadata $ UserMetadata.Insert uid urpDisplayName urpFullName Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
+  execQueryThrow (User.getUser uid) >>= \case
     Nothing ->
       throwErr Forbidden
     Just _user -> do

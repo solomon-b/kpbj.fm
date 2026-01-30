@@ -30,7 +30,7 @@ import Domain.Types.FullName (mkFullNameUnsafe)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -38,7 +38,6 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -49,13 +48,12 @@ rootGetUrl = Links.linkURI apiLinks.rootGet
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Int64 ->
   Maybe Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
+handler maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   storageBackend <- asks getter
   let page = fromMaybe 1 maybePage
       limit = 10 :: Limit
@@ -96,7 +94,7 @@ getBlogPostResults ::
 getBlogPostResults limit offset maybeTag = do
   case maybeTag of
     Just tagName ->
-      execQuerySpan (BlogTags.getTagByName tagName) >>= \case
+      execQuery (BlogTags.getTagByName tagName) >>= \case
         Left err ->
           pure (Left err)
         Right Nothing ->
@@ -111,7 +109,7 @@ getPostsWithTags ::
   Offset ->
   AppM (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
 getPostsWithTags limit offset =
-  execTransactionSpan $ do
+  execTransaction $ do
     posts <- HT.statement () $ BlogPosts.getPublishedBlogPosts limit offset
     forM posts $ \post -> do
       tags <- HT.statement () $ BlogPosts.getTagsForPost post.bpmId
@@ -125,7 +123,7 @@ getPostsWithTagsFiltered ::
   Offset ->
   AppM (Either HSQL.Pool.UsageError [(BlogPosts.Model, UserMetadata.Model, [BlogTags.Model])])
 getPostsWithTagsFiltered tag limit offset =
-  execTransactionSpan $ do
+  execTransaction $ do
     posts <- HT.statement () $ BlogPosts.getPostsByTag tag.btmId limit offset
     forM posts $ \post -> do
       tags <- HT.statement () $ BlogPosts.getTagsForPost post.bpmId

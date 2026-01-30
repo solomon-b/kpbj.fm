@@ -30,13 +30,12 @@ import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.Search (Search (..))
 import Domain.Types.ShowSortBy (ShowSortBy (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool qualified as HSQL.Pool
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -47,7 +46,6 @@ rootGetUrl = Links.linkURI apiLinks.rootGet
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe PageNumber ->
   Maybe (Filter ShowTags.Id) ->
   Maybe (Filter Shows.Status) ->
@@ -56,7 +54,7 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSearchFilter maybeSortByFilter (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
+handler (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSearchFilter maybeSortByFilter (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
   storageBackend <- asks getter
   let maybeTagId = maybeTagIdFilter >>= getFilter
       maybeStatus = maybeStatusFilter >>= getFilter
@@ -70,7 +68,7 @@ handler _tracer (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSe
         isAppendRequest = htmxRequest == IsHxRequest && page > 1
 
     -- Fetch all available tags for the filter UI
-    execQuerySpan ShowTags.getShowTagsWithCounts >>= \case
+    execQuery ShowTags.getShowTagsWithCounts >>= \case
       Left tagsErr -> do
         Log.logInfo "Failed to fetch tags from database" (Aeson.object ["error" .= show tagsErr])
         let banner = BannerParams Error "Error" "Failed to load shows. Please try again."
@@ -108,7 +106,7 @@ getShows limit offset maybeSearch maybeTagId maybeStatus sortBy = do
     Just (Search searchTerm)
       | not (Text.null $ Text.strip searchTerm) ->
           -- If search term is provided, use search function (search has its own relevance-based sorting)
-          execQuerySpan (Shows.searchShows (Search $ Text.strip searchTerm) limit offset)
+          execQuery (Shows.searchShows (Search $ Text.strip searchTerm) limit offset)
     _ ->
       -- No search term, use filter and sort logic
-      execQuerySpan (Shows.getShowsFiltered maybeTagId maybeStatus sortBy limit offset)
+      execQuery (Shows.getShowsFiltered maybeTagId maybeStatus sortBy limit offset)

@@ -19,7 +19,7 @@ import Data.Coerce (coerce)
 import Data.Has (getter)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -41,7 +41,7 @@ getUserInfo (coerce -> cookie) = do
     Just sessionId ->
       Auth.getAuth sessionId >>= \case
         Right (Just Auth.Authz {authzUser = user}) ->
-          execQuerySpan (UserMetadata.getUserMetadata user.mId) >>= \case
+          execQuery (UserMetadata.getUserMetadata user.mId) >>= \case
             Right userMetadata ->
               pure ((user,) <$> userMetadata)
             _ -> do

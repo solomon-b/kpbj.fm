@@ -21,23 +21,21 @@ import Data.Has qualified as Has
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
+handler showSlug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episode upload form" apiLinks.rootGet $ do
     -- 1. Require authentication and authorization (host of show or staff+)
     (user, userMetadata) <- requireAuth cookie
@@ -67,15 +65,15 @@ fetchShowsForUser ::
   AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isStaffOrHigher userMetadata.mUserRole
-    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+    then fromRight [] <$> execQuery Shows.getAllActiveShows
+    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::
   Slug ->
   AppM Shows.Model
 fetchShowOrNotFound showSlug =
-  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+  execQuery (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -85,4 +83,4 @@ fetchUpcomingDates ::
   Shows.Id ->
   AppM [ShowSchedule.UpcomingShowDate]
 fetchUpcomingDates showId =
-  fromRight [] <$> execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showId 4)
+  fromRight [] <$> execQuery (ShowSchedule.getUpcomingUnscheduledShowDates showId 4)

@@ -23,13 +23,12 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload (uploadEventPosterImage)
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -81,11 +80,10 @@ validateStatus status = case status of
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   NewEventForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie form =
+handler cookie form =
   handleRedirectErrors "Event creation" dashboardEventsLinks.newGet $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -114,13 +112,13 @@ handler _tracer cookie form =
               Events.eiPosterImageUrl = posterImagePath
             }
     eventId <-
-      execQuerySpan (Events.insertEvent eventInsert) >>= \case
+      execQuery (Events.insertEvent eventInsert) >>= \case
         Left err -> throwDatabaseError err
         Right eid -> pure eid
 
     -- 5. Fetch created event and redirect
     Log.logInfo "Event created successfully" eventId
-    execQuerySpan (Events.getEventById eventId) >>= \case
+    execQuery (Events.getEventById eventId) >>= \case
       Right (Just event) -> do
         let eventSlug = Events.emSlug event
             detailUrl = rootLink $ dashboardEventsLinks.detail eventId eventSlug

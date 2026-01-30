@@ -28,19 +28,17 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.UserSortBy (UserSortBy (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Int64 ->
   Maybe (Filter Text) ->
   Maybe (Filter UserMetadata.UserRole) ->
@@ -48,7 +46,7 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) =
+handler maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Users list" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -66,8 +64,8 @@ handler _tracer maybePage queryFilterParam roleFilterParam sortFilterParam cooki
     -- 3. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
@@ -150,9 +148,9 @@ fetchUsers ::
 fetchUsers limit offset maybeQuery (maybeToList -> roles) sortBy = do
   result <- case maybeQuery of
     Just query ->
-      execQuerySpan (UserMetadata.searchUsers query roles (limit + 1) offset sortBy)
+      execQuery (UserMetadata.searchUsers query roles (limit + 1) offset sortBy)
     Nothing ->
-      execQuerySpan (UserMetadata.getUsersByRole roles (limit + 1) offset sortBy)
+      execQuery (UserMetadata.getUsersByRole roles (limit + 1) offset sortBy)
   case result of
     Left err -> throwDatabaseError err
     Right users -> pure users

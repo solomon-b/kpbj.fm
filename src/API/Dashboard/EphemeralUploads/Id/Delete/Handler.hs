@@ -14,23 +14,21 @@ import Control.Monad.Reader (asks)
 import Data.Has qualified as Has
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.StagedUploadCleanup (deleteFile)
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   EphemeralUploads.Id ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer ephemeralUploadId cookie =
+handler ephemeralUploadId cookie =
   handleBannerErrors "Ephemeral upload delete" $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -57,7 +55,7 @@ fetchEphemeralUpload ::
   EphemeralUploads.Id ->
   AppM EphemeralUploads.Model
 fetchEphemeralUpload ephemeralUploadId =
-  execQuerySpan (EphemeralUploads.getEphemeralUploadById ephemeralUploadId) >>= \case
+  execQuery (EphemeralUploads.getEphemeralUploadById ephemeralUploadId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Ephemeral upload"
     Right (Just ephemeralUpload) -> pure ephemeralUpload
@@ -76,7 +74,7 @@ deleteEphemeralUpload ephemeralUpload = do
     Log.logInfo "Failed to delete ephemeral upload file from storage" ephemeralUpload.eumAudioFilePath
 
   -- 3. Delete database record
-  execQuerySpan (EphemeralUploads.deleteEphemeralUpload ephemeralUpload.eumId) >>= \case
+  execQuery (EphemeralUploads.deleteEphemeralUpload ephemeralUpload.eumId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Ephemeral upload"
     Right (Just _) -> do

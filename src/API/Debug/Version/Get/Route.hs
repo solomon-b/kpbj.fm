@@ -2,16 +2,13 @@ module API.Debug.Version.Get.Route where
 
 --------------------------------------------------------------------------------
 
-import Effects.Observability qualified as Observability
 import Servant ((:>))
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
+-- | "GET /debug/version"
 type Route =
-  Observability.WithSpan
-    "GET /debug/version"
-    ( "debug"
-        :> "version"
-        :> Servant.Get '[Servant.PlainText] String
-    )
+  "debug"
+    :> "version"
+    :> Servant.Get '[Servant.PlainText] String

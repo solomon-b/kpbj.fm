@@ -20,25 +20,23 @@ import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   FormData ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie form =
+handler cookie form =
   handleRedirectErrors "Ephemeral upload" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -75,7 +73,7 @@ processEphemeralUpload user form = do
           pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
         else do
           -- First, get the staged upload to retrieve metadata
-          stagedUploadResult <- execQuerySpan (StagedUploads.getByToken (StagedUploads.Token audioToken))
+          stagedUploadResult <- execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
           case stagedUploadResult of
             Left err -> do
               Log.logInfo "Failed to get staged upload" (Text.pack $ show err)
@@ -115,7 +113,7 @@ processEphemeralUpload user form = do
                             EphemeralUploads.euiCreatorId = User.mId user
                           }
 
-                  insertResult <- execQuerySpan (EphemeralUploads.insertEphemeralUpload insert)
+                  insertResult <- execQuery (EphemeralUploads.insertEphemeralUpload insert)
                   case insertResult of
                     Left err -> do
                       Log.logInfo "Failed to insert ephemeral upload" (Text.pack $ show err)

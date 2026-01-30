@@ -30,7 +30,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
@@ -41,7 +41,6 @@ import Effects.FileUpload qualified as FileUpload
 import Effects.HostNotifications qualified as HostNotifications
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (FileData, Mem)
@@ -61,11 +60,10 @@ dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   NewShowForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie form =
+handler cookie form =
   handleRedirectErrors "Show creation" apiLinks.rootGet $ do
     -- 1. Require authentication and admin role
     (_user, userMetadata) <- requireAuth cookie
@@ -174,7 +172,7 @@ handleShowCreation showData form = do
                       { Shows.siLogoUrl = mLogoPath
                       }
 
-              execQuerySpan (Shows.insertShow finalShowData) >>= \case
+              execQuery (Shows.insertShow finalShowData) >>= \case
                 Left dbError -> do
                   Log.logInfo "Database error creating show" (Aeson.object ["error" .= Text.pack (show dbError)])
                   let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
@@ -190,7 +188,7 @@ handleShowCreation showData form = do
                   createSchedulesForShow showId schedules
 
                   -- Fetch the created show
-                  execQuerySpan (Shows.getShowById showId) >>= \case
+                  execQuery (Shows.getShowById showId) >>= \case
                     Right (Just createdShow) -> do
                       Log.logInfo "Successfully created show" (Aeson.object ["title" .= Shows.siTitle finalShowData, "id" .= show showId])
 
@@ -226,7 +224,7 @@ assignHostsToShow showId hostIds = do
               ShowHost.shiUserId = userId,
               ShowHost.shiRole = ShowHost.Host
             }
-    result <- execQuerySpan (ShowHost.insertShowHost hostInsert)
+    result <- execQuery (ShowHost.insertShowHost hostInsert)
     case result of
       Left dbError ->
         Log.logInfo "Failed to assign host to show" (Aeson.object ["userId" .= show userId, "error" .= Text.pack (show dbError)])
@@ -238,7 +236,7 @@ promoteUserToHostIfNeeded ::
   User.Id ->
   AppM ()
 promoteUserToHostIfNeeded userId = do
-  execQuerySpan (UserMetadata.getUserMetadata userId) >>= \case
+  execQuery (UserMetadata.getUserMetadata userId) >>= \case
     Left dbError ->
       Log.logInfo "Failed to fetch user metadata for promotion check" (Aeson.object ["userId" .= show userId, "error" .= Text.pack (show dbError)])
     Right Nothing ->
@@ -247,7 +245,7 @@ promoteUserToHostIfNeeded userId = do
       case metadata.mUserRole of
         UserMetadata.User -> do
           -- User is a regular user, promote them to Host
-          result <- execQuerySpan (UserMetadata.updateUserRole userId UserMetadata.Host)
+          result <- execQuery (UserMetadata.updateUserRole userId UserMetadata.Host)
           case result of
             Left dbError ->
               Log.logInfo "Failed to promote user to Host" (Aeson.object ["userId" .= show userId, "error" .= Text.pack (show dbError)])
@@ -269,16 +267,16 @@ processShowTags showId (Just tagsText) = do
   let tagNames = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," tagsText
   forM_ tagNames $ \tagName -> do
     -- Get or create the tag
-    execQuerySpan (ShowTags.getShowTagByName tagName) >>= \case
+    execQuery (ShowTags.getShowTagByName tagName) >>= \case
       Right (Just existingTag) -> do
         -- Tag exists, associate it with the show
-        void $ execQuerySpan (Shows.addTagToShow showId (ShowTags.stId existingTag))
+        void $ execQuery (Shows.addTagToShow showId (ShowTags.stId existingTag))
         Log.logInfo "Associated existing tag with show" (Aeson.object ["tag" .= tagName, "showId" .= show showId])
       _ -> do
         -- Tag doesn't exist, create it and associate
-        execQuerySpan (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
+        execQuery (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
           Right newTagId -> do
-            void $ execQuerySpan (Shows.addTagToShow showId newTagId)
+            void $ execQuery (Shows.addTagToShow showId newTagId)
             Log.logInfo "Created and associated new tag with show" (Aeson.object ["tag" .= tagName, "showId" .= show showId])
           Left dbError ->
             Log.logInfo "Failed to create tag" (Aeson.object ["tag" .= tagName, "error" .= Text.pack (show dbError)])
@@ -325,7 +323,7 @@ checkScheduleConflicts showId = go
       case (parseDayOfWeek (dayOfWeek slot), parseTimeOfDay (startTime slot), parseTimeOfDay (endTime slot)) of
         (Just dow, Just start, Just end) -> do
           let weeks = map fromIntegral (weeksOfMonth slot)
-          execQuerySpan (ShowSchedule.checkTimeSlotConflict showId dow weeks start end) >>= \case
+          execQuery (ShowSchedule.checkTimeSlotConflict showId dow weeks start end) >>= \case
             Left err -> do
               Log.logInfo "Failed to check schedule conflict" (Text.pack $ show err)
               pure (Right ()) -- Don't block on DB errors, let it through
@@ -364,7 +362,7 @@ createSchedulesForShow showId slots = do
                   ShowSchedule.stiAirsTwiceDaily = False
                 }
 
-        templateResult <- execQuerySpan (ShowSchedule.insertScheduleTemplate templateInsert)
+        templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
         case templateResult of
           Left err ->
             Log.logInfo "Failed to insert schedule template" (Aeson.object ["error" .= Text.pack (show err)])
@@ -376,7 +374,7 @@ createSchedulesForShow showId slots = do
                       ShowSchedule.viEffectiveFrom = today,
                       ShowSchedule.viEffectiveUntil = Nothing
                     }
-            validityResult <- execQuerySpan (ShowSchedule.insertValidity validityInsert)
+            validityResult <- execQuery (ShowSchedule.insertValidity validityInsert)
             case validityResult of
               Left err ->
                 Log.logInfo "Failed to insert validity" (Aeson.object ["error" .= Text.pack (show err)])

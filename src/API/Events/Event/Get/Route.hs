@@ -7,7 +7,6 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -16,24 +15,21 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 -- | Route for event with ID and slug (canonical URL)
+-- "GET /events/:id/:slug"
 type RouteWithSlug =
-  Observability.WithSpan
-    "GET /events/:id/:slug"
-    ( "events"
-        :> Servant.Capture "id" Events.Id
-        :> Servant.Capture "slug" Slug
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "events"
+    :> Servant.Capture "id" Events.Id
+    :> Servant.Capture "slug" Slug
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+
 
 -- | Route for event with ID only (redirects to canonical)
+-- "GET /events/:id"
 type RouteWithoutSlug =
-  Observability.WithSpan
-    "GET /events/:id"
-    ( "events"
-        :> Servant.Capture "id" Events.Id
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "events"
+    :> Servant.Capture "id" Events.Id
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

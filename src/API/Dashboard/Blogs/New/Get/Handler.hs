@@ -20,7 +20,7 @@ import Data.Either (fromRight)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -28,17 +28,15 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
+handler showSlug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "New blog post form" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -51,8 +49,8 @@ handler _tracer showSlug cookie (foldHxReq -> hxRequest) =
     Log.logInfo "Authorized user accessing new blog post form" showModel.id
     allShows <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-        else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then fromRight [] <$> execQuery Shows.getAllActiveShows
+        else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
     -- 4. Render form
     renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ newBlogPostForm showModel
@@ -63,7 +61,7 @@ fetchShowBySlug ::
   Slug ->
   AppM Shows.Model
 fetchShowBySlug user userMetadata showSlug = do
-  mResult <- execTransactionSpan $ runMaybeT $ do
+  mResult <- execTransaction $ runMaybeT $ do
     showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
     -- Admins can create blog posts for any show, hosts need explicit assignment
     unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do

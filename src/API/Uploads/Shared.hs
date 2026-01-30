@@ -33,7 +33,7 @@ import Data.Text qualified as Text
 import Domain.Types.FileStorage (BucketType (..))
 import Domain.Types.FileUpload (UploadError (..))
 import Domain.Types.StorageBackend (StorageBackend (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.StagedUploadCleanup (deleteFile)
@@ -120,7 +120,7 @@ processStagedUpload config backend mAwsEnv userId originalName browserMimeType c
                     StagedUploads.siUploadType = pcUploadType config
                   }
 
-          insertResult <- execQuerySpan (StagedUploads.insert insertData)
+          insertResult <- execQuery (StagedUploads.insert insertData)
 
           case insertResult of
             Left err -> do

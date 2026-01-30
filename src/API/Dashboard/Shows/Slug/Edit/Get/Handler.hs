@@ -25,7 +25,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (MonadDB (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
@@ -35,17 +35,15 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer slug cookie (foldHxReq -> hxRequest) =
+handler slug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show edit" apiLinks.rootGet $ do
     -- 1. Require authentication and authorization (host of show or staff+)
     (user, userMetadata) <- requireAuth cookie
@@ -64,7 +62,7 @@ handler _tracer slug cookie (foldHxReq -> hxRequest) =
     sidebarShows <- fetchShowsForUser user userMetadata
 
     -- 6. Fetch existing tags for this show
-    existingTagsResult <- execQuerySpan (Shows.getTagsForShow showModel.id)
+    existingTagsResult <- execQuery (Shows.getTagsForShow showModel.id)
     let existingTags = case existingTagsResult of
           Left _ -> ""
           Right tags -> Text.intercalate ", " $ map ShowTags.stName tags
@@ -84,7 +82,7 @@ fetchShowOrNotFound ::
   Slug ->
   AppM Shows.Model
 fetchShowOrNotFound slug =
-  execQuerySpan (Shows.getShowBySlug slug) >>= \case
+  execQuery (Shows.getShowBySlug slug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -96,8 +94,8 @@ fetchShowsForUser ::
   AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser user.mId)
+    then fromRight [] <$> execQuery Shows.getAllActiveShows
+    else fromRight [] <$> execQuery (Shows.getShowsForUser user.mId)
 
 -- | Fetch staff-only data for the edit form (schedules and hosts)
 fetchStaffData ::

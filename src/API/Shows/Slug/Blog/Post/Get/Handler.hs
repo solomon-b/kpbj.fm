@@ -18,52 +18,48 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug, mkSlug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Markdown (renderContentM)
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 -- | Handler for show blog post with show ID, post ID, and slug
 handlerWithSlug ::
-  Tracer ->
   Shows.Id ->
   ShowBlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlerWithSlug tracer showId postId slug = handler tracer showId postId (Just slug)
+handlerWithSlug showId postId slug = handler showId postId (Just slug)
 
 -- | Handler for show blog post with show ID and post ID only (always redirects)
 handlerWithoutSlug ::
-  Tracer ->
   Shows.Id ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlerWithoutSlug tracer showId postId = handler tracer showId postId Nothing
+handlerWithoutSlug showId postId = handler showId postId Nothing
 
 -- | Shared handler for both routes
 handler ::
-  Tracer ->
   Shows.Id ->
   ShowBlogPosts.Id ->
   Maybe Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showId postId mUrlSlug cookie (foldHxReq -> hxRequest) = do
+handler showId postId mUrlSlug cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
 
-  execQuerySpan (ShowBlogPosts.getShowBlogPostById postId) >>= \case
+  execQuery (ShowBlogPosts.getShowBlogPostById postId) >>= \case
     Left _err -> do
       Log.logInfo "Failed to fetch show blog post from database" postId
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (mkSlug "unknown") (mkSlug "unknown"))
@@ -96,9 +92,9 @@ renderPost ::
   ShowBlogPosts.Model ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 renderPost hxRequest mUserInfo post = do
-  showResult <- execQuerySpan (Shows.getShowById post.showId)
-  authorResult <- execQuerySpan (UserMetadata.getUserMetadata post.authorId)
-  tagsResult <- execQuerySpan (ShowBlogPosts.getTagsForShowBlogPost post.id)
+  showResult <- execQuery (Shows.getShowById post.showId)
+  authorResult <- execQuery (UserMetadata.getUserMetadata post.authorId)
+  tagsResult <- execQuery (ShowBlogPosts.getTagsForShowBlogPost post.id)
 
   case (showResult, authorResult) of
     (Right (Just showModel), Right (Just author)) -> do

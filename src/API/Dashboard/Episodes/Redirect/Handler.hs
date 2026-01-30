@@ -21,13 +21,12 @@ import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -39,11 +38,10 @@ dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesLinks.list 
 
 -- | Handler that redirects to the first show's episodes page
 handler ::
-  Tracer ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer cookie (foldHxReq -> hxRequest) =
+handler cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes redirect" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -77,5 +75,5 @@ fetchShowsForUser ::
   AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+    then fromRight [] <$> execQuery Shows.getAllActiveShows
+    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))

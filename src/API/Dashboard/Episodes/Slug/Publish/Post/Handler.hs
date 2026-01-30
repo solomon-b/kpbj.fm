@@ -17,24 +17,22 @@ import Data.Text (Text)
 import Data.Time (UTCTime, getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer showSlug episodeNumber cookie =
+handler showSlug episodeNumber cookie =
   handlePublishErrors $ do
     -- 1. Require authentication
     (user, userMeta) <- requireAuth cookie
@@ -63,7 +61,7 @@ fetchShow ::
   Slug ->
   AppM Shows.Model
 fetchShow showSlug =
-  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+  execQuery (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -73,7 +71,7 @@ fetchEpisode ::
   Episodes.EpisodeNumber ->
   AppM Episodes.Model
 fetchEpisode showSlug episodeNumber =
-  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
+  execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Episode"
     Right (Just episode) -> pure episode
@@ -112,7 +110,7 @@ publishEpisode ::
   UserMetadata.Model ->
   AppM (Lucid.Html ())
 publishEpisode showModel episode userMeta = do
-  execQuerySpan (Episodes.publishEpisode episode.id) >>= \case
+  execQuery (Episodes.publishEpisode episode.id) >>= \case
     Left err -> do
       Log.logInfo "Publish failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
       pure $ renderErrorWithRow userMeta showModel episode "Failed to publish episode due to a database error."

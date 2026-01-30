@@ -19,7 +19,7 @@ import Data.Either (fromRight)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -29,18 +29,16 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) =
+handler showSlug postId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Blog post edit form" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -58,8 +56,8 @@ handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) =
         -- 4. Fetch shows for dashboard sidebar
         allShows <-
           if UserMetadata.isAdmin userMetadata.mUserRole
-            then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-            else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+            then fromRight [] <$> execQuery Shows.getAllActiveShows
+            else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
         -- 5. Render edit form
         renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavBlog Nothing Nothing $ editBlogPostForm showModel post tags
@@ -71,7 +69,7 @@ fetchBlogPostWithContext ::
   ShowBlogPosts.Id ->
   AppM (ShowBlogPosts.Model, Shows.Model, [ShowBlogTags.Model], Bool)
 fetchBlogPostWithContext user userMetadata showSlug postId = do
-  mResult <- execTransactionSpan $ runMaybeT $ do
+  mResult <- execTransaction $ runMaybeT $ do
     post <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)
     showModel <- MaybeT $ HT.statement () (Shows.getShowById post.showId)
     -- Verify the show slug matches

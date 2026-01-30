@@ -20,48 +20,44 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug, mkSlug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Markdown (renderContentM)
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 -- | Handler for event with both ID and slug
 handlerWithSlug ::
-  Tracer ->
   Events.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlerWithSlug tracer eventId slug = handler tracer eventId (Just slug)
+handlerWithSlug eventId slug = handler eventId (Just slug)
 
 -- | Handler for event with ID only (always redirects)
 handlerWithoutSlug ::
-  Tracer ->
   Events.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlerWithoutSlug tracer eventId = handler tracer eventId Nothing
+handlerWithoutSlug eventId = handler eventId Nothing
 
 -- | Shared handler for both routes
 handler ::
-  Tracer ->
   Events.Id ->
   Maybe Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer eventId mUrlSlug cookie (foldHxReq -> hxRequest) = do
+handler eventId mUrlSlug cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
 
-  execQuerySpan (Events.getEventById eventId) >>= \case
+  execQuery (Events.getEventById eventId) >>= \case
     Left _err -> do
       Log.logInfo "Failed to fetch event from database" eventId
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (mkSlug "unknown"))
@@ -87,7 +83,7 @@ renderEvent ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 renderEvent hxRequest mUserInfo event = do
   storageBackend <- asks getter
-  execQuerySpan (UserMetadata.getUserMetadata event.emAuthorId) >>= \case
+  execQuery (UserMetadata.getUserMetadata event.emAuthorId) >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch event author" (Aeson.object ["id" .= event.emAuthorId, "error" .= show err])
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (Events.emSlug event))

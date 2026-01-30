@@ -10,23 +10,21 @@ import App.Monad (AppM)
 import Data.Functor ((<&>))
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.SitePages qualified as SitePages
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer cookie (foldHxReq -> hxRequest) = do
+handler cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
   -- Fetch page content from database
-  pageResult <- execQuerySpan (SitePages.getPageBySlug "privacy-policy")
+  pageResult <- execQuery (SitePages.getPageBySlug "privacy-policy")
   mPage <- case pageResult of
     Left err -> do
       Log.logAttention "Failed to fetch privacy policy page from database" (show err)

@@ -34,7 +34,7 @@ import Data.Text.Display (display)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID.V4
 import Domain.Types.EmailAddress (EmailAddress)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
 import Effects.Database.Tables.User qualified as User
 import Effects.MailSender qualified as MailSender
@@ -123,8 +123,8 @@ createAndSendVerification userId email = do
                 VerificationTokens.iEmail = display email
               }
       -- Invalidate existing tokens first
-      _ <- execQuerySpan (VerificationTokens.invalidateForUser userId)
-      insertResult <- execQuerySpan (VerificationTokens.insert tokenInsert)
+      _ <- execQuery (VerificationTokens.invalidateForUser userId)
+      insertResult <- execQuery (VerificationTokens.insert tokenInsert)
       case insertResult of
         Left err -> do
           Log.logInfo "Failed to create verification token" (Text.pack $ show err)
@@ -149,7 +149,7 @@ createAndSendVerificationWithConfig smtpConfig userId email = do
   token <- generateVerificationToken
 
   -- Invalidate any existing pending tokens for this user
-  _ <- execQuerySpan (VerificationTokens.invalidateForUser userId)
+  _ <- execQuery (VerificationTokens.invalidateForUser userId)
 
   -- Create the token in the database
   let tokenInsert =
@@ -159,7 +159,7 @@ createAndSendVerificationWithConfig smtpConfig userId email = do
             VerificationTokens.iEmail = display email
           }
 
-  insertResult <- execQuerySpan (VerificationTokens.insert tokenInsert)
+  insertResult <- execQuery (VerificationTokens.insert tokenInsert)
   case insertResult of
     Left err -> do
       Log.logInfo "Failed to create verification token" (Text.pack $ show err)
@@ -190,7 +190,7 @@ verifyEmail tokenText = do
   let token = VerificationTokens.Token tokenText
 
   -- Attempt to verify the token (this also updates the user)
-  result <- execQuerySpan (VerificationTokens.verifyToken token)
+  result <- execQuery (VerificationTokens.verifyToken token)
   case result of
     Left err -> do
       Log.logInfo "Failed to verify email (database error)" (Text.pack $ show err)
@@ -216,7 +216,7 @@ resendVerification ::
   AppM (Either VerificationError ())
 resendVerification userId email = do
   -- Check if already verified first
-  verifiedResult <- execQuerySpan (VerificationTokens.isUserEmailVerified userId)
+  verifiedResult <- execQuery (VerificationTokens.isUserEmailVerified userId)
   case verifiedResult of
     Left err -> do
       Log.logInfo "Failed to check verification status" (Text.pack $ show err)
@@ -242,7 +242,7 @@ resendVerification userId email = do
 checkResendRateLimit :: User.Id -> AppM (Either VerificationError ())
 checkResendRateLimit userId = do
   -- Check if a token was created within the cooldown period
-  recentTokenResult <- execQuerySpan (VerificationTokens.getLastTokenCreatedAt userId resendCooldownSeconds)
+  recentTokenResult <- execQuery (VerificationTokens.getLastTokenCreatedAt userId resendCooldownSeconds)
   case recentTokenResult of
     Left err -> do
       Log.logInfo "Failed to check rate limit" (Text.pack $ show err)

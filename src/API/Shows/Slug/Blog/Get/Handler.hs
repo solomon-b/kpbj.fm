@@ -24,7 +24,7 @@ import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (runDBTransaction)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
@@ -32,7 +32,6 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
@@ -40,21 +39,20 @@ postsPerPage :: Limit
 postsPerPage = 12
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Int64 ->
   Maybe Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
+handler slug maybePage maybeTag cookie (foldHxReq -> hxRequest) = do
   let page = fromMaybe 1 maybePage
       offset = fromIntegral $ (page - 1) * fromIntegral postsPerPage :: Offset
 
   storageBackend <- asks getter
   mUserInfo <- fmap snd <$> getUserInfo cookie
 
-  execQuerySpan (Shows.getShowBySlug slug) >>= \case
+  execQuery (Shows.getShowBySlug slug) >>= \case
     Left err -> do
       Log.logInfo "Failed to fetch show from database" (show err)
       renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")

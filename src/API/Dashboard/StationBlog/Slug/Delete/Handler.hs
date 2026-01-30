@@ -13,21 +13,19 @@ import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer postId _postSlug cookie =
+handler postId _postSlug cookie =
   handleBannerErrors "Blog delete" $ do
     -- 1. Require authentication
     (_user, userMetadata) <- requireAuth cookie
@@ -54,7 +52,7 @@ fetchBlogPost ::
   BlogPosts.Id ->
   AppM BlogPosts.Model
 fetchBlogPost postId =
-  execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
+  execQuery (BlogPosts.getBlogPostById postId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Blog post"
     Right (Just post) -> pure post
@@ -63,7 +61,7 @@ execDeleteBlogPost ::
   BlogPosts.Model ->
   AppM ()
 execDeleteBlogPost blogPost =
-  execQuerySpan (BlogPosts.deleteBlogPost blogPost.bpmId) >>= \case
+  execQuery (BlogPosts.deleteBlogPost blogPost.bpmId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Blog post"
     Right (Just _) -> pure ()

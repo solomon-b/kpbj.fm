@@ -6,7 +6,6 @@ import Data.Password.Argon2 (Password, mkPassword)
 import Data.Text (Text)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.PasswordResetTokens (Token (..))
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
@@ -33,18 +32,16 @@ instance FormUrlEncoded.FromForm ResetPasswordForm where
 
 --------------------------------------------------------------------------------
 
+-- | "POST /user/reset-password"
 type Route =
-  Observability.WithSpan
-    "POST /user/reset-password"
-    ( "user"
-        :> "reset-password"
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] ResetPasswordForm
-        :> Servant.Post
-             '[HTML]
-             ( Servant.Headers
-                 '[ Servant.Header "HX-Redirect" Text
-                  ]
-                 (Lucid.Html ())
-             )
-    )
+  "user"
+    :> "reset-password"
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.ReqBody '[Servant.FormUrlEncoded] ResetPasswordForm
+    :> Servant.Post
+         '[HTML]
+         ( Servant.Headers
+             '[ Servant.Header "HX-Redirect" Text
+              ]
+             (Lucid.Html ())
+         )

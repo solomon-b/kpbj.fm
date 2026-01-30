@@ -24,25 +24,23 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Search (Search (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Int64 ->
   Maybe (Filter Text) ->
   Maybe (Filter Shows.Status) ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -> hxRequest) =
+handler maybePage queryFilterParam statusFilterParam cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -62,8 +60,8 @@ handler _tracer maybePage queryFilterParam statusFilterParam cookie (foldHxReq -
     -- 4. Fetch shows for sidebar
     sidebarShowsResult <-
       if isAdmin
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let sidebarShows = fromRight [] sidebarShowsResult
         selectedShow = listToMaybe sidebarShows
 
@@ -141,11 +139,11 @@ getShowResults limit offset queryFilter statusFilter = do
   showsResult <-
     case (queryFilter, statusFilter) of
       (Just query, _) ->
-        execQuerySpan (Shows.searchShowsWithHostInfo (Search query) (limit + 1) offset)
+        execQuery (Shows.searchShowsWithHostInfo (Search query) (limit + 1) offset)
       (Nothing, Just status) ->
-        execQuerySpan (Shows.getShowsByStatusWithHostInfo status (limit + 1) offset)
+        execQuery (Shows.getShowsByStatusWithHostInfo status (limit + 1) offset)
       (Nothing, Nothing) ->
-        execQuerySpan (Shows.getAllShowsWithHostInfo (limit + 1) offset)
+        execQuery (Shows.getAllShowsWithHostInfo (limit + 1) offset)
   case showsResult of
     Left err -> throwDatabaseError err
     Right s -> pure s

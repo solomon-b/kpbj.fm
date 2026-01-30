@@ -22,16 +22,14 @@ import Hasql.Pool qualified as HSQL
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   User.Id ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer targetUserId cookie =
+handler targetUserId cookie =
   handleBannerErrors "User delete" $ do
     -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie

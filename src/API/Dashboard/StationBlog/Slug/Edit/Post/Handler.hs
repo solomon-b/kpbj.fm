@@ -27,33 +27,31 @@ import Domain.Types.PostStatus (decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.FileUpload (uploadBlogHeroImage)
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   BlogEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer blogPostId slug cookie editForm =
+handler blogPostId slug cookie editForm =
   handleRedirectErrors "Station blog update" (dashboardStationBlogLinks.editGet blogPostId slug) $ do
     -- 1. Require authentication and staff role
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit station blog posts." userMetadata
 
     -- 2. Fetch blog post and old tags
-    mResult <- execTransactionSpan $ runMaybeT $ do
+    mResult <- execTransaction $ runMaybeT $ do
       blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
       oldTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
       pure (blogPost, oldTags)
@@ -126,7 +124,7 @@ updateBlogPost blogPost oldTags editForm = do
           }
 
   -- 8. Update in transaction
-  mUpdateResult <- execTransactionSpan $ runMaybeT $ do
+  mUpdateResult <- execTransaction $ runMaybeT $ do
     _ <- MaybeT $ HT.statement () (BlogPosts.updateBlogPost blogPost.bpmId updateData)
     lift $ traverse_ (\tag -> HT.statement () (BlogPosts.removeTagFromPost blogPost.bpmId tag.btmId)) oldTags
     lift $ updatePostTags blogPost.bpmId editForm

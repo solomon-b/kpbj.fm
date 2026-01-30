@@ -7,7 +7,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug ()
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -81,13 +80,11 @@ parseTags tagText =
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/station-blog/new"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/station-blog/new"
-    ( "dashboard"
-        :> "station-blog"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> MultipartForm Mem NewBlogPostForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "station-blog"
+    :> "new"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem NewBlogPostForm
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

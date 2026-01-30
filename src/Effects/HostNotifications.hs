@@ -26,7 +26,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (DayOfWeek (..), TimeOfDay)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -69,7 +69,7 @@ sendHostAssignmentEmail ::
   AppM ()
 sendHostAssignmentEmail smtpConfig showModel mTimeslot userId = do
   -- Fetch user info
-  execQuerySpan (UserMetadata.getUserWithMetadataById userId) >>= \case
+  execQuery (UserMetadata.getUserWithMetadataById userId) >>= \case
     Left err -> do
       Log.logInfo "Failed to fetch user for host assignment email" (display userId, Text.pack $ show err)
     Right Nothing -> do

@@ -31,7 +31,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
@@ -42,7 +42,6 @@ import Effects.FileUpload qualified as FileUpload
 import Effects.HostNotifications qualified as HostNotifications
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (FileData, Mem)
@@ -90,12 +89,11 @@ processShowArtworkUploads showSlug mLogoFile = do
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Cookie ->
   ShowEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer slug cookie editForm =
+handler slug cookie editForm =
   handleRedirectErrors "Show edit" apiLinks.rootGet $ do
     -- 1. Require authentication and authorization (host of show or staff+)
     (user, userMetadata) <- requireAuth cookie
@@ -112,7 +110,7 @@ fetchShowOrNotFound ::
   Slug ->
   AppM Shows.Model
 fetchShowOrNotFound slug =
-  execQuerySpan (Shows.getShowBySlug slug) >>= \case
+  execQuery (Shows.getShowBySlug slug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -169,7 +167,7 @@ updateShow userMetadata showModel editForm = do
                   }
 
           -- Update the show
-          execQuerySpan (Shows.updateShow showModel.id updateData) >>= \case
+          execQuery (Shows.updateShow showModel.id updateData) >>= \case
             Left err -> do
               Log.logInfo "Failed to update show" (showModel.id, show err)
               let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
@@ -337,7 +335,7 @@ checkScheduleConflicts showId = go
       case (parseDayOfWeek (dayOfWeek slot), parseTimeOfDay (startTime slot), parseTimeOfDay (endTime slot)) of
         (Just dow, Just start, Just end) -> do
           let weeks = map fromIntegral (weeksOfMonth slot)
-          execQuerySpan (ShowSchedule.checkTimeSlotConflict showId dow weeks start end) >>= \case
+          execQuery (ShowSchedule.checkTimeSlotConflict showId dow weeks start end) >>= \case
             Left err -> do
               Log.logInfo "Failed to check schedule conflict" (Text.pack $ show err)
               pure (Right ()) -- Don't block on DB errors, let it through
@@ -364,7 +362,7 @@ updateSchedulesForShow showId newSchedules = do
 
   -- Close out all currently active schedule templates for this show
   activeTemplates <-
-    execQuerySpan (ShowSchedule.getActiveScheduleTemplatesForShow showId) >>= \case
+    execQuery (ShowSchedule.getActiveScheduleTemplatesForShow showId) >>= \case
       Left err -> do
         Log.logInfo "Failed to fetch active schedules" (Text.pack $ show err)
         pure []
@@ -373,7 +371,7 @@ updateSchedulesForShow showId newSchedules = do
   -- For each active template, end its active validity periods
   forM_ activeTemplates $ \template -> do
     activeValidities <-
-      execQuerySpan (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId) >>= \case
+      execQuery (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId) >>= \case
         Left err -> do
           Log.logInfo "Failed to fetch validity periods" (Text.pack $ show err)
           pure []
@@ -381,7 +379,7 @@ updateSchedulesForShow showId newSchedules = do
 
     -- End each active validity period by setting effective_until to today
     forM_ activeValidities $ \validity -> do
-      _ <- execQuerySpan (ShowSchedule.endValidity validity.stvId today)
+      _ <- execQuery (ShowSchedule.endValidity validity.stvId today)
       Log.logInfo "Closed out schedule validity" (show template.stId, show validity.stvId)
 
   -- Create new schedule templates
@@ -403,7 +401,7 @@ updateSchedulesForShow showId newSchedules = do
                   ShowSchedule.stiAirsTwiceDaily = False
                 }
 
-        templateResult <- execQuerySpan (ShowSchedule.insertScheduleTemplate templateInsert)
+        templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
         case templateResult of
           Left err ->
             Log.logInfo "Failed to insert schedule template" (Text.pack $ show err)
@@ -415,7 +413,7 @@ updateSchedulesForShow showId newSchedules = do
                       ShowSchedule.viEffectiveFrom = today,
                       ShowSchedule.viEffectiveUntil = Nothing
                     }
-            validityResult <- execQuerySpan (ShowSchedule.insertValidity validityInsert)
+            validityResult <- execQuery (ShowSchedule.insertValidity validityInsert)
             case validityResult of
               Left err ->
                 Log.logInfo "Failed to insert validity" (Text.pack $ show err)
@@ -444,7 +442,7 @@ updateHostsForShow showId newHostIds = do
 
   -- Get current hosts
   currentHosts <-
-    execQuerySpan (ShowHost.getShowHosts showId) >>= \case
+    execQuery (ShowHost.getShowHosts showId) >>= \case
       Left err -> do
         Log.logInfo "Failed to fetch current hosts" (show err)
         pure []
@@ -460,24 +458,24 @@ updateHostsForShow showId newHostIds = do
 
   -- Remove hosts that are no longer assigned
   forM_ hostsToRemove $ \hostId -> do
-    _ <- execQuerySpan (ShowHost.removeShowHost showId hostId)
+    _ <- execQuery (ShowHost.removeShowHost showId hostId)
     Log.logInfo "Removed host from show" (show showId, show hostId)
 
   -- Add new hosts
   forM_ hostsToAdd $ \hostId -> do
     -- Add host to show
-    _ <- execQuerySpan (ShowHost.addHostToShow showId hostId)
+    _ <- execQuery (ShowHost.addHostToShow showId hostId)
     Log.logInfo "Added host to show" (show showId, show hostId)
 
     -- Promote user to Host role if they're currently just a User
-    execQuerySpan (UserMetadata.getUserMetadata hostId) >>= \case
+    execQuery (UserMetadata.getUserMetadata hostId) >>= \case
       Left err ->
         Log.logInfo "Failed to fetch user metadata for role promotion" (show err)
       Right Nothing ->
         Log.logInfo "User not found for role promotion" (show hostId)
       Right (Just userMeta) ->
         when (userMeta.mUserRole == UserMetadata.User) $ do
-          _ <- execQuerySpan (UserMetadata.updateUserRole hostId UserMetadata.Host)
+          _ <- execQuery (UserMetadata.updateUserRole hostId UserMetadata.Host)
           Log.logInfo "Promoted user to Host role" (show hostId)
 
   Log.logInfo "Host update complete" (show showId, "removed" :: Text, length hostsToRemove, "added" :: Text, length hostsToAdd)
@@ -498,7 +496,7 @@ processShowTags ::
   AppM ()
 processShowTags showId mTagsText = do
   -- First, remove all existing tags from this show
-  _ <- execQuerySpan (Shows.removeAllTagsFromShow showId)
+  _ <- execQuery (Shows.removeAllTagsFromShow showId)
   Log.logInfo "Cleared existing tags for show" (show showId)
 
   -- Then add new tags
@@ -508,16 +506,16 @@ processShowTags showId mTagsText = do
       let tagNames = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," tagsText
       forM_ tagNames $ \tagName -> do
         -- Check if tag already exists
-        execQuerySpan (ShowTags.getShowTagByName tagName) >>= \case
+        execQuery (ShowTags.getShowTagByName tagName) >>= \case
           Right (Just existingTag) -> do
             -- Tag exists, just associate it with the show
-            _ <- execQuerySpan (Shows.addTagToShow showId (ShowTags.stId existingTag))
+            _ <- execQuery (Shows.addTagToShow showId (ShowTags.stId existingTag))
             Log.logInfo "Associated existing tag with show" (show showId, tagName)
           _ -> do
             -- Tag doesn't exist, create it and associate
-            execQuerySpan (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
+            execQuery (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
               Right newTagId -> do
-                _ <- execQuerySpan (Shows.addTagToShow showId newTagId)
+                _ <- execQuery (Shows.addTagToShow showId newTagId)
                 Log.logInfo "Created and associated new tag with show" (show showId, tagName)
               Left err ->
                 Log.logInfo "Failed to create tag" (tagName, show err)

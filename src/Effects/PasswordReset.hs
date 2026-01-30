@@ -38,7 +38,7 @@ import Data.Text.Display (display)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID.V4
 import Domain.Types.EmailAddress (EmailAddress)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PasswordResetTokens qualified as ResetTokens
 import Effects.Database.Tables.User qualified as User
 import Hasql.Interpolate (OneColumn (..), interp, sql)
@@ -107,7 +107,7 @@ passwordResetErrorToText = \case
 -- Returns True if the email can request a new token, False if rate limited.
 checkRateLimit :: Text -> AppM (Either PasswordResetError Bool)
 checkRateLimit email = do
-  result <- execQuerySpan (ResetTokens.countRecentForEmail email)
+  result <- execQuery (ResetTokens.countRecentForEmail email)
   case result of
     Left err -> do
       Log.logInfo "Rate limit check failed" (Text.pack $ show err)
@@ -151,7 +151,7 @@ createPasswordResetToken userId email ipAddress userAgent = do
       token <- generateResetToken
 
       -- Expire any existing pending tokens for this user
-      _ <- execQuerySpan (ResetTokens.expirePendingForUser userId)
+      _ <- execQuery (ResetTokens.expirePendingForUser userId)
 
       -- Create the token in the database
       let tokenInsert =
@@ -163,7 +163,7 @@ createPasswordResetToken userId email ipAddress userAgent = do
                 ResetTokens.iUserAgent = userAgent
               }
 
-      insertResult <- execQuerySpan (ResetTokens.insert tokenInsert)
+      insertResult <- execQuery (ResetTokens.insert tokenInsert)
       case insertResult of
         Left err -> do
           Log.logInfo "Failed to create password reset token" (Text.pack $ show err)
@@ -184,7 +184,7 @@ validateToken ::
   ResetTokens.Token ->
   AppM (Either PasswordResetError ResetTokens.Model)
 validateToken token = do
-  result <- execQuerySpan (ResetTokens.getByToken token)
+  result <- execQuery (ResetTokens.getByToken token)
   case result of
     Left err -> do
       Log.logInfo "Token validation failed (database error)" (Text.pack $ show err)
@@ -213,7 +213,7 @@ consumeAndResetPassword ::
   AppM (Either PasswordResetError User.Id)
 consumeAndResetPassword token newPasswordHash = do
   -- Consume the token
-  consumeResult <- execQuerySpan (ResetTokens.consumeToken token)
+  consumeResult <- execQuery (ResetTokens.consumeToken token)
   case consumeResult of
     Left err -> do
       Log.logInfo "Token consumption failed (database error)" (Text.pack $ show err)
@@ -225,7 +225,7 @@ consumeAndResetPassword token newPasswordHash = do
       let userId = ResetTokens.userId tokenModel
 
       -- Update the user's password
-      updateResult <- execQuerySpan (updateUserPassword userId newPasswordHash)
+      updateResult <- execQuery (updateUserPassword userId newPasswordHash)
       case updateResult of
         Left err -> do
           Log.logInfo "Password update failed" (Text.pack $ show err)
@@ -235,10 +235,10 @@ consumeAndResetPassword token newPasswordHash = do
           pure $ Left UserNotFound
         Right (Just _) -> do
           -- Expire all other pending tokens for this user
-          _ <- execQuerySpan (ResetTokens.expirePendingForUser userId)
+          _ <- execQuery (ResetTokens.expirePendingForUser userId)
 
           -- Invalidate all sessions for this user
-          _ <- execQuerySpan (deleteAllSessionsForUser userId)
+          _ <- execQuery (deleteAllSessionsForUser userId)
 
           Log.logInfo "Password reset successful" (display userId)
           pure $ Right userId

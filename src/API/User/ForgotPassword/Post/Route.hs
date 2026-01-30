@@ -4,7 +4,6 @@ module API.User.ForgotPassword.Post.Route where
 
 import Data.Text (Text)
 import Domain.Types.HxRequest (HxRequest)
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
@@ -28,14 +27,12 @@ instance FromForm ForgotPasswordForm where
 
 --------------------------------------------------------------------------------
 
+-- | "POST /user/forgot-password"
 type Route =
-  Observability.WithSpan
-    "POST /user/forgot-password"
-    ( "user"
-        :> "forgot-password"
-        :> Servant.RemoteHost
-        :> Servant.Header "User-Agent" Text
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] ForgotPasswordForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
-    )
+  "user"
+    :> "forgot-password"
+    :> Servant.RemoteHost
+    :> Servant.Header "User-Agent" Text
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.ReqBody '[Servant.FormUrlEncoded] ForgotPasswordForm
+    :> Servant.Post '[HTML] (Lucid.Html ())

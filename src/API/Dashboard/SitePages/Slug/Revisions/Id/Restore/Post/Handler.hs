@@ -16,26 +16,24 @@ import Control.Monad.Trans.Maybe
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
 import Effects.Database.Tables.SitePages qualified as SitePages
 import Effects.Database.Tables.User qualified as User
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Text ->
   SitePageRevisions.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer pageSlug revisionId cookie _hxRequest =
+handler pageSlug revisionId cookie _hxRequest =
   handleRedirectErrors "Restore revision" (dashboardSitePagesLinks.historyGet pageSlug) $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -44,7 +42,7 @@ handler _tracer pageSlug revisionId cookie _hxRequest =
     let userId = User.mId user
 
     -- 2. Fetch and restore in transaction
-    mResult <- execTransactionSpan $ runMaybeT $ do
+    mResult <- execTransaction $ runMaybeT $ do
       -- Fetch page and revision
       page <- MaybeT $ HT.statement () (SitePages.getPageBySlug pageSlug)
       revision <- MaybeT $ HT.statement () (SitePageRevisions.getRevisionById revisionId)

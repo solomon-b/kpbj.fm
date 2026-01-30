@@ -19,26 +19,24 @@ import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) =
+handler showSlug postId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show blog post detail" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -54,7 +52,7 @@ handler _tracer showSlug postId cookie (foldHxReq -> hxRequest) =
     blogPost <- fetchBlogPostOrNotFound postId showModel
 
     -- 5. Fetch tags for the blog post
-    tags <- fromRight [] <$> execQuerySpan (ShowBlogPosts.getTagsForShowBlogPost blogPost.id)
+    tags <- fromRight [] <$> execQuery (ShowBlogPosts.getTagsForShowBlogPost blogPost.id)
 
     -- 6. Get user's shows for sidebar
     userShows <- fetchShowsForUser user userMetadata
@@ -82,7 +80,7 @@ fetchShowOrNotFound ::
   Slug ->
   AppM Shows.Model
 fetchShowOrNotFound slug =
-  execQuerySpan (Shows.getShowBySlug slug) >>= \case
+  execQuery (Shows.getShowBySlug slug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -97,7 +95,7 @@ requireShowAccess user userMetadata showModel =
   if UserMetadata.isAdmin userMetadata.mUserRole
     then pure ()
     else do
-      userShows <- fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+      userShows <- fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
       if any (\s -> s.id == showModel.id) userShows
         then pure ()
         else throwNotAuthorized "You don't have access to this show." (Just userMetadata.mUserRole)
@@ -108,7 +106,7 @@ fetchBlogPostOrNotFound ::
   Shows.Model ->
   AppM ShowBlogPosts.Model
 fetchBlogPostOrNotFound postId showModel =
-  execQuerySpan (ShowBlogPosts.getShowBlogPostById postId) >>= \case
+  execQuery (ShowBlogPosts.getShowBlogPostById postId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Blog post"
     Right (Just blogPost)
@@ -122,5 +120,5 @@ fetchShowsForUser ::
   AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+    then fromRight [] <$> execQuery Shows.getAllActiveShows
+    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))

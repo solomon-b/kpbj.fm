@@ -23,24 +23,22 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe PageNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
+handler maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Ephemeral uploads list" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -58,8 +56,8 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
     -- 4. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
@@ -78,7 +76,7 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
 
 fetchEphemeralUploads :: Limit -> Offset -> AppM [EphemeralUploads.EphemeralUploadWithCreator]
 fetchEphemeralUploads limit offset = do
-  ephemeralUploadsResult <- execQuerySpan (EphemeralUploads.getAllEphemeralUploads (limit + 1) offset)
+  ephemeralUploadsResult <- execQuery (EphemeralUploads.getAllEphemeralUploads (limit + 1) offset)
   case ephemeralUploadsResult of
     Left err -> throwDatabaseError err
     Right ephemeralUploads -> pure ephemeralUploads

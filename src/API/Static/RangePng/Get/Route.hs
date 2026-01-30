@@ -4,7 +4,6 @@ module API.Static.RangePng.Get.Route where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as LBS
-import Effects.Observability qualified as Observability
 import Servant ((:>))
 import Servant qualified
 
@@ -21,10 +20,8 @@ instance Servant.MimeRender PNG ByteString where
 
 --------------------------------------------------------------------------------
 
+-- | "GET /static/range.png"
 type Route =
-  Observability.WithSpan
-    "GET /static/range.png"
-    ( "static"
-        :> "range.png"
-        :> Servant.Get '[PNG] ByteString
-    )
+  "static"
+    :> "range.png"
+    :> Servant.Get '[PNG] ByteString

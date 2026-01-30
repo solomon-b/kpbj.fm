@@ -16,30 +16,28 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   User.Id ->
   Maybe Cookie ->
   RoleUpdateForm ->
   AppM (Lucid.Html ())
-handler _tracer targetUserId cookie (RoleUpdateForm newRole) =
+handler targetUserId cookie (RoleUpdateForm newRole) =
   handleBannerErrors "Role update" $ do
     -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
     requireAdminNotSuspended "Only admins can change user roles." userMetadata
 
-    execQuerySpan (UserMetadata.updateUserRole targetUserId newRole) >>= \case
+    execQuery (UserMetadata.updateUserRole targetUserId newRole) >>= \case
       Left _err -> do
         Log.logInfo "Failed to update user role" ()
         pure $ errorResponse targetUserId newRole "Failed to update role"

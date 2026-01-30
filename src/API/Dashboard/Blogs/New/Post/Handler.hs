@@ -22,7 +22,7 @@ import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -32,18 +32,16 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Cookie ->
   NewShowBlogPostForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug cookie form =
+handler showSlug cookie form =
   handleRedirectErrors "Show blog post creation" (dashboardBlogsLinks.newGet showSlug) $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -91,7 +89,7 @@ fetchShowBySlug ::
   Slug ->
   AppM Shows.Model
 fetchShowBySlug user userMetadata showSlug = do
-  mResult <- execTransactionSpan $ runMaybeT $ do
+  mResult <- execTransaction $ runMaybeT $ do
     showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
     -- Admins can create blog posts for any show, hosts need explicit assignment
     unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do
@@ -120,16 +118,16 @@ createOrAssociateTag ::
   Text ->
   AppM ()
 createOrAssociateTag postId tagName =
-  execQuerySpan (ShowBlogTags.getShowBlogTagByName tagName) >>= \case
+  execQuery (ShowBlogTags.getShowBlogTagByName tagName) >>= \case
     Right (Just existingTag) -> do
       -- If tag exists, associate it
-      void $ execQuerySpan (ShowBlogPosts.addTagToShowBlogPost postId (ShowBlogTags.sbtmId existingTag))
+      void $ execQuery (ShowBlogPosts.addTagToShowBlogPost postId (ShowBlogTags.sbtmId existingTag))
     _ -> do
       -- otherwise, create new tag and associate it
-      tagInsertResult <- execQuerySpan (ShowBlogTags.insertShowBlogTag (ShowBlogTags.Insert tagName))
+      tagInsertResult <- execQuery (ShowBlogTags.insertShowBlogTag (ShowBlogTags.Insert tagName))
       case tagInsertResult of
         Right newTagId -> do
-          void $ execQuerySpan (ShowBlogPosts.addTagToShowBlogPost postId newTagId)
+          void $ execQuery (ShowBlogPosts.addTagToShowBlogPost postId newTagId)
         Left dbError -> do
           Log.logInfo ("Database error creating tag: " <> Text.pack (show dbError)) ()
           pure ()
@@ -142,7 +140,7 @@ handlePostCreation ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handlePostCreation blogPostData form showModel = do
   postId <-
-    execQuerySpan (ShowBlogPosts.insertShowBlogPost blogPostData) >>= \case
+    execQuery (ShowBlogPosts.insertShowBlogPost blogPostData) >>= \case
       Left err -> throwDatabaseError err
       Right pid -> pure pid
 

@@ -4,7 +4,6 @@ module API.Dashboard.StationBlog.New.Get.Route where
 
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -12,13 +11,11 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
+-- | "GET /dashboard/station-blog/new"
 type Route =
-  Observability.WithSpan
-    "GET /dashboard/station-blog/new"
-    ( "dashboard"
-        :> "station-blog"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Get '[HTML] (Lucid.Html ())
-    )
+  "dashboard"
+    :> "station-blog"
+    :> "new"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Get '[HTML] (Lucid.Html ())

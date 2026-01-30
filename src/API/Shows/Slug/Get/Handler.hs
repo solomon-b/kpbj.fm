@@ -23,7 +23,7 @@ import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Class (runDBTransaction)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -34,7 +34,6 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Rel8 (Result)
 
 --------------------------------------------------------------------------------
@@ -44,19 +43,18 @@ episodesPerPage :: Int64
 episodesPerPage = 10
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Int ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer slug mPage cookie (foldHxReq -> hxRequest) = do
+handler slug mPage cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
   backend <- asks getter
   let page = fromMaybe 1 mPage
       limit = fromIntegral episodesPerPage
       offset = fromIntegral (page - 1) * fromIntegral episodesPerPage
-  execQuerySpan (Shows.getShowBySlug slug) >>= \case
+  execQuery (Shows.getShowBySlug slug) >>= \case
     Left err -> do
       Log.logInfo "Failed to fetch show from database" (show err)
       renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")

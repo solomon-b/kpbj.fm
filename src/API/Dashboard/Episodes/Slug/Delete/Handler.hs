@@ -14,13 +14,12 @@ import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
@@ -30,12 +29,11 @@ import OpenTelemetry.Trace (Tracer)
 -- remove content from public view while preserving the database record
 -- for compliance, legal, or moderation purposes.
 handler ::
-  Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer showSlug episodeNumber cookie =
+handler showSlug episodeNumber cookie =
   handleArchiveErrors $ do
     -- 1. Require authentication
     (_user, userMeta) <- requireAuth cookie
@@ -59,7 +57,7 @@ fetchShow ::
   Slug ->
   AppM Shows.Model
 fetchShow showSlug =
-  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+  execQuery (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -69,7 +67,7 @@ fetchEpisode ::
   Episodes.EpisodeNumber ->
   AppM Episodes.Model
 fetchEpisode showSlug episodeNumber =
-  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
+  execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Episode"
     Right (Just episode) -> pure episode
@@ -83,7 +81,7 @@ archiveEpisode ::
   UserMetadata.Model ->
   AppM (Lucid.Html ())
 archiveEpisode showModel episode userMeta = do
-  execQuerySpan (Episodes.deleteEpisode episode.id) >>= \case
+  execQuery (Episodes.deleteEpisode episode.id) >>= \case
     Left err -> do
       Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
       pure $ renderErrorWithRow userMeta showModel episode "Failed to archive episode due to a database error."

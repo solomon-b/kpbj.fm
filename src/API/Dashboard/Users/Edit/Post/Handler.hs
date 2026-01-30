@@ -24,14 +24,13 @@ import Domain.Types.DisplayName qualified as DisplayName
 import Domain.Types.FileUpload qualified
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, lookupInput)
@@ -47,12 +46,11 @@ userDetailUrl userId =
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   User.Id ->
   Maybe Cookie ->
   MultipartData Mem ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer targetUserId cookie multipartData =
+handler targetUserId cookie multipartData =
   handleRedirectErrors "User edit" (dashboardUsersLinks.detail targetUserId) $ do
     -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
@@ -86,7 +84,7 @@ handler _tracer targetUserId cookie multipartData =
             pure $ Just $ Text.pack $ Domain.Types.FileUpload.uploadResultStoragePath result
 
     -- Update user metadata and role in transaction
-    updateResult <- execTransactionSpan $ do
+    updateResult <- execTransaction $ do
       -- Get current metadata
       maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata targetUserId)
       case maybeMetadata of

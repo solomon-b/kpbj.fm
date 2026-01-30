@@ -10,16 +10,14 @@ import Data.Has (getter)
 import Data.Text (Text)
 import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
-import OpenTelemetry.Trace qualified as Trace
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Trace.Tracer ->
   Maybe Text ->
   Maybe EmailAddress ->
   AppM (Lucid.Html ())
-handler _tracer hxRequest mEmail = do
+handler hxRequest mEmail = do
   mGoogleAnalyticsId <- asks getter
   let isHtmxRequest = hxRequest == Just "true"
       content = Page.template mEmail

@@ -12,18 +12,16 @@ import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
 import Lucid qualified
-import OpenTelemetry.Trace qualified as Trace
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Trace.Tracer ->
   Maybe Text ->
   Maybe EmailAddress ->
   Maybe DisplayName ->
   Maybe FullName ->
   AppM (Lucid.Html ())
-handler _tracer hxRequest emailAddress displayName fullName = do
+handler hxRequest emailAddress displayName fullName = do
   mGoogleAnalyticsId <- asks getter
   let registerForm = template displayName fullName emailAddress Nothing
       isHtmxRequest = case hxRequest of

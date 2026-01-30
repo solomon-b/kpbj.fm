@@ -8,7 +8,6 @@ import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
 import Deriving.Aeson qualified as Deriving
 import Domain.Types.EmailAddress
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import OrphanInstances.Password ()
 import Servant ((:>))
@@ -37,14 +36,12 @@ instance FormUrlEncoded.FromForm Login where
 
 --------------------------------------------------------------------------------
 
+-- | "POST /user/login"
 type Route =
-  Observability.WithSpan
-    "POST /user/login"
-    ( "user"
-        :> "login"
-        :> Servant.RemoteHost
-        :> Servant.Header "User-Agent" Text
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] Login
-        :> Servant.QueryParam "redirect" Text
-        :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
-    )
+  "user"
+    :> "login"
+    :> Servant.RemoteHost
+    :> Servant.Header "User-Agent" Text
+    :> Servant.ReqBody '[Servant.FormUrlEncoded] Login
+    :> Servant.QueryParam "redirect" Text
+    :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
