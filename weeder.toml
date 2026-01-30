@@ -37,7 +37,9 @@ root-modules = [
   "^Lucid\\.Alpine$",
   "^Lucid\\.HTML5\\.Extra$",
   # lucid-form-builder library - public API for form construction
-  "^Lucid\\.Form\\.Builder.*$"
+  "^Lucid\\.Form\\.Builder.*$",
+  # lucid-tailwind library - Tailwind CSS combinators
+  "^Lucid\\.Tailwind$"
 ]
 
 # Type class instance handling

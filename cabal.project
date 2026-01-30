@@ -1,6 +1,7 @@
 packages: .
          lib/lucid-htmx-alpine
          lib/lucid-form-builder
+         lib/lucid-tailwind
 
 source-repository-package
   type: git
