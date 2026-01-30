@@ -7,6 +7,7 @@ import API.Types
 import App.Auth qualified as Auth
 import App.Config (Environment)
 import App.Cookie qualified as Cookie
+import App.Domains qualified as Domains
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), redirectWithBanner)
@@ -123,7 +124,7 @@ attemptAutoLogin userId sockAddr mUserAgent = do
     Just session -> do
       -- Reuse existing session
       let sessionId = Session.mSessionId session
-          newCookie = SetCookie $ Cookie.mkCookieSessionWithDomain env sessionId
+          newCookie = SetCookie $ Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
       pure $ Right (newCookie, expireOldCookie)
     Nothing -> do
       -- Create new session
@@ -131,5 +132,5 @@ attemptAutoLogin userId sockAddr mUserAgent = do
         Left err -> do
           pure $ Left $ Text.pack $ show err
         Right sessionId -> do
-          let newCookie = SetCookie $ Cookie.mkCookieSessionWithDomain env sessionId
+          let newCookie = SetCookie $ Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
           pure $ Right (newCookie, expireOldCookie)

@@ -8,6 +8,7 @@ import API.User.Login.Post.Route (Login (..))
 import App.Auth qualified as Auth
 import App.Config (Environment)
 import App.Cookie qualified as Cookie
+import App.Domains qualified as Domains
 import App.Errors (InternalServerError (..), throwErr)
 import App.Monad (AppM)
 import Control.Monad.Reader (asks)
@@ -88,13 +89,13 @@ attemptLogin sockAddr mUserAgent redirectLink user = do
           throwErr $ InternalServerError $ Text.pack $ show err
         Right sessionId -> do
           pure $
-            Servant.addHeader (Cookie.mkCookieSessionWithDomain env sessionId) $
+            Servant.addHeader (Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId) $
               Servant.addHeader expireOldCookie $
                 Servant.addHeader redirectLink Servant.NoContent
     Just session ->
       let sessionId = Session.mSessionId session
        in pure $
-            Servant.addHeader (Cookie.mkCookieSessionWithDomain env sessionId) $
+            Servant.addHeader (Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId) $
               Servant.addHeader expireOldCookie $
                 Servant.addHeader redirectLink Servant.NoContent
 

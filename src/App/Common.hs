@@ -7,7 +7,6 @@ module App.Common where
 
 import App.Auth qualified as Auth
 import App.Config (Environment)
-import App.Cookie qualified as Cookie
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav)
 import Component.DashboardFrame qualified as DashboardFrame
@@ -36,7 +35,7 @@ import Lucid qualified
 getUserInfo :: Maybe Cookie -> AppM (Maybe (User.Model, UserMetadata.Model))
 getUserInfo (coerce -> cookie) = do
   env <- asks (getter @Environment)
-  case cookie >>= Cookie.lookupSessionId env of
+  case cookie >>= Auth.lookupSessionId env of
     Nothing -> pure Nothing
     Just sessionId ->
       Auth.getAuth sessionId >>= \case

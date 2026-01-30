@@ -36,26 +36,6 @@ spec = describe "App.Domains" $ do
     it "returns kpbj.fm for Production" $ do
       baseDomain Production `shouldBe` "kpbj.fm"
 
-  describe "cookieName" $ do
-    it "returns session-id for Development" $ do
-      cookieName Development `shouldBe` "session-id"
-
-    it "returns session-id-staging for Staging" $ do
-      cookieName Staging `shouldBe` "session-id-staging"
-
-    it "returns session-id-production for Production" $ do
-      cookieName Production `shouldBe` "session-id-production"
-
-    it "Staging has unique cookie name to avoid collision with Production" $ do
-      -- staging.kpbj.fm is a subdomain of kpbj.fm, so production cookies
-      -- (Domain=.kpbj.fm) would be sent to staging. Different names prevent collision.
-      cookieName Staging `shouldNotBe` cookieName Production
-
-    it "all non-Development environments have unique cookie names" $ do
-      cookieName Staging `shouldNotBe` cookieName Production
-      cookieName Staging `shouldNotBe` cookieName Development
-      cookieName Production `shouldNotBe` cookieName Development
-
   describe "cookieDomain" $ do
     it "returns empty for Development" $ do
       cookieDomain Development `shouldBe` ""
@@ -70,6 +50,20 @@ spec = describe "App.Domains" $ do
       let cookie = cookieDomain env
           base = baseDomain env
       cookie === "." <> base
+
+  describe "cookieDomainMaybe" $ do
+    it "returns Nothing for Development" $ do
+      cookieDomainMaybe Development `shouldBe` Nothing
+
+    it "returns Just for Staging" $ do
+      cookieDomainMaybe Staging `shouldBe` Just ".staging.kpbj.fm"
+
+    it "returns Just for Production" $ do
+      cookieDomainMaybe Production `shouldBe` Just ".kpbj.fm"
+
+    it "is consistent with cookieDomain for non-Development" $ hedgehog $ do
+      env <- forAll genNonDevEnvironment
+      cookieDomainMaybe env === Just (cookieDomain env)
 
   describe "uploadsDomain" $ do
     it "returns empty for Development" $ do

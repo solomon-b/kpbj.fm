@@ -14,8 +14,8 @@ module App.Domains
     baseDomain,
 
     -- * Cookie Configuration
-    cookieName,
     cookieDomain,
+    cookieDomainMaybe,
 
     -- * Upload Configuration
     uploadsDomain,
@@ -50,21 +50,6 @@ baseDomain = \case
 --------------------------------------------------------------------------------
 -- Cookie Configuration
 
--- | Get the session cookie name for the environment.
---
--- Different environments use different cookie names to prevent collisions
--- when cookies from production (Domain=.kpbj.fm) would otherwise be sent
--- to staging (staging.kpbj.fm is a subdomain of kpbj.fm).
---
--- - Development: "session-id"
--- - Staging: "session-id-staging"
--- - Production: "session-id-production"
-cookieName :: Environment -> Text
-cookieName = \case
-  Development -> "session-id"
-  Staging -> "session-id-staging"
-  Production -> "session-id-production"
-
 -- | Get the cookie Domain attribute for cross-subdomain authentication.
 --
 -- The leading dot allows the cookie to be shared across all subdomains:
@@ -75,6 +60,15 @@ cookieDomain :: Environment -> Text
 cookieDomain = \case
   Development -> ""
   env -> "." <> baseDomain env
+
+-- | Get the cookie Domain attribute as Maybe (for 'App.Auth.mkCookieSession').
+--
+-- This returns 'Nothing' for Development (no Domain attribute) and
+-- @Just domain@ for other environments.
+cookieDomainMaybe :: Environment -> Maybe Text
+cookieDomainMaybe = \case
+  Development -> Nothing
+  env -> Just $ "." <> baseDomain env
 
 --------------------------------------------------------------------------------
 -- Upload Configuration
