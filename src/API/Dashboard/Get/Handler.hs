@@ -10,7 +10,6 @@ import App.Monad (AppM)
 import Component.Redirect (redirectTemplate)
 import Data.String.Interpolate (i)
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -23,7 +22,6 @@ dashboardEpisodesRedirectUrl = Links.linkURI dashboardLinks.episodesRedirect
 
 -- | Redirect /dashboard to /dashboard/episodes
 handler ::
-  Tracer ->
   AppM (Lucid.Html ())
-handler _tracer =
+handler =
   pure $ redirectTemplate [i|/#{dashboardEpisodesRedirectUrl}|]

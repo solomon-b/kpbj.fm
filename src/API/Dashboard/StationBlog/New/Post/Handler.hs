@@ -25,24 +25,22 @@ import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload (uploadBlogHeroImage)
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   NewBlogPostForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie form =
+handler cookie form =
   handleRedirectErrors "Blog post creation" dashboardStationBlogLinks.newGet $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -120,16 +118,16 @@ createOrAssociateTag ::
   Text ->
   AppM ()
 createOrAssociateTag postId tagName =
-  execQuerySpan (BlogTags.getTagByName tagName) >>= \case
+  execQuery (BlogTags.getTagByName tagName) >>= \case
     Right (Just existingTag) -> do
       -- If tag exists, associate it
-      void $ execQuerySpan (BlogPosts.addTagToPost postId (BlogTags.btmId existingTag))
+      void $ execQuery (BlogPosts.addTagToPost postId (BlogTags.btmId existingTag))
     _ -> do
       -- otherwise, create new tag and associate it
-      tagInsertResult <- execQuerySpan (BlogTags.insertTag (BlogTags.Insert tagName))
+      tagInsertResult <- execQuery (BlogTags.insertTag (BlogTags.Insert tagName))
       case tagInsertResult of
         Right newTagId -> do
-          void $ execQuerySpan (BlogPosts.addTagToPost postId newTagId)
+          void $ execQuery (BlogPosts.addTagToPost postId newTagId)
         Left dbError -> do
           Log.logInfo "Database error creating tag" (Aeson.object ["error" .= Text.pack (show dbError)])
 
@@ -143,7 +141,7 @@ handlePostCreation blogPostData form = do
   createPostTags postId form
 
   -- Fetch created post to get the slug
-  execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
+  execQuery (BlogPosts.getBlogPostById postId) >>= \case
     Right (Just createdPost) -> do
       Log.logInfo "Successfully created blog post" (Aeson.object ["title" .= BlogPosts.bpmTitle createdPost])
       let createdSlug = BlogPosts.bpmSlug createdPost
@@ -162,6 +160,6 @@ insertBlogPost ::
   BlogPosts.Insert ->
   AppM BlogPosts.Id
 insertBlogPost blogPostData =
-  execQuerySpan (BlogPosts.insertBlogPost blogPostData) >>= \case
+  execQuery (BlogPosts.insertBlogPost blogPostData) >>= \case
     Left err -> throwDatabaseError err
     Right postId -> pure postId

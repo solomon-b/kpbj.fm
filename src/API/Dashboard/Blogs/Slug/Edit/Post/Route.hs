@@ -8,7 +8,6 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -18,18 +17,16 @@ import Web.FormUrlEncoded qualified as Form
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/blog/:show_slug/:post_id/edit"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/blog/:show_slug/:post_id/edit"
-    ( "dashboard"
-        :> "blog"
-        :> Servant.Capture "show_slug" Slug
-        :> Servant.Capture "post_id" ShowBlogPosts.Id
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] ShowBlogEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "blog"
+    :> Servant.Capture "show_slug" Slug
+    :> Servant.Capture "post_id" ShowBlogPosts.Id
+    :> "edit"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.ReqBody '[Servant.FormUrlEncoded] ShowBlogEditForm
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 
 --------------------------------------------------------------------------------
 

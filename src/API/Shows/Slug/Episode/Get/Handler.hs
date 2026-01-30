@@ -16,25 +16,23 @@ import Data.Has (getter)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 -- | Handler for episode detail page by show slug and episode number.
 handler ::
-  Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
+handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
   backend <- asks getter
 
@@ -44,8 +42,8 @@ handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) = do
 
     -- 2. Fetch show and related data
     showModel <- fetchShow episode.showId
-    tracks <- fromRight [] <$> execQuerySpan (EpisodeTrack.getTracksForEpisode episode.id)
-    tags <- fromRight [] <$> execQuerySpan (Episodes.getTagsForEpisode episode.id)
+    tracks <- fromRight [] <$> execQuery (EpisodeTrack.getTracksForEpisode episode.id)
+    tags <- fromRight [] <$> execQuery (Episodes.getTagsForEpisode episode.id)
 
     -- 3. Render page
     let episodeTemplate = template backend showModel episode tracks tags
@@ -59,7 +57,7 @@ fetchEpisode ::
   Episodes.EpisodeNumber ->
   AppM Episodes.Model
 fetchEpisode showSlug episodeNumber =
-  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
+  execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Episode"
     Right (Just episode) -> pure episode
@@ -68,7 +66,7 @@ fetchShow ::
   Shows.Id ->
   AppM Shows.Model
 fetchShow showId =
-  execQuerySpan (Shows.getShowById showId) >>= \case
+  execQuery (Shows.getShowById showId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel

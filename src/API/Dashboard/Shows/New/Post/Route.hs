@@ -11,7 +11,6 @@ import Data.Text qualified as Text
 import Data.Text.Read qualified as Text.Read
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.User qualified as User
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
@@ -90,13 +89,11 @@ instance FromMultipart Mem NewShowForm where
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/shows/new"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/shows/new"
-    ( "dashboard"
-        :> "shows"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> MultipartForm Mem NewShowForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "shows"
+    :> "new"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem NewShowForm
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

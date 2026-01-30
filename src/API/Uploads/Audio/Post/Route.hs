@@ -8,7 +8,6 @@ import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin)
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import Servant ((:>))
 import Servant qualified
@@ -23,17 +22,15 @@ type CorsHeaders =
      Servant.Header "Access-Control-Allow-Credentials" Text
    ]
 
+-- | "POST /api/uploads/audio"
 type Route =
-  Observability.WithSpan
-    "POST /api/uploads/audio"
-    ( "api"
-        :> "uploads"
-        :> "audio"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "Origin" Origin
-        :> MultipartForm Mem AudioUploadForm
-        :> Servant.Post '[Servant.JSON] (Servant.Headers CorsHeaders UploadApiResponse)
-    )
+    "api"
+      :> "uploads"
+      :> "audio"
+      :> Servant.Header "Cookie" Cookie
+      :> Servant.Header "Origin" Origin
+      :> MultipartForm Mem AudioUploadForm
+      :> Servant.Post '[Servant.JSON] (Servant.Headers CorsHeaders UploadApiResponse)
 
 -- | OPTIONS preflight route for CORS.
 type OptionsRoute =

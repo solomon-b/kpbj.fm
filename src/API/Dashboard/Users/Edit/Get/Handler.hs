@@ -19,23 +19,21 @@ import Data.Has (getter)
 import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   User.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer targetUserId cookie (foldHxReq -> hxRequest) =
+handler targetUserId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "User edit" apiLinks.rootGet $ do
     -- 1. Require authentication and admin role
     (user, userMetadata) <- requireAuth cookie
@@ -61,15 +59,15 @@ fetchShowsForUser ::
   AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+    then fromRight [] <$> execQuery Shows.getAllActiveShows
+    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
 -- | Fetch target user and their metadata, or throw NotFound
 fetchTargetUserOrNotFound ::
   User.Id ->
   AppM (User.Model, UserMetadata.Model)
 fetchTargetUserOrNotFound targetUserId = do
-  userDataResult <- execTransactionSpan $ do
+  userDataResult <- execTransaction $ do
     maybeTargetUser <- HT.statement () (User.getUser targetUserId)
     maybeTargetMetadata <- HT.statement () (UserMetadata.getUserMetadata targetUserId)
     pure (maybeTargetUser, maybeTargetMetadata)

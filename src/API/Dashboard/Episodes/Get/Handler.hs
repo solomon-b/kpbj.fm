@@ -29,7 +29,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -38,7 +38,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.DayOfWeek (dayOfWeekToText)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Rel8 (Result)
@@ -47,13 +46,12 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Int64 ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer showSlug maybePage cookie (foldHxReq -> hxRequest) =
+handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes list" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -148,8 +146,8 @@ fetchShowsForUser ::
   AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+    then fromRight [] <$> execQuery Shows.getAllActiveShows
+    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
 -- | Fetch episodes data for a show with pagination
 fetchEpisodesData ::
@@ -159,7 +157,7 @@ fetchEpisodesData ::
   Offset ->
   AppM ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
 fetchEpisodesData today showModel limit offset =
-  execTransactionSpan (fetchEpisodesDataPaginated today showModel limit offset) >>= \case
+  execTransaction (fetchEpisodesDataPaginated today showModel limit offset) >>= \case
     Left err -> throwDatabaseError err
     Right result -> pure result
 

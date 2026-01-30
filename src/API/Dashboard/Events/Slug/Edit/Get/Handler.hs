@@ -21,7 +21,7 @@ import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -29,18 +29,16 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Events.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) =
+handler eventId _urlSlug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Event edit form" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -49,8 +47,8 @@ handler _tracer eventId _urlSlug cookie (foldHxReq -> hxRequest) =
     -- 2. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
@@ -73,7 +71,7 @@ fetchEvent ::
   AppM Events.Model
 fetchEvent eventId = do
   mResult <-
-    execTransactionSpan $
+    execTransaction $
       runMaybeT $
         MaybeT $
           HT.statement () (Events.getEventById eventId)

@@ -5,7 +5,6 @@ module API.Dashboard.Users.Suspend.Post.Route where
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.User qualified as User
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
@@ -15,17 +14,15 @@ import Web.FormUrlEncoded qualified as FormUrlEncoded
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/users/:id/suspend"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/users/:id/suspend"
-    ( "dashboard"
-        :> "users"
-        :> Servant.Capture "id" User.Id
-        :> "suspend"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] SuspendForm
-        :> Servant.Post '[HTML] (Lucid.Html ())
-    )
+  "dashboard"
+    :> "users"
+    :> Servant.Capture "id" User.Id
+    :> "suspend"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.ReqBody '[Servant.FormUrlEncoded] SuspendForm
+    :> Servant.Post '[HTML] (Lucid.Html ())
 
 --------------------------------------------------------------------------------
 

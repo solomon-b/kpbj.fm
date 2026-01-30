@@ -34,7 +34,7 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -49,20 +49,18 @@ import Effects.StagedUploads (claimAndRelocateUpload)
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Text.Read (readMaybe)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   EpisodeEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug episodeNumber cookie editForm =
+handler showSlug episodeNumber cookie editForm =
   handleRedirectErrors "Episode update" (dashboardEpisodesLinks.editGet showSlug episodeNumber) $ do
     -- 1. Require authentication
     (user, userMetadata) <- requireAuth cookie
@@ -94,7 +92,7 @@ fetchEpisodeContext ::
   UserMetadata.Model ->
   AppM EpisodeEditContext
 fetchEpisodeContext showSlug episodeNumber user userMetadata = do
-  mResult <- execTransactionSpan $ runMaybeT $ do
+  mResult <- execTransaction $ runMaybeT $ do
     episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
     showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
     isHost <-
@@ -160,7 +158,7 @@ updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel edit
             euDescription = Just validDescription,
             euStatus = Just parsedStatus
           }
-  execQuerySpan (Episodes.updateEpisode updateData) >>= \case
+  execQuery (Episodes.updateEpisode updateData) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwHandlerFailure "Failed to update episode"
     Right (Just _) -> pure ()
@@ -229,7 +227,7 @@ execOptionalUpdates userId currentTime isStaffOrAdmin isPast episode showModel e
 
   -- Tags (fire-and-forget, no warning on failure)
   let tagNames = maybe [] parseTagList (eefTags editForm)
-  _ <- execQuerySpan (Episodes.replaceEpisodeTags episode.id tagNames)
+  _ <- execQuery (Episodes.replaceEpisodeTags episode.id tagNames)
 
   pure $ concat [fileWarning, scheduleWarning, trackWarning]
 
@@ -269,7 +267,7 @@ processFileUploadsWithWarning userId allowFileUpload showModel episode editForm 
                           efuClearAudio = audioClear && isNothing mAudioPath,
                           efuClearArtwork = artworkClear && isNothing mArtworkPath
                         }
-                execQuerySpan (Episodes.updateEpisodeFiles fileUpdate) >>= \case
+                execQuery (Episodes.updateEpisodeFiles fileUpdate) >>= \case
                   Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)
                   Right Nothing -> Log.logInfo "File path update returned Nothing" episode.id
                   Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
@@ -306,7 +304,7 @@ processScheduleUpdate isPast isStaffOrAdmin episode editForm =
                             Episodes.essuScheduleTemplateId = newTemplateId,
                             Episodes.essuScheduledAt = newScheduledAt
                           }
-                  execQuerySpan (Episodes.updateScheduledSlot slotUpdate) >>= \case
+                  execQuery (Episodes.updateScheduledSlot slotUpdate) >>= \case
                     Left err -> do
                       Log.logInfo "Failed to update schedule slot" (episode.id, show err)
                       pure ["Failed to update schedule"]
@@ -409,7 +407,7 @@ updateTracksFromJson ::
   AppM (Either Text ())
 updateTracksFromJson episodeId mTracksJson = do
   -- Delete all existing tracks for this episode
-  deleteResult <- execQuerySpan (EpisodeTrack.deleteAllTracksForEpisode episodeId)
+  deleteResult <- execQuery (EpisodeTrack.deleteAllTracksForEpisode episodeId)
   case deleteResult of
     Left err -> do
       Log.logInfo "Failed to delete existing tracks" (show err)
@@ -448,7 +446,7 @@ insertTrack episodeId (trackNum, track) = do
             EpisodeTrack.etiTitle = Sanitize.sanitizePlainText (tiTitle track),
             EpisodeTrack.etiArtist = Sanitize.sanitizePlainText (tiArtist track)
           }
-  execQuerySpan (EpisodeTrack.insertEpisodeTrack trackInsert) >>= \case
+  execQuery (EpisodeTrack.insertEpisodeTrack trackInsert) >>= \case
     Left err -> do
       Log.logInfo "Failed to insert track" (show err)
       pure $ Left "Failed to insert track"

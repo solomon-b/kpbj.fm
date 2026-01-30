@@ -11,18 +11,16 @@ import Data.Has (getter)
 import Data.Text (Text)
 import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
-import OpenTelemetry.Trace qualified as Trace
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Trace.Tracer ->
   Maybe Text ->
   Maybe Text ->
   Maybe Text ->
   Maybe EmailAddress ->
   AppM (Lucid.Html ())
-handler _tracer hxCurrentUrl hxRequest redirectQueryParam emailQueryParam = do
+handler hxCurrentUrl hxRequest redirectQueryParam emailQueryParam = do
   mGoogleAnalyticsId <- asks getter
   let loginForm = template emailQueryParam $ hxCurrentUrl <|> redirectQueryParam
       isHtmxRequest = case hxRequest of

@@ -8,7 +8,6 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
@@ -114,15 +113,13 @@ parseStatus _ = Nothing
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/episodes/:show_slug/:episode_number/edit"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/episodes/:show_slug/:episode_number/edit"
-    ( "dashboard"
-        :> "episodes"
-        :> Servant.Capture "show_slug" Slug
-        :> Servant.Capture "episode_number" Episodes.EpisodeNumber
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> MultipartForm Mem EpisodeEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "episodes"
+    :> Servant.Capture "show_slug" Slug
+    :> Servant.Capture "episode_number" Episodes.EpisodeNumber
+    :> "edit"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem EpisodeEditForm
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

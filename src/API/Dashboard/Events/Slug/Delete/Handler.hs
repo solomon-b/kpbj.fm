@@ -14,23 +14,21 @@ import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad (unless)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Events.Id ->
   Slug ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer eventId _eventSlug cookie =
+handler eventId _eventSlug cookie =
   handleBannerErrors "Event delete" $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -54,7 +52,7 @@ fetchEvent ::
   Events.Id ->
   AppM Events.Model
 fetchEvent eventId =
-  execQuerySpan (Events.getEventById eventId) >>= \case
+  execQuery (Events.getEventById eventId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Event"
     Right (Just event) -> pure event
@@ -63,7 +61,7 @@ deleteEvent ::
   Events.Model ->
   AppM (Lucid.Html ())
 deleteEvent event =
-  execQuerySpan (Events.deleteEvent event.emId) >>= \case
+  execQuery (Events.deleteEvent event.emId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Event"
     Right (Just _) -> do

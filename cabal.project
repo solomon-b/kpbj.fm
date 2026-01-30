@@ -6,7 +6,7 @@ packages: .
 source-repository-package
   type: git
   location: https://github.com/solomon-b/web-server
-  tag: b0af6ede67c2581539cc0a935b2ca66f533baa7c
+  tag: 3dae38af0dabb496a0b81ddca8002bcfb88c75bc
   subdir: web-server-core
          xmlhtml-lens
 

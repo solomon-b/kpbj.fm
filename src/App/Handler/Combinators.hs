@@ -30,7 +30,7 @@ import Control.Monad.Catch (MonadThrow)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -153,7 +153,7 @@ requireShowHostOrStaff userId showSlug userMetadata = do
   let isStaffOrHigher = UserMetadata.isStaffOrHigher userMetadata.mUserRole
   unless isStaffOrHigher $ do
     -- Not staff, check if they're a host of this show
-    isHostResult <- execQuerySpan (ShowHost.isUserHostOfShowSlug userId showSlug)
+    isHostResult <- execQuery (ShowHost.isUserHostOfShowSlug userId showSlug)
     case isHostResult of
       Left err -> throwDatabaseError err
       Right isHost ->

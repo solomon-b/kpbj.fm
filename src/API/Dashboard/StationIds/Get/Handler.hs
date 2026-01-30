@@ -24,24 +24,22 @@ import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe PageNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
+handler maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station IDs list" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -59,8 +57,8 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
     -- 4. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
@@ -79,7 +77,7 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
 
 fetchStationIds :: Limit -> Offset -> AppM [StationIds.StationIdWithCreator]
 fetchStationIds limit offset = do
-  stationIdsResult <- execQuerySpan (StationIds.getAllStationIds (limit + 1) offset)
+  stationIdsResult <- execQuery (StationIds.getAllStationIds (limit + 1) offset)
   case stationIdsResult of
     Left err -> throwDatabaseError err
     Right stationIds -> pure stationIds

@@ -19,7 +19,7 @@ import Data.Either (fromRight)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
 import Effects.Database.Tables.SitePages qualified as SitePages
@@ -27,17 +27,15 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer pageSlug cookie (foldHxReq -> hxRequest) =
+handler pageSlug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Site page history" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -46,12 +44,12 @@ handler _tracer pageSlug cookie (foldHxReq -> hxRequest) =
     -- 2. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
 
     -- 3. Fetch page and revisions in transaction
-    mResult <- execTransactionSpan $ runMaybeT $ do
+    mResult <- execTransaction $ runMaybeT $ do
       page <- MaybeT $ HT.statement () (SitePages.getPageBySlug pageSlug)
       revisions <- lift $ HT.statement () (SitePageRevisions.getRevisionsForPage page.spmId)
       pure (page, revisions)

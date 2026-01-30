@@ -11,7 +11,6 @@ import Deriving.Aeson qualified as Deriving
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import OrphanInstances.OneRow ()
 import OrphanInstances.Password ()
@@ -60,13 +59,11 @@ data RegisterParsed = RegisterParsed
 
 --------------------------------------------------------------------------------
 
+-- | "POST /user/register"
 type Route =
-  Observability.WithSpan
-    "POST /user/register"
-    ( "user"
-        :> "register"
-        :> Servant.RemoteHost
-        :> Servant.Header "User-Agent" Text
-        :> Servant.ReqBody '[Servant.FormUrlEncoded] Register
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
-    )
+  "user"
+    :> "register"
+    :> Servant.RemoteHost
+    :> Servant.Header "User-Agent" Text
+    :> Servant.ReqBody '[Servant.FormUrlEncoded] Register
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)

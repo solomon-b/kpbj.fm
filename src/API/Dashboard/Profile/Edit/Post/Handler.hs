@@ -26,26 +26,24 @@ import Domain.Types.FileUpload qualified
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, lookupInput)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   Maybe HxRequest ->
   MultipartData Mem ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer cookie (foldHxReq -> _hxRequest) multipartData =
+handler cookie (foldHxReq -> _hxRequest) multipartData =
   handleRedirectErrors "Profile update" dashboardLinks.profileEditGet $ do
     -- 1. Require authentication
     (user, userMetadata) <- requireAuth cookie
@@ -115,7 +113,7 @@ updateUserProfile ::
   UserMetadata.ThemeName ->
   AppM ()
 updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme newTheme = do
-  updateResult <- execTransactionSpan $ do
+  updateResult <- execTransaction $ do
     maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata (User.mId user))
     case maybeMetadata of
       Nothing -> pure Nothing

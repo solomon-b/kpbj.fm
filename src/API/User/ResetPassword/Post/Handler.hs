@@ -31,7 +31,6 @@ import Effects.Database.Tables.PasswordResetTokens (Token)
 import Effects.PasswordReset qualified as PasswordReset
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace qualified as Trace
 import Servant qualified
 import Web.HttpApiData qualified as Http
 
@@ -53,7 +52,6 @@ instance Display ValidationError where
 --------------------------------------------------------------------------------
 
 handler ::
-  Trace.Tracer ->
   Maybe HxRequest ->
   ResetPasswordForm ->
   AppM
@@ -62,7 +60,7 @@ handler ::
          ]
         (Lucid.Html ())
     )
-handler _tracer (foldHxReq -> hxRequest) ResetPasswordForm {..} = do
+handler (foldHxReq -> hxRequest) ResetPasswordForm {..} = do
   mGoogleAnalyticsId <- asks getter
 
   -- Validate the password first (pure validation, no DB call).

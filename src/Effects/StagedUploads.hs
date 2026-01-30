@@ -31,7 +31,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID.V4
 import Domain.Types.FileStorage (BucketType (..), DateHierarchy (..), ResourceType (..), dateHierarchyFromTime)
 import Domain.Types.StorageBackend (StorageBackend (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Storage.Local qualified as Local
@@ -82,7 +82,7 @@ claimStagedUpload ::
   AppM (Either ClaimError Text)
 claimStagedUpload userId tokenText expectedType = do
   let token = StagedUploads.Token tokenText
-  result <- execQuerySpan (StagedUploads.claimUpload token userId)
+  result <- execQuery (StagedUploads.claimUpload token userId)
   case result of
     Left err -> do
       Log.logInfo "Failed to claim staged upload" (Text.pack $ show err)

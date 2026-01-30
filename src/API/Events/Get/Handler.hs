@@ -21,11 +21,10 @@ import Data.String.Interpolate (i)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.HxRequest qualified as HxRequest
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -36,18 +35,17 @@ rootGetUrl = Links.linkURI apiLinks.rootGet
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   -- | @hx-request@ header
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer cookie hxRequest = do
+handler cookie hxRequest = do
   storageBackend <- asks getter
   getUserInfo cookie >>= \mUserInfo -> do
     let limit = 50
         offset = 0
 
-    result <- execQuerySpan (Events.getPublishedEvents limit offset)
+    result <- execQuery (Events.getPublishedEvents limit offset)
     page <- case result of
       Left err -> do
         Log.logAttention "Failed to fetch events from database" (Aeson.object ["error" .= show err])

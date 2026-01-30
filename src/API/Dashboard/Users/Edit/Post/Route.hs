@@ -5,7 +5,6 @@ module API.Dashboard.Users.Edit.Post.Route where
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.User qualified as User
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -14,14 +13,12 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/users/:id/edit"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/users/:id/edit"
-    ( "dashboard"
-        :> "users"
-        :> Servant.Capture "id" User.Id
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> MultipartForm Mem (MultipartData Mem)
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "users"
+    :> Servant.Capture "id" User.Id
+    :> "edit"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem (MultipartData Mem)
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

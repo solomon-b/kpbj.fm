@@ -19,16 +19,14 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Tables.PasswordResetTokens (Token)
 import Effects.PasswordReset qualified as PasswordReset
 import Lucid qualified
-import OpenTelemetry.Trace qualified as Trace
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Trace.Tracer ->
   Maybe HxRequest ->
   Maybe Token ->
   AppM (Lucid.Html ())
-handler _tracer (foldHxReq -> hxRequest) mToken = do
+handler (foldHxReq -> hxRequest) mToken = do
   mGoogleAnalyticsId <- asks getter
 
   case mToken of

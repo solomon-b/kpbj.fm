@@ -4,7 +4,6 @@ module API.Dashboard.StationIds.New.Post.Route where
 
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -13,16 +12,14 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/station-ids/new"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/station-ids/new"
-    ( "dashboard"
-        :> "station-ids"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> MultipartForm Mem FormData
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "station-ids"
+    :> "new"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem FormData
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 
 --------------------------------------------------------------------------------
 

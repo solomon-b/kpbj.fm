@@ -6,7 +6,6 @@ import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
-import Effects.Observability qualified as Observability
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -14,16 +13,14 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/site-pages/:slug/revisions/:id/restore"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/site-pages/:slug/revisions/:id/restore"
-    ( "dashboard"
-        :> "site-pages"
-        :> Servant.Capture "slug" Text
-        :> "revisions"
-        :> Servant.Capture "id" SitePageRevisions.Id
-        :> "restore"
-        :> Servant.Header "Cookie" Cookie
-        :> Servant.Header "HX-Request" HxRequest
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "site-pages"
+    :> Servant.Capture "slug" Text
+    :> "revisions"
+    :> Servant.Capture "id" SitePageRevisions.Id
+    :> "restore"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

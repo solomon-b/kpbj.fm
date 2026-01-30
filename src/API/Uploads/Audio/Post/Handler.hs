@@ -34,7 +34,6 @@ import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.User qualified as User
 import Effects.MimeTypeValidation qualified as MimeValidation
 import Log qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 import Servant.Multipart (fdFileCType, fdFileName, fdPayload)
 
@@ -83,12 +82,11 @@ noCorsHeaders response =
   Servant.noHeader $ Servant.noHeader response
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   Maybe Origin ->
   AudioUploadForm ->
   AppM (Servant.Headers CorsHeaders UploadApiResponse)
-handler _tracer cookie mOrigin form = do
+handler cookie mOrigin form = do
   -- Validate CSRF (Origin header required for XHR-only endpoints)
   validateOriginStrict mOrigin >>= \case
     Left err -> pure $ noCorsHeaders $ UploadError err

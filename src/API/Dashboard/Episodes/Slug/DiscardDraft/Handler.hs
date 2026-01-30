@@ -15,7 +15,7 @@ import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -24,7 +24,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
@@ -33,12 +32,11 @@ import OpenTelemetry.Trace (Tracer)
 -- Only draft episodes can be discarded. Hosts can discard drafts for shows
 -- they are assigned to, or drafts they created. This performs a hard delete.
 handler ::
-  Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer showSlug episodeNumber cookie =
+handler showSlug episodeNumber cookie =
   handleDiscardErrors $ do
     -- 1. Require authentication
     (user, userMeta) <- requireAuth cookie
@@ -63,7 +61,7 @@ fetchShow ::
   Slug ->
   AppM Shows.Model
 fetchShow showSlug =
-  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+  execQuery (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -73,7 +71,7 @@ fetchEpisode ::
   Episodes.EpisodeNumber ->
   AppM Episodes.Model
 fetchEpisode showSlug episodeNumber =
-  execQuerySpan (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
+  execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Episode"
     Right (Just episode) -> pure episode
@@ -100,7 +98,7 @@ hardDeleteEpisode ::
   UserMetadata.Model ->
   AppM (Lucid.Html ())
 hardDeleteEpisode showModel episode userMeta = do
-  execTransactionSpan (deleteEpisodeTransaction episode.id) >>= \case
+  execTransaction (deleteEpisodeTransaction episode.id) >>= \case
     Left err -> do
       Log.logInfo "Discard draft failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
       pure $ renderErrorWithRow userMeta showModel episode "Failed to discard episode due to a database error."

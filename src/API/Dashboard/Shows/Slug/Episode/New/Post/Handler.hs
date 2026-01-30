@@ -32,7 +32,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTracks
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -45,7 +45,6 @@ import Effects.FileUpload qualified as FileUpload
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.OneRow ()
 import Servant qualified
 import Servant.Links qualified as Links
@@ -56,12 +55,11 @@ import Utils (partitionEithers)
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Maybe Cookie ->
   EpisodeUploadForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug cookie form =
+handler showSlug cookie form =
   handleRedirectErrors "Episode upload" apiLinks.rootGet $ do
     -- 1. Require authentication
     (user, userMetadata) <- requireAuth cookie
@@ -78,7 +76,7 @@ fetchShowOrNotFound ::
   Slug ->
   AppM Shows.Model
 fetchShowOrNotFound showSlug =
-  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+  execQuery (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -110,7 +108,7 @@ handleUploadSuccess ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handleUploadSuccess showModel episodeId = do
   -- Fetch the created episode
-  execQuerySpan (Episodes.getEpisodeById episodeId) >>= \case
+  execQuery (Episodes.getEpisodeById episodeId) >>= \case
     Right (Just episode) -> do
       let detailLinkUri = Links.linkURI $ dashboardEpisodesLinks.detail showModel.slug episode.episodeNumber
           detailUrl = [i|/#{detailLinkUri}|] :: Text
@@ -152,7 +150,7 @@ processEpisodeUpload userMetadata user showModel form = do
           isAuthorized <-
             if UserMetadata.isStaffOrHigher userMetadata.mUserRole
               then pure (Right True) -- Staff and Admins always authorized
-              else execQuerySpan (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
+              else execQuery (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
           case isAuthorized of
             Left _err -> pure $ Left "Database error checking host permissions"
@@ -188,7 +186,7 @@ processEpisodeUpload userMetadata user showModel form = do
                               }
 
                       -- Insert episode
-                      episodeResult <- execQuerySpan (Episodes.insertEpisode episodeInsert)
+                      episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
 
                       case episodeResult of
                         Left err -> do
@@ -199,7 +197,7 @@ processEpisodeUpload userMetadata user showModel form = do
                           _ <- insertTracks episodeId episodeData.tracks
                           -- Replace tags with provided ones (single atomic query)
                           let tagNames = maybe [] parseTagList (eufTags form)
-                          _ <- execQuerySpan (Episodes.replaceEpisodeTags episodeId tagNames)
+                          _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
                           pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
@@ -386,7 +384,7 @@ insertTracks episodeId tracks = do
                 EpisodeTracks.etiArtist = tiArtist track
               }
 
-      result <- execQuerySpan (EpisodeTracks.insertEpisodeTrack trackInsert)
+      result <- execQuery (EpisodeTracks.insertEpisodeTrack trackInsert)
       case result of
         Left err -> pure $ Left $ "Failed to insert track: " <> Text.pack (show err)
         Right trackId -> pure $ Right trackId

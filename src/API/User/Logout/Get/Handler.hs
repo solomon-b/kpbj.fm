@@ -10,13 +10,11 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Effects.Database.Tables.ServerSessions qualified as Session
 import Lucid qualified
-import OpenTelemetry.Trace qualified as OTEL
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  OTEL.Tracer ->
   Auth.Authz ->
   AppM
     ( Servant.Headers
@@ -24,7 +22,7 @@ handler ::
          ]
         (Lucid.Html ())
     )
-handler _tracer Auth.Authz {..} = do
+handler Auth.Authz {..} = do
   Auth.expireServerSession (Session.dSessionId $ Session.toDomain authzSession) >>= \case
     Left err -> do
       throwErr $ InternalServerError $ Text.pack $ show err

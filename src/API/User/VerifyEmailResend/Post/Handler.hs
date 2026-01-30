@@ -6,22 +6,20 @@ import API.User.VerifyEmailResend.Post.Route (ResendForm (..))
 import App.Monad (AppM)
 import Data.Text (Text)
 import Data.Text.Display (display)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.User qualified as User
 import Effects.EmailVerification qualified as EmailVerification
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace qualified as Trace
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Trace.Tracer ->
   ResendForm ->
   AppM (Lucid.Html ())
-handler _tracer ResendForm {..} = do
+handler ResendForm {..} = do
   -- Look up the user by email
-  result <- execQuerySpan (User.getUserByEmail rfEmail)
+  result <- execQuery (User.getUserByEmail rfEmail)
   case result of
     Left err -> do
       Log.logInfo "Failed to look up user for resend" (show err)

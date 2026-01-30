@@ -10,22 +10,20 @@ import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (unless)
 import Domain.Types.Cookie (Cookie (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   StationIds.Id ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer stationIdId cookie =
+handler stationIdId cookie =
   handleBannerErrors "Station ID delete" $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -52,7 +50,7 @@ fetchStationId ::
   StationIds.Id ->
   AppM StationIds.Model
 fetchStationId stationIdId =
-  execQuerySpan (StationIds.getStationIdById stationIdId) >>= \case
+  execQuery (StationIds.getStationIdById stationIdId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Station ID"
     Right (Just stationId) -> pure stationId
@@ -61,7 +59,7 @@ deleteStationId ::
   StationIds.Model ->
   AppM (Lucid.Html ())
 deleteStationId stationId =
-  execQuerySpan (StationIds.deleteStationId stationId.simId) >>= \case
+  execQuery (StationIds.deleteStationId stationId.simId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Station ID"
     Right (Just _) -> do

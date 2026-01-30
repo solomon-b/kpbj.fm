@@ -21,24 +21,22 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Int64 ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
+handler maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station blog list" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -53,8 +51,8 @@ handler _tracer maybePage cookie (foldHxReq -> hxRequest) =
     -- 3. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
@@ -89,6 +87,6 @@ fetchBlogPosts ::
   Offset ->
   AppM [BlogPosts.Model]
 fetchBlogPosts limit offset =
-  execQuerySpan (BlogPosts.getAllBlogPosts (limit + 1) offset) >>= \case
+  execQuery (BlogPosts.getAllBlogPosts (limit + 1) offset) >>= \case
     Left err -> throwDatabaseError err
     Right posts -> pure posts

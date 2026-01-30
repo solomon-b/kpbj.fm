@@ -23,7 +23,7 @@ import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.EmailAddress qualified as EmailAddress
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PasswordResetTokens qualified as ResetTokens
 import Effects.Database.Tables.User qualified as User
 import Effects.MailSender qualified as MailSender
@@ -31,18 +31,16 @@ import Effects.PasswordReset qualified as PasswordReset
 import Log qualified
 import Lucid qualified
 import Network.Socket (SockAddr)
-import OpenTelemetry.Trace qualified as Trace
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Trace.Tracer ->
   SockAddr ->
   Maybe Text ->
   Maybe HxRequest ->
   ForgotPasswordForm ->
   AppM (Lucid.Html ())
-handler _tracer sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = do
+handler sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = do
   mGoogleAnalyticsId <- asks Has.getter
   mSmtpConfig <- asks Has.getter
 
@@ -54,7 +52,7 @@ handler _tracer sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm 
       renderSuccess mGoogleAnalyticsId hxRequest
     Right validEmail -> do
       -- Look up the user
-      userResult <- execQuerySpan (User.getUserByEmail validEmail)
+      userResult <- execQuery (User.getUserByEmail validEmail)
       case userResult of
         Left err -> do
           Log.logInfo "Password reset lookup failed" (Text.pack $ show err)

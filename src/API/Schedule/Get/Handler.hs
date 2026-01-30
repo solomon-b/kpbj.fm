@@ -19,22 +19,20 @@ import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.WeekOffset (WeekOffset (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import OrphanInstances.DayOfWeek (toDayOfWeek)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe WeekOffset ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer (fromMaybe 0 -> WeekOffset weekOffset) (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
+handler (fromMaybe 0 -> WeekOffset weekOffset) (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
   storageBackend <- asks getter
   getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do
     -- Get current day of week and time in Pacific time
@@ -54,7 +52,7 @@ handler _tracer (fromMaybe 0 -> WeekOffset weekOffset) (coerce -> cookie) (fromM
         weekDays = [addDays i weekStart | i <- [0 .. 6]]
 
     -- Fetch schedule for each day of the week
-    scheduleResults <- mapM (execQuerySpan . ShowSchedule.getScheduledShowsForDate) weekDays
+    scheduleResults <- mapM (execQuery . ShowSchedule.getScheduledShowsForDate) weekDays
 
     -- Flatten schedule results
     let scheduledShows = concat (rights scheduleResults)

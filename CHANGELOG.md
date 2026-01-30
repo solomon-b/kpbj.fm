@@ -13,6 +13,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Factor out lucid-tailwind** - Extracted Tailwind CSS combinators (`cls`, `clsWhen`, breakpoint prefixes, state variants, grid utilities) into a standalone `lucid-tailwind` package for reuse across projects
 - **Dead Code Cleanup** - Removed unused functions: `utcToPacificDay`, `EmailVerificationTokens.getByToken`, `EmailVerificationTokens.getLatestPendingForUser`, sync email functions (`sendEmail`, `sendVerificationEmail`, `sendPasswordResetEmail`, `sendHostAssignmentEmail`), `buildSimpleMail`, `claimStagedUploadMaybe`
 - **Schedule Shows Filter** - Public schedule page now only displays shows that have assigned hosts
+- **Remove OpenTelemetry** - Removed hs-opentelemetry dependency to simplify the codebase
 
 ### Fixes
 - **Markdown Line Breaks** - Enabled hard line breaks in markdown rendering so single newlines render as `<br>` tags instead of being collapsed into spaces

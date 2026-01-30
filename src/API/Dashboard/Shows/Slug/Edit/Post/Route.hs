@@ -12,7 +12,6 @@ import Data.Text.Read qualified as Text.Read
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.User qualified as User
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
@@ -101,14 +100,12 @@ instance FromMultipart Mem ShowEditForm where
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/shows/:slug/edit"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/shows/:slug/edit"
-    ( "dashboard"
-        :> "shows"
-        :> Servant.Capture "slug" Slug
-        :> "edit"
-        :> Servant.Header "Cookie" Cookie
-        :> MultipartForm Mem ShowEditForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "shows"
+    :> Servant.Capture "slug" Slug
+    :> "edit"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem ShowEditForm
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

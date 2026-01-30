@@ -7,7 +7,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
-import Effects.Observability qualified as Observability
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
@@ -17,18 +16,16 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
+-- | "POST /dashboard/shows/:show_slug/episodes/new"
 type Route =
-  Observability.WithSpan
-    "POST /dashboard/shows/:show_slug/episodes/new"
-    ( "dashboard"
-        :> "shows"
-        :> Servant.Capture "show_slug" Slug
-        :> "episodes"
-        :> "new"
-        :> Servant.Header "Cookie" Cookie
-        :> MultipartForm Mem EpisodeUploadForm
-        :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    )
+  "dashboard"
+    :> "shows"
+    :> Servant.Capture "show_slug" Slug
+    :> "episodes"
+    :> "new"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem EpisodeUploadForm
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 
 --------------------------------------------------------------------------------
 -- Form Data Types

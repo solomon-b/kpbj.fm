@@ -12,7 +12,7 @@ import Control.Monad (unless)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
@@ -20,17 +20,15 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
-handler _tracer showSlug postId cookie =
+handler showSlug postId cookie =
   handleBannerErrors "Show blog post delete" $ do
     -- 1. Require authentication
     (user, userMetadata) <- requireAuth cookie
@@ -59,7 +57,7 @@ fetchShow ::
   Slug ->
   AppM Shows.Model
 fetchShow showSlug =
-  execQuerySpan (Shows.getShowBySlug showSlug) >>= \case
+  execQuery (Shows.getShowBySlug showSlug) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Show"
     Right (Just showModel) -> pure showModel
@@ -68,7 +66,7 @@ fetchBlogPost ::
   ShowBlogPosts.Id ->
   AppM ShowBlogPosts.Model
 fetchBlogPost postId =
-  execQuerySpan (ShowBlogPosts.getShowBlogPostById postId) >>= \case
+  execQuery (ShowBlogPosts.getShowBlogPostById postId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Blog post"
     Right (Just post) -> pure post
@@ -80,13 +78,13 @@ checkIsHost ::
   AppM Bool
 checkIsHost user userMetadata showId
   | UserMetadata.isStaffOrHigher userMetadata.mUserRole = pure True
-  | otherwise = execQuerySpan (ShowHost.isUserHostOfShow user.mId showId) >>= either (const $ pure False) pure
+  | otherwise = execQuery (ShowHost.isUserHostOfShow user.mId showId) >>= either (const $ pure False) pure
 
 deleteBlogPost ::
   ShowBlogPosts.Model ->
   AppM (Lucid.Html ())
 deleteBlogPost blogPost =
-  execQuerySpan (ShowBlogPosts.deleteShowBlogPost blogPost.id) >>= \case
+  execQuery (ShowBlogPosts.deleteShowBlogPost blogPost.id) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Blog post"
     Right (Just _) -> do

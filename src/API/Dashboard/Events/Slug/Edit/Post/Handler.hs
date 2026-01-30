@@ -23,7 +23,7 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -31,26 +31,24 @@ import Effects.FileUpload (uploadEventPosterImage)
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Events.Id ->
   Slug ->
   Maybe Cookie ->
   EventEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer eventId slug cookie editForm =
+handler eventId slug cookie editForm =
   handleRedirectErrors "Event update" (dashboardEventsLinks.editGet eventId slug) $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit events." userMetadata
 
     -- 2. Fetch event
-    mResult <- execQuerySpan $ Events.getEventById eventId
+    mResult <- execQuery $ Events.getEventById eventId
 
     event <- case mResult of
       Left err -> throwDatabaseError err
@@ -130,7 +128,7 @@ updateEvent eventId event editForm = do
           }
 
   -- 8. Update the event in a transaction
-  mUpdateResult <- execTransactionSpan $ runMaybeT $ do
+  mUpdateResult <- execTransaction $ runMaybeT $ do
     _ <- MaybeT $ HT.statement () (Events.updateEvent event.emId updateData)
     pure ()
 

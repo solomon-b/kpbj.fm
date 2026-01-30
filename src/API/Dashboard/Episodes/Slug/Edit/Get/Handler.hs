@@ -29,7 +29,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -41,19 +41,17 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
+handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
   handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
     -- 1. Require authentication
     (user, userMetadata) <- requireAuth cookie
@@ -115,7 +113,7 @@ fetchEpisodeContext ::
   UserMetadata.Model ->
   AppM EpisodeContext
 fetchEpisodeContext showSlug episodeNumber user userMetadata = do
-  mResult <- execTransactionSpan $ runMaybeT $ do
+  mResult <- execTransaction $ runMaybeT $ do
     episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
     showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
     tracks <- lift $ HT.statement () (EpisodeTrack.getTracksForEpisode episode.id)
@@ -133,7 +131,7 @@ fetchEpisodeTags ::
   Episodes.Id ->
   AppM [EpisodeTags.Model]
 fetchEpisodeTags episodeId =
-  execQuerySpan (Episodes.getTagsForEpisode episodeId) >>= \case
+  execQuery (Episodes.getTagsForEpisode episodeId) >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch episode tags" (show err)
       pure []
@@ -143,7 +141,7 @@ fetchCurrentSlot ::
   Episodes.Model ->
   AppM (Maybe ShowSchedule.UpcomingShowDate)
 fetchCurrentSlot episode =
-  execQuerySpan (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId) >>= \case
+  execQuery (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId) >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch schedule template" (show err)
       pure Nothing
@@ -155,7 +153,7 @@ fetchUpcomingDates ::
   Shows.Id ->
   AppM [ShowSchedule.UpcomingShowDate]
 fetchUpcomingDates showId =
-  execQuerySpan (ShowSchedule.getUpcomingUnscheduledShowDates showId (Limit 52)) >>= \case
+  execQuery (ShowSchedule.getUpcomingUnscheduledShowDates showId (Limit 52)) >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch upcoming dates" (show err)
       pure []
@@ -170,7 +168,7 @@ fetchUserShows user userMetadata = do
         if UserMetadata.isAdmin userMetadata.mUserRole
           then Shows.getAllActiveShows
           else Shows.getShowsForUser user.mId
-  execQuerySpan query >>= \case
+  execQuery query >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch user shows" (show err)
       pure []

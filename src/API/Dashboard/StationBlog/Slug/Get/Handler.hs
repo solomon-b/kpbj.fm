@@ -18,7 +18,7 @@ import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.Shows qualified as Shows
@@ -27,18 +27,16 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
 import Lucid.HTMX
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer postId _slug cookie (foldHxReq -> hxRequest) =
+handler postId _slug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station blog post detail" (dashboardStationBlogLinks.list Nothing) $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -47,8 +45,8 @@ handler _tracer postId _slug cookie (foldHxReq -> hxRequest) =
     -- 2. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
@@ -77,7 +75,7 @@ fetchBlogPostOrNotFound ::
   BlogPosts.Id ->
   AppM (BlogPosts.Model, [BlogTags.Model], Maybe UserMetadata.Model)
 fetchBlogPostOrNotFound postId =
-  execTransactionSpan (fetchBlogPostData postId) >>= \case
+  execTransaction (fetchBlogPostData postId) >>= \case
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Blog post"
     Right (Just result) -> pure result

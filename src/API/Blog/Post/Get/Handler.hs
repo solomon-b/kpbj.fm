@@ -19,48 +19,44 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug, mkSlug)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Markdown (renderContentM)
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 -- | Handler for blog post with both ID and slug
 handlerWithSlug ::
-  Tracer ->
   BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlerWithSlug tracer postId slug = handler tracer postId (Just slug)
+handlerWithSlug postId slug = handler postId (Just slug)
 
 -- | Handler for blog post with ID only (always redirects)
 handlerWithoutSlug ::
-  Tracer ->
   BlogPosts.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlerWithoutSlug tracer postId = handler tracer postId Nothing
+handlerWithoutSlug postId = handler postId Nothing
 
 -- | Shared handler for both routes
 handler ::
-  Tracer ->
   BlogPosts.Id ->
   Maybe Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer postId mUrlSlug cookie (foldHxReq -> hxRequest) = do
+handler postId mUrlSlug cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
 
-  execQuerySpan (BlogPosts.getBlogPostById postId) >>= \case
+  execQuery (BlogPosts.getBlogPostById postId) >>= \case
     Left _err -> do
       Log.logInfo "Failed to fetch blog post from database" postId
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (mkSlug "unknown"))
@@ -87,7 +83,7 @@ renderPost ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 renderPost hxRequest mUserInfo blogPost canonicalSlug = do
   backend <- asks getter
-  execQuerySpan (UserMetadata.getUserMetadata (BlogPosts.bpmAuthorId blogPost)) >>= \case
+  execQuery (UserMetadata.getUserMetadata (BlogPosts.bpmAuthorId blogPost)) >>= \case
     Left _err -> do
       Log.logInfo "Failed to fetch blog post author" (BlogPosts.bpmAuthorId blogPost)
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate canonicalSlug)
@@ -97,7 +93,7 @@ renderPost hxRequest mUserInfo blogPost canonicalSlug = do
       html <- renderTemplate hxRequest mUserInfo (notFoundTemplate canonicalSlug)
       pure $ Servant.noHeader html
     Right (Just author) -> do
-      tagsResult <- execQuerySpan (BlogPosts.getTagsForPost (BlogPosts.bpmId blogPost))
+      tagsResult <- execQuery (BlogPosts.getTagsForPost (BlogPosts.bpmId blogPost))
       let tags = fromRight [] tagsResult
       renderedContent <- renderContentM (BlogPosts.bpmContent blogPost)
       let postTemplate = template backend blogPost author tags renderedContent

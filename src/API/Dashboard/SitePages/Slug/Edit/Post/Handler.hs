@@ -19,26 +19,24 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
 import Effects.Database.Tables.SitePages qualified as SitePages
 import Effects.Database.Tables.User qualified as User
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
   EditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer pageSlug cookie _hxRequest editForm =
+handler pageSlug cookie _hxRequest editForm =
   handleRedirectErrors "Site page update" (dashboardSitePagesLinks.editGet pageSlug) $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -56,7 +54,7 @@ handler _tracer pageSlug cookie _hxRequest editForm =
 
     -- 3. Fetch page and update in transaction (only if content changed)
     let userId = User.mId user
-    mResult <- execTransactionSpan $ runMaybeT $ do
+    mResult <- execTransaction $ runMaybeT $ do
       -- Fetch current page
       page <- MaybeT $ HT.statement () (SitePages.getPageBySlug pageSlug)
 

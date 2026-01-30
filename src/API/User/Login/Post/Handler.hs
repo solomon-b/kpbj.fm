@@ -19,20 +19,18 @@ import Data.Password.Argon2 (PasswordCheck (..), checkPassword)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.EmailAddress
-import Effects.Database.Execute (execQuerySpan, execQuerySpanThrow)
+import Effects.Database.Execute (execQuery, execQueryThrow)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
 import Effects.Database.Tables.ServerSessions qualified as Session
 import Effects.Database.Tables.User qualified as User
 import Log qualified
 import Network.Socket
-import OpenTelemetry.Trace qualified as OTEL
 import Servant qualified
 import Web.HttpApiData qualified as Http
 
 --------------------------------------------------------------------------------
 
 handler ::
-  OTEL.Tracer ->
   SockAddr ->
   Maybe Text ->
   Login ->
@@ -45,13 +43,13 @@ handler ::
          ]
         Servant.NoContent
     )
-handler _tracer sockAddr mUserAgent Login {..} redirectQueryParam = do
-  execQuerySpanThrow (User.getUserByEmail ulEmail) >>= \case
+handler sockAddr mUserAgent Login {..} redirectQueryParam = do
+  execQueryThrow (User.getUserByEmail ulEmail) >>= \case
     Just user
       | checkPassword ulPassword (User.mPassword user) == PasswordCheckSuccess -> do
           Log.logInfo "Login Attempt" ulEmail
           -- Check if email is verified
-          isVerifiedResult <- execQuerySpan (VerificationTokens.isUserEmailVerified (User.mId user))
+          isVerifiedResult <- execQuery (VerificationTokens.isUserEmailVerified (User.mId user))
           case isVerifiedResult of
             Right (Just _) -> do
               -- Email is verified, proceed with login
@@ -83,7 +81,7 @@ attemptLogin ::
 attemptLogin sockAddr mUserAgent redirectLink user = do
   env <- asks (Has.getter @Environment)
   let expireOldCookie = fromMaybe "" $ Cookie.mkExpireOldSessionCookie env
-  execQuerySpanThrow (Session.getServerSessionByUser (User.mId user)) >>= \case
+  execQueryThrow (Session.getServerSessionByUser (User.mId user)) >>= \case
     Nothing -> do
       Auth.login (User.mId user) sockAddr mUserAgent >>= \case
         Left err ->

@@ -18,14 +18,13 @@ import Data.Text qualified as Text
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.HxRedirect (HxRedirect (..))
 import Domain.Types.SetCookie (SetCookie (..))
-import Effects.Database.Execute (execQuerySpanThrow)
+import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.ServerSessions qualified as Session
 import Effects.Database.Tables.User qualified as User
 import Effects.EmailVerification qualified as EmailVerification
 import Log qualified
 import Lucid qualified
 import Network.Socket (SockAddr)
-import OpenTelemetry.Trace qualified as Trace
 import Servant qualified
 import Web.HttpApiData qualified as Http
 
@@ -49,7 +48,6 @@ rootUrl = "/" <> Http.toUrlPiece apiLinks.rootGet
 -- On failure:
 -- - Redirects to verify-email-sent page with error banner
 handler ::
-  Trace.Tracer ->
   SockAddr ->
   Maybe Text ->
   Maybe Text ->
@@ -62,7 +60,7 @@ handler ::
          ]
         (Lucid.Html ())
     )
-handler _tracer sockAddr mUserAgent _hxRequest mToken = do
+handler sockAddr mUserAgent _hxRequest mToken = do
   case mToken of
     Nothing ->
       pure $
@@ -121,7 +119,7 @@ attemptAutoLogin userId sockAddr mUserAgent = do
   env <- asks (Has.getter @Environment)
   let expireOldCookie = SetCookie $ fromMaybe "" $ Cookie.mkExpireOldSessionCookie env
   -- Check if user already has an active session
-  execQuerySpanThrow (Session.getServerSessionByUser userId) >>= \case
+  execQueryThrow (Session.getServerSessionByUser userId) >>= \case
     Just session -> do
       -- Reuse existing session
       let sessionId = Session.mSessionId session

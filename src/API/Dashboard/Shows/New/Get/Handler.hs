@@ -15,26 +15,24 @@ import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer cookie (foldHxReq -> hxRequest) =
+handler cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "New show form" apiLinks.rootGet $ do
     -- 1. Require authentication and admin role
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
 
     -- 2. Fetch all users for the host selection dropdown
-    eligibleHostsResult <- execQuerySpan (UserMetadata.getAllUsersWithPagination 1000 0)
+    eligibleHostsResult <- execQuery (UserMetadata.getAllUsersWithPagination 1000 0)
     eligibleHosts <- case eligibleHostsResult of
       Left err -> throwDatabaseError err
       Right hosts -> pure hosts

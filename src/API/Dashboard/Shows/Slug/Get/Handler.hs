@@ -29,7 +29,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Class (MonadDB (..))
-import Effects.Database.Execute (execQuerySpan)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -42,7 +42,6 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Rel8 (Result)
 
 --------------------------------------------------------------------------------
@@ -52,14 +51,13 @@ episodesPerPage :: Int64
 episodesPerPage = 10
 
 handler ::
-  Tracer ->
   Shows.Id ->
   Slug ->
   Maybe Int ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler _tracer showId showSlug mPage cookie (foldHxReq -> hxRequest) =
+handler showId showSlug mPage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show details" apiLinks.rootGet $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -86,8 +84,8 @@ fetchShowsForUser ::
   AppM [Shows.Model]
 fetchShowsForUser user userMetadata =
   if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuerySpan Shows.getAllActiveShows
-    else fromRight [] <$> execQuerySpan (Shows.getShowsForUser (User.mId user))
+    then fromRight [] <$> execQuery Shows.getAllActiveShows
+    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
 -- | Render show details page within dashboard frame
 renderShowDetails ::

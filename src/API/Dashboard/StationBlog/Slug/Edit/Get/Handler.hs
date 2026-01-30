@@ -27,7 +27,7 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
-import Effects.Database.Execute (execQuerySpan, execTransactionSpan)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -35,19 +35,17 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer blogPostId urlSlug cookie (foldHxReq -> hxRequest) =
+handler blogPostId urlSlug cookie (foldHxReq -> hxRequest) =
   handleRedirectErrors "Station blog edit form" (dashboardStationBlogLinks.list Nothing) $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
@@ -56,13 +54,13 @@ handler _tracer blogPostId urlSlug cookie (foldHxReq -> hxRequest) =
     -- 2. Fetch shows for sidebar
     showsResult <-
       if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuerySpan Shows.getAllActiveShows
-        else execQuerySpan (Shows.getShowsForUser (User.mId user))
+        then execQuery Shows.getAllActiveShows
+        else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
     -- 3. Fetch blog post and tags
-    mResult <- execTransactionSpan $ runMaybeT $ do
+    mResult <- execTransaction $ runMaybeT $ do
       blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
       tags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
       pure (blogPost, tags)

@@ -21,7 +21,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Effects.Database.Execute (execTransactionSpan)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -31,7 +31,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import OpenTelemetry.Trace (Tracer)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -46,13 +45,12 @@ parseStatus _ = Nothing
 --------------------------------------------------------------------------------
 
 handler ::
-  Tracer ->
   Slug ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
   ShowBlogEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler _tracer showSlug postId cookie editForm =
+handler showSlug postId cookie editForm =
   handleRedirectErrors "Blog post update" (dashboardBlogsLinks.editGet showSlug postId) $ do
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
@@ -73,7 +71,7 @@ fetchBlogPostWithContext ::
   ShowBlogPosts.Id ->
   AppM (ShowBlogPosts.Model, Shows.Model, [ShowBlogTags.Model], Bool)
 fetchBlogPostWithContext user userMetadata showSlug postId = do
-  mResult <- execTransactionSpan $ runMaybeT $ do
+  mResult <- execTransaction $ runMaybeT $ do
     post <- MaybeT $ HT.statement () (ShowBlogPosts.getShowBlogPostById postId)
     showModel <- MaybeT $ HT.statement () (Shows.getShowById post.showId)
     -- Verify the show slug matches
@@ -117,7 +115,7 @@ updateBlogPost _showSlug _postId showModel blogPost oldTags editForm = do
           }
 
   -- 6. Update blog post in a transaction
-  mUpdateResult <- execTransactionSpan $ runMaybeT $ do
+  mUpdateResult <- execTransaction $ runMaybeT $ do
     void $ MaybeT $ HT.statement () (ShowBlogPosts.updateShowBlogPost blogPost.id updateData)
     lift $ traverse_ (HT.statement () . ShowBlogPosts.removeTagFromShowBlogPost blogPost.id . ShowBlogTags.sbtmId) oldTags
     lift $ updatePostTags blogPost.id editForm
