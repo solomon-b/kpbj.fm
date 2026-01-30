@@ -9,14 +9,13 @@ import API.Links (showsLinks)
 import API.Types
 import Data.List (sortBy)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..))
 import Data.Time qualified as Time
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Design (also, base, class_, desktop, unless, when)
+import Design (also, base, class_, desktop, when)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
@@ -187,7 +186,6 @@ renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
       startTimeText = formatTimeOfDay (ShowSchedule.sswdStartTime show')
       isLiveShow = isShowLive currentDayOfWeek currentTimeOfDay dayOfWeek (ShowSchedule.sswdStartTime show') (ShowSchedule.sswdEndTime show')
       mLogoPath = ShowSchedule.sswdLogoUrl show'
-      hasImage = isJust mLogoPath
 
   Lucid.div_ [showRowStyles] $ do
     -- Time label on left (with LIVE indicator below if applicable)
@@ -203,20 +201,22 @@ renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
         hxGet_ [i|/#{showUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        showCardStyles isLiveShow hasImage
+        showCardLinkStyles
       ]
       $ do
-        -- Logo image
-        case mLogoPath of
-          Just logoPath ->
-            Lucid.img_
-              [ Lucid.src_ (buildMediaUrl backend logoPath),
-                Lucid.alt_ "",
-                logoImageStyles
-              ]
-          Nothing -> mempty
-        -- Show title (with text shadow when there's an image for readability)
-        Lucid.div_ [showTitleStyles hasImage] $ Lucid.toHtml (ShowSchedule.sswdShowTitle show')
+        -- Image container
+        Lucid.div_ [showCardImageContainerStyles isLiveShow] $ do
+          case mLogoPath of
+            Just logoPath ->
+              Lucid.img_
+                [ Lucid.src_ (buildMediaUrl backend logoPath),
+                  Lucid.alt_ "",
+                  logoImageStyles
+                ]
+            Nothing ->
+              Lucid.div_ [placeholderStyles] mempty
+        -- Show title below image
+        Lucid.div_ [showTitleStyles] $ Lucid.toHtml (ShowSchedule.sswdShowTitle show')
 
 showRowStyles :: Attributes
 showRowStyles = class_ $ do
@@ -231,28 +231,29 @@ timeStyles :: Attributes
 timeStyles = class_ $ do
   base [Tokens.textSm, Tokens.textGray600]
 
-showCardStyles :: Bool -> Bool -> Attributes
-showCardStyles isLive hasImage = class_ $ do
-  base [Tokens.p3, "block", "flex", "items-end", "flex-grow"]
-  base ["relative", "overflow-hidden"]
-  base ["aspect-[4/3]"]
+showCardLinkStyles :: Attributes
+showCardLinkStyles = class_ $ do
+  base ["block", "flex-grow"]
   desktop ["flex-grow-0", "w-1/2"]
-  unless hasImage $ base [Tokens.bgWhite]
-  base ["border", "border-gray-300"]
+
+showCardImageContainerStyles :: Bool -> Attributes
+showCardImageContainerStyles isLive = class_ $ do
+  base [Tokens.fullWidth, "aspect-[4/3]", "overflow-hidden", Tokens.mb2, "border", "border-gray-300"]
   when isLive $ base [Tokens.border2, "border-gray-800"]
-  unless hasImage $ also ["hover:bg-gray-50"]
-  when hasImage $ also ["hover:opacity-90"]
 
 -- | Logo image styles
 logoImageStyles :: Attributes
 logoImageStyles = class_ $ do
-  base ["absolute", "inset-0", "w-full", "h-full", "object-cover"]
+  base ["w-full", "h-full", "object-cover"]
 
-showTitleStyles :: Bool -> Attributes
-showTitleStyles hasImage = class_ $ do
-  base [Tokens.fontBold, "relative", "z-10"]
-  desktop [Tokens.text2xl]
-  when hasImage $ base [Tokens.textWhite, "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"]
+-- | Placeholder styles for shows without images
+placeholderStyles :: Attributes
+placeholderStyles = class_ $ do
+  base [Tokens.fullWidth, "h-full", Tokens.bgGray100]
+
+showTitleStyles :: Attributes
+showTitleStyles = class_ $ do
+  base [Tokens.fontBold, Tokens.mb2]
 
 liveBadgeStyles :: Attributes
 liveBadgeStyles = class_ $ do
