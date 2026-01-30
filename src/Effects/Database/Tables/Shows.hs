@@ -262,6 +262,7 @@ getShowsFiltered maybeTagId maybeStatus sortBy (Limit lim) (Offset off) =
     SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at, s.deleted_at
     FROM shows s
     WHERE s.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM show_hosts sh WHERE sh.show_id = s.id AND sh.left_at IS NULL)
       AND (#{maybeTagIdInt}::bigint IS NULL OR EXISTS (
         SELECT 1 FROM show_tag_assignments sta WHERE sta.show_id = s.id AND sta.tag_id = #{maybeTagIdInt}::bigint
       ))
@@ -385,17 +386,18 @@ searchShows (Search searchTerm) (Limit lim) (Offset off) =
   interp
     False
     [sql|
-    SELECT id, title, slug, description, logo_url, status, created_at, updated_at, deleted_at
-    FROM shows
-    WHERE deleted_at IS NULL
-      AND (title ILIKE #{searchPattern} OR description ILIKE #{searchPattern})
+    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at, s.deleted_at
+    FROM shows s
+    WHERE s.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM show_hosts sh WHERE sh.show_id = s.id AND sh.left_at IS NULL)
+      AND (s.title ILIKE #{searchPattern} OR s.description ILIKE #{searchPattern})
     ORDER BY
       CASE
-        WHEN title ILIKE #{searchPattern} THEN 1
-        WHEN description ILIKE #{searchPattern} THEN 2
+        WHEN s.title ILIKE #{searchPattern} THEN 1
+        WHEN s.description ILIKE #{searchPattern} THEN 2
         ELSE 3
       END,
-      title
+      s.title
     LIMIT #{lim + 1} OFFSET #{off}
   |]
   where
