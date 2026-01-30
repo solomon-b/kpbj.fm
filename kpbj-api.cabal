@@ -109,6 +109,7 @@ library
                   , witherable
                   , lucid-htmx-alpine
                   , lucid-form-builder
+                  , lucid-tailwind
                   , xmlhtml
                   , xmlhtml-lens
                   , xss-sanitize

@@ -1,0 +1,31 @@
+cabal-version:      3.0
+name:               lucid-tailwind
+version:            0.1.0.0
+synopsis:           Tailwind CSS utilities for Lucid2
+description:
+    Type-safe combinators for building Tailwind CSS class strings in Lucid2 templates.
+
+    Provides:
+
+    * Class combinators for safe string building
+    * Breakpoint prefixes (sm, md, lg, xl, xxl)
+    * State variant prefixes (hover, focus, active, disabled)
+    * Dark mode, group/peer variants, pseudo-elements
+    * Grid utility functions
+license:            Apache-2.0
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+library
+  default-language: Haskell2010
+  default-extensions:
+      ImportQualifiedPost
+    , OverloadedStrings
+  build-depends:
+      base >=4.14 && <5
+    , text
+  exposed-modules:
+      Lucid.Tailwind
+  hs-source-dirs: src
+  ghc-options: -Wall -fwrite-ide-info
