@@ -10,10 +10,9 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (showBlogLinks, showsLinks)
+import API.Links (showsLinks)
 import API.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
 import API.Types
-import Component.Card.BlogPost (renderShowBlogPostCard)
 import Component.Card.Episode (renderEpisodeCard)
 import Control.Monad (when)
 import Data.String.Interpolate (i)
@@ -146,30 +145,3 @@ renderPagination showModel currentPage episodeCount = do
           Lucid.span_
             [class_ $ base ["bg-gray-300", "text-gray-500", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Next"
-
--- | Render blog content for a show's public page.
---
--- NOTE: Temporarily disabled. Will be re-enabled when show blogs are
--- exposed on public show pages. See Dashboard version for active usage.
-_renderBlogContent :: StorageBackend -> Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
-_renderBlogContent backend showModel blogPosts = do
-  if null blogPosts
-    then do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
-        Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Blog Posts Yet"
-        Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any blog posts yet. Check back soon!"
-    else do
-      Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-        mapM_ (renderShowBlogPostCard backend showModel) blogPosts
-
-      -- View all link
-      let blogUrl = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
-      Lucid.div_ [class_ $ base ["mt-8", "text-center"]] $ do
-        Lucid.a_
-          [ Lucid.href_ [i|/#{blogUrl}|],
-            hxGet_ [i|/#{blogUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
-          ]
-          "View All Blog Posts"

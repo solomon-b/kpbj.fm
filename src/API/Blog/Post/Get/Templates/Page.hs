@@ -10,7 +10,6 @@ where
 
 import API.Links (blogLinks)
 import API.Types
-import Component.Layout qualified as Layout
 import Component.Tags qualified as Tags
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
@@ -127,7 +126,7 @@ template backend post author tags renderedContent = do
 -- | Template for when blog post is not found
 notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate slug = do
-  Layout.cardSection $ do
+  Lucid.div_ [Lucid.class_ Tokens.cardBase] $ do
     Lucid.div_ [class_ $ base ["text-center"]] $ do
       Lucid.h1_ [class_ $ base [Tokens.heading2xl, Tokens.mb4]] "Blog Post Not Found"
       Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] $ do
