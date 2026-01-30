@@ -39,9 +39,6 @@ donateGetUrl = Link.linkURI apiLinks.donateGet
 userLoginGetUrl :: Link.URI
 userLoginGetUrl = Link.linkURI $ userLinks.loginGet Nothing Nothing
 
-userRegisterGetUrl :: Link.URI
-userRegisterGetUrl = Link.linkURI $ userLinks.registerGet Nothing Nothing Nothing
-
 userLogoutGetUrl :: Link.URI
 userLogoutGetUrl = Link.linkURI userLinks.logoutGet
 

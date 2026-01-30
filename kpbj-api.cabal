@@ -402,12 +402,10 @@ library
     Component.Card.Show
     Component.DashboardFrame
     Component.Frame
-    Component.Layout
     Component.PageHeader
     Component.Redirect
     Component.Table
     Component.Tags
-    Component.Visibility
     Design
     Design.StyleBuilder
     Design.StyleBuilder.Internal

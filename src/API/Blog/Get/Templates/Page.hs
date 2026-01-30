@@ -12,7 +12,6 @@ import API.Links (blogLinks)
 import API.Types
 import Component.Card.BlogPost (renderStationBlogPostCard)
 import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
-import Component.Layout qualified as Layout
 import Component.PageHeader (pageHeader)
 import Control.Monad (unless)
 import Data.Foldable (traverse_)
@@ -51,7 +50,7 @@ template backend currentTime blogPosts currentPage hasMore maybeTag = do
     -- Items container with stable ID for HTMX appending
     Lucid.div_ [Lucid.id_ "blog-posts-list", class_ $ base [Tokens.fullWidth, "space-y-8"]] $ do
       if null blogPosts
-        then Layout.cardSection $ do
+        then Lucid.div_ [Lucid.class_ Tokens.cardBase] $ do
           Lucid.div_ [Lucid.class_ "text-center"] $ do
             Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4]] "No Blog Posts Yet"
             Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for updates from the KPBJ community!"
