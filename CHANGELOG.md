@@ -14,6 +14,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Dead Code Cleanup** - Removed unused functions: `utcToPacificDay`, `EmailVerificationTokens.getByToken`, `EmailVerificationTokens.getLatestPendingForUser`, sync email functions (`sendEmail`, `sendVerificationEmail`, `sendPasswordResetEmail`, `sendHostAssignmentEmail`), `buildSimpleMail`, `claimStagedUploadMaybe`
 - **Schedule Shows Filter** - Public schedule page now only displays shows that have assigned hosts
 - **Remove OpenTelemetry** - Removed hs-opentelemetry dependency to simplify the codebase
+- **Upstream Cookie Utils** - Migrated to upstream web-server-core cookie utilities, removing local implementations
 
 ### Fixes
 - **Markdown Line Breaks** - Enabled hard line breaks in markdown rendering so single newlines render as `<br>` tags instead of being collapsed into spaces

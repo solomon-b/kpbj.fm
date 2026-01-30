@@ -1,58 +1,23 @@
--- | Cookie helpers with domain support for cross-subdomain authentication.
+-- | Cookie migration helpers.
 --
--- This module provides cookie creation functions that include the Domain attribute,
--- allowing cookies to be shared across subdomains (e.g., staging.kpbj.fm and
--- uploads.staging.kpbj.fm).
---
--- Domain configuration is centralized in "App.Domains".
+-- Session cookie creation is now handled by 'App.Auth.mkCookieSession' from
+-- @web-server-core@. This module only contains migration code for expiring
+-- old cookie formats.
 --
 -- __TODO (after 2026-05-01):__ Remove 'mkExpireOldSessionCookie' and related
 -- migration code. See the function's documentation for details.
 module App.Cookie
-  ( mkCookieSessionWithDomain,
-    mkExpireOldSessionCookie,
-    lookupSessionId,
+  ( mkExpireOldSessionCookie,
   )
 where
 
 --------------------------------------------------------------------------------
 
 import App.Config (Environment (..))
-import App.Domains qualified as Domains
 import Data.Foldable (fold)
 import Data.Text (Text)
-import Data.Text.Display (display)
-import Data.Text.Encoding qualified as Text.Encoding
-import Data.UUID qualified as UUID
-import Effects.Database.Tables.ServerSessions qualified as ServerSessions
-import Web.Cookie (parseCookies)
 
 --------------------------------------------------------------------------------
-
--- | Create a session cookie with the appropriate Domain attribute.
---
--- The Domain attribute allows the cookie to be shared across subdomains.
--- See "App.Domains" for the domain and cookie name configuration per environment.
-mkCookieSessionWithDomain :: Environment -> ServerSessions.Id -> Text
-mkCookieSessionWithDomain env sId =
-  let baseCookie =
-        fold
-          [ Domains.cookieName env,
-            "=",
-            display sId,
-            "; ",
-            "SameSite=lax",
-            "; ",
-            "Path=/",
-            "; ",
-            "HttpOnly",
-            "; ",
-            "Secure"
-          ]
-      domainAttr = Domains.cookieDomain env
-   in case domainAttr of
-        "" -> baseCookie
-        domain -> baseCookie <> "; Domain=" <> domain
 
 -- | Create a Set-Cookie header to expire the old session cookie (without Domain).
 --
@@ -107,17 +72,3 @@ mkExpireOldSessionCookie = \case
           "; ",
           "Max-Age=0"
         ]
-
---------------------------------------------------------------------------------
-
--- | Parse a session ID from a raw cookie header using the environment-specific cookie name.
---
--- This looks up the correct cookie name for the environment (e.g., "session-id-production"
--- for production, "session-id-staging" for staging) and parses the UUID value.
-lookupSessionId :: Environment -> Text -> Maybe ServerSessions.Id
-lookupSessionId env cookieHeader =
-  let cookieBytes = Text.Encoding.encodeUtf8 cookieHeader
-      nameBytes = Text.Encoding.encodeUtf8 (Domains.cookieName env)
-   in lookup nameBytes (parseCookies cookieBytes)
-        >>= UUID.fromASCIIBytes
-        >>= Just . ServerSessions.Id
