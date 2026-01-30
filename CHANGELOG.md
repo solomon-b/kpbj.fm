@@ -4,6 +4,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Show Title on Schedule** - Schedule page now displays show title under the show image for better identification
+
+>>>>>>> 44f8ed6 (i)
 ### Chores
 - **Weeder in CI** - Added dead code detection via Weeder to the CI pipeline
 - **Factor out lucid-tailwind** - Extracted Tailwind CSS combinators (`cls`, `clsWhen`, breakpoint prefixes, state variants, grid utilities) into a standalone `lucid-tailwind` package for reuse across projects
