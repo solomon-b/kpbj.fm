@@ -540,8 +540,6 @@ test-suite kpbj-api-test
        Effects.Database.Tables.ShowHostSpec
        Effects.Database.Tables.ShowScheduleSpec
        Effects.Database.Tables.ShowsSpec
-       Effects.Database.Tables.SitePageRevisionsSpec
-       Effects.Database.Tables.SitePagesSpec
        Effects.Database.Tables.StagedUploadsSpec
        Effects.Database.Tables.UserMetadataSpec
        Effects.Database.Tables.UserRoleSpec
@@ -560,8 +558,6 @@ test-suite kpbj-api-test
        Test.Gen.Tables.Events
        Test.Gen.Tables.Shows
        Test.Gen.Tables.ShowSchedule
-       Test.Gen.Tables.SitePageRevisions
-       Test.Gen.Tables.SitePages
        Test.Gen.Tables.StagedUploads
        Test.Gen.Tables.UserMetadata
        Test.Gen.Text

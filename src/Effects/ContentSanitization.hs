@@ -12,7 +12,6 @@ module Effects.ContentSanitization
   ( -- * Content Sanitization
     sanitizeUserContent,
     sanitizeTitle,
-    sanitizeDisplayName,
     sanitizeDescription,
     sanitizePlainText,
 
@@ -98,19 +97,6 @@ sanitizeTitle title =
             | inTag = go cs acc True
             | otherwise = go cs (c : acc) False
        in Text.pack $ reverse $ go (Text.unpack text) [] False
-
--- | Sanitize display names and user names
---
--- This removes HTML and limits to plain text with basic character validation.
--- Use this for:
--- - User display names
--- - Author names
--- - Host names
-sanitizeDisplayName :: Text -> Text
-sanitizeDisplayName name =
-  Text.strip $ Text.filter isValidNameChar $ Text.take 100 name
-  where
-    isValidNameChar c = c /= '<' && c /= '>' && c /= '"' && c /= '\'' && c >= ' '
 
 -- | Sanitize description fields
 --

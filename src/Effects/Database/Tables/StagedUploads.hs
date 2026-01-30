@@ -31,7 +31,6 @@ module Effects.Database.Tables.StagedUploads
     getByToken,
     claimUpload,
     deleteById,
-    deleteByToken,
     getExpiredUploads,
   )
 where
@@ -258,19 +257,6 @@ deleteById uploadId =
     [sql|
     DELETE FROM staged_uploads
     WHERE id = #{uploadId}
-    RETURNING id
-  |]
-
--- | Delete a staged upload by token.
---
--- Returns the ID if successful, Nothing if not found.
-deleteByToken :: Token -> Hasql.Statement () (Maybe Id)
-deleteByToken token =
-  interp
-    False
-    [sql|
-    DELETE FROM staged_uploads
-    WHERE token = #{token}
     RETURNING id
   |]
 

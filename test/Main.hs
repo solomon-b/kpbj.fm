@@ -15,8 +15,6 @@ import Effects.Database.Tables.EventsSpec qualified as Events
 import Effects.Database.Tables.ShowHostSpec qualified as ShowHost
 import Effects.Database.Tables.ShowScheduleSpec qualified as ShowSchedule
 import Effects.Database.Tables.ShowsSpec qualified as Shows
-import Effects.Database.Tables.SitePageRevisionsSpec qualified as SitePageRevisions
-import Effects.Database.Tables.SitePagesSpec qualified as SitePages
 import Effects.Database.Tables.StagedUploadsSpec qualified as StagedUploads
 import Effects.Database.Tables.UserMetadataSpec qualified as UserMetadata
 import Effects.Database.Tables.UserRoleSpec qualified as UserRole
@@ -70,5 +68,3 @@ main = do
     ShowHost.spec
     ShowSchedule.spec
     StagedUploads.spec
-    SitePages.spec
-    SitePageRevisions.spec

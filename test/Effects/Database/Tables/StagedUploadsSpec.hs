@@ -32,7 +32,6 @@ spec =
       runs 5 . it "claim: claimUpload marks upload as claimed" $ hedgehog . prop_claimUpload
       runs 5 . it "claim: claimUpload fails for wrong user" $ hedgehog . prop_claimUploadWrongUser
       runs 5 . it "claim: claimUpload fails for already claimed upload" $ hedgehog . prop_claimUploadAlreadyClaimed
-      runs 5 . it "delete: deleteByToken removes upload" $ hedgehog . prop_deleteByToken
       runs 5 . it "delete: deleteById removes upload" $ hedgehog . prop_deleteById
 
 --------------------------------------------------------------------------------
@@ -178,37 +177,6 @@ prop_claimUploadAlreadyClaimed cfg = do
         _ <- assertJust mFirst
         -- Second claim should fail (already claimed)
         assertNothing mSecond
-
--- | deleteByToken removes the upload
-prop_deleteByToken :: TestDBConfig -> PropertyT IO ()
-prop_deleteByToken cfg = do
-  arrange (bracketConn cfg) $ do
-    userWithMetadata <- forAllT userWithMetadataInsertGen
-    partialUpload <- forAllT partialStagedUploadInsertGen
-    act $ do
-      token <- liftIO generateSecureToken
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        -- Setup: Create user
-        (OneRow userId) <- TRX.statement () $ User.insertUser $ User.ModelInsert (UserMetadata.uwmiEmail userWithMetadata) (UserMetadata.uwmiPassword userWithMetadata)
-        _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert userId (UserMetadata.uwmiDisplayName userWithMetadata) (UserMetadata.uwmiFullName userWithMetadata) (UserMetadata.uwmiAvatarUrl userWithMetadata) (UserMetadata.uwmiUserRole userWithMetadata) (UserMetadata.uwmiColorScheme userWithMetadata) (UserMetadata.uwmiTheme userWithMetadata)
-
-        -- Insert staged upload
-        let stagedUploadInsert = completeInsert userId token partialUpload
-        _ <- TRX.statement () (UUT.insert stagedUploadInsert)
-
-        -- Delete by token
-        deletedId <- TRX.statement () (UUT.deleteByToken token)
-
-        -- Verify it's gone
-        afterDelete <- TRX.statement () (UUT.getByToken token)
-        pure (deletedId, afterDelete)
-
-      assert $ do
-        (mDeletedId, mAfterDelete) <- assertRight result
-        -- Delete should return the ID
-        _ <- assertJust mDeletedId
-        -- After delete, getByToken should return Nothing
-        assertNothing mAfterDelete
 
 -- | deleteById removes the upload
 prop_deleteById :: TestDBConfig -> PropertyT IO ()

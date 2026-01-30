@@ -24,9 +24,7 @@ module Effects.Database.Tables.BlogPosts
     -- * Queries
     getAllBlogPosts,
     getPublishedBlogPosts,
-    getBlogPostBySlug,
     getBlogPostById,
-    getBlogPostsByAuthor,
     insertBlogPost,
     updateBlogPost,
     deleteBlogPost,
@@ -225,31 +223,12 @@ getPublishedBlogPosts (Limit lim) (Offset off) =
             where_ $ bpmStatus post ==. lit Published
             pure post
 
--- | Get blog post by slug.
-getBlogPostBySlug :: Slug -> Hasql.Statement () (Maybe Model)
-getBlogPostBySlug slug = fmap listToMaybe $ run $ select do
-  post <- each blogPostSchema
-  where_ $ bpmSlug post ==. lit slug
-  pure post
-
 -- | Get blog post by ID.
 getBlogPostById :: Id -> Hasql.Statement () (Maybe Model)
 getBlogPostById postId = fmap listToMaybe $ run $ select do
   post <- each blogPostSchema
   where_ $ bpmId post ==. lit postId
   pure post
-
--- | Get blog posts by author.
-getBlogPostsByAuthor :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getBlogPostsByAuthor authorId (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy (bpmCreatedAt >$< desc) do
-            post <- each blogPostSchema
-            where_ $ bpmAuthorId post ==. lit authorId
-            pure post
 
 -- | Insert a new blog post.
 insertBlogPost :: Insert -> Hasql.Statement () Id

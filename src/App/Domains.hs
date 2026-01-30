@@ -14,7 +14,6 @@ module App.Domains
     baseDomain,
 
     -- * Cookie Configuration
-    cookieDomain,
     cookieDomainMaybe,
 
     -- * Upload Configuration
@@ -49,17 +48,6 @@ baseDomain = \case
 
 --------------------------------------------------------------------------------
 -- Cookie Configuration
-
--- | Get the cookie Domain attribute for cross-subdomain authentication.
---
--- The leading dot allows the cookie to be shared across all subdomains:
--- - Development: empty (no Domain attribute, restricted to exact host)
--- - Staging: ".staging.kpbj.fm" (covers staging.kpbj.fm, uploads.staging.kpbj.fm)
--- - Production: ".kpbj.fm" (covers www.kpbj.fm, uploads.kpbj.fm)
-cookieDomain :: Environment -> Text
-cookieDomain = \case
-  Development -> ""
-  env -> "." <> baseDomain env
 
 -- | Get the cookie Domain attribute as Maybe (for 'App.Auth.mkCookieSession').
 --

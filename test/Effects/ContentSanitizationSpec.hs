@@ -49,24 +49,6 @@ spec = do
       it "handles plain text content safely" $ do
         sanitizeUserContent "Just plain text content" `shouldBe` "Just plain text content"
 
-    describe "sanitizeDisplayName" $ do
-      it "removes dangerous characters" $ do
-        sanitizeDisplayName "User<script>Name" `shouldBe` "UserscriptName"
-        sanitizeDisplayName "User\"Name" `shouldBe` "UserName"
-        sanitizeDisplayName "User'Name" `shouldBe` "UserName"
-
-      it "preserves valid name characters" $ do
-        sanitizeDisplayName "John Doe Jr." `shouldBe` "John Doe Jr."
-        sanitizeDisplayName "María José" `shouldBe` "María José"
-
-      it "limits length to 100 characters" $ do
-        let longName = Text.replicate 150 "a"
-        Text.length (sanitizeDisplayName longName) `shouldBe` 100
-
-      it "handles empty names" $ do
-        sanitizeDisplayName "" `shouldBe` ""
-        sanitizeDisplayName "   " `shouldBe` ""
-
     describe "sanitizeDescription" $ do
       it "limits length to 1000 characters" $ do
         let longDesc = Text.replicate 1500 "a"

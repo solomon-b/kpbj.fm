@@ -27,7 +27,6 @@ module Effects.Database.Tables.Events
 
     -- * Queries
     getPublishedEvents,
-    getEventBySlug,
     getEventById,
     insertEvent,
     updateEvent,
@@ -248,13 +247,6 @@ getPublishedEvents (Limit lim) (Offset off) =
             event <- each eventSchema
             where_ $ emStatus event ==. lit Published
             pure event
-
--- | Get event by slug.
-getEventBySlug :: Slug -> Hasql.Statement () (Maybe Model)
-getEventBySlug slug = fmap listToMaybe $ run $ select do
-  event <- each eventSchema
-  where_ $ emSlug event ==. lit slug
-  pure event
 
 -- | Get event by ID.
 getEventById :: Id -> Hasql.Statement () (Maybe Model)
