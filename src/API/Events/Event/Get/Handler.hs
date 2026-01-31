@@ -10,8 +10,6 @@ import App.Common (getUserInfo, renderTemplate)
 import App.Monad (AppM)
 import Component.Redirect (redirectTemplate)
 import Control.Monad.Reader (asks)
-import Data.Aeson ((.=))
-import Data.Aeson qualified as Aeson
 import Data.Functor ((<&>))
 import Data.Has (getter)
 import Data.String.Interpolate (i)
@@ -83,20 +81,12 @@ renderEvent ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 renderEvent hxRequest mUserInfo event = do
   storageBackend <- asks getter
-  execQuery (UserMetadata.getUserMetadata event.emAuthorId) >>= \case
-    Left err -> do
-      Log.logAttention "Failed to fetch event author" (Aeson.object ["id" .= event.emAuthorId, "error" .= show err])
-      html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (Events.emSlug event))
-      pure $ Servant.noHeader html
-    Right Nothing -> do
-      Log.logAttention "Event author not found" (Aeson.object ["id" .= event.emAuthorId])
-      html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (Events.emSlug event))
-      pure $ Servant.noHeader html
-    Right (Just author) -> do
-      renderedDescription <- renderContentM (Events.emDescription event)
-      let eventTemplate = template storageBackend event author renderedDescription
-      html <- renderTemplate hxRequest mUserInfo eventTemplate
-      pure $ Servant.noHeader html
+  renderedDescription <- renderContentM (Events.emDescription event)
+
+  let eventTemplate = template storageBackend event renderedDescription
+  html <- renderTemplate hxRequest mUserInfo eventTemplate
+
+  pure $ Servant.noHeader html
 
 renderRedirect ::
   HxRequest ->
