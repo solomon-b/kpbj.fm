@@ -14,6 +14,8 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -73,9 +75,9 @@ episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
             mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
           else plain $
             Lucid.div_ $ do
-              Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+              Lucid.label_ [class_ $ base ["block", Tokens.fontBold, Tokens.mb2]] "Scheduled Date"
               Lucid.div_
-                [Lucid.class_ "w-full p-3 border-2 border-yellow-400 bg-yellow-50 font-mono text-sm"]
+                [class_ $ base [Tokens.fullWidth, Tokens.p3, Tokens.border2, Tokens.warningBg, "font-mono", Tokens.textSm]]
                 "No upcoming scheduled dates"
 
         textareaField "description" 6 $ do

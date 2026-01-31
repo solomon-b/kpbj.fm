@@ -47,7 +47,7 @@ renderHeader page revision =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "REVISION DETAIL"
-        Lucid.div_ [class_ $ base ["text-gray-500", Tokens.textSm]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $ do
           Lucid.strong_ "Page: "
           Lucid.toHtml page.spmTitle
           " • "
@@ -58,7 +58,7 @@ renderHeader page revision =
           Lucid.toHtml (formatDateTime revision.sprCreatedAt)
         case revision.sprEditSummary of
           Just summary ->
-            Lucid.div_ [class_ $ base ["text-gray-600", Tokens.textSm, "mt-1"]] $ do
+            Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm, "mt-1"]] $ do
               Lucid.strong_ "Summary: "
               Lucid.toHtml summary
           Nothing -> mempty
@@ -67,7 +67,7 @@ renderHeader page revision =
           hxGet_ [i|/#{dashboardSitePagesHistoryUrl (SitePages.spmSlug page)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base ["text-blue-600", "hover:text-blue-800", Tokens.textSm, "underline"]
+          class_ $ base [Tokens.infoText, "hover:opacity-80", Tokens.textSm, "underline"]
         ]
         "<- BACK TO HISTORY"
 
@@ -75,11 +75,11 @@ renderDiffSection :: SitePages.Model -> SitePageRevisions.Model -> Lucid.Html ()
 renderDiffSection page revision = do
   Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.p6, Tokens.mb8, "rounded"]] $ do
     Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4]] "Changes from this revision to current version"
-    Lucid.p_ [class_ $ base [Tokens.textSm, "text-gray-600", Tokens.mb4]] $ do
+    Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] $ do
       "Lines in "
-      Lucid.span_ [Lucid.class_ "text-red-600 font-bold"] "red"
+      Lucid.span_ [class_ $ base [Tokens.errorText, Tokens.fontBold]] "red"
       " were in this revision but removed. Lines in "
-      Lucid.span_ [Lucid.class_ "text-green-600 font-bold"] "green"
+      Lucid.span_ [class_ $ base [Tokens.successText, Tokens.fontBold]] "green"
       " were added in the current version."
     let diffLines = computeLineDiff revision.sprContent page.spmContent
     renderDiff diffLines
@@ -91,10 +91,10 @@ renderRestoreButton page revision = do
       Lucid.div_ $ do
         Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2]] "Restore this revision"
         Lucid.p_
-          [class_ $ base [Tokens.textSm, "text-gray-600"]]
+          [class_ $ base [Tokens.textSm, Tokens.fgMuted]]
           "This will replace the current page content with the content from this revision."
       Lucid.button_
-        [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
+        [ class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:opacity-80"],
           hxPost_ [i|/#{dashboardSitePagesRestoreUrl (SitePages.spmSlug page) (SitePageRevisions.sprId revision)}|],
           hxTarget_ "#main-content",
           Lucid.data_ "confirm" "Are you sure you want to restore this revision? This will replace the current page content."

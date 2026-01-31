@@ -247,7 +247,7 @@ renderNoscriptPagination config = do
             hxGet_ prevUrl,
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg]
           ]
           "<- PREVIOUS"
       Nothing ->
@@ -266,7 +266,7 @@ renderNoscriptPagination config = do
             hxGet_ nextUrl,
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg]
           ]
           "NEXT ->"
       Nothing ->

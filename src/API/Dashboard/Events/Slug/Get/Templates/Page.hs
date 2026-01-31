@@ -26,12 +26,12 @@ template event mAuthor = do
         renderStatusBadge event.emStatus
 
       -- Metadata
-      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.fgMuted, "mt-4", "pt-4", "border-t", "border-gray-200 dark:border-gray-600"]] $ do
+      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.fgMuted, "mt-4", "pt-4", "border-t", Tokens.borderMuted]] $ do
         Lucid.div_ [] $ do
           Lucid.span_ [Lucid.class_ Tokens.fontBold] "Organizer: "
           case mAuthor of
             Just author -> Lucid.toHtml author.mDisplayName
-            Nothing -> Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500"] "Unknown"
+            Nothing -> Lucid.span_ [Lucid.class_ Tokens.fgMuted] "Unknown"
         Lucid.div_ [] $ do
           Lucid.span_ [Lucid.class_ Tokens.fontBold] "Created: "
           Lucid.toHtml $ formatDateTime event.emCreatedAt
@@ -69,8 +69,8 @@ template event mAuthor = do
 renderStatusBadge :: Events.Status -> Lucid.Html ()
 renderStatusBadge status = do
   let (bgClass, textClass, statusText) = case status of
-        Events.Published -> ("bg-green-100", "text-green-800", "Published") :: (Text, Text, Text)
-        Events.Draft -> ("bg-yellow-100", "text-yellow-800", "Draft")
+        Events.Published -> (Tokens.successBg, Tokens.successText, "Published") :: (Text, Text, Text)
+        Events.Draft -> (Tokens.warningBg, Tokens.warningText, "Draft")
 
   Lucid.span_
     [class_ $ base ["inline-block", "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]

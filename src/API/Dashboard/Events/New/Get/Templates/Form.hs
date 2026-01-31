@@ -122,7 +122,7 @@ renderFormHeader userMeta =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "NEW EVENT"
-        Lucid.div_ [class_ $ base ["text-gray-300 dark:text-gray-500", Tokens.textSm]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $ do
           Lucid.strong_ "Organizer: "
           Lucid.toHtml userMeta.mDisplayName
       Lucid.div_ [Lucid.class_ "text-center"] $ do
@@ -131,6 +131,6 @@ renderFormHeader userMeta =
             hxGet_ [i|/#{dashboardEventsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.infoText, Tokens.hoverBg, Tokens.textSm, "underline"]
           ]
           "VIEW EVENTS"

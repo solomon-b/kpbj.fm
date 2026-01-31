@@ -19,6 +19,8 @@ import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.String.Interpolate (i)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
@@ -94,7 +96,7 @@ handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
                 hxGet_ [i|/#{newBlogUrl}|],
                 hxTarget_ "#main-content",
                 hxPushUrl_ "true",
-                Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
+                class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
               ]
               "New Post"
 

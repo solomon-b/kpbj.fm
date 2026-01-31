@@ -9,8 +9,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **12 Hour Clock** - Render times with a 12 hour clock.
 - **Simplified Event Details** - Removed back button and author section from event detail pages for cleaner presentation
 
+### Fixes
+- **Dark Mode Theme Colors** - Fixed ~30 files with hardcoded Tailwind colors (bg-gray-*, text-gray-*, border-gray-*) that caused white-on-white text and poor contrast in dark mode. All colors now use dynamic theme tokens from `Design.Tokens` that respect the user's theme preference.
+
 ### Chores
 - **Weeder in CI** - Added dead code detection via Weeder to the CI pipeline
+- **Design Tokens Cleanup** - Consolidated and cleaned up design token definitions across 64 files for better consistency
 - **Factor out lucid-tailwind** - Extracted Tailwind CSS combinators (`cls`, `clsWhen`, breakpoint prefixes, state variants, grid utilities) into a standalone `lucid-tailwind` package for reuse across projects
 - **Dead Code Cleanup** - Removed unused functions: `utcToPacificDay`, `EmailVerificationTokens.getByToken`, `EmailVerificationTokens.getLatestPendingForUser`, sync email functions (`sendEmail`, `sendVerificationEmail`, `sendPasswordResetEmail`, `sendHostAssignmentEmail`), `buildSimpleMail`, `claimStagedUploadMaybe`
 - **Schedule Shows Filter** - Public schedule page now only displays shows that have assigned hosts

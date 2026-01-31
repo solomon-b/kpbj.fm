@@ -15,7 +15,7 @@ import Data.Text qualified as Text
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..))
 import Data.Time qualified as Time
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Design (also, base, class_, desktop, when)
+import Design (also, base, class_, desktop)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
@@ -136,7 +136,7 @@ dayNavStyles = class_ $ do
 dayNavButtonStyles :: Attributes
 dayNavButtonStyles = class_ $ do
   base [Tokens.textXl, "font-black", Tokens.px3, Tokens.py2]
-  also ["hover:text-gray-600", "cursor-pointer"]
+  also [Tokens.hoverBg, "cursor-pointer"]
 
 dayLabelStyles :: Attributes
 dayLabelStyles = class_ $ do
@@ -172,12 +172,12 @@ renderMobileDayPanel backend scheduledShows currentDayOfWeek currentTimeOfDay (i
 
   Lucid.div_ [xShow_ showCondition, Lucid.class_ "space-y-3"] $ do
     if null sortedShows
-      then Lucid.p_ [mobileEmptyStyles] "No shows scheduled"
+      then Lucid.p_ [mobileEmptyStyles] "NO SCHEDULED SHOWS"
       else mapM_ (renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek) sortedShows
 
 mobileEmptyStyles :: Attributes
 mobileEmptyStyles = class_ $ do
-  base [Tokens.fgMuted, "text-center", Tokens.py4, "italic"]
+  base [Tokens.fgMuted, "text-center", Tokens.py8, Tokens.fontBold, "tracking-wide"]
 
 -- | Render a single show card with logo image
 renderShowCard :: StorageBackend -> Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
@@ -192,7 +192,7 @@ renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek show' = do
     Lucid.div_ [timeContainerStyles] $ do
       Lucid.div_ [timeStyles] $ Lucid.toHtml startTimeText
       if isLiveShow
-        then Lucid.div_ [liveBadgeStyles] "*ON AIR*"
+        then Lucid.div_ [liveBadgeStyles] "LIVE"
         else mempty
 
     -- Show card on right
@@ -229,7 +229,7 @@ timeContainerStyles = class_ $ do
 
 timeStyles :: Attributes
 timeStyles = class_ $ do
-  base [Tokens.textSm, Tokens.fgMuted]
+  base [Tokens.textLg, Tokens.fontBold, "tabular-nums"]
 
 showCardLinkStyles :: Attributes
 showCardLinkStyles = class_ $ do
@@ -238,8 +238,10 @@ showCardLinkStyles = class_ $ do
 
 showCardImageContainerStyles :: Bool -> Attributes
 showCardImageContainerStyles isLive = class_ $ do
-  base [Tokens.fullWidth, "aspect-[4/3]", "overflow-hidden", Tokens.mb2, "border", "border-gray-300"]
-  when isLive $ base [Tokens.border2, "border-gray-800"]
+  base [Tokens.fullWidth, "aspect-[4/3]", "overflow-hidden", Tokens.mb2]
+  if isLive
+    then base [Tokens.border2, Tokens.borderDefault]
+    else base ["border", Tokens.borderMuted]
 
 -- | Logo image styles
 logoImageStyles :: Attributes
@@ -257,4 +259,5 @@ showTitleStyles = class_ $ do
 
 liveBadgeStyles :: Attributes
 liveBadgeStyles = class_ $ do
-  base [Tokens.fontBold, Tokens.textXs, Tokens.fgPrimary, "animate-pulse"]
+  base [Tokens.fontBold, Tokens.textXs, Tokens.bgInverse, Tokens.fgInverse]
+  base ["px-1.5", "py-0.5", "mt-1", "inline-block", "tracking-wider"]

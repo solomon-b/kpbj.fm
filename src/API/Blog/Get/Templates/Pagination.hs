@@ -55,6 +55,6 @@ renderPagination currentPage hasMore maybeTag = do
     blogGetPageUrl :: Int64 -> Links.URI
     blogGetPageUrl page = Links.linkURI $ blogLinks.list (Just page) maybeTag
 
-    paginationLink = class_ $ base ["px-3 py-1", Tokens.fgPrimary, "hover:bg-gray-200"]
-    paginationDisabled = class_ $ base ["px-3 py-1", "text-gray-400"]
+    paginationLink = class_ $ base ["px-3 py-1", Tokens.fgPrimary, Tokens.hoverBg]
+    paginationDisabled = class_ $ base ["px-3 py-1", Tokens.fgMuted]
     paginationActive = class_ $ base ["px-3 py-1", Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold]

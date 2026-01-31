@@ -108,7 +108,7 @@ renderFormHeader showModel post =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT BLOG POST"
-        Lucid.div_ [class_ $ base ["text-gray-300 dark:text-gray-500", Tokens.textSm]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $ do
           Lucid.strong_ "Show: "
           Lucid.toHtml (Shows.title showModel)
       Lucid.div_ [class_ $ base ["text-center", "flex", Tokens.gap4]] $ do
@@ -117,7 +117,7 @@ renderFormHeader showModel post =
             hxGet_ [i|/#{dashboardBlogsDetailUrl showModel post}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.linkText, Tokens.textSm, "underline"]
           ]
           "VIEW POST"
         Lucid.a_
@@ -125,6 +125,6 @@ renderFormHeader showModel post =
             hxGet_ [i|/#{dashboardBlogsGetUrl showModel}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.linkText, Tokens.textSm, "underline"]
           ]
           "VIEW BLOG"

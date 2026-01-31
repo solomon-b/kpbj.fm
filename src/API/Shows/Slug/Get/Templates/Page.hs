@@ -52,7 +52,7 @@ notFoundTemplate slug = do
         hxGet_ [i|/#{showsGetUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base ["bg-blue-600", Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
+        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
       ]
       "BROWSE ALL SHOWS"
 
@@ -67,7 +67,7 @@ errorTemplate errorMsg = do
         hxGet_ [i|/#{showsGetUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base ["bg-blue-600", Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
+        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
       ]
       "BROWSE ALL SHOWS"
 
@@ -116,12 +116,12 @@ renderPagination showModel currentPage episodeCount = do
               hxGet_ [i|/#{prevUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:opacity-80"]
             ]
             "Previous"
         else
           Lucid.span_
-            [class_ $ base ["bg-gray-300", "text-gray-500", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
+            [class_ $ base [Tokens.bgAlt, Tokens.fgMuted, Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Previous"
 
       -- Page indicator
@@ -138,10 +138,10 @@ renderPagination showModel currentPage episodeCount = do
               hxGet_ [i|/#{nextUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:opacity-80"]
             ]
             "Next"
         else
           Lucid.span_
-            [class_ $ base ["bg-gray-300", "text-gray-500", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
+            [class_ $ base [Tokens.bgAlt, Tokens.fgMuted, Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Next"

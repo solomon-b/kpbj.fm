@@ -48,6 +48,8 @@ import Control.Lens (over, set, traversed, (&))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TE
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Log qualified
 import Lucid qualified
 import Text.HTML (renderNodes)
@@ -240,7 +242,7 @@ applyTailwindStyles nodes =
     & set (traversed . _el "strong" . _elAttributes) [("class", "font-bold")]
     & set (traversed . _el "em" . _elAttributes) [("class", "italic")]
     -- Strikethrough
-    & set (traversed . _el "del" . _elAttributes) [("class", "line-through text-gray-500")]
+    & set (traversed . _el "del" . _elAttributes) [("class", "line-through text-[var(--theme-fg-muted)]")]
 
 --------------------------------------------------------------------------------
 -- Content Rendering
@@ -260,7 +262,7 @@ renderContentM content = do
 -- | Render a markdown error as HTML for display to users.
 renderMarkdownError :: MarkdownError -> Lucid.Html ()
 renderMarkdownError err =
-  Lucid.div_ [Lucid.class_ "bg-red-50 border-2 border-red-400 p-4 my-4"] do
-    Lucid.p_ [Lucid.class_ "text-red-700 font-bold"] "Content could not be rendered"
-    Lucid.p_ [Lucid.class_ "text-red-600 text-sm mt-2"] $
+  Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p4, "my-4"]] do
+    Lucid.p_ [class_ $ base [Tokens.errorText, Tokens.fontBold]] "Content could not be rendered"
+    Lucid.p_ [class_ $ base [Tokens.errorText, Tokens.textSm, "mt-2"]] $
       Lucid.toHtml (displayMarkdownError err)

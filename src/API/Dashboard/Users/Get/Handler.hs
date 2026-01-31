@@ -22,6 +22,8 @@ import Data.Maybe (fromMaybe, isNothing, listToMaybe, maybeToList)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (getCurrentTime)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -105,12 +107,12 @@ filtersUI queryFilter roleFilter sortBy = do
           Lucid.name_ "q",
           Lucid.value_ (fromMaybe "" queryFilter),
           Lucid.placeholder_ "Search...",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 w-32"
+          class_ $ base ["px-2", "py-1", Tokens.textSm, "border", Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "w-32"]
         ]
       -- Role filter
       Lucid.select_
         [ Lucid.name_ "role",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600"
+          class_ $ base ["px-2", "py-1", Tokens.textSm, "border", Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary]
         ]
         $ do
           Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (isNothing roleFilter)) "All Roles"
@@ -121,7 +123,7 @@ filtersUI queryFilter roleFilter sortBy = do
       -- Sort filter
       Lucid.select_
         [ Lucid.name_ "sort",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600"
+          class_ $ base ["px-2", "py-1", Tokens.textSm, "border", Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary]
         ]
         $ do
           Lucid.option_ ([Lucid.value_ "newest"] <> selectedWhen (sortBy == JoinDateNewest)) "Newest"
@@ -132,7 +134,7 @@ filtersUI queryFilter roleFilter sortBy = do
       -- Submit button
       Lucid.button_
         [ Lucid.type_ "submit",
-          Lucid.class_ "px-4 py-2 text-sm bg-gray-800 text-white font-bold hover:bg-gray-700"
+          class_ $ base [Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:opacity-80"]
         ]
         "Filter"
   where

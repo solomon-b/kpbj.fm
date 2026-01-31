@@ -16,6 +16,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..))
 import Design (base, class_, desktop)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
@@ -37,7 +38,7 @@ renderShowHeader backend showModel hosts schedules tags = do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
-        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "bg-gray-300", "border", "border-gray-300", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", Tokens.bgAlt, "border", Theme.borderMuted, "flex", "items-center", "justify-center", Tokens.textLg]] $ do
           case showModel.logoUrl of
             Just logoPath -> do
               let logoAlt = showModel.title <> " logo"
@@ -71,7 +72,7 @@ renderShowHeader backend showModel hosts schedules tags = do
 
         -- Show Description (only if present)
         forM_ showModel.description $ \description ->
-          Lucid.div_ [class_ $ do { base [Tokens.mb6, "pb-4", "border-b", "border-gray-800"]; desktop ["border-b-0", "pb-0"] }] $ do
+          Lucid.div_ [class_ $ do { base [Tokens.mb6, "pb-4", "border-b", Theme.borderDefault]; desktop ["border-b-0", "pb-0"] }] $ do
             Lucid.p_ [class_ $ base ["leading-relaxed"]] $ Lucid.toHtml description
 
         -- Tags

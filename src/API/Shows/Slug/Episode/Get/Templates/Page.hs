@@ -64,7 +64,7 @@ template backend showModel episode tracks tags = do
     unless (null tracks) $ do
       Lucid.div_ [class_ $ base [Tokens.bgMain, "mt-6"]] $ do
         Lucid.h2_
-          [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]]
+          [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]]
           "Track Listing"
 
         Lucid.div_ [Lucid.class_ "space-y-1"] $ do
@@ -74,7 +74,7 @@ template backend showModel episode tracks tags = do
 
 renderTrackRow :: EpisodeTrack.Model -> Lucid.Html ()
 renderTrackRow track = do
-  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", Tokens.p3, "hover:bg-gray-50", "border-b", "border-gray-200"]] $ do
+  Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", Tokens.p3, Tokens.hoverBg, "border-b", Tokens.borderMuted]] $ do
     -- Track number
     Lucid.div_ [class_ $ base ["w-8", "flex-shrink-0", Tokens.fgMuted, "font-mono", Tokens.textSm]] $
       Lucid.toHtml (show track.trackNumber <> ".")
@@ -94,13 +94,13 @@ errorTemplate errorMsg = do
   Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
       Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4, Tokens.errorText]] "Error Loading Episode"
-      Lucid.p_ [class_ $ base ["text-red-700", Tokens.mb6]] $ Lucid.toHtml errorMsg
+      Lucid.p_ [class_ $ base [Tokens.errorText, Tokens.mb6]] $ Lucid.toHtml errorMsg
       Lucid.a_
         [ Lucid.href_ "/shows",
           hxGet_ "/shows",
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
         ]
         "Back to Shows"
 
@@ -117,6 +117,6 @@ notFoundTemplate showSlug episodeNumber = do
           hxGet_ [i|/#{showUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
         ]
         "Back to Show"

@@ -35,7 +35,7 @@ toggleStyle :: Bool -> Attributes
 toggleStyle isActive = class_ $ do
   base [Tokens.px4, Tokens.py2, Tokens.cardBorder, Tokens.fontBold]
   Design.when isActive $ base [Tokens.bgInverse, Tokens.fgInverse]
-  Design.when (not isActive) $ base [Tokens.bgMain, Tokens.fgPrimary, "hover:bg-gray-100"]
+  Design.when (not isActive) $ base [Tokens.bgMain, Tokens.fgPrimary, "Tokens.hoverBg"]
 
 --------------------------------------------------------------------------------
 
@@ -66,7 +66,7 @@ template backend showModel posts tags maybeTag currentPage totalPages = do
 
     -- Tag filter
     unless (null tags) $ do
-      Lucid.div_ [class_ $ base [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", "border-gray-800"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", Tokens.borderDefault]] $ do
         Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $ do
           -- "All" tag
           Lucid.a_
@@ -94,7 +94,7 @@ template backend showModel posts tags maybeTag currentPage totalPages = do
     if null posts
       then Lucid.div_ [class_ $ base ["text-center", "py-12"]] $ do
         Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] "No blog posts yet."
-        Lucid.p_ [class_ $ base ["text-gray-500", "mt-2"]] "Check back soon for updates!"
+        Lucid.p_ [class_ $ base [Tokens.fgMuted, "mt-2"]] "Check back soon for updates!"
       else do
         Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6, Tokens.mb8]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
           forM_ posts $ \post -> do
@@ -116,7 +116,7 @@ renderPagination showModel maybeTag currentPage totalPages = do
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel) (Just (currentPage - 1)) maybeTag}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "hover:bg-gray-100", Tokens.fontBold]
+          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "Tokens.hoverBg", Tokens.fontBold]
         ]
         "← Previous"
 
@@ -139,7 +139,7 @@ renderPagination showModel maybeTag currentPage totalPages = do
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel) (Just (currentPage + 1)) maybeTag}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "hover:bg-gray-100", Tokens.fontBold]
+          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "Tokens.hoverBg", Tokens.fontBold]
         ]
         "Next →"
 
@@ -159,4 +159,4 @@ errorTemplate errorMsg = do
   Lucid.div_ [class_ $ base ["max-w-7xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
       Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "Error"
-      Lucid.p_ [Lucid.class_ "text-red-700"] $ Lucid.toHtml errorMsg
+      Lucid.p_ [Lucid.class_ Tokens.errorText] $ Lucid.toHtml errorMsg

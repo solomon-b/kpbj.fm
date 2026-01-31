@@ -67,31 +67,31 @@ renderBanner bannerType title message =
         ( Tokens.successBg,
           Tokens.successBorder,
           Tokens.successText,
-          "text-green-700" :: Text,
-          "text-green-600 hover:text-green-800" :: Text,
+          Tokens.successText,
+          Tokens.successText <> " hover:opacity-70",
           "✓" :: Text
         )
       Error ->
         ( Tokens.errorBg,
           Tokens.errorBorder,
           Tokens.errorText,
-          "text-red-700",
-          "text-red-600 hover:text-red-800",
+          Tokens.errorText,
+          Tokens.errorText <> " hover:opacity-70",
           "✕"
         )
       Warning ->
         ( Tokens.warningBg,
           Tokens.warningBorder,
           Tokens.warningText,
-          "text-yellow-700",
-          "text-yellow-600 hover:text-yellow-800",
+          Tokens.warningText,
+          Tokens.warningText <> " hover:opacity-70",
           "⚠"
         )
       Info ->
         ( Tokens.infoBg,
           Tokens.infoBorder,
           Tokens.infoText,
-          "text-blue-700",
-          "text-blue-600 hover:text-blue-800",
+          Tokens.infoText,
+          Tokens.infoText <> " hover:opacity-70",
           "ℹ"
         )

@@ -56,7 +56,7 @@ renderEpisodeTableRow userMeta showModel episode = do
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
         ]
-  Lucid.tr_ [class_ $ base ["border-b-2", "border-gray-200 dark:border-gray-600", "hover:bg-gray-50 dark:hover:bg-gray-700"], Lucid.id_ episodeRowId] $ do
+  Lucid.tr_ [class_ $ base ["border-b-2", Tokens.borderMuted, Tokens.hoverBg], Lucid.id_ episodeRowId] $ do
     -- Episode number and description
     Lucid.td_ cellLinkAttrs $ do
       Lucid.span_ [class_ $ base [Tokens.fontBold]] $
@@ -76,7 +76,7 @@ renderEpisodeTableRow userMeta showModel episode = do
     -- Status column - only show badge if archived
     Lucid.td_ cellLinkAttrs $
       if isArchived
-        then Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "ARCHIVED"
+        then Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "ARCHIVED"
         else mempty
 
     -- Actions dropdown
@@ -105,7 +105,7 @@ renderEpisodeTableRow userMeta showModel episode = do
             ""
           -- Visible dropdown
           Lucid.select_
-            [ Lucid.class_ "p-2 border border-gray-400 dark:border-gray-500 text-xs bg-white dark:bg-gray-800",
+            [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
               xOnChange_
                 [i|
               const action = $el.value;

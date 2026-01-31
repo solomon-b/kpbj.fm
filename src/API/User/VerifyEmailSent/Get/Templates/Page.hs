@@ -37,36 +37,36 @@ resendUrl = [i|/#{verifyEmailResendPostUri}|]
 -- | Template for the "check your email" page.
 template :: Maybe EmailAddress -> Lucid.Html ()
 template mEmail = do
-  Lucid.div_ [Lucid.class_ "max-w-md w-full space-y-8 bg-white p-8"] $ do
+  Lucid.div_ [Lucid.class_ "max-w-md w-full space-y-8 bg-[var(--theme-bg)] p-8"] $ do
     -- Email icon
     Lucid.div_ [Lucid.class_ "text-center"] $ do
-      Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-blue-100"] $ do
-        Lucid.span_ [Lucid.class_ "text-blue-600 text-3xl"] "✉"
+      Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-[var(--theme-info-bg)]"] $ do
+        Lucid.span_ [Lucid.class_ "text-[var(--theme-info-text)] text-3xl"] "✉"
 
     -- Title
     Lucid.h1_
-      [Lucid.class_ "mt-6 text-center text-2xl font-bold text-gray-900"]
+      [Lucid.class_ "mt-6 text-center text-2xl font-bold text-[var(--theme-fg)]"]
       "Check Your Email"
 
     -- Message
-    Lucid.div_ [Lucid.class_ "mt-4 text-center text-gray-600"] $ do
+    Lucid.div_ [Lucid.class_ "mt-4 text-center text-[var(--theme-fg-muted)]"] $ do
       case mEmail of
         Nothing -> do
           Lucid.p_ "We've sent you a verification email."
         Just email -> do
           Lucid.p_ $ do
             "We've sent a verification email to:"
-          Lucid.p_ [Lucid.class_ "font-semibold text-gray-900 mt-2"] $
+          Lucid.p_ [Lucid.class_ "font-semibold text-[var(--theme-fg)] mt-2"] $
             Lucid.toHtml (display email)
 
     Lucid.p_
-      [Lucid.class_ "mt-4 text-center text-gray-600"]
+      [Lucid.class_ "mt-4 text-center text-[var(--theme-fg-muted)]"]
       "Please click the link in the email to verify your account."
 
     -- Instructions
-    Lucid.div_ [Lucid.class_ "mt-6 p-4 bg-gray-50 border border-gray-200"] $ do
-      Lucid.h3_ [Lucid.class_ "font-semibold text-gray-900 text-sm"] "Didn't receive the email?"
-      Lucid.ul_ [Lucid.class_ "mt-2 text-sm text-gray-600 space-y-1"] $ do
+    Lucid.div_ [Lucid.class_ "mt-6 p-4 bg-[var(--theme-bg-alt)] border border-[var(--theme-border-muted)]"] $ do
+      Lucid.h3_ [Lucid.class_ "font-semibold text-[var(--theme-fg)] text-sm"] "Didn't receive the email?"
+      Lucid.ul_ [Lucid.class_ "mt-2 text-sm text-[var(--theme-fg-muted)] space-y-1"] $ do
         Lucid.li_ "• Check your spam or junk folder"
         Lucid.li_ "• Make sure your email address is correct"
         Lucid.li_ "• Wait a few minutes and check again"
@@ -90,15 +90,15 @@ template mEmail = do
                 ]
               Lucid.button_
                 [ Lucid.type_ "submit",
-                  Lucid.class_ "w-full flex justify-center py-3 px-4 border-2 border-gray-800 text-sm font-bold text-gray-900 bg-white hover:bg-gray-50 transition-colors"
+                  Lucid.class_ "w-full flex justify-center py-3 px-4 border-2 border-[var(--theme-border)] text-sm font-bold text-[var(--theme-fg)] bg-[var(--theme-bg)] hover:bg-[var(--theme-hover-bg)] transition-colors"
                 ]
                 "Resend Verification Email"
 
     -- Login link
-    Lucid.p_ [Lucid.class_ "mt-6 text-center text-sm text-gray-600"] $ do
+    Lucid.p_ [Lucid.class_ "mt-6 text-center text-sm text-[var(--theme-fg-muted)]"] $ do
       "Already verified? "
       Lucid.a_
         [ Lucid.href_ loginUrl,
-          Lucid.class_ "font-semibold text-gray-900 hover:underline"
+          Lucid.class_ "font-semibold text-[var(--theme-fg)] hover:underline"
         ]
         "Log in"

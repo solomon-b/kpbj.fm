@@ -91,7 +91,7 @@ renderShowRow isAdmin showInfo =
       showDeleteUrl = [i|/dashboard/shows/#{display showSlug}|]
    in do
         Lucid.tr_
-          [Lucid.class_ "border-b-2 border-gray-200 dark:border-gray-600 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:bg-gray-700"]
+          [class_ $ base ["border-b-2", Tokens.borderMuted, Tokens.hoverBg]]
           $ do
             Lucid.td_ (clickableCellAttrs showDetailUrl) $
               Lucid.span_ [Lucid.class_ Tokens.fontBold] $
@@ -102,10 +102,10 @@ renderShowRow isAdmin showInfo =
 
             Lucid.td_ (clickableCellAttrs showDetailUrl) $ do
               case showInfo.swhiHostNames of
-                Nothing -> Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500 italic"] "No hosts"
+                Nothing -> Lucid.span_ [class_ $ base [Tokens.fgMuted, "italic"]] "No hosts"
                 Just names -> do
                   Lucid.span_ [] $ Lucid.toHtml names
-                  Lucid.span_ [Lucid.class_ "text-gray-500 dark:text-gray-400 ml-2"] $
+                  Lucid.span_ [class_ $ base [Tokens.fgMuted, "ml-2"]] $
                     Lucid.toHtml $
                       "(" <> show showInfo.swhiHostCount <> ")"
 
@@ -137,7 +137,7 @@ renderShowRow isAdmin showInfo =
                     else mempty
                   -- Visible dropdown
                   Lucid.select_
-                    [ Lucid.class_ "p-2 border border-gray-400 dark:border-gray-500 text-xs bg-white dark:bg-gray-800",
+                    [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
                       xOnChange_
                         [i|
                       const action = $el.value;
@@ -160,7 +160,7 @@ renderShowRow isAdmin showInfo =
 renderStatusBadge :: Shows.Status -> Lucid.Html ()
 renderStatusBadge status = do
   let (bgClass, textClass, statusText) = case status of
-        Shows.Active -> ("bg-green-100", "text-green-800", "Active") :: (Text, Text, Text)
+        Shows.Active -> (Tokens.successBg, Tokens.successText, "Active") :: (Text, Text, Text)
         Shows.Inactive -> (Tokens.bgAlt, Tokens.fgPrimary, "Inactive")
 
   Lucid.span_
@@ -169,7 +169,7 @@ renderStatusBadge status = do
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do
-  Lucid.div_ [class_ $ base ["bg-gray-50 dark:bg-gray-700", Tokens.border2, "border-gray-300 dark:border-gray-600", "p-12", "text-center"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "p-12", "text-center"]] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] $
       case maybeQuery of
         Nothing -> "No shows found. Create your first show!"

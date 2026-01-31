@@ -72,8 +72,8 @@ renderLoadingIndicator =
               [ "w-5",
                 "h-5",
                 "border-2",
-                "border-gray-300",
-                "border-t-gray-600",
+                Tokens.borderMuted,
+                "border-t-[var(--theme-fg)]",
                 "rounded-full",
                 "animate-spin"
               ]

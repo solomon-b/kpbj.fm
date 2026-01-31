@@ -70,7 +70,7 @@ renderPageRow page =
               Lucid.toHtml title
 
           Lucid.td_ (clickableCellAttrs editUrl) $
-            Lucid.code_ [class_ $ base [Tokens.textSm, "bg-gray-100", "px-2", "py-1", "rounded"]] $
+            Lucid.code_ [class_ $ base [Tokens.textSm, Tokens.bgAlt, "px-2", "py-1", "rounded"]] $
               Lucid.toHtml pageSlug
 
           Lucid.td_ (clickableCellAttrs editUrl) $

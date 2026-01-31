@@ -41,9 +41,9 @@ template backend event author renderedDescription = do
 
   -- Event creator info
   Lucid.section_ [class_ $ base ["mt-6"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.p4, "bg-gray-50", "border-l-4", "border-gray-800"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.p4, Tokens.bgAlt, "border-l-4", Tokens.borderDefault]] $ do
       Lucid.div_ [class_ $ base ["flex", "items-start", Tokens.gap4]] $ do
-        Lucid.div_ [class_ $ base ["w-12", "h-12", "bg-gray-300", "rounded-full", "flex", "items-center", "justify-center", Tokens.textSm]] $
+        Lucid.div_ [class_ $ base ["w-12", "h-12", Tokens.bgMain, "border", Tokens.borderMuted, "rounded-full", "flex", "items-center", "justify-center", Tokens.textSm]] $
           Lucid.toHtml $
             Text.take 2 (display author.mDisplayName)
         Lucid.div_ $ do
@@ -60,7 +60,7 @@ template backend event author renderedDescription = do
         hxGet_ [i|/#{eventsGetUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80", "inline-block"]
       ]
       "← BACK TO EVENTS"
 
@@ -78,6 +78,6 @@ notFoundTemplate slug = do
         hxGet_ [i|/#{eventsGetUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80", "inline-block"]
       ]
       "← BACK TO EVENTS"

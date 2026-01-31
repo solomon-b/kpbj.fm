@@ -113,7 +113,7 @@ renderFormHeader =
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [T.text2xl, T.fontBold, T.mb2]] "CREATE NEW SHOW"
         Lucid.div_
-          [class_ $ base ["text-gray-300 dark:text-gray-500", T.textSm]]
+          [class_ $ base [T.fgMuted, T.textSm]]
           "Add a new show to the station"
       Lucid.div_ $ do
         Lucid.a_
@@ -121,7 +121,7 @@ renderFormHeader =
             hxGet_ [i|/#{dashboardShowsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-300", "hover:text-blue-100", T.textSm, "underline"]
+            class_ $ base [T.infoText, "hover:opacity-80", T.textSm, "underline"]
           ]
           "← BACK TO SHOWS"
 
@@ -132,21 +132,21 @@ renderHostsMultiSelect :: [UserMetadata.UserWithMetadata] -> Lucid.Html ()
 renderHostsMultiSelect eligibleHosts = do
   Lucid.div_ [xData_ "{ search: '' }"] $ do
     Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Assign Hosts"
-    Lucid.p_ [Lucid.class_ "text-xs text-gray-600 dark:text-gray-400 mb-2"] "Select one or more hosts for this show. Regular users will be automatically promoted to Host role."
+    Lucid.p_ [class_ $ base [T.textXs, T.fgMuted, T.mb2]] "Select one or more hosts for this show. Regular users will be automatically promoted to Host role."
 
     -- Search input
-    Lucid.div_ [Lucid.class_ "mb-2"] $ do
+    Lucid.div_ [class_ $ base [T.mb2]] $ do
       Lucid.input_
         [ Lucid.type_ "text",
           Lucid.placeholder_ "Search by name or email...",
-          Lucid.class_ "w-full p-3 border-2 border-gray-400 dark:border-gray-500 font-mono",
+          class_ $ base [T.fullWidth, T.p3, T.border2, T.borderMuted, T.bgMain, T.fgPrimary, "font-mono"],
           xModel_ "search"
         ]
 
     -- Results container
-    Lucid.div_ [Lucid.class_ "bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600"] $ do
+    Lucid.div_ [class_ $ base [T.bgAlt, T.border2, T.borderMuted]] $ do
       -- Header
-      Lucid.div_ [Lucid.class_ "bg-gray-200 dark:bg-gray-600 border-b border-gray-400 dark:border-gray-500 p-3 font-bold text-sm"] $
+      Lucid.div_ [class_ $ base [T.bgInverse, T.fgInverse, "border-b", T.borderMuted, T.p3, T.fontBold, T.textSm]] $
         Lucid.toHtml ("AVAILABLE HOSTS (" <> show (length eligibleHosts) <> ")")
 
       -- Scrollable host list
@@ -164,12 +164,12 @@ renderHostOption user =
       filterCondition =
         [i|search === '' || '#{displayName}'.toLowerCase().includes(search.toLowerCase()) || '#{email}'.toLowerCase().includes(search.toLowerCase())|]
    in Lucid.div_
-        [ Lucid.class_ "border-b border-gray-300 dark:border-gray-600 p-3 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer",
+        [ class_ $ base ["border-b", T.borderMuted, T.p3, T.hoverBg, "cursor-pointer"],
           xShow_ filterCondition,
-          xBindClass_ "{ 'bg-blue-50': $refs.host_#{userIdText}?.checked }"
+          xBindClass_ [i|{ '#{T.infoBg}': $refs.host_#{userIdText}?.checked }|]
         ]
         $ do
-          Lucid.div_ [Lucid.class_ "flex items-center"] $ do
+          Lucid.div_ [class_ $ base ["flex", "items-center"]] $ do
             Lucid.input_
               [ Lucid.type_ "checkbox",
                 Lucid.name_ "hosts",
@@ -178,9 +178,9 @@ renderHostOption user =
                 Lucid.class_ "mr-3",
                 xRef_ [i|host_#{userIdText}|]
               ]
-            Lucid.label_ [Lucid.for_ [i|host_#{userIdText}|], Lucid.class_ "flex-1 cursor-pointer"] $ do
-              Lucid.div_ [Lucid.class_ "font-bold"] $ Lucid.toHtml displayName
-              Lucid.div_ [Lucid.class_ "text-sm text-gray-600 dark:text-gray-400"] $
+            Lucid.label_ [Lucid.for_ [i|host_#{userIdText}|], class_ $ base ["flex-1", "cursor-pointer"]] $ do
+              Lucid.div_ [class_ $ base [T.fontBold]] $ Lucid.toHtml displayName
+              Lucid.div_ [class_ $ base [T.textSm, T.fgMuted]] $
                 Lucid.toHtml (email <> " • " <> roleText)
 
 --------------------------------------------------------------------------------
@@ -189,19 +189,19 @@ renderHostOption user =
 renderScheduleSection :: Lucid.Html ()
 renderScheduleSection = do
   Lucid.p_
-    [Lucid.class_ "text-sm text-gray-600 dark:text-gray-400 mb-4"]
+    [class_ $ base [T.textSm, T.fgMuted, T.mb4]]
     "Add recurring time slots when this show will air. Leave empty if no regular schedule."
 
   Lucid.div_ [Lucid.id_ "schedule-container"] $ do
     -- Schedule entries will be inserted here by JavaScript
-    Lucid.div_ [Lucid.class_ "border-2 border-dashed border-gray-400 dark:border-gray-500 p-8 text-center text-gray-600 dark:text-gray-400", Lucid.id_ "schedule-add-btn-container"] $ do
+    Lucid.div_ [class_ $ base [T.border2, "border-dashed", T.borderMuted, T.p8, "text-center", T.fgMuted], Lucid.id_ "schedule-add-btn-container"] $ do
       Lucid.button_
         [ Lucid.type_ "button",
           Lucid.id_ "add-schedule-btn",
-          Lucid.class_ "bg-green-600 text-white px-6 py-3 font-bold hover:bg-green-700"
+          class_ $ base [T.successBg, T.successText, T.border2, T.successBorder, T.px6, "py-3", T.fontBold, "hover:opacity-80"]
         ]
         "+ ADD TIME SLOT"
-      Lucid.div_ [Lucid.class_ "mt-2 text-sm"] "Click to add a recurring schedule"
+      Lucid.div_ [class_ $ base ["mt-2", T.textSm]] "Click to add a recurring schedule"
 
   -- Hidden field for JSON data
   Lucid.input_
@@ -223,18 +223,18 @@ renderScheduleManagementScript =
   // Schedule slot HTML template
   const createScheduleElement = () => {
     const div = document.createElement('div');
-    div.className = 'border-2 border-gray-300 dark:border-gray-600 p-4 bg-gray-50 mb-4 schedule-slot';
+    div.className = 'border-2 border-[var(--theme-border-muted)] p-4 bg-[var(--theme-bg-alt)] mb-4 schedule-slot';
     div.innerHTML = `
       <div class='flex justify-between items-center mb-4'>
         <span class='font-bold text-sm'>TIME SLOT</span>
-        <button type='button' class='bg-red-600 text-white px-3 py-1 text-xs font-bold hover:bg-red-700'
+        <button type='button' class='bg-[var(--theme-error)] text-[var(--theme-bg)] px-3 py-1 text-xs font-bold hover:opacity-80'
                 data-action='remove-schedule'>REMOVE</button>
       </div>
 
       <div class='grid grid-cols-1 md:grid-cols-2 gap-4 mb-4'>
         <div>
           <label class='block font-bold text-sm mb-1'>Day of Week *</label>
-          <select class='w-full p-2 border-2 border-gray-400 dark:border-gray-500 font-mono schedule-day' required>
+          <select class='w-full p-2 border-2 border-[var(--theme-border-muted)] bg-[var(--theme-bg)] text-[var(--theme-fg)] font-mono schedule-day' required>
             <option value=''>-- Select Day --</option>
             <option value='sunday'>Sunday</option>
             <option value='monday'>Monday</option>
@@ -255,18 +255,18 @@ renderScheduleManagementScript =
             <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='4' checked> 4th</label>
             <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='5' checked> 5th</label>
           </div>
-          <p class='text-xs text-gray-500 dark:text-gray-400 mt-1'>Select which weeks of each month (all = every week)</p>
+          <p class='text-xs text-[var(--theme-fg-muted)] mt-1'>Select which weeks of each month (all = every week)</p>
         </div>
       </div>
 
       <div class='grid grid-cols-2 gap-4'>
         <div>
           <label class='block font-bold text-sm mb-1'>Start Time *</label>
-          <input type='time' class='w-full p-2 border-2 border-gray-400 dark:border-gray-500 font-mono schedule-start' required>
+          <input type='time' class='w-full p-2 border-2 border-[var(--theme-border-muted)] bg-[var(--theme-bg)] text-[var(--theme-fg)] font-mono schedule-start' required>
         </div>
         <div>
           <label class='block font-bold text-sm mb-1'>End Time *</label>
-          <input type='time' class='w-full p-2 border-2 border-gray-400 dark:border-gray-500 font-mono schedule-end' required>
+          <input type='time' class='w-full p-2 border-2 border-[var(--theme-border-muted)] bg-[var(--theme-bg)] text-[var(--theme-fg)] font-mono schedule-end' required>
         </div>
       </div>
     `;

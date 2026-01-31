@@ -18,6 +18,8 @@ import Data.Either (fromRight)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isNothing, listToMaybe)
 import Data.Text (Text)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -88,7 +90,7 @@ handler maybePage queryFilterParam statusFilterParam cookie (foldHxReq -> hxRequ
                 hxGet_ newShowUrl,
                 hxTarget_ "#main-content",
                 hxPushUrl_ "true",
-                Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
+                class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:opacity-80"]
               ]
               "New Show"
 
@@ -109,12 +111,12 @@ filtersUI queryFilter statusFilter = do
           Lucid.name_ "q",
           Lucid.value_ (fromMaybe "" queryFilter),
           Lucid.placeholder_ "Search...",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 w-32"
+          class_ $ base ["px-2", "py-1", Tokens.textSm, "border", Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "w-32"]
         ]
       -- Status filter
       Lucid.select_
         [ Lucid.name_ "status",
-          Lucid.class_ "px-2 py-1 text-sm border border-gray-300 dark:border-gray-600"
+          class_ $ base ["px-2", "py-1", Tokens.textSm, "border", Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary]
         ]
         $ do
           Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (isNothing statusFilter)) "All Statuses"
@@ -123,7 +125,7 @@ filtersUI queryFilter statusFilter = do
       -- Submit button
       Lucid.button_
         [ Lucid.type_ "submit",
-          Lucid.class_ "px-4 py-2 text-sm bg-gray-800 text-white font-bold hover:bg-gray-700"
+          class_ $ base [Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:opacity-80"]
         ]
         "Filter"
   where

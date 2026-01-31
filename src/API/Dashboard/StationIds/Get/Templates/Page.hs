@@ -119,10 +119,10 @@ renderStationIdRow backend stationId =
             Lucid.a_
               [ Lucid.href_ audioUrl,
                 Lucid.download_ "",
-                Lucid.class_ "p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors",
+                class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
                 Lucid.title_ "Download"
               ]
-              $ Lucid.i_ [Lucid.class_ "fa-solid fa-download text-gray-600 dark:text-gray-400"] mempty
+              $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
             -- Delete dropdown
             ActionsDropdown.render
               [ ActionsDropdown.htmxDeleteAction
@@ -164,18 +164,18 @@ renderInlineAudioPlayer audioUrl _uniqueId =
               $refs.audioPlayer.onended = () => { playing = false; };
             }
           |],
-          class_ $ base ["p-2", "rounded", "hover:bg-gray-100 dark:hover:bg-gray-700", "transition-colors"]
+          class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"]
         ]
         $ do
           -- Play icon (shown when not playing)
           Lucid.i_
-            [ Lucid.class_ "fa-solid fa-play text-gray-600 dark:text-gray-400",
+            [ Lucid.class_ [i|fa-solid fa-play #{Tokens.fgMuted}|],
               Lucid.term "x-show" "!playing"
             ]
             mempty
           -- Pause icon (shown when playing)
           Lucid.i_
-            [ Lucid.class_ "fa-solid fa-pause text-gray-600 dark:text-gray-400",
+            [ Lucid.class_ [i|fa-solid fa-pause #{Tokens.fgMuted}|],
               Lucid.term "x-show" "playing"
             ]
             mempty

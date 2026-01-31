@@ -88,7 +88,7 @@ template page mError = do
 errorAlert :: Text -> Lucid.Html ()
 errorAlert message =
   Lucid.div_
-    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, "text-red-800", "rounded-lg", "bg-red-50"], Lucid.role_ "alert"]
+    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
     $ Lucid.toHtml message
 
 --------------------------------------------------------------------------------
@@ -100,12 +100,12 @@ renderFormHeader page =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT SITE PAGE"
-        Lucid.div_ [class_ $ base ["text-gray-500", Tokens.textSm]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $ do
           Lucid.strong_ "Page: "
           Lucid.toHtml page.spmTitle
           " • "
           Lucid.strong_ "Slug: "
-          Lucid.code_ [class_ $ base ["bg-gray-100", "px-2", "py-1", "rounded"]] $
+          Lucid.code_ [class_ $ base [Tokens.bgAlt, "px-2", "py-1", "rounded"]] $
             Lucid.toHtml page.spmSlug
       Lucid.div_ [class_ $ base ["space-x-4"]] $ do
         Lucid.a_
@@ -113,7 +113,7 @@ renderFormHeader page =
             hxGet_ [i|/#{dashboardSitePagesHistoryUrl (SitePages.spmSlug page)}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-600", "hover:text-blue-800", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.infoText, "hover:opacity-80", Tokens.textSm, "underline"]
           ]
           "VIEW HISTORY"
         Lucid.a_
@@ -121,7 +121,7 @@ renderFormHeader page =
             hxGet_ [i|/#{dashboardSitePagesGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-600", "hover:text-blue-800", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.infoText, "hover:opacity-80", Tokens.textSm, "underline"]
           ]
           "<- BACK TO PAGES"
 
@@ -132,7 +132,7 @@ markdownHelp :: FormBuilder
 markdownHelp = plain $ do
   Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.p4, "rounded", Tokens.mb6]] $ do
     Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2, Tokens.textSm]] "Markdown Reference"
-    Lucid.div_ [class_ $ base ["grid", "grid-cols-2", "gap-4", Tokens.textSm, "text-gray-600"]] $ do
+    Lucid.div_ [class_ $ base ["grid", "grid-cols-2", "gap-4", Tokens.textSm, Tokens.fgMuted]] $ do
       Lucid.div_ $ do
         Lucid.code_ "# Heading 1"
         Lucid.br_ []

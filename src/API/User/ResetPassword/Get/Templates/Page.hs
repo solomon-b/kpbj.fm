@@ -91,7 +91,7 @@ resetPasswordForm token = do
 
 passwordRequirements :: Lucid.Html ()
 passwordRequirements =
-  Lucid.div_ [class_ $ base [Tokens.bgAlt, "border", "border-gray-300", Tokens.p3, Tokens.textXs, "mb-4"]] do
+  Lucid.div_ [class_ $ base [Tokens.bgAlt, "border", Tokens.borderMuted, Tokens.p3, Tokens.textXs, "mb-4"]] do
     Lucid.div_ [class_ $ base [Tokens.fontBold, "mb-1"]] "Password Requirements:"
     Lucid.div_ "• At least 8 characters long"
     Lucid.div_ "• Include uppercase and lowercase letters"
@@ -100,5 +100,5 @@ passwordRequirements =
 errorAlert :: Text -> Lucid.Html ()
 errorAlert message =
   Lucid.div_
-    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, "text-red-800", "rounded-lg", "bg-red-50"], Lucid.role_ "alert"]
+    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
     (Lucid.toHtml message)

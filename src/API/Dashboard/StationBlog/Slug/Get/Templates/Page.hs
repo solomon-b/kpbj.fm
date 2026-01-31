@@ -5,7 +5,6 @@ module API.Dashboard.StationBlog.Slug.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
@@ -33,12 +32,12 @@ template post tags mAuthor = do
         renderStatusBadge post.bpmStatus
 
       -- Metadata
-      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.fgMuted, "mt-4", "pt-4", "border-t", "border-gray-200 dark:border-gray-600"]] $ do
+      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.fgMuted, "mt-4", "pt-4", "border-t", Tokens.borderDefault]] $ do
         Lucid.div_ [] $ do
           Lucid.span_ [class_ $ base [Tokens.fontBold]] "Author: "
           case mAuthor of
             Just author -> Lucid.toHtml author.mDisplayName
-            Nothing -> Lucid.span_ [class_ $ base ["text-gray-400 dark:text-gray-500"]] "Unknown"
+            Nothing -> Lucid.span_ [class_ $ base [Tokens.fgMuted]] "Unknown"
         Lucid.div_ [] $ do
           Lucid.span_ [class_ $ base [Tokens.fontBold]] "Created: "
           Lucid.toHtml $ formatDateTime post.bpmCreatedAt
@@ -49,7 +48,7 @@ template post tags mAuthor = do
           Lucid.span_ [class_ $ base [Tokens.fontBold]] "Published: "
           case post.bpmPublishedAt of
             Just pubAt -> Lucid.toHtml $ formatDateTime pubAt
-            Nothing -> Lucid.span_ [class_ $ base ["text-gray-400 dark:text-gray-500"]] "Not published"
+            Nothing -> Lucid.span_ [class_ $ base [Tokens.fgMuted]] "Not published"
 
     -- Tags
     if null tags
@@ -76,20 +75,24 @@ template post tags mAuthor = do
           truncateContent 2000 post.bpmContent
 
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
-renderStatusBadge status = do
-  let (bgClass, textClass, statusText) = case status of
-        Published -> ("bg-green-100", "text-green-800", "Published") :: (Text, Text, Text)
-        Draft -> ("bg-yellow-100", "text-yellow-800", "Draft")
-        Deleted -> ("bg-gray-100 dark:bg-gray-700", "text-gray-800 dark:text-gray-200", "Deleted")
-
-  Lucid.span_
-    [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{bgClass} #{textClass}|]]
-    $ Lucid.toHtml statusText
+renderStatusBadge status = case status of
+  Published ->
+    Lucid.span_
+      [class_ $ base ["inline-block", Tokens.successBg, Tokens.successText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
+      "Published"
+  Draft ->
+    Lucid.span_
+      [class_ $ base ["inline-block", Tokens.warningBg, Tokens.warningText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
+      "Draft"
+  Deleted ->
+    Lucid.span_
+      [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
+      "Deleted"
 
 renderTag :: BlogTags.Model -> Lucid.Html ()
 renderTag tag =
   Lucid.span_
-    [Lucid.class_ "px-3 py-1 text-sm bg-gray-200 rounded"]
+    [class_ $ base ["px-3", "py-1", Tokens.textSm, Tokens.bgAlt, "rounded"]]
     $ Lucid.toHtml tag.btmName
 
 formatDateTime :: UTCTime -> String

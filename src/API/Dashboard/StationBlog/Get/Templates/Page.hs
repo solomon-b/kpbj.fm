@@ -23,7 +23,6 @@ import Component.Table
   )
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
@@ -106,7 +105,7 @@ renderPostRow post =
           Lucid.td_ (clickableCellAttrs detailUrl) $ do
             case publishedAt of
               Just pubAt -> Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatDateTime pubAt)
-              Nothing -> Lucid.span_ [class_ $ base ["text-gray-400 dark:text-gray-500", Tokens.textSm]] "—"
+              Nothing -> Lucid.span_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] "—"
 
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
             ActionsDropdown.render
@@ -122,15 +121,19 @@ renderPostRow post =
               ]
 
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
-renderStatusBadge status = do
-  let (bgClass, textClass, statusText) = case status of
-        Published -> ("bg-green-100", "text-green-800", "Published") :: (Text, Text, Text)
-        Draft -> ("bg-yellow-100", "text-yellow-800", "Draft")
-        Deleted -> ("bg-gray-100 dark:bg-gray-700", "text-gray-800 dark:text-gray-200", "Deleted")
-
-  Lucid.span_
-    [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{bgClass} #{textClass}|]]
-    $ Lucid.toHtml statusText
+renderStatusBadge status = case status of
+  Published ->
+    Lucid.span_
+      [class_ $ base ["inline-block", Tokens.successBg, Tokens.successText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
+      "Published"
+  Draft ->
+    Lucid.span_
+      [class_ $ base ["inline-block", Tokens.warningBg, Tokens.warningText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
+      "Draft"
+  Deleted ->
+    Lucid.span_
+      [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
+      "Deleted"
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do

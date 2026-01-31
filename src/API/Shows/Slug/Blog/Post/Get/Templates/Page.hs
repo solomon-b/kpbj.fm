@@ -35,7 +35,7 @@ template :: Shows.Model -> ShowBlogPosts.Model -> UserMetadata.Model -> [ShowBlo
 template showModel post author tags renderedContent = do
   Lucid.article_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     -- Article header
-    Lucid.header_ [class_ $ base [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", "border-gray-800"]] $ do
+    Lucid.header_ [class_ $ base [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", "Tokens.borderDefault"]] $ do
       -- Title
       Lucid.h1_ [class_ $ do { base ["text-4xl", Tokens.fontBold, Tokens.mb4]; tablet ["text-5xl"] }] $ do
         Lucid.toHtml (ShowBlogPosts.title post)
@@ -68,7 +68,7 @@ template showModel post author tags renderedContent = do
                 hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel)}?tag=#{ShowBlogTags.sbtmName tag}|],
                 hxTarget_ "#main-content",
                 hxPushUrl_ "true",
-                class_ $ base [Tokens.px3, "py-1", Tokens.bgInverse, Tokens.fgInverse, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
+                class_ $ base [Tokens.px3, "py-1", Tokens.bgInverse, Tokens.fgInverse, Tokens.textSm, Tokens.fontBold, "hover:opacity-80"]
               ]
               $ Lucid.toHtml (ShowBlogTags.sbtmName tag)
 
@@ -76,13 +76,13 @@ template showModel post author tags renderedContent = do
     renderedContent
 
     -- Back to blog link
-    Lucid.div_ [class_ $ base ["mt-12", Tokens.p6, "pt-6", "border-t-2", "border-gray-800"]] $ do
+    Lucid.div_ [class_ $ base ["mt-12", Tokens.p6, "pt-6", "border-t-2", "Tokens.borderDefault"]] $ do
       Lucid.a_
         [ Lucid.href_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base ["text-blue-600", Tokens.fontBold, "hover:underline"]
+          class_ $ base [Tokens.infoText, Tokens.fontBold, "hover:underline"]
         ]
         "← Back to blog"
 
@@ -103,7 +103,7 @@ notFoundTemplate showSlug postSlug = do
           hxGet_ [i|/#{showBlogGetUrl showSlug}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.px6, "py-3", Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.px6, "py-3", Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:opacity-80"]
         ]
         "← Back to blog"
 
@@ -112,4 +112,4 @@ errorTemplate errorMsg = do
   Lucid.div_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
       Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "Error"
-      Lucid.p_ [Lucid.class_ "text-red-700"] $ Lucid.toHtml errorMsg
+      Lucid.p_ [Lucid.class_ Tokens.errorText] $ Lucid.toHtml errorMsg

@@ -110,7 +110,7 @@ renderFormHeader user _metadata = do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [T.text2xl, T.fontBold, T.mb2]] "EDIT USER"
-        Lucid.div_ [class_ $ base ["text-gray-300 dark:text-gray-500", T.textSm]] $ do
+        Lucid.div_ [class_ $ base [T.fgMuted, T.textSm]] $ do
           Lucid.strong_ "Editing: "
           Lucid.toHtml $ display user.mEmail
       Lucid.div_ $ do
@@ -119,15 +119,15 @@ renderFormHeader user _metadata = do
             hxGet_ [i|/#{backUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-300", "hover:text-blue-100", T.textSm, "underline"]
+            class_ $ base [T.infoText, "hover:opacity-80", T.textSm, "underline"]
           ]
           "← BACK TO USER"
 
 -- | Info box explaining role permissions
 roleInfoBox :: Lucid.Html ()
 roleInfoBox =
-  Lucid.div_ [class_ $ base ["bg-blue-50", T.border2, "border-blue-200", T.p4]] $ do
-    Lucid.p_ [class_ $ base [T.textSm, "text-blue-800"]] $ do
+  Lucid.div_ [class_ $ base [T.infoBg, T.border2, T.infoBorder, T.p4]] $ do
+    Lucid.p_ [class_ $ base [T.textSm, T.infoText]] $ do
       Lucid.strong_ "Note: "
       "Changing user roles affects their permissions. "
       "Admin has full access, Staff can manage content, Host can manage shows, User has basic access."
