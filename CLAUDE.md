@@ -194,3 +194,56 @@ data Environment = Development | Production
 ```
 
 S3 env vars: `BUCKET_NAME`, `AWS_REGION=auto`, `AWS_ENDPOINT_URL_S3`
+
+## Design Context
+
+### Users
+
+KPBJ serves three overlapping audiences:
+- **Local community members** in the Sun Valley/Burbank area seeking connection to local radio, events, and neighborhood culture
+- **Music enthusiasts** discovering independent and eclectic programming
+- **Radio hosts and volunteers** managing shows, uploading episodes, and running station operations
+
+Users typically arrive wanting to listen, discover shows, check the schedule, or (for hosts) manage content. The interface should serve all these needs without friction.
+
+### Brand Personality
+
+**Voice**: Direct, unpretentious, community-first
+**Tone**: Authentic, welcoming, slightly irreverent
+**Three words**: Honest, Local, Independent
+
+The station embodies DIY community radio values—substance over polish, authenticity over slickness.
+
+### Aesthetic Direction
+
+**Visual tone**: Brutalist with purpose
+- Monospace typography throughout (unified font stack)
+- Bold 2px borders defining clear boundaries
+- High contrast, minimal decoration
+- Functional color only (status indicators, not decoration)
+
+**References to draw from**:
+- Web 1.0 simplicity and directness
+- TUI (terminal user interface) aesthetics
+- Newspaper layout clarity and information density
+- Harsh Patel's design work
+
+**What to avoid**:
+- Rounded corners, soft shadows, gradients
+- Decorative elements that don't serve function
+- Corporate polish or startup aesthetics
+- Excessive whitespace or "airy" layouts
+
+**Theme support**: Light/dark modes via CSS custom properties. Multiple terminal-inspired color schemes available (default, solarized, gruvbox, dracula, nord).
+
+### Design Principles
+
+1. **Function dictates form** — Every element earns its place. If it doesn't help users listen, discover, or manage content, remove it.
+
+2. **Honest materials** — Show the structure. Borders are visible, not hidden. Typography is monospace because that's what it is. No pretense.
+
+3. **Information density over decoration** — Pack useful information tightly. Users scanning a schedule or show list should see maximum content with minimum scrolling.
+
+4. **Consistent rhythm** — Use the spacing scale (4px base) and typography scale consistently. Predictable patterns help users navigate faster.
+
+5. **Progressive disclosure** — Show what matters immediately. Details expand on interaction (HTMX fragments, Alpine toggles). Don't overwhelm the first view.
