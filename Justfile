@@ -484,7 +484,7 @@ staging-migrations-reset:
   @echo "Creating database..."
   psql "postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/postgres" -c "CREATE DATABASE {{STAGING_DB_NAME}};"
   @echo "Running migrations..."
-  DATABASE_URL=postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}} sqlx migrate run --source migrations
+  DATABASE_URL='postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}}' sqlx migrate run --source migrations
   @echo "Restarting staging app..."
   fly scale count 1 --app {{STAGING_APP}} --yes
   @just staging-proxy-close
@@ -495,7 +495,7 @@ staging-migrations-run:
   @echo "Starting proxy in background..."
   fly proxy 15432:5432 -a {{STAGING_DB_APP}} &
   @sleep 2
-  DATABASE_URL=postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}} sqlx migrate run --source migrations
+  DATABASE_URL='postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}}' sqlx migrate run --source migrations
   @pkill -f "fly proxy 15432"
 
 # Open proxy to staging database (runs in foreground)
@@ -559,7 +559,7 @@ prod-migrations-run:
   @echo "Starting proxy in background..."
   fly proxy 15432:5432 -a {{PROD_DB_APP}} &
   @sleep 2
-  DATABASE_URL=postgres://postgres:{{env_var("PROD_DB_PASSWORD")}}@localhost:15432/{{PROD_DB_NAME}} sqlx migrate run --source migrations
+  DATABASE_URL='postgres://postgres:{{env_var("PROD_DB_PASSWORD")}}@localhost:15432/{{PROD_DB_NAME}}' sqlx migrate run --source migrations
   @pkill -f "fly proxy 15432"
 
 # SSH into production app
