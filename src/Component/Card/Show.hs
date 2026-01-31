@@ -54,7 +54,7 @@ renderShowCard backend s = do
                 Lucid.class_ "w-full h-full object-cover"
               ]
           Nothing ->
-            Lucid.div_ [class_ $ base [Tokens.fullWidth, "h-full", Tokens.bgGray100]] mempty
+            Lucid.div_ [class_ $ base [Tokens.fullWidth, "h-full", Tokens.bgAlt]] mempty
 
       -- Show Title
       Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2]] $

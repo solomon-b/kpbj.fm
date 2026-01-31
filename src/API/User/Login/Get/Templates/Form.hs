@@ -42,7 +42,7 @@ template emailAddress redirectLink =
    in Lucid.div_
         [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]]
         do
-          Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] do
+          Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
             pageHeader "LOGIN"
 
             -- Error alert (shown when login failed)
@@ -110,14 +110,14 @@ rememberMeRow =
 registerSection :: Lucid.Html ()
 registerSection =
   Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center", "invisible"]] do
-    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb4]] "Don't have an account yet?"
+    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] "Don't have an account yet?"
     Lucid.a_
       [ Lucid.href_ "#",
         hxGet_ [i|/#{userRegisterGetUrl}|],
         hxSwap_ "innerHTML",
         hxTarget_ "body",
         hxPushUrl_ "true",
-        class_ $ base ["bg-green-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-green-700", "inline-block"]
+        class_ $ base ["bg-green-600", Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-green-700", "inline-block"]
       ]
       "CREATE ACCOUNT"
 

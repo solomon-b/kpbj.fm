@@ -57,10 +57,10 @@ data Config = Config
 
 -- | Default CSS classes for each element.
 defaultContainerClasses, defaultButtonClasses, defaultProgressBarClasses, defaultProgressFillClasses, defaultTimeDisplayClasses :: Text
-defaultContainerClasses = class_' $ base [Tokens.bgGray100, "border-2", "border-gray-600", Tokens.p6]
-defaultButtonClasses = class_' $ base [Tokens.bgGray800, Tokens.textWhite, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", Tokens.textLg]
+defaultContainerClasses = class_' $ base [Tokens.bgAlt, "border-2", "border-gray-600", Tokens.p6]
+defaultButtonClasses = class_' $ base [Tokens.bgInverse, Tokens.fgInverse, "px-8", "py-3", Tokens.fontBold, "hover:bg-gray-700", Tokens.textLg]
 defaultProgressBarClasses = class_' $ base ["flex-grow", "bg-gray-300", "h-8", "relative", "cursor-pointer", "rounded"]
-defaultProgressFillClasses = class_' $ base [Tokens.bgGray800, "h-8", "rounded", "absolute", "top-0", "left-0", "transition-all", "duration-100"]
+defaultProgressFillClasses = class_' $ base [Tokens.bgInverse, "h-8", "rounded", "absolute", "top-0", "left-0", "transition-all", "duration-100"]
 defaultTimeDisplayClasses = class_' $ base [Tokens.textSm, "font-mono", "w-28", "text-right"]
 
 -- | Render an audio player with play/pause, seek, and time display.

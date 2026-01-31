@@ -19,14 +19,14 @@ template ::
 template event mAuthor = do
   Lucid.div_ [Lucid.class_ Tokens.fullWidth] $ do
     -- Header with title
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
       Lucid.div_ [Lucid.class_ Tokens.mb4] $ do
         Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
           Lucid.toHtml event.emTitle
         renderStatusBadge event.emStatus
 
       -- Metadata
-      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.textGray600, "mt-4", "pt-4", "border-t", "border-gray-200 dark:border-gray-600"]] $ do
+      Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.fgMuted, "mt-4", "pt-4", "border-t", "border-gray-200 dark:border-gray-600"]] $ do
         Lucid.div_ [] $ do
           Lucid.span_ [Lucid.class_ Tokens.fontBold] "Organizer: "
           case mAuthor of
@@ -40,29 +40,29 @@ template event mAuthor = do
           Lucid.toHtml $ formatDateTime event.emUpdatedAt
 
     -- Date & Time
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Date & Time"
       Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm]] $ do
         Lucid.div_ [] $ do
-          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Start: "
+          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Start: "
           Lucid.toHtml $ formatDateTimeFull event.emStartsAt
         Lucid.div_ [] $ do
-          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "End: "
+          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "End: "
           Lucid.toHtml $ formatDateTimeFull event.emEndsAt
 
     -- Location
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Location"
       Lucid.div_ [Lucid.class_ Tokens.textSm] $ do
         Lucid.p_ [Lucid.class_ Tokens.fontBold] $
           Lucid.toHtml event.emLocationName
-        Lucid.p_ [class_ $ base [Tokens.textGray600, "mt-1"]] $
+        Lucid.p_ [class_ $ base [Tokens.fgMuted, "mt-1"]] $
           Lucid.toHtml event.emLocationAddress
 
     -- Description
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Description"
-      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.textGray600, "whitespace-pre-wrap"]] $
+      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.fgMuted, "whitespace-pre-wrap"]] $
         Lucid.toHtml $
           truncateContent 2000 event.emDescription
 

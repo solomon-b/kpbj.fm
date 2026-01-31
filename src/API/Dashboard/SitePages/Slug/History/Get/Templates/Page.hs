@@ -52,7 +52,7 @@ template page revisions = do
   if null revisions
     then renderEmptyState
     else
-      Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
+      Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
         renderIndexTable
           IndexTableConfig
             { itcBodyId = "revisions-table-body",
@@ -69,7 +69,7 @@ template page revisions = do
 
 renderHeader :: SitePages.Model -> Lucid.Html ()
 renderHeader page =
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.textGray800, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "REVISION HISTORY"

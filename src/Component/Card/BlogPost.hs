@@ -84,17 +84,17 @@ renderBlogPostCard backend card = do
               Nothing ->
                 let truncated = Text.take 200 card.cardContent
                  in truncated <> if Text.length card.cardContent > 200 then "..." else ""
-        Lucid.p_ [class_ $ base [Tokens.textGray700, "leading-relaxed"]] $
+        Lucid.p_ [class_ $ base [Tokens.fgMuted, "leading-relaxed"]] $
           Lucid.toHtml excerptText
 
         -- Author row: name + relative time
         Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.mt4]] $ do
           case card.cardAuthorName of
             Just authorName ->
-              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray800]] $
+              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgPrimary]] $
                 Lucid.toHtml authorName
             Nothing -> mempty
-          Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.textGray600]] $
+          Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted]] $
             Lucid.toHtml $ case (card.cardCurrentTime, card.cardPublishedAt) of
               (Just now, Just publishedAt) -> formatRelativeTime now publishedAt
               (Nothing, Just _) -> "" -- No relative time without current time

@@ -177,7 +177,7 @@ renderMobileDayPanel backend scheduledShows currentDayOfWeek currentTimeOfDay (i
 
 mobileEmptyStyles :: Attributes
 mobileEmptyStyles = class_ $ do
-  base [Tokens.textGray600, "text-center", Tokens.py4, "italic"]
+  base [Tokens.fgMuted, "text-center", Tokens.py4, "italic"]
 
 -- | Render a single show card with logo image
 renderShowCard :: StorageBackend -> Maybe DayOfWeek -> Maybe TimeOfDay -> DayOfWeek -> ShowSchedule.ScheduledShowWithDetails -> Lucid.Html ()
@@ -229,7 +229,7 @@ timeContainerStyles = class_ $ do
 
 timeStyles :: Attributes
 timeStyles = class_ $ do
-  base [Tokens.textSm, Tokens.textGray600]
+  base [Tokens.textSm, Tokens.fgMuted]
 
 showCardLinkStyles :: Attributes
 showCardLinkStyles = class_ $ do
@@ -249,7 +249,7 @@ logoImageStyles = class_ $ do
 -- | Placeholder styles for shows without images
 placeholderStyles :: Attributes
 placeholderStyles = class_ $ do
-  base [Tokens.fullWidth, "h-full", Tokens.bgGray100]
+  base [Tokens.fullWidth, "h-full", Tokens.bgAlt]
 
 showTitleStyles :: Attributes
 showTitleStyles = class_ $ do
@@ -257,4 +257,4 @@ showTitleStyles = class_ $ do
 
 liveBadgeStyles :: Attributes
 liveBadgeStyles = class_ $ do
-  base [Tokens.fontBold, Tokens.textXs, Tokens.textGray800, "animate-pulse"]
+  base [Tokens.fontBold, Tokens.textXs, Tokens.fgPrimary, "animate-pulse"]

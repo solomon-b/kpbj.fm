@@ -126,8 +126,8 @@ roleField :: UserMetadata.Model -> Lucid.Html ()
 roleField metadata =
   Lucid.div_ $ do
     Lucid.label_ [class_ $ base ["block", T.fontBold, T.mb2]] "Role"
-    Lucid.div_ [class_ $ base [T.p3, "border", T.borderGray600, T.bgGray900]] $
-      Lucid.span_ [class_ $ base ["inline-flex", "items-center", T.px3, "py-1", T.textSm, T.fontBold, T.bgGray800, T.textWhite]] $
+    Lucid.div_ [class_ $ base [T.p3, "border", T.borderDefault, T.bgInverse]] $
+      Lucid.span_ [class_ $ base ["inline-flex", "items-center", T.px3, "py-1", T.textSm, T.fontBold, T.bgInverse, T.fgInverse]] $
         Lucid.toHtml $
           show metadata.mUserRole
     Lucid.p_ [class_ $ base [T.textSm, "text-gray-500 dark:text-gray-400", "mt-1"]] "Role can only be changed by administrators"

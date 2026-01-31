@@ -53,7 +53,7 @@ template backend currentTime blogPosts currentPage hasMore maybeTag = do
         then Lucid.div_ [Lucid.class_ Tokens.cardBase] $ do
           Lucid.div_ [Lucid.class_ "text-center"] $ do
             Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4]] "No Blog Posts Yet"
-            Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for updates from the KPBJ community!"
+            Lucid.p_ [Lucid.class_ Tokens.fgMuted] "Check back soon for updates from the KPBJ community!"
         else traverse_ (renderStationBlogPostCard backend currentTime) blogPosts
 
     -- Loading indicator (hidden by default, shown during HTMX requests)

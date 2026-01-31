@@ -10,7 +10,7 @@
 -- >
 -- > -- Direct attribute usage (preferred)
 -- > Lucid.div_ [class_ $ do
--- >   base [T.bgWhite, T.cardBorder, T.p4]
+-- >   base [T.bgMain, T.cardBorder, T.p4]
 -- >   tablet [T.p6]
 -- >   desktop [T.p8]]
 --

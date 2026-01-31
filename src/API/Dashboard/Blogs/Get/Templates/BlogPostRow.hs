@@ -59,11 +59,11 @@ renderBlogPostTableRow showModel post = do
         Lucid.toHtml post.title
       case post.excerpt of
         Just excerpt ->
-          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "mt-1"]] $ do
+          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-1"]] $ do
             Lucid.toHtml $ Text.take 100 excerpt
             if Text.length excerpt > 100 then "..." else ""
         Nothing ->
-          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "mt-1"]] $ do
+          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-1"]] $ do
             Lucid.toHtml $ Text.take 100 post.content
             if Text.length post.content > 100 then "..." else ""
 
@@ -122,7 +122,7 @@ renderBlogPostTableRow showModel post = do
 -- | Render status badge with appropriate styling
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
 renderStatusBadge Draft =
-  Lucid.span_ [class_ $ base ["inline-block", Tokens.bgGray100, Tokens.textGray800, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
+  Lucid.span_ [class_ $ base ["inline-block", Tokens.bgAlt, Tokens.fgPrimary, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
 renderStatusBadge Published =
   Lucid.span_ [class_ $ base ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
 renderStatusBadge Deleted =

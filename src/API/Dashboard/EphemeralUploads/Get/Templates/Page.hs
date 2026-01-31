@@ -46,7 +46,7 @@ template ::
   Lucid.Html ()
 template backend ephemeralUploads (PageNumber pageNum) hasMore _userMeta = do
   -- Ephemeral uploads table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null ephemeralUploads
       then renderEmptyState
       else

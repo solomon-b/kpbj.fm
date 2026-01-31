@@ -77,7 +77,7 @@ template backend post author tags renderedContent = do
               Text.take 2 (display (UserMetadata.mDisplayName author))
           Lucid.span_ $ do
             "By "
-            Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray800]] $
+            Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgPrimary]] $
               Lucid.toHtml (display (UserMetadata.mDisplayName author))
 
         case BlogPosts.bpmPublishedAt post of
@@ -97,7 +97,7 @@ template backend post author tags renderedContent = do
     -- Post Footer
     Lucid.footer_ [Lucid.class_ "mt-8 pt-8 border-t border-gray-300"] $ do
       -- Author Bio
-      Lucid.div_ [class_ $ base [Tokens.bgGray100, Tokens.p6, "border-l-4", Tokens.borderGray800]] $ do
+      Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.p6, "border-l-4", Tokens.borderDefault]] $ do
         Lucid.div_ [class_ $ base ["flex items-start", Tokens.gap4]] $ do
           Lucid.div_ [Lucid.class_ "w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center text-xl"] $
             Lucid.toHtml $
@@ -105,7 +105,7 @@ template backend post author tags renderedContent = do
           Lucid.div_ $ do
             Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb2]] $
               Lucid.toHtml (display (UserMetadata.mDisplayName author))
-            Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "leading-relaxed"]] $
+            Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "leading-relaxed"]] $
               Lucid.toHtml $
                 Text.pack $
                   "KPBJ " <> show (UserMetadata.mUserRole author) <> " • " <> Text.unpack (display (UserMetadata.mFullName author))
@@ -121,7 +121,7 @@ template backend post author tags renderedContent = do
       ]
       "← BACK TO BLOG"
   where
-    backButtonStyle = class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+    backButtonStyle = class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
 
 -- | Template for when blog post is not found
 notFoundTemplate :: Slug -> Lucid.Html ()
@@ -129,7 +129,7 @@ notFoundTemplate slug = do
   Lucid.div_ [Lucid.class_ Tokens.cardBase] $ do
     Lucid.div_ [class_ $ base ["text-center"]] $ do
       Lucid.h1_ [class_ $ base [Tokens.heading2xl, Tokens.mb4]] "Blog Post Not Found"
-      Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] $ do
+      Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] $ do
         "The blog post with slug \""
         Lucid.code_ [class_ $ base ["bg-gray-100", "px-2", "py-1"]] $ Lucid.toHtml $ display slug
         "\" could not be found."
@@ -142,4 +142,4 @@ notFoundTemplate slug = do
         ]
         "← BACK TO BLOG"
   where
-    backButtonStyle = class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+    backButtonStyle = class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]

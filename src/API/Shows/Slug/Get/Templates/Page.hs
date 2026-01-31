@@ -44,30 +44,30 @@ showsGetUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing No
 -- | Template for show not found
 notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate slug = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
     Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "Show Not Found"
-    Lucid.p_ [class_ $ base [Tokens.mb4, Tokens.textGray600]] $ "The show '" <> Lucid.toHtml (display slug) <> "' could not be found."
+    Lucid.p_ [class_ $ base [Tokens.mb4, Tokens.fgMuted]] $ "The show '" <> Lucid.toHtml (display slug) <> "' could not be found."
     Lucid.a_
       [ Lucid.href_ [i|/#{showsGetUrl}|],
         hxGet_ [i|/#{showsGetUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
+        class_ $ base ["bg-blue-600", Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
       ]
       "BROWSE ALL SHOWS"
 
 -- | Template for general error
 errorTemplate :: Text -> Lucid.Html ()
 errorTemplate errorMsg = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
     Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "Error"
-    Lucid.p_ [class_ $ base [Tokens.mb4, Tokens.textGray600]] $ Lucid.toHtml errorMsg
+    Lucid.p_ [class_ $ base [Tokens.mb4, Tokens.fgMuted]] $ Lucid.toHtml errorMsg
     Lucid.a_
       [ Lucid.href_ [i|/#{showsGetUrl}|],
         hxGet_ [i|/#{showsGetUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
+        class_ $ base ["bg-blue-600", Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700"]
       ]
       "BROWSE ALL SHOWS"
 
@@ -89,9 +89,9 @@ renderEpisodesContent :: StorageBackend -> Shows.Model -> [Episodes.Model] -> In
 renderEpisodesContent backend showModel episodes currentPage = do
   if null episodes
     then do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
         Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Episodes Yet"
-        Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any episodes yet. Check back soon!"
+        Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] "This show hasn't published any episodes yet. Check back soon!"
     else do
       -- Grid layout: 1 column on mobile, 2 on tablet, 3 on desktop
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
@@ -116,7 +116,7 @@ renderPagination showModel currentPage episodeCount = do
               hxGet_ [i|/#{prevUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
             ]
             "Previous"
         else
@@ -138,7 +138,7 @@ renderPagination showModel currentPage episodeCount = do
               hxGet_ [i|/#{nextUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
             ]
             "Next"
         else

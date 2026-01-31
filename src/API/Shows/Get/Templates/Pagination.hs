@@ -34,13 +34,13 @@ renderPagination currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSor
               hxGet_ [i|/#{showsGetPageUrl (currentPage - 1)}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base ["px-3", "py-1", Tokens.textGray800, "hover:bg-gray-200"]
+              class_ $ base ["px-3", "py-1", Tokens.fgPrimary, "hover:bg-gray-200"]
             ]
             "‹ Previous"
         else Lucid.span_ [class_ $ base ["px-3", "py-1", "text-gray-400"]] "‹ Previous"
 
       -- Current page
-      Lucid.span_ [class_ $ base ["px-3", "py-1", Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold]] $
+      Lucid.span_ [class_ $ base ["px-3", "py-1", Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold]] $
         Lucid.toHtml $
           display currentPage
 
@@ -52,7 +52,7 @@ renderPagination currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSor
               hxGet_ [i|/#{showsGetPageUrl (currentPage + 1)}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base ["px-3", "py-1", Tokens.textGray800, "hover:bg-gray-200"]
+              class_ $ base ["px-3", "py-1", Tokens.fgPrimary, "hover:bg-gray-200"]
             ]
             "Next ›"
         else Lucid.span_ [class_ $ base ["px-3", "py-1", "text-gray-400"]] "Next ›"

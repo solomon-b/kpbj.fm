@@ -42,7 +42,7 @@ template ::
   Lucid.Html ()
 template posts currentPage hasMore = do
   -- Blog posts table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null posts
       then renderEmptyState
       else

@@ -8,7 +8,7 @@ where
 import Component.PageHeader (pageHeader)
 import Data.Text (Text)
 import Design (base, class_)
-import Design.Tokens (textGray800)
+import Design.Tokens (fgPrimary)
 import Effects.Database.Tables.SitePages qualified as SitePages
 import Effects.Markdown (defaultMarkdownConfig, renderMarkdownPure)
 import Lucid qualified
@@ -21,7 +21,7 @@ template mPage = do
   let title = maybe "About KPBJ" SitePages.spmTitle mPage
       content = maybe fallbackContent SitePages.spmContent mPage
   pageHeader title
-  Lucid.div_ [class_ $ base ["prose", "prose-lg", textGray800, "max-w-none"]] $ do
+  Lucid.div_ [class_ $ base ["prose", "prose-lg", fgPrimary, "max-w-none"]] $ do
     case renderMarkdownPure defaultMarkdownConfig content of
       Left _ -> Lucid.p_ "Content could not be rendered."
       Right html -> html

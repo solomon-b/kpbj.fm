@@ -96,7 +96,7 @@ errorAlert message =
 
 renderFormHeader :: SitePages.Model -> Lucid.Html ()
 renderFormHeader page =
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.textGray800, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT SITE PAGE"
@@ -130,7 +130,7 @@ renderFormHeader page =
 
 markdownHelp :: FormBuilder
 markdownHelp = plain $ do
-  Lucid.div_ [class_ $ base [Tokens.bgGray100, Tokens.p4, "rounded", Tokens.mb6]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.p4, "rounded", Tokens.mb6]] $ do
     Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2, Tokens.textSm]] "Markdown Reference"
     Lucid.div_ [class_ $ base ["grid", "grid-cols-2", "gap-4", Tokens.textSm, "text-gray-600"]] $ do
       Lucid.div_ $ do

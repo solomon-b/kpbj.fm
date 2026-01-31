@@ -89,6 +89,6 @@ renderEndOfContent :: Lucid.Html ()
 renderEndOfContent =
   Lucid.div_
     [ Lucid.id_ "end-of-content",
-      class_ $ base ["text-center", "py-8", Tokens.textGray600, "col-span-full"]
+      class_ $ base ["text-center", "py-8", Tokens.fgMuted, "col-span-full"]
     ]
     mempty

@@ -38,7 +38,7 @@ template token mError =
    in Lucid.div_
         [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]]
         do
-          Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] do
+          Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
             pageHeader "RESET PASSWORD"
 
             -- Error alert (shown when validation failed)
@@ -46,7 +46,7 @@ template token mError =
 
             -- Instructions
             Lucid.p_
-              [class_ $ base [Tokens.textSm, Tokens.textGray600, "mb-6"]]
+              [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mb-6"]]
               "Enter your new password below."
 
             -- Reset password form using form builder
@@ -91,7 +91,7 @@ resetPasswordForm token = do
 
 passwordRequirements :: Lucid.Html ()
 passwordRequirements =
-  Lucid.div_ [class_ $ base [Tokens.bgGray100, "border", "border-gray-300", Tokens.p3, Tokens.textXs, "mb-4"]] do
+  Lucid.div_ [class_ $ base [Tokens.bgAlt, "border", "border-gray-300", Tokens.p3, Tokens.textXs, "mb-4"]] do
     Lucid.div_ [class_ $ base [Tokens.fontBold, "mb-1"]] "Password Requirements:"
     Lucid.div_ "• At least 8 characters long"
     Lucid.div_ "• Include uppercase and lowercase letters"

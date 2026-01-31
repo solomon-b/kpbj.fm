@@ -33,7 +33,7 @@ import Servant.Links qualified as Links
 -- | Site pages list template
 template :: [SitePages.Model] -> Lucid.Html ()
 template pages = do
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null pages
       then renderEmptyState
       else

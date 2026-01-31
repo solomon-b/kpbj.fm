@@ -43,7 +43,7 @@ template = renderEpisodesSection
 -- | Episodes table section
 renderEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Int64 -> Bool -> Lucid.Html ()
 renderEpisodesSection userMeta selectedShow episodes currentPage hasMore = do
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden"]] $
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden"]] $
     case (episodes, selectedShow) of
       ([], _) ->
         renderEmptyState
@@ -78,6 +78,6 @@ renderEpisodesSection userMeta selectedShow episodes currentPage hasMore = do
 -- | Empty state when no episodes exist
 renderEmptyState :: Lucid.Html ()
 renderEmptyState =
-  Lucid.div_ [class_ $ base [Tokens.textGray600, "text-center", "p-8"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.fgMuted, "text-center", "p-8"]] $ do
     Lucid.p_ "No episodes uploaded yet."
     Lucid.p_ [class_ $ base [Tokens.textSm, "mt-2"]] "Use 'New Episode' to upload your first episode."

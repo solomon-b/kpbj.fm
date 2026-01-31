@@ -49,7 +49,7 @@ template backend event author renderedDescription = do
         Lucid.div_ $ do
           Lucid.h3_ [class_ $ base [Tokens.fontBold, "mb-1"]] $
             Lucid.toHtml ("Event created by " <> display author.mDisplayName)
-          Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] $
+          Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
             Lucid.toHtml $
               "KPBJ " <> Text.pack (show author.mUserRole) <> " • " <> display author.mFullName
 
@@ -60,24 +60,24 @@ template backend event author renderedDescription = do
         hxGet_ [i|/#{eventsGetUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
       ]
       "← BACK TO EVENTS"
 
 -- | Template for when event is not found
 notFoundTemplate :: Slug -> Lucid.Html ()
 notFoundTemplate slug = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
     Lucid.h1_ [class_ $ base [Tokens.text3xl, Tokens.fontBold, Tokens.mb4]] "Event Not Found"
-    Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] $ do
+    Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] $ do
       "The event with slug \""
-      Lucid.code_ [class_ $ base [Tokens.bgGray100, "px-2", "py-1"]] $ Lucid.toHtml (display slug)
+      Lucid.code_ [class_ $ base [Tokens.bgAlt, "px-2", "py-1"]] $ Lucid.toHtml (display slug)
       "\" could not be found."
     Lucid.a_
       [ Lucid.href_ [i|/#{eventsGetUrl}|],
         hxGet_ [i|/#{eventsGetUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
       ]
       "← BACK TO EVENTS"

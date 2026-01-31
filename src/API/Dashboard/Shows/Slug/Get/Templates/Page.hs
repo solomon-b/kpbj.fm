@@ -45,17 +45,17 @@ template backend showModel episodes hosts schedules blogPosts tags currentPage =
     $ do
       -- Content Tabs Navigation
       Lucid.div_ [class_ $ base [Tokens.mb8, Tokens.fullWidth]] $ do
-        Lucid.div_ [class_ $ base ["border-b-2", Tokens.borderGray800]] $ do
+        Lucid.div_ [class_ $ base ["border-b-2", Tokens.borderDefault]] $ do
           Lucid.nav_ [class_ $ base ["flex", Tokens.gap8]] $ do
             Lucid.button_
               [ xOnClick_ "activeTab = 'episodes'",
-                xBindClass_ [i|activeTab === 'episodes' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderGray800, Tokens.bgWhite, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.textGray600, "hover:text-gray-800"]}'|],
+                xBindClass_ [i|activeTab === 'episodes' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderDefault, Tokens.bgMain, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.fgMuted, "hover:text-gray-800"]}'|],
                 Lucid.type_ "button"
               ]
               "Episodes"
             Lucid.button_
               [ xOnClick_ "activeTab = 'blog'",
-                xBindClass_ [i|activeTab === 'blog' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderGray800, Tokens.bgWhite, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.textGray600, "hover:text-gray-800"]}'|],
+                xBindClass_ [i|activeTab === 'blog' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderDefault, Tokens.bgMain, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.fgMuted, "hover:text-gray-800"]}'|],
                 Lucid.type_ "button"
               ]
               "Blog"
@@ -77,9 +77,9 @@ renderEpisodesContent :: StorageBackend -> Shows.Model -> [Episodes.Model] -> In
 renderEpisodesContent backend showModel episodes currentPage = do
   if null episodes
     then do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p8, "text-center"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p8, "text-center"]] $ do
         Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Episodes Yet"
-        Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any episodes yet. Check back soon!"
+        Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] "This show hasn't published any episodes yet. Check back soon!"
     else do
       -- Featured/Latest Episode with tracks (only on page 1)
       case episodes of
@@ -89,13 +89,13 @@ renderEpisodesContent backend showModel episodes currentPage = do
             then do
               renderLatestEpisode backend showModel latestEpisode []
               unless (null otherEpisodes) $ do
-                Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6]] $ do
-                  Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Previous Episodes"
+                Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
+                  Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]] "Previous Episodes"
                   mapM_ (renderEpisodeCard backend showModel) otherEpisodes
             else do
               -- On subsequent pages, show all episodes as cards
-              Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6]] $ do
-                Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Episodes"
+              Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
+                Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]] "Episodes"
                 mapM_ (renderEpisodeCard backend showModel) episodes
 
           -- Pagination controls
@@ -121,7 +121,7 @@ renderPagination showModel currentPage episodeCount = do
               hxGet_ [i|/#{prevUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
             ]
             "Previous"
         else
@@ -143,7 +143,7 @@ renderPagination showModel currentPage episodeCount = do
               hxGet_ [i|/#{nextUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
             ]
             "Next"
         else
@@ -156,9 +156,9 @@ renderBlogContent :: StorageBackend -> Shows.Model -> [ShowBlogPosts.Model] -> L
 renderBlogContent backend showModel blogPosts = do
   if null blogPosts
     then do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p8, "text-center"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p8, "text-center"]] $ do
         Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Blog Posts Yet"
-        Lucid.p_ [class_ $ base [Tokens.textGray600, Tokens.mb6]] "This show hasn't published any blog posts yet. Check back soon!"
+        Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] "This show hasn't published any blog posts yet. Check back soon!"
     else do
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
         mapM_ (renderShowBlogPostCard backend showModel) blogPosts
@@ -171,6 +171,6 @@ renderBlogContent backend showModel blogPosts = do
             hxGet_ [i|/#{blogUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "View All Blog Posts"
