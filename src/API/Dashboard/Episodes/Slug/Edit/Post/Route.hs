@@ -7,7 +7,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Episodes qualified as Episodes (EpisodeNumber)
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
@@ -30,7 +30,6 @@ import Text.HTML (HTML)
 data EpisodeEditForm = EpisodeEditForm
   { eefDescription :: Maybe Text,
     eefTags :: Maybe Text, -- Comma-separated list of tags
-    eefStatus :: Text,
     eefScheduledDate :: Maybe Text, -- Format: "template_id|scheduled_at"
     eefTracksJson :: Maybe Text, -- JSON array of tracks
     -- File uploads
@@ -56,7 +55,6 @@ instance FromMultipart Mem EpisodeEditForm where
   fromMultipart multipartData = do
     let description = either (const Nothing) Just (lookupInput "description" multipartData)
     let tags = either (const Nothing) Just (lookupInput "tags" multipartData)
-    status <- lookupInput "status" multipartData
     -- Parse scheduled date (optional) - format: "template_id|scheduled_at"
     let scheduledDate = either (const Nothing) Just (lookupInput "scheduled_date" multipartData)
     -- Parse tracks JSON (optional) - JSON array of {tiTitle, tiArtist} objects
@@ -72,7 +70,6 @@ instance FromMultipart Mem EpisodeEditForm where
       EpisodeEditForm
         { eefDescription = emptyToNothing description,
           eefTags = emptyToNothing tags,
-          eefStatus = status,
           eefScheduledDate = emptyToNothing scheduledDate,
           eefTracksJson = emptyToNothing tracksJson,
           eefArtworkFile = artworkFile,
@@ -103,13 +100,6 @@ instance FromMultipart Mem EpisodeEditForm where
       parseClearFlag name _mp = case lookupInput name multipartData of
         Right "true" -> True
         _ -> False
-
--- | Parse episode status from text
-parseStatus :: Text -> Maybe Episodes.Status
-parseStatus "draft" = Just Episodes.Draft
-parseStatus "published" = Just Episodes.Published
-parseStatus "deleted" = Just Episodes.Deleted
-parseStatus _ = Nothing
 
 --------------------------------------------------------------------------------
 

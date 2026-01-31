@@ -40,13 +40,12 @@ episodeUploadForm ::
   [ShowSchedule.UpcomingShowDate] ->
   UserMetadata.Model ->
   Lucid.Html ()
-episodeUploadForm uploadUrl showModel upcomingDates userMeta = do
+episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
   renderForm config form
   renderAudioDurationScript
   where
     postUrl = [i|/#{episodesNewPostUrl (Shows.slug showModel)}|]
     cancelUrl = [i|/#{dashboardShowDetailUrl (Shows.id showModel) (Shows.slug showModel)}|]
-    isStaffOrHigher = UserMetadata.isStaffOrHigher userMeta.mUserRole
 
     config :: FormConfig
     config =
@@ -113,17 +112,6 @@ episodeUploadForm uploadUrl showModel upcomingDates userMeta = do
                 TrackListingEditor.jsonFieldName = "tracks_json"
               }
 
-      -- Publishing Section
-      if isStaffOrHigher
-        then do
-          footerToggle "status" $ do
-            offLabel "Draft"
-            onLabel "Published"
-            offValue "draft"
-            onValue "published"
-          footerHint "Published episodes will be visible after their scheduled date"
-        else do
-          hidden "status" "draft"
       cancelButton cancelUrl "CANCEL"
       submitButton "SUBMIT"
 

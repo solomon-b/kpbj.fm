@@ -14,9 +14,6 @@ import Test.Gen.Time (genUTCTime)
 
 --------------------------------------------------------------------------------
 
-genEpisodeStatus :: (MonadGen m) => m Episodes.Status
-genEpisodeStatus = Gen.enumBounded
-
 episodeInsertGen :: (MonadGen m) => Shows.Id -> ShowSchedule.TemplateId -> User.Id -> m Episodes.Insert
 episodeInsertGen showId templateId userId = do
   let eiId = showId
@@ -28,6 +25,5 @@ episodeInsertGen showId templateId userId = do
   eiDurationSeconds <- Gen.maybe $ Gen.integral (Range.linear 60 7200)
   eiArtworkUrl <- Gen.maybe genUrl
   eiScheduledAt <- genUTCTime
-  eiStatus <- genEpisodeStatus
   let eiCreatedBy = userId
   pure Episodes.Insert {..}

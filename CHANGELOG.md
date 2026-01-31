@@ -7,6 +7,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Features
 - **Show Title on Schedule** - Schedule page now displays show title under the show image for better identification
 - **12 Hour Clock** - Render times with a 12 hour clock.
+- **Simplified Event Details** - Removed back button and author section from event detail pages for cleaner presentation
 
 ### Chores
 - **Weeder in CI** - Added dead code detection via Weeder to the CI pipeline

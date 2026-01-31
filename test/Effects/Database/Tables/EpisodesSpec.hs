@@ -66,7 +66,6 @@ prop_insertSelectEpisode cfg = do
         selected <- assertJust mSelected
         UUT.eiId episodeInsert === UUT.showId selected
         UUT.eiDescription episodeInsert === UUT.description selected
-        UUT.eiStatus episodeInsert === UUT.status selected
         episodeId === UUT.id selected
 
 -- Lens Law: getById after insert returns the episode

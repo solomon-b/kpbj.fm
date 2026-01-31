@@ -12,6 +12,7 @@ import API.Links (dashboardEpisodesLinks)
 import API.Types
 import Component.AudioPlayer.Waveform qualified as WaveformPlayer
 import Control.Monad (unless)
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -80,16 +81,13 @@ template backend _userMeta showModel episode tracks tags = do
 
           -- Episode info grid
           Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm, Tokens.mb4]] $ do
-            -- Status
-            Lucid.div_ $ do
-              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Status: "
-              case episode.status of
-                Episodes.Draft ->
-                  Lucid.span_ [class_ $ base ["inline-block", "bg-yellow-100", "text-yellow-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DRAFT"
-                Episodes.Published ->
-                  Lucid.span_ [class_ $ base ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "PUBLISHED"
-                Episodes.Deleted ->
-                  Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DELETED"
+            -- Status (only show if archived)
+            let isArchived = isJust episode.deletedAt
+            if isArchived
+              then Lucid.div_ $ do
+                Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Status: "
+                Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "ARCHIVED"
+              else mempty
 
             -- Aired/Scheduled date (converted to Pacific time)
             Lucid.div_ $ do

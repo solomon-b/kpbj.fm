@@ -13,9 +13,6 @@ module Effects.Database.Tables.Episodes
   ( -- * Id Type
     Id (..),
 
-    -- * Status Type
-    Status (..),
-
     -- * Episode Number Type
     EpisodeNumber (..),
 
@@ -36,7 +33,7 @@ module Effects.Database.Tables.Episodes
 
     -- * Queries
     getPublishedEpisodesForShow,
-    getEpisodesForShowIncludingDrafts,
+    getEpisodesForShow,
     getEpisodeByShowAndNumber,
     getEpisodeById,
     getEpisodesByUser,
@@ -45,7 +42,6 @@ module Effects.Database.Tables.Episodes
     updateEpisodeFiles,
     updateScheduledSlot,
     deleteEpisode,
-    publishEpisode,
     hardDeleteEpisode,
 
     -- * Result Types
@@ -64,8 +60,7 @@ import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
-import Data.Text qualified as Text
-import Data.Text.Display (Display (..), RecordInstance (..), display)
+import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
@@ -75,70 +70,11 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
-import Hasql.Decoders qualified as Decoders
-import Hasql.Encoders qualified as Encoders
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Enum, Insert, Update)
 import Servant qualified
-
---------------------------------------------------------------------------------
--- Episode Status Type
-
--- | Episode publication status.
-data Status = Draft | Published | Deleted
-  deriving stock (Generic, Show, Eq, Ord, Enum, Bounded, Read)
-  deriving anyclass (FromJSON, ToJSON)
-
-instance DBType Status where
-  typeInformation :: TypeInformation Status
-  typeInformation =
-    parseTypeInformation
-      ( \case
-          "draft" -> Right Draft
-          "published" -> Right Published
-          "deleted" -> Right Deleted
-          other -> Left $ "Invalid Status: " <> Text.unpack other
-      )
-      ( \case
-          Draft -> "draft"
-          Published -> "published"
-          Deleted -> "deleted"
-      )
-      typeInformation
-
-instance DBEq Status
-
-instance Display Status where
-  displayBuilder Draft = "draft"
-  displayBuilder Published = "published"
-  displayBuilder Deleted = "deleted"
-
-instance DecodeValue Status where
-  decodeValue = Decoders.enum decodeStatus
-
-decodeStatus :: Text -> Maybe Status
-decodeStatus = \case
-  "draft" -> Just Draft
-  "published" -> Just Published
-  "deleted" -> Just Deleted
-  _ -> Nothing
-
-instance EncodeValue Status where
-  encodeValue = Encoders.enum $ \case
-    Draft -> "draft"
-    Published -> "published"
-    Deleted -> "deleted"
-
-instance Servant.FromHttpApiData Status where
-  parseUrlPiece "draft" = Right Draft
-  parseUrlPiece "published" = Right Published
-  parseUrlPiece "deleted" = Right Deleted
-  parseUrlPiece invalid = Left $ "Invalid Status: " <> invalid
-
-instance Servant.ToHttpApiData Status where
-  toUrlPiece = display
 
 --------------------------------------------------------------------------------
 -- Id Type
@@ -189,7 +125,7 @@ data Episode f = Episode
     scheduleTemplateId :: Column f ShowSchedule.TemplateId,
     scheduledAt :: Column f UTCTime,
     publishedAt :: Column f (Maybe UTCTime),
-    status :: Column f Status,
+    deletedAt :: Column f (Maybe UTCTime),
     createdBy :: Column f User.Id,
     createdAt :: Column f UTCTime,
     updatedAt :: Column f UTCTime
@@ -237,7 +173,7 @@ episodeSchema =
             scheduleTemplateId = "schedule_template_id",
             scheduledAt = "scheduled_at",
             publishedAt = "published_at",
-            status = "status",
+            deletedAt = "deleted_at",
             createdBy = "created_by",
             createdAt = "created_at",
             updatedAt = "updated_at"
@@ -248,6 +184,8 @@ episodeSchema =
 -- Insert Type
 
 -- | Insert type for creating new episodes.
+--
+-- Episodes are always created as published (published_at = NOW()).
 data Insert = Insert
   { eiId :: Shows.Id,
     eiDescription :: Maybe Text,
@@ -258,7 +196,6 @@ data Insert = Insert
     eiArtworkUrl :: Maybe Text,
     eiScheduleTemplateId :: ShowSchedule.TemplateId,
     eiScheduledAt :: UTCTime,
-    eiStatus :: Status,
     eiCreatedBy :: User.Id
   }
   deriving stock (Generic, Show, Eq)
@@ -270,8 +207,7 @@ data Insert = Insert
 -- | Episode Update data for partial updates.
 data Update = Update
   { euId :: Id,
-    euDescription :: Maybe Text,
-    euStatus :: Maybe Status
+    euDescription :: Maybe Text
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Update)
@@ -319,7 +255,7 @@ data EpisodeWithShow = EpisodeWithShow
     ewsScheduleTemplateId :: ShowSchedule.TemplateId,
     ewsScheduledAt :: UTCTime,
     ewsPublishedAt :: Maybe UTCTime,
-    ewsStatus :: Status,
+    ewsDeletedAt :: Maybe UTCTime,
     ewsCreatedBy :: User.Id,
     ewsCreatedAt :: UTCTime,
     ewsUpdatedAt :: UTCTime,
@@ -334,7 +270,7 @@ data EpisodeWithShow = EpisodeWithShow
 --------------------------------------------------------------------------------
 -- Queries
 
--- | Get published episodes for a show.
+-- | Get published episodes for a show (not deleted, scheduled in the past).
 getPublishedEpisodesForShow :: UTCTime -> Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
   run $
@@ -344,16 +280,15 @@ getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
           orderBy ((.publishedAt) >$< nullsLast desc) do
             ep <- each episodeSchema
             where_ $ ep.showId ==. lit showId'
-            where_ $ ep.status ==. lit Published
+            where_ $ isNull ep.deletedAt
             where_ $ ep.scheduledAt <=. lit currentTime
             pure ep
 
--- | Get episodes for a show including drafts (for hosts viewing their own show).
+-- | Get episodes for a show (for hosts viewing their own show).
 --
--- Returns both published and draft episodes, ordered by scheduled date descending.
--- Excludes deleted episodes.
-getEpisodesForShowIncludingDrafts :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getEpisodesForShowIncludingDrafts showId' (Limit lim) (Offset off) =
+-- Returns all non-deleted episodes, ordered by scheduled date descending.
+getEpisodesForShow :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
+getEpisodesForShow showId' (Limit lim) (Offset off) =
   run $
     select $
       Rel8.limit (fromIntegral lim) $
@@ -361,7 +296,7 @@ getEpisodesForShowIncludingDrafts showId' (Limit lim) (Offset off) =
           orderBy ((.scheduledAt) >$< desc) do
             ep <- each episodeSchema
             where_ $ ep.showId ==. lit showId'
-            where_ $ ep.status /=. lit Deleted
+            where_ $ isNull ep.deletedAt
             pure ep
 
 -- | Get episode by show slug and episode number.
@@ -374,7 +309,7 @@ getEpisodeByShowAndNumber showSlug episodeNumber =
     [sql|
     SELECT e.id, e.show_id, e.description, e.episode_number,
            e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-           e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at, e.status, e.created_by, e.created_at, e.updated_at
+           e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at, e.deleted_at, e.created_by, e.created_at, e.updated_at
     FROM episodes e
     JOIN shows s ON e.show_id = s.id
     WHERE s.slug = #{showSlug} AND e.episode_number = #{episodeNumber}
@@ -397,46 +332,31 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
           orderBy ((.createdAt) >$< desc) do
             ep <- each episodeSchema
             where_ $ ep.createdBy ==. lit userId
-            where_ $ ep.status /=. lit Deleted
+            where_ $ isNull ep.deletedAt
             pure ep
 
 -- | Insert a new episode.
 --
 -- Episode numbers are auto-assigned by a PostgreSQL trigger.
+-- Episodes are always created as published (published_at = NOW()).
 insertEpisode :: Insert -> Hasql.Statement () Id
 insertEpisode Insert {..} =
-  case eiStatus of
-    Published ->
-      getOneRow
-        <$> interp
-          False
-          [sql|
-        INSERT INTO episodes(show_id, description,
-                            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-                            artwork_url, schedule_template_id, scheduled_at, published_at, status, created_by, created_at, updated_at)
-        VALUES (#{eiId}, #{eiDescription},
-                #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
-                #{eiArtworkUrl}, #{eiScheduleTemplateId}, #{eiScheduledAt}, NOW(), #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
-        RETURNING id
-      |]
-    _ ->
-      getOneRow
-        <$> interp
-          False
-          [sql|
-        INSERT INTO episodes(show_id, description,
-                            audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-                            artwork_url, schedule_template_id, scheduled_at, published_at, status, created_by, created_at, updated_at)
-        VALUES (#{eiId}, #{eiDescription},
-                #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
-                #{eiArtworkUrl}, #{eiScheduleTemplateId}, #{eiScheduledAt}, NULL, #{eiStatus}, #{eiCreatedBy}, NOW(), NOW())
-        RETURNING id
-      |]
+  getOneRow
+    <$> interp
+      False
+      [sql|
+    INSERT INTO episodes(show_id, description,
+                        audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
+                        artwork_url, schedule_template_id, scheduled_at, published_at, created_by, created_at, updated_at)
+    VALUES (#{eiId}, #{eiDescription},
+            #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
+            #{eiArtworkUrl}, #{eiScheduleTemplateId}, #{eiScheduledAt}, NOW(), #{eiCreatedBy}, NOW(), NOW())
+    RETURNING id
+  |]
 
 -- | Update an episode with partial data (for editing).
 --
 -- Uses raw SQL because rel8's UPDATE doesn't support partial updates as cleanly.
--- Uses COALESCE to only update status when provided (Nothing keeps existing value).
 updateEpisode :: Update -> Hasql.Statement () (Maybe Id)
 updateEpisode Update {..} =
   interp
@@ -444,7 +364,6 @@ updateEpisode Update {..} =
     [sql|
     UPDATE episodes
     SET description = #{euDescription},
-        status = COALESCE(#{euStatus}, status),
         updated_at = NOW()
     WHERE id = #{euId}
     RETURNING id
@@ -491,26 +410,14 @@ updateScheduledSlot ScheduleSlotUpdate {..} =
     RETURNING id
   |]
 
--- | Delete an episode (soft delete by setting status to deleted).
+-- | Delete an episode (soft delete by setting deleted_at timestamp).
 deleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
 deleteEpisode episodeId =
   interp
     False
     [sql|
     UPDATE episodes
-    SET status = 'deleted', updated_at = NOW()
-    WHERE id = #{episodeId}
-    RETURNING id
-  |]
-
--- | Publish an episode (set status to published and set published_at timestamp).
-publishEpisode :: Id -> Hasql.Statement () (Maybe Id)
-publishEpisode episodeId =
-  interp
-    False
-    [sql|
-    UPDATE episodes
-    SET status = 'published', published_at = NOW(), updated_at = NOW()
+    SET deleted_at = NOW(), updated_at = NOW()
     WHERE id = #{episodeId}
     RETURNING id
   |]

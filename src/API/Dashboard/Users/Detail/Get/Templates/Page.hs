@@ -123,20 +123,16 @@ renderEpisodeCard :: Episodes.Model -> Lucid.Html ()
 renderEpisodeCard episode = do
   Lucid.div_ [Lucid.class_ "border-2 border-gray-200 dark:border-gray-600 p-4 hover:bg-gray-50 dark:hover:bg-gray-700"] $ do
     Lucid.h3_ [Lucid.class_ "font-bold text-lg"] $ Lucid.toHtml (("Episode " <> show episode.episodeNumber) :: String)
-    Lucid.p_ [Lucid.class_ "text-gray-600 dark:text-gray-400 text-sm mt-1"] $
-      Lucid.toHtml $
-        "Status: " <> renderStatus episode.status
+    -- Show archived status if applicable
+    when (isJust episode.deletedAt) $
+      Lucid.p_ [Lucid.class_ "text-gray-600 dark:text-gray-400 text-sm mt-1"] $
+        Lucid.toHtml ("Status: Archived" :: String)
     when (isJust episode.publishedAt) $
       Lucid.p_ [Lucid.class_ "text-gray-600 dark:text-gray-400 text-sm"] $
         Lucid.toHtml $
           "Published: " <> formatDate (fromMaybe episode.createdAt episode.publishedAt)
   where
     when cond action = if cond then action else mempty
-
-renderStatus :: Episodes.Status -> String
-renderStatus Episodes.Draft = "Draft"
-renderStatus Episodes.Published = "Published"
-renderStatus Episodes.Deleted = "Deleted"
 
 formatDate :: UTCTime -> String
 formatDate = formatTime defaultTimeLocale "%Y-%m-%d %l:%M %p"

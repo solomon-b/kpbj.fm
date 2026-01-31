@@ -40,7 +40,7 @@ handler showSlug episodeNumber cookie =
 
     -- 2. Require staff role (not suspended)
     requireStaffNotSuspended
-      "Only staff members can archive episodes. Hosts can discard draft episodes instead."
+      "Only staff members can archive episodes."
       userMeta
 
     -- 3. Fetch show and episode
