@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.5.0] - 2026-01-31
+
 ### Features
 - **Show Title on Schedule** - Schedule page now displays show title under the show image for better identification
 - **12 Hour Clock** - Render times with a 12 hour clock.
