@@ -30,9 +30,9 @@ instance DecodeValue TimeOfDay where
 
 --------------------------------------------------------------------------------
 
--- | Format TimeOfDay as HH:MM text for display.
+-- | Format TimeOfDay as 12-hour time with am/pm for display.
 formatTimeOfDay :: TimeOfDay -> Text
-formatTimeOfDay = Text.pack . formatTime defaultTimeLocale "%H:%M"
+formatTimeOfDay = Text.pack . formatTime defaultTimeLocale "%l:%M %p"
 
 -- | Add 12 hours to a TimeOfDay (wraps around midnight).
 add12Hours :: TimeOfDay -> TimeOfDay

@@ -11,6 +11,7 @@ import API.Links (showsLinks)
 import API.Types
 import Component.Tags qualified as Tags
 import Control.Monad (forM_, unless)
+import Data.List (sortOn)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..))
@@ -60,24 +61,13 @@ renderShowHeader backend showModel hosts schedules tags = do
                     ", "
                     let otherNames = map (\(ShowHost.ShowHostWithUser {displayName = n}) -> Lucid.toHtml n) otherHosts
                     mconcat $ map (", " <>) otherNames
-            -- Schedule
+            -- Schedule (sorted by start time, earliest first)
             Lucid.div_ $
-              case schedules of
+              case sortOn ShowSchedule.stStartTime schedules of
                 [] -> ""
-                (ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stWeeksOfMonth = weeksOfMonth, stStartTime = st, stEndTime = et, stAirsTwiceDaily = airsTwice} : _) ->
-                  case mDow of
-                    Nothing -> "One-time show"
-                    Just dow -> do
-                      let dayName :: Text
-                          dayName = case dow of
-                            Sunday -> "Sunday"
-                            Monday -> "Monday"
-                            Tuesday -> "Tuesday"
-                            Wednesday -> "Wednesday"
-                            Thursday -> "Thursday"
-                            Friday -> "Friday"
-                            Saturday -> "Saturday"
-                      Lucid.toHtml $ formatWeeksOfMonth weeksOfMonth <> dayName <> "s " <> formatScheduleDual st et airsTwice
+                sortedSchedules -> do
+                  let scheduleTexts = map renderSchedule sortedSchedules
+                  Lucid.toHtml $ Text.intercalate " • " scheduleTexts
 
         -- Show Description (only if present)
         forM_ showModel.description $ \description ->
@@ -88,6 +78,22 @@ renderShowHeader backend showModel hosts schedules tags = do
         unless (null tags) $
           Tags.renderTags (map showTagToLink tags)
   where
+    renderSchedule :: ShowSchedule.ScheduleTemplate Result -> Text
+    renderSchedule ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stWeeksOfMonth = weeksOfMonth, stStartTime = st, stEndTime = et, stAirsTwiceDaily = airsTwice} =
+      case mDow of
+        Nothing -> "One-time show"
+        Just dow ->
+          let dayName :: Text
+              dayName = case dow of
+                Sunday -> "Sunday"
+                Monday -> "Monday"
+                Tuesday -> "Tuesday"
+                Wednesday -> "Wednesday"
+                Thursday -> "Thursday"
+                Friday -> "Friday"
+                Saturday -> "Saturday"
+           in formatWeeksOfMonth weeksOfMonth <> dayName <> "s " <> formatScheduleDual st et airsTwice
+
     showTagToLink :: ShowTags.Model -> Tags.TagLink
     showTagToLink tag =
       Tags.TagLink
