@@ -42,7 +42,6 @@ module Effects.Database.Tables.Episodes
     updateEpisodeFiles,
     updateScheduledSlot,
     deleteEpisode,
-    hardDeleteEpisode,
 
     -- * Result Types
     EpisodeWithShow (..),
@@ -421,19 +420,6 @@ deleteEpisode episodeId =
     WHERE id = #{episodeId}
     RETURNING id
   |]
-
--- | Hard delete an episode (use with caution - prefer deleteEpisode for soft delete).
-hardDeleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
-hardDeleteEpisode episodeId =
-  fmap listToMaybe $
-    run $
-      delete
-        Rel8.Delete
-          { from = episodeSchema,
-            using = pure (),
-            deleteWhere = \_ ep -> ep.id ==. lit episodeId,
-            returning = Returning (.id)
-          }
 
 --------------------------------------------------------------------------------
 -- Tag Junction Queries
