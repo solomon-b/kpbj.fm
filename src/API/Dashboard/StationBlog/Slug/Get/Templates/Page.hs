@@ -93,7 +93,7 @@ renderTag tag =
     $ Lucid.toHtml tag.btmName
 
 formatDateTime :: UTCTime -> String
-formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %H:%M"
+formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p"
 
 truncateContent :: Int -> Text -> Text
 truncateContent maxLen content

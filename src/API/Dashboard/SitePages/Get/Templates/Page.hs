@@ -99,4 +99,4 @@ renderEmptyState = do
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Site pages should be seeded in the database."
 
 formatDateTime :: UTCTime -> String
-formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %H:%M"
+formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p"

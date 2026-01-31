@@ -102,4 +102,4 @@ renderRestoreButton page revision = do
         "RESTORE REVISION"
 
 formatDateTime :: UTCTime -> String
-formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %H:%M"
+formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p"

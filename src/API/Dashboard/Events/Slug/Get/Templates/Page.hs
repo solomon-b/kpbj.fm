@@ -80,7 +80,7 @@ formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"
 
 formatDateTimeFull :: UTCTime -> String
-formatDateTimeFull = formatTime defaultTimeLocale "%b %d, %Y at %H:%M"
+formatDateTimeFull = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p"
 
 truncateContent :: Int -> Text -> Text
 truncateContent maxLen content

@@ -128,4 +128,4 @@ renderEmptyState = do
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Edit the page to create the first revision."
 
 formatDateTime :: UTCTime -> String
-formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %H:%M"
+formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p"

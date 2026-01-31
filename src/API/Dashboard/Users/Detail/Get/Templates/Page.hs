@@ -139,4 +139,4 @@ renderStatus Episodes.Published = "Published"
 renderStatus Episodes.Deleted = "Deleted"
 
 formatDate :: UTCTime -> String
-formatDate = formatTime defaultTimeLocale "%Y-%m-%d %H:%M"
+formatDate = formatTime defaultTimeLocale "%Y-%m-%d %l:%M %p"
