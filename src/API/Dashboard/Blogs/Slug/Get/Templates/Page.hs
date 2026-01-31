@@ -51,7 +51,7 @@ template _userMeta showModel blogPost tags = do
         hxGet_ [i|/#{backUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.fgMuted, "hover:text-gray-800 dark:hover:text-white", Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
+        class_ $ base [Tokens.fgMuted, Tokens.hoverBg, Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
       ]
       $ do
         Lucid.i_ [Lucid.class_ "fa-solid fa-arrow-left"] mempty
@@ -77,7 +77,7 @@ template _userMeta showModel blogPost tags = do
               hxGet_ [i|/#{editUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
             ]
             "Edit Post"
           -- Delete button
@@ -90,7 +90,7 @@ template _userMeta showModel blogPost tags = do
               hxSwap_ "innerHTML",
               hxConfirm_ "Are you sure you want to delete this blog post?",
               hxOnAfterRequest_ [i|if(event.detail.successful) window.location.href='/#{backUrl}'|],
-              class_ $ base ["bg-red-600", Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-red-700"]
+              class_ $ base [Tokens.errorBg, Tokens.errorText, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-[var(--theme-error)]/20"]
             ]
             "Delete"
 
@@ -106,7 +106,7 @@ template _userMeta showModel blogPost tags = do
           Nothing ->
             Lucid.div_ $ do
               Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Published: "
-              Lucid.span_ [class_ $ base ["text-gray-500 dark:text-gray-400", "italic"]] "Not published"
+              Lucid.span_ [class_ $ base [Tokens.fgMuted, "italic"]] "Not published"
 
         -- Created date
         Lucid.div_ $ do
@@ -145,7 +145,7 @@ template _userMeta showModel blogPost tags = do
 -- | Render a tag badge
 renderTag :: ShowBlogTags.Model -> Lucid.Html ()
 renderTag tag =
-  Lucid.span_ [Lucid.class_ "inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium"] $
+  Lucid.span_ [class_ $ base ["inline-block", Tokens.infoBg, Tokens.infoText, "px-2", "py-1", "rounded", "text-xs", "font-medium"]] $
     Lucid.toHtml tag.sbtmName
 
 -- | Render a paragraph of content
@@ -158,8 +158,8 @@ renderParagraph para =
 -- | Render status badge with appropriate styling
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
 renderStatusBadge Draft =
-  Lucid.span_ [class_ $ base ["inline-block", "bg-yellow-100", "text-yellow-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DRAFT"
+  Lucid.span_ [class_ $ base ["inline-block", Tokens.warningBg, Tokens.warningText, "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DRAFT"
 renderStatusBadge Published =
-  Lucid.span_ [class_ $ base ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "PUBLISHED"
+  Lucid.span_ [class_ $ base ["inline-block", Tokens.successBg, Tokens.successText, "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "PUBLISHED"
 renderStatusBadge Deleted =
-  Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DELETED"
+  Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "DELETED"

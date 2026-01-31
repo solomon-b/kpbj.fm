@@ -15,6 +15,8 @@ import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Data.Either (fromRight)
 import Data.Maybe (listToMaybe)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -66,7 +68,7 @@ actionButton =
           hxGet_ newPostUrl,
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
+          class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
         ]
         "New Post"
 

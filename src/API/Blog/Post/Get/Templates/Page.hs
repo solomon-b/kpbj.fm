@@ -65,14 +65,14 @@ template backend post author tags renderedContent = do
             Lucid.img_
               [ Lucid.src_ (buildMediaUrl backend heroImagePath),
                 Lucid.alt_ $ BlogPosts.bpmTitle post,
-                class_ $ base [Tokens.fullWidth, "h-auto", "border", "border-gray-300"]
+                class_ $ base [Tokens.fullWidth, "h-auto", "border", Tokens.borderMuted]
               ]
         Nothing -> pure ()
 
       -- Metadata
       Lucid.div_ [class_ $ base ["flex items-center", Tokens.gap6, Tokens.metaText, Tokens.mb6]] $ do
         Lucid.div_ [class_ $ base ["flex items-center", Tokens.gap2]] $ do
-          Lucid.div_ [Lucid.class_ "w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-xs"] $
+          Lucid.div_ [class_ $ base ["w-8", "h-8", Tokens.bgAlt, "rounded-full", "flex", "items-center", "justify-center", Tokens.textXs]] $
             Lucid.toHtml $
               Text.take 2 (display (UserMetadata.mDisplayName author))
           Lucid.span_ $ do
@@ -95,11 +95,11 @@ template backend post author tags renderedContent = do
     renderedContent
 
     -- Post Footer
-    Lucid.footer_ [Lucid.class_ "mt-8 pt-8 border-t border-gray-300"] $ do
+    Lucid.footer_ [class_ $ base ["mt-8", "pt-8", "border-t", Tokens.borderMuted]] $ do
       -- Author Bio
       Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.p6, "border-l-4", Tokens.borderDefault]] $ do
         Lucid.div_ [class_ $ base ["flex items-start", Tokens.gap4]] $ do
-          Lucid.div_ [Lucid.class_ "w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center text-xl"] $
+          Lucid.div_ [class_ $ base ["w-16", "h-16", Tokens.bgAlt, "rounded-full", "flex", "items-center", "justify-center", Tokens.textXl]] $
             Lucid.toHtml $
               Text.take 2 (display (UserMetadata.mDisplayName author))
           Lucid.div_ $ do
@@ -121,7 +121,7 @@ template backend post author tags renderedContent = do
       ]
       "← BACK TO BLOG"
   where
-    backButtonStyle = class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+    backButtonStyle = class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80", "inline-block"]
 
 -- | Template for when blog post is not found
 notFoundTemplate :: Slug -> Lucid.Html ()
@@ -131,7 +131,7 @@ notFoundTemplate slug = do
       Lucid.h1_ [class_ $ base [Tokens.heading2xl, Tokens.mb4]] "Blog Post Not Found"
       Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] $ do
         "The blog post with slug \""
-        Lucid.code_ [class_ $ base ["bg-gray-100", "px-2", "py-1"]] $ Lucid.toHtml $ display slug
+        Lucid.code_ [class_ $ base [Tokens.bgAlt, "px-2", "py-1"]] $ Lucid.toHtml $ display slug
         "\" could not be found."
       Lucid.a_
         [ Lucid.href_ [i|/#{blogGetUrl}|],
@@ -142,4 +142,4 @@ notFoundTemplate slug = do
         ]
         "← BACK TO BLOG"
   where
-    backButtonStyle = class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+    backButtonStyle = class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80", "inline-block"]

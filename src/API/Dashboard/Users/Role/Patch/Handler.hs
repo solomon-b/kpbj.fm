@@ -15,6 +15,8 @@ import App.Monad (AppM)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.User qualified as User
@@ -73,7 +75,7 @@ errorResponse userId currentRole msg =
     $ do
       renderRoleDropdown userId currentRole
       Lucid.span_
-        [ Lucid.class_ "text-red-600 text-sm font-bold"
+        [ class_ $ base [Tokens.errorText, Tokens.textSm, Tokens.fontBold]
         ]
         $ Lucid.toHtml msg
 
@@ -81,7 +83,7 @@ renderRoleDropdown :: User.Id -> UserMetadata.UserRole -> Lucid.Html ()
 renderRoleDropdown userId currentRole =
   Lucid.select_
     [ Lucid.name_ "role",
-      Lucid.class_ "p-2 border-2 border-gray-800 bg-white dark:bg-gray-800 font-bold",
+      class_ $ base [Tokens.p2, Tokens.border2, Tokens.borderDefault, Tokens.bgMain, Tokens.fgPrimary, Tokens.fontBold],
       hxPatch_ [i|/#{rolePatchUrl}|],
       hxTarget_ "#role-dropdown-container",
       hxSwap_ "outerHTML"

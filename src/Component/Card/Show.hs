@@ -44,7 +44,7 @@ renderShowCard backend s = do
     ]
     $ do
       -- Show Image (or gray placeholder)
-      Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "overflow-hidden", Tokens.mb2, "border", "border-gray-300"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-[4/3]", "overflow-hidden", Tokens.mb2, "border", Tokens.borderMuted]] $ do
         case s.logoUrl of
           Just logoUrl -> do
             let logoAlt = showTitle <> " logo"

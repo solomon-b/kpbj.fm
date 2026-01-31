@@ -34,10 +34,10 @@ renderPagination currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSor
               hxGet_ [i|/#{showsGetPageUrl (currentPage - 1)}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base ["px-3", "py-1", Tokens.fgPrimary, "hover:bg-gray-200"]
+              class_ $ base ["px-3", "py-1", Tokens.fgPrimary, Tokens.hoverBg]
             ]
             "‹ Previous"
-        else Lucid.span_ [class_ $ base ["px-3", "py-1", "text-gray-400"]] "‹ Previous"
+        else Lucid.span_ [class_ $ base ["px-3", "py-1", Tokens.fgMuted]] "‹ Previous"
 
       -- Current page
       Lucid.span_ [class_ $ base ["px-3", "py-1", Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold]] $
@@ -52,10 +52,10 @@ renderPagination currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSor
               hxGet_ [i|/#{showsGetPageUrl (currentPage + 1)}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base ["px-3", "py-1", Tokens.fgPrimary, "hover:bg-gray-200"]
+              class_ $ base ["px-3", "py-1", Tokens.fgPrimary, Tokens.hoverBg]
             ]
             "Next ›"
-        else Lucid.span_ [class_ $ base ["px-3", "py-1", "text-gray-400"]] "Next ›"
+        else Lucid.span_ [class_ $ base ["px-3", "py-1", Tokens.fgMuted]] "Next ›"
   where
     showsGetPageUrl :: PageNumber -> Links.URI
     showsGetPageUrl page = Links.linkURI $ showsLinks.list (Just page) (fmap (Filter . Just) maybeTagId) (fmap (Filter . Just) maybeStatus) (fmap (Filter . Just) maybeSearch) (fmap (Filter . Just) maybeSortBy)

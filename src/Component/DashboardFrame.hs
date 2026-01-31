@@ -185,15 +185,15 @@ sidebar userMeta activeNav selectedShow =
     Lucid.div_ [class_ $ base [Tokens.p4, "border-b", Theme.borderMuted, "shrink-0", "h-16", "flex", "flex-col", "justify-center"]] $ do
       Lucid.a_
         [ Lucid.href_ [i|/#{rootGetUrl}|],
-          class_ $ base [Tokens.textLg, Theme.fgPrimary, Tokens.fontBold, "hover:text-gray-300", "block"]
+          class_ $ base [Tokens.textLg, Theme.fgPrimary, Tokens.fontBold, Theme.hoverBg, "block"]
         ]
         "KPBJ 95.9FM"
-      Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", "mt-1"]] "Dashboard"
+      Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", "mt-1"]] "Dashboard"
 
     -- Navigation (scrollable if needed)
     Lucid.nav_ [class_ $ base ["flex-1", Tokens.p4, "overflow-y-auto"]] $ do
       Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
-        Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", Tokens.px4, Tokens.mb2]] "HOST"
+        Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "HOST"
         Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
           navItem "EPISODES" NavEpisodes activeNav selectedShow
           -- navItem "BLOG" NavBlog activeNav selectedShow
@@ -204,7 +204,7 @@ sidebar userMeta activeNav selectedShow =
       -- Staff/Admin section - shown only for Staff or higher roles
       when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
         Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
-          Lucid.span_ [class_ $ base [Tokens.textXs, "text-gray-500", "block", Tokens.px4, Tokens.mb2]] "ADMIN"
+          Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "ADMIN"
           Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
             staffNavItem "USERS" NavUsers activeNav
             staffNavItem "SHOWS" NavShows activeNav
@@ -214,7 +214,7 @@ sidebar userMeta activeNav selectedShow =
 
     -- User info at bottom (always visible)
     Lucid.div_ [class_ $ base [Tokens.p4, "border-t", Theme.borderMuted, "shrink-0", "mt-auto"]] $ do
-      Lucid.div_ [class_ $ base [Tokens.textSm, "text-gray-400", Tokens.mb2]] $ do
+      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
         Lucid.span_ [class_ $ base ["block", Tokens.fontBold, Tokens.fgInverse]] $
           Lucid.toHtml userMeta.mDisplayName
         Lucid.span_ [Lucid.class_ Tokens.textXs] $
@@ -224,10 +224,10 @@ sidebar userMeta activeNav selectedShow =
       -- Edit Profile and Logout buttons
       Lucid.div_ [class_ $ base ["flex", "flex-col", Tokens.gap4, "mt-2"]] $ do
         Lucid.a_
-          [Lucid.href_ [i|/#{dashboardProfileEditUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"]]
+          [Lucid.href_ [i|/#{dashboardProfileEditUrl}|], class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]"]]
           "Settings"
         Lucid.a_
-          [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, "text-gray-400", "hover:text-white"], hxGet_ [i|/#{userLogoutGetUrl}|]]
+          [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]"], hxGet_ [i|/#{userLogoutGetUrl}|]]
           "Logout"
 
 -- | Show selector dropdown for top bar
@@ -275,8 +275,8 @@ navItem label nav activeNav mShow = do
   let isActive = nav == activeNav
       baseClasses = class_' $ base ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
       activeClasses = class_' $ base [Tokens.bgInverse, Tokens.fgInverse]
-      inactiveClasses = "text-gray-400 hover:text-white hover:bg-gray-800"
-      disabledClasses = "text-gray-600 cursor-not-allowed"
+      inactiveClasses = class_' $ base [Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]", Tokens.hoverBg]
+      disabledClasses = class_' $ base [Tokens.fgMuted, "cursor-not-allowed", "opacity-50"]
       mUrl = navUrl nav mShow
   case mUrl of
     Just url ->
@@ -295,7 +295,7 @@ staffNavItem label nav activeNav = do
   let isActive = nav == activeNav
       baseClasses = class_' $ base ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
       activeClasses = class_' $ base [Tokens.bgInverse, Tokens.fgInverse]
-      inactiveClasses = "text-gray-400 hover:text-white hover:bg-gray-800"
+      inactiveClasses = class_' $ base [Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]", Tokens.hoverBg]
   case staffNavUrl nav of
     Just url ->
       let classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
@@ -356,7 +356,7 @@ topBar activeNav allShows selectedShow statsContent actionButton =
         fromMaybe mempty actionButton
         Lucid.a_
           [ Lucid.href_ [i|/#{rootGetUrl}|],
-            class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-gray-800"]
+            class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg)]"]
           ]
           "Back to Site"
 

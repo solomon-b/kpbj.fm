@@ -197,10 +197,10 @@ renderUserRow viewerId viewerRole now user =
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
 renderRoleBadge role = do
   let (bgClass, textClass, roleText) = case role of
-        UserMetadata.Admin -> ("bg-red-100", "text-red-800", "Admin") :: (Text, Text, Text)
-        UserMetadata.Staff -> ("bg-purple-100", "text-purple-800", "Staff")
-        UserMetadata.Host -> ("bg-blue-100", "text-blue-800", "Host")
-        UserMetadata.User -> ("bg-gray-100 dark:bg-gray-700", "text-gray-800 dark:text-gray-200", "User")
+        UserMetadata.Admin -> (Tokens.errorBg, Tokens.errorText, "Admin") :: (Text, Text, Text)
+        UserMetadata.Staff -> (Tokens.warningBg, Tokens.warningText, "Staff")
+        UserMetadata.Host -> (Tokens.infoBg, Tokens.infoText, "Host")
+        UserMetadata.User -> (Tokens.bgAlt, Tokens.fgPrimary, "User")
 
   Lucid.span_
     [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{bgClass} #{textClass}|]]
@@ -210,11 +210,11 @@ renderStatusBadge :: Maybe UTCTime -> Lucid.Html ()
 renderStatusBadge = \case
   Nothing ->
     Lucid.span_
-      [Lucid.class_ "inline-block px-3 py-1 text-sm font-bold rounded bg-green-100 text-green-800"]
+      [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{Tokens.successBg} #{Tokens.successText}|]]
       "Active"
   Just _ ->
     Lucid.span_
-      [Lucid.class_ "inline-block px-3 py-1 text-sm font-bold rounded bg-yellow-100 text-yellow-800"]
+      [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{Tokens.warningBg} #{Tokens.warningText}|]]
       "Suspended"
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()

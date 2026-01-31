@@ -36,12 +36,12 @@ template =
     Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
       -- Warning icon
       Lucid.div_ [Lucid.class_ "text-center"] $ do
-        Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-red-100"] $ do
-          Lucid.span_ [Lucid.class_ "text-red-600 text-3xl"] "!"
+        Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center", "rounded-full", Tokens.errorBg]] $ do
+          Lucid.span_ [class_ $ base [Tokens.errorText, "text-3xl"]] "!"
 
       -- Title
       Lucid.h1_
-        [class_ $ base ["mt-6", "text-center", "text-2xl", Tokens.fontBold, "text-gray-900"]]
+        [class_ $ base ["mt-6", "text-center", "text-2xl", Tokens.fontBold, Tokens.fgPrimary]]
         "Link Expired"
 
       -- Message
@@ -60,7 +60,7 @@ template =
             hxSwap_ "innerHTML",
             hxTarget_ "body",
             hxPushUrl_ "true",
-            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg, "inline-block"]
           ]
           "REQUEST NEW LINK"
 
@@ -73,6 +73,6 @@ template =
             hxSwap_ "innerHTML",
             hxTarget_ "body",
             hxPushUrl_ "true",
-            class_ $ base [Tokens.fontBold, "text-gray-900", "hover:underline"]
+            class_ $ base [Tokens.fontBold, Tokens.fgPrimary, "hover:underline"]
           ]
           "Log in"

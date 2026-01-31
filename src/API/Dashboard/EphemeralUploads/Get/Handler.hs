@@ -90,6 +90,6 @@ actionButton =
           hxGet_ newEphemeralUploadUrl,
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
+          Lucid.class_ "bg-[var(--theme-bg-inverse)] text-[var(--theme-fg-inverse)] px-4 py-2 text-sm font-bold hover:opacity-80"
         ]
         "Upload Ephemeral"

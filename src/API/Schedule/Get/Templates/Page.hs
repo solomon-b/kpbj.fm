@@ -40,13 +40,13 @@ noteStyles = class_ $ do
 
 errorStyles :: Lucid.Attributes
 errorStyles = class_ $ do
-  base ["bg-red-100", Tokens.border2, "border-red-800", "text-center"]
+  base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, "text-center"]
   base [Tokens.p4, Tokens.mb6]
   tablet [Tokens.p6, Tokens.mb8]
 
 errorTextStyles :: Lucid.Attributes
 errorTextStyles = class_ $ do
-  base ["text-red-800", Tokens.fontBold]
+  base [Tokens.errorText, Tokens.fontBold]
 
 sectionStyles :: Lucid.Attributes
 sectionStyles = class_ $ do

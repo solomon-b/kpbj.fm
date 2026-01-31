@@ -49,7 +49,7 @@ template backend _userMeta showModel episode tracks tags = do
         hxGet_ [i|/#{backUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.fgMuted, "hover:text-gray-800 dark:hover:text-white", Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
+        class_ $ base [Tokens.fgMuted, "hover:[color:var(--fg-primary)]", Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
       ]
       $ do
         Lucid.i_ [Lucid.class_ "fa-solid fa-arrow-left"] mempty
@@ -61,7 +61,7 @@ template backend _userMeta showModel episode tracks tags = do
     Lucid.div_ [class_ $ base ["border-b", Tokens.borderDefault, Tokens.p6]] $ do
       Lucid.div_ [class_ $ base ["flex", Tokens.gap6, Tokens.mb6]] $ do
         -- Episode artwork
-        Lucid.div_ [class_ $ base ["w-48", "h-48", "bg-gray-300 dark:bg-gray-600", "border-2", "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", "text-xs", "flex-shrink-0"]] $ do
+        Lucid.div_ [class_ $ base ["w-48", "h-48", Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "flex", "items-center", "justify-center", "text-xs", "flex-shrink-0"]] $ do
           case episode.artworkUrl of
             Just artworkPath ->
               Lucid.img_
@@ -86,7 +86,7 @@ template backend _userMeta showModel episode tracks tags = do
             if isArchived
               then Lucid.div_ $ do
                 Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Status: "
-                Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "ARCHIVED"
+                Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "ARCHIVED"
               else mempty
 
             -- Aired/Scheduled date (converted to Pacific time)

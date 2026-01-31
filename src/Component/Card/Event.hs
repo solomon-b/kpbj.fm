@@ -105,11 +105,11 @@ renderImage backend event =
       Lucid.img_
         [ Lucid.src_ (buildMediaUrl backend posterUrl),
           Lucid.alt_ (event.emTitle <> " poster"),
-          class_ $ base [Tokens.fullWidth, "aspect-[3/4]", "object-cover", "border", "border-gray-300"]
+          class_ $ base [Tokens.fullWidth, "aspect-[3/4]", "object-cover", "border", Tokens.borderMuted]
         ]
     Nothing ->
       Lucid.div_
-        [class_ $ base [Tokens.fullWidth, "aspect-[3/4]", Tokens.bgAlt, "flex", "items-center", "justify-center", Tokens.textLg, "border", "border-gray-300"]]
+        [class_ $ base [Tokens.fullWidth, "aspect-[3/4]", Tokens.bgAlt, "flex", "items-center", "justify-center", Tokens.textLg, "border", Tokens.borderMuted]]
         "[NO POSTER]"
 
 -- | Render event title.

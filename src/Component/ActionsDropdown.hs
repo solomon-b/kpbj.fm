@@ -149,7 +149,7 @@ htmxPostAction value label url target swap confirmMsg values =
 render :: [DropdownAction] -> Lucid.Html ()
 render actions =
   Lucid.select_
-    ( [ class_ $ base ["p-2", "border", "border-gray-400", "text-xs", Tokens.bgMain],
+    ( [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
         xData_ "{}",
         xOnChange_ handlerScript,
         xOnClick_ "event.stopPropagation()"

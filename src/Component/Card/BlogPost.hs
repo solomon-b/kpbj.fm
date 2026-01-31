@@ -74,7 +74,7 @@ renderBlogPostCard backend card = do
               Lucid.img_
                 [ Lucid.src_ (buildMediaUrl backend heroImageUrl),
                   Lucid.alt_ card.cardTitle,
-                  class_ $ base [Tokens.fullWidth, "h-auto", "border", "border-gray-300"]
+                  class_ $ base [Tokens.fullWidth, "h-auto", "border", Tokens.borderMuted]
                 ]
           Nothing -> pure ()
 

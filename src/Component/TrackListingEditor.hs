@@ -257,7 +257,8 @@ renderTrackRow :: Lucid.Html ()
 renderTrackRow =
   Lucid.tr_
     [ Lucid.draggable_ "true",
-      xBindClass_ "{ 'bg-blue-50 border-t-2 border-blue-400': dragOverIndex === index, 'bg-white': dragOverIndex !== index }",
+      class_ $ base [Tokens.bgMain],
+      xBindClass_ [i|{ '#{Tokens.bgAlt} #{Tokens.border2} #{Tokens.infoBorder}': dragOverIndex === index }|],
       xOn_ "dragstart" "handleDragStart($event, index)",
       xOnDragover_ "handleDragOver($event, index)",
       xOnDragleave_ "handleDragLeave($event)",
@@ -313,15 +314,15 @@ renderEditableCell fieldName trackProp =
           xOn_ "keydown.escape" "cancelEdit()",
           xOn_ "keydown.tab" "handleTab($event)",
           xInit_ "$el.focus(); $el.select()",
-          class_ $ base ["w-full", "p-1", Tokens.border2, "border-blue-400", "font-mono", Tokens.textSm, "outline-none"]
+          class_ $ base ["w-full", "p-1", Tokens.border2, Tokens.infoBorder, Tokens.bgMain, Tokens.fgPrimary, "font-mono", Tokens.textSm, "outline-none"]
         ]
 
     -- Display text (shown when not editing this cell)
     Lucid.template_ [xIf_ [i|!(editingRow === index && editingField === '#{fieldName}')|]] $
       Lucid.span_
         [ xOnClick_ [i|startEdit(index, '#{fieldName}')|],
-          class_ $ base ["cursor-pointer", "hover:bg-gray-100", "px-2", "py-1", "-mx-2", "-my-1", "block", "min-h-[1.5rem]"],
-          xBindClass_ [i|{ 'text-gray-400 italic': !track.#{trackProp} }|],
+          class_ $ base ["cursor-pointer", Tokens.hoverBg, "px-2", "py-1", "-mx-2", "-my-1", "block", "min-h-[1.5rem]"],
+          xBindClass_ [i|{ '#{Tokens.fgMuted} italic': !track.#{trackProp} }|],
           xText_ [i|track.#{trackProp} || '(click to add)'|]
         ]
         mempty
@@ -333,7 +334,7 @@ renderDeleteCell =
     Lucid.button_
       [ Lucid.type_ "button",
         xOnClick_ "removeTrack(index)",
-        class_ $ base ["text-red-600", "hover:text-red-800", Tokens.fontBold, "text-lg"]
+        class_ $ base [Tokens.errorText, "hover:opacity-80", Tokens.fontBold, "text-lg"]
       ]
       "×"
 
@@ -345,15 +346,15 @@ renderAddRow :: Lucid.Html ()
 renderAddRow =
   Lucid.tr_
     [ xOnClick_ "addTrack()",
-      class_ $ base [Tokens.bgAlt, "hover:bg-gray-200", "cursor-pointer"]
+      class_ $ base [Tokens.bgAlt, Tokens.hoverBg, "cursor-pointer"]
     ]
     $ do
       -- Empty drag handle cell
       Lucid.td_ [class_ $ base ["p-2"]] mempty
       -- + icon in track number column
-      Lucid.td_ [class_ $ base ["p-2", "text-center", "text-green-600", Tokens.fontBold, "text-lg"]] "+"
+      Lucid.td_ [class_ $ base ["p-2", "text-center", Tokens.successText, Tokens.fontBold, "text-lg"]] "+"
       -- Title cell with placeholder text
-      Lucid.td_ [class_ $ base ["p-2", "text-gray-400", "italic"]] "(add track)"
+      Lucid.td_ [class_ $ base ["p-2", Tokens.fgMuted, "italic"]] "(add track)"
       -- Empty artist cell
       Lucid.td_ [class_ $ base ["p-2"]] mempty
       -- Empty delete cell

@@ -63,12 +63,12 @@ successTemplate =
     Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
       -- Success icon
       Lucid.div_ [Lucid.class_ "text-center"] $ do
-        Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-green-100"] $ do
-          Lucid.span_ [Lucid.class_ "text-green-600 text-3xl"] "✓"
+        Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center", "rounded-full", Tokens.successBg]] $ do
+          Lucid.span_ [class_ $ base [Tokens.successText, "text-3xl"]] "✓"
 
       -- Title
       Lucid.h1_
-        [class_ $ base ["mt-6", "text-center", "text-2xl", Tokens.fontBold, "text-gray-900"]]
+        [class_ $ base ["mt-6", "text-center", "text-2xl", Tokens.fontBold, Tokens.fgPrimary]]
         "Check Your Email"
 
       -- Message
@@ -80,8 +80,8 @@ successTemplate =
         "The link will expire in 1 hour."
 
       -- Instructions
-      Lucid.div_ [class_ $ base ["mt-6", Tokens.p4, Tokens.bgAlt, "border", "border-gray-200"]] $ do
-        Lucid.h3_ [class_ $ base [Tokens.fontBold, "text-gray-900", Tokens.textSm]] "Didn't receive the email?"
+      Lucid.div_ [class_ $ base ["mt-6", Tokens.p4, Tokens.bgAlt, "border", Tokens.borderMuted]] $ do
+        Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.fgPrimary, Tokens.textSm]] "Didn't receive the email?"
         Lucid.ul_ [class_ $ base ["mt-2", Tokens.textSm, Tokens.fgMuted, "space-y-1"]] $ do
           Lucid.li_ "• Check your spam or junk folder"
           Lucid.li_ "• Make sure your email address is correct"
@@ -96,7 +96,7 @@ successTemplate =
             hxSwap_ "innerHTML",
             hxTarget_ "body",
             hxPushUrl_ "true",
-            class_ $ base [Tokens.fontBold, "text-gray-900", "hover:underline"]
+            class_ $ base [Tokens.fontBold, Tokens.fgPrimary, "hover:underline"]
           ]
           "Log in"
 
@@ -129,13 +129,13 @@ forgotPasswordForm = do
 
 loginSection :: Lucid.Html ()
 loginSection =
-  Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center"]] do
+  Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", Tokens.borderMuted, "text-center"]] do
     Lucid.a_
       [ Lucid.href_ [i|/#{userLoginGetUrl}|],
         hxGet_ [i|/#{userLoginGetUrl}|],
         hxSwap_ "innerHTML",
         hxTarget_ "body",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.textSm, "text-gray-900", "hover:underline"]
+        class_ $ base [Tokens.textSm, Tokens.fgPrimary, "hover:underline"]
       ]
       "← Back to login"

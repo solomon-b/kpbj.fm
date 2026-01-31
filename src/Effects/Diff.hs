@@ -19,6 +19,8 @@ where
 import Data.Algorithm.Diff (Diff, PolyDiff (..), getGroupedDiff)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Lucid qualified
 
 --------------------------------------------------------------------------------
@@ -69,25 +71,25 @@ computeLineDiff oldText newText =
 -- - Gray for context lines
 renderDiff :: [DiffLine] -> Lucid.Html ()
 renderDiff diffLines =
-  Lucid.div_ [Lucid.class_ "font-mono text-sm border border-gray-300 rounded overflow-hidden"] $ do
+  Lucid.div_ [class_ $ base ["font-mono", Tokens.textSm, "border", Tokens.borderMuted, "rounded", "overflow-hidden"]] $ do
     if null diffLines
-      then Lucid.div_ [Lucid.class_ "p-4 text-gray-500 text-center"] "No changes"
+      then Lucid.div_ [class_ $ base [Tokens.p4, Tokens.fgMuted, "text-center"]] "No changes"
       else mapM_ renderLine diffLines
   where
     renderLine :: DiffLine -> Lucid.Html ()
     renderLine = \case
       Context line ->
-        Lucid.div_ [Lucid.class_ "px-3 py-1 bg-gray-50 border-l-4 border-gray-300"] $ do
-          Lucid.span_ [Lucid.class_ "text-gray-400 mr-2 select-none"] " "
+        Lucid.div_ [class_ $ base [Tokens.px3, "py-1", Tokens.bgAlt, "border-l-4", Tokens.borderMuted]] $ do
+          Lucid.span_ [class_ $ base [Tokens.fgMuted, "mr-2", "select-none"]] " "
           Lucid.span_ $ Lucid.toHtml (displayLine line)
       Added line ->
-        Lucid.div_ [Lucid.class_ "px-3 py-1 bg-green-100 border-l-4 border-green-500"] $ do
-          Lucid.span_ [Lucid.class_ "text-green-600 mr-2 select-none font-bold"] "+"
-          Lucid.span_ [Lucid.class_ "text-green-800"] $ Lucid.toHtml (displayLine line)
+        Lucid.div_ [class_ $ base [Tokens.px3, "py-1", Tokens.successBg, "border-l-4", Tokens.successBorder]] $ do
+          Lucid.span_ [class_ $ base [Tokens.successText, "mr-2", "select-none", Tokens.fontBold]] "+"
+          Lucid.span_ [class_ $ base [Tokens.successText]] $ Lucid.toHtml (displayLine line)
       Removed line ->
-        Lucid.div_ [Lucid.class_ "px-3 py-1 bg-red-100 border-l-4 border-red-500"] $ do
-          Lucid.span_ [Lucid.class_ "text-red-600 mr-2 select-none font-bold"] "-"
-          Lucid.span_ [Lucid.class_ "text-red-800"] $ Lucid.toHtml (displayLine line)
+        Lucid.div_ [class_ $ base [Tokens.px3, "py-1", Tokens.errorBg, "border-l-4", Tokens.errorBorder]] $ do
+          Lucid.span_ [class_ $ base [Tokens.errorText, "mr-2", "select-none", Tokens.fontBold]] "-"
+          Lucid.span_ [class_ $ base [Tokens.errorText]] $ Lucid.toHtml (displayLine line)
 
     -- Display empty lines as a non-breaking space for visibility
     displayLine :: Text -> Text

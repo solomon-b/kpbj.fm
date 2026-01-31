@@ -24,6 +24,8 @@ import Data.Text qualified as Text
 import Data.Time (Day, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
@@ -102,7 +104,7 @@ handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
                 hxGet_ [i|/#{uploadUrl}|],
                 hxTarget_ "#main-content",
                 hxPushUrl_ "true",
-                Lucid.class_ "bg-gray-800 text-white px-4 py-2 text-sm font-bold hover:bg-gray-700"
+                class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
               ]
               "New Episode"
 

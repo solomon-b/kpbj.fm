@@ -52,7 +52,7 @@ renderBlogPostTableRow showModel post = do
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
         ]
-  Lucid.tr_ [class_ $ base ["border-b-2", "border-gray-200 dark:border-gray-600", "hover:bg-gray-50 dark:hover:bg-gray-700"], Lucid.id_ postRowId] $ do
+  Lucid.tr_ [class_ $ base ["border-b-2", Tokens.borderMuted, Tokens.hoverBg], Lucid.id_ postRowId] $ do
     -- Title
     Lucid.td_ cellLinkAttrs $ do
       Lucid.span_ [class_ $ base [Tokens.fontBold]] $
@@ -71,7 +71,7 @@ renderBlogPostTableRow showModel post = do
     Lucid.td_ cellLinkAttrs $
       case post.publishedAt of
         Just publishedAt -> Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" publishedAt
-        Nothing -> Lucid.span_ [class_ $ base ["text-gray-500 dark:text-gray-400", "italic"]] "—"
+        Nothing -> Lucid.span_ [class_ $ base [Tokens.fgMuted, "italic"]] "—"
 
     -- Status
     Lucid.td_ cellLinkAttrs $
@@ -102,7 +102,7 @@ renderBlogPostTableRow showModel post = do
           ""
         -- Visible dropdown
         Lucid.select_
-          [ Lucid.class_ "p-2 border border-gray-400 dark:border-gray-500 text-xs bg-white dark:bg-gray-800",
+          [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
             xOnChange_
               [i|
               const action = $el.value;
@@ -124,6 +124,6 @@ renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
 renderStatusBadge Draft =
   Lucid.span_ [class_ $ base ["inline-block", Tokens.bgAlt, Tokens.fgPrimary, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
 renderStatusBadge Published =
-  Lucid.span_ [class_ $ base ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
+  Lucid.span_ [class_ $ base ["inline-block", Tokens.successBg, Tokens.successText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
 renderStatusBadge Deleted =
-  Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"
+  Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"

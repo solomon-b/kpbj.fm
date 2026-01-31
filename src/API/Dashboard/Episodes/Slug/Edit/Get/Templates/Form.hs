@@ -18,6 +18,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
@@ -136,23 +138,23 @@ template ctx = do
                 -- No template found, show raw scheduled date
                 plain $
                   Lucid.div_ $ do
-                    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+                    Lucid.label_ [class_ $ base ["block", Tokens.fontBold, Tokens.mb2]] "Scheduled Date"
                     Lucid.div_
-                      [Lucid.class_ "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-50 font-mono text-sm"]
+                      [class_ $ base [Tokens.fullWidth, Tokens.p3, Tokens.border2, Tokens.borderDefault, Tokens.bgAlt, "font-mono", Tokens.textSm]]
                       (Lucid.toHtml $ "Current: " <> display episode.scheduledAt)
                     Lucid.p_
-                      [Lucid.class_ "text-sm text-gray-600 dark:text-gray-400 mt-2 italic"]
+                      [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-2", "italic"]]
                       "Schedule template not found. To change, cancel and create a new episode."
               Just currentSlot ->
                 if null upcomingDates
                   then plain $
                     Lucid.div_ $ do
-                      Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Scheduled Date"
+                      Lucid.label_ [class_ $ base ["block", Tokens.fontBold, Tokens.mb2]] "Scheduled Date"
                       Lucid.div_
-                        [Lucid.class_ "w-full p-3 border-2 border-gray-300 dark:border-gray-600 bg-gray-50 font-mono text-sm"]
+                        [class_ $ base [Tokens.fullWidth, Tokens.p3, Tokens.border2, Tokens.borderDefault, Tokens.bgAlt, "font-mono", Tokens.textSm]]
                         (Lucid.toHtml $ display currentSlot <> " (Current)")
                       Lucid.p_
-                        [Lucid.class_ "text-sm text-gray-600 dark:text-gray-400 mt-2 italic"]
+                        [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-2", "italic"]]
                         "No other available time slots. To change, cancel and create a new episode."
                   else selectField "scheduled_date" $ do
                     label "Scheduled Date"

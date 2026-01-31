@@ -73,7 +73,7 @@ renderHeader page =
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "REVISION HISTORY"
-        Lucid.div_ [class_ $ base ["text-gray-500", Tokens.textSm]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $ do
           Lucid.strong_ "Page: "
           Lucid.toHtml page.spmTitle
       Lucid.div_ [class_ $ base ["space-x-4"]] $ do
@@ -82,7 +82,7 @@ renderHeader page =
             hxGet_ [i|/#{dashboardSitePagesEditUrl (SitePages.spmSlug page)}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-600", "hover:text-blue-800", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.infoText, "hover:opacity-80", Tokens.textSm, "underline"]
           ]
           "EDIT PAGE"
         Lucid.a_
@@ -90,7 +90,7 @@ renderHeader page =
             hxGet_ [i|/#{dashboardSitePagesGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-600", "hover:text-blue-800", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.infoText, "hover:opacity-80", Tokens.textSm, "underline"]
           ]
           "<- BACK TO PAGES"
 
@@ -118,8 +118,8 @@ renderRevisionRow pageSlug (versionNum, rwe) =
 
           Lucid.td_ (clickableCellAttrs detailUrl) $
             case summary of
-              Just s -> Lucid.span_ [class_ $ base [Tokens.textSm, "text-gray-600"]] $ Lucid.toHtml s
-              Nothing -> Lucid.span_ [class_ $ base [Tokens.textSm, "text-gray-400"]] "No summary"
+              Just s -> Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $ Lucid.toHtml s
+              Nothing -> Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "italic"]] "No summary"
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do

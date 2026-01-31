@@ -132,7 +132,7 @@ registerForm displayNameValue fullNameValue emailValue = do
 
 passwordRequirements :: Lucid.Html ()
 passwordRequirements =
-  Lucid.div_ [class_ $ base [Tokens.bgAlt, "border", "border-gray-300", Tokens.p3, Tokens.textXs, "mb-4"]] do
+  Lucid.div_ [class_ $ base [Tokens.bgAlt, "border", Tokens.borderMuted, Tokens.p3, Tokens.textXs, "mb-4"]] do
     Lucid.div_ [class_ $ base [Tokens.fontBold, "mb-1"]] "Password Requirements:"
     Lucid.div_ "• At least 8 characters long"
     Lucid.div_ "• Include uppercase and lowercase letters"
@@ -147,7 +147,7 @@ termsDescription = do
       hxSwap_ "innerHTML",
       hxTarget_ "body",
       hxPushUrl_ "true",
-      class_ $ base ["text-blue-600", "hover:underline"]
+      class_ $ base [Tokens.infoText, "hover:underline"]
     ]
     "Terms of Service"
   Lucid.span_ " and "
@@ -157,13 +157,13 @@ termsDescription = do
       hxSwap_ "innerHTML",
       hxTarget_ "body",
       hxPushUrl_ "true",
-      class_ $ base ["text-blue-600", "hover:underline"]
+      class_ $ base [Tokens.infoText, "hover:underline"]
     ]
     "Privacy Policy"
 
 loginSection :: Lucid.Html ()
 loginSection =
-  Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center"]] do
+  Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", Tokens.borderMuted, "text-center"]] do
     Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] "Already have an account?"
     Lucid.a_
       [ Lucid.href_ [i|/#{userLoginGetUrl}|],
@@ -171,12 +171,12 @@ loginSection =
         hxSwap_ "innerHTML",
         hxTarget_ "body",
         hxPushUrl_ "true",
-        class_ $ base ["bg-blue-600", Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700", "inline-block"]
+        class_ $ base [Tokens.infoBg, Tokens.infoText, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg, "inline-block"]
       ]
       "LOGIN"
 
 alert :: Lucid.Html ()
 alert =
   Lucid.div_
-    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, "text-red-800", "rounded-lg", "bg-red-50"], Lucid.role_ "alert"]
+    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
     "Your email address or password is invalid."

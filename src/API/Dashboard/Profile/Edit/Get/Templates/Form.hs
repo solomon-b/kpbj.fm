@@ -130,4 +130,4 @@ roleField metadata =
       Lucid.span_ [class_ $ base ["inline-flex", "items-center", T.px3, "py-1", T.textSm, T.fontBold, T.bgInverse, T.fgInverse]] $
         Lucid.toHtml $
           show metadata.mUserRole
-    Lucid.p_ [class_ $ base [T.textSm, "text-gray-500 dark:text-gray-400", "mt-1"]] "Role can only be changed by administrators"
+    Lucid.p_ [class_ $ base [T.textSm, T.fgMuted, "mt-1"]] "Role can only be changed by administrators"

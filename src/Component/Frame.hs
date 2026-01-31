@@ -71,12 +71,12 @@ desktopMusicPlayer =
       -- Line 1: Play/pause and volume
       Lucid.div_ [class_ $ base ["flex", "items-center", "justify-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
         Lucid.button_
-          [ Lucid.class_ "hover:text-gray-600 dark:hover:text-gray-400 cursor-pointer bg-transparent border-none",
+          [ class_ $ base [Tokens.hoverBg, "cursor-pointer", "bg-transparent", "border-none"],
             xOnClick_ "toggle()",
             xText_ "isPlaying ? '[ PAUSE ]' : '[ PLAY ]'"
           ]
           "[ PLAY ]"
-        Lucid.span_ [Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
+        Lucid.span_ [Lucid.class_ Tokens.fgMuted] "|"
         Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
           Lucid.span_ "VOL:"
           Lucid.input_
@@ -91,11 +91,11 @@ desktopMusicPlayer =
       Lucid.div_ [class_ $ base ["flex", "items-center", "justify-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
         Lucid.div_ [xText_ "currentShow || 'NOW PLAYING: KPBJ 95.9 FM'"] "NOW PLAYING: KPBJ 95.9 FM"
         -- Back to Live button (only visible when in episode mode)
-        Lucid.span_ [xShow_ "mode === 'episode'", Lucid.class_ "text-gray-500 dark:text-gray-500"] "|"
+        Lucid.span_ [xShow_ "mode === 'episode'", Lucid.class_ Tokens.fgMuted] "|"
         Lucid.button_
           [ xShow_ "mode === 'episode'",
             xOnClick_ "playStream()",
-            Lucid.class_ "hover:text-gray-600 dark:hover:text-gray-400 text-xs uppercase cursor-pointer bg-transparent border-none"
+            class_ $ base [Tokens.hoverBg, Tokens.textXs, "uppercase", "cursor-pointer", "bg-transparent", "border-none"]
           ]
           "[ BACK TO LIVE ]"
 
@@ -111,7 +111,7 @@ mobileMusicPlayer =
       -- Play/pause button (using button element to avoid page jump from href="#")
       Lucid.button_
         [ xOnClick_ "toggle()",
-          class_ $ base ["hover:text-gray-300", "cursor-pointer", "text-center", "flex-shrink-0", "whitespace-nowrap", "bg-transparent", "border-none"]
+          class_ $ base ["hover:opacity-80", "cursor-pointer", "text-center", "flex-shrink-0", "whitespace-nowrap", "bg-transparent", "border-none"]
         ]
         $ do
           -- Both rendered, visibility toggled - prevents layout shift
@@ -148,11 +148,11 @@ mobileArchiveBanner =
     [ xShow_ "mode === 'episode'",
       xOnClick_ "playStream()",
       class_ $ do
-        base ["flex", "items-center", "justify-center", Tokens.gap4, "bg-gray-600", Tokens.fgInverse, Tokens.px4, "py-2", Tokens.textXs, "font-mono", "w-full", "border-none", "cursor-pointer", "hover:bg-gray-500"]
+        base ["flex", "items-center", "justify-center", Tokens.gap4, Tokens.bgAlt, Tokens.fgInverse, Tokens.px4, "py-2", Tokens.textXs, "font-mono", "w-full", "border-none", "cursor-pointer", "hover:opacity-80"]
     ]
     $ do
       Lucid.span_ "Playing archived episode"
-      Lucid.span_ [class_ $ base ["bg-white", "text-gray-800", "px-3", "py-1", Tokens.fontBold]] "GO LIVE"
+      Lucid.span_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, "px-3", "py-1", Tokens.fontBold]] "GO LIVE"
 
 -- | Audio element wrapper with Alpine state (shared between mobile and desktop)
 musicPlayerWrapper :: Lucid.Html () -> Lucid.Html ()
@@ -520,10 +520,10 @@ bannerFromUrlScript =
   \  const message = params.get('_msg');\
   \  if (bannerType && title && message) {\
   \    const styles = {\
-  \      success: { bg: 'bg-green-100', border: 'border-green-600', title: 'text-green-800', msg: 'text-green-700', dismiss: 'text-green-600 hover:text-green-800', icon: '\\u2713' },\
-  \      error: { bg: 'bg-red-100', border: 'border-red-600', title: 'text-red-800', msg: 'text-red-700', dismiss: 'text-red-600 hover:text-red-800', icon: '\\u2715' },\
-  \      warning: { bg: 'bg-yellow-100', border: 'border-yellow-600', title: 'text-yellow-800', msg: 'text-yellow-700', dismiss: 'text-yellow-600 hover:text-yellow-800', icon: '\\u26A0' },\
-  \      info: { bg: 'bg-blue-100', border: 'border-blue-600', title: 'text-blue-800', msg: 'text-blue-700', dismiss: 'text-blue-600 hover:text-blue-800', icon: '\\u2139' }\
+  \      success: { bg: 'bg-[var(--theme-success)]/10', border: 'border-[var(--theme-success)]', title: 'text-[var(--theme-success)]', msg: 'text-[var(--theme-success)]', dismiss: 'text-[var(--theme-success)] hover:opacity-70', icon: '\\u2713' },\
+  \      error: { bg: 'bg-[var(--theme-error)]/10', border: 'border-[var(--theme-error)]', title: 'text-[var(--theme-error)]', msg: 'text-[var(--theme-error)]', dismiss: 'text-[var(--theme-error)] hover:opacity-70', icon: '\\u2715' },\
+  \      warning: { bg: 'bg-[var(--theme-warning)]/10', border: 'border-[var(--theme-warning)]', title: 'text-[var(--theme-warning)]', msg: 'text-[var(--theme-warning)]', dismiss: 'text-[var(--theme-warning)] hover:opacity-70', icon: '\\u26A0' },\
+  \      info: { bg: 'bg-[var(--theme-info)]/10', border: 'border-[var(--theme-info)]', title: 'text-[var(--theme-info)]', msg: 'text-[var(--theme-info)]', dismiss: 'text-[var(--theme-info)] hover:opacity-70', icon: '\\u2139' }\
   \    };\
   \    const style = styles[bannerType] || styles.info;\
   \    const container = document.getElementById('banner-container');\
@@ -551,23 +551,23 @@ bannerFromUrlScript =
 
 authWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
 authWidget mUser =
-  Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.fgMuted, "dark:text-gray-400"]] $ do
+  Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.fgMuted]] $ do
     case mUser of
       Nothing -> do
-        Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200"] "Host Login"
+        Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", class_ $ base [Tokens.fgMuted, "hover:opacity-70"]] "Host Login"
       Just user -> do
-        Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500"] "•"
-        Lucid.span_ [class_ $ base [Tokens.fgPrimary, "dark:text-gray-200", Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
+        Lucid.span_ [class_ $ base [Tokens.fgMuted]] "•"
+        Lucid.span_ [class_ $ base [Tokens.fgPrimary, Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
         -- Dashboard is only available to hosts and above (Host, Staff, Admin)
         -- Dashboard uses a completely different frame layout (sidebar navigation),
         -- so we do a full page navigation instead of HTMX content swap
         when (UserMetadata.isHostOrHigher user.mUserRole) $
-          Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], class_ $ base [Tokens.linkText, "dark:text-blue-400", Tokens.fontBold]] "Dashboard"
-        Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200", hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
+          Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], class_ $ base [Tokens.linkText, Tokens.fontBold]] "Dashboard"
+        Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.fgMuted, "hover:opacity-70"], hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
 
 logo :: Lucid.Html ()
 logo =
-  Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", class_ $ base [Tokens.textLg, Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "block", "hover:text-gray-600", "dark:hover:text-gray-400"]] $ do
+  Lucid.a_ [Lucid.href_ [i|/#{rootGetUrl}|], hxGet_ [i|/#{rootGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", class_ $ base [Tokens.textLg, Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "block", "hover:opacity-70"]] $ do
     Lucid.pre_ [Lucid.style_ "margin: 0;"] $ do
       "▄ •▄  ▄▄▄·▄▄▄▄·  ▐▄▄▄    ·▄▄▄• ▌ ▄ ·.\n"
       "█▌▄▌▪▐█ ▄█▐█ ▀█▪  ·██    ▐▄▄··██ ▐███▪\n"
@@ -584,7 +584,7 @@ miniLogo =
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
       xOnClick_ "menuOpen = false",
-      class_ $ base [Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "hover:text-gray-600", "dark:hover:text-gray-400"]
+      class_ $ base [Tokens.fontBold, "text-center", "whitespace-pre", "leading-none", "hover:opacity-70"]
     ]
     $ do
       Lucid.pre_ [Lucid.style_ "margin: 0; font-size: 0.5rem;"] $ do
@@ -610,7 +610,7 @@ mobileHeader _mUser =
       -- Hamburger button
       Lucid.button_
         [ xOnClick_ "menuOpen = !menuOpen",
-          class_ $ base [Tokens.p2, "hover:bg-gray-100", "dark:hover:bg-gray-700", Tokens.fontBold, Tokens.textLg]
+          class_ $ base [Tokens.p2, Tokens.hoverBg, Tokens.fontBold, Tokens.textLg]
         ]
         "☰"
       -- Centered logo (flex-1 pushes it to center)
@@ -633,7 +633,7 @@ mobileMenuOverlay mUser =
       Lucid.div_ [class_ $ base ["flex", "justify-end", "items-center", Tokens.mb8]] $ do
         Lucid.button_
           [ xOnClick_ "menuOpen = false",
-            class_ $ base [Tokens.p2, "hover:bg-gray-100", "dark:hover:bg-gray-700", Tokens.fontBold, "text-2xl", "dark:text-gray-200"]
+            class_ $ base [Tokens.p2, Tokens.hoverBg, Tokens.fontBold, "text-2xl"]
           ]
           "×"
       -- Navigation links
@@ -653,11 +653,11 @@ mobileNavLinks mUser =
     Lucid.a_
       [ Lucid.href_ "mailto:contact@kpbj.fm",
         xOnClick_ "menuOpen = false",
-        class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
+        class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.fgPrimary, "hover:opacity-70"]
       ]
       "Contact"
     -- Divider
-    Lucid.hr_ [class_ $ base ["border-gray-300", "dark:border-gray-600", "my-2"]]
+    Lucid.hr_ [class_ $ base [Tokens.borderMuted, "my-2"]]
     -- Auth links
     case mUser of
       Nothing -> do
@@ -668,14 +668,14 @@ mobileNavLinks mUser =
           Lucid.a_
             [ Lucid.href_ [i|/#{dashboardGetUrl}|],
               xOnClick_ "menuOpen = false",
-              class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
+              class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.fgPrimary, "hover:opacity-70"]
             ]
             "Dashboard"
         Lucid.a_
           [ Lucid.href_ [i|/#{userLogoutGetUrl}|],
             hxGet_ [i|/#{userLogoutGetUrl}|],
             xOnClick_ "menuOpen = false",
-            class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
+            class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.fgPrimary, "hover:opacity-70"]
           ]
           "Log Out"
 
@@ -688,13 +688,13 @@ mobileNavLink label url =
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
       xOnClick_ "menuOpen = false",
-      class_ $ base [Tokens.textXl, Tokens.fontBold, "hover:text-gray-600", "dark:text-gray-200", "dark:hover:text-gray-400"]
+      class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.fgPrimary, "hover:opacity-70"]
     ]
     label
 
--- | Navigation link classes with dark mode support
+-- | Navigation link classes with theme support
 navLinkDark :: Text
-navLinkDark = Tokens.navLink <> " dark:text-gray-300 dark:hover:text-white"
+navLinkDark = Tokens.navLink <> " " <> Tokens.fgPrimary
 
 navigation :: Lucid.Html ()
 navigation =
@@ -711,7 +711,7 @@ navigation =
 suspensionBanner :: SuspensionStatus -> Lucid.Html ()
 suspensionBanner NotSuspended = mempty
 suspensionBanner Suspended =
-  Lucid.div_ [class_ $ base ["bg-red-600", Tokens.fgInverse, Tokens.px4, "py-3", "text-center"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.errorText, Tokens.border2, Tokens.errorBorder, Tokens.px4, "py-3", "text-center"]] $ do
     Lucid.div_ [class_ $ base [Tokens.maxWidth, "mx-auto"]] $ do
       Lucid.p_ [class_ $ base [Tokens.fontBold, Tokens.textLg]] "Account Suspended"
       Lucid.p_ [class_ $ base [Tokens.textSm, "mt-1"]] "Your account was suspended."
@@ -791,7 +791,7 @@ template mGoogleAnalyticsId mUser main =
               main
 
             -- Footer
-            Lucid.footer_ [class_ $ base [Tokens.px4, Tokens.py2, "mt-auto", "text-center", Tokens.textXs, Tokens.fgMuted, "dark:text-gray-400"]] $ do
+            Lucid.footer_ [class_ $ base [Tokens.px4, Tokens.py2, "mt-auto", "text-center", Tokens.textXs, Tokens.fgMuted]] $ do
               Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
 
             -- Fixed mobile player at bottom (visible only on mobile)

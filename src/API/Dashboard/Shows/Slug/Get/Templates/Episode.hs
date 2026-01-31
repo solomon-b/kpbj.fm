@@ -41,7 +41,7 @@ renderLatestEpisode backend showModel episode tracks = do
 
     -- Episode header with image and info
     Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
-      Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300 dark:bg-gray-600", "border", "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
+      Lucid.div_ [class_ $ base ["w-24", "h-24", Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
         case episode.artworkUrl of
           Just artworkPath -> Lucid.img_ [Lucid.src_ (buildMediaUrl backend artworkPath), Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
           Nothing -> "[EP IMG]"
@@ -87,7 +87,7 @@ renderLatestEpisode backend showModel episode tracks = do
             episodeMetadata :: Text.Text
             episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
         Lucid.div_
-          [ class_ $ base [Tokens.bgAlt, Tokens.border2, "border-gray-600 dark:border-gray-500", Tokens.p4, Tokens.mb4],
+          [ class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, Tokens.p4, Tokens.mb4],
             xData_
               [i|{
               playerId: '#{playerId}',
@@ -139,12 +139,12 @@ renderLatestEpisode backend showModel episode tracks = do
             Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
             Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb2]] $ do
               Lucid.button_
-                [ class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"],
+                [ class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:opacity-80"],
                   xOnClick_ "toggle()",
                   xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
                 ]
                 "▶ PLAY"
-              Lucid.div_ [class_ $ base ["flex-grow", "bg-gray-300 dark:bg-gray-600", "h-2", "rounded", "relative"]] $ do
+              Lucid.div_ [class_ $ base ["flex-grow", Tokens.bgAlt, "h-2", "rounded", "relative"]] $ do
                 Lucid.div_
                   [ class_ $ base [Tokens.bgInverse, "h-2", "rounded", "absolute", "top-0", "left-0"],
                     Lucid.style_ "",
@@ -165,7 +165,7 @@ renderLatestEpisode backend showModel episode tracks = do
 
           when (length tracks > 4) $ do
             Lucid.button_
-              [ class_ $ base [Tokens.textXs, Tokens.fgMuted, "hover:text-gray-800", "mt-2"],
+              [ class_ $ base [Tokens.textXs, Tokens.fgMuted, Tokens.hoverBg, "mt-2"],
                 Lucid.onclick_ "document.getElementById('all-tracks').classList.toggle('hidden')"
               ]
               $ "+ Show all " <> Lucid.toHtml (show (length tracks)) <> " tracks"
@@ -174,7 +174,7 @@ renderLatestEpisode backend showModel episode tracks = do
   where
     renderTrack :: EpisodeTrack.Model -> Lucid.Html ()
     renderTrack track = do
-      Lucid.div_ [class_ $ base ["flex", "justify-between", Tokens.p2, "hover:bg-gray-50 dark:hover:bg-gray-700"]] $ do
+      Lucid.div_ [class_ $ base ["flex", "justify-between", Tokens.p2, Tokens.hoverBg]] $ do
         Lucid.div_ $ do
           Lucid.span_ [Lucid.class_ "font-medium"] $ "\"" <> Lucid.toHtml track.title <> "\""
           " - "
@@ -185,7 +185,7 @@ renderEpisodeCard :: StorageBackend -> Shows.Model -> Episodes.Model -> Lucid.Ht
 renderEpisodeCard backend showModel episode = do
   Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
     -- Episode thumbnail
-    Lucid.div_ [class_ $ base ["w-24", "h-24", "bg-gray-300 dark:bg-gray-600", "border", "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
+    Lucid.div_ [class_ $ base ["w-24", "h-24", Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "flex", "items-center", "justify-center", Tokens.textXs, "flex-shrink-0"]] $ do
       case episode.artworkUrl of
         Just artworkPath -> Lucid.img_ [Lucid.src_ (buildMediaUrl backend artworkPath), Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
         Nothing -> "[EP IMG]"
@@ -233,7 +233,7 @@ renderEpisodeCard backend showModel episode = do
               episodeMetadata :: Text.Text
               episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
           Lucid.div_
-            [ Lucid.class_ "bg-gray-100 dark:bg-gray-700 border-2 border-gray-600 dark:border-gray-500 p-4 mb-4",
+            [ class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, Tokens.p4, Tokens.mb4],
               xData_
                 [i|{
                 playerId: '#{playerId}',
@@ -283,19 +283,19 @@ renderEpisodeCard backend showModel episode = do
             ]
             $ do
               Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
-              Lucid.div_ [Lucid.class_ "flex items-center gap-4 mb-2"] $ do
+              Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb2]] $ do
                 Lucid.button_
-                  [ Lucid.class_ "bg-gray-800 text-white px-6 py-2 font-bold hover:bg-gray-700",
+                  [ class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.hoverBg],
                     xOnClick_ "toggle()",
                     xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
                   ]
                   "▶ PLAY"
-                Lucid.div_ [Lucid.class_ "flex-grow bg-gray-300 h-2 rounded relative"] $ do
+                Lucid.div_ [class_ $ base ["flex-grow", Tokens.bgAlt, "h-2", "rounded", "relative"]] $ do
                   Lucid.div_
-                    [ Lucid.class_ "bg-gray-800 h-2 rounded absolute top-0 left-0",
+                    [ class_ $ base [Tokens.bgInverse, "h-2", "rounded", "absolute", "top-0", "left-0"],
                       Lucid.style_ "",
                       xBindStyle_ "{ width: progress + '%' }"
                     ]
                     mempty
-                Lucid.span_ [Lucid.class_ "text-sm font-mono", xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
+                Lucid.span_ [class_ $ base [Tokens.textSm, "font-mono"], xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
         Nothing -> mempty

@@ -17,6 +17,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..))
 import Design (base, class_, desktop)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
@@ -39,7 +40,7 @@ renderShowHeader backend showModel hosts schedules tags = do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
-        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-square", "bg-gray-300 dark:bg-gray-600", Tokens.border2, "border-gray-600 dark:border-gray-500", "flex", "items-center", "justify-center", Tokens.textLg]] $ do
+        Lucid.div_ [class_ $ base [Tokens.fullWidth, "aspect-square", Tokens.bgAlt, Tokens.border2, Theme.borderDefault, "flex", "items-center", "justify-center", Tokens.textLg]] $ do
           case showModel.logoUrl of
             Just logoPath -> do
               let logoAlt = showModel.title <> " logo"
@@ -88,7 +89,7 @@ renderShowHeader backend showModel hosts schedules tags = do
                   hxTarget_ "#main-content",
                   hxPushUrl_ "true",
                   hxSwap_ "innerHTML",
-                  class_ $ base [Tokens.px3, "py-1", Tokens.textSm, "border", "border-gray-400 dark:border-gray-500", "bg-gray-100 dark:bg-gray-700", "hover:bg-gray-200 dark:hover:bg-gray-600", "transition-colors"]
+                  class_ $ base [Tokens.px3, "py-1", Tokens.textSm, "border", Theme.borderMuted, Tokens.bgAlt, Tokens.hoverBg, "transition-colors"]
                 ]
                 $ Lucid.toHtml (ShowTags.stName tag)
   where

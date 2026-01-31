@@ -49,13 +49,13 @@ template backend showModel episodes hosts schedules blogPosts tags currentPage =
           Lucid.nav_ [class_ $ base ["flex", Tokens.gap8]] $ do
             Lucid.button_
               [ xOnClick_ "activeTab = 'episodes'",
-                xBindClass_ [i|activeTab === 'episodes' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderDefault, Tokens.bgMain, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.fgMuted, "hover:text-gray-800"]}'|],
+                xBindClass_ [i|activeTab === 'episodes' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderDefault, Tokens.bgMain, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.fgMuted, Tokens.hoverBg]}'|],
                 Lucid.type_ "button"
               ]
               "Episodes"
             Lucid.button_
               [ xOnClick_ "activeTab = 'blog'",
-                xBindClass_ [i|activeTab === 'blog' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderDefault, Tokens.bgMain, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.fgMuted, "hover:text-gray-800"]}'|],
+                xBindClass_ [i|activeTab === 'blog' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderDefault, Tokens.bgMain, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.fgMuted, Tokens.hoverBg]}'|],
                 Lucid.type_ "button"
               ]
               "Blog"
@@ -121,12 +121,12 @@ renderPagination showModel currentPage episodeCount = do
               hxGet_ [i|/#{prevUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:opacity-80"]
             ]
             "Previous"
         else
           Lucid.span_
-            [class_ $ base ["bg-gray-300 dark:bg-gray-600", "text-gray-500 dark:text-gray-400", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
+            [class_ $ base [Tokens.bgAlt, Tokens.fgMuted, Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Previous"
 
       -- Page indicator
@@ -143,12 +143,12 @@ renderPagination showModel currentPage episodeCount = do
               hxGet_ [i|/#{nextUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:opacity-80"]
             ]
             "Next"
         else
           Lucid.span_
-            [class_ $ base ["bg-gray-300 dark:bg-gray-600", "text-gray-500 dark:text-gray-400", Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
+            [class_ $ base [Tokens.bgAlt, Tokens.fgMuted, Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
             "Next"
 
 -- Helper function to render blog content
@@ -171,6 +171,6 @@ renderBlogContent backend showModel blogPosts = do
             hxGet_ [i|/#{blogUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
           ]
           "View All Blog Posts"
