@@ -41,7 +41,7 @@ template showModel post author tags renderedContent = do
         Lucid.toHtml (ShowBlogPosts.title post)
 
       -- Meta information
-      Lucid.div_ [class_ $ base ["flex", "flex-wrap", "items-center", Tokens.gap4, Tokens.textGray600]] $ do
+      Lucid.div_ [class_ $ base ["flex", "flex-wrap", "items-center", Tokens.gap4, Tokens.fgMuted]] $ do
         -- Author
         Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
           Lucid.span_ [Lucid.class_ Tokens.fontBold] "By"
@@ -68,7 +68,7 @@ template showModel post author tags renderedContent = do
                 hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel)}?tag=#{ShowBlogTags.sbtmName tag}|],
                 hxTarget_ "#main-content",
                 hxPushUrl_ "true",
-                class_ $ base [Tokens.px3, "py-1", Tokens.bgGray800, Tokens.textWhite, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
+                class_ $ base [Tokens.px3, "py-1", Tokens.bgInverse, Tokens.fgInverse, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
               ]
               $ Lucid.toHtml (ShowBlogTags.sbtmName tag)
 
@@ -93,9 +93,9 @@ notFoundTemplate showSlug postSlug = do
   Lucid.div_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     Lucid.div_ [Lucid.class_ "text-center"] $ do
       Lucid.h1_ [class_ $ base ["text-4xl", Tokens.fontBold, Tokens.mb4]] "Blog Post Not Found"
-      Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600, Tokens.mb8]] $ do
+      Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted, Tokens.mb8]] $ do
         "We couldn't find the blog post at: "
-        Lucid.code_ [class_ $ base [Tokens.bgGray100, "px-2", "py-1"]] $ do
+        Lucid.code_ [class_ $ base [Tokens.bgAlt, "px-2", "py-1"]] $ do
           Lucid.toHtml $ display showSlug <> "/blog/" <> display postSlug
 
       Lucid.a_
@@ -103,7 +103,7 @@ notFoundTemplate showSlug postSlug = do
           hxGet_ [i|/#{showBlogGetUrl showSlug}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.px6, "py-3", Tokens.bgGray800, Tokens.textWhite, Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.px6, "py-3", Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:bg-gray-700"]
         ]
         "← Back to blog"
 

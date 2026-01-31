@@ -42,7 +42,7 @@ template = renderBlogSection
 -- | Blog posts table section
 renderBlogSection :: Maybe Shows.Model -> [ShowBlogPosts.Model] -> Int64 -> Bool -> Lucid.Html ()
 renderBlogSection selectedShow blogPosts currentPage hasMore = do
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden"]] $
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden"]] $
     case (blogPosts, selectedShow) of
       ([], _) ->
         renderEmptyState

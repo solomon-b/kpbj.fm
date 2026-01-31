@@ -106,7 +106,7 @@ roleOption role roleText currentRole =
 renderFormHeader :: User.Model -> UserMetadata.Model -> Lucid.Html ()
 renderFormHeader user _metadata = do
   let backUrl = Links.linkURI $ dashboardUsersLinks.detail user.mId
-  Lucid.section_ [class_ $ base [T.bgGray800, T.textWhite, T.p6, T.mb8, T.fullWidth]] $ do
+  Lucid.section_ [class_ $ base [T.bgInverse, T.fgInverse, T.p6, T.mb8, T.fullWidth]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [T.text2xl, T.fontBold, T.mb2]] "EDIT USER"

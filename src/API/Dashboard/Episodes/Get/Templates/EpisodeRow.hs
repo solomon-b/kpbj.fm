@@ -64,7 +64,7 @@ renderEpisodeTableRow userMeta showModel episode = do
       case episode.description of
         Nothing -> mempty
         Just desc ->
-          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, "mt-1"]] $ do
+          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-1"]] $ do
             Lucid.toHtml $ Text.take 100 desc
             if Text.length desc > 100 then "..." else ""
 

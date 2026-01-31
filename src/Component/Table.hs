@@ -71,7 +71,7 @@ renderTableWithBodyId ::
 renderTableWithBodyId bodyId config bodyContent =
   Lucid.div_ [class_ $ base [config.wrapperClass, "border-l", "border-r", "border-b", Theme.borderMuted]] $
     Lucid.table_ [Lucid.class_ config.tableClass] $ do
-      Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
+      Lucid.thead_ [class_ $ base [Tokens.bgInverse, Tokens.fgInverse]] $
         Lucid.tr_ $
           mapM_ renderHeader config.headers
       Lucid.tbody_ [Lucid.id_ bodyId] bodyContent
@@ -123,7 +123,7 @@ data PaginationConfig = PaginationConfig
 -- Example usage:
 --
 -- @
--- Lucid.section_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder]] $
+-- Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder]] $
 --   if null users
 --     then renderEmptyState
 --     else
@@ -247,14 +247,14 @@ renderNoscriptPagination config = do
             hxGet_ prevUrl,
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "<- PREVIOUS"
       Nothing ->
         Lucid.div_ [] mempty
 
     -- Page indicator
-    Lucid.span_ [class_ $ base [Tokens.textGray400, Tokens.fontBold]] $
+    Lucid.span_ [class_ $ base [Tokens.fgMuted, Tokens.fontBold]] $
       Lucid.toHtml $
         "Page " <> show config.pcCurrentPage
 
@@ -266,7 +266,7 @@ renderNoscriptPagination config = do
             hxGet_ nextUrl,
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
           ]
           "NEXT ->"
       Nothing ->

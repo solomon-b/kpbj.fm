@@ -56,7 +56,7 @@ template backend allShows allTags currentPage hasMore maybeTagId maybeStatus may
           xTransitionLeave_ "transition ease-in duration-150 origin-top",
           xTransitionLeaveStart_ "opacity-100 scale-y-100",
           xTransitionLeaveEnd_ "opacity-0 scale-y-0",
-          class_ $ do base ["absolute", "left-1/2", "-translate-x-1/2", "w-screen", "top-full", "z-20", Tokens.bgWhite, "shadow-lg"]; desktop ["hidden"]
+          class_ $ do base ["absolute", "left-1/2", "-translate-x-1/2", "w-screen", "top-full", "z-20", Tokens.bgMain, "shadow-lg"]; desktop ["hidden"]
         ]
         $ do
           renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy
@@ -69,7 +69,7 @@ template backend allShows allTags currentPage hasMore maybeTagId maybeStatus may
     if null allShows
       then Lucid.div_ [class_ $ base [Tokens.p8, "text-center"]] $ do
         Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "No Shows Found"
-        Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for new shows!"
+        Lucid.p_ [Lucid.class_ Tokens.fgMuted] "Check back soon for new shows!"
       else do
         -- Single column on mobile, expand on larger screens
         -- Items container with stable ID for HTMX appending
@@ -118,7 +118,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
           Lucid.select_
             [ Lucid.id_ "tag",
               Lucid.name_ "tag",
-              class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgWhite]
+              class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgMain]
             ]
             $ do
               Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeTagId]) "All Tags"
@@ -137,7 +137,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
         Lucid.select_
           [ Lucid.id_ "status",
             Lucid.name_ "status",
-            class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgWhite]
+            class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgMain]
           ]
           $ do
             Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeStatus]) "All Shows"
@@ -150,7 +150,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
         Lucid.select_
           [ Lucid.id_ "sortBy",
             Lucid.name_ "sortBy",
-            class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgWhite]
+            class_ $ base [Tokens.fullWidth, "border", "border-gray-400", "px-3", Tokens.py2, Tokens.bgMain]
           ]
           $ do
             Lucid.option_ ([Lucid.value_ "name_az"] <> [Lucid.selected_ "selected" | maybeSortBy == Just NameAZ || isNothing maybeSortBy]) "Name (A-Z)"
@@ -162,7 +162,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
       Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
         Lucid.button_
           [ Lucid.type_ "submit",
-            class_ $ do base ["flex-1", Tokens.bgGray800, Tokens.textWhite, Tokens.py2, Tokens.fontBold]; desktop ["flex-none", Tokens.px4]
+            class_ $ do base ["flex-1", Tokens.bgInverse, Tokens.fgInverse, Tokens.py2, Tokens.fontBold]; desktop ["flex-none", Tokens.px4]
           ]
           "Apply"
         Lucid.button_

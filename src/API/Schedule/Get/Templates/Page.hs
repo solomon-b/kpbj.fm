@@ -35,7 +35,7 @@ template backend scheduledShows weekDays currentDayOfWeek currentTimeOfDay maybe
 
 noteStyles :: Lucid.Attributes
 noteStyles = class_ $ do
-  base [Tokens.textSm, Tokens.textGray600, "text-center", "italic"]
+  base [Tokens.textSm, Tokens.fgMuted, "text-center", "italic"]
   base [Tokens.mt4]
 
 errorStyles :: Lucid.Attributes

@@ -52,7 +52,7 @@ template ::
   Lucid.Html ()
 template isAdmin theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   -- Shows table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null theShowList
       then renderEmptyState maybeQuery
       else
@@ -161,7 +161,7 @@ renderStatusBadge :: Shows.Status -> Lucid.Html ()
 renderStatusBadge status = do
   let (bgClass, textClass, statusText) = case status of
         Shows.Active -> ("bg-green-100", "text-green-800", "Active") :: (Text, Text, Text)
-        Shows.Inactive -> (Tokens.bgGray100, Tokens.textGray800, "Inactive")
+        Shows.Inactive -> (Tokens.bgAlt, Tokens.fgPrimary, "Inactive")
 
   Lucid.span_
     [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
@@ -170,7 +170,7 @@ renderStatusBadge status = do
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do
   Lucid.div_ [class_ $ base ["bg-gray-50 dark:bg-gray-700", Tokens.border2, "border-gray-300 dark:border-gray-600", "p-12", "text-center"]] $ do
-    Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] $
+    Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] $
       case maybeQuery of
         Nothing -> "No shows found. Create your first show!"
         Just query -> Lucid.toHtml $ "No shows found matching \"" <> query <> "\"."

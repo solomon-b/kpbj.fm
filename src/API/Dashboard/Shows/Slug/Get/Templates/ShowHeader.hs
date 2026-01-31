@@ -35,7 +35,7 @@ import Servant.Links qualified as Links
 -- | Render show header with info
 renderShowHeader :: StorageBackend -> Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowTags.Model] -> Lucid.Html ()
 renderShowHeader backend showModel hosts schedules tags = do
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
@@ -51,7 +51,7 @@ renderShowHeader backend showModel hosts schedules tags = do
         Lucid.div_ [Lucid.class_ Tokens.mb4] $ do
           Lucid.h1_ [class_ $ base [Tokens.text3xl, Tokens.fontBold, Tokens.mb2]] $ Lucid.toHtml (Text.toUpper showModel.title)
 
-          Lucid.div_ [class_ $ base [Tokens.textLg, Tokens.textGray600, Tokens.mb4]] $ do
+          Lucid.div_ [class_ $ base [Tokens.textLg, Tokens.fgMuted, Tokens.mb4]] $ do
             -- Show host information
             Lucid.span_ [Lucid.class_ Tokens.fontBold] "Host: "
             case hosts of
@@ -74,7 +74,7 @@ renderShowHeader backend showModel hosts schedules tags = do
         -- Show Description (only if present)
         forM_ showModel.description $ \description ->
           Lucid.div_ [Lucid.class_ Tokens.mb6] $ do
-            Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, "mb-3", "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "About The Show"
+            Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, "mb-3", "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]] "About The Show"
             Lucid.p_ [class_ $ base [Tokens.mb4, "leading-relaxed"]] $ Lucid.toHtml description
 
         -- Tags

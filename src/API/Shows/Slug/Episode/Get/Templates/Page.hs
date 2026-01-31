@@ -57,12 +57,12 @@ template backend showModel episode tracks tags = do
 
     -- Tags section
     unless (null tags) $ do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, "mt-6"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.bgMain, "mt-6"]] $ do
         Tags.renderTags (map episodeTagToLink tags)
 
     -- Track listing section
     unless (null tracks) $ do
-      Lucid.div_ [class_ $ base [Tokens.bgWhite, "mt-6"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.bgMain, "mt-6"]] $ do
         Lucid.h2_
           [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", "border-gray-800", Tokens.pb2]]
           "Track Listing"
@@ -76,7 +76,7 @@ renderTrackRow :: EpisodeTrack.Model -> Lucid.Html ()
 renderTrackRow track = do
   Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start", Tokens.p3, "hover:bg-gray-50", "border-b", "border-gray-200"]] $ do
     -- Track number
-    Lucid.div_ [class_ $ base ["w-8", "flex-shrink-0", Tokens.textGray600, "font-mono", Tokens.textSm]] $
+    Lucid.div_ [class_ $ base ["w-8", "flex-shrink-0", Tokens.fgMuted, "font-mono", Tokens.textSm]] $
       Lucid.toHtml (show track.trackNumber <> ".")
 
     -- Track info
@@ -84,7 +84,7 @@ renderTrackRow track = do
       Lucid.div_ [Lucid.class_ "font-medium"] $ do
         "\"" <> Lucid.toHtml track.title <> "\""
 
-      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray700]] $ do
+      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $ do
         Lucid.toHtml track.artist
 
 --------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ errorTemplate errorMsg = do
           hxGet_ "/shows",
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
         ]
         "Back to Shows"
 
@@ -108,15 +108,15 @@ notFoundTemplate :: Slug -> Episodes.EpisodeNumber -> Lucid.Html ()
 notFoundTemplate showSlug episodeNumber = do
   let showUrl = showGetUrl showSlug
   Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.cardBorder, "p-8", "text-center"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder, "p-8", "text-center"]] $ do
       Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Episode Not Found"
-      Lucid.p_ [class_ $ base [Tokens.textGray700, Tokens.mb6]] $
+      Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] $
         "We couldn't find Episode " <> Lucid.toHtml (display episodeNumber) <> " for show \"" <> Lucid.toHtml (display showSlug) <> "\"."
       Lucid.a_
         [ Lucid.href_ [i|/#{showUrl}|],
           hxGet_ [i|/#{showUrl}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
+          class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700"]
         ]
         "Back to Show"

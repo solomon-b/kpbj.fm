@@ -34,8 +34,8 @@ import Servant.Links qualified as Links
 toggleStyle :: Bool -> Attributes
 toggleStyle isActive = class_ $ do
   base [Tokens.px4, Tokens.py2, Tokens.cardBorder, Tokens.fontBold]
-  Design.when isActive $ base [Tokens.bgGray800, Tokens.textWhite]
-  Design.when (not isActive) $ base [Tokens.bgWhite, Tokens.textGray800, "hover:bg-gray-100"]
+  Design.when isActive $ base [Tokens.bgInverse, Tokens.fgInverse]
+  Design.when (not isActive) $ base [Tokens.bgMain, Tokens.fgPrimary, "hover:bg-gray-100"]
 
 --------------------------------------------------------------------------------
 
@@ -53,14 +53,14 @@ template backend showModel posts tags maybeTag currentPage totalPages = do
       -- Title
       Lucid.h1_ [class_ $ base ["text-4xl", Tokens.fontBold, Tokens.mb2]] $ do
         Lucid.toHtml (Shows.title showModel)
-        Lucid.span_ [Lucid.class_ Tokens.textGray600] " Blog"
+        Lucid.span_ [Lucid.class_ Tokens.fgMuted] " Blog"
 
       -- Description
       case maybeTag of
         Nothing ->
-          Lucid.p_ [class_ $ base [Tokens.textLg, Tokens.textGray600]] "News, updates, and stories from the show"
+          Lucid.p_ [class_ $ base [Tokens.textLg, Tokens.fgMuted]] "News, updates, and stories from the show"
         Just tag ->
-          Lucid.p_ [class_ $ base [Tokens.textLg, Tokens.textGray600]] $ do
+          Lucid.p_ [class_ $ base [Tokens.textLg, Tokens.fgMuted]] $ do
             "Posts tagged with "
             Lucid.span_ [Lucid.class_ Tokens.fontBold] $ Lucid.toHtml tag
 
@@ -93,7 +93,7 @@ template backend showModel posts tags maybeTag currentPage totalPages = do
     -- Posts grid
     if null posts
       then Lucid.div_ [class_ $ base ["text-center", "py-12"]] $ do
-        Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600]] "No blog posts yet."
+        Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] "No blog posts yet."
         Lucid.p_ [class_ $ base ["text-gray-500", "mt-2"]] "Check back soon for updates!"
       else do
         Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6, Tokens.mb8]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
@@ -116,7 +116,7 @@ renderPagination showModel maybeTag currentPage totalPages = do
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel) (Just (currentPage - 1)) maybeTag}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgWhite, Tokens.textGray800, Tokens.cardBorder, "hover:bg-gray-100", Tokens.fontBold]
+          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "hover:bg-gray-100", Tokens.fontBold]
         ]
         "← Previous"
 
@@ -139,7 +139,7 @@ renderPagination showModel maybeTag currentPage totalPages = do
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel) (Just (currentPage + 1)) maybeTag}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgWhite, Tokens.textGray800, Tokens.cardBorder, "hover:bg-gray-100", Tokens.fontBold]
+          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "hover:bg-gray-100", Tokens.fontBold]
         ]
         "Next →"
 
@@ -150,9 +150,9 @@ notFoundTemplate slug = do
   Lucid.div_ [class_ $ base ["max-w-7xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     Lucid.div_ [Lucid.class_ "text-center"] $ do
       Lucid.h1_ [class_ $ base ["text-4xl", Tokens.fontBold, Tokens.mb4]] "Show Not Found"
-      Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.textGray600, Tokens.mb8]] $ do
+      Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted, Tokens.mb8]] $ do
         "We couldn't find a show with the slug: "
-        Lucid.code_ [class_ $ base [Tokens.bgGray100, "px-2", "py-1"]] $ Lucid.toHtml (display slug)
+        Lucid.code_ [class_ $ base [Tokens.bgAlt, "px-2", "py-1"]] $ Lucid.toHtml (display slug)
 
 errorTemplate :: Text -> Lucid.Html ()
 errorTemplate errorMsg = do

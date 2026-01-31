@@ -33,7 +33,7 @@ import Servant.Links qualified as Links
 -- | Render show header with info
 renderShowHeader :: StorageBackend -> Shows.Model -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowTags.Model] -> Lucid.Html ()
 renderShowHeader backend showModel hosts schedules tags = do
-  Lucid.section_ [class_ $ do { base [Tokens.bgWhite, Tokens.mb8, Tokens.fullWidth]; desktop [Tokens.p8] }] $ do
+  Lucid.section_ [class_ $ do { base [Tokens.bgMain, Tokens.mb8, Tokens.fullWidth]; desktop [Tokens.p8] }] $ do
     Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap8]; desktop ["grid-cols-4"] }] $ do
       -- Show Logo
       Lucid.div_ [class_ $ desktop ["col-span-1"]] $ do
@@ -50,9 +50,9 @@ renderShowHeader backend showModel hosts schedules tags = do
           Lucid.h1_ [class_ $ base [Tokens.text3xl, Tokens.fontBold, Tokens.mb2]] $ Lucid.toHtml (Text.toUpper showModel.title)
 
           -- Show metadata: vertical on mobile, horizontal on desktop
-          Lucid.div_ [class_ $ do { base ["flex", "flex-col", "gap-1", Tokens.textGray600, Tokens.mb4]; desktop ["flex-row", "items-center", Tokens.gap6, Tokens.textLg] }] $ do
+          Lucid.div_ [class_ $ do { base ["flex", "flex-col", "gap-1", Tokens.fgMuted, Tokens.mb4]; desktop ["flex-row", "items-center", Tokens.gap6, Tokens.textLg] }] $ do
             -- Host (bolder and bigger on mobile)
-            Lucid.div_ [class_ $ do { base [Tokens.textLg, Tokens.fontBold, Tokens.textGray800]; desktop ["font-normal", Tokens.textGray600] }] $
+            Lucid.div_ [class_ $ do { base [Tokens.textLg, Tokens.fontBold, Tokens.fgPrimary]; desktop ["font-normal", Tokens.fgMuted] }] $
               case hosts of
                 [] -> ""
                 (ShowHost.ShowHostWithUser {displayName = dn} : otherHosts) -> do

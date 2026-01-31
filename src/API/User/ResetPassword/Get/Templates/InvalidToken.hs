@@ -33,7 +33,7 @@ userLoginGetUrl = Link.linkURI (userLinks.loginGet Nothing Nothing)
 template :: Lucid.Html ()
 template =
   Lucid.div_ [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
       -- Warning icon
       Lucid.div_ [Lucid.class_ "text-center"] $ do
         Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-red-100"] $ do
@@ -45,11 +45,11 @@ template =
         "Link Expired"
 
       -- Message
-      Lucid.div_ [class_ $ base ["mt-4", "text-center", Tokens.textGray600]] $ do
+      Lucid.div_ [class_ $ base ["mt-4", "text-center", Tokens.fgMuted]] $ do
         Lucid.p_ "This password reset link is invalid or has expired."
 
       Lucid.p_
-        [class_ $ base ["mt-4", "text-center", Tokens.textGray600]]
+        [class_ $ base ["mt-4", "text-center", Tokens.fgMuted]]
         "Password reset links are only valid for 1 hour and can only be used once."
 
       -- Request new link button
@@ -60,12 +60,12 @@ template =
             hxSwap_ "innerHTML",
             hxTarget_ "body",
             hxPushUrl_ "true",
-            class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
+            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-gray-700", "inline-block"]
           ]
           "REQUEST NEW LINK"
 
       -- Login link
-      Lucid.p_ [class_ $ base ["mt-6", "text-center", Tokens.textSm, Tokens.textGray600]] $ do
+      Lucid.p_ [class_ $ base ["mt-6", "text-center", Tokens.textSm, Tokens.fgMuted]] $ do
         "Remember your password? "
         Lucid.a_
           [ Lucid.href_ [i|/#{userLoginGetUrl}|],

@@ -51,16 +51,16 @@ template _userMeta showModel blogPost tags = do
         hxGet_ [i|/#{backUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.textGray600, "hover:text-gray-800 dark:hover:text-white", Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
+        class_ $ base [Tokens.fgMuted, "hover:text-gray-800 dark:hover:text-white", Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
       ]
       $ do
         Lucid.i_ [Lucid.class_ "fa-solid fa-arrow-left"] mempty
         "Back to Blog Posts"
 
   -- Main blog post container
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded"]] $ do
     -- Blog post header
-    Lucid.div_ [class_ $ base ["border-b", Tokens.borderGray600, Tokens.p6]] $ do
+    Lucid.div_ [class_ $ base ["border-b", Tokens.borderDefault, Tokens.p6]] $ do
       Lucid.div_ [class_ $ base ["flex", "items-start", "justify-between", Tokens.mb4]] $ do
         Lucid.div_ $ do
           Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $ Lucid.toHtml blogPost.title
@@ -77,7 +77,7 @@ template _userMeta showModel blogPost tags = do
               hxGet_ [i|/#{editUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              class_ $ base [Tokens.bgWhite, Tokens.textGray800, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
+              class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-gray-700"]
             ]
             "Edit Post"
           -- Delete button
@@ -90,7 +90,7 @@ template _userMeta showModel blogPost tags = do
               hxSwap_ "innerHTML",
               hxConfirm_ "Are you sure you want to delete this blog post?",
               hxOnAfterRequest_ [i|if(event.detail.successful) window.location.href='/#{backUrl}'|],
-              class_ $ base ["bg-red-600", Tokens.textGray800, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-red-700"]
+              class_ $ base ["bg-red-600", Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-red-700"]
             ]
             "Delete"
 
@@ -100,23 +100,23 @@ template _userMeta showModel blogPost tags = do
         case blogPost.publishedAt of
           Just publishedAt -> do
             Lucid.div_ $ do
-              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Published: "
+              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Published: "
               let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y at %I:%M %p" publishedAt
               Lucid.toHtml dateStr
           Nothing ->
             Lucid.div_ $ do
-              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Published: "
+              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Published: "
               Lucid.span_ [class_ $ base ["text-gray-500 dark:text-gray-400", "italic"]] "Not published"
 
         -- Created date
         Lucid.div_ $ do
-          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Created: "
+          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Created: "
           let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" blogPost.createdAt
           Lucid.toHtml dateStr
 
         -- Updated date
         Lucid.div_ $ do
-          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textGray600]] "Last Updated: "
+          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Last Updated: "
           let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y at %I:%M %p" blogPost.updatedAt
           Lucid.toHtml dateStr
 
@@ -128,14 +128,14 @@ template _userMeta showModel blogPost tags = do
     -- Excerpt section (if present)
     case blogPost.excerpt of
       Just excerpt -> do
-        Lucid.div_ [class_ $ base ["border-b", Tokens.borderGray600, Tokens.p6, Tokens.bgGray100]] $ do
-          Lucid.h2_ [class_ $ base [Tokens.textSm, Tokens.fontBold, "uppercase", Tokens.textGray600, Tokens.mb2]] "Excerpt"
-          Lucid.p_ [class_ $ base [Tokens.textGray600, "italic"]] $ Lucid.toHtml excerpt
+        Lucid.div_ [class_ $ base ["border-b", Tokens.borderDefault, Tokens.p6, Tokens.bgAlt]] $ do
+          Lucid.h2_ [class_ $ base [Tokens.textSm, Tokens.fontBold, "uppercase", Tokens.fgMuted, Tokens.mb2]] "Excerpt"
+          Lucid.p_ [class_ $ base [Tokens.fgMuted, "italic"]] $ Lucid.toHtml excerpt
       Nothing -> mempty
 
     -- Content section
     Lucid.div_ [class_ $ base [Tokens.p6]] $ do
-      Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray600, "pb-2", Tokens.textGray800]] "Content"
+      Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, "pb-2", Tokens.fgPrimary]] "Content"
       Lucid.div_ [class_ $ base ["prose", "prose-gray", "max-w-none"]] $ do
         -- Render content as paragraphs split by double newlines
         mapM_ renderParagraph $ Text.splitOn "\n\n" blogPost.content

@@ -108,7 +108,7 @@ template eligibleHosts = do
 
 renderFormHeader :: Lucid.Html ()
 renderFormHeader =
-  Lucid.section_ [class_ $ base [T.bgGray800, T.textWhite, T.p6, T.mb8, T.fullWidth]] $ do
+  Lucid.section_ [class_ $ base [T.bgInverse, T.fgInverse, T.p6, T.mb8, T.fullWidth]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [T.text2xl, T.fontBold, T.mb2]] "CREATE NEW SHOW"

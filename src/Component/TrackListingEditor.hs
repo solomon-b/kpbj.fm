@@ -221,14 +221,14 @@ alpineState initialTracksJson =
 -- | Render the track table with header and body.
 renderTrackTable :: Lucid.Html ()
 renderTrackTable =
-  Lucid.table_ [class_ $ base ["w-full", "border-collapse", Tokens.border2, Tokens.borderGray400, Tokens.textSm]] $ do
+  Lucid.table_ [class_ $ base ["w-full", "border-collapse", Tokens.border2, Tokens.borderMuted, Tokens.textSm]] $ do
     renderTableHeader
     renderTableBody
 
 -- | Render the table header row.
 renderTableHeader :: Lucid.Html ()
 renderTableHeader =
-  Lucid.thead_ [class_ $ base [Tokens.bgGray800, Tokens.textWhite]] $
+  Lucid.thead_ [class_ $ base [Tokens.bgInverse, Tokens.fgInverse]] $
     Lucid.tr_ $ do
       -- Drag handle column
       Lucid.th_ [class_ $ base ["p-2", "w-8"]] mempty
@@ -283,7 +283,7 @@ renderTrackRow =
 -- | Render the drag handle cell.
 renderDragHandleCell :: Lucid.Html ()
 renderDragHandleCell =
-  Lucid.td_ [class_ $ base [Tokens.p3, "cursor-move", Tokens.textGray600, "text-center"]] $
+  Lucid.td_ [class_ $ base [Tokens.p3, "cursor-move", Tokens.fgMuted, "text-center"]] $
     Lucid.span_ [class_ $ base ["text-lg", "select-none"]] $
       Lucid.toHtmlRaw ("&#x2630;" :: Text) -- hamburger icon
 
@@ -291,7 +291,7 @@ renderDragHandleCell =
 renderTrackNumberCell :: Lucid.Html ()
 renderTrackNumberCell =
   Lucid.td_
-    [ class_ $ base [Tokens.p3, "text-center", "font-mono", Tokens.textGray600],
+    [ class_ $ base [Tokens.p3, "text-center", "font-mono", Tokens.fgMuted],
       xText_ "index + 1"
     ]
     mempty
@@ -345,7 +345,7 @@ renderAddRow :: Lucid.Html ()
 renderAddRow =
   Lucid.tr_
     [ xOnClick_ "addTrack()",
-      class_ $ base [Tokens.bgGray100, "hover:bg-gray-200", "cursor-pointer"]
+      class_ $ base [Tokens.bgAlt, "hover:bg-gray-200", "cursor-pointer"]
     ]
     $ do
       -- Empty drag handle cell

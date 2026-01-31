@@ -105,7 +105,7 @@ mobileMusicPlayer :: Lucid.Html ()
 mobileMusicPlayer =
   Lucid.div_
     [ class_ $ do
-        base ["flex", "items-center", "justify-around", Tokens.gap4, Tokens.textSm, "font-mono", Tokens.textWhite]
+        base ["flex", "items-center", "justify-around", Tokens.gap4, Tokens.textSm, "font-mono", Tokens.fgInverse]
     ]
     $ do
       -- Play/pause button (using button element to avoid page jump from href="#")
@@ -148,7 +148,7 @@ mobileArchiveBanner =
     [ xShow_ "mode === 'episode'",
       xOnClick_ "playStream()",
       class_ $ do
-        base ["flex", "items-center", "justify-center", Tokens.gap4, "bg-gray-600", Tokens.textWhite, Tokens.px4, "py-2", Tokens.textXs, "font-mono", "w-full", "border-none", "cursor-pointer", "hover:bg-gray-500"]
+        base ["flex", "items-center", "justify-center", Tokens.gap4, "bg-gray-600", Tokens.fgInverse, Tokens.px4, "py-2", Tokens.textXs, "font-mono", "w-full", "border-none", "cursor-pointer", "hover:bg-gray-500"]
     ]
     $ do
       Lucid.span_ "Playing archived episode"
@@ -551,13 +551,13 @@ bannerFromUrlScript =
 
 authWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
 authWidget mUser =
-  Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.textGray600, "dark:text-gray-400"]] $ do
+  Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.fgMuted, "dark:text-gray-400"]] $ do
     case mUser of
       Nothing -> do
         Lucid.a_ [Lucid.href_ [i|/#{userLoginGetUrl}|], hxGet_ [i|/#{userLoginGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ "hover:text-gray-800 dark:hover:text-gray-200"] "Host Login"
       Just user -> do
         Lucid.span_ [Lucid.class_ "text-gray-400 dark:text-gray-500"] "•"
-        Lucid.span_ [class_ $ base [Tokens.textGray800, "dark:text-gray-200", Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
+        Lucid.span_ [class_ $ base [Tokens.fgPrimary, "dark:text-gray-200", Tokens.fontBold]] ("Welcome, " <> Lucid.toHtml user.mDisplayName)
         -- Dashboard is only available to hosts and above (Host, Staff, Admin)
         -- Dashboard uses a completely different frame layout (sidebar navigation),
         -- so we do a full page navigation instead of HTMX content swap
@@ -603,7 +603,7 @@ mobileHeader :: Maybe UserMetadata.Model -> Lucid.Html ()
 mobileHeader _mUser =
   Lucid.div_
     [ class_ $ do
-        base ["flex", "items-center", Tokens.fullWidth, Tokens.px4, "py-3", Tokens.bgWhite]
+        base ["flex", "items-center", Tokens.fullWidth, Tokens.px4, "py-3", Tokens.bgMain]
         tablet ["hidden"]
     ]
     $ do
@@ -626,7 +626,7 @@ mobileMenuOverlay mUser =
     [ xShow_ "menuOpen",
       xOnClickOutside_ "menuOpen = false",
       xTransition_,
-      class_ $ base ["fixed", "inset-0", "z-50", Tokens.bgWhite, "flex", "flex-col", Tokens.p6]
+      class_ $ base ["fixed", "inset-0", "z-50", Tokens.bgMain, "flex", "flex-col", Tokens.p6]
     ]
     $ do
       -- Close button row
@@ -711,7 +711,7 @@ navigation =
 suspensionBanner :: SuspensionStatus -> Lucid.Html ()
 suspensionBanner NotSuspended = mempty
 suspensionBanner Suspended =
-  Lucid.div_ [class_ $ base ["bg-red-600", Tokens.textWhite, Tokens.px4, "py-3", "text-center"]] $ do
+  Lucid.div_ [class_ $ base ["bg-red-600", Tokens.fgInverse, Tokens.px4, "py-3", "text-center"]] $ do
     Lucid.div_ [class_ $ base [Tokens.maxWidth, "mx-auto"]] $ do
       Lucid.p_ [class_ $ base [Tokens.fontBold, Tokens.textLg]] "Account Suspended"
       Lucid.p_ [class_ $ base [Tokens.textSm, "mt-1"]] "Your account was suspended."
@@ -746,7 +746,7 @@ template mGoogleAnalyticsId mUser main =
       Lucid.style_ [] formBuilderCSS
     Lucid.body_
       [ class_ $ do
-          base ["font-mono", Tokens.textGray800, Tokens.bgWhite, "min-h-screen", "flex", "flex-col", "pb-20"]
+          base ["font-mono", Tokens.fgPrimary, Tokens.bgMain, "min-h-screen", "flex", "flex-col", "pb-20"]
           tablet ["pb-0"]
       ]
       $ do
@@ -766,7 +766,7 @@ template mGoogleAnalyticsId mUser main =
             -- Desktop header (hidden on mobile)
             Lucid.header_
               [ class_ $ do
-                  base ["hidden", Tokens.bgWhite, Tokens.p4]
+                  base ["hidden", Tokens.bgMain, Tokens.p4]
                   tablet ["block"]
               ]
               $ do
@@ -791,7 +791,7 @@ template mGoogleAnalyticsId mUser main =
               main
 
             -- Footer
-            Lucid.footer_ [class_ $ base [Tokens.px4, Tokens.py2, "mt-auto", "text-center", Tokens.textXs, Tokens.textGray600, "dark:text-gray-400"]] $ do
+            Lucid.footer_ [class_ $ base [Tokens.px4, Tokens.py2, "mt-auto", "text-center", Tokens.textXs, Tokens.fgMuted, "dark:text-gray-400"]] $ do
               Lucid.p_ "© 2025 Sun Valley Arts and Culture, a 501(c)(3) non-profit organization"
 
             -- Fixed mobile player at bottom (visible only on mobile)
@@ -804,7 +804,7 @@ template mGoogleAnalyticsId mUser main =
                 -- Banner above player when playing archived episode
                 mobileArchiveBanner
                 -- Main player bar
-                Lucid.div_ [class_ $ base [Tokens.bgGray800, Tokens.px4, "py-3"]] mobileMusicPlayer
+                Lucid.div_ [class_ $ base [Tokens.bgInverse, Tokens.px4, "py-3"]] mobileMusicPlayer
 
 -- footer_ [class_ "bg-gray-800 text-white px-4 py-8 mt-auto"] $ do
 --   div_ [class_ "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"] $ do

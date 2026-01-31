@@ -37,12 +37,12 @@ template :: Lucid.Html ()
 template =
   let postUrl = [i|/#{userForgotPasswordPostUrl}|]
    in Lucid.div_ [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]] $ do
-        Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] $ do
+        Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
           pageHeader "FORGOT PASSWORD"
 
           -- Instructions
           Lucid.p_
-            [class_ $ base [Tokens.textSm, Tokens.textGray600, "mb-6"]]
+            [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mb-6"]]
             "Enter your email address and we'll send you a link to reset your password."
 
           -- Forgot password form using form builder
@@ -60,7 +60,7 @@ template =
 successTemplate :: Lucid.Html ()
 successTemplate =
   Lucid.div_ [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
       -- Success icon
       Lucid.div_ [Lucid.class_ "text-center"] $ do
         Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-green-100"] $ do
@@ -72,23 +72,23 @@ successTemplate =
         "Check Your Email"
 
       -- Message
-      Lucid.div_ [class_ $ base ["mt-4", "text-center", Tokens.textGray600]] $ do
+      Lucid.div_ [class_ $ base ["mt-4", "text-center", Tokens.fgMuted]] $ do
         Lucid.p_ "If an account exists with that email address, we've sent you a link to reset your password."
 
       Lucid.p_
-        [class_ $ base ["mt-4", "text-center", Tokens.textGray600]]
+        [class_ $ base ["mt-4", "text-center", Tokens.fgMuted]]
         "The link will expire in 1 hour."
 
       -- Instructions
-      Lucid.div_ [class_ $ base ["mt-6", Tokens.p4, Tokens.bgGray100, "border", "border-gray-200"]] $ do
+      Lucid.div_ [class_ $ base ["mt-6", Tokens.p4, Tokens.bgAlt, "border", "border-gray-200"]] $ do
         Lucid.h3_ [class_ $ base [Tokens.fontBold, "text-gray-900", Tokens.textSm]] "Didn't receive the email?"
-        Lucid.ul_ [class_ $ base ["mt-2", Tokens.textSm, Tokens.textGray600, "space-y-1"]] $ do
+        Lucid.ul_ [class_ $ base ["mt-2", Tokens.textSm, Tokens.fgMuted, "space-y-1"]] $ do
           Lucid.li_ "• Check your spam or junk folder"
           Lucid.li_ "• Make sure your email address is correct"
           Lucid.li_ "• Wait a few minutes and check again"
 
       -- Login link
-      Lucid.p_ [class_ $ base ["mt-6", "text-center", Tokens.textSm, Tokens.textGray600]] $ do
+      Lucid.p_ [class_ $ base ["mt-6", "text-center", Tokens.textSm, Tokens.fgMuted]] $ do
         "Remember your password? "
         Lucid.a_
           [ Lucid.href_ [i|/#{userLoginGetUrl}|],

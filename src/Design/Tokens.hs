@@ -11,21 +11,7 @@
 --
 -- See "Design.Theme" for the underlying implementation and available themes.
 module Design.Tokens
-  ( -- * Responsive Visibility
-    hideOnMobile,
-    showOnMobile,
-    hideOnDesktop,
-    showOnDesktop,
-
-    -- * Responsive Flex
-    stackToRow,
-    rowToStack,
-
-    -- * Responsive Grid
-    gridCols,
-    responsiveGrid,
-
-    -- * Typography
+  ( -- * Typography
     textXs,
     textSm,
     textBase,
@@ -80,43 +66,24 @@ module Design.Tokens
 
     -- * Borders
     border2,
-    borderGray200,
-    borderGray300,
-    borderGray400,
-    borderGray600,
-    borderGray800,
+    borderMuted,
+    borderDefault,
     cardBorder,
 
-    -- * Colors (Theme-Aware)
+    -- * Background Colors
+    bgMain,
+    bgAlt,
+    bgInverse,
 
-    --
-    -- These tokens automatically adapt to light/dark mode via CSS custom properties.
-    -- No @dark:@ prefixes needed - the theme handles mode switching.
-    bgWhite,
-    bgGray50,
-    bgGray100,
-    bgGray200,
-    bgGray300,
-    bgGray800,
-    bgGray900,
-    textGray400,
-    textGray500,
-    textGray600,
-    textGray700,
-    textGray800,
-    textGray900,
-    textWhite,
+    -- * Text Colors
+    fgPrimary,
+    fgMuted,
+    fgInverse,
 
     -- * Hover Colors
-    hoverBgGray50,
-    hoverBgGray100,
-    hoverBgGray200,
-    hoverBgGray700,
+    hoverBg,
 
-    -- * Semantic Colors (Notifications)
-
-    --
-    -- Theme-aware status colors for banners, alerts, and feedback.
+    -- * Status Colors
     successBg,
     successBorder,
     successText,
@@ -135,13 +102,25 @@ module Design.Tokens
     containerWidth,
     fullWidth,
 
-    -- * Common Component Patterns
+    -- * Component Patterns
     cardBase,
-    sectionBase,
     buttonPrimary,
-    buttonSecondary,
     linkText,
     navLink,
+
+    -- * Responsive Visibility
+    hideOnMobile,
+    showOnMobile,
+    hideOnDesktop,
+    showOnDesktop,
+
+    -- * Responsive Flex
+    stackToRow,
+    rowToStack,
+
+    -- * Responsive Grid
+    gridCols,
+    responsiveGrid,
   )
 where
 
@@ -185,7 +164,7 @@ bodyText = cls [textSm, md textBase]
 
 -- | Small metadata text (dates, categories, etc.)
 metaText :: Text
-metaText = cls [textXs, md textSm, textGray600]
+metaText = cls [textXs, md textSm, fgMuted]
 
 -- | Large heading (sections)
 headingLg :: Text
@@ -305,117 +284,62 @@ containerPadding :: Text
 containerPadding = cls [px4, md px6, lg px8]
 
 --------------------------------------------------------------------------------
--- Borders (Theme-Aware)
+-- Borders
 
 border2 :: Text
 border2 = "border-2"
 
--- | Muted border (subtle dividers, inputs)
-borderGray200 :: Text
-borderGray200 = Theme.borderMuted
+-- | Muted border for subtle dividers and inputs.
+borderMuted :: Text
+borderMuted = Theme.borderMuted
 
--- | Muted border (alias)
-borderGray300 :: Text
-borderGray300 = Theme.borderMuted
+-- | Default border for cards and sections.
+borderDefault :: Text
+borderDefault = Theme.borderDefault
 
--- | Medium border
-borderGray400 :: Text
-borderGray400 = Theme.borderMuted
-
--- | Default border (cards, sections)
-borderGray600 :: Text
-borderGray600 = Theme.borderDefault
-
--- | Strong border (brutalist style)
-borderGray800 :: Text
-borderGray800 = Theme.borderDefault
-
--- | Standard card border style.
+-- | Standard card border style (2px + default color).
 cardBorder :: Text
-cardBorder = cls [border2, Theme.borderDefault]
+cardBorder = cls [border2, borderDefault]
 
 --------------------------------------------------------------------------------
--- Colors (Theme-Aware via CSS Custom Properties)
---
--- These tokens use the centralized theme system. Colors automatically adapt
--- to light/dark mode without requiring dark: prefixes in templates.
--- The theme CSS variables are set in Component.Frame via Design.Theme.themeCSS.
+-- Background Colors
 
--- | Main background - white in light mode, dark gray in dark mode
-bgWhite :: Text
-bgWhite = Theme.bgMain
+-- | Main page background.
+bgMain :: Text
+bgMain = Theme.bgMain
 
--- | Subtle card background
-bgGray50 :: Text
-bgGray50 = Theme.bgAlt
+-- | Alternate background for cards and muted sections.
+bgAlt :: Text
+bgAlt = Theme.bgAlt
 
--- | Muted section background
-bgGray100 :: Text
-bgGray100 = Theme.bgAlt
-
--- | Secondary muted background
-bgGray200 :: Text
-bgGray200 = Theme.bgAlt
-
--- | Tertiary muted background
-bgGray300 :: Text
-bgGray300 = Theme.bgAlt
-
--- | Inverse/dark background
-bgGray800 :: Text
-bgGray800 = Theme.bgInverse
-
--- | Deep inverse background
-bgGray900 :: Text
-bgGray900 = Theme.bgInverse
-
--- | Muted/disabled text
-textGray400 :: Text
-textGray400 = Theme.fgMuted
-
--- | Muted text (alias)
-textGray500 :: Text
-textGray500 = Theme.fgMuted
-
--- | Secondary muted text
-textGray600 :: Text
-textGray600 = Theme.fgMuted
-
--- | Secondary text
-textGray700 :: Text
-textGray700 = Theme.fgMuted
-
--- | Primary text
-textGray800 :: Text
-textGray800 = Theme.fgPrimary
-
--- | Strong primary text
-textGray900 :: Text
-textGray900 = Theme.fgPrimary
-
--- | Inverse text (for dark backgrounds)
-textWhite :: Text
-textWhite = Theme.fgInverse
-
--- Hover backgrounds
-hoverBgGray50 :: Text
-hoverBgGray50 = Theme.hoverBg
-
-hoverBgGray100 :: Text
-hoverBgGray100 = Theme.hoverBg
-
-hoverBgGray200 :: Text
-hoverBgGray200 = Theme.hoverBg
-
-hoverBgGray700 :: Text
-hoverBgGray700 = Theme.hoverBg
+-- | Inverse background (dark on light, light on dark).
+bgInverse :: Text
+bgInverse = Theme.bgInverse
 
 --------------------------------------------------------------------------------
--- Semantic Colors (Notifications)
---
--- Theme-aware status colors for banners, alerts, and feedback.
--- These automatically adapt to light/dark mode.
--- For flexibility, we provide text, bg, and border variants using the same base color.
+-- Text Colors
+
+-- | Primary text color.
+fgPrimary :: Text
+fgPrimary = Theme.fgPrimary
+
+-- | Muted/secondary text color.
+fgMuted :: Text
+fgMuted = Theme.fgMuted
+
+-- | Inverse text (for dark backgrounds).
+fgInverse :: Text
+fgInverse = Theme.fgInverse
+
+--------------------------------------------------------------------------------
+-- Hover Colors
+
+-- | Hover background color.
+hoverBg :: Text
+hoverBg = Theme.hoverBg
+
+--------------------------------------------------------------------------------
+-- Status Colors
 
 successBg :: Text
 successBg = "bg-[var(--theme-success)]/10"
@@ -469,23 +393,15 @@ fullWidth :: Text
 fullWidth = "w-full"
 
 --------------------------------------------------------------------------------
--- Common Component Patterns
+-- Component Patterns
 
--- | Base card styling (white bg, border, padding).
+-- | Base card styling.
 cardBase :: Text
-cardBase = cls [bgWhite]
-
--- | Base section styling (white bg, border, padding, margin).
-sectionBase :: Text
-sectionBase = cls [bgWhite, cardBorder, p6, md p8, mb6, md mb8, fullWidth]
+cardBase = cls [bgMain]
 
 -- | Primary button styling.
 buttonPrimary :: Text
 buttonPrimary = cls [Theme.accent, Theme.accentFg, Theme.accentHover, px4, md px6, py2, md "py-3", fontBold]
-
--- | Secondary button styling.
-buttonSecondary :: Text
-buttonSecondary = cls [bgWhite, textGray800, cardBorder, px4, py2, fontBold, Theme.hoverBg]
 
 -- | Text link styling.
 linkText :: Text

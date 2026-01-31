@@ -56,7 +56,7 @@ renderEpisodeCard backend showModel episode = do
   -- Note: Audio playback is delegated to the persistent navbar player,
   -- so no local audio element is needed here.
   Lucid.div_
-    [ class_ $ base [Tokens.bgWhite],
+    [ class_ $ base [Tokens.bgMain],
       xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata
     ]
     $ do
@@ -79,7 +79,7 @@ renderArtworkWithPlayer backend epUrl mArtworkUrl =
         hxGet_ [i|/#{epUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", Tokens.bgGray100, "flex", "items-center", "justify-center", Tokens.textXs, "block", "border", "border-gray-300"]
+        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", Tokens.bgAlt, "flex", "items-center", "justify-center", Tokens.textXs, "block", "border", "border-gray-300"]
       ]
       $ case mArtworkUrl of
         Just artworkPath ->
@@ -98,7 +98,7 @@ renderPlayButton :: Lucid.Html ()
 renderPlayButton =
   Lucid.button_
     [ xOnClick_ "toggle()",
-      class_ $ base ["absolute", "bottom-2", "left-2", "w-12", "h-12", "bg-black/70", "hover:bg-black/90", Tokens.textWhite, "rounded-full", "flex", "items-center", "justify-center", "transition-colors"]
+      class_ $ base ["absolute", "bottom-2", "left-2", "w-12", "h-12", "bg-black/70", "hover:bg-black/90", Tokens.fgInverse, "rounded-full", "flex", "items-center", "justify-center", "transition-colors"]
     ]
     $ do
       -- Play icon (shown when not playing)
@@ -113,7 +113,7 @@ renderPlayButton =
 -- | Render episode date.
 renderEpisodeDate :: UTCTime -> Lucid.Html ()
 renderEpisodeDate scheduledAt =
-  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600]] $ do
+  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $ do
     let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
     Lucid.toHtml dateStr
 

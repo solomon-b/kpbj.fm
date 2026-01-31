@@ -51,7 +51,7 @@ template mDisplayName mFullName mEmailAddress _redirectLink =
    in Lucid.div_
         [class_ $ base ["max-w-2xl", "mx-auto"]]
         do
-          Lucid.div_ [class_ $ base [Tokens.bgWhite, "p-8"]] do
+          Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
             pageHeader "CREATE ACCOUNT"
 
             -- Error alert (shown when registration failed)
@@ -132,7 +132,7 @@ registerForm displayNameValue fullNameValue emailValue = do
 
 passwordRequirements :: Lucid.Html ()
 passwordRequirements =
-  Lucid.div_ [class_ $ base [Tokens.bgGray100, "border", "border-gray-300", Tokens.p3, Tokens.textXs, "mb-4"]] do
+  Lucid.div_ [class_ $ base [Tokens.bgAlt, "border", "border-gray-300", Tokens.p3, Tokens.textXs, "mb-4"]] do
     Lucid.div_ [class_ $ base [Tokens.fontBold, "mb-1"]] "Password Requirements:"
     Lucid.div_ "• At least 8 characters long"
     Lucid.div_ "• Include uppercase and lowercase letters"
@@ -164,14 +164,14 @@ termsDescription = do
 loginSection :: Lucid.Html ()
 loginSection =
   Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", "border-gray-300", "text-center"]] do
-    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb4]] "Already have an account?"
+    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] "Already have an account?"
     Lucid.a_
       [ Lucid.href_ [i|/#{userLoginGetUrl}|],
         hxGet_ [i|/#{userLoginGetUrl}|],
         hxSwap_ "innerHTML",
         hxTarget_ "body",
         hxPushUrl_ "true",
-        class_ $ base ["bg-blue-600", Tokens.textWhite, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700", "inline-block"]
+        class_ $ base ["bg-blue-600", Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:bg-blue-700", "inline-block"]
       ]
       "LOGIN"
 

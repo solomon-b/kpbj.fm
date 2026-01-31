@@ -52,7 +52,7 @@ template ::
   Lucid.Html ()
 template viewerId viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   -- User table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgWhite, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null users
       then renderEmptyState maybeQuery
       else
@@ -174,7 +174,7 @@ renderUserRow viewerId viewerRole now user =
 
           Lucid.td_ (clickableCellAttrs userDetailUrl) $ do
             Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatMonthYear createdAt)
-            Lucid.div_ [class_ $ base ["text-xs", Tokens.textGray600]] $ Lucid.toHtml (formatRelativeTime now createdAt)
+            Lucid.div_ [class_ $ base ["text-xs", Tokens.fgMuted]] $ Lucid.toHtml (formatRelativeTime now createdAt)
 
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
             ActionsDropdown.render $
@@ -219,7 +219,7 @@ renderStatusBadge = \case
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, Tokens.textGray600, "p-12", "text-center"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.fgMuted, "p-12", "text-center"]] $ do
     Lucid.p_ [Lucid.class_ "text-xl"] $
       case maybeQuery of
         Nothing -> "No users found."

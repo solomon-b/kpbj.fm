@@ -27,5 +27,5 @@ template backend events = do
         then Lucid.div_ [Lucid.class_ Tokens.cardBase] $ do
           Lucid.div_ [Lucid.class_ "text-center"] $ do
             Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4]] "No Events Scheduled"
-            Lucid.p_ [Lucid.class_ Tokens.textGray600] "Check back soon for upcoming community events!"
+            Lucid.p_ [Lucid.class_ Tokens.fgMuted] "Check back soon for upcoming community events!"
         else traverse_ (renderEventCardSummary backend) events

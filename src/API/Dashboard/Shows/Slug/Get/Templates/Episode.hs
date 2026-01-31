@@ -36,8 +36,8 @@ episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showS
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: StorageBackend -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
 renderLatestEpisode backend showModel episode tracks = do
-  Lucid.div_ [class_ $ base [Tokens.bgWhite, "rounded", Tokens.p6, Tokens.mb8]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderGray800, Tokens.pb2]] "Latest Episode"
+  Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb8]] $ do
+    Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]] "Latest Episode"
 
     -- Episode header with image and info
     Lucid.div_ [class_ $ base ["flex", Tokens.gap4, Tokens.mb6]] $ do
@@ -58,7 +58,7 @@ renderLatestEpisode backend showModel episode tracks = do
               Lucid.class_ "hover:underline"
             ]
             $ Lucid.toHtml (show epNum)
-        Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
+        Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
           "Aired: " <> Lucid.toHtml (formatPacificDateLong episode.scheduledAt)
 
           case episode.durationSeconds of
@@ -87,7 +87,7 @@ renderLatestEpisode backend showModel episode tracks = do
             episodeMetadata :: Text.Text
             episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
         Lucid.div_
-          [ class_ $ base [Tokens.bgGray100, Tokens.border2, "border-gray-600 dark:border-gray-500", Tokens.p4, Tokens.mb4],
+          [ class_ $ base [Tokens.bgAlt, Tokens.border2, "border-gray-600 dark:border-gray-500", Tokens.p4, Tokens.mb4],
             xData_
               [i|{
               playerId: '#{playerId}',
@@ -139,20 +139,20 @@ renderLatestEpisode backend showModel episode tracks = do
             Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
             Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb2]] $ do
               Lucid.button_
-                [ class_ $ base [Tokens.bgGray800, Tokens.textWhite, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"],
+                [ class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:bg-gray-700"],
                   xOnClick_ "toggle()",
                   xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
                 ]
                 "▶ PLAY"
               Lucid.div_ [class_ $ base ["flex-grow", "bg-gray-300 dark:bg-gray-600", "h-2", "rounded", "relative"]] $ do
                 Lucid.div_
-                  [ class_ $ base [Tokens.bgGray800, "h-2", "rounded", "absolute", "top-0", "left-0"],
+                  [ class_ $ base [Tokens.bgInverse, "h-2", "rounded", "absolute", "top-0", "left-0"],
                     Lucid.style_ "",
                     xBindStyle_ "{ width: progress + '%' }"
                   ]
                   mempty
               Lucid.span_ [class_ $ base [Tokens.textSm, "font-mono"], xText_ "formatTime(currentTime) + ' / ' + formatTime(duration)"] "0:00 / 0:00"
-            Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.textGray600]] $ do
+            Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fgMuted]] $ do
               "Now Playing"
       Nothing -> mempty
 
@@ -165,7 +165,7 @@ renderLatestEpisode backend showModel episode tracks = do
 
           when (length tracks > 4) $ do
             Lucid.button_
-              [ class_ $ base [Tokens.textXs, Tokens.textGray600, "hover:text-gray-800", "mt-2"],
+              [ class_ $ base [Tokens.textXs, Tokens.fgMuted, "hover:text-gray-800", "mt-2"],
                 Lucid.onclick_ "document.getElementById('all-tracks').classList.toggle('hidden')"
               ]
               $ "+ Show all " <> Lucid.toHtml (show (length tracks)) <> " tracks"
@@ -204,7 +204,7 @@ renderEpisodeCard backend showModel episode = do
           ]
           $ Lucid.toHtml (show epNum)
 
-      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.textGray600, Tokens.mb2]] $ do
+      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
         "Aired: " <> Lucid.toHtml (formatPacificDateLong episode.scheduledAt)
 
         case episode.durationSeconds of
