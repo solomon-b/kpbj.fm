@@ -22,7 +22,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
-import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Episodes qualified as Episodes (EpisodeNumber, Model, artworkUrl, audioFilePath, description, episodeNumber, scheduledAt)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
@@ -102,11 +102,8 @@ template ctx = do
     descriptionValue = fromMaybe "" episode.description
     -- File uploads allowed if scheduled date is in the future OR user is staff/admin
     allowFileUpload = isScheduledInFuture currentTime episode || isStaff
-    -- Status can be changed if the scheduled date is in the future OR user is staff/admin
-    canChangeStatus = allowFileUpload || isStaff
     audioUrl = maybe "" (buildMediaUrl backend) episode.audioFilePath
     artworkUrl = maybe "" (buildMediaUrl backend) episode.artworkUrl
-    isPublished = episode.status == Episodes.Published
 
     -- Encode schedule slot value as "template_id|scheduled_at" for form submission
     encodeScheduleValue :: ShowSchedule.UpcomingShowDate -> Text.Text
@@ -200,19 +197,6 @@ template ctx = do
                 TrackListingEditor.initialTracks = map TrackListingEditor.fromEpisodeTrack tracks,
                 TrackListingEditor.jsonFieldName = "tracks_json"
               }
-
-      footerToggle "status" $ do
-        offLabel "Draft"
-        onLabel "Published"
-        offValue "draft"
-        onValue "published"
-        when isPublished checked
-        unless canChangeStatus disabled
-
-      footerHint $
-        if canChangeStatus
-          then "Published episodes will be visible after their scheduled date"
-          else "Status locked - scheduled date has passed"
 
       cancelButton [i|/#{episodeBackUrl}|] "CANCEL"
       submitButton "SAVE CHANGES"

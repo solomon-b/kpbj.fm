@@ -52,11 +52,9 @@ import API.Dashboard.EphemeralUploads.New.Post.Handler qualified as Dashboard.Ep
 import API.Dashboard.Episodes.Get.Handler qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Redirect.Handler qualified as Dashboard.Episodes.Redirect
 import API.Dashboard.Episodes.Slug.Delete.Handler qualified as Dashboard.Episodes.Slug.Delete
-import API.Dashboard.Episodes.Slug.DiscardDraft.Handler qualified as Dashboard.Episodes.Slug.DiscardDraft
 import API.Dashboard.Episodes.Slug.Edit.Get.Handler qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post.Handler qualified as Dashboard.Episodes.Slug.Edit.Post
 import API.Dashboard.Episodes.Slug.Get.Handler qualified as Dashboard.Episodes.Slug.Get
-import API.Dashboard.Episodes.Slug.Publish.Post.Handler qualified as Dashboard.Episodes.Slug.Publish.Post
 import API.Dashboard.Events.Get.Handler qualified as Dashboard.Events.Get
 import API.Dashboard.Events.New.Get.Handler qualified as Dashboard.Events.New.Get
 import API.Dashboard.Events.New.Post.Handler qualified as Dashboard.Events.New.Post
@@ -308,9 +306,7 @@ server =
           detail = Dashboard.Episodes.Slug.Get.handler,
           editGet = Dashboard.Episodes.Slug.Edit.Get.handler,
           editPost = Dashboard.Episodes.Slug.Edit.Post.handler,
-          delete = Dashboard.Episodes.Slug.Delete.handler,
-          discardDraft = Dashboard.Episodes.Slug.DiscardDraft.handler,
-          publish = Dashboard.Episodes.Slug.Publish.Post.handler
+          delete = Dashboard.Episodes.Slug.Delete.handler
         }
 
     dashboardBlogsRoutes =

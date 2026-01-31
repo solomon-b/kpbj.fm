@@ -20,6 +20,7 @@ import Data.Has qualified as Has
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text qualified as T (null)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
@@ -130,7 +131,7 @@ processEpisodeUpload ::
   Shows.Model ->
   EpisodeUploadForm ->
   AppM (Either Text Episodes.Id)
-processEpisodeUpload userMetadata user showModel form = do
+processEpisodeUpload _userMetadata user showModel form = do
   -- Get storage configuration from context
   backend <- asks (Has.getter @StorageBackend)
   mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
@@ -141,64 +142,58 @@ processEpisodeUpload userMetadata user showModel form = do
   case parseFormDataWithShow showModel.id showModel.slug form of
     Left validationError -> pure $ Left $ Sanitize.displayContentValidationError validationError
     Right episodeData -> do
-      -- Ensure only staff can publish (hosts can only create drafts)
-      let allowPublish = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-      if not allowPublish && episodeData.status /= Episodes.Draft
-        then pure $ Left "Only staff can publish episodes"
-        else do
-          -- Verify user is host of the show (staff/admins can upload to any show)
-          isAuthorized <-
-            if UserMetadata.isStaffOrHigher userMetadata.mUserRole
-              then pure (Right True) -- Staff and Admins always authorized
-              else execQuery (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
+      -- Verify user is host of the show (staff/admins can upload to any show)
+      isAuthorized <-
+        if UserMetadata.isStaffOrHigher _userMetadata.mUserRole
+          then pure (Right True) -- Staff and Admins always authorized
+          else execQuery (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
-          case isAuthorized of
-            Left _err -> pure $ Left "Database error checking host permissions"
-            Right isHost ->
-              if not isHost
-                then pure $ Left "You are not authorized to create episodes for this show"
-                else do
-                  -- Generate a unique identifier for file naming (based on timestamp)
-                  currentTime <- liftIO getCurrentTime
-                  let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
-                  -- Handle file uploads (pass scheduled date for file organization)
-                  -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
-                  -- Artwork: Direct upload only (small files don't benefit from staged uploads)
-                  uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug fileId (Just episodeData.scheduledAt) episodeData.status (eufArtworkFile form) (eufAudioToken form)
+      case isAuthorized of
+        Left _err -> pure $ Left "Database error checking host permissions"
+        Right isHost ->
+          if not isHost
+            then pure $ Left "You are not authorized to create episodes for this show"
+            else do
+              -- Generate a unique identifier for file naming (based on timestamp)
+              currentTime <- liftIO getCurrentTime
+              let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
+              -- Handle file uploads (pass scheduled date for file organization)
+              -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
+              -- Artwork: Direct upload only (small files don't benefit from staged uploads)
+              uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug fileId (Just episodeData.scheduledAt) (eufArtworkFile form) (eufAudioToken form)
 
-                  case uploadResults of
-                    Left uploadErr -> pure $ Left uploadErr
-                    Right (audioPath, artworkPath) -> do
-                      -- Create episode insert
-                      let episodeInsert =
-                            Episodes.Insert
-                              { Episodes.eiId = Shows.Id episodeData.showId,
-                                Episodes.eiDescription = episodeData.description,
-                                Episodes.eiAudioFilePath = audioPath,
-                                Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
-                                Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
-                                Episodes.eiDurationSeconds = episodeData.durationSeconds,
-                                Episodes.eiArtworkUrl = artworkPath,
-                                Episodes.eiScheduleTemplateId = episodeData.scheduleTemplateId,
-                                Episodes.eiScheduledAt = episodeData.scheduledAt,
-                                Episodes.eiStatus = episodeData.status,
-                                Episodes.eiCreatedBy = User.mId user
-                              }
+              case uploadResults of
+                Left uploadErr -> pure $ Left uploadErr
+                Right (audioPath, artworkPath) -> do
+                  -- Create episode insert
+                  let episodeInsert =
+                        Episodes.Insert
+                          { Episodes.eiId = Shows.Id episodeData.showId,
+                            Episodes.eiDescription = episodeData.description,
+                            Episodes.eiAudioFilePath = audioPath,
+                            Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
+                            Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
+                            Episodes.eiDurationSeconds = episodeData.durationSeconds,
+                            Episodes.eiArtworkUrl = artworkPath,
+                            Episodes.eiScheduleTemplateId = episodeData.scheduleTemplateId,
+                            Episodes.eiScheduledAt = episodeData.scheduledAt,
+                            Episodes.eiCreatedBy = User.mId user
+                          }
 
-                      -- Insert episode
-                      episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
+                  -- Insert episode
+                  episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
 
-                      case episodeResult of
-                        Left err -> do
-                          Log.logInfo "Failed to insert episode" (Text.pack $ show err)
-                          pure $ Left "Failed to create episode"
-                        Right episodeId -> do
-                          -- Insert tracks if provided
-                          _ <- insertTracks episodeId episodeData.tracks
-                          -- Replace tags with provided ones (single atomic query)
-                          let tagNames = maybe [] parseTagList (eufTags form)
-                          _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
-                          pure $ Right episodeId
+                  case episodeResult of
+                    Left err -> do
+                      Log.logInfo "Failed to insert episode" (Text.pack $ show err)
+                      pure $ Left "Failed to create episode"
+                    Right episodeId -> do
+                      -- Insert tracks if provided
+                      _ <- insertTracks episodeId episodeData.tracks
+                      -- Replace tags with provided ones (single atomic query)
+                      let tagNames = maybe [] parseTagList (eufTags form)
+                      _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
+                      pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
 parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Sanitize.ContentValidationError ParsedEpisodeData
@@ -208,12 +203,6 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
     Nothing -> Left $ Sanitize.ContentInvalid "Scheduled date is required"
     Just "" -> Left $ Sanitize.ContentInvalid "Scheduled date is required"
     Just scheduleStr -> parseScheduleValue scheduleStr
-
-  -- Determine episode status
-  status <- case eufStatus form of
-    "draft" -> Right Episodes.Draft
-    "published" -> Right Episodes.Published
-    _ -> Left $ Sanitize.ContentInvalid "Invalid status value"
 
   -- Sanitize and validate episode metadata
   let sanitizedDescription = Sanitize.sanitizeUserContent (eufDescription form)
@@ -241,7 +230,6 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
         description = Just validDescription,
         scheduleTemplateId = scheduleTemplateId,
         scheduledAt = scheduledAt,
-        status = status,
         tracks = tracks,
         durationSeconds = durationSeconds
       }
@@ -276,7 +264,6 @@ data ParsedEpisodeData = ParsedEpisodeData
     description :: Maybe Text,
     scheduleTemplateId :: ShowSchedule.TemplateId,
     scheduledAt :: UTCTime,
-    status :: Episodes.Status,
     tracks :: [TrackInfo],
     durationSeconds :: Maybe Int64
   }
@@ -289,6 +276,8 @@ data ParsedEpisodeData = ParsedEpisodeData
 -- the staging area to its final location based on the air date.
 --
 -- Artwork uses direct form submission (small files don't benefit from staged uploads).
+--
+-- Audio is always required for episode creation.
 processFileUploads ::
   -- | Storage backend
   StorageBackend ->
@@ -302,24 +291,22 @@ processFileUploads ::
   Slug ->
   -- | Scheduled date (air date for file organization)
   Maybe UTCTime ->
-  -- | Episode status (audio only required for published)
-  Episodes.Status ->
   -- | Artwork file (direct upload)
   Maybe (FileData Mem) ->
   -- | Audio token (staged upload)
   Maybe Text ->
   -- | (audioPath, artworkPath)
   AppM (Either Text (Maybe Text, Maybe Text))
-processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate status mArtworkFile mAudioToken = do
+processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate mArtworkFile mAudioToken = do
   -- Get the air date for file organization (use current time as fallback)
   airDate <- case mScheduledDate of
     Just d -> pure d
     Nothing -> liftIO getCurrentTime
 
-  -- Process main audio file (required for published, optional for draft)
+  -- Process main audio file (always required)
   -- Audio is uploaded via staged upload, then moved to final location with air date
   audioResult <- case mAudioToken of
-    Just token -> do
+    Just token | not (T.null token) -> do
       -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
       result <-
         claimAndRelocateUpload
@@ -333,10 +320,7 @@ processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate st
       pure $ case result of
         Left err -> Left err
         Right path -> Right (Just path)
-    Nothing ->
-      case status of
-        Episodes.Draft -> pure $ Right Nothing -- Audio optional for drafts
-        _ -> pure $ Left "Audio file is required for published episodes"
+    _ -> pure $ Left "Audio file is required"
 
   -- Process artwork file (optional, direct upload only)
   artworkResult <- case mArtworkFile of

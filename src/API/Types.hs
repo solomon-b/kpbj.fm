@@ -48,11 +48,9 @@ import API.Dashboard.EphemeralUploads.New.Post.Route qualified as Dashboard.Ephe
 import API.Dashboard.Episodes.Get.Route qualified as Dashboard.Episodes.Get
 import API.Dashboard.Episodes.Redirect.Route qualified as Dashboard.Episodes.Redirect
 import API.Dashboard.Episodes.Slug.Delete.Route qualified as Dashboard.Episodes.Slug.Delete
-import API.Dashboard.Episodes.Slug.DiscardDraft.Route qualified as Dashboard.Episodes.Slug.DiscardDraft
 import API.Dashboard.Episodes.Slug.Edit.Get.Route qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post.Route qualified as Dashboard.Episodes.Slug.Edit.Post
 import API.Dashboard.Episodes.Slug.Get.Route qualified as Dashboard.Episodes.Slug.Get
-import API.Dashboard.Episodes.Slug.Publish.Post.Route qualified as Dashboard.Episodes.Slug.Publish.Post
 import API.Dashboard.Events.Get.Route qualified as Dashboard.Events.Get
 import API.Dashboard.Events.New.Get.Route qualified as Dashboard.Events.New.Get
 import API.Dashboard.Events.New.Post.Route qualified as Dashboard.Events.New.Post
@@ -333,11 +331,7 @@ data DashboardEpisodesRoutes mode = DashboardEpisodesRoutes
     -- | @POST /dashboard/episodes/:showSlug/:episodeNumber/edit@ - Update episode
     editPost :: mode :- Dashboard.Episodes.Slug.Edit.Post.Route,
     -- | @DELETE /dashboard/episodes/:showSlug/:episodeNumber@ - Archive episode (staff only)
-    delete :: mode :- Dashboard.Episodes.Slug.Delete.Route,
-    -- | @DELETE /dashboard/episodes/:showSlug/:episodeNumber/draft@ - Discard draft episode
-    discardDraft :: mode :- Dashboard.Episodes.Slug.DiscardDraft.Route,
-    -- | @POST /dashboard/episodes/:showSlug/:episodeNumber/publish@ - Publish draft episode
-    publish :: mode :- Dashboard.Episodes.Slug.Publish.Post.Route
+    delete :: mode :- Dashboard.Episodes.Slug.Delete.Route
   }
   deriving stock (Generic)
 

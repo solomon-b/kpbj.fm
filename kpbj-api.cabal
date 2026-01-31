@@ -223,8 +223,6 @@ library
     API.Dashboard.EphemeralUploads.New.Post.Route
     API.Dashboard.Episodes.Slug.Delete.Handler
     API.Dashboard.Episodes.Slug.Delete.Route
-    API.Dashboard.Episodes.Slug.DiscardDraft.Handler
-    API.Dashboard.Episodes.Slug.DiscardDraft.Route
     API.Dashboard.Episodes.Slug.Edit.Get.Handler
     API.Dashboard.Episodes.Slug.Edit.Get.Route
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
@@ -233,8 +231,6 @@ library
     API.Dashboard.Episodes.Slug.Get.Handler
     API.Dashboard.Episodes.Slug.Get.Route
     API.Dashboard.Episodes.Slug.Get.Templates.Page
-    API.Dashboard.Episodes.Slug.Publish.Post.Handler
-    API.Dashboard.Episodes.Slug.Publish.Post.Route
     API.Dashboard.Episodes.Get.Handler
     API.Dashboard.Episodes.Get.Route
     API.Dashboard.Episodes.Get.Templates.EpisodeRow

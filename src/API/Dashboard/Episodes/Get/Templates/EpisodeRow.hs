@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardEpisodesLinks)
 import API.Types (DashboardEpisodesRoutes (..))
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Design (base, class_)
@@ -36,24 +37,19 @@ episodeEditGetUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.editGe
 episodeArchiveUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeArchiveUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.delete showSlug epNum
 
-episodeDiscardDraftUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodeDiscardDraftUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.discardDraft showSlug epNum
-
-episodePublishUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodePublishUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.publish showSlug epNum
-
 --------------------------------------------------------------------------------
 
 -- | Render individual episode as table row.
 --
--- Actions shown depend on episode status and user role:
--- - Draft episodes: hosts can "Discard Draft" (hard delete)
--- - Published episodes: only staff+ can "Archive" (soft delete)
+-- Actions shown depend on user role:
+-- - Staff+ can "Archive" (soft delete via deleted_at)
+-- - All users can "Edit"
 renderEpisodeTableRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Lucid.Html ()
 renderEpisodeTableRow userMeta showModel episode = do
   let episodeId = episode.id
       episodeRowId = [i|episode-row-#{episodeId}|]
       detailUrl = episodeGetUrl showModel.slug epNum
+      isArchived = isJust episode.deletedAt
       cellLinkAttrs =
         [ class_ $ base [Tokens.p4, "cursor-pointer"],
           hxGet_ [i|/#{detailUrl}|],
@@ -77,15 +73,11 @@ renderEpisodeTableRow userMeta showModel episode = do
       Lucid.toHtml $
         formatPacificDate episode.scheduledAt
 
-    -- Status
+    -- Status column - only show badge if archived
     Lucid.td_ cellLinkAttrs $
-      case episode.status of
-        Episodes.Draft ->
-          Lucid.span_ [class_ $ base ["inline-block", "bg-yellow-100", "text-yellow-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
-        Episodes.Published ->
-          Lucid.span_ [class_ $ base ["inline-block", "bg-green-100", "text-green-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
-        Episodes.Deleted ->
-          Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"
+      if isArchived
+        then Lucid.span_ [class_ $ base ["inline-block", "bg-red-100", "text-red-800", "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "ARCHIVED"
+        else mempty
 
     -- Actions dropdown
     Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
@@ -101,16 +93,6 @@ renderEpisodeTableRow userMeta showModel episode = do
               Lucid.class_ "hidden"
             ]
             ""
-          -- Hidden button for Discard Draft (hard delete for drafts)
-          Lucid.button_
-            [ hxDelete_ [i|/#{discardDraftUrl}|],
-              hxTarget_ ("#" <> episodeRowId),
-              hxSwap_ "outerHTML",
-              LucidBase.makeAttributes "hx-confirm" "Are you sure you want to discard this draft? This action cannot be undone.",
-              xRef_ "discardBtn",
-              Lucid.class_ "hidden"
-            ]
-            ""
           -- Hidden button for Archive (soft delete for staff+)
           Lucid.button_
             [ hxDelete_ [i|/#{archiveUrl}|],
@@ -118,16 +100,6 @@ renderEpisodeTableRow userMeta showModel episode = do
               hxSwap_ "outerHTML",
               LucidBase.makeAttributes "hx-confirm" "Are you sure you want to archive this episode? It will no longer appear publicly.",
               xRef_ "archiveBtn",
-              Lucid.class_ "hidden"
-            ]
-            ""
-          -- Hidden button for Publish
-          Lucid.button_
-            [ hxPost_ [i|/#{episodePubUrl}|],
-              hxTarget_ ("#" <> episodeRowId),
-              hxSwap_ "outerHTML",
-              LucidBase.makeAttributes "hx-confirm" "Are you sure you want to publish this episode? It will become publicly visible.",
-              xRef_ "publishBtn",
               Lucid.class_ "hidden"
             ]
             ""
@@ -140,33 +112,20 @@ renderEpisodeTableRow userMeta showModel episode = do
               $el.value = '';
               if (action === 'edit') {
                 $refs.editLink.click();
-              } else if (action === 'discard') {
-                $refs.discardBtn.click();
               } else if (action === 'archive') {
                 $refs.archiveBtn.click();
-              } else if (action === 'publish') {
-                $refs.publishBtn.click();
               }
             |]
             ]
             $ do
               Lucid.option_ [Lucid.value_ ""] "Actions..."
               Lucid.option_ [Lucid.value_ "edit"] "Edit"
-              -- Only show Publish option for draft episodes
-              case episode.status of
-                Episodes.Draft -> do
-                  Lucid.option_ [Lucid.value_ "publish"] "Publish"
-                  -- Hosts can discard their own drafts
-                  Lucid.option_ [Lucid.value_ "discard"] "Discard Draft"
-                _ -> mempty
               -- Staff+ can archive any episode (soft delete)
-              if isStaff
+              if isStaff && not isArchived
                 then Lucid.option_ [Lucid.value_ "archive"] "Archive"
                 else mempty
   where
     epNum = episode.episodeNumber
     episodeEditUrl = episodeEditGetUrl showModel.slug epNum
-    discardDraftUrl = episodeDiscardDraftUrl showModel.slug epNum
     archiveUrl = episodeArchiveUrl showModel.slug epNum
-    episodePubUrl = episodePublishUrl showModel.slug epNum
     isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole

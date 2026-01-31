@@ -5,7 +5,7 @@ module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackInfo (..), parseStatus)
+import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackInfo (..))
 import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
 import App.Handler.Combinators (requireAuth)
@@ -147,16 +147,13 @@ updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel edit
       isPast = isScheduledInPast currentTime episode
 
   -- 1. Validation phase (throws on error)
-  parsedStatus <- validateStatus (eefStatus editForm)
-  validateStatusChangePermission isPast isStaffOrAdmin episode parsedStatus
   validDescription <- validateDescription (eefDescription editForm)
 
   -- 2. Core update (throws on error)
   let updateData =
         Episodes.Update
           { euId = episode.id,
-            euDescription = Just validDescription,
-            euStatus = Just parsedStatus
+            euDescription = Just validDescription
           }
   execQuery (Episodes.updateEpisode updateData) >>= \case
     Left err -> throwDatabaseError err
@@ -175,24 +172,6 @@ updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel edit
 
 --------------------------------------------------------------------------------
 -- Validation Helpers
-
-validateStatus :: Text -> AppM Episodes.Status
-validateStatus statusText =
-  case parseStatus statusText of
-    Nothing -> throwValidationError "Invalid episode status value."
-    Just s -> pure s
-
-validateStatusChangePermission ::
-  -- | isPast
-  Bool ->
-  Bool -> -- isStaffOrAdmin
-  Episodes.Model ->
-  Episodes.Status ->
-  AppM ()
-validateStatusChangePermission isPast isStaffOrAdmin episode newStatus = do
-  let statusChanged = newStatus /= episode.status
-  when (statusChanged && isPast && not isStaffOrAdmin) $ do
-    throwValidationError "This episode's scheduled date has passed. Only staff or admin users can change the status of past episodes."
 
 validateDescription :: Maybe Text -> AppM Text
 validateDescription mDescription = do

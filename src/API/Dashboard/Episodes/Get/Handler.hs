@@ -22,8 +22,8 @@ import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time (Day, getCurrentTime)
-import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
@@ -165,7 +165,7 @@ fetchEpisodesData today showModel limit offset =
 fetchEpisodesDataPaginated :: Day -> Shows.Model -> Limit -> Offset -> Txn.Transaction ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
 fetchEpisodesDataPaginated date showModel lim off = do
   -- Fetch limit + 1 to check if there are more results
-  episodes <- Txn.statement () (Episodes.getEpisodesForShowIncludingDrafts showModel.id (lim + 1) off)
+  episodes <- Txn.statement () (Episodes.getEpisodesForShow showModel.id (lim + 1) off)
   schedules <- Txn.statement () (ShowSchedule.getScheduleTemplatesForShow showModel.id)
   upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showModel.id date 1)
   let nextShow = listToMaybe upcomingShows
