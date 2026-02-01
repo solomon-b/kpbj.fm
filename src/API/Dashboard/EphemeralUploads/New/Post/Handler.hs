@@ -19,6 +19,7 @@ import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
+import Domain.Types.Slug (Slug (..), mkSlug)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
@@ -87,6 +88,8 @@ processEphemeralUpload user form = do
               now <- liftIO getCurrentTime
 
               -- Claim and relocate the staged upload to final location
+              -- Use slugified title as filename prefix for easier identification
+              let Slug titleSlug = mkSlug title
               claimResult <-
                 claimAndRelocateUpload
                   (User.mId user)
@@ -95,7 +98,7 @@ processEphemeralUpload user form = do
                   AudioBucket
                   EphemeralAudio
                   now
-                  "ephemeral"
+                  titleSlug
 
               case claimResult of
                 Left err -> do

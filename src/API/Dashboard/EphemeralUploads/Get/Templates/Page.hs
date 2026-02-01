@@ -113,7 +113,7 @@ renderEphemeralUploadRow backend ephemeralUpload =
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
             renderInlineAudioPlayer audioUrl ephemeralUploadIdText
 
-          -- Actions cell (Delete dropdown only - no download for ephemeral uploads)
+          -- Actions cell
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
             ActionsDropdown.render
               [ ActionsDropdown.htmxDeleteAction
@@ -125,7 +125,7 @@ renderEphemeralUploadRow backend ephemeralUpload =
                   deleteConfirmMessage
               ]
 
--- | Render an inline audio player using Alpine.js
+-- | Render an inline audio player with download button using Alpine.js
 renderInlineAudioPlayer :: Text -> Text -> Lucid.Html ()
 renderInlineAudioPlayer audioUrl _uniqueId =
   Lucid.div_
@@ -155,7 +155,8 @@ renderInlineAudioPlayer audioUrl _uniqueId =
               $refs.audioPlayer.onended = () => { playing = false; };
             }
           |],
-          class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"]
+          class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
+          Lucid.title_ "Play/Pause"
         ]
         $ do
           -- Play icon (shown when not playing)
@@ -170,6 +171,14 @@ renderInlineAudioPlayer audioUrl _uniqueId =
               Lucid.term "x-show" "playing"
             ]
             mempty
+      -- Download button
+      Lucid.a_
+        [ Lucid.href_ audioUrl,
+          Lucid.download_ "",
+          class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
+          Lucid.title_ "Download"
+        ]
+        $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
 
 -- | Render empty state when no ephemeral uploads exist
 renderEmptyState :: Lucid.Html ()
