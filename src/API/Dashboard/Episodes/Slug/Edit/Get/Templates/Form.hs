@@ -9,7 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (showEpisodesLinks)
+import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.Maybe (fromMaybe)
@@ -24,12 +24,11 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
-import Effects.Database.Tables.Episodes qualified as Episodes (EpisodeNumber, Model, artworkUrl, audioFilePath, description, episodeNumber, scheduledAt)
+import Effects.Database.Tables.Episodes qualified as Episodes (Model, artworkUrl, audioFilePath, description, episodeNumber, scheduledAt)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Form.Builder
-import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
@@ -62,8 +61,8 @@ data EpisodeEditContext = EpisodeEditContext
 
 --------------------------------------------------------------------------------
 
-episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
-episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showSlug epNum
+episodeIndexUrl :: Slug -> Text
+episodeIndexUrl showSlug = rootLink $ dashboardEpisodesLinks.list showSlug Nothing
 
 --------------------------------------------------------------------------------
 
@@ -100,7 +99,7 @@ template ctx = do
     showSlugText = display showModel.slug
     episodeNum = episode.episodeNumber
     episodeNumText = display episodeNum
-    episodeBackUrl = episodeDetailUrl showModel.slug episodeNum
+    episodeBackUrl = episodeIndexUrl showModel.slug
     descriptionValue = fromMaybe "" episode.description
     -- File uploads allowed if scheduled date is in the future OR user is staff/admin
     allowFileUpload = isScheduledInFuture currentTime episode || isStaff
@@ -200,5 +199,5 @@ template ctx = do
                 TrackListingEditor.jsonFieldName = "tracks_json"
               }
 
-      cancelButton [i|/#{episodeBackUrl}|] "CANCEL"
+      cancelButton episodeBackUrl "CANCEL"
       submitButton "SAVE CHANGES"
