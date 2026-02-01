@@ -14,18 +14,15 @@ import API.Types
 import API.User.ResetPassword.Get.Templates.InvalidToken qualified as InvalidTokenTemplate
 import API.User.ResetPassword.Get.Templates.Page qualified as Templates
 import API.User.ResetPassword.Post.Route (ResetPasswordForm (..))
+import App.Common (renderUnauthTemplate)
 import App.Monad (AppM)
-import Component.Frame (loadContentOnly, loadFrame)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Reader (asks)
 import Data.Foldable (foldl')
-import Data.Has (getter)
 import Data.Password.Argon2 (Argon2, Password, PasswordCheck (..), PasswordHash, checkPassword, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
 import Data.Text (Text)
 import Data.Text.Display (Display (..), display)
 import Data.Validation (Validation (..))
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Tables.PasswordResetTokens (Token)
 import Effects.PasswordReset qualified as PasswordReset
@@ -61,8 +58,6 @@ handler ::
         (Lucid.Html ())
     )
 handler (foldHxReq -> hxRequest) ResetPasswordForm {..} = do
-  mGoogleAnalyticsId <- asks getter
-
   -- Validate the password first (pure validation, no DB call).
   -- This avoids unnecessary DB operations if the password is invalid.
   passwordValidation <- validatePassword rpfPassword rpfPasswordConfirm
@@ -70,12 +65,12 @@ handler (foldHxReq -> hxRequest) ResetPasswordForm {..} = do
     Failure (firstError : _) -> do
       -- Show form with error
       Log.logInfo "Password reset form validation failed" (display firstError)
-      content <- renderFormWithError mGoogleAnalyticsId hxRequest rpfToken firstError
+      content <- renderFormWithError hxRequest rpfToken firstError
       pure $ Servant.noHeader content
     Failure [] -> do
       -- Should never happen, but handle gracefully
       Log.logInfo "Password reset form validation failed with no errors" (display rpfToken)
-      content <- renderFormWithError mGoogleAnalyticsId hxRequest rpfToken PasswordMismatch
+      content <- renderFormWithError hxRequest rpfToken PasswordMismatch
       pure $ Servant.noHeader content
     Success passwordHash -> do
       -- Atomically consume token and reset password.
@@ -85,15 +80,13 @@ handler (foldHxReq -> hxRequest) ResetPasswordForm {..} = do
       case resetResult of
         Left err -> do
           Log.logInfo "Password reset failed" (PasswordReset.passwordResetErrorToText err)
-          content <- renderInvalidToken mGoogleAnalyticsId hxRequest
+          content <- renderInvalidToken hxRequest
           pure $ Servant.noHeader content
         Right _userId -> do
           Log.logInfo "Password reset successful" (display rpfToken)
           -- Redirect to login with success message
           let redirectUrl = "/" <> Http.toUrlPiece (userLinks.loginGet Nothing Nothing)
-          content <- case hxRequest of
-            IsHxRequest -> loadContentOnly successContent
-            IsNotHxRequest -> loadFrame mGoogleAnalyticsId successContent
+          content <- renderUnauthTemplate hxRequest successContent
           pure $ Servant.addHeader redirectUrl content
 
 --------------------------------------------------------------------------------
@@ -127,28 +120,22 @@ validatePassword password passwordConfirm =
 
 -- | Render the form with an error message.
 renderFormWithError ::
-  Maybe GoogleAnalyticsId ->
   HxRequest ->
   Token ->
   ValidationError ->
   AppM (Lucid.Html ())
-renderFormWithError mGoogleAnalyticsId hxRequest token err = do
+renderFormWithError hxRequest token err = do
   let errorText = display err
       content = Templates.template token (Just errorText)
-  case hxRequest of
-    IsHxRequest -> loadContentOnly content
-    IsNotHxRequest -> loadFrame mGoogleAnalyticsId content
+  renderUnauthTemplate hxRequest content
 
 -- | Render the invalid token page.
 renderInvalidToken ::
-  Maybe GoogleAnalyticsId ->
   HxRequest ->
   AppM (Lucid.Html ())
-renderInvalidToken mGoogleAnalyticsId hxRequest = do
+renderInvalidToken hxRequest = do
   let content = InvalidTokenTemplate.template
-  case hxRequest of
-    IsHxRequest -> loadContentOnly content
-    IsNotHxRequest -> loadFrame mGoogleAnalyticsId content
+  renderUnauthTemplate hxRequest content
 
 -- | Success content (will be replaced by redirect).
 successContent :: Lucid.Html ()

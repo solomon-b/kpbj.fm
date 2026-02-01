@@ -17,6 +17,7 @@ import Design.Theme (defaultTheme, themeCSS)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId (..))
+import Effects.Database.Tables.StreamSettings qualified as StreamSettings
 import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
@@ -155,8 +156,8 @@ mobileArchiveBanner =
       Lucid.span_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, "px-3", "py-1", Tokens.fontBold]] "GO LIVE"
 
 -- | Audio element wrapper with Alpine state (shared between mobile and desktop)
-musicPlayerWrapper :: Lucid.Html () -> Lucid.Html ()
-musicPlayerWrapper content =
+musicPlayerWrapper :: StreamSettings.Model -> Lucid.Html () -> Lucid.Html ()
+musicPlayerWrapper settings content =
   Lucid.div_ [xData_ playerData, class_ $ base ["flex", "flex-col", "flex-1"]] $ do
     Lucid.audio_
       [ xRef_ "audio",
@@ -165,13 +166,15 @@ musicPlayerWrapper content =
       mempty
     content
   where
+    streamUrl = settings.ssStreamUrl
+    metadataUrl = settings.ssMetadataUrl
     playerData =
       [i|{
       playerId: 'navbar-player',
       isPlaying: false,
       volume: 80,
-      streamUrl: 'https://kpbj.hasnoskills.com/listen/kpbj_test_station/radio.mp3',
-      metadataUrl: 'https://kpbj.hasnoskills.com/api/nowplaying/kpbj_test_station',
+      streamUrl: '#{streamUrl}',
+      metadataUrl: '#{metadataUrl}',
 
       // Playback mode: 'stream' for live radio, 'episode' for on-demand episodes
       mode: 'stream',
@@ -718,8 +721,8 @@ suspensionBanner Suspended =
       Lucid.p_ [class_ $ base [Tokens.textSm, "mt-2"]] $
         Lucid.toHtml @Text "If you believe this is an error, please contact us at contact@kpbj.fm"
 
-template :: Maybe GoogleAnalyticsId -> Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
-template mGoogleAnalyticsId mUser main =
+template :: Maybe GoogleAnalyticsId -> StreamSettings.Model -> Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
+template mGoogleAnalyticsId streamSettings mUser main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
       googleAnalyticsScript mGoogleAnalyticsId
@@ -759,7 +762,7 @@ template mGoogleAnalyticsId mUser main =
           mobileMenuOverlay mUser
 
           -- Player wrapper with Alpine state (audio element shared between desktop/mobile)
-          musicPlayerWrapper $ do
+          musicPlayerWrapper streamSettings $ do
             -- Mobile header (hamburger + mini logo + login) - visible only on mobile
             mobileHeader mUser
 
@@ -841,11 +844,11 @@ template mGoogleAnalyticsId mUser main =
 
 --------------------------------------------------------------------------------
 
-loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> Lucid.Html () -> m (Lucid.Html ())
-loadFrame mGoogleAnalyticsId = pure . template mGoogleAnalyticsId Nothing
+loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamSettings.Model -> Lucid.Html () -> m (Lucid.Html ())
+loadFrame mGoogleAnalyticsId streamSettings = pure . template mGoogleAnalyticsId streamSettings Nothing
 
-loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
-loadFrameWithUser mGoogleAnalyticsId user = pure . template mGoogleAnalyticsId (Just user)
+loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamSettings.Model -> UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
+loadFrameWithUser mGoogleAnalyticsId streamSettings user = pure . template mGoogleAnalyticsId streamSettings (Just user)
 
 -- | Load content-only for HTMX responses
 loadContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())

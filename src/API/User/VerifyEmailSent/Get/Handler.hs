@@ -3,12 +3,11 @@ module API.User.VerifyEmailSent.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.User.VerifyEmailSent.Get.Templates.Page qualified as Page
+import App.Common (renderUnauthTemplate)
 import App.Monad (AppM)
-import Component.Frame (loadContentOnly, loadFrame)
-import Control.Monad.Reader (asks)
-import Data.Has (getter)
 import Data.Text (Text)
 import Domain.Types.EmailAddress (EmailAddress)
+import Domain.Types.HxRequest (HxRequest (..))
 import Lucid qualified
 
 --------------------------------------------------------------------------------
@@ -18,9 +17,6 @@ handler ::
   Maybe EmailAddress ->
   AppM (Lucid.Html ())
 handler hxRequest mEmail = do
-  mGoogleAnalyticsId <- asks getter
-  let isHtmxRequest = hxRequest == Just "true"
+  let hxReq = if hxRequest == Just "true" then IsHxRequest else IsNotHxRequest
       content = Page.template mEmail
-  if isHtmxRequest
-    then loadContentOnly content
-    else loadFrame mGoogleAnalyticsId content
+  renderUnauthTemplate hxReq content

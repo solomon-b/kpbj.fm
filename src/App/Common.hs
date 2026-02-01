@@ -20,6 +20,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.StreamSettings qualified as StreamSettings
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log.Class qualified as Log
@@ -53,6 +54,7 @@ getUserInfo (coerce -> cookie) = do
 -- Shows a warning banner at the top of every page for suspended users.
 -- Pass NotSuspended for unauthenticated users or when suspension status is unknown.
 -- Includes Google Analytics tracking if GOOGLE_ANALYTICS_GTAG is configured.
+-- Fetches stream settings from the database for the music player.
 renderTemplate ::
   HxRequest ->
   Maybe UserMetadata.Model ->
@@ -60,13 +62,61 @@ renderTemplate ::
   AppM (Lucid.Html ())
 renderTemplate hxRequest mUserInfo templateContent = do
   mGoogleAnalyticsId <- asks getter
-  case (mUserInfo, hxRequest) of
-    (Just userInfo, IsNotHxRequest) ->
-      loadFrameWithUser mGoogleAnalyticsId userInfo templateContent
-    (_, IsHxRequest) ->
+  case hxRequest of
+    IsHxRequest ->
       loadContentOnly templateContent
-    (_, IsNotHxRequest) ->
-      loadFrame mGoogleAnalyticsId templateContent
+    IsNotHxRequest -> do
+      -- Fetch stream settings for the music player
+      streamSettings <- getStreamSettings
+      case mUserInfo of
+        Just userInfo ->
+          loadFrameWithUser mGoogleAnalyticsId streamSettings userInfo templateContent
+        Nothing ->
+          loadFrame mGoogleAnalyticsId streamSettings templateContent
+
+-- | Get stream settings from the database with fallback defaults.
+--
+-- If stream settings cannot be fetched (database error or missing row),
+-- returns default hardcoded values to ensure the player always works.
+getStreamSettings :: AppM StreamSettings.Model
+getStreamSettings = do
+  result <- execQuery StreamSettings.getStreamSettings
+  case result of
+    Right (Just settings) -> pure settings
+    _ -> do
+      -- Log and return default settings if fetch fails
+      Log.logAttention "Failed to fetch stream settings, using defaults" ()
+      pure defaultStreamSettings
+
+-- | Render template for unauthenticated pages (login, register, etc.)
+--
+-- This is a simpler version of renderTemplate for pages that don't need
+-- user context. It still fetches stream settings for the music player.
+renderUnauthTemplate ::
+  HxRequest ->
+  Lucid.Html () ->
+  AppM (Lucid.Html ())
+renderUnauthTemplate hxRequest templateContent = do
+  case hxRequest of
+    IsHxRequest -> loadContentOnly templateContent
+    IsNotHxRequest -> do
+      mGoogleAnalyticsId <- asks getter
+      streamSettings <- getStreamSettings
+      loadFrame mGoogleAnalyticsId streamSettings templateContent
+
+-- | Default stream settings used when database fetch fails.
+--
+-- Uses epoch time (1970-01-01 00:00:00 UTC) as a sentinel value for updatedAt.
+defaultStreamSettings :: StreamSettings.Model
+defaultStreamSettings =
+  StreamSettings.Model
+    { StreamSettings.ssStreamUrl = "https://kpbj.hasnoskills.com/listen/kpbj_test_station/radio.mp3",
+      StreamSettings.ssMetadataUrl = "https://kpbj.hasnoskills.com/api/nowplaying/kpbj_test_station",
+      StreamSettings.ssUpdatedAt = epochTime,
+      StreamSettings.ssUpdatedBy = Nothing
+    }
+  where
+    epochTime = read "1970-01-01 00:00:00 UTC"
 
 -- | Render dashboard template with separate full-page layout.
 --

@@ -41,6 +41,7 @@ module API.Links
     dashboardEventsLinks,
     dashboardUsersLinks,
     dashboardSitePagesLinks,
+    dashboardStreamSettingsLinks,
   )
 where
 
@@ -149,3 +150,7 @@ dashboardUsersLinks = dashboardAdminLinks.users
 -- | Dashboard site pages route links
 dashboardSitePagesLinks :: DashboardSitePagesRoutes (AsLink Link)
 dashboardSitePagesLinks = dashboardAdminLinks.sitePages
+
+-- | Dashboard stream settings route links
+dashboardStreamSettingsLinks :: DashboardStreamSettingsRoutes (AsLink Link)
+dashboardStreamSettingsLinks = dashboardAdminLinks.streamSettings
