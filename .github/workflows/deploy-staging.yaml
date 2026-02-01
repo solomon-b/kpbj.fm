@@ -59,7 +59,7 @@ jobs:
         run: |
           flyctl deploy \
             --remote-only \
-            --config fly.staging.toml \
+            --config services/web/fly.staging.toml \
             --image "${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

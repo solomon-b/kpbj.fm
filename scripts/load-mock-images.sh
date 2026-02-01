@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Load Mock Images
-# Copies mock media files from mock-data/media/ to /tmp/kpbj/ with proper structure
+# Copies mock media files from services/web/mock-data/media/ to /tmp/kpbj/ with proper structure
 #
 # Usage: ./scripts/load-mock-images.sh
 #
@@ -10,7 +10,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-MOCK_DATA_DIR="$PROJECT_ROOT/mock-data/media"
+MOCK_DATA_DIR="$PROJECT_ROOT/services/web/mock-data/media"
 TARGET_ROOT="/tmp/kpbj"
 
 # Use a fixed date for mock data (makes paths predictable for database references)

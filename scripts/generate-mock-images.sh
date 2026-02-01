@@ -7,7 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-OUTPUT_DIR="$PROJECT_DIR/mock-data/media"
+OUTPUT_DIR="$PROJECT_DIR/services/web/mock-data/media"
 CACHE_DIR="$PROJECT_DIR/.image-cache"
 
 # Create directories

@@ -1,11 +1,7 @@
--- Root cabal.project for the kpbj.fm monorepo
--- All services are built from here
-
-packages:
-  services/web/kpbj-api.cabal
-  services/web/lib/lucid-form-builder/lucid-form-builder.cabal
-  services/web/lib/lucid-htmx-alpine/lucid-htmx-alpine.cabal
-  services/web/lib/lucid-tailwind/lucid-tailwind.cabal
+packages: .
+         lib/lucid-htmx-alpine
+         lib/lucid-form-builder
+         lib/lucid-tailwind
 
 source-repository-package
   type: git
