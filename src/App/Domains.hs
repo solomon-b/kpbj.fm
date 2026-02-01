@@ -13,6 +13,9 @@ module App.Domains
   ( -- * Base Domain
     baseDomain,
 
+    -- * Site Base URL
+    siteBaseUrl,
+
     -- * Cookie Configuration
     cookieDomainMaybe,
 
@@ -45,6 +48,21 @@ baseDomain = \case
   Development -> ""
   Staging -> "staging.kpbj.fm"
   Production -> "kpbj.fm"
+
+--------------------------------------------------------------------------------
+-- Site Base URL
+
+-- | Get the base URL for the site (scheme + domain).
+--
+-- Used for constructing absolute URLs when needed (e.g., for external services).
+--
+-- - Development: "http://localhost:4000"
+-- - Staging: "https://staging.kpbj.fm"
+-- - Production: "https://kpbj.fm"
+siteBaseUrl :: Environment -> Text
+siteBaseUrl = \case
+  Development -> "http://localhost:4000"
+  env -> "https://" <> baseDomain env
 
 --------------------------------------------------------------------------------
 -- Cookie Configuration

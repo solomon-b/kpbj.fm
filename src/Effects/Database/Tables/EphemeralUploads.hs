@@ -22,6 +22,7 @@ module Effects.Database.Tables.EphemeralUploads
     -- * Queries
     getAllEphemeralUploads,
     getEphemeralUploadById,
+    getRandomEphemeralUpload,
     insertEphemeralUpload,
     updateEphemeralUpload,
     deleteEphemeralUpload,
@@ -136,6 +137,21 @@ getEphemeralUploadById ephemeralUploadId =
     SELECT id, title, audio_file_path, mime_type, file_size, creator_id, created_at
     FROM ephemeral_uploads
     WHERE id = #{ephemeralUploadId}
+  |]
+
+-- | Get a random ephemeral upload for fallback playback.
+--
+-- Returns a randomly selected ephemeral upload, or Nothing if the table is empty.
+-- Used by Liquidsoap for fallback audio when no show is scheduled.
+getRandomEphemeralUpload :: Hasql.Statement () (Maybe Model)
+getRandomEphemeralUpload =
+  interp
+    False
+    [sql|
+    SELECT id, title, audio_file_path, mime_type, file_size, creator_id, created_at
+    FROM ephemeral_uploads
+    ORDER BY RANDOM()
+    LIMIT 1
   |]
 
 -- | Insert a new ephemeral upload and return its ID.

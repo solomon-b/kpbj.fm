@@ -351,6 +351,11 @@ library
     API.TermsOfService.Get.Route
     API.TermsOfService.Get.Templates
     API.Types
+    API.Playout.Types
+    API.Playout.Now.Get.Route
+    API.Playout.Now.Get.Handler
+    API.Playout.Fallback.Get.Route
+    API.Playout.Fallback.Get.Handler
     API.Uploads.Shared
     API.Uploads.Types
     API.Uploads.Audio.Post.Handler
@@ -542,6 +547,7 @@ test-suite kpbj-api-test
        Effects.DiffSpec
        Effects.MarkdownSpec
        Effects.Database.Tables.BlogPostsSpec
+       Effects.Database.Tables.CurrentlyAiringSpec
        Effects.Database.Tables.EpisodesSpec
        Effects.Database.Tables.EventsSpec
        Effects.Database.Tables.ShowHostSpec

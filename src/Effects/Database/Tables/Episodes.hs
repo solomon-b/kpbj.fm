@@ -37,6 +37,7 @@ module Effects.Database.Tables.Episodes
     getEpisodeByShowAndNumber,
     getEpisodeById,
     getEpisodesByUser,
+    getCurrentlyAiringEpisode,
     insertEpisode,
     updateEpisode,
     updateEpisodeFiles,
@@ -333,6 +334,104 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
             where_ $ ep.createdBy ==. lit userId
             where_ $ isNull ep.deletedAt
             pure ep
+
+-- | Get the episode that is currently airing based on the schedule.
+--
+-- Finds episodes where:
+-- 1. The episode has an audio file uploaded
+-- 2. The episode is not deleted
+-- 3. The current Pacific time falls within the show's scheduled time slot
+-- 4. The schedule template is currently valid (effective dates match)
+-- 5. Handles overnight shows (end_time <= start_time) spanning two calendar days
+-- 6. Handles airs_twice_daily (primary + 12 hour replay)
+--
+-- For overnight shows (e.g., 11 PM - 2 AM):
+-- - If current time >= start_time: look for episode scheduled TODAY
+-- - If current time < end_time: also look for episode scheduled YESTERDAY
+--
+-- Used by Liquidsoap to determine what audio to play.
+getCurrentlyAiringEpisode :: UTCTime -> Hasql.Statement () (Maybe Model)
+getCurrentlyAiringEpisode currentTime =
+  interp
+    False
+    [sql|
+    WITH current_pacific AS (
+      -- Convert current UTC time to Pacific
+      SELECT
+        (#{currentTime} AT TIME ZONE 'America/Los_Angeles')::DATE as today_pacific,
+        ((#{currentTime} AT TIME ZONE 'America/Los_Angeles')::DATE - INTERVAL '1 day')::DATE as yesterday_pacific,
+        (#{currentTime} AT TIME ZONE 'America/Los_Angeles')::TIME as time_now
+    ),
+    matching_episodes AS (
+      SELECT
+        e.id, e.show_id, e.description, e.episode_number,
+        e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
+        e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at,
+        e.deleted_at, e.created_by, e.created_at, e.updated_at
+      FROM episodes e
+      JOIN schedule_templates st ON st.id = e.schedule_template_id
+      JOIN schedule_template_validity stv ON stv.template_id = st.id
+      CROSS JOIN current_pacific cp
+      WHERE
+        -- Episode must have audio and not be deleted
+        e.audio_file_path IS NOT NULL
+        AND e.deleted_at IS NULL
+        -- Schedule validity must be active for the episode's scheduled date
+        -- effective_from is inclusive, effective_until is exclusive
+        AND stv.effective_from <= (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE
+        AND (stv.effective_until IS NULL OR stv.effective_until > (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE)
+        AND (
+          -- Case 1: Standard show (end > start) scheduled for today
+          (
+            st.end_time > st.start_time
+            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
+            AND cp.time_now >= st.start_time
+            AND cp.time_now < st.end_time
+          )
+          OR
+          -- Case 2: Overnight show (end <= start) - before midnight portion (scheduled today)
+          (
+            st.end_time <= st.start_time
+            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
+            AND cp.time_now >= st.start_time
+          )
+          OR
+          -- Case 3: Overnight show (end <= start) - after midnight portion (scheduled yesterday)
+          (
+            st.end_time <= st.start_time
+            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
+            AND cp.time_now < st.end_time
+          )
+          OR
+          -- Case 4: Replay airing (+12 hours) for standard shows scheduled today
+          (
+            st.airs_twice_daily = TRUE
+            AND (st.end_time + INTERVAL '12 hours')::TIME > (st.start_time + INTERVAL '12 hours')::TIME
+            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
+            AND cp.time_now >= (st.start_time + INTERVAL '12 hours')::TIME
+            AND cp.time_now < (st.end_time + INTERVAL '12 hours')::TIME
+          )
+          OR
+          -- Case 5: Replay airing for overnight shows - before midnight portion (scheduled today)
+          (
+            st.airs_twice_daily = TRUE
+            AND (st.end_time + INTERVAL '12 hours')::TIME <= (st.start_time + INTERVAL '12 hours')::TIME
+            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
+            AND cp.time_now >= (st.start_time + INTERVAL '12 hours')::TIME
+          )
+          OR
+          -- Case 6: Replay airing for overnight shows - after midnight portion (scheduled yesterday)
+          (
+            st.airs_twice_daily = TRUE
+            AND (st.end_time + INTERVAL '12 hours')::TIME <= (st.start_time + INTERVAL '12 hours')::TIME
+            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
+            AND cp.time_now < (st.end_time + INTERVAL '12 hours')::TIME
+          )
+        )
+    )
+    SELECT * FROM matching_episodes
+    LIMIT 1
+  |]
 
 -- | Insert a new episode.
 --
