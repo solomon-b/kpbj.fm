@@ -23,6 +23,7 @@ module Effects.Database.Tables.EphemeralUploads
     getAllEphemeralUploads,
     getEphemeralUploadById,
     insertEphemeralUpload,
+    updateEphemeralUpload,
     deleteEphemeralUpload,
   )
 where
@@ -146,6 +147,24 @@ insertEphemeralUpload Insert {..} =
     INSERT INTO ephemeral_uploads (title, audio_file_path, mime_type, file_size, creator_id)
     VALUES (#{euiTitle}, #{euiAudioFilePath}, #{euiMimeType}, #{euiFileSize}, #{euiCreatorId})
     RETURNING id
+  |]
+
+-- | Update an ephemeral upload.
+--
+-- Updates all mutable fields. Pass existing values for fields you don't want to change.
+-- Returns the updated model if successful, Nothing if not found.
+updateEphemeralUpload :: Id -> Text -> Text -> Text -> Int64 -> Hasql.Statement () (Maybe Model)
+updateEphemeralUpload ephemeralUploadId newTitle newAudioFilePath newMimeType newFileSize =
+  interp
+    False
+    [sql|
+    UPDATE ephemeral_uploads
+    SET title = #{newTitle},
+        audio_file_path = #{newAudioFilePath},
+        mime_type = #{newMimeType},
+        file_size = #{newFileSize}
+    WHERE id = #{ephemeralUploadId}
+    RETURNING id, title, audio_file_path, mime_type, file_size, creator_id, created_at
   |]
 
 -- | Delete an ephemeral upload by its ID.

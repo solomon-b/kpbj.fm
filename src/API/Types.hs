@@ -44,6 +44,8 @@ import API.Dashboard.Blogs.Slug.Edit.Post.Route qualified as Dashboard.Blogs.Slu
 import API.Dashboard.Blogs.Slug.Get.Route qualified as Dashboard.Blogs.Slug.Get
 import API.Dashboard.EphemeralUploads.Get.Route qualified as Dashboard.EphemeralUploads.Get
 import API.Dashboard.EphemeralUploads.Id.Delete.Route qualified as Dashboard.EphemeralUploads.Id.Delete
+import API.Dashboard.EphemeralUploads.Id.Edit.Get.Route qualified as Dashboard.EphemeralUploads.Id.Edit.Get
+import API.Dashboard.EphemeralUploads.Id.Edit.Post.Route qualified as Dashboard.EphemeralUploads.Id.Edit.Post
 import API.Dashboard.EphemeralUploads.New.Get.Route qualified as Dashboard.EphemeralUploads.New.Get
 import API.Dashboard.EphemeralUploads.New.Post.Route qualified as Dashboard.EphemeralUploads.New.Post
 import API.Dashboard.Episodes.Get.Route qualified as Dashboard.Episodes.Get
@@ -77,8 +79,6 @@ import API.Dashboard.SitePages.Slug.Edit.Post.Route qualified as Dashboard.SiteP
 import API.Dashboard.SitePages.Slug.History.Get.Route qualified as Dashboard.SitePages.Slug.History.Get
 import API.Dashboard.SitePages.Slug.Revisions.Id.Get.Route qualified as Dashboard.SitePages.Slug.Revisions.Id.Get
 import API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route qualified as Dashboard.SitePages.Slug.Revisions.Id.Restore.Post
-import API.Dashboard.StreamSettings.Edit.Post.Route qualified as Dashboard.StreamSettings.Edit.Post
-import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StationBlog.Get.Route qualified as Dashboard.StationBlog.Get
 import API.Dashboard.StationBlog.New.Get.Route qualified as Dashboard.StationBlog.New.Get
 import API.Dashboard.StationBlog.New.Post.Route qualified as Dashboard.StationBlog.New.Post
@@ -90,6 +90,8 @@ import API.Dashboard.StationIds.Get.Route qualified as Dashboard.StationIds.Get
 import API.Dashboard.StationIds.Id.Delete.Route qualified as Dashboard.StationIds.Id.Delete
 import API.Dashboard.StationIds.New.Get.Route qualified as Dashboard.StationIds.New.Get
 import API.Dashboard.StationIds.New.Post.Route qualified as Dashboard.StationIds.New.Post
+import API.Dashboard.StreamSettings.Edit.Post.Route qualified as Dashboard.StreamSettings.Edit.Post
+import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.Users.Delete.Route qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Route qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Route qualified as Dashboard.Users.Edit.Get
@@ -474,6 +476,10 @@ data DashboardEphemeralUploadsRoutes mode = DashboardEphemeralUploadsRoutes
     newGet :: mode :- Dashboard.EphemeralUploads.New.Get.Route,
     -- | @POST /dashboard/ephemeral-uploads/new@ - Create ephemeral upload
     newPost :: mode :- Dashboard.EphemeralUploads.New.Post.Route,
+    -- | @GET /dashboard/ephemeral-uploads/:id/edit@ - Edit ephemeral upload form
+    editGet :: mode :- Dashboard.EphemeralUploads.Id.Edit.Get.Route,
+    -- | @POST /dashboard/ephemeral-uploads/:id/edit@ - Update ephemeral upload
+    editPost :: mode :- Dashboard.EphemeralUploads.Id.Edit.Post.Route,
     -- | @DELETE /dashboard/ephemeral-uploads/:id@ - Delete ephemeral upload
     delete :: mode :- Dashboard.EphemeralUploads.Id.Delete.Route
   }

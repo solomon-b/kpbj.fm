@@ -67,9 +67,10 @@ handler maybePage cookie (foldHxReq -> hxRequest) =
     -- 6. Render response
     let ephemeralUploads = take (fromIntegral limit) allEphemeralUploads
         hasMore = length allEphemeralUploads > fromIntegral limit
+        isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
 
     if isAppendRequest
-      then pure $ renderItemsFragment backend ephemeralUploads page hasMore
+      then pure $ renderItemsFragment backend isStaffOrAdmin ephemeralUploads page hasMore
       else do
         let ephemeralUploadsTemplate = template backend ephemeralUploads page hasMore userMetadata
         renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEphemeralUploads Nothing (Just actionButton) ephemeralUploadsTemplate

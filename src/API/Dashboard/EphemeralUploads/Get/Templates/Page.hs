@@ -44,7 +44,8 @@ template ::
   Bool ->
   UserMetadata.Model ->
   Lucid.Html ()
-template backend ephemeralUploads (PageNumber pageNum) hasMore _userMeta = do
+template backend ephemeralUploads (PageNumber pageNum) hasMore userMeta = do
+  let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMeta.mUserRole
   -- Ephemeral uploads table or empty state
   Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null ephemeralUploads
@@ -69,7 +70,7 @@ template backend ephemeralUploads (PageNumber pageNum) hasMore _userMeta = do
                       pcCurrentPage = pageNum
                     }
             }
-          (mapM_ (renderEphemeralUploadRow backend) ephemeralUploads)
+          (mapM_ (renderEphemeralUploadRow backend isStaffOrAdmin) ephemeralUploads)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.list (Just (PageNumber (pageNum + 1)))
@@ -77,8 +78,15 @@ template backend ephemeralUploads (PageNumber pageNum) hasMore _userMeta = do
     prevPageUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.list (Just (PageNumber (pageNum - 1)))
 
 -- | Render a single ephemeral upload row with audio player
-renderEphemeralUploadRow :: StorageBackend -> EphemeralUploads.EphemeralUploadWithCreator -> Lucid.Html ()
-renderEphemeralUploadRow backend ephemeralUpload =
+renderEphemeralUploadRow ::
+  -- | Storage backend for building media URLs
+  StorageBackend ->
+  -- | Whether the current user is staff or admin (can edit)
+  Bool ->
+  -- | The ephemeral upload to render
+  EphemeralUploads.EphemeralUploadWithCreator ->
+  Lucid.Html ()
+renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
   let ephemeralUploadId = ephemeralUpload.euwcId
       title = ephemeralUpload.euwcTitle
       creatorName = ephemeralUpload.euwcCreatorDisplayName
@@ -86,12 +94,24 @@ renderEphemeralUploadRow backend ephemeralUpload =
       audioPath = ephemeralUpload.euwcAudioFilePath
       ephemeralUploadIdText = display ephemeralUploadId
       rowId = [i|ephemeral-upload-row-#{ephemeralUploadIdText}|]
+      editUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.editGet ephemeralUploadId
       deleteUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.delete ephemeralUploadId
       deleteConfirmMessage =
         "Are you sure you want to delete the ephemeral upload \""
           <> display title
           <> "\"? This action cannot be undone."
       audioUrl = buildMediaUrl backend audioPath
+      -- Build actions list based on permissions
+      actions =
+        [ActionsDropdown.navigateAction "edit" "Edit" [i|/#{editUrl}|] | isStaffOrAdmin]
+          <> [ ActionsDropdown.htmxDeleteAction
+                 "delete"
+                 "Delete"
+                 [i|/#{deleteUrl}|]
+                 ("#" <> rowId)
+                 ActionsDropdown.SwapOuterHTML
+                 deleteConfirmMessage
+             ]
    in do
         Lucid.tr_ (rowAttrs rowId) $ do
           -- Title cell
@@ -115,15 +135,7 @@ renderEphemeralUploadRow backend ephemeralUpload =
 
           -- Actions cell
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-            ActionsDropdown.render
-              [ ActionsDropdown.htmxDeleteAction
-                  "delete"
-                  "Delete"
-                  [i|/#{deleteUrl}|]
-                  ("#" <> rowId)
-                  ActionsDropdown.SwapOuterHTML
-                  deleteConfirmMessage
-              ]
+            ActionsDropdown.render actions
 
 -- | Render an inline audio player with download button using Alpine.js
 renderInlineAudioPlayer :: Text -> Text -> Lucid.Html ()
