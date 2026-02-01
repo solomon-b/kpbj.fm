@@ -28,6 +28,7 @@ module API
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     UploadRoutes (..),
+    PlayoutRoutes (..),
 
     -- * Re-exports from API.Links (for backward compatibility)
     module API.Links,
@@ -111,6 +112,8 @@ import API.Events.Get.Handler qualified as Events.Get
 import API.Get.Handler qualified as Root.Get
 import API.Links
 import API.Media.Get.Handler qualified as Media.Get
+import API.Playout.Fallback.Get.Handler qualified as Playout.Fallback.Get
+import API.Playout.Now.Get.Handler qualified as Playout.Now.Get
 import API.PrivacyPolicy.Get.Handler qualified as PrivacyPolicy.Get
 import API.Schedule.Get.Handler qualified as Schedule.Get
 import API.Shows.Get.Handler qualified as Shows.Get
@@ -198,6 +201,7 @@ server =
       user = userRoutes,
       dashboard = dashboardRoutes,
       uploads = uploadRoutes,
+      playout = playoutRoutes,
       debugVersion = Debug.Version.Get.handler
     }
   where
@@ -385,4 +389,10 @@ server =
       UploadRoutes
         { audioPost = Uploads.Audio.Post.handler,
           audioOptions = Uploads.Audio.Post.optionsHandler
+        }
+
+    playoutRoutes =
+      PlayoutRoutes
+        { now = Playout.Now.Get.handler,
+          fallback = Playout.Fallback.Get.handler
         }

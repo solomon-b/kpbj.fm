@@ -5,6 +5,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Liquidsoap Playout API** - Added two JSON API endpoints for Liquidsoap integration:
+  - `GET /api/playout/now` - Returns the currently scheduled episode's audio URL based on schedule templates
+  - `GET /api/playout/fallback` - Returns a random ephemeral track URL for fallback playback
+  - Both endpoints are public (no auth) and return `{"url": "..."}` or `null` with graceful error handling
 - **Ephemeral Upload Edit Form** - Staff and admins can now edit ephemeral uploads (title and audio file) via the dashboard
 - **Ephemeral Upload Download Button** - Added download button to ephemeral uploads table for easy file retrieval
 - **Ephemeral Upload Filenames** - Ephemeral audio files now use the slugified title in the filename (e.g., `weather-report_2026-02-01_abc123.mp3`) instead of generic `ephemeral_` prefix

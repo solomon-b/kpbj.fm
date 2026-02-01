@@ -27,6 +27,7 @@ module API.Types
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     UploadRoutes (..),
+    PlayoutRoutes (..),
   )
 where
 
@@ -106,6 +107,8 @@ import API.Events.Event.Get.Route qualified as Events.Event.Get
 import API.Events.Get.Route qualified as Events.Get
 import API.Get.Route qualified as Root.Get
 import API.Media.Get.Route qualified as Media.Get
+import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
+import API.Playout.Now.Get.Route qualified as Playout.Now.Get
 import API.PrivacyPolicy.Get.Route qualified as PrivacyPolicy.Get
 import API.Schedule.Get.Route qualified as Schedule
 import API.Shows.Get.Route qualified as Shows.Get
@@ -169,6 +172,8 @@ data Routes mode = Routes
     dashboard :: mode :- NamedRoutes DashboardRoutes,
     -- | @/api/uploads/...@ - Staged file upload API routes
     uploads :: mode :- NamedRoutes UploadRoutes,
+    -- | @/api/playout/...@ - Playout API routes for Liquidsoap
+    playout :: mode :- NamedRoutes PlayoutRoutes,
     -- | @GET /debug/version@ - Version info for debugging
     debugVersion :: mode :- Debug.Version.Get.Route
   }
@@ -529,5 +534,17 @@ data UploadRoutes mode = UploadRoutes
     audioPost :: mode :- Uploads.Audio.Post.Route,
     -- | @OPTIONS /api/uploads/audio@ - CORS preflight for cross-origin uploads
     audioOptions :: mode :- Uploads.Audio.Post.OptionsRoute
+  }
+  deriving stock (Generic)
+
+-- | Playout API routes under @/api/playout@.
+--
+-- These endpoints are used by Liquidsoap to fetch audio URLs for playback.
+-- They are public (no authentication required) and return JSON.
+data PlayoutRoutes mode = PlayoutRoutes
+  { -- | @GET /api/playout/now@ - Get currently airing episode audio URL
+    now :: mode :- Playout.Now.Get.Route,
+    -- | @GET /api/playout/fallback@ - Get random ephemeral track for fallback
+    fallback :: mode :- Playout.Fallback.Get.Route
   }
   deriving stock (Generic)

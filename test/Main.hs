@@ -10,6 +10,7 @@ import Domain.Types.SlugSpec qualified as Slug
 import Domain.Types.StorageBackendSpec qualified as StorageBackend
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
 import Effects.Database.Tables.BlogPostsSpec qualified as BlogPosts
+import Effects.Database.Tables.CurrentlyAiringSpec qualified as CurrentlyAiring
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
 import Effects.Database.Tables.EventsSpec qualified as Events
 import Effects.Database.Tables.ShowHostSpec qualified as ShowHost
@@ -63,6 +64,7 @@ main = do
     UserMetadata.spec
     Shows.spec
     Episodes.spec
+    CurrentlyAiring.spec
     BlogPosts.spec
     Events.spec
     ShowHost.spec
