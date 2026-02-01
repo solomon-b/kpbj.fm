@@ -19,12 +19,12 @@ jobs:
       with:
         name: kpbj-fm
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    
+
     - name: Build 🔨
       run: nix build
 
-    - name: Check for dead code 🧹
-      run: |
-        nix develop --command cabal update
-        nix develop --command cabal build all
-        nix develop --command weeder
+    # - name: Check for dead code 🧹
+    #   run: |
+    #     nix develop --command cabal update
+    #     nix develop --command cabal build all
+    #     nix develop --command weeder

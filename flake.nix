@@ -170,6 +170,16 @@
 
               echo "Done! Pushed: $image"
             '';
+
+            # weeder-check = pkgs.stdenv.mkDerivation {
+            #   name = "weeder-check";
+            #   src = ./.;
+            #   doCheck = true;
+            #   nativeBuildInputs = [ hsPkgs.weeder hsPkgs.kpbj-api ];
+            #   checkPhase = ''
+            #       weeder
+            #     '';
+            # };
           };
 
           defaultPackage = packages.kpbj-api;

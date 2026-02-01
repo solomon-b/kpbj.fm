@@ -9,6 +9,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Event DateTime UTC** - Event datetimes are now recorded in UTC for consistency
 - **Episode Edit Cancel Redirect** - Fixed cancel button on episode edit form redirecting to wrong page
 
+### Chores
+- **Weeder Disabled** - Temporarily disabled Weeder dead code detection
+
 ---
 
 ## [0.5.0] - 2026-01-31
