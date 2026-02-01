@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.5.1] - 2026-02-01
+
 ### Features
 - **Stream Path Configuration** - Dashboard now allows setting the stream path for shows
 - **Pacific Time Show Storage** - Shows are now stored in Pacific time for consistent local scheduling
