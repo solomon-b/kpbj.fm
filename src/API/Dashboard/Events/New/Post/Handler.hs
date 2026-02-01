@@ -17,7 +17,7 @@ import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug ()
@@ -67,7 +67,7 @@ validateEventForm form = do
 validateDateTime :: Text -> Text -> Either [Text] UTCTime
 validateDateTime fieldName dateTimeStr
   | Text.null (Text.strip dateTimeStr) = Left [fieldName <> " cannot be empty"]
-  | otherwise = case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" (Text.unpack dateTimeStr) of
+  | otherwise = case parsePacificFromDateTimeInput dateTimeStr of
       Nothing -> Left [fieldName <> " is not in a valid format"]
       Just utcTime -> Right utcTime
 

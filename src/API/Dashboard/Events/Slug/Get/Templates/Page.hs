@@ -5,6 +5,7 @@ module API.Dashboard.Events.Slug.Get.Templates.Page where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Domain.Types.Timezone (utcToPacific)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Events qualified as Events
@@ -80,7 +81,7 @@ formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"
 
 formatDateTimeFull :: UTCTime -> String
-formatDateTimeFull = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p"
+formatDateTimeFull = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p" . utcToPacific
 
 truncateContent :: Int -> Text -> Text
 truncateContent maxLen content

@@ -19,6 +19,7 @@ import API.Types
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Timezone (utcToPacific)
 import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
@@ -134,29 +135,32 @@ renderTitle variant event = do
 -- | Render date/time and location information.
 renderDateAndLocation :: Variant -> Events.Model -> Lucid.Html ()
 renderDateAndLocation variant event =
-  Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap4, Tokens.textSm]; tablet ["grid-cols-2"] }] $ do
-    -- Date and time
-    Lucid.div_ $ do
-      case variant of
-        Summary -> pure ()
-        Detail -> Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.fgPrimary]] "DATE & TIME"
-      Lucid.div_ [Lucid.class_ Tokens.fgMuted] $
-        Lucid.toHtml $
-          formatTime defaultTimeLocale "%A, %B %d, %Y" event.emStartsAt
-      Lucid.div_ [Lucid.class_ Tokens.fgMuted] $
-        Lucid.toHtml $
-          formatTime defaultTimeLocale "%l:%M %p" event.emStartsAt
-            <> " - "
-            <> formatTime defaultTimeLocale "%l:%M %p" event.emEndsAt
-
-    -- Location (detail view only)
-    case variant of
-      Summary -> pure ()
-      Detail ->
+  let -- Convert UTC to Pacific for display
+      startsAtPacific = utcToPacific event.emStartsAt
+      endsAtPacific = utcToPacific event.emEndsAt
+   in Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap4, Tokens.textSm]; tablet ["grid-cols-2"] }] $ do
+        -- Date and time
         Lucid.div_ $ do
-          Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.fgPrimary]] "LOCATION"
-          Lucid.div_ [Lucid.class_ Tokens.fgMuted] $ Lucid.toHtml event.emLocationName
-          Lucid.div_ [Lucid.class_ Tokens.fgMuted] $ Lucid.toHtml event.emLocationAddress
+          case variant of
+            Summary -> pure ()
+            Detail -> Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.fgPrimary]] "DATE & TIME"
+          Lucid.div_ [Lucid.class_ Tokens.fgMuted] $
+            Lucid.toHtml $
+              formatTime defaultTimeLocale "%A, %B %d, %Y" startsAtPacific
+          Lucid.div_ [Lucid.class_ Tokens.fgMuted] $
+            Lucid.toHtml $
+              formatTime defaultTimeLocale "%l:%M %p" startsAtPacific
+                <> " - "
+                <> formatTime defaultTimeLocale "%l:%M %p" endsAtPacific
+
+        -- Location (detail view only)
+        case variant of
+          Summary -> pure ()
+          Detail ->
+            Lucid.div_ $ do
+              Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.fgPrimary]] "LOCATION"
+              Lucid.div_ [Lucid.class_ Tokens.fgMuted] $ Lucid.toHtml event.emLocationName
+              Lucid.div_ [Lucid.class_ Tokens.fgMuted] $ Lucid.toHtml event.emLocationAddress
 
 -- | Render event description (pre-rendered HTML).
 renderDescription :: Maybe (Lucid.Html ()) -> Lucid.Html ()

@@ -26,6 +26,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Domain.Types.Timezone (utcToPacific)
 import Design (base, class_)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
@@ -135,4 +136,4 @@ renderEmptyState = do
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Create a new event to get started."
 
 formatDateTime :: UTCTime -> String
-formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"
+formatDateTime = formatTime defaultTimeLocale "%b %d, %Y" . utcToPacific
