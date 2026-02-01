@@ -11,9 +11,9 @@ module API.User.ForgotPassword.Post.Handler (handler) where
 
 import API.User.ForgotPassword.Get.Templates.Page qualified as Templates
 import API.User.ForgotPassword.Post.Route (ForgotPasswordForm (..))
+import App.Common (renderUnauthTemplate)
 import App.Monad (AppM)
 import App.Smtp (SmtpConfig)
-import Component.Frame (loadContentOnly, loadFrame)
 import Control.Monad.Reader (asks)
 import Data.Has qualified as Has
 import Data.Text (Text)
@@ -21,7 +21,6 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.EmailAddress qualified as EmailAddress
-import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PasswordResetTokens qualified as ResetTokens
@@ -41,7 +40,6 @@ handler ::
   ForgotPasswordForm ->
   AppM (Lucid.Html ())
 handler sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = do
-  mGoogleAnalyticsId <- asks Has.getter
   mSmtpConfig <- asks Has.getter
 
   -- Parse the email address to validate it
@@ -49,7 +47,7 @@ handler sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = d
     Left _ -> do
       -- Invalid email format, but still show success to not reveal info
       Log.logInfo "Password reset requested for invalid email format" fpfEmail
-      renderSuccess mGoogleAnalyticsId hxRequest
+      renderSuccess hxRequest
     Right validEmail -> do
       -- Look up the user
       userResult <- execQuery (User.getUserByEmail validEmail)
@@ -57,11 +55,11 @@ handler sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = d
         Left err -> do
           Log.logInfo "Password reset lookup failed" (Text.pack $ show err)
           -- Show success anyway to not reveal database issues
-          renderSuccess mGoogleAnalyticsId hxRequest
+          renderSuccess hxRequest
         Right Nothing -> do
           -- User doesn't exist, but show success to prevent enumeration
           Log.logInfo "Password reset requested for non-existent email" (display validEmail)
-          renderSuccess mGoogleAnalyticsId hxRequest
+          renderSuccess hxRequest
         Right (Just user) -> do
           -- User exists, create token and send email
           let ipAddress = Just $ Text.pack $ show sockAddr
@@ -76,7 +74,7 @@ handler sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = d
             Left err -> do
               Log.logInfo "Password reset token creation failed" (Text.pack $ show err)
               -- Show success anyway to not reveal the error
-              renderSuccess mGoogleAnalyticsId hxRequest
+              renderSuccess hxRequest
             Right token -> do
               -- Send the email
               case mSmtpConfig of
@@ -86,7 +84,7 @@ handler sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = d
                 Just smtpConfig ->
                   sendResetEmail smtpConfig validEmail token
 
-              renderSuccess mGoogleAnalyticsId hxRequest
+              renderSuccess hxRequest
 
 --------------------------------------------------------------------------------
 
@@ -94,14 +92,11 @@ handler sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = d
 --
 -- Always shows the same message regardless of outcome.
 renderSuccess ::
-  Maybe GoogleAnalyticsId ->
   HxRequest ->
   AppM (Lucid.Html ())
-renderSuccess mGoogleAnalyticsId hxRequest = do
+renderSuccess hxRequest = do
   let content = Templates.successTemplate
-  case hxRequest of
-    IsHxRequest -> loadContentOnly content
-    IsNotHxRequest -> loadFrame mGoogleAnalyticsId content
+  renderUnauthTemplate hxRequest content
 
 --------------------------------------------------------------------------------
 

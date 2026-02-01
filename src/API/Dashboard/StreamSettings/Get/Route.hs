@@ -1,9 +1,8 @@
-module API.User.Login.Get.Route where
+module API.Dashboard.StreamSettings.Get.Route where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
-import Domain.Types.EmailAddress (EmailAddress)
+import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Lucid qualified
 import Servant ((:>))
@@ -12,12 +11,10 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
--- | "GET /user/login"
+-- | "GET /dashboard/stream-settings"
 type Route =
-  "user"
-    :> "login"
-    :> Servant.Header "HX-Current-Url" Text
+  "dashboard"
+    :> "stream-settings"
+    :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.QueryParam "redirect" Text
-    :> Servant.QueryParam "email" EmailAddress
     :> Servant.Get '[HTML] (Lucid.Html ())

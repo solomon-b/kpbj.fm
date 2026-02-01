@@ -10,7 +10,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardBlogsLinks, dashboardEphemeralUploadsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardSitePagesLinks, dashboardStationBlogLinks, dashboardStationIdsLinks, dashboardUsersLinks, userLinks)
+import API.Links (apiLinks, dashboardBlogsLinks, dashboardEphemeralUploadsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardSitePagesLinks, dashboardStationBlogLinks, dashboardStationIdsLinks, dashboardStreamSettingsLinks, dashboardUsersLinks, userLinks)
 import API.Types
 import Component.Banner (bannerContainerId)
 import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript, htmxIndicatorStyles)
@@ -77,6 +77,9 @@ dashboardEphemeralUploadsGetUrl = Links.linkURI $ dashboardEphemeralUploadsLinks
 dashboardSitePagesGetUrl :: Links.URI
 dashboardSitePagesGetUrl = Links.linkURI dashboardSitePagesLinks.list
 
+dashboardStreamSettingsGetUrl :: Links.URI
+dashboardStreamSettingsGetUrl = Links.linkURI dashboardStreamSettingsLinks.get
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -92,6 +95,7 @@ data DashboardNav
   | NavStationIds
   | NavEphemeralUploads
   | NavSitePages
+  | NavStreamSettings
   deriving (Eq, Show)
 
 -- | Get display title for navigation item
@@ -108,6 +112,7 @@ navTitle = \case
   NavStationIds -> "Station IDs"
   NavEphemeralUploads -> "Ephemeral Uploads"
   NavSitePages -> "Site Pages"
+  NavStreamSettings -> "Stream Settings"
 
 -- | Check if navigation requires show context
 isShowScoped :: DashboardNav -> Bool
@@ -123,6 +128,7 @@ isShowScoped = \case
   NavStationIds -> False
   NavEphemeralUploads -> False
   NavSitePages -> False
+  NavStreamSettings -> False
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
@@ -211,6 +217,9 @@ sidebar userMeta activeNav selectedShow =
             staffNavItem "STATION BLOG" NavStationBlog activeNav
             staffNavItem "EVENTS" NavEvents activeNav
             staffNavItem "SITE PAGES" NavSitePages activeNav
+            -- Admin-only items
+            when (UserMetadata.isAdmin userMeta.mUserRole) $
+              staffNavItem "STREAM" NavStreamSettings activeNav
 
     -- User info at bottom (always visible)
     Lucid.div_ [class_ $ base [Tokens.p4, "border-t", Theme.borderMuted, "shrink-0", "mt-auto"]] $ do
@@ -314,6 +323,7 @@ staffNavUrl = \case
   NavStationIds -> Just dashboardStationIdsGetUrl
   NavEphemeralUploads -> Just dashboardEphemeralUploadsGetUrl
   NavSitePages -> Just dashboardSitePagesGetUrl
+  NavStreamSettings -> Just dashboardStreamSettingsGetUrl
   other -> navUrl other Nothing
 
 -- | Get URL for navigation item
@@ -334,6 +344,7 @@ navUrl nav mShow =
         NavStationIds -> Just dashboardStationIdsGetUrl
         NavEphemeralUploads -> Just dashboardEphemeralUploadsGetUrl
         NavSitePages -> Just dashboardSitePagesGetUrl
+        NavStreamSettings -> Just dashboardStreamSettingsGetUrl
 
 -- | Top bar with page title, show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()

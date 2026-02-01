@@ -25,6 +25,7 @@ module API.Types
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
     DashboardSitePagesRoutes (..),
+    DashboardStreamSettingsRoutes (..),
     UploadRoutes (..),
   )
 where
@@ -76,6 +77,8 @@ import API.Dashboard.SitePages.Slug.Edit.Post.Route qualified as Dashboard.SiteP
 import API.Dashboard.SitePages.Slug.History.Get.Route qualified as Dashboard.SitePages.Slug.History.Get
 import API.Dashboard.SitePages.Slug.Revisions.Id.Get.Route qualified as Dashboard.SitePages.Slug.Revisions.Id.Get
 import API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route qualified as Dashboard.SitePages.Slug.Revisions.Id.Restore.Post
+import API.Dashboard.StreamSettings.Edit.Post.Route qualified as Dashboard.StreamSettings.Edit.Post
+import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StationBlog.Get.Route qualified as Dashboard.StationBlog.Get
 import API.Dashboard.StationBlog.New.Get.Route qualified as Dashboard.StationBlog.New.Get
 import API.Dashboard.StationBlog.New.Post.Route qualified as Dashboard.StationBlog.New.Post
@@ -316,7 +319,9 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @/dashboard/users/...@ - User management routes
     users :: mode :- NamedRoutes DashboardUsersRoutes,
     -- | @/dashboard/site-pages/...@ - Site pages management routes
-    sitePages :: mode :- NamedRoutes DashboardSitePagesRoutes
+    sitePages :: mode :- NamedRoutes DashboardSitePagesRoutes,
+    -- | @/dashboard/stream-settings/...@ - Stream settings routes
+    streamSettings :: mode :- NamedRoutes DashboardStreamSettingsRoutes
   }
   deriving stock (Generic)
 
@@ -491,6 +496,17 @@ data DashboardSitePagesRoutes mode = DashboardSitePagesRoutes
     revisionGet :: mode :- Dashboard.SitePages.Slug.Revisions.Id.Get.Route,
     -- | @POST /dashboard/site-pages/:slug/revisions/:id/restore@ - Restore revision
     revisionRestorePost :: mode :- Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard stream settings management routes under @/dashboard/stream-settings@.
+--
+-- For admins to configure the Icecast stream URL and metadata URL.
+data DashboardStreamSettingsRoutes mode = DashboardStreamSettingsRoutes
+  { -- | @GET /dashboard/stream-settings@ - Stream settings form
+    get :: mode :- Dashboard.StreamSettings.Get.Route,
+    -- | @POST /dashboard/stream-settings/edit@ - Update stream settings
+    editPost :: mode :- Dashboard.StreamSettings.Edit.Post.Route
   }
   deriving stock (Generic)
 

@@ -26,6 +26,7 @@ module API
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
     DashboardSitePagesRoutes (..),
+    DashboardStreamSettingsRoutes (..),
     UploadRoutes (..),
 
     -- * Re-exports from API.Links (for backward compatibility)
@@ -82,6 +83,8 @@ import API.Dashboard.SitePages.Slug.Revisions.Id.Get.Handler qualified as Dashbo
 import API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler qualified as Dashboard.SitePages.Slug.Revisions.Id.Restore.Post
 import API.Dashboard.StationBlog.Get.Handler qualified as Dashboard.StationBlog.Get
 import API.Dashboard.StationBlog.New.Get.Handler qualified as Dashboard.StationBlog.New.Get
+import API.Dashboard.StreamSettings.Edit.Post.Handler qualified as Dashboard.StreamSettings.Edit.Post
+import API.Dashboard.StreamSettings.Get.Handler qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StationBlog.New.Post.Handler qualified as Dashboard.StationBlog.New.Post
 import API.Dashboard.StationBlog.Slug.Delete.Handler qualified as Dashboard.StationBlog.Slug.Delete
 import API.Dashboard.StationBlog.Slug.Edit.Get.Handler qualified as Dashboard.StationBlog.Slug.Edit.Get
@@ -287,7 +290,14 @@ server =
           shows = dashboardShowsRoutes,
           events = dashboardEventsRoutes,
           users = dashboardUsersRoutes,
-          sitePages = dashboardSitePagesRoutes
+          sitePages = dashboardSitePagesRoutes,
+          streamSettings = dashboardStreamSettingsRoutes
+        }
+
+    dashboardStreamSettingsRoutes =
+      DashboardStreamSettingsRoutes
+        { get = Dashboard.StreamSettings.Get.handler,
+          editPost = Dashboard.StreamSettings.Edit.Post.handler
         }
 
     dashboardSitePagesRoutes =

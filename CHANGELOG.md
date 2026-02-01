@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Stream Path Configuration** - Dashboard now allows setting the stream path for shows
+
 ### Fixes
 - **Episode Form Time Localization** - Fixed time handling in episode forms to use correct timezone
 - **Event DateTime UTC** - Event datetimes are now recorded in UTC for consistency

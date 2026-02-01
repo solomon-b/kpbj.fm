@@ -321,6 +321,11 @@ library
     API.Dashboard.SitePages.Slug.Revisions.Id.Get.Templates.Page
     API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler
     API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route
+    API.Dashboard.StreamSettings.Edit.Post.Handler
+    API.Dashboard.StreamSettings.Edit.Post.Route
+    API.Dashboard.StreamSettings.Get.Handler
+    API.Dashboard.StreamSettings.Get.Route
+    API.Dashboard.StreamSettings.Get.Templates.Form
     API.Shows.Slug.Episode.Get.Handler
     API.Shows.Slug.Episode.Get.Route
     API.Shows.Slug.Episode.Get.Templates.Page
@@ -446,6 +451,7 @@ library
     Effects.Database.Tables.SitePageRevisions
     Effects.Database.Tables.StagedUploads
     Effects.Database.Tables.StationIds
+    Effects.Database.Tables.StreamSettings
     Effects.Database.Tables.EphemeralUploads
     Effects.Database.Tables.UserMetadata
     Effects.AWS
