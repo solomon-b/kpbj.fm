@@ -48,6 +48,8 @@ import System.Random qualified as Random
 --
 -- Returns 'Nothing' if no file was provided (empty upload).
 -- Artwork files are optional for episodes but when provided must pass validation.
+--
+-- Filename format matches audio files: {showSlug}_{YYYY-MM-DD}_{hash}.{extension}
 uploadEpisodeArtwork ::
   (MonadIO m, MonadMask m, Log.MonadLog m) =>
   -- | Storage backend configuration
@@ -56,14 +58,12 @@ uploadEpisodeArtwork ::
   Maybe AWS.Env ->
   -- | Show slug for directory organization
   Slug ->
-  -- | Episode slug for filename generation
-  Slug ->
   -- | Scheduled date (Nothing uses current time)
   Maybe UTCTime ->
   -- | Uploaded artwork file data
   FileData Mem ->
   m (Either UploadError (Maybe UploadResult))
-uploadEpisodeArtwork backend mAwsEnv showSlug episodeSlug mScheduledDate fileData
+uploadEpisodeArtwork backend mAwsEnv showSlug mScheduledDate fileData
   | isEmptyUpload fileData = pure (Right Nothing)
   | otherwise =
       withTempUpload fileData $ \tempPath content -> runExceptT $ do
@@ -82,10 +82,11 @@ uploadEpisodeArtwork backend mAwsEnv showSlug episodeSlug mScheduledDate fileDat
         actualMimeType <- ExceptT $ do
           either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
 
-        -- Generate filename and date hierarchy
+        -- Generate filename and date hierarchy (matching audio file format)
         let dateHier = dateHierarchyFromTime time
+            dateStr = dateYear dateHier <> "-" <> dateMonth dateHier <> "-" <> dateDay dateHier
             extension = getExtensionFromMimeType actualMimeType
-            filename = generateUniqueFilename (display showSlug <> "-" <> display episodeSlug <> "-artwork") extension seed
+            filename = generateUniqueFilename (display showSlug <> "_" <> dateStr) extension seed
 
         -- Store file using appropriate backend
         objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket EpisodeArtwork dateHier filename content actualMimeType

@@ -14,7 +14,6 @@ import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, when)
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe
@@ -26,13 +25,13 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
-import Data.Time (UTCTime, getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
+import Data.Time (UTCTime)
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
-import Domain.Types.Slug qualified as Slug
+import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
@@ -142,7 +141,7 @@ updateEpisode ::
   EpisodeEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel editForm = do
-  currentTime <- liftIO getCurrentTime
+  currentTime <- currentSystemTime
   let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
       isPast = isScheduledInPast currentTime episode
 
@@ -331,10 +330,6 @@ processFileUploads userId showModel episode editForm = do
   storageBackend <- asks getter
   mAwsEnv <- asks getter
 
-  -- Generate a unique identifier for file naming (based on timestamp)
-  currentTime <- liftIO getCurrentTime
-  let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
-
   -- Process audio: staged upload, then move to final location with air date
   audioResult <- case eefAudioToken editForm of
     Just token -> do
@@ -359,7 +354,7 @@ processFileUploads userId showModel episode editForm = do
     Just artworkFile
       | isEmptyUpload artworkFile -> pure $ Right Nothing
       | otherwise -> do
-          result <- FileUpload.uploadEpisodeArtwork storageBackend mAwsEnv showModel.slug fileId (Just episode.scheduledAt) artworkFile
+          result <- FileUpload.uploadEpisodeArtwork storageBackend mAwsEnv showModel.slug (Just episode.scheduledAt) artworkFile
           case result of
             Left err -> do
               Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)

@@ -13,7 +13,6 @@ import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFoun
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
@@ -24,14 +23,14 @@ import Data.Text qualified as T (null)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
-import Data.Time (UTCTime, getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
+import Data.Time (UTCTime)
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
-import Domain.Types.Slug qualified as Slug
 import Domain.Types.StorageBackend (StorageBackend)
+import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTracks
@@ -154,13 +153,10 @@ processEpisodeUpload _userMetadata user showModel form = do
           if not isHost
             then pure $ Left "You are not authorized to create episodes for this show"
             else do
-              -- Generate a unique identifier for file naming (based on timestamp)
-              currentTime <- liftIO getCurrentTime
-              let fileId = Slug.mkSlug $ Text.pack $ formatTime defaultTimeLocale "%Y%m%d-%H%M%S" currentTime
               -- Handle file uploads (pass scheduled date for file organization)
               -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
               -- Artwork: Direct upload only (small files don't benefit from staged uploads)
-              uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug fileId (Just episodeData.scheduledAt) (eufArtworkFile form) (eufAudioToken form)
+              uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug (Just episodeData.scheduledAt) (eufArtworkFile form) (eufAudioToken form)
 
               case uploadResults of
                 Left uploadErr -> pure $ Left uploadErr
@@ -287,8 +283,6 @@ processFileUploads ::
   User.Id ->
   -- | Show slug (for file organization)
   Slug ->
-  -- | Episode slug (for artwork filename)
-  Slug ->
   -- | Scheduled date (air date for file organization)
   Maybe UTCTime ->
   -- | Artwork file (direct upload)
@@ -297,11 +291,11 @@ processFileUploads ::
   Maybe Text ->
   -- | (audioPath, artworkPath)
   AppM (Either Text (Maybe Text, Maybe Text))
-processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate mArtworkFile mAudioToken = do
+processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile mAudioToken = do
   -- Get the air date for file organization (use current time as fallback)
   airDate <- case mScheduledDate of
     Just d -> pure d
-    Nothing -> liftIO getCurrentTime
+    Nothing -> currentSystemTime
 
   -- Process main audio file (always required)
   -- Audio is uploaded via staged upload, then moved to final location with air date
@@ -326,7 +320,7 @@ processFileUploads backend mAwsEnv userId showSlug episodeSlug mScheduledDate mA
   artworkResult <- case mArtworkFile of
     Nothing -> pure $ Right Nothing
     Just artworkFile -> do
-      result <- FileUpload.uploadEpisodeArtwork backend mAwsEnv showSlug episodeSlug mScheduledDate artworkFile
+      result <- FileUpload.uploadEpisodeArtwork backend mAwsEnv showSlug mScheduledDate artworkFile
       case result of
         Left err -> do
           Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)
