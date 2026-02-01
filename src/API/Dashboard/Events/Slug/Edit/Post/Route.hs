@@ -4,7 +4,8 @@ module API.Dashboard.Events.Slug.Edit.Post.Route where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (UTCTime, defaultTimeLocale, parseTimeM)
+import Data.Time (UTCTime)
+import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Events qualified as Events
@@ -74,6 +75,6 @@ parseStatus "published" = Just Events.Published
 parseStatus "draft" = Just Events.Draft
 parseStatus _ = Nothing
 
--- | Parse datetime from HTML5 datetime-local format
+-- | Parse datetime from HTML5 datetime-local format (assumes Pacific time input).
 parseDateTime :: Text -> Maybe UTCTime
-parseDateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" . Text.unpack
+parseDateTime = parsePacificFromDateTimeInput

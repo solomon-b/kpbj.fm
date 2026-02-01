@@ -11,10 +11,7 @@ where
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
 import Data.String.Interpolate (i)
-import Data.Text (Text)
-import Data.Text qualified as Text
-import Data.Time (UTCTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Timezone (formatPacificForDateTimeInput)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
@@ -40,12 +37,6 @@ eventEditPostUrl eventId slug = Links.linkURI $ dashboardEventsLinks.editPost ev
 
 --------------------------------------------------------------------------------
 
--- | Format UTCTime to HTML5 datetime-local format (YYYY-MM-DDTHH:MM)
-formatDateTimeLocal :: UTCTime -> Text
-formatDateTimeLocal = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M"
-
---------------------------------------------------------------------------------
-
 -- | Event edit template using V2 FormBuilder
 template :: StorageBackend -> Events.Model -> UserMetadata.Model -> Lucid.Html ()
 template backend event userMeta = do
@@ -57,8 +48,8 @@ template backend event userMeta = do
     eventBackUrl = eventDetailUrl eventId eventSlug
     eventEditUrl = eventEditPostUrl eventId eventSlug
     imageUrl = maybe "" (buildMediaUrl backend) event.emPosterImageUrl
-    startsAtValue = formatDateTimeLocal event.emStartsAt
-    endsAtValue = formatDateTimeLocal event.emEndsAt
+    startsAtValue = formatPacificForDateTimeInput event.emStartsAt
+    endsAtValue = formatPacificForDateTimeInput event.emEndsAt
 
     config :: FormConfig
     config =
