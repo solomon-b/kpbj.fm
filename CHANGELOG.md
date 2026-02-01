@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixes
+- **Episode Form Time Localization** - Fixed time handling in episode forms to use correct timezone
 
 ---
 

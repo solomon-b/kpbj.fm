@@ -54,7 +54,7 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
-import Data.Time (Day, DayOfWeek (..), TimeOfDay, UTCTime, addUTCTime, dayOfWeek, utctDay)
+import Data.Time (Day, DayOfWeek (..), LocalTime (..), TimeOfDay, UTCTime, addUTCTime, dayOfWeek)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (timeOfDayToTime)
 import Domain.Types.Limit (Limit (..))
@@ -700,14 +700,17 @@ makeUpcomingShowDateFromTemplate ::
   UTCTime ->
   UpcomingShowDate
 makeUpcomingShowDateFromTemplate template scheduledAt =
-  UpcomingShowDate
-    { usdId = template.stShowId,
-      usdTemplateId = template.stId,
-      usdShowDate = utctDay scheduledAt,
-      usdDayOfWeek = fromMaybe (dayOfWeek $ utctDay scheduledAt) template.stDayOfWeek,
-      usdStartTime = scheduledAt,
-      usdEndTime = computeEndTime template scheduledAt
-    }
+  let -- Convert to Pacific time to get the correct local date
+      pacificTime = utcToPacific scheduledAt
+      pacificDay = localDay pacificTime
+   in UpcomingShowDate
+        { usdId = template.stShowId,
+          usdTemplateId = template.stId,
+          usdShowDate = pacificDay,
+          usdDayOfWeek = fromMaybe (dayOfWeek pacificDay) template.stDayOfWeek,
+          usdStartTime = scheduledAt,
+          usdEndTime = computeEndTime template scheduledAt
+        }
   where
     -- Compute end time by adding the show duration to the start time
     computeEndTime :: ScheduleTemplate Result -> UTCTime -> UTCTime
