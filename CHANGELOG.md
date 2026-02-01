@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.6.0] - 2026-02-01
+
 ### Features
 - **Liquidsoap Playout API** - Added two JSON API endpoints for Liquidsoap integration:
   - `GET /api/playout/now` - Returns the currently scheduled episode's audio URL based on schedule templates
