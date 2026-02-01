@@ -4,6 +4,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Ephemeral Upload Download Button** - Added download button to ephemeral uploads table for easy file retrieval
+- **Ephemeral Upload Filenames** - Ephemeral audio files now use the slugified title in the filename (e.g., `weather-report_2026-02-01_abc123.mp3`) instead of generic `ephemeral_` prefix
+
 ### Fixes
 - **Episode Image Filepath Date Format** - Fixed date format in episode image file paths for consistent organization
 
