@@ -216,6 +216,11 @@ library
     API.Dashboard.EphemeralUploads.Get.Templates.Page
     API.Dashboard.EphemeralUploads.Id.Delete.Handler
     API.Dashboard.EphemeralUploads.Id.Delete.Route
+    API.Dashboard.EphemeralUploads.Id.Edit.Get.Handler
+    API.Dashboard.EphemeralUploads.Id.Edit.Get.Route
+    API.Dashboard.EphemeralUploads.Id.Edit.Get.Templates.Form
+    API.Dashboard.EphemeralUploads.Id.Edit.Post.Handler
+    API.Dashboard.EphemeralUploads.Id.Edit.Post.Route
     API.Dashboard.EphemeralUploads.New.Get.Handler
     API.Dashboard.EphemeralUploads.New.Get.Route
     API.Dashboard.EphemeralUploads.New.Get.Templates.Form

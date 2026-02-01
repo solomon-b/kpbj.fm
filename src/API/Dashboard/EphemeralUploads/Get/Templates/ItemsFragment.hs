@@ -30,16 +30,18 @@ import Servant.Links qualified as Links
 -- to the existing table body.
 renderItemsFragment ::
   StorageBackend ->
+  -- | Whether the current user is staff or admin (can edit)
+  Bool ->
   [EphemeralUploads.EphemeralUploadWithCreator] ->
   PageNumber ->
   Bool ->
   Lucid.Html ()
-renderItemsFragment backend ephemeralUploads (PageNumber pageNum) hasMore =
+renderItemsFragment backend isStaffOrAdmin ephemeralUploads (PageNumber pageNum) hasMore =
   renderTableFragment
     5 -- Number of columns
     "#ephemeral-uploads-table-body"
     (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
-    (mapM_ (renderEphemeralUploadRow backend) ephemeralUploads)
+    (mapM_ (renderEphemeralUploadRow backend isStaffOrAdmin) ephemeralUploads)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.list (Just (PageNumber (pageNum + 1)))

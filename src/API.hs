@@ -48,6 +48,8 @@ import API.Dashboard.Blogs.Slug.Edit.Post.Handler qualified as Dashboard.Blogs.S
 import API.Dashboard.Blogs.Slug.Get.Handler qualified as Dashboard.Blogs.Slug.Get
 import API.Dashboard.EphemeralUploads.Get.Handler qualified as Dashboard.EphemeralUploads.Get
 import API.Dashboard.EphemeralUploads.Id.Delete.Handler qualified as Dashboard.EphemeralUploads.Id.Delete
+import API.Dashboard.EphemeralUploads.Id.Edit.Get.Handler qualified as Dashboard.EphemeralUploads.Id.Edit.Get
+import API.Dashboard.EphemeralUploads.Id.Edit.Post.Handler qualified as Dashboard.EphemeralUploads.Id.Edit.Post
 import API.Dashboard.EphemeralUploads.New.Get.Handler qualified as Dashboard.EphemeralUploads.New.Get
 import API.Dashboard.EphemeralUploads.New.Post.Handler qualified as Dashboard.EphemeralUploads.New.Post
 import API.Dashboard.Episodes.Get.Handler qualified as Dashboard.Episodes.Get
@@ -83,8 +85,6 @@ import API.Dashboard.SitePages.Slug.Revisions.Id.Get.Handler qualified as Dashbo
 import API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler qualified as Dashboard.SitePages.Slug.Revisions.Id.Restore.Post
 import API.Dashboard.StationBlog.Get.Handler qualified as Dashboard.StationBlog.Get
 import API.Dashboard.StationBlog.New.Get.Handler qualified as Dashboard.StationBlog.New.Get
-import API.Dashboard.StreamSettings.Edit.Post.Handler qualified as Dashboard.StreamSettings.Edit.Post
-import API.Dashboard.StreamSettings.Get.Handler qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StationBlog.New.Post.Handler qualified as Dashboard.StationBlog.New.Post
 import API.Dashboard.StationBlog.Slug.Delete.Handler qualified as Dashboard.StationBlog.Slug.Delete
 import API.Dashboard.StationBlog.Slug.Edit.Get.Handler qualified as Dashboard.StationBlog.Slug.Edit.Get
@@ -94,6 +94,8 @@ import API.Dashboard.StationIds.Get.Handler qualified as Dashboard.StationIds.Ge
 import API.Dashboard.StationIds.Id.Delete.Handler qualified as Dashboard.StationIds.Id.Delete
 import API.Dashboard.StationIds.New.Get.Handler qualified as Dashboard.StationIds.New.Get
 import API.Dashboard.StationIds.New.Post.Handler qualified as Dashboard.StationIds.New.Post
+import API.Dashboard.StreamSettings.Edit.Post.Handler qualified as Dashboard.StreamSettings.Edit.Post
+import API.Dashboard.StreamSettings.Get.Handler qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.Users.Delete.Handler qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Handler qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Handler qualified as Dashboard.Users.Edit.Get
@@ -281,6 +283,8 @@ server =
         { list = Dashboard.EphemeralUploads.Get.handler,
           newGet = Dashboard.EphemeralUploads.New.Get.handler,
           newPost = Dashboard.EphemeralUploads.New.Post.handler,
+          editGet = Dashboard.EphemeralUploads.Id.Edit.Get.handler,
+          editPost = Dashboard.EphemeralUploads.Id.Edit.Post.handler,
           delete = Dashboard.EphemeralUploads.Id.Delete.handler
         }
 
