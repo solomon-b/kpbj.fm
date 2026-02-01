@@ -5,7 +5,9 @@ module Domain.Types.FileStorage where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Data.Time.LocalTime (localDay)
 import Data.Word (Word8)
+import Domain.Types.Timezone (utcToPacific)
 import System.Random qualified as Random
 import Text.Printf (printf)
 
@@ -69,11 +71,16 @@ resourceTypePath = \case
   EphemeralAudio -> "ephemeral"
   TempUpload -> "uploads"
 
--- | Create date hierarchy from UTCTime
+-- | Create date hierarchy from UTCTime.
+--
+-- Converts to Pacific time before extracting the date, so file paths
+-- are organized by the local air date (what users see on the site)
+-- rather than the UTC date.
 dateHierarchyFromTime :: UTCTime -> DateHierarchy
 dateHierarchyFromTime time =
-  let day = formatTime defaultTimeLocale "%F" time -- YYYY-MM-DD
-      parts = Text.splitOn "-" (Text.pack day)
+  let pacificDay = localDay (utcToPacific time)
+      dayStr = formatTime defaultTimeLocale "%F" pacificDay -- YYYY-MM-DD
+      parts = Text.splitOn "-" (Text.pack dayStr)
    in case parts of
         [year, month, dayOfMonth] -> DateHierarchy year month dayOfMonth
         _ -> DateHierarchy "1970" "01" "01" -- Fallback date

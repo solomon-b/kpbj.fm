@@ -6,6 +6,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Features
 - **Stream Path Configuration** - Dashboard now allows setting the stream path for shows
+- **Pacific Time Show Storage** - Shows are now stored in Pacific time for consistent local scheduling
 
 ### Fixes
 - **Episode Form Time Localization** - Fixed time handling in episode forms to use correct timezone
