@@ -1,6 +1,6 @@
 HOME := "$HOME"
-HS_FILES := "$(git ls-files '*.hs' '*.hs-boot')"
-CHANGED_HS_FILES := '$(git diff --diff-filter=d --name-only `git merge-base HEAD origin/main` | grep ".*\.hs$")'
+HS_FILES := "$(git ls-files 'services/web/*.hs' 'services/web/*.hs-boot')"
+CHANGED_HS_FILES := '$(git diff --diff-filter=d --name-only `git merge-base HEAD origin/main` | grep "services/web/.*\.hs$")'
 NIX_FILES := "$(git ls-files '*.nix' 'nix/*.nix')"
 SHELL_FILES := "$(git ls-files '*.sh')"
 CHANGED_SHELL_FILES := '$(git diff --diff-filter=d --name-only `git merge-base HEAD origin/main` | grep ".*\.sh$$")'
@@ -149,19 +149,19 @@ psql-dev:
 
 # Create a new SQL migration.
 migrations-add MIGRATION:
-  sqlx migrate add {{MIGRATION}} --source migrations
+  sqlx migrate add {{MIGRATION}} --source services/web/migrations
 
 # Run SQL migrations.
 migrations-run:
-  sqlx migrate run --source migrations
+  sqlx migrate run --source services/web/migrations
 
 # Reset PG Database.
 migrations-reset:
-  sqlx database reset --source migrations
+  sqlx database reset --source services/web/migrations
 
 # List all SQL migrations.
 migrations-list:
-  sqlx migrate info --source migrations
+  sqlx migrate info --source services/web/migrations
 
 # Build and run a development docker container
 postgres-dev-start:
@@ -215,7 +215,7 @@ mock-data:
   echo "🖼️  Loading mock images to /tmp/kpbj..."
   ./scripts/load-mock-images.sh
   echo "📊 Loading mock data into dev_db..."
-  cd mock-data && PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d dev_db -f load-all.sql
+  cd services/web/mock-data && PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d dev_db -f load-all.sql
   echo "✨ Mock data loaded successfully!"
 
 
@@ -287,17 +287,17 @@ release-pr VERSION:
 
   # Update cabal version
   echo "Updating kpbj-api.cabal version to $VERSION"
-  sed -i "s/^version:.*$/version:            $VERSION/" kpbj-api.cabal
+  sed -i "s/^version:.*$/version:            $VERSION/" services/web/kpbj-api.cabal
 
   # Verify the cabal change
-  CABAL_VERSION=$(grep -oP '^version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' kpbj-api.cabal)
+  CABAL_VERSION=$(grep -oP '^version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' services/web/kpbj-api.cabal)
   if [ "$CABAL_VERSION" != "$VERSION" ]; then
     echo "ERROR: Failed to update cabal version"
     exit 1
   fi
 
   # Commit and push
-  git add kpbj-api.cabal CHANGELOG.md
+  git add services/web/kpbj-api.cabal CHANGELOG.md
   git commit -m "chore: bump version to $VERSION"
   git push -u origin "$BRANCH"
 
@@ -351,7 +351,7 @@ release-notes-preview:
 STAGING_APP := "kpbj-fm-staging"
 STAGING_DB_APP := "kpbj-postgres-staging"
 STAGING_DB_NAME := "kpbj_fm_staging"
-STAGING_CONFIG := "fly.staging.toml"
+STAGING_CONFIG := "services/web/fly.staging.toml"
 
 # Deploy to staging
 staging-deploy:
@@ -376,7 +376,7 @@ staging-psql:
 # Load mock data into staging database
 staging-mock-data:
   @echo "📊 Loading mock data into staging..."
-  @(cat mock-data/00_init.sql mock-data/01_admin_user.sql mock-data/02_shows.sql mock-data/03_show_tags.sql mock-data/04_show_tag_assignments.sql mock-data/05_host_users.sql mock-data/06_host_user_metadata.sql mock-data/07_show_hosts.sql mock-data/08_host_details.sql mock-data/09_schedule_templates.sql mock-data/10_episodes.sql mock-data/11_staff_and_users.sql mock-data/12_events.sql mock-data/13_blog_tags.sql mock-data/14_blog_posts.sql mock-data/15_episode_tracks.sql mock-data/16_summary.sql; echo "\\q") | fly postgres connect --app {{STAGING_DB_APP}} -d {{STAGING_DB_NAME}}
+  @(cat services/web/mock-data/00_init.sql services/web/mock-data/01_admin_user.sql services/web/mock-data/02_shows.sql services/web/mock-data/03_show_tags.sql services/web/mock-data/04_show_tag_assignments.sql services/web/mock-data/05_host_users.sql services/web/mock-data/06_host_user_metadata.sql services/web/mock-data/07_show_hosts.sql services/web/mock-data/08_host_details.sql services/web/mock-data/09_schedule_templates.sql services/web/mock-data/10_episodes.sql services/web/mock-data/11_staff_and_users.sql services/web/mock-data/12_events.sql services/web/mock-data/13_blog_tags.sql services/web/mock-data/14_blog_posts.sql services/web/mock-data/15_episode_tracks.sql services/web/mock-data/16_summary.sql; echo "\\q") | fly postgres connect --app {{STAGING_DB_APP}} -d {{STAGING_DB_NAME}}
   @echo "✨ Mock data loaded successfully!"
 
 # Upload mock images to staging volume
@@ -399,12 +399,12 @@ staging-mock-images:
   mkdir -p "$TMPDIR/images/2025/01/01/blog-heroes"
 
   # Copy files to temp directory with correct structure
-  cp mock-data/media/avatars/* "$TMPDIR/images/2025/01/01/avatars/" 2>/dev/null || true
-  cp mock-data/media/shows/logos/* "$TMPDIR/images/2025/01/01/logos/" 2>/dev/null || true
-  cp mock-data/media/shows/banners/* "$TMPDIR/images/2025/01/01/banners/" 2>/dev/null || true
-  cp mock-data/media/episodes/artwork/* "$TMPDIR/images/2025/01/01/artwork/" 2>/dev/null || true
-  cp mock-data/media/events/posters/* "$TMPDIR/images/2025/01/01/event-posters/" 2>/dev/null || true
-  cp mock-data/media/blog/heroes/* "$TMPDIR/images/2025/01/01/blog-heroes/" 2>/dev/null || true
+  cp services/web/mock-data/media/avatars/* "$TMPDIR/images/2025/01/01/avatars/" 2>/dev/null || true
+  cp services/web/mock-data/media/shows/logos/* "$TMPDIR/images/2025/01/01/logos/" 2>/dev/null || true
+  cp services/web/mock-data/media/shows/banners/* "$TMPDIR/images/2025/01/01/banners/" 2>/dev/null || true
+  cp services/web/mock-data/media/episodes/artwork/* "$TMPDIR/images/2025/01/01/artwork/" 2>/dev/null || true
+  cp services/web/mock-data/media/events/posters/* "$TMPDIR/images/2025/01/01/event-posters/" 2>/dev/null || true
+  cp services/web/mock-data/media/blog/heroes/* "$TMPDIR/images/2025/01/01/blog-heroes/" 2>/dev/null || true
 
   FILE_COUNT=$(find $TMPDIR -type f | wc -l)
   echo "  Prepared $FILE_COUNT files for upload"
@@ -443,12 +443,12 @@ staging-mock-images-tigris AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY:
 
   # Copy files to temp directory with correct structure
   mkdir -p "$TMPDIR/images/2025/01/01"
-  cp -r mock-data/media/avatars "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
-  cp -r mock-data/media/shows/logos "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
-  cp -r mock-data/media/shows/banners "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
-  cp -r mock-data/media/episodes/artwork "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
-  cp -r mock-data/media/events/posters "$TMPDIR/images/2025/01/01/event-posters" 2>/dev/null || true
-  cp -r mock-data/media/blog/heroes "$TMPDIR/images/2025/01/01/blog-heroes" 2>/dev/null || true
+  cp -r services/web/mock-data/media/avatars "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
+  cp -r services/web/mock-data/media/shows/logos "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
+  cp -r services/web/mock-data/media/shows/banners "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
+  cp -r services/web/mock-data/media/episodes/artwork "$TMPDIR/images/2025/01/01/" 2>/dev/null || true
+  cp -r services/web/mock-data/media/events/posters "$TMPDIR/images/2025/01/01/event-posters" 2>/dev/null || true
+  cp -r services/web/mock-data/media/blog/heroes "$TMPDIR/images/2025/01/01/blog-heroes" 2>/dev/null || true
 
   FILE_COUNT=$(find "$TMPDIR" -type f | wc -l)
   echo "  Prepared $FILE_COUNT files for upload"
@@ -484,7 +484,7 @@ staging-migrations-reset:
   @echo "Creating database..."
   psql "postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/postgres" -c "CREATE DATABASE {{STAGING_DB_NAME}};"
   @echo "Running migrations..."
-  DATABASE_URL='postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}}' sqlx migrate run --source migrations
+  DATABASE_URL='postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}}' sqlx migrate run --source services/web/migrations
   @echo "Restarting staging app..."
   fly scale count 1 --app {{STAGING_APP}} --yes
   @just staging-proxy-close
@@ -495,7 +495,7 @@ staging-migrations-run:
   @echo "Starting proxy in background..."
   fly proxy 15432:5432 -a {{STAGING_DB_APP}} &
   @sleep 2
-  DATABASE_URL='postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}}' sqlx migrate run --source migrations
+  DATABASE_URL='postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:15432/{{STAGING_DB_NAME}}' sqlx migrate run --source services/web/migrations
   @pkill -f "fly proxy 15432"
 
 # Open proxy to staging database (runs in foreground)
@@ -528,7 +528,7 @@ staging-machines:
 PROD_APP := "kpbj-fm"
 PROD_DB_APP := "kpbj-postgres"
 PROD_DB_NAME := "kpbj_fm"
-PROD_CONFIG := "fly.toml"
+PROD_CONFIG := "services/web/fly.toml"
 
 PROD_TIGRIS_BUCKET := "production-kpbj-storage"
 STAGING_TIGRIS_BUCKET := "staging-kpbj-storage"
@@ -559,7 +559,7 @@ prod-migrations-run:
   @echo "Starting proxy in background..."
   fly proxy 15432:5432 -a {{PROD_DB_APP}} &
   @sleep 2
-  DATABASE_URL='postgres://postgres:{{env_var("PROD_DB_PASSWORD")}}@localhost:15432/{{PROD_DB_NAME}}' sqlx migrate run --source migrations
+  DATABASE_URL='postgres://postgres:{{env_var("PROD_DB_PASSWORD")}}@localhost:15432/{{PROD_DB_NAME}}' sqlx migrate run --source services/web/migrations
   @pkill -f "fly proxy 15432"
 
 # SSH into production app

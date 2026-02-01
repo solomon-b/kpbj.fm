@@ -48,13 +48,13 @@
 
               hasql-transaction = pkgs.haskell.lib.dontCheck hfinal.hasql-transaction_1_2_0_1;
 
-              kpbj-api = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-api" ./. { });
+              kpbj-api = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-api" ./services/web { });
 
-              lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./lib/lucid-form-builder { });
+              lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./services/web/lib/lucid-form-builder { });
 
-              lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./lib/lucid-htmx-alpine { });
+              lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./services/web/lib/lucid-htmx-alpine { });
 
-              lucid-tailwind = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-tailwind" ./lib/lucid-tailwind { });
+              lucid-tailwind = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-tailwind" ./services/web/lib/lucid-tailwind { });
 
               text-builder = pkgs.haskell.lib.dontCheck hfinal.text-builder_1_0_0_3;
 
@@ -137,7 +137,7 @@
                 envTag = builtins.getEnv "IMAGE_TAG";
                 tag = if envTag != "" then envTag else hsPkgs.kpbj-api.version;
               in
-              import ./docker.nix {
+              import ./services/web/docker.nix {
                 inherit pkgs;
                 kpbj-api = hsPkgs.kpbj-api;
                 imageTag = tag;

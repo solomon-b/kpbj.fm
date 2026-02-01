@@ -16,6 +16,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Fixes
 - **Episode Image Filepath Date Format** - Fixed date format in episode image file paths for consistent organization
 
+### Chores
+- **Monorepo Restructure** - Reorganized project into `services/` directory structure to support multiple services. Web application moved to `services/web/`, with placeholder for upcoming LiquidSoap streaming service at `services/liquidsoap/`. Root `cabal.project` now references all packages. Updated `flake.nix`, `Justfile`, CI workflows, and scripts with new paths.
+
 ---
 
 ## [0.5.1] - 2026-02-01
