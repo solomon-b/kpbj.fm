@@ -14,6 +14,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Fixes
 - **Create Release Tag Action** - Fixed GitHub Actions workflow for creating release tags
 
+### Chores
+- **Backfill Episode Durations Script** - Added script to populate missing episode duration values
+
 ---
 
 ## [0.6.0] - 2026-02-01
