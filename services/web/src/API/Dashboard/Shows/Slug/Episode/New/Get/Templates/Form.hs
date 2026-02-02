@@ -9,6 +9,7 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types
+import Component.AudioDurationScript (renderAudioDurationScript)
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -44,7 +45,7 @@ episodeUploadForm ::
   Lucid.Html ()
 episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
   renderForm config form
-  renderAudioDurationScript
+  renderAudioDurationScript "audio_file-input"
   where
     postUrl = [i|/#{episodesNewPostUrl (Shows.slug showModel)}|]
     cancelUrl = [i|/#{dashboardShowDetailUrl (Shows.id showModel) (Shows.slug showModel)}|]
@@ -122,45 +123,3 @@ episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
     encodeScheduleValue usd =
       display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdStartTime usd)
 
---------------------------------------------------------------------------------
--- Audio Duration Script
-
--- | Script to extract audio duration from uploaded file.
---
--- This is separate from the track listing editor because it handles
--- the audio file input from the FormBuilder.
-renderAudioDurationScript :: Lucid.Html ()
-renderAudioDurationScript =
-  Lucid.script_
-    [i|
-(function() {
-  const extractAudioDuration = (file) => {
-    const isAudio = file.type.startsWith('audio/') || /\\.(mp3|wav|flac|aac|ogg|m4a)$/i.test(file.name);
-    if (!isAudio) return;
-
-    const audio = new Audio();
-    audio.preload = 'metadata';
-
-    audio.onloadedmetadata = () => {
-      const durationField = document.querySelector('input[name="duration_seconds"]');
-      if (durationField) {
-        durationField.value = Math.round(audio.duration);
-      }
-      URL.revokeObjectURL(audio.src);
-    };
-
-    audio.onerror = () => URL.revokeObjectURL(audio.src);
-    audio.src = URL.createObjectURL(file);
-  };
-
-  // Audio file duration extraction - listen for the V2 FormBuilder audio field
-  const audioContainer = document.querySelector('[data-field-name="audio_file"]');
-  if (audioContainer) {
-    const audioInput = audioContainer.querySelector('input[type="file"]');
-    audioInput?.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) extractAudioDuration(file);
-    });
-  }
-})();
-|]

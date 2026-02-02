@@ -613,3 +613,26 @@ prod-to-local-files PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
 # Usage: just prod-to-local <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
 prod-to-local PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
   ./scripts/prod-to-local.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+
+#-------------------------------------------------------------------------------
+## Local Streaming (Icecast + Liquidsoap)
+
+# Start local streaming services (Icecast + Liquidsoap)
+stream-dev-start:
+  docker compose -f services/liquidsoap/docker-compose.yml up -d
+
+# Stop local streaming services
+stream-dev-stop:
+  docker compose -f services/liquidsoap/docker-compose.yml down
+
+# View local streaming service logs
+stream-dev-logs:
+  docker compose -f services/liquidsoap/docker-compose.yml logs -f
+
+# Restart local streaming services
+stream-dev-restart:
+  docker compose -f services/liquidsoap/docker-compose.yml restart
+
+# View local streaming service status
+stream-dev-status:
+  docker compose -f services/liquidsoap/docker-compose.yml ps

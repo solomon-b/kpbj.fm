@@ -4,6 +4,13 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Local Streaming Stack** - Added Docker Compose setup for Icecast + Liquidsoap streaming infrastructure:
+  - `just stream-dev-start/stop/logs/restart/status` commands for local development
+  - Liquidsoap polls `/api/playout/now` and `/api/playout/fallback` endpoints
+  - Automatic URL rewriting for Docker-to-host communication
+  - Stream available at `http://localhost:8000/stream`
+
 ### Fixes
 - **Create Release Tag Action** - Fixed GitHub Actions workflow for creating release tags
 

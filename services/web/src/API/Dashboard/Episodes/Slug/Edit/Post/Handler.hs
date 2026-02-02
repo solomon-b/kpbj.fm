@@ -236,12 +236,17 @@ processFileUploadsWithWarning userId allowFileUpload showModel episode editForm 
               let audioClear = eefAudioClear editForm
                   artworkClear = eefArtworkClear editForm
                   shouldUpdateFiles = isJust mAudioPath || isJust mArtworkPath || audioClear || artworkClear
+                  -- Parse duration from form (only when new audio is uploaded)
+                  mDuration = case (mAudioPath, eefDurationSeconds editForm) of
+                    (Just _, Just durStr) -> readMaybe (Text.unpack durStr)
+                    _ -> Nothing
               when shouldUpdateFiles $ do
                 let fileUpdate =
                       Episodes.FileUpdate
                         { efuId = episode.id,
                           efuAudioFilePath = mAudioPath,
                           efuArtworkUrl = mArtworkPath,
+                          efuDurationSeconds = mDuration,
                           efuClearAudio = audioClear && isNothing mAudioPath,
                           efuClearArtwork = artworkClear && isNothing mArtworkPath
                         }

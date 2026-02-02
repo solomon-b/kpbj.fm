@@ -1,0 +1,31 @@
+services:
+  icecast:
+    image: libretime/icecast:2.4.4
+    container_name: kpbj-icecast
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config/icecast.xml:/etc/icecast.xml
+    environment:
+      - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
+      - ICECAST_ADMIN_PASSWORD=${ICECAST_ADMIN_PASSWORD:-hackme}
+      - ICECAST_RELAY_PASSWORD=${ICECAST_RELAY_PASSWORD:-hackme}
+    restart: unless-stopped
+
+  liquidsoap:
+    image: savonet/liquidsoap:v2.2.5
+    container_name: kpbj-liquidsoap
+    depends_on:
+      - icecast
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config/radio.liq:/radio.liq:ro
+    environment:
+      - ICECAST_HOST=icecast
+      - ICECAST_PORT=8000
+      - ICECAST_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
+      - ICECAST_MOUNT=/stream
+      - API_BASE=${API_BASE:-http://host.docker.internal:4000/api/playout}
+    command: ["/radio.liq"]
+    restart: unless-stopped
