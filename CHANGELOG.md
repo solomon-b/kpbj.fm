@@ -15,6 +15,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Create Release Tag Action** - Fixed GitHub Actions workflow for creating release tags
 
 ### Chores
+- **Fetch Ephemeral Audio Script** - Added utility script to download ephemeral audio files
 - **Backfill Episode Durations Script** - Added script to populate missing episode duration values
 
 ---
