@@ -221,6 +221,7 @@ data FileUpdate = FileUpdate
   { efuId :: Id,
     efuAudioFilePath :: Maybe Text,
     efuArtworkUrl :: Maybe Text,
+    efuDurationSeconds :: Maybe Int64, -- Duration when new audio is uploaded
     efuClearAudio :: Bool, -- If True, set audio_file_path to NULL
     efuClearArtwork :: Bool -- If True, set artwork_url to NULL
   }
@@ -338,16 +339,45 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- | Get the episode that is currently airing based on the schedule.
 --
 -- Finds episodes where:
+--
 -- 1. The episode has an audio file uploaded
 -- 2. The episode is not deleted
--- 3. The current Pacific time falls within the show's scheduled time slot
+-- 3. The current Pacific time falls within the show's airing window
 -- 4. The schedule template is currently valid (effective dates match)
--- 5. Handles overnight shows (end_time <= start_time) spanning two calendar days
--- 6. Handles airs_twice_daily (primary + 12 hour replay)
 --
--- For overnight shows (e.g., 11 PM - 2 AM):
--- - If current time >= start_time: look for episode scheduled TODAY
--- - If current time < end_time: also look for episode scheduled YESTERDAY
+-- == Duration-Based Airing
+--
+-- When @duration_seconds@ is set, the episode only airs for that duration
+-- (prevents replay bleeding when episode is shorter than time slot).
+-- When @duration_seconds@ is NULL, falls back to the full slot duration.
+--
+-- @
+-- Slot: 2 PM ─────────────────────────── 4 PM
+--       │                                │
+--       ├── duration=30min ──┤           │
+--       │                    │           │
+--       ▼                    ▼           ▼
+--      2:00 PM            2:30 PM     4:00 PM
+--       │◀── AIRING ──────▶│◀── NOT ──▶│
+-- @
+--
+-- == The 6 Cases
+--
+-- Standard shows (end > start):
+--
+-- * __Case 1__: Primary airing, scheduled today, within duration or slot
+-- * __Case 4__: Replay (+12h), scheduled today, within duration or slot
+--
+-- Overnight shows (end <= start, e.g., 11 PM - 2 AM):
+--
+-- * __Case 2__: Primary, before midnight portion (scheduled today)
+-- * __Case 3__: Primary, after midnight portion (scheduled yesterday)
+-- * __Case 5__: Replay, before midnight portion (scheduled today)
+-- * __Case 6__: Replay, after midnight portion (scheduled yesterday)
+--
+-- For overnight shows, duration logic is more complex because it may
+-- end before midnight (only Case 2/5 matches) or extend past midnight
+-- (both before and after midnight portions match).
 --
 -- Used by Liquidsoap to determine what audio to play.
 getCurrentlyAiringEpisode :: UTCTime -> Hasql.Statement () (Maybe Model)
@@ -382,25 +412,48 @@ getCurrentlyAiringEpisode currentTime =
         AND (stv.effective_until IS NULL OR stv.effective_until > (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE)
         AND (
           -- Case 1: Standard show (end > start) scheduled for today
+          -- Use episode duration as effective end time (fall back to slot end if NULL)
           (
             st.end_time > st.start_time
             AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
             AND cp.time_now >= st.start_time
-            AND cp.time_now < st.end_time
+            AND cp.time_now < LEAST(
+              st.end_time,
+              (st.start_time + COALESCE(e.duration_seconds * INTERVAL '1 second', st.end_time - st.start_time))::TIME
+            )
           )
           OR
           -- Case 2: Overnight show (end <= start) - before midnight portion (scheduled today)
+          -- Check if we're past start AND either duration extends past midnight OR we're within duration
           (
             st.end_time <= st.start_time
             AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
             AND cp.time_now >= st.start_time
+            AND (
+              -- If duration is NULL, allow full before-midnight portion
+              e.duration_seconds IS NULL
+              -- If duration extends past midnight, allow the entire before-midnight portion
+              OR e.duration_seconds >= EXTRACT(EPOCH FROM (TIME '24:00:00' - st.start_time))
+              -- If duration ends before midnight, check if we're still within it
+              OR cp.time_now < (st.start_time + e.duration_seconds * INTERVAL '1 second')::TIME
+            )
           )
           OR
           -- Case 3: Overnight show (end <= start) - after midnight portion (scheduled yesterday)
+          -- Check if duration extends past midnight
           (
             st.end_time <= st.start_time
             AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
-            AND cp.time_now < st.end_time
+            AND cp.time_now < LEAST(
+              st.end_time,
+              -- Duration from start, wrapping past midnight: total duration minus time before midnight
+              CASE
+                WHEN e.duration_seconds IS NULL THEN st.end_time
+                WHEN e.duration_seconds > EXTRACT(EPOCH FROM (TIME '24:00:00' - st.start_time))
+                THEN ((e.duration_seconds - EXTRACT(EPOCH FROM (TIME '24:00:00' - st.start_time))) * INTERVAL '1 second')::TIME
+                ELSE TIME '00:00:00'  -- Duration ended before midnight; 00:00 < any time, so this case won't match
+              END
+            )
           )
           OR
           -- Case 4: Replay airing (+12 hours) for standard shows scheduled today
@@ -409,7 +462,10 @@ getCurrentlyAiringEpisode currentTime =
             AND (st.end_time + INTERVAL '12 hours')::TIME > (st.start_time + INTERVAL '12 hours')::TIME
             AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
             AND cp.time_now >= (st.start_time + INTERVAL '12 hours')::TIME
-            AND cp.time_now < (st.end_time + INTERVAL '12 hours')::TIME
+            AND cp.time_now < LEAST(
+              (st.end_time + INTERVAL '12 hours')::TIME,
+              ((st.start_time + INTERVAL '12 hours') + COALESCE(e.duration_seconds * INTERVAL '1 second', st.end_time - st.start_time))::TIME
+            )
           )
           OR
           -- Case 5: Replay airing for overnight shows - before midnight portion (scheduled today)
@@ -418,6 +474,10 @@ getCurrentlyAiringEpisode currentTime =
             AND (st.end_time + INTERVAL '12 hours')::TIME <= (st.start_time + INTERVAL '12 hours')::TIME
             AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
             AND cp.time_now >= (st.start_time + INTERVAL '12 hours')::TIME
+            AND (
+              e.duration_seconds IS NULL
+              OR cp.time_now < ((st.start_time + INTERVAL '12 hours') + e.duration_seconds * INTERVAL '1 second')::TIME
+            )
           )
           OR
           -- Case 6: Replay airing for overnight shows - after midnight portion (scheduled yesterday)
@@ -425,7 +485,15 @@ getCurrentlyAiringEpisode currentTime =
             st.airs_twice_daily = TRUE
             AND (st.end_time + INTERVAL '12 hours')::TIME <= (st.start_time + INTERVAL '12 hours')::TIME
             AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
-            AND cp.time_now < (st.end_time + INTERVAL '12 hours')::TIME
+            AND cp.time_now < LEAST(
+              (st.end_time + INTERVAL '12 hours')::TIME,
+              CASE
+                WHEN e.duration_seconds IS NULL THEN (st.end_time + INTERVAL '12 hours')::TIME
+                WHEN e.duration_seconds > EXTRACT(EPOCH FROM (TIME '24:00:00' - (st.start_time + INTERVAL '12 hours')::TIME))
+                THEN ((e.duration_seconds - EXTRACT(EPOCH FROM (TIME '24:00:00' - (st.start_time + INTERVAL '12 hours')::TIME))) * INTERVAL '1 second')::TIME
+                ELSE TIME '00:00:00'  -- Duration ended before midnight; 00:00 < any time, so this case won't match
+              END
+            )
           )
         )
     )
@@ -473,6 +541,7 @@ updateEpisode Update {..} =
 -- Nothing preserves existing and Just sets new value.
 -- For artwork: If efuClearArtwork is True, sets to NULL. Otherwise,
 -- Nothing preserves existing and Just sets new value.
+-- For duration: Only updated if new audio is uploaded (efuDurationSeconds is Just).
 updateEpisodeFiles :: FileUpdate -> Hasql.Statement () (Maybe Id)
 updateEpisodeFiles FileUpdate {..} =
   interp
@@ -487,6 +556,7 @@ updateEpisodeFiles FileUpdate {..} =
           WHEN #{efuClearArtwork} THEN NULL
           ELSE COALESCE(#{efuArtworkUrl}, artwork_url)
         END,
+        duration_seconds = COALESCE(#{efuDurationSeconds}, duration_seconds),
         updated_at = NOW()
     WHERE id = #{efuId}
     RETURNING id

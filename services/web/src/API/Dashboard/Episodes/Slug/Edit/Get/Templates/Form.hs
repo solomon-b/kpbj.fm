@@ -11,6 +11,7 @@ where
 
 import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
+import Component.AudioDurationScript (renderAudioDurationScript)
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -82,6 +83,7 @@ isScheduledInFuture now episode = episode.scheduledAt > now
 template :: EpisodeEditContext -> Lucid.Html ()
 template ctx = do
   renderForm config form
+  renderAudioDurationScript "episode_audio-input"
   where
     -- Extract from context
     showModel = ctx.eecShow
@@ -128,6 +130,9 @@ template ctx = do
 
     form :: FormBuilder
     form = do
+      -- Hidden field to capture audio duration when audio is re-uploaded
+      hidden "duration_seconds" ""
+
       section "EPISODE DETAILS" $ do
         -- Schedule slot section (only shown if episode is in future or user is staff)
         when (allowFileUpload || isStaff) $ do
