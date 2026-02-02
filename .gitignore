@@ -6,3 +6,4 @@
 /secrets.env
 /TAGS
 /.image-cache/
+/services/web/dist-newstyle/
