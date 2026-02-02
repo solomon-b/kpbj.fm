@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixes
+- **Create Release Tag Action** - Fixed GitHub Actions workflow for creating release tags
 
 ---
 
