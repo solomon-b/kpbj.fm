@@ -114,6 +114,7 @@ import API.Links
 import API.Media.Get.Handler qualified as Media.Get
 import API.Playout.Fallback.Get.Handler qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Handler qualified as Playout.Now.Get
+import API.Stream.Metadata.Get.Handler qualified as Stream.Metadata.Get
 import API.PrivacyPolicy.Get.Handler qualified as PrivacyPolicy.Get
 import API.Schedule.Get.Handler qualified as Schedule.Get
 import API.Shows.Get.Handler qualified as Shows.Get
@@ -202,6 +203,7 @@ server =
       dashboard = dashboardRoutes,
       uploads = uploadRoutes,
       playout = playoutRoutes,
+      streamMetadata = Stream.Metadata.Get.handler,
       debugVersion = Debug.Version.Get.handler
     }
   where
