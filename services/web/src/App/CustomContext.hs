@@ -11,6 +11,7 @@ module App.CustomContext
     AnalyticsConfig (..),
     GoogleAnalyticsId (..),
     SmtpConfig (..),
+    PlayoutSecret (..),
   )
 where
 
@@ -21,10 +22,17 @@ import App.Analytics (AnalyticsConfig (..), GoogleAnalyticsId (..), initAnalytic
 import App.Context (AppContext (..))
 import App.Smtp (SmtpConfig (..), initSmtpConfig)
 import App.Storage (StorageBackend (..), StorageContext (..), initStorageContext)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Has qualified as Has
+import Data.Text (Text)
+import Data.Text qualified as Text
+import System.Environment (lookupEnv)
 
 --------------------------------------------------------------------------------
+
+-- | Secret used to authenticate Liquidsoap playout requests.
+newtype PlayoutSecret = PlayoutSecret {unPlayoutSecret :: Maybe Text}
+  deriving stock (Show, Eq)
 
 -- | Custom application context containing all subsystem configurations.
 --
@@ -33,7 +41,8 @@ import Data.Has qualified as Has
 data CustomContext = CustomContext
   { storageContext :: StorageContext,
     analyticsConfig :: AnalyticsConfig,
-    smtpConfig :: Maybe SmtpConfig
+    smtpConfig :: Maybe SmtpConfig,
+    playoutSecret :: PlayoutSecret
   }
 
 --------------------------------------------------------------------------------
@@ -50,6 +59,10 @@ instance Has.Has AnalyticsConfig CustomContext where
 instance Has.Has (Maybe SmtpConfig) CustomContext where
   getter = smtpConfig
   modifier f ctx = ctx {smtpConfig = f (smtpConfig ctx)}
+
+instance Has.Has PlayoutSecret CustomContext where
+  getter = playoutSecret
+  modifier f ctx = ctx {playoutSecret = f (playoutSecret ctx)}
 
 instance Has.Has StorageBackend CustomContext where
   getter = storageBackend . storageContext
@@ -108,6 +121,10 @@ instance Has.Has (Maybe SmtpConfig) (AppContext CustomContext) where
   getter = Has.getter @(Maybe SmtpConfig) . appCustom
   modifier f ctx = ctx {appCustom = Has.modifier @(Maybe SmtpConfig) f (appCustom ctx)}
 
+instance Has.Has PlayoutSecret (AppContext CustomContext) where
+  getter = Has.getter @PlayoutSecret . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @PlayoutSecret f (appCustom ctx)}
+
 --------------------------------------------------------------------------------
 
 -- | Initialize the complete custom context.
@@ -118,9 +135,17 @@ initCustomContext = do
   storage <- initStorageContext
   analytics <- initAnalyticsConfig
   smtp <- initSmtpConfig
+  playout <- initPlayoutSecret
   pure
     CustomContext
       { storageContext = storage,
         analyticsConfig = analytics,
-        smtpConfig = smtp
+        smtpConfig = smtp,
+        playoutSecret = playout
       }
+
+-- | Initialize the playout secret from environment.
+initPlayoutSecret :: (MonadIO m) => m PlayoutSecret
+initPlayoutSecret = do
+  mSecret <- liftIO $ lookupEnv "PLAYOUT_SECRET"
+  pure $ PlayoutSecret (Text.pack <$> mSecret)

@@ -114,7 +114,7 @@ import API.Links
 import API.Media.Get.Handler qualified as Media.Get
 import API.Playout.Fallback.Get.Handler qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Handler qualified as Playout.Now.Get
-import API.Stream.Metadata.Get.Handler qualified as Stream.Metadata.Get
+import API.Playout.Played.Post.Handler qualified as Playout.Played.Post
 import API.PrivacyPolicy.Get.Handler qualified as PrivacyPolicy.Get
 import API.Schedule.Get.Handler qualified as Schedule.Get
 import API.Shows.Get.Handler qualified as Shows.Get
@@ -123,6 +123,7 @@ import API.Shows.Slug.Blog.Post.Get.Handler qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Get.Handler qualified as Episodes.Get
 import API.Shows.Slug.Get.Handler qualified as Show.Get
 import API.Static.RangePng.Get.Handler qualified as Static.RangePng.Get
+import API.Stream.Metadata.Get.Handler qualified as Stream.Metadata.Get
 import API.TermsOfService.Get.Handler qualified as TermsOfService.Get
 import API.Types
 import API.Uploads.Audio.Post.Handler qualified as Uploads.Audio.Post
@@ -396,5 +397,6 @@ server =
     playoutRoutes =
       PlayoutRoutes
         { now = Playout.Now.Get.handler,
-          fallback = Playout.Fallback.Get.handler
+          fallback = Playout.Fallback.Get.handler,
+          played = Playout.Played.Post.handler
         }

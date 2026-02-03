@@ -6,13 +6,15 @@
 module API.Playout.Types
   ( PlayoutResponse (..),
     PlayoutMetadata (..),
+    PlayedRequest (..),
   )
 where
 
 --------------------------------------------------------------------------------
 
-import Data.Aeson (ToJSON (..), object, (.=))
+import Data.Aeson (FromJSON, ToJSON (..), object, (.=))
 import Data.Text (Text)
+import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 
 --------------------------------------------------------------------------------
@@ -46,3 +48,18 @@ instance ToJSON PlayoutResponse where
         "title" .= meta.title,
         "artist" .= meta.artist
       ]
+
+--------------------------------------------------------------------------------
+
+-- | Request body for POST /api/playout/played.
+--
+-- Sent by Liquidsoap when a track starts playing on the stream.
+data PlayedRequest = PlayedRequest
+  { prTitle :: Text,
+    prArtist :: Maybe Text,
+    prSourceType :: Text,
+    prSourceUrl :: Text,
+    prStartedAt :: UTCTime
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (FromJSON)

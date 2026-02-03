@@ -5,3 +5,4 @@ services:
   liquidsoap:
     environment:
       - API_BASE=https://staging.kpbj.fm/api/playout
+      - PLAYOUT_SECRET=${PLAYOUT_SECRET:-}

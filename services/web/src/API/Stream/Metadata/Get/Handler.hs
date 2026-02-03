@@ -44,10 +44,12 @@ handler = do
 fallbackResponse :: Value
 fallbackResponse =
   object
-    [ "icestats" .= object
-        [ "source" .= object
-            [ "title" .= ("KPBJ 95.9 FM" :: String),
-              "server_name" .= ("KPBJ 95.9 FM" :: String)
-            ]
-        ]
+    [ "icestats"
+        .= object
+          [ "source"
+              .= object
+                [ "title" .= ("KPBJ 95.9 FM" :: String),
+                  "server_name" .= ("KPBJ 95.9 FM" :: String)
+                ]
+          ]
     ]

@@ -7,3 +7,4 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - API_BASE=http://host.docker.internal:4000/api/playout
+      - PLAYOUT_SECRET=${PLAYOUT_SECRET:-}
