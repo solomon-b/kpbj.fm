@@ -578,6 +578,24 @@ prod-secrets:
 prod-machines:
   fly machines list --app {{PROD_APP}}
 
+# Backup production database to local file
+# Requires PROD_DB_PASSWORD env var
+prod-backup:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  mkdir -p backups
+  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+  BACKUP_FILE="backups/kpbj_fm_${TIMESTAMP}.dump"
+  echo "🗄️  Backing up production database..."
+  echo "   Starting proxy..."
+  fly proxy 15432:5432 -a {{PROD_DB_APP}} &
+  PROXY_PID=$!
+  sleep 2
+  echo "   Running pg_dump..."
+  PGPASSWORD="${PROD_DB_PASSWORD}" pg_dump -h localhost -p 15432 -U kpbj_fm -Fc {{PROD_DB_NAME}} > "$BACKUP_FILE"
+  kill $PROXY_PID 2>/dev/null || true
+  echo "✨ Backup saved to: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+
 #-------------------------------------------------------------------------------
 ## Production to Staging Copy
 
@@ -615,24 +633,88 @@ prod-to-local PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY:
   ./scripts/prod-to-local.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
 
 #-------------------------------------------------------------------------------
-## Local Streaming (Icecast + Liquidsoap)
+## Streaming Services (Icecast + Liquidsoap)
+
+# Build and load Nix streaming images locally
+stream-build:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "Building Icecast image..."
+  nix build .#icecast-docker
+  docker load -i result
+  echo "Building Liquidsoap image..."
+  nix build .#liquidsoap-docker
+  docker load -i result
+  echo "Done! Images loaded into Docker."
+
+# Build and push streaming images to GHCR
+stream-publish TAG="latest":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for pkg in icecast liquidsoap; do
+    echo "Building $pkg image with tag {{TAG}}..."
+    IMAGE_TAG={{TAG}} nix build .#${pkg}-docker --impure
+    image=$(docker load -i result | sed -n 's/Loaded image: //p')
+    echo "Pushing $image..."
+    docker push "$image"
+  done
+  echo "Done! Images pushed to GHCR."
 
 # Start local streaming services (Icecast + Liquidsoap)
 stream-dev-start:
-  docker compose -f services/liquidsoap/docker-compose.yml up -d
+  docker compose -f services/liquidsoap/docker-compose.yml \
+                 -f services/liquidsoap/docker-compose.dev.yml up -d
 
 # Stop local streaming services
 stream-dev-stop:
-  docker compose -f services/liquidsoap/docker-compose.yml down
+  docker compose -f services/liquidsoap/docker-compose.yml \
+                 -f services/liquidsoap/docker-compose.dev.yml down
 
 # View local streaming service logs
 stream-dev-logs:
-  docker compose -f services/liquidsoap/docker-compose.yml logs -f
+  docker compose -f services/liquidsoap/docker-compose.yml \
+                 -f services/liquidsoap/docker-compose.dev.yml logs -f
 
 # Restart local streaming services
 stream-dev-restart:
-  docker compose -f services/liquidsoap/docker-compose.yml restart
+  docker compose -f services/liquidsoap/docker-compose.yml \
+                 -f services/liquidsoap/docker-compose.dev.yml restart
 
 # View local streaming service status
 stream-dev-status:
-  docker compose -f services/liquidsoap/docker-compose.yml ps
+  docker compose -f services/liquidsoap/docker-compose.yml \
+                 -f services/liquidsoap/docker-compose.dev.yml ps
+
+# Deploy streaming services to staging VPS
+# Requires STAGING_STREAM_HOST env var (e.g., deploy@staging-stream.kpbj.fm)
+stream-staging-deploy TAG="latest":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ -z "${STAGING_STREAM_HOST:-}" ]; then
+    echo "ERROR: STAGING_STREAM_HOST environment variable is required"
+    echo "Example: STAGING_STREAM_HOST=deploy@staging-stream.kpbj.fm just stream-staging-deploy"
+    exit 1
+  fi
+  echo "Deploying streaming services to staging (tag: {{TAG}})..."
+  ssh "$STAGING_STREAM_HOST" "cd /opt/kpbj-stream && \
+    echo 'IMAGE_TAG={{TAG}}' > .env.tag && \
+    docker compose -f docker-compose.yml -f docker-compose.staging.yml pull && \
+    docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d"
+  echo "Done!"
+
+# Deploy streaming services to production VPS
+# Requires PROD_STREAM_HOST env var (e.g., deploy@stream.kpbj.fm)
+stream-prod-deploy TAG="latest":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ -z "${PROD_STREAM_HOST:-}" ]; then
+    echo "ERROR: PROD_STREAM_HOST environment variable is required"
+    echo "Example: PROD_STREAM_HOST=deploy@stream.kpbj.fm just stream-prod-deploy"
+    exit 1
+  fi
+  echo "Deploying streaming services to production (tag: {{TAG}})..."
+  ssh "$PROD_STREAM_HOST" "cd /opt/kpbj-stream && \
+    echo 'IMAGE_TAG={{TAG}}' > .env.tag && \
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+  echo "Done!"

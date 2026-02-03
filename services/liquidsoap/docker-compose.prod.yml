@@ -1,0 +1,7 @@
+# Production VPS overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  liquidsoap:
+    environment:
+      - API_BASE=https://www.kpbj.fm/api/playout

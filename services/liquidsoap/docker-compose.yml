@@ -1,11 +1,16 @@
+# Base configuration for KPBJ streaming services
+# Use with environment-specific overrides:
+#   Local dev: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#   Staging:   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#   Production: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
 services:
   icecast:
-    image: libretime/icecast:2.4.4
+    image: ghcr.io/solomon-b/kpbj-icecast:${IMAGE_TAG:-latest}
     container_name: kpbj-icecast
     ports:
       - "8000:8000"
-    volumes:
-      - ./config/icecast.xml:/etc/icecast.xml
+    # Config is bundled in image; env vars applied at startup by entrypoint
     environment:
       - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
       - ICECAST_ADMIN_PASSWORD=${ICECAST_ADMIN_PASSWORD:-hackme}
@@ -13,19 +18,14 @@ services:
     restart: unless-stopped
 
   liquidsoap:
-    image: savonet/liquidsoap:v2.2.5
+    image: ghcr.io/solomon-b/kpbj-liquidsoap:${IMAGE_TAG:-latest}
     container_name: kpbj-liquidsoap
     depends_on:
       - icecast
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - ./config/radio.liq:/radio.liq:ro
+    # Config (radio.liq) is bundled in image
     environment:
       - ICECAST_HOST=icecast
       - ICECAST_PORT=8000
       - ICECAST_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
       - ICECAST_MOUNT=/stream
-      - API_BASE=${API_BASE:-http://host.docker.internal:4000/api/playout}
-    command: ["/radio.liq"]
     restart: unless-stopped

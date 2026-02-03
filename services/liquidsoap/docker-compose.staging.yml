@@ -1,0 +1,7 @@
+# Staging VPS overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+
+services:
+  liquidsoap:
+    environment:
+      - API_BASE=https://staging.kpbj.fm/api/playout
