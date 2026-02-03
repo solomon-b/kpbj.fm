@@ -21,6 +21,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Fetch Ephemeral Audio Script** - Added utility script to download ephemeral audio files
 - **Backfill Episode Durations Script** - Added script to populate missing episode duration values
 
+### Infrastructure
+- **Icecast Infrastructure** - Initial Icecast streaming server configuration
+
 ---
 
 ## [0.6.0] - 2026-02-01

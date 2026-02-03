@@ -6,6 +6,9 @@
 # Uses request.queue() with manual push to avoid prefetch bugs.
 # Tracks last_scheduled to prevent replaying the same show.
 
+# Allow running as root (required for Docker)
+settings.init.allow_root.set(true)
+
 settings.server.telnet.set(true)
 settings.log.level.set(4)
 

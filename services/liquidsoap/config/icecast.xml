@@ -41,10 +41,10 @@
     <fileserve>1</fileserve>
 
     <paths>
-        <basedir>/usr/share/icecast</basedir>
-        <logdir>/var/log/icecast</logdir>
-        <webroot>/usr/share/icecast/web</webroot>
-        <adminroot>/usr/share/icecast/admin</adminroot>
+        <basedir>/share/icecast</basedir>
+        <logdir>/tmp</logdir>
+        <webroot>/share/icecast/web</webroot>
+        <adminroot>/share/icecast/admin</adminroot>
         <alias source="/" destination="/status.xsl"/>
     </paths>
 
@@ -57,5 +57,9 @@
 
     <security>
         <chroot>0</chroot>
+        <changeowner>
+            <user>nobody</user>
+            <group>nobody</group>
+        </changeowner>
     </security>
 </icecast>
