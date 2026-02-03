@@ -156,9 +156,11 @@ renderFormElement config state allFields hasFileFields = do
           renderElement element
 
         -- Footer items (from builder state, or fallback to config footer)
+        -- Only show upload progress bar when there are file fields
+        let hasUploadFields = hasFileFields || any needsValidation allFields
         case fsFooterItems state of
           [] -> fromMaybe mempty (fcFooter config)
-          items -> renderFooter (fcHtmxTarget config) items (fsFooterHint state)
+          items -> renderFooter (fcHtmxTarget config) items (fsFooterHint state) hasUploadFields
 
 --------------------------------------------------------------------------------
 -- Element Rendering
@@ -187,18 +189,19 @@ renderSection sec = do
 -- Footer Rendering
 
 -- | Render form footer (buttons and inline controls like toggles).
-renderFooter :: Maybe Text -> [FormFooterItem] -> Maybe Text -> Lucid.Html ()
-renderFooter mHtmxTarget items mHint =
+renderFooter :: Maybe Text -> [FormFooterItem] -> Maybe Text -> Bool -> Lucid.Html ()
+renderFooter mHtmxTarget items mHint hasUploadFields =
   Lucid.div_ [Lucid.class_ "fb-footer"] $ do
     -- Footer hint (displayed above the buttons)
     forM_ mHint $ \hint ->
       Lucid.p_ [Lucid.class_ "fb-footer-hint"] (Lucid.toHtml hint)
 
-    -- Upload progress bar (shown during file uploads)
-    Lucid.div_
-      [ xShow_ "isUploading",
-        Lucid.class_ "fb-progress"
-      ]
+    -- Upload progress bar (only shown for forms with file/validated fields)
+    when hasUploadFields
+      $ Lucid.div_
+        [ xShow_ "isUploading",
+          Lucid.class_ "fb-progress"
+        ]
       $ do
         Lucid.div_ [Lucid.class_ "fb-progress-header"] $ do
           Lucid.span_ [] "Uploading..."
