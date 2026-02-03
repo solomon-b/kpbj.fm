@@ -3,6 +3,7 @@
 
 module API.Dashboard.StreamSettings.Get.Templates.Form
   ( template,
+    IcecastStatus (..),
   )
 where
 
@@ -10,6 +11,7 @@ where
 
 import API.Links (dashboardStreamSettingsLinks)
 import API.Types (DashboardStreamSettingsRoutes (..))
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_)
@@ -21,6 +23,23 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
+-- | Icecast status data parsed from the JSON endpoint.
+data IcecastStatus = IcecastStatus
+  { isTitle :: Maybe Text,
+    isArtist :: Maybe Text,
+    isListeners :: Maybe Integer,
+    isListenerPeak :: Maybe Integer,
+    isServerName :: Maybe Text,
+    isServerDescription :: Maybe Text,
+    isGenre :: Maybe Text,
+    isBitrate :: Maybe Text,
+    isStreamStart :: Maybe Text,
+    isServerStart :: Maybe Text
+  }
+  deriving (Show, Eq)
+
+--------------------------------------------------------------------------------
+
 -- URL helper
 dashboardStreamSettingsEditPostUrl :: Links.URI
 dashboardStreamSettingsEditPostUrl = Links.linkURI dashboardStreamSettingsLinks.editPost
@@ -28,9 +47,14 @@ dashboardStreamSettingsEditPostUrl = Links.linkURI dashboardStreamSettingsLinks.
 --------------------------------------------------------------------------------
 
 -- | Stream settings edit template using FormBuilder
-template :: StreamSettings.Model -> Maybe Text -> Lucid.Html ()
-template settings mError = do
+template :: StreamSettings.Model -> Maybe IcecastStatus -> Maybe Text -> Lucid.Html ()
+template settings mStatus mError = do
   maybe mempty errorAlert mError
+
+  -- Stream status section (if available)
+  statusSection mStatus
+
+  -- Settings form
   renderForm config form
   where
     config :: FormConfig
@@ -67,6 +91,57 @@ template settings mError = do
       infoSection
 
       submitButton "SAVE SETTINGS"
+
+--------------------------------------------------------------------------------
+
+-- | Stream status display section
+statusSection :: Maybe IcecastStatus -> Lucid.Html ()
+statusSection Nothing =
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "STREAM STATUS"
+    Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $
+      Lucid.p_ "Unable to connect to stream. Check that Icecast is running and the metadata URL is correct."
+statusSection (Just status) =
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "STREAM STATUS"
+
+    -- Now Playing
+    Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
+      Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, Tokens.mb2, "uppercase", "tracking-wide"]] "Now Playing"
+      Lucid.div_ [class_ $ base [Tokens.fontBold]] $
+        Lucid.toHtml $ fromMaybe "Unknown" status.isTitle
+
+    -- Stats grid
+    Lucid.div_ [class_ $ base ["grid", "grid-cols-2", "md:grid-cols-4", "gap-4", Tokens.mb4]] $ do
+      statBox "Listeners" $ maybe "0" (Lucid.toHtml . show) status.isListeners
+      statBox "Peak" $ maybe "0" (Lucid.toHtml . show) status.isListenerPeak
+      statBox "Bitrate" $ maybe "—" Lucid.toHtml status.isBitrate
+      statBox "Genre" $ maybe "—" Lucid.toHtml status.isGenre
+
+    -- Stream info
+    Lucid.div_ [class_ $ base ["grid", "grid-cols-1", "md:grid-cols-2", "gap-4", Tokens.textSm]] $ do
+      infoRow "Server" $ fromMaybe "—" status.isServerName
+      infoRow "Description" $ fromMaybe "—" status.isServerDescription
+      infoRow "Stream Started" $ maybe "—" formatTimestamp status.isStreamStart
+      infoRow "Server Started" $ maybe "—" formatTimestamp status.isServerStart
+
+-- | Stat box component
+statBox :: Text -> Lucid.Html () -> Lucid.Html ()
+statBox labelText valueHtml =
+  Lucid.div_ [class_ $ base [Tokens.p3, Tokens.bgInverse, Tokens.fgInverse, "rounded"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.textXs, "opacity-70", Tokens.mb2]] $ Lucid.toHtml labelText
+    Lucid.div_ [class_ $ base [Tokens.fontBold, Tokens.textLg]] valueHtml
+
+-- | Info row component
+infoRow :: Text -> Text -> Lucid.Html ()
+infoRow labelText valueText =
+  Lucid.div_ [] $ do
+    Lucid.span_ [class_ $ base [Tokens.fgMuted]] $ Lucid.toHtml (labelText <> ": ")
+    Lucid.span_ [] $ Lucid.toHtml valueText
+
+-- | Format timestamp for display (just show as-is for now)
+formatTimestamp :: Text -> Text
+formatTimestamp = id
 
 -- | Error alert component
 errorAlert :: Text -> Lucid.Html ()
