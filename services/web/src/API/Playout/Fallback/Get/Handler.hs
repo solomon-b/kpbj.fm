@@ -6,7 +6,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Playout.Types (PlayoutResponse (..))
+import API.Playout.Types (PlayoutMetadata (..), PlayoutResponse (..))
 import App.Config (Environment (..))
 import App.Domains (siteBaseUrl)
 import App.Monad (AppM)
@@ -33,10 +33,11 @@ handler = do
     Left _err -> pure PlayoutUnavailable -- Graceful degradation on DB error
     Right Nothing -> pure PlayoutUnavailable
     Right (Just upload) -> do
+      let metadata = PlayoutMetadata {title = upload.eumTitle, artist = "KPBJ 95.9 FM"}
       storageBackend <- asks (Has.getter @StorageBackend)
       env <- asks (Has.getter @Environment)
       let fullUrl = buildFullMediaUrl env storageBackend upload.eumAudioFilePath
-      pure $ PlayoutAvailable fullUrl
+      pure $ PlayoutAvailable fullUrl metadata
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
 --

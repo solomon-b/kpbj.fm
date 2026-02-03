@@ -6,18 +6,20 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Playout.Types (PlayoutResponse (..))
+import API.Playout.Types (PlayoutMetadata (..), PlayoutResponse (..))
 import App.Config (Environment (..))
 import App.Domains (siteBaseUrl)
 import App.Monad (AppM)
 import App.Storage (StorageBackend (..), buildMediaUrl)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
+import Data.Either (fromRight)
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Time (getCurrentTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Shows qualified as Shows
 
 --------------------------------------------------------------------------------
 
@@ -38,10 +40,15 @@ handler = do
     Right (Just episode) -> case episode.audioFilePath of
       Nothing -> pure PlayoutUnavailable
       Just audioPath -> do
+        -- Fetch show info for metadata
+        showResult <- execQuery $ Shows.getShowById episode.showId
+        let showTitle = maybe "KPBJ 95.9 FM" (.title) (fromRight Nothing showResult)
+            metadata = PlayoutMetadata {title = showTitle, artist = "KPBJ 95.9 FM"}
+
         storageBackend <- asks (Has.getter @StorageBackend)
         env <- asks (Has.getter @Environment)
         let fullUrl = buildFullMediaUrl env storageBackend audioPath
-        pure $ PlayoutAvailable fullUrl
+        pure $ PlayoutAvailable fullUrl metadata
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
 --
