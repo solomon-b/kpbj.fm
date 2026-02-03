@@ -356,6 +356,8 @@ library
     API.Playout.Now.Get.Handler
     API.Playout.Fallback.Get.Route
     API.Playout.Fallback.Get.Handler
+    API.Stream.Metadata.Get.Route
+    API.Stream.Metadata.Get.Handler
     API.Uploads.Shared
     API.Uploads.Types
     API.Uploads.Audio.Post.Handler

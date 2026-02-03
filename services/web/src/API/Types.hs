@@ -109,6 +109,7 @@ import API.Get.Route qualified as Root.Get
 import API.Media.Get.Route qualified as Media.Get
 import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Route qualified as Playout.Now.Get
+import API.Stream.Metadata.Get.Route qualified as Stream.Metadata.Get
 import API.PrivacyPolicy.Get.Route qualified as PrivacyPolicy.Get
 import API.Schedule.Get.Route qualified as Schedule
 import API.Shows.Get.Route qualified as Shows.Get
@@ -174,6 +175,8 @@ data Routes mode = Routes
     uploads :: mode :- NamedRoutes UploadRoutes,
     -- | @/api/playout/...@ - Playout API routes for Liquidsoap
     playout :: mode :- NamedRoutes PlayoutRoutes,
+    -- | @GET /api/stream/metadata@ - Stream metadata proxy (avoids CORS)
+    streamMetadata :: mode :- Stream.Metadata.Get.Route,
     -- | @GET /debug/version@ - Version info for debugging
     debugVersion :: mode :- Debug.Version.Get.Route
   }

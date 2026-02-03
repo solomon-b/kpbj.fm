@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Stream Metadata Proxy** - Added `/api/stream/metadata` endpoint that proxies Icecast stream metadata for the web player
 - **Playout API Metadata** - Playout API responses now include track metadata (title, artist, show info)
 - **Local Streaming Stack** - Added Docker Compose setup for Icecast + Liquidsoap streaming infrastructure:
   - `just stream-dev-start/stop/logs/restart/status` commands for local development

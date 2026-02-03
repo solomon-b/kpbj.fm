@@ -292,25 +292,26 @@ musicPlayerWrapper settings content =
 
       async fetchMetadata() {
         try {
-          const response = await fetch(this.metadataUrl);
+          const response = await fetch('/api/stream/metadata');
           const data = await response.json();
 
-          // Check if a live DJ is streaming
-          if (data.live && data.live.is_live) {
-            this.currentShow = data.live.streamer_name || 'Live DJ';
-          } else if (data.now_playing && data.now_playing.song) {
-            // Format: "Artist - Title" or just title
-            const song = data.now_playing.song;
-            if (song.artist && song.title) {
-              this.currentShow = song.artist + ' - ' + song.title;
-              this.currentArtist = song.artist;
-              this.currentTrack = song.title;
-            } else if (song.title) {
-              this.currentShow = song.title;
-              this.currentTrack = song.title;
+          // Parse Icecast status-json.xsl format
+          const source = data.icestats?.source;
+          if (source) {
+            // Icecast combines metadata as "artist - title" in the title field
+            // Or we may have separate artist field
+            if (source.artist && source.title) {
+              this.currentShow = source.artist + ' - ' + source.title;
+              this.currentArtist = source.artist;
+              this.currentTrack = source.title;
+            } else if (source.title) {
+              this.currentShow = source.title;
+              this.currentTrack = source.title;
             } else {
-              this.currentShow = 'KPBJ 95.9 FM';
+              this.currentShow = source.server_name || 'KPBJ 95.9 FM';
             }
+          } else {
+            this.currentShow = 'KPBJ 95.9 FM';
           }
           this.errorMessage = '';
         } catch (error) {
