@@ -356,6 +356,8 @@ library
     API.Playout.Now.Get.Handler
     API.Playout.Fallback.Get.Route
     API.Playout.Fallback.Get.Handler
+    API.Playout.Played.Post.Route
+    API.Playout.Played.Post.Handler
     API.Stream.Metadata.Get.Route
     API.Stream.Metadata.Get.Handler
     API.Uploads.Shared
@@ -466,6 +468,7 @@ library
     Effects.Database.Tables.StationIds
     Effects.Database.Tables.StreamSettings
     Effects.Database.Tables.EphemeralUploads
+    Effects.Database.Tables.PlaybackHistory
     Effects.Database.Tables.UserMetadata
     Effects.AWS
     Effects.BackgroundJobs

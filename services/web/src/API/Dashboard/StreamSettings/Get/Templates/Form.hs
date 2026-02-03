@@ -11,11 +11,17 @@ where
 
 import API.Links (dashboardStreamSettingsLinks)
 import API.Types (DashboardStreamSettingsRoutes (..))
+import Data.Foldable (for_)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (UTCTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.Timezone (utcToPacific)
+import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
 import Effects.Database.Tables.StreamSettings qualified as StreamSettings
 import Lucid qualified
 import Lucid.Form.Builder
@@ -47,12 +53,15 @@ dashboardStreamSettingsEditPostUrl = Links.linkURI dashboardStreamSettingsLinks.
 --------------------------------------------------------------------------------
 
 -- | Stream settings edit template using FormBuilder
-template :: StreamSettings.Model -> Maybe IcecastStatus -> Maybe Text -> Lucid.Html ()
-template settings mStatus mError = do
+template :: StreamSettings.Model -> Maybe IcecastStatus -> [PlaybackHistory.Model] -> Maybe Text -> Lucid.Html ()
+template settings mStatus playbackHistory mError = do
   maybe mempty errorAlert mError
 
   -- Stream status section (if available)
   statusSection mStatus
+
+  -- Playback history section
+  playbackHistorySection playbackHistory
 
   -- Settings form
   renderForm config form
@@ -71,26 +80,51 @@ template settings mStatus mError = do
       formTitle "STREAM SETTINGS"
       formSubtitle "Configure the Icecast stream URL and metadata endpoint"
 
-      -- Stream URL Section
-      section "STREAM CONFIGURATION" $ do
-        textField "stream_url" $ do
-          label "Stream URL"
-          placeholder "https://example.com/listen/station/radio.mp3"
-          value settings.ssStreamUrl
-          required
-          hint "The direct URL to the audio stream (MP3 or OGG format)"
-
-        textField "metadata_url" $ do
-          label "Metadata URL"
-          placeholder "https://example.com/api/nowplaying/station"
-          value settings.ssMetadataUrl
-          required
-          hint "The API endpoint that returns current track information in JSON format"
-
-      -- Info section
-      infoSection
+      -- Danger zone section
+      dangerZoneSection settings
 
       submitButton "SAVE SETTINGS"
+
+--------------------------------------------------------------------------------
+
+-- | Danger zone section for stream configuration
+dangerZoneSection :: StreamSettings.Model -> FormBuilder
+dangerZoneSection settings = plain $ do
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, "rounded", "border-2", Tokens.errorBorder, Tokens.errorBg]] $ do
+    -- Header
+    Lucid.div_ [class_ $ base ["flex", "items-center", "gap-2", Tokens.mb4]] $ do
+      Lucid.span_ [class_ $ base [Tokens.errorText, Tokens.fontBold, Tokens.textLg]] "DANGER ZONE"
+    Lucid.p_
+      [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
+      "Changing these settings will affect the live stream. Only modify if you know what you're doing."
+
+    -- Stream URL field
+    Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
+      Lucid.label_ [class_ $ base [Tokens.fontBold, Tokens.textSm, "block", Tokens.mb2], Lucid.for_ "stream_url"] "Stream URL"
+      Lucid.input_
+        [ Lucid.type_ "text",
+          Lucid.name_ "stream_url",
+          Lucid.id_ "stream_url",
+          Lucid.value_ settings.ssStreamUrl,
+          Lucid.placeholder_ "https://example.com/listen/station/radio.mp3",
+          Lucid.required_ "required",
+          class_ $ base ["w-full", Tokens.p2, Tokens.border2, "rounded", Tokens.bgAlt, "focus:outline-none", "focus:" <> Tokens.errorBorder]
+        ]
+      Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "mt-1"]] "The direct URL to the audio stream (MP3 or OGG format)"
+
+    -- Metadata URL field
+    Lucid.div_ [] $ do
+      Lucid.label_ [class_ $ base [Tokens.fontBold, Tokens.textSm, "block", Tokens.mb2], Lucid.for_ "metadata_url"] "Metadata URL"
+      Lucid.input_
+        [ Lucid.type_ "text",
+          Lucid.name_ "metadata_url",
+          Lucid.id_ "metadata_url",
+          Lucid.value_ settings.ssMetadataUrl,
+          Lucid.placeholder_ "https://example.com/api/nowplaying/station",
+          Lucid.required_ "required",
+          class_ $ base ["w-full", Tokens.p2, Tokens.border2, "rounded", Tokens.bgAlt, "focus:outline-none", "focus:" <> Tokens.errorBorder]
+        ]
+      Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "mt-1"]] "The API endpoint that returns current track information in JSON format"
 
 --------------------------------------------------------------------------------
 
@@ -109,7 +143,8 @@ statusSection (Just status) =
     Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
       Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, Tokens.mb2, "uppercase", "tracking-wide"]] "Now Playing"
       Lucid.div_ [class_ $ base [Tokens.fontBold]] $
-        Lucid.toHtml $ fromMaybe "Unknown" status.isTitle
+        Lucid.toHtml $
+          fromMaybe "Unknown" status.isTitle
 
     -- Stats grid
     Lucid.div_ [class_ $ base ["grid", "grid-cols-2", "md:grid-cols-4", "gap-4", Tokens.mb4]] $ do
@@ -143,24 +178,55 @@ infoRow labelText valueText =
 formatTimestamp :: Text -> Text
 formatTimestamp = id
 
+--------------------------------------------------------------------------------
+
+-- | Playback history section
+playbackHistorySection :: [PlaybackHistory.Model] -> Lucid.Html ()
+playbackHistorySection [] =
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "PLAYBACK HISTORY"
+    Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $
+      Lucid.p_ "No playback history recorded yet."
+playbackHistorySection history =
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "PLAYBACK HISTORY"
+    Lucid.div_ [class_ $ base ["overflow-x-auto"]] $ do
+      Lucid.table_ [class_ $ base ["w-full", Tokens.textSm]] $ do
+        Lucid.thead_ $ do
+          Lucid.tr_ [class_ $ base ["border-b", Tokens.border2]] $ do
+            Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Started"
+            Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Title"
+            Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Artist"
+            Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Type"
+        Lucid.tbody_ $ do
+          for_ history $ \entry -> do
+            Lucid.tr_ [class_ $ base ["border-b", Tokens.hoverBg]] $ do
+              Lucid.td_ [class_ $ base [Tokens.p2, "whitespace-nowrap"]] $
+                Lucid.toHtml $
+                  formatUTCTime entry.phStartedAt
+              Lucid.td_ [class_ $ base [Tokens.p2]] $
+                Lucid.toHtml entry.phTitle
+              Lucid.td_ [class_ $ base [Tokens.p2]] $
+                Lucid.toHtml (fromMaybe "" entry.phArtist)
+              Lucid.td_ [class_ $ base [Tokens.p2]] $
+                sourceTypeBadge entry.phSourceType
+
+-- | Format UTCTime for display in Pacific time
+formatUTCTime :: UTCTime -> Text
+formatUTCTime utc = Text.pack $ formatTime defaultTimeLocale "%Y-%m-%d %H:%M" (utcToPacific utc)
+
+-- | Badge for source type
+sourceTypeBadge :: Text -> Lucid.Html ()
+sourceTypeBadge "episode" =
+  Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.successBg, Tokens.successText]] "episode"
+sourceTypeBadge "ephemeral" =
+  Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.infoBg, Tokens.infoText]] "ephemeral"
+sourceTypeBadge other =
+  Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.bgInverse, Tokens.fgInverse]] $ Lucid.toHtml other
+
 -- | Error alert component
 errorAlert :: Text -> Lucid.Html ()
 errorAlert message =
   Lucid.div_
     [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
     $ Lucid.toHtml message
-
--- | Information section about the stream settings
-infoSection :: FormBuilder
-infoSection = plain $ do
-  Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.p4, "rounded", Tokens.mb6]] $ do
-    Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2, Tokens.textSm]] "About Stream Settings"
-    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "space-y-2"]] $ do
-      Lucid.p_ "These settings configure the web player that appears on the site."
-      Lucid.ul_ [class_ $ base ["list-disc", "pl-4", "space-y-1"]] $ do
-        Lucid.li_ $ do
-          Lucid.strong_ "Stream URL: "
-          "The direct link to your Icecast/Shoutcast audio stream"
-        Lucid.li_ $ do
-          Lucid.strong_ "Metadata URL: "
-          "An API endpoint that returns JSON with current track information (used for Now Playing display)"

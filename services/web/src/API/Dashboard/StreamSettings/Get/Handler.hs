@@ -23,6 +23,7 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
+import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.StreamSettings qualified as StreamSettings
 import Effects.Database.Tables.User qualified as User
@@ -59,8 +60,12 @@ handler cookie (foldHxReq -> hxRequest) =
     -- 4. Fetch icecast status
     icecastStatus <- fetchIcecastStatus settings.ssMetadataUrl
 
-    -- 5. Render response
-    renderDashboardTemplate hxRequest userMetadata allShows Nothing NavStreamSettings Nothing Nothing (template settings icecastStatus Nothing)
+    -- 5. Fetch recent playback history
+    historyResult <- execQuery (PlaybackHistory.getRecentPlayback 50)
+    let recentHistory = fromRight [] historyResult
+
+    -- 6. Render response
+    renderDashboardTemplate hxRequest userMetadata allShows Nothing NavStreamSettings Nothing Nothing (template settings icecastStatus recentHistory Nothing)
 
 -- | Fetch status from icecast metadata endpoint.
 fetchIcecastStatus :: Text.Text -> AppM (Maybe IcecastStatus)

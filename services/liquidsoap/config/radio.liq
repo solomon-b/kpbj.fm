@@ -18,6 +18,7 @@ icecast_host = environment.get("ICECAST_HOST") ?? "icecast"
 icecast_port = int_of_string(environment.get("ICECAST_PORT") ?? "8000")
 icecast_password = environment.get("ICECAST_PASSWORD") ?? "hackme"
 icecast_mount = environment.get("ICECAST_MOUNT") ?? "/stream"
+playout_secret = environment.get("PLAYOUT_SECRET") ?? ""
 
 # Rewrite localhost URLs to be reachable from Docker
 def rewrite_url(url)
@@ -36,7 +37,7 @@ def get_fallback()
       title = data.title ?? "KPBJ 95.9 FM"
       artist = data.artist ?? "Community Radio"
       url = rewrite_url(data.url)
-      annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\":#{url}"
+      annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"ephemeral\":#{url}"
       request.create(annotated)
     catch _ do
       log.info("[KPBJ] Failed to parse fallback response")
@@ -49,8 +50,8 @@ def get_fallback()
 end
 
 # Fallback source - always has something to play
-# prefetch=3 ensures tracks are buffered and ready
-fallback_source = request.dynamic(prefetch=3, get_fallback)
+# prefetch=1 for accurate metadata timing (higher values queue tracks ahead)
+fallback_source = request.dynamic(prefetch=1, get_fallback)
 
 # Add buffer to absorb latency from HTTP downloads (5s buffer, 10s max)
 fallback_source = buffer(buffer=5., max=10., fallback_source)
@@ -86,7 +87,7 @@ def poll()
           last_scheduled := url
           title = data.title ?? "KPBJ 95.9 FM"
           artist = data.artist ?? ""
-          annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\":#{url}"
+          annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\":#{url}"
           scheduled_queue.push(request.create(annotated))
         end
       catch _ do
@@ -107,15 +108,42 @@ thread.run(delay=3., poll)
 # track_sensitive=false means switch immediately when scheduled content arrives
 radio = fallback(track_sensitive=false, [scheduled_source, fallback_source])
 
-# Add crossfade between tracks (1s fade) to smooth transitions
-radio = crossfade(duration=1., radio)
-
-# Log track changes
+# Log track changes and POST to web service
+# NOTE: Before crossfade so metadata is present. ~1s timing offset from crossfade is acceptable.
 radio = source.on_track(radio, fun(m) -> begin
   title = m["title"] ?? "unknown"
   artist = m["artist"] ?? ""
-  log.important("[KPBJ] Now playing: #{artist} - #{title}")
+  source_type = m["source_type"] ?? "unknown"
+  source_url = m["filename"] ?? ""
+
+  log.important("[KPBJ] Now playing: #{artist} - #{title} (#{source_type})")
+
+  # POST to web service if playout_secret is configured
+  if playout_secret != "" then
+    started_at = time.string("%Y-%m-%dT%H:%M:%SZ")
+
+    body = json.stringify({
+      prTitle = title,
+      prArtist = artist,
+      prSourceType = source_type,
+      prSourceUrl = source_url,
+      prStartedAt = started_at
+    })
+
+    ignore(http.post(
+      timeout=5.,
+      headers=[
+        ("Content-Type", "application/json"),
+        ("X-Playout-Secret", playout_secret)
+      ],
+      data=body,
+      "#{api_base}/played"
+    ))
+  end
 end)
+
+# Add crossfade between tracks (1s fade) to smooth transitions
+radio = crossfade(duration=1., radio)
 
 # Safety fallback in case both sources fail
 radio = mksafe(radio)

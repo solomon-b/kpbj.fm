@@ -109,7 +109,7 @@ import API.Get.Route qualified as Root.Get
 import API.Media.Get.Route qualified as Media.Get
 import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Route qualified as Playout.Now.Get
-import API.Stream.Metadata.Get.Route qualified as Stream.Metadata.Get
+import API.Playout.Played.Post.Route qualified as Playout.Played.Post
 import API.PrivacyPolicy.Get.Route qualified as PrivacyPolicy.Get
 import API.Schedule.Get.Route qualified as Schedule
 import API.Shows.Get.Route qualified as Shows.Get
@@ -118,6 +118,7 @@ import API.Shows.Slug.Blog.Post.Get.Route qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Get.Route qualified as Episodes.Get
 import API.Shows.Slug.Get.Route qualified as Show.Get
 import API.Static.RangePng.Get.Route qualified as Static.RangePng.Get
+import API.Stream.Metadata.Get.Route qualified as Stream.Metadata.Get
 import API.TermsOfService.Get.Route qualified as TermsOfService.Get
 import API.Uploads.Audio.Post.Route qualified as Uploads.Audio.Post
 import API.User.ForgotPassword.Get.Route qualified as User.ForgotPassword.Get
@@ -548,6 +549,8 @@ data PlayoutRoutes mode = PlayoutRoutes
   { -- | @GET /api/playout/now@ - Get currently airing episode audio URL
     now :: mode :- Playout.Now.Get.Route,
     -- | @GET /api/playout/fallback@ - Get random ephemeral track for fallback
-    fallback :: mode :- Playout.Fallback.Get.Route
+    fallback :: mode :- Playout.Fallback.Get.Route,
+    -- | @POST /api/playout/played@ - Log a track that started playing
+    played :: mode :- Playout.Played.Post.Route
   }
   deriving stock (Generic)
