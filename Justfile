@@ -680,6 +680,23 @@ stream-dev-restart:
   docker compose -f services/liquidsoap/docker-compose.yml \
                  -f services/liquidsoap/docker-compose.dev.yml restart
 
+# Rebuild and restart local streaming services (use after changing radio.liq or icecast.xml)
+stream-dev-rebuild:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "🔨 Building Icecast image..."
+  nix build .#icecast-docker
+  docker load -i result
+  echo "🔨 Building Liquidsoap image..."
+  nix build .#liquidsoap-docker
+  docker load -i result
+  echo "🔄 Restarting streaming services..."
+  docker compose -f services/liquidsoap/docker-compose.yml \
+                 -f services/liquidsoap/docker-compose.dev.yml down
+  docker compose -f services/liquidsoap/docker-compose.yml \
+                 -f services/liquidsoap/docker-compose.dev.yml up -d
+  echo "✨ Done! Streaming services rebuilt and restarted."
+
 # View local streaming service status
 stream-dev-status:
   docker compose -f services/liquidsoap/docker-compose.yml \
