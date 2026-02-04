@@ -25,6 +25,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Backfill Episode Durations Script** - Added script to populate missing episode duration values
 
 ### Infrastructure
+- **Docker Compose Ports** - Assigned explicit ports in environment-specific compose files
 - **Stream CI Pipeline** - Added GitHub Actions workflow for building and publishing stream container images
 - **LiquidSoap Secrets** - Added secret generation for LiquidSoap service authentication
 - **Icecast Infrastructure** - Initial Icecast streaming server configuration

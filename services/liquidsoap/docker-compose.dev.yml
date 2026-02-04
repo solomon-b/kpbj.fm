@@ -2,6 +2,10 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 services:
+  icecast:
+    ports:
+      - "8000:8000"
+
   liquidsoap:
     extra_hosts:
       - "host.docker.internal:host-gateway"
