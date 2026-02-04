@@ -3,7 +3,11 @@
 module App.CustomContext
   ( -- * Custom Context
     CustomContext (..),
-    initCustomContext,
+
+    -- * Two-phase initialization
+    CustomConfigs,
+    loadCustomConfigs,
+    buildCustomContext,
 
     -- * Re-exports
     StorageContext (..),
@@ -12,26 +16,38 @@ module App.CustomContext
     GoogleAnalyticsId (..),
     SmtpConfig (..),
     PlayoutSecret (..),
+    CleanupInterval (..),
   )
 where
 
 --------------------------------------------------------------------------------
 
 import Amazonka qualified as AWS
-import App.Analytics (AnalyticsConfig (..), GoogleAnalyticsId (..), initAnalyticsConfig)
+import App.Analytics (AnalyticsConfig (..), GoogleAnalyticsId (..), loadAnalyticsConfig)
 import App.Context (AppContext (..))
-import App.Smtp (SmtpConfig (..), initSmtpConfig)
-import App.Storage (StorageBackend (..), StorageContext (..), initStorageContext)
+import App.Smtp (SmtpConfig (..), loadSmtpConfig)
+import App.Storage (S3ConfigResult (..), StorageBackend (..), StorageContext (..), loadStorageConfig, withStorageContext)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Aeson ((.=))
+import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (getCurrentTime)
+import Effects.BackgroundJobs qualified as BackgroundJobs
+import Log qualified
 import System.Environment (lookupEnv)
+import Text.Read (readMaybe)
 
 --------------------------------------------------------------------------------
 
 -- | Secret used to authenticate Liquidsoap playout requests.
 newtype PlayoutSecret = PlayoutSecret {unPlayoutSecret :: Maybe Text}
+  deriving stock (Show, Eq)
+
+-- | Interval in seconds between background cleanup job runs.
+newtype CleanupInterval = CleanupInterval {unCleanupInterval :: Int}
   deriving stock (Show, Eq)
 
 -- | Custom application context containing all subsystem configurations.
@@ -42,7 +58,8 @@ data CustomContext = CustomContext
   { storageContext :: StorageContext,
     analyticsConfig :: AnalyticsConfig,
     smtpConfig :: Maybe SmtpConfig,
-    playoutSecret :: PlayoutSecret
+    playoutSecret :: PlayoutSecret,
+    cleanupInterval :: CleanupInterval
   }
 
 --------------------------------------------------------------------------------
@@ -63,6 +80,10 @@ instance Has.Has (Maybe SmtpConfig) CustomContext where
 instance Has.Has PlayoutSecret CustomContext where
   getter = playoutSecret
   modifier f ctx = ctx {playoutSecret = f (playoutSecret ctx)}
+
+instance Has.Has CleanupInterval CustomContext where
+  getter = cleanupInterval
+  modifier f ctx = ctx {cleanupInterval = f (cleanupInterval ctx)}
 
 instance Has.Has StorageBackend CustomContext where
   getter = storageBackend . storageContext
@@ -125,27 +146,92 @@ instance Has.Has PlayoutSecret (AppContext CustomContext) where
   getter = Has.getter @PlayoutSecret . appCustom
   modifier f ctx = ctx {appCustom = Has.modifier @PlayoutSecret f (appCustom ctx)}
 
+instance Has.Has CleanupInterval (AppContext CustomContext) where
+  getter = Has.getter @CleanupInterval . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @CleanupInterval f (appCustom ctx)}
+
 --------------------------------------------------------------------------------
 
--- | Initialize the complete custom context.
---
--- Loads all subsystem configurations from environment variables.
-initCustomContext :: (MonadIO m) => m CustomContext
-initCustomContext = do
-  storage <- initStorageContext
-  analytics <- initAnalyticsConfig
-  smtp <- initSmtpConfig
-  playout <- initPlayoutSecret
-  pure
-    CustomContext
-      { storageContext = storage,
-        analyticsConfig = analytics,
-        smtpConfig = smtp,
-        playoutSecret = playout
-      }
+-- | All custom configurations loaded from environment (Phase 1).
+type CustomConfigs = (S3ConfigResult, AnalyticsConfig, Maybe SmtpConfig, PlayoutSecret, CleanupInterval)
 
--- | Initialize the playout secret from environment.
-initPlayoutSecret :: (MonadIO m) => m PlayoutSecret
-initPlayoutSecret = do
+-- | Load all custom configurations from environment (Phase 1).
+--
+-- This reads all environment variables but does NOT build resources that
+-- require AppContext (like storage context which needs Environment).
+loadCustomConfigs :: (MonadIO m) => m CustomConfigs
+loadCustomConfigs = do
+  storageConfig <- loadStorageConfig
+  analytics <- loadAnalyticsConfig
+  smtp <- loadSmtpConfig
+  playout <- loadPlayoutSecret
+  cleanup <- loadCleanupInterval
+  pure (storageConfig, analytics, smtp, playout, cleanup)
+
+-- | Build CustomContext inside withAppResources callback (Phase 2).
+--
+-- Uses AppContext to determine environment-specific behavior and
+-- logs final configuration state using structured logging.
+buildCustomContext ::
+  AppContext ctx ->
+  CustomConfigs ->
+  (CustomContext -> IO a) ->
+  IO a
+buildCustomContext appCtx (storageConfig, analytics, smtp, playout, cleanup) action = do
+  -- Log analytics, SMTP, and cleanup configuration state
+  logConfigState (appLoggerEnv appCtx) analytics smtp playout cleanup
+
+  -- Build storage context (which may log and/or fail)
+  withStorageContext appCtx storageConfig $ \storage -> do
+    let customCtx =
+          CustomContext
+            { storageContext = storage,
+              analyticsConfig = analytics,
+              smtpConfig = smtp,
+              playoutSecret = playout,
+              cleanupInterval = cleanup
+            }
+    action customCtx
+
+-- | Log the configuration state for analytics, SMTP, playout, and cleanup.
+logConfigState :: Log.LoggerEnv -> AnalyticsConfig -> Maybe SmtpConfig -> PlayoutSecret -> CleanupInterval -> IO ()
+logConfigState logEnv analytics smtp playout cleanup = do
+  time <- getCurrentTime
+  Log.logMessageIO logEnv time Log.LogInfo "Custom configuration loaded" $
+    Aeson.object
+      [ "analytics"
+          .= Aeson.object
+            [ "enabled" .= isJust (googleAnalyticsId analytics),
+              "gtag_id" .= fmap (\(GoogleAnalyticsId gid) -> gid) (googleAnalyticsId analytics)
+            ],
+        "smtp"
+          .= Aeson.object
+            [ "enabled" .= isJust smtp,
+              "server" .= fmap smtpServer smtp
+            ],
+        "playout"
+          .= Aeson.object
+            ["secret_configured" .= isJust (unPlayoutSecret playout)],
+        "cleanup"
+          .= Aeson.object
+            ["interval_seconds" .= unCleanupInterval cleanup]
+      ]
+  where
+    isJust :: Maybe a -> Bool
+    isJust (Just _) = True
+    isJust Nothing = False
+
+-- | Load the playout secret from environment (Phase 1).
+loadPlayoutSecret :: (MonadIO m) => m PlayoutSecret
+loadPlayoutSecret = do
   mSecret <- liftIO $ lookupEnv "PLAYOUT_SECRET"
   pure $ PlayoutSecret (Text.pack <$> mSecret)
+
+-- | Load cleanup interval from APP_CLEANUP_INTERVAL_SECONDS env var (Phase 1).
+--
+-- Falls back to 'BackgroundJobs.defaultCleanupIntervalSeconds' (1 hour) if not set or invalid.
+loadCleanupInterval :: (MonadIO m) => m CleanupInterval
+loadCleanupInterval = liftIO $ do
+  mInterval <- lookupEnv "APP_CLEANUP_INTERVAL_SECONDS"
+  let interval = fromMaybe BackgroundJobs.defaultCleanupIntervalSeconds (mInterval >>= readMaybe)
+  pure $ CleanupInterval interval

@@ -141,48 +141,41 @@ import API.User.VerifyEmail.Get.Handler qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Handler qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Handler qualified as User.VerifyEmailSent.Get
 import App qualified
-import App.CustomContext (initCustomContext)
+import App.Context (AppContext (..))
+import App.CustomContext (CleanupInterval (..), buildCustomContext, loadCustomConfigs)
 import App.Monad (AppM)
 import Control.Concurrent.Async qualified as Async
 import Data.Has qualified as Has
-import Data.Maybe (fromMaybe)
 import Effects.BackgroundJobs qualified as BackgroundJobs
 import Hasql.Pool qualified as HSQL.Pool
 import Servant qualified
-import System.Environment (lookupEnv)
-import Text.Read (readMaybe)
 
 --------------------------------------------------------------------------------
 
 -- | Run the API server with the custom context.
 --
--- Uses 'App.withAppResources' to acquire the database pool and other resources,
--- then spawns background cleanup jobs alongside the main server using the shared pool.
+-- Uses two-phase initialization:
+-- 1. Load configs (pure env var reading) before withAppResources
+-- 2. Build resources with AppContext inside withAppResources callback
+--
+-- Then spawns background cleanup jobs alongside the main server using the shared pool.
 runApi :: IO ()
 runApi = do
-  customCtx <- initCustomContext
-  App.withAppResources customCtx $ \appCtx -> do
-    -- Extract the shared database pool from the app context
-    let pool = Has.getter @HSQL.Pool.Pool appCtx
+  configs <- loadCustomConfigs
 
-    -- Load cleanup interval from environment
-    cleanupInterval <- loadCleanupInterval
+  App.withAppResources () $ \baseAppCtx ->
+    buildCustomContext baseAppCtx configs $ \customCtx -> do
+      let appCtx = baseAppCtx {appCustom = customCtx}
+          pool = Has.getter @HSQL.Pool.Pool appCtx
+          CleanupInterval interval = Has.getter @CleanupInterval appCtx
 
-    -- Start background jobs, then run the main server.
-    -- When the server exits, withAsync automatically cancels the background task.
-    -- Note: If the server is terminated mid-cleanup (e.g., SIGTERM), the current
-    -- query may be interrupted. This is acceptable since cleanup queries are
-    -- idempotent DELETEs that will run again on next startup.
-    Async.withAsync (BackgroundJobs.runCleanupLoop cleanupInterval pool) $ \_cleanupJob -> do
-      App.runServer @API (const server) appCtx
-
--- | Load cleanup interval from APP_CLEANUP_INTERVAL_SECONDS env var.
---
--- Falls back to 'BackgroundJobs.defaultCleanupIntervalSeconds' (1 hour) if not set or invalid.
-loadCleanupInterval :: IO Int
-loadCleanupInterval = do
-  mInterval <- lookupEnv "APP_CLEANUP_INTERVAL_SECONDS"
-  pure $ fromMaybe BackgroundJobs.defaultCleanupIntervalSeconds (mInterval >>= readMaybe)
+      -- Start background jobs, then run the main server.
+      -- When the server exits, withAsync automatically cancels the background task.
+      -- Note: If the server is terminated mid-cleanup (e.g., SIGTERM), the current
+      -- query may be interrupted. This is acceptable since cleanup queries are
+      -- idempotent DELETEs that will run again on next startup.
+      Async.withAsync (BackgroundJobs.runCleanupLoop interval pool) $ \_cleanupJob -> do
+        App.runServer @API (const server) appCtx
 
 --------------------------------------------------------------------------------
 
