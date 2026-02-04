@@ -17,6 +17,7 @@ where
 --------------------------------------------------------------------------------
 
 import Amazonka qualified as AWS
+import App.Config (Environment (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Has qualified as Has
 import Data.Text (Text)
@@ -45,53 +46,71 @@ instance Has.Has (Maybe AWS.Env) StorageContext where
 
 --------------------------------------------------------------------------------
 
--- | Initialize storage context based on environment variables.
+-- | Initialize storage context based on environment.
 --
--- Uses S3 storage if BUCKET_NAME and AWS_REGION are set, otherwise falls back
--- to local filesystem storage.
+-- Uses local filesystem storage for Development, S3 storage for Staging/Production.
 --
--- Environment variables (set automatically by `fly storage create --app`):
---   - BUCKET_NAME: S3 bucket name (required for S3)
---   - AWS_REGION: AWS region, typically "auto" for Tigris (required for S3)
+-- Environment variables:
+--   - APP_ENVIRONMENT: "Development", "Staging", or "Production" (default: Development)
+--
+-- For Staging/Production (S3), these additional env vars are required
+-- (set automatically by `fly storage create --app`):
+--   - BUCKET_NAME: S3 bucket name
+--   - AWS_REGION: AWS region, typically "auto" for Tigris
 --   - AWS_ENDPOINT_URL_S3: Custom S3 endpoint (optional, for S3-compatible services)
 --   - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY: Credentials (auto-discovered by SDK)
 --
 -- For standard AWS S3, omit AWS_ENDPOINT_URL_S3 and the SDK will use default endpoints.
---
--- IMPORTANT: If some but not all S3 env vars are set, the application will fail
--- to start. This prevents accidental data loss from misconfiguration.
 initStorageContext :: (MonadIO m) => m StorageContext
 initStorageContext = do
-  s3ConfigResult <- loadS3Config
-  case s3ConfigResult of
-    NoS3Config -> do
-      liftIO $ putStrLn "Using local storage (no S3 env vars set)"
+  env <- loadEnvironment
+  case env of
+    Development -> do
+      liftIO $ putStrLn "Using local storage (Development environment)"
       pure
         StorageContext
           { storageBackend = LocalStorage defaultLocalConfig,
             awsEnv = Nothing
           }
-    ValidS3Config s3Config -> do
-      liftIO $ putStrLn $ "Using S3 storage (bucket: " <> Text.unpack (s3BucketName s3Config) <> ")"
-      liftIO $ case s3EndpointUrl s3Config of
-        Just endpoint -> putStrLn $ "  Custom endpoint: " <> Text.unpack endpoint
-        Nothing -> putStrLn "  Using standard AWS S3 endpoint"
-      awsEnv' <- AWS.initAWSEnv (s3Region s3Config) (s3EndpointUrl s3Config)
-      pure
-        StorageContext
-          { storageBackend = S3Storage s3Config,
-            awsEnv = Just awsEnv'
-          }
-    PartialS3Config missing present -> do
-      liftIO $ do
-        putStrLn "ERROR: Partial S3 configuration detected!"
-        putStrLn $ "  Missing env vars: " <> Text.unpack (Text.intercalate ", " missing)
-        putStrLn $ "  Present env vars: " <> Text.unpack (Text.intercalate ", " present)
-        putStrLn ""
-        putStrLn "Set all required env vars: BUCKET_NAME, AWS_REGION"
-        putStrLn "For S3-compatible services (Tigris, MinIO), also set AWS_ENDPOINT_URL_S3"
-        putStrLn "Or set NONE to use local storage."
-      error "Fatal: Partial S3 configuration"
+    _ -> do
+      -- Staging/Production require S3
+      s3ConfigResult <- loadS3Config
+      case s3ConfigResult of
+        ValidS3Config s3Config -> do
+          liftIO $ putStrLn $ "Using S3 storage (bucket: " <> Text.unpack (s3BucketName s3Config) <> ")"
+          liftIO $ case s3EndpointUrl s3Config of
+            Just endpoint -> putStrLn $ "  Custom endpoint: " <> Text.unpack endpoint
+            Nothing -> putStrLn "  Using standard AWS S3 endpoint"
+          awsEnv' <- AWS.initAWSEnv (s3Region s3Config) (s3EndpointUrl s3Config)
+          pure
+            StorageContext
+              { storageBackend = S3Storage s3Config,
+                awsEnv = Just awsEnv'
+              }
+        NoS3Config -> do
+          liftIO $ do
+            putStrLn $ "ERROR: S3 configuration required for " <> show env <> " environment!"
+            putStrLn "Set required env vars: BUCKET_NAME, AWS_REGION"
+            putStrLn "For S3-compatible services (Tigris, MinIO), also set AWS_ENDPOINT_URL_S3"
+          error $ "Fatal: S3 configuration required for " <> show env
+        PartialS3Config missing present -> do
+          liftIO $ do
+            putStrLn "ERROR: Partial S3 configuration detected!"
+            putStrLn $ "  Missing env vars: " <> Text.unpack (Text.intercalate ", " missing)
+            putStrLn $ "  Present env vars: " <> Text.unpack (Text.intercalate ", " present)
+            putStrLn ""
+            putStrLn "Set all required env vars: BUCKET_NAME, AWS_REGION"
+            putStrLn "For S3-compatible services (Tigris, MinIO), also set AWS_ENDPOINT_URL_S3"
+          error "Fatal: Partial S3 configuration"
+
+-- | Load environment from APP_ENVIRONMENT env var, defaulting to Development.
+loadEnvironment :: (MonadIO m) => m Environment
+loadEnvironment = liftIO $ do
+  mEnv <- lookupEnv "APP_ENVIRONMENT"
+  pure $ case mEnv of
+    Just "Production" -> Production
+    Just "Staging" -> Staging
+    _ -> Development
 
 -- | S3 configuration result.
 data S3ConfigResult
