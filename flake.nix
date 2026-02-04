@@ -117,6 +117,7 @@
               pkgs.ormolu
               pkgs.openssl
               pkgs.postgresql
+              pkgs.rclone
               pkgs.shellcheck
               pkgs.sqlx-cli
               pkgs.sloc
