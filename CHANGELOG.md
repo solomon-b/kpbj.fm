@@ -23,6 +23,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Create Release Tag Action** - Fixed GitHub Actions workflow for creating release tags
 
 ### Chores
+- **StorageContext Uses Environment** - Storage backend selection now uses `Environment` from `AppContext` instead of reading env var directly
 - **Backup Scripts** - Added database and file backup scripts for disaster recovery
 - **Stream Container Commands** - Added `just stream-rebuild` and `just stream-reload` commands
 - **Fetch Ephemeral Audio Script** - Added utility script to download ephemeral audio files
