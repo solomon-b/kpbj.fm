@@ -2,6 +2,10 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
 
 services:
+  icecast:
+    ports:
+      - "8001:8000"
+
   liquidsoap:
     environment:
       - API_BASE=https://staging.kpbj.fm/api/playout

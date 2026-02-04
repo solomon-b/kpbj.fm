@@ -16,10 +16,25 @@ if [[ "$ENV" != "staging" && "$ENV" != "prod" ]]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="docker-compose.${ENV}.yml"
+REMOTE_DIR="/opt/kpbj-stream"
 
 echo "Deploying streaming services to ${ENV} (tag: ${TAG})..."
 
+# Create remote directory if needed (no sudo - assumes directory exists or user can create it)
+echo "Setting up remote directory..."
+ssh "$HOST" "mkdir -p ${REMOTE_DIR}" || {
+  echo "ERROR: Cannot create ${REMOTE_DIR}. Run this once on the VPS:"
+  echo "  sudo mkdir -p ${REMOTE_DIR} && sudo chown \$(whoami) ${REMOTE_DIR}"
+  exit 1
+}
+
+# Copy compose files
+echo "Copying compose files..."
+scp "${SCRIPT_DIR}/docker-compose.yml" "${SCRIPT_DIR}/${COMPOSE_FILE}" "${HOST}:${REMOTE_DIR}/"
+
+# Deploy
 ssh "$HOST" bash -s "$TAG" "$COMPOSE_FILE" << 'REMOTE_SCRIPT'
 set -euo pipefail
 TAG="$1"
