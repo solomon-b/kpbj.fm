@@ -712,12 +712,7 @@ stream-staging-deploy TAG="latest":
     echo "Example: STAGING_STREAM_HOST=deploy@staging-stream.kpbj.fm just stream-staging-deploy"
     exit 1
   fi
-  echo "Deploying streaming services to staging (tag: {{TAG}})..."
-  ssh "$STAGING_STREAM_HOST" "cd /opt/kpbj-stream && \
-    echo 'IMAGE_TAG={{TAG}}' > .env.tag && \
-    docker compose -f docker-compose.yml -f docker-compose.staging.yml pull && \
-    docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d"
-  echo "Done!"
+  ./services/liquidsoap/scripts/stream-deploy.sh "$STAGING_STREAM_HOST" staging "{{TAG}}"
 
 # Deploy streaming services to production VPS
 # Requires PROD_STREAM_HOST env var (e.g., deploy@stream.kpbj.fm)
@@ -729,9 +724,4 @@ stream-prod-deploy TAG="latest":
     echo "Example: PROD_STREAM_HOST=deploy@stream.kpbj.fm just stream-prod-deploy"
     exit 1
   fi
-  echo "Deploying streaming services to production (tag: {{TAG}})..."
-  ssh "$PROD_STREAM_HOST" "cd /opt/kpbj-stream && \
-    echo 'IMAGE_TAG={{TAG}}' > .env.tag && \
-    docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \
-    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
-  echo "Done!"
+  ./services/liquidsoap/scripts/stream-deploy.sh "$PROD_STREAM_HOST" prod "{{TAG}}"
