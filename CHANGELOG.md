@@ -25,6 +25,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Backfill Episode Durations Script** - Added script to populate missing episode duration values
 
 ### Infrastructure
+- **LiquidSoap Secrets** - Added secret generation for LiquidSoap service authentication
 - **Icecast Infrastructure** - Initial Icecast streaming server configuration
 
 ---
