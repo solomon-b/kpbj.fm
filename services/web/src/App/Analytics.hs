@@ -1,7 +1,7 @@
 module App.Analytics
   ( -- * Analytics Configuration
     AnalyticsConfig (..),
-    initAnalyticsConfig,
+    loadAnalyticsConfig,
 
     -- * Re-exports
     GoogleAnalyticsId (..),
@@ -32,19 +32,13 @@ instance Has.Has (Maybe GoogleAnalyticsId) AnalyticsConfig where
 
 --------------------------------------------------------------------------------
 
--- | Initialize analytics configuration from environment variables.
+-- | Load analytics configuration from environment variables (Phase 1).
 --
 -- Environment variables:
 --   - APP_GOOGLE_ANALYTICS_GTAG: Google Analytics 4 Measurement ID (e.g., "G-XXXXXXXXXX")
 --
 -- If not set, analytics tracking is disabled.
-initAnalyticsConfig :: (MonadIO m) => m AnalyticsConfig
-initAnalyticsConfig = liftIO $ do
+loadAnalyticsConfig :: (MonadIO m) => m AnalyticsConfig
+loadAnalyticsConfig = liftIO $ do
   mGtag <- lookupEnv "APP_GOOGLE_ANALYTICS_GTAG"
-  case mGtag of
-    Just gtag -> do
-      putStrLn $ "Google Analytics enabled (ID: " <> gtag <> ")"
-      pure AnalyticsConfig {googleAnalyticsId = Just (GoogleAnalyticsId (Text.pack gtag))}
-    Nothing -> do
-      putStrLn "Google Analytics not configured (APP_GOOGLE_ANALYTICS_GTAG not set)"
-      pure AnalyticsConfig {googleAnalyticsId = Nothing}
+  pure AnalyticsConfig {googleAnalyticsId = GoogleAnalyticsId . Text.pack <$> mGtag}

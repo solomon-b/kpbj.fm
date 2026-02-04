@@ -12,7 +12,7 @@
 module App.Smtp
   ( -- * SMTP Configuration
     SmtpConfig (..),
-    initSmtpConfig,
+    loadSmtpConfig,
   )
 where
 
@@ -49,7 +49,7 @@ data SmtpConfig = SmtpConfig
 
 --------------------------------------------------------------------------------
 
--- | Initialize SMTP configuration from environment variables.
+-- | Load SMTP configuration from environment variables (Phase 1).
 --
 -- Environment variables:
 --   - APP_SMTP_SERVER: SMTP server hostname (e.g., "smtp.gmail.com")
@@ -62,8 +62,8 @@ data SmtpConfig = SmtpConfig
 --
 -- Returns Nothing if any required environment variables are missing.
 -- When SMTP is not configured, emails will be logged to console instead.
-initSmtpConfig :: (MonadIO m) => m (Maybe SmtpConfig)
-initSmtpConfig = liftIO $ do
+loadSmtpConfig :: (MonadIO m) => m (Maybe SmtpConfig)
+loadSmtpConfig = liftIO $ do
   mServer <- lookupEnvText "APP_SMTP_SERVER"
   mPort <- lookupEnvInt "APP_SMTP_PORT"
   mUsername <- lookupEnvText "APP_SMTP_USERNAME"
@@ -73,8 +73,7 @@ initSmtpConfig = liftIO $ do
   mBaseUrl <- lookupEnvText "APP_BASE_URL"
 
   case (mServer, mPort, mUsername, mPassword, mFromEmail, mFromName, mBaseUrl) of
-    (Just server, Just port, Just username, Just password, Just fromEmail, Just fromName, Just baseUrl) -> do
-      putStrLn $ "SMTP configured (server: " <> Text.unpack server <> ":" <> show port <> ")"
+    (Just server, Just port, Just username, Just password, Just fromEmail, Just fromName, Just baseUrl) ->
       pure $
         Just
           SmtpConfig
@@ -86,8 +85,7 @@ initSmtpConfig = liftIO $ do
               smtpFromName = fromName,
               smtpBaseUrl = baseUrl
             }
-    _ -> do
-      putStrLn "SMTP not configured - emails will be logged to console"
+    _ ->
       pure Nothing
 
 -- | Look up an environment variable and convert to Text.
