@@ -14,6 +14,7 @@ import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Utils (escapeJsString)
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
@@ -129,8 +130,8 @@ audioPlayerScript playerId hasAudio audioUrl episodeMetadata =
   [i|{
   playerId: '#{playerId}',
   hasAudio: #{hasAudio},
-  audioUrl: '#{audioUrl}',
-  title: '#{episodeMetadata}',
+  audioUrl: '#{escapeJsString audioUrl}',
+  title: '#{escapeJsString episodeMetadata}',
 
   // Check if navbar player is currently playing this episode
   get isPlaying() {

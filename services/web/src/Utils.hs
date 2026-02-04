@@ -1,8 +1,16 @@
-module Utils where
+module Utils
+  ( fromRightM,
+    catEithers,
+    partitionEithers,
+    escapeJsString,
+  )
+where
 
 --------------------------------------------------------------------------------
 
 import Data.Maybe (mapMaybe)
+import Data.Text (Text)
+import Data.Text qualified as Text
 
 --------------------------------------------------------------------------------
 
@@ -17,3 +25,17 @@ partitionEithers = foldr (either left right) ([], [])
   where
     left a (ls, rs) = (a : ls, rs)
     right b (ls, rs) = (ls, b : rs)
+
+-- | Escape a Text value for use inside a JavaScript string literal.
+-- Escapes backslashes, quotes, newlines, tabs, and template literal backticks.
+escapeJsString :: Text -> Text
+escapeJsString = Text.concatMap escapeChar
+  where
+    escapeChar '\\' = "\\\\"
+    escapeChar '\'' = "\\'"
+    escapeChar '"' = "\\\""
+    escapeChar '\n' = "\\n"
+    escapeChar '\r' = "\\r"
+    escapeChar '\t' = "\\t"
+    escapeChar '`' = "\\`"
+    escapeChar c = Text.singleton c
