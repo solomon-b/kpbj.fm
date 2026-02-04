@@ -22,6 +22,7 @@ import Design (base, class_, class_')
 import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Alpine
+import Utils (escapeJsString)
 
 --------------------------------------------------------------------------------
 
@@ -119,15 +120,15 @@ render Config {..} = do
 alpineScript :: Text -> Text -> Text -> Text -> Text
 alpineScript playerId' audioUrl' title' fileInputSelector =
   [i|{
-  playerId: '#{playerId'}',
+  playerId: '#{escapeJsString playerId'}',
   isPlaying: false,
-  originalUrl: '#{audioUrl'}',
-  audioUrl: '#{audioUrl'}',
-  title: '#{title'}',
+  originalUrl: '#{escapeJsString audioUrl'}',
+  audioUrl: '#{escapeJsString audioUrl'}',
+  title: '#{escapeJsString title'}',
   currentTime: 0,
   duration: 0,
   blobUrl: null,
-  fileInputSelector: '#{fileInputSelector}',
+  fileInputSelector: '#{escapeJsString fileInputSelector}',
   init() {
     const audio = this.$refs.audio;
     audio.addEventListener('loadedmetadata', () => {
