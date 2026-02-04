@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Mailing List Signup** - Added newsletter signup form to the About Us page
 - **Playback History Logging** - Added `POST /api/playout/played` endpoint for Liquidsoap to report played tracks
 - **Icecast Status Display** - Stream settings page now shows live Icecast server status
 - **Stream Metadata Proxy** - Added `/api/stream/metadata` endpoint that proxies Icecast stream metadata for the web player
