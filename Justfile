@@ -647,19 +647,6 @@ stream-build:
   docker load -i result
   echo "Done! Images loaded into Docker."
 
-# Build and push streaming images to GHCR
-stream-publish TAG="latest":
-  #!/usr/bin/env bash
-  set -euo pipefail
-  for pkg in icecast liquidsoap; do
-    echo "Building $pkg image with tag {{TAG}}..."
-    IMAGE_TAG={{TAG}} nix build .#${pkg}-docker --impure
-    image=$(docker load -i result | sed -n 's/Loaded image: //p')
-    echo "Pushing $image..."
-    docker push "$image"
-  done
-  echo "Done! Images pushed to GHCR."
-
 # Start local streaming services (Icecast + Liquidsoap)
 stream-dev-start:
   docker compose -f services/liquidsoap/docker-compose.yml \
@@ -701,6 +688,17 @@ stream-dev-rebuild:
 stream-dev-status:
   docker compose -f services/liquidsoap/docker-compose.yml \
                  -f services/liquidsoap/docker-compose.dev.yml ps
+
+# Build and push streaming images via GitHub Actions
+stream-publish TAG="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ -n "{{TAG}}" ]; then
+    gh workflow run stream-images.yml -f tag="{{TAG}}"
+  else
+    gh workflow run stream-images.yml
+  fi
+  echo "Workflow triggered. Run 'gh run watch' to monitor progress."
 
 # Deploy streaming services to staging VPS
 # Requires STAGING_STREAM_HOST env var (e.g., deploy@staging-stream.kpbj.fm)
