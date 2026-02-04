@@ -8,8 +8,7 @@ services:
   icecast:
     image: ghcr.io/solomon-b/kpbj-icecast:${IMAGE_TAG:-latest}
     container_name: kpbj-icecast
-    ports:
-      - "8000:8000"
+    # Ports defined in environment-specific overrides (dev: 8000, staging: 8001, prod: 8000)
     # Config is bundled in image; env vars applied at startup by entrypoint
     environment:
       - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
