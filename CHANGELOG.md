@@ -16,6 +16,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - Stream available at `http://localhost:8000/stream`
 
 ### Fixes
+- **Episode Metadata Escaping** - Fixed HTML escaping in episode metadata to prevent XSS
 - **Form Builder Progress Bar** - Progress bar now only shows on forms with file upload fields
 - **Create Release Tag Action** - Fixed GitHub Actions workflow for creating release tags
 
