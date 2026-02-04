@@ -553,6 +553,22 @@ bannerFromUrlScript =
   \  }\
   \})();"
 
+-- | JavaScript to clear banner when navigating to a new page via HTMX
+--
+-- When HTMX swaps #main-content (navigation), the banner should be cleared.
+-- OOB banner swaps will repopulate the container if needed.
+clearBannerOnNavScript :: Text
+clearBannerOnNavScript =
+  [i|
+    document.addEventListener('htmx:beforeRequest', function(event) {
+      const target = event.detail.target;
+      if (target && target.id === 'main-content') {
+        const container = document.getElementById('banner-container');
+        if (container) container.innerHTML = '';
+      }
+    });
+  |]
+
 authWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
 authWidget mUser =
   Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.fgMuted]] $ do
@@ -745,6 +761,7 @@ template mGoogleAnalyticsId streamSettings mUser main =
       Lucid.script_ [] (darkModeScript (UserMetadata.mColorScheme <$> mUser))
       Lucid.script_ [] activeNavScript
       Lucid.script_ [] bannerFromUrlScript
+      Lucid.script_ [] clearBannerOnNavScript
       Lucid.style_ [] marqueeStyles
       Lucid.style_ [] htmxIndicatorStyles
       Lucid.style_ [] formBuilderCSS
