@@ -57,8 +57,8 @@ ephemeralUploadForm uploadUrl = do
       section "AUDIO FILE" $ do
         stagedAudioField "audio_file" uploadUrl "ephemeral_audio" $ do
           label "Ephemeral Audio"
-          hint "Upload an MP3, WAV, or other audio file. Maximum 50MB."
-          maxSize 50
+          hint "Upload an MP3. Maximum 500MB."
+          maxSize 500
 
       -- Form Actions
       cancelButton cancelUrl "CANCEL"
