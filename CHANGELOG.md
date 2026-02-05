@@ -36,6 +36,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Fetch Ephemeral Audio Script** - Added utility script to download ephemeral audio files
 - **Backfill Episode Durations Script** - Added script to populate missing episode duration values
 
+### Documentation
+- **ARCHITECTURE.md** - New system architecture doc covering all three services (Web, Liquidsoap, Icecast), deployment topology, environments, playout API, and CI/CD pipelines
+- **README.md** - Rewrote with service overview, dev setup, environment variables, release process, and streaming deployment
+- **CLAUDE.md** - Updated to reference new docs, fixed incorrect PostgreSQL port and removed non-existent deploy command
+- **Storage comment fix** - Fixed misleading comment in `App/Storage.hs` about S3 fallback behavior
+
 ---
 
 ## [0.6.0] - 2026-02-01
