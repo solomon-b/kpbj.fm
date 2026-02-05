@@ -17,6 +17,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - Stream available at `http://localhost:8000/stream`
 
 ### Fixes
+- **Audio Player Preserved on Back/Forward** - Browser history navigation no longer interrupts audio playback. Added `hx-history-elt` to scope HTMX history snapshots to `#main-content`, preserving the player's Alpine state and audio element.
 - **Banner Dismiss on Click Away** - Banners now dismiss when user clicks outside of them
 - **Episode Metadata Escaping** - Fixed HTML escaping in episode metadata to prevent XSS
 - **Form Builder Progress Bar** - Progress bar now only shows on forms with file upload fields

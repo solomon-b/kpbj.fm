@@ -48,6 +48,9 @@ module Lucid.HTMX
 
     -- * Redirects
     hxFollowRedirects_,
+
+    -- * History
+    hxHistoryElt_,
   )
 where
 
@@ -187,3 +190,16 @@ hxSwapOob_ = Lucid.makeAttributes "hx-swap-oob"
 -- > hxFollowRedirects_
 hxFollowRedirects_ :: Lucid.Attributes
 hxFollowRedirects_ = Lucid.makeAttributesRaw "hx-follow-redirects" "true"
+
+--------------------------------------------------------------------------------
+-- History
+
+-- | HTMX hx-history-elt attribute.
+--
+-- Marks this element as the history snapshot target. Only this element's
+-- innerHTML will be cached and restored during browser history navigation,
+-- preserving sibling elements (like audio players) across back/forward.
+--
+-- > hxHistoryElt_
+hxHistoryElt_ :: Lucid.Attributes
+hxHistoryElt_ = Lucid.makeAttributesRaw "hx-history-elt" ""
