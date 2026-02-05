@@ -98,6 +98,7 @@ episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
       section "MEDIA FILES" $ do
         stagedAudioField "audio_file" uploadUrl "episode_audio" $ do
           label "Episode Audio"
+          hint "Upload an MP3. Maximum 500MB."
           maxSize 500
 
         imageField "artwork_file" $ do
@@ -122,4 +123,3 @@ episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
     encodeScheduleValue :: ShowSchedule.UpcomingShowDate -> Text.Text
     encodeScheduleValue usd =
       display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdStartTime usd)
-
