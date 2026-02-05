@@ -508,6 +508,12 @@ activeNavScript =
 
     document.addEventListener('DOMContentLoaded', updateActiveNav);
     document.addEventListener('htmx:pushedIntoHistory', updateActiveNav);
+    document.addEventListener('htmx:historyRestore', function() {
+      updateActiveNav();
+      // Clear stale banners when navigating back
+      const container = document.getElementById('banner-container');
+      if (container) container.innerHTML = '';
+    });
   |]
 
 -- | JavaScript to display banner from URL query parameters on page load
@@ -803,11 +809,14 @@ template mGoogleAnalyticsId streamSettings mUser main =
 
             -- Main content
             -- "isolate" creates a stacking context so PayPal iframes can't escape with high z-index
+            -- "hx-history-elt" tells HTMX to only snapshot this element for history navigation,
+            -- preserving the audio player and Alpine state during back/forward
             Lucid.main_
               [ class_ $ do
                   base ["flex-grow", Tokens.px4, Tokens.py4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth, "flex", "flex-col", "isolate"]
                   tablet [Tokens.px4, "items-center"],
-                Lucid.id_ "main-content"
+                Lucid.id_ "main-content",
+                hxHistoryElt_
               ]
               main
 
