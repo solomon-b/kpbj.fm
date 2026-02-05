@@ -14,19 +14,8 @@
 
 set -euo pipefail
 
-# Configuration
-PROD_DB_APP="kpbj-postgres"
-PROD_DB_NAME="kpbj_fm"
-PROD_DB_USER="kpbj_fm"
-STAGING_APP="kpbj-fm-staging"
-STAGING_DB_APP="kpbj-postgres-staging"
-STAGING_DB_NAME="kpbj_fm_staging"
-STAGING_DB_USER="postgres"
-PROD_PROXY_PORT="15433"
-STAGING_PROXY_PORT="15432"
-
-# Argon2 hash for "hunter2" - used to sanitize passwords
-SANITIZED_PASSWORD_HASH='$argon2id$v=19$m=65536,t=2,p=1$bndaU0ZXRzYvRHRRbU9ubmM0TGsyQT09$12Dlzkd8oZ5CBlVuUivYSGbPL1M4nfTEIXb56hS+FVo'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 echo "========================================"
 echo "Production to Staging Database Copy"
@@ -37,7 +26,7 @@ echo "  - User and Host accounts: PII will be sanitized"
 echo "  - Staff and Admin accounts: credentials unchanged"
 echo ""
 
-read -p "Type 'yes' to confirm: " CONFIRM
+read -rp "Type 'yes' to confirm: " CONFIRM
 if [ "$CONFIRM" != "yes" ]; then
   echo "Aborted."
   exit 1
@@ -91,23 +80,9 @@ pg_dump "postgres://$PROD_DB_USER:$PROD_DB_PASSWORD@localhost:$PROD_PROXY_PORT/$
   | psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/$STAGING_DB_NAME"
 
 echo "Sanitizing PII for User and Host accounts..."
-psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/$STAGING_DB_NAME" <<SANITIZE_SQL
-  UPDATE users u
-  SET
-    email = 'user' || u.id || '@example.com',
-    password = '$SANITIZED_PASSWORD_HASH'
-  FROM user_metadata um
-  WHERE um.user_id = u.id
-    AND um.user_role IN ('User', 'Host');
-
-  UPDATE user_metadata
-  SET
-    display_name = 'user' || user_id,
-    full_name = 'Test User ' || user_id
-  WHERE user_role IN ('User', 'Host');
-
-  TRUNCATE server_sessions;
-SANITIZE_SQL
+psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/$STAGING_DB_NAME" \
+  -v password_hash="'$SANITIZED_PASSWORD_HASH'" \
+  -f "$SCRIPT_DIR/lib/sanitize-pii.sql"
 
 echo "Restarting staging app..."
 fly scale count 1 --app "$STAGING_APP" --yes

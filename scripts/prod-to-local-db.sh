@@ -11,25 +11,14 @@
 #   PROD_DB_PASSWORD  - Production database password
 #
 # Prerequisites:
-#   - Local PostgreSQL running (just postgres-dev-start)
+#   - Local PostgreSQL running (just dev-postgres-start)
 #   - flyctl installed and authenticated
 #
 
 set -euo pipefail
 
-# Configuration
-PROD_DB_APP="kpbj-postgres"
-PROD_DB_NAME="kpbj_fm"
-PROD_DB_USER="kpbj_fm"
-PROD_PROXY_PORT="15433"
-
-# Local dev configuration (matches Justfile)
-LOCAL_DB_PORT="5433"
-LOCAL_DB_NAME="dev_db"
-LOCAL_DB_USER="postgres"
-
-# Argon2 hash for "hunter2" - used to sanitize passwords
-SANITIZED_PASSWORD_HASH='$argon2id$v=19$m=65536,t=2,p=1$bndaU0ZXRzYvRHRRbU9ubmM0TGsyQT09$12Dlzkd8oZ5CBlVuUivYSGbPL1M4nfTEIXb56hS+FVo'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 echo "========================================"
 echo "Production to Local Dev Database Copy"
@@ -40,7 +29,7 @@ echo "  - User and Host accounts: PII will be sanitized"
 echo "  - Staff and Admin accounts: credentials unchanged"
 echo ""
 
-read -p "Type 'yes' to confirm: " CONFIRM
+read -rp "Type 'yes' to confirm: " CONFIRM
 if [ "$CONFIRM" != "yes" ]; then
   echo "Aborted."
   exit 1
@@ -54,9 +43,9 @@ if [ -z "${PROD_DB_PASSWORD:-}" ]; then
 fi
 
 # Check if local postgres is running
-if ! pg_isready -h localhost -p "$LOCAL_DB_PORT" -q; then
-  echo "ERROR: Local PostgreSQL is not running on port $LOCAL_DB_PORT."
-  echo "Start it with: just postgres-dev-start"
+if ! pg_isready -h localhost -p "$DEV_DB_PORT" -q; then
+  echo "ERROR: Local PostgreSQL is not running on port $DEV_DB_PORT."
+  echo "Start it with: just dev-postgres-start"
   exit 1
 fi
 
@@ -77,35 +66,21 @@ trap cleanup EXIT
 sleep 3
 
 echo "Dropping local database..."
-psql -h localhost -p "$LOCAL_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
+psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
   -c "DROP DATABASE IF EXISTS $LOCAL_DB_NAME WITH (FORCE);"
 
 echo "Creating local database..."
-psql -h localhost -p "$LOCAL_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
+psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
   -c "CREATE DATABASE $LOCAL_DB_NAME;"
 
 echo "Copying production database to local..."
 pg_dump "postgres://$PROD_DB_USER:$PROD_DB_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
-  | psql -h localhost -p "$LOCAL_DB_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME"
+  | psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME"
 
 echo "Sanitizing PII for User and Host accounts..."
-psql -h localhost -p "$LOCAL_DB_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME" <<SANITIZE_SQL
-  UPDATE users u
-  SET
-    email = 'user' || u.id || '@example.com',
-    password = '$SANITIZED_PASSWORD_HASH'
-  FROM user_metadata um
-  WHERE um.user_id = u.id
-    AND um.user_role IN ('User', 'Host');
-
-  UPDATE user_metadata
-  SET
-    display_name = 'user' || user_id,
-    full_name = 'Test User ' || user_id
-  WHERE user_role IN ('User', 'Host');
-
-  TRUNCATE server_sessions;
-SANITIZE_SQL
+psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME" \
+  -v password_hash="'$SANITIZED_PASSWORD_HASH'" \
+  -f "$SCRIPT_DIR/lib/sanitize-pii.sql"
 
 echo ""
 echo "========================================"

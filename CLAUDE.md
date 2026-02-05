@@ -167,9 +167,9 @@ just format-changed   # Format changed files
 just hlint-changed    # Lint changed files
 
 # Database
-just postgres-dev-start/stop/psql
-just migrations-add NAME / migrations-run / migrations-reset
-just mock-data
+just dev-postgres-start/stop/psql
+just dev-migrations-add NAME / dev-migrations-run / dev-migrations-reset
+just dev-mock-data
 ```
 
 See [README.md](README.md) for full setup, deployment, and release process.
@@ -182,7 +182,7 @@ See [README.md](README.md) for full setup, deployment, and release process.
 3. Add to cabal exposed-modules
 
 ### New Table
-1. `just migrations-add create_table_name`
+1. `just dev-migrations-add create_table_name`
 2. Write SQL migration
 3. Create `src/Effects/Database/Tables/TableName.hs`
 4. Add to cabal exposed-modules
