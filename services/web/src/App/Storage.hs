@@ -57,7 +57,7 @@ instance Has.Has (Maybe AWS.Env) StorageContext where
 
 -- | S3 configuration result.
 data S3ConfigResult
-  = -- | No S3 env vars set - allows fallback to local storage
+  = -- | No S3 env vars set (fatal in Production/Staging, ignored in Development)
     NoS3Config
   | -- | All required S3 env vars set
     ValidS3Config S3StorageConfig

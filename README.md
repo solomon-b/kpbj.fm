@@ -1,109 +1,148 @@
-# KPBJ 95.9FM
+# KPBJ 95.9FM 📻
 
-Community radio station website built with Haskell/Servant/HTMX.
+Community radio station website for Shadow Hills CA.
+
+**Web Service** — Haskell/Servant app with server-side HTML (Lucid2 + HTMX). Handles the website, host dashboard, and playout API. Deployed to Fly.io with PostgreSQL and Tigris S3.
+
+**Liquidsoap** — Audio automation. Polls the web service for scheduled episodes and streams to Icecast. Runs on a VPS.
+
+**Icecast** — Streaming server. Serves the live audio stream to listeners. Runs alongside Liquidsoap on the VPS.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full system topology.
+
+## Development
+
+### Prerequisites
+
+- [Nix](https://nixos.org/download.html) with flakes enabled
+- Docker (for PostgreSQL)
+
+### Environment Variables
+
+Create a `.envrc.local` file with the following env vars:
+
+```bash
+# Required
+export APP_ENVIRONMENT="Development"
+export APP_HOSTNAME="localhost"
+export APP_POSTGRES_DB="dev_db"
+export APP_POSTGRES_HOST="localhost"
+export APP_POSTGRES_PASSWORD="postgres"
+export APP_POSTGRES_PORT="5433"
+export APP_POSTGRES_USER="postgres"
+export DATABASE_URL="postgresql://postgres@localhost:5433/dev_db" # Used by SqlX
+export APP_WARP_PORT="4000"
+export APP_WARP_SERVERNAME="localhost"
+export APP_WARP_TIMEOUT="100"
+
+# Optional - enables email features (password reset, verification)
+export APP_SMTP_SERVER="smtp.gmail.com"
+export APP_SMTP_PORT="587"
+export APP_SMTP_USERNAME="your-email@gmail.com"
+export APP_SMTP_PASSWORD="your-app-password"
+export APP_SMTP_FROM_EMAIL="noreply@kpbj.fm"
+export APP_SMTP_FROM_NAME="KPBJ 95.9FM"
+export APP_BASE_URL="http://localhost:4000"
+
+# Optional - for streaming integration
+export PLAYOUT_SECRET="your-secret"
+```
+
+In development, the app uses local filesystem storage (`/tmp/kpbj`).
+
+### Setup
+
+```bash
+nix develop                 # Enter dev shell
+just postgres-dev-start     # Start PostgreSQL
+just migrations-run         # Run migrations
+just mock-data              # Load test data (optional)
+just run                    # Start server at localhost:4000
+```
+
+### Commands
+
+```bash
+just build              # Build all packages
+just test               # Run tests
+just format-changed     # Format changed files (ormolu + nixpkgs-fmt)
+just hlint-changed      # Lint changed Haskell files
+```
+
+### Streaming (optional)
+
+To run the full stack locally with Liquidsoap and Icecast:
+
+```bash
+just stream-build        # Build Docker images with Nix
+just stream-dev-start    # Start Liquidsoap + Icecast
+just stream-dev-logs     # View logs
+just stream-dev-stop     # Stop services
+```
+
+Stream available at `http://localhost:8000/stream`. Requires the web service running.
 
 ## Deployment
 
-The project uses automated CI/CD with GitHub Actions and Fly.io.
+Automated via GitHub Actions and Fly.io.
 
-### Environments
+| Environment | URL                     | Trigger              |
+|-------------|-------------------------|----------------------|
+| Staging     | https://staging.kpbj.fm | Push to `main`       |
+| Production  | https://www.kpbj.fm     | Git tag (`v*`)       |
 
-| Environment | URL                             | Deploys From         |
-|-------------|---------------------------------|----------------------|
-| Staging     | https://kpbj-fm-staging.fly.dev | Every push to `main` |
-| Production  | https://kpbj.fm                 | Git tags (`v*`)      |
+**Staging** deploys automatically when you merge to `main`.
 
-### Image Tagging Strategy
+### Releasing to Production
 
-| Trigger        | Image Tag              | Example              |
-|----------------|------------------------|----------------------|
-| Push to `main` | `sha-<commit>`         | `sha-abc1234def5678` |
-| Release tag    | `<version>` + `latest` | `0.3.2`, `latest`    |
+Releases are cut from `main` and use semantic versioning (`X.Y.Z`).
 
-### Staging Deployments
+**1. Update the changelog**
 
-Staging deploys automatically on every push to `main`.
+Before releasing, make sure `CHANGELOG.md` has your changes under the `[Unreleased]` section. The release script pulls from here.
 
-```
-Push to main → Build sha-abc1234 → Deploy to staging
+```bash
+just release-notes-preview   # See what will be included
 ```
 
-### Production Releases
-
-To release a new version to production:
+**2. Create the release PR**
 
 ```bash
 just release-pr 0.3.2
 ```
 
-This command:
-1. Creates a `release/0.3.2` branch
-2. Updates the cabal version to `0.3.2`
-3. Opens a PR to `main`
+This will:
+- Create a `release/0.3.2` branch from `main`
+- Move `[Unreleased]` changes to `[0.3.2]` in the changelog
+- Bump the version in `kpbj-api.cabal`
+- Push and open a PR
 
-When you merge the PR:
-1. GitHub Action automatically creates the `v0.3.2` git tag
-2. Tag push triggers the production deployment
-3. Image is tagged as both `0.3.2` and `latest`
+**3. Merge the PR**
 
-### Commands
+Review the PR, then merge it. GitHub Actions will automatically create the `v0.3.2` git tag.
 
-View deployment status:
+**4. Deploy to production**
+
+Trigger the production deployment manually:
+
 ```bash
-just staging-status    # Staging
-just status            # Production
+gh workflow run "Deploy to Production" -f tag=v0.3.2
 ```
 
-View logs:
+### Operations
+
 ```bash
-just staging-logs      # Staging
-just prod-logs         # Production
+just staging-logs / just prod-logs      # View logs
+just staging-status / just status       # Deployment status
+just staging-ssh / just prod-ssh        # SSH into container
 ```
 
-SSH into running container:
-```bash
-just staging-ssh       # Staging
-just prod-ssh          # Production
-```
+### Streaming
 
-### Local Docker Builds
-
-For local testing:
-```bash
-# Build with cabal version as tag
-nix build .#docker
-
-# Build with custom tag
-IMAGE_TAG=my-test nix build .#docker --impure
-```
-
-## Development
-
-### Setup
+Liquidsoap and Icecast run on a separate VPS. See [services/liquidsoap/README.md](services/liquidsoap/README.md) for details.
 
 ```bash
-# Enter dev shell
-nix develop
-
-# Start database
-just postgres-dev-start
-
-# Run migrations
-just migrations-run
-
-# Load mock data (optional)
-just mock-data
-
-# Start server
-just run
-```
-
-### Common Commands
-
-```bash
-just build              # Build all packages
-just test               # Run tests
-just format             # Format code (ormolu + nixpkgs-fmt)
-just format-changed     # Format only changed files
-just hlint              # Lint Haskell code
+just stream-publish sha-abc123          # Build and push images to GHCR
+just stream-staging-deploy sha-abc123   # Deploy to staging VPS
+just stream-prod-deploy sha-abc123      # Deploy to production VPS
 ```

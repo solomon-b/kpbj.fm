@@ -10,11 +10,15 @@
 
 ## Project Overview
 
-KPBJ 95.9FM community radio station website built with Haskell/Servant. Server-side HTML rendering with Lucid, HTMX for dynamic content, Alpine.js for interactivity.
+KPBJ 95.9FM community radio station. Three services:
 
-**Tech Stack**: Haskell + Servant | Lucid2 HTML | PostgreSQL + Hasql | HTMX + Alpine.js | Tailwind CSS | Nix + Cabal | Fly.io + Tigris S3
+- **Web Service** — Haskell/Servant app (Fly.io). Website, dashboard, playout API.
+- **Liquidsoap** — Audio automation (VPS). Polls web API, streams to Icecast.
+- **Icecast** — Streaming server (VPS). Serves listeners.
 
-**Current**: 28 routes, 289 source files, 15 database tables
+See [ARCHITECTURE.md](ARCHITECTURE.md) for system topology and CI/CD. See [README.md](README.md) for setup and deployment.
+
+**Web Service Tech**: Haskell + Servant | Lucid2 + HTMX | PostgreSQL + Hasql | Tailwind CSS | Nix
 
 ## Architecture
 
@@ -166,10 +170,9 @@ just hlint-changed    # Lint changed files
 just postgres-dev-start/stop/psql
 just migrations-add NAME / migrations-run / migrations-reset
 just mock-data
-
-# Deploy
-just deploy           # Build + deploy to Fly.io
 ```
+
+See [README.md](README.md) for full setup, deployment, and release process.
 
 ## Adding New Features
 
@@ -186,14 +189,14 @@ just deploy           # Build + deploy to Fly.io
 
 ## Environment
 
-- **Dev**: Port 4000, localhost:5432 PostgreSQL, local file storage
-- **Prod**: Fly.io Docker, managed PostgreSQL, Tigris S3
+- **Development**: Port 4000, PostgreSQL on port 5433, local file storage (`/tmp/kpbj`)
+- **Production**: Fly.io, managed PostgreSQL, Tigris S3
 
 ```haskell
 data Environment = Development | Production
 ```
 
-S3 env vars: `BUCKET_NAME`, `AWS_REGION=auto`, `AWS_ENDPOINT_URL_S3`
+In Development, the app always uses local storage regardless of S3 env vars.
 
 ## Design Context
 
