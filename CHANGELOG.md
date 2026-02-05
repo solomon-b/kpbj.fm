@@ -31,7 +31,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Chores
 - **Two-Phase CustomContext Initialization** - Refactored `CustomContext` initialization to separate config loading from resource building, with structured JSON logging
 - **StorageContext Uses Environment** - StorageContext now respects the Environment setting for storage backend selection
-- **Backup Scripts** - Added database and file backup scripts for disaster recovery
+- **Script Library Refactor** - Extracted shared constants and functions into `scripts/lib/common.sh` (database ports, bucket names, sanitized password hash) and centralized PII sanitization into `scripts/lib/sanitize-pii.sql`. Refactored all prod-to-local and prod-to-staging scripts to use the common library.
+- **Remote Backup Commands** - Added `just prod-backup-remote` and `just prod-backup-s3` for automated backups from external servers (e.g., TrueNAS cron jobs)
+- **Justfile Cleanup** - Removed unused test-postgres commands, staging mock data commands, and duplicate constants. Staging now uses production data sync instead of mock data.
 - **Stream Container Commands** - Added `just stream-rebuild` and `just stream-reload` commands
 - **Fetch Ephemeral Audio Script** - Added utility script to download ephemeral audio files
 - **Backfill Episode Durations Script** - Added script to populate missing episode duration values

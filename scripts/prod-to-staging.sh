@@ -21,23 +21,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Configuration
-PROD_DB_APP="kpbj-postgres"
-PROD_DB_NAME="kpbj_fm"
-PROD_DB_USER="kpbj_fm"
-STAGING_APP="kpbj-fm-staging"
-STAGING_DB_APP="kpbj-postgres-staging"
-STAGING_DB_NAME="kpbj_fm_staging"
-STAGING_DB_USER="postgres"
-PROD_PROXY_PORT="15433"
-STAGING_PROXY_PORT="15432"
-PROD_BUCKET="production-kpbj-storage"
-STAGING_BUCKET="staging-kpbj-storage"
-TIGRIS_ENDPOINT="https://fly.storage.tigris.dev"
-
-# Argon2 hash for "hunter2" - used to sanitize passwords
-SANITIZED_PASSWORD_HASH='$argon2id$v=19$m=65536,t=2,p=1$bndaU0ZXRzYvRHRRbU9ubmM0TGsyQT09$12Dlzkd8oZ5CBlVuUivYSGbPL1M4nfTEIXb56hS+FVo'
+source "$SCRIPT_DIR/lib/common.sh"
 
 # Parse arguments
 if [ $# -lt 2 ]; then
@@ -57,7 +41,7 @@ echo "  - Database: PII sanitized for User/Host accounts"
 echo "  - S3 Bucket: Complete replacement"
 echo ""
 
-read -p "Type 'yes' to confirm: " CONFIRM
+read -rp "Type 'yes' to confirm: " CONFIRM
 if [ "$CONFIRM" != "yes" ]; then
   echo "Aborted."
   exit 1
@@ -108,6 +92,7 @@ cleanup_proxies() {
   kill "$PROD_PROXY_PID" 2>/dev/null || true
   kill "$STAGING_PROXY_PID" 2>/dev/null || true
 }
+trap cleanup_proxies EXIT
 
 sleep 3
 
@@ -127,23 +112,9 @@ pg_dump "postgres://$PROD_DB_USER:$PROD_DB_PASSWORD@localhost:$PROD_PROXY_PORT/$
   | psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/$STAGING_DB_NAME"
 
 echo "Sanitizing PII for User and Host accounts..."
-psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/$STAGING_DB_NAME" <<SANITIZE_SQL
-  UPDATE users u
-  SET
-    email = 'user' || u.id || '@example.com',
-    password = '$SANITIZED_PASSWORD_HASH'
-  FROM user_metadata um
-  WHERE um.user_id = u.id
-    AND um.user_role IN ('User', 'Host');
-
-  UPDATE user_metadata
-  SET
-    display_name = 'user' || user_id,
-    full_name = 'Test User ' || user_id
-  WHERE user_role IN ('User', 'Host');
-
-  TRUNCATE server_sessions;
-SANITIZE_SQL
+psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/$STAGING_DB_NAME" \
+  -v password_hash="'$SANITIZED_PASSWORD_HASH'" \
+  -f "$SCRIPT_DIR/lib/sanitize-pii.sql"
 
 # Close database proxies before S3 copy
 cleanup_proxies
@@ -155,7 +126,7 @@ echo "========================================"
 
 # Create temp directory for download
 TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
+trap 'rm -rf "$TMPDIR"; cleanup_proxies' EXIT
 
 echo ""
 echo "Downloading from production bucket..."

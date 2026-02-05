@@ -54,9 +54,9 @@ In development, the app uses local filesystem storage (`/tmp/kpbj`).
 
 ```bash
 nix develop                 # Enter dev shell
-just postgres-dev-start     # Start PostgreSQL
-just migrations-run         # Run migrations
-just mock-data              # Load test data (optional)
+just dev-postgres-start     # Start PostgreSQL
+just dev-migrations-run     # Run migrations
+just dev-mock-data          # Load test data (optional)
 just run                    # Start server at localhost:4000
 ```
 
@@ -74,7 +74,7 @@ just hlint-changed      # Lint changed Haskell files
 To run the full stack locally with Liquidsoap and Icecast:
 
 ```bash
-just stream-build        # Build Docker images with Nix
+just stream-dev-build    # Build Docker images with Nix
 just stream-dev-start    # Start Liquidsoap + Icecast
 just stream-dev-logs     # View logs
 just stream-dev-stop     # Stop services
@@ -133,7 +133,7 @@ gh workflow run "Deploy to Production" -f tag=v0.3.2
 
 ```bash
 just staging-logs / just prod-logs      # View logs
-just staging-status / just status       # Deployment status
+just staging-status / just prod-status  # Deployment status
 just staging-ssh / just prod-ssh        # SSH into container
 ```
 
