@@ -1,0 +1,37 @@
+- id: restart-icecast
+  execute-command: /bin/docker
+  command-working-directory: /
+  pass-arguments-to-command:
+    - source: string
+      name: restart
+    - source: string
+      name: kpbj-icecast
+  trigger-rule:
+    match:
+      type: value
+      value: '{{ getenv "WEBHOOK_SECRET" }}'
+      parameter:
+        source: header
+        name: X-Webhook-Secret
+
+- id: restart-liquidsoap
+  execute-command: /bin/docker
+  command-working-directory: /
+  pass-arguments-to-command:
+    - source: string
+      name: restart
+    - source: string
+      name: kpbj-liquidsoap
+  trigger-rule:
+    match:
+      type: value
+      value: '{{ getenv "WEBHOOK_SECRET" }}'
+      parameter:
+        source: header
+        name: X-Webhook-Secret
+
+- id: health
+  execute-command: /bin/echo
+  pass-arguments-to-command:
+    - source: string
+      name: ok

@@ -97,6 +97,8 @@ import API.Dashboard.StationIds.New.Get.Handler qualified as Dashboard.StationId
 import API.Dashboard.StationIds.New.Post.Handler qualified as Dashboard.StationIds.New.Post
 import API.Dashboard.StreamSettings.Edit.Post.Handler qualified as Dashboard.StreamSettings.Edit.Post
 import API.Dashboard.StreamSettings.Get.Handler qualified as Dashboard.StreamSettings.Get
+import API.Dashboard.StreamSettings.Restart.Icecast.Post.Handler qualified as Dashboard.StreamSettings.Restart.Icecast.Post
+import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Handler qualified as Dashboard.StreamSettings.Restart.Liquidsoap.Post
 import API.Dashboard.Users.Delete.Handler qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Handler qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Handler qualified as Dashboard.Users.Edit.Get
@@ -301,7 +303,9 @@ server =
     dashboardStreamSettingsRoutes =
       DashboardStreamSettingsRoutes
         { get = Dashboard.StreamSettings.Get.handler,
-          editPost = Dashboard.StreamSettings.Edit.Post.handler
+          editPost = Dashboard.StreamSettings.Edit.Post.handler,
+          restartIcecastPost = Dashboard.StreamSettings.Restart.Icecast.Post.handler,
+          restartLiquidsoapPost = Dashboard.StreamSettings.Restart.Liquidsoap.Post.handler
         }
 
     dashboardSitePagesRoutes =

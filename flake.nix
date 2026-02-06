@@ -245,6 +245,31 @@
                 };
               };
 
+            # Webhook Docker image (bundles webhook + docker CLI)
+            # Usage: nix build .#webhook-docker
+            # For CI: IMAGE_TAG=sha-xxx nix build .#webhook-docker --impure
+            webhook-docker =
+              let
+                envTag = builtins.getEnv "IMAGE_TAG";
+                tag = if envTag != "" then envTag else "latest";
+              in
+              pkgs.dockerTools.buildLayeredImage {
+                name = "ghcr.io/solomon-b/kpbj-webhook";
+                inherit tag;
+                contents = [
+                  pkgs.webhook
+                  pkgs.docker-client
+                  pkgs.bashInteractive
+                ];
+                extraCommands = ''
+                  mkdir -p tmp
+                  chmod 1777 tmp
+                '';
+                config = {
+                  Cmd = [ "${pkgs.webhook}/bin/webhook" "-hooks" "/config/hooks.yaml" "-template" "-verbose" ];
+                };
+              };
+
             # Publish script that builds and pushes docker image
             # Usage: IMAGE_TAG=0.3.2 nix run .#publish --impure
             # Set PUSH_LATEST=true to also push :latest tag

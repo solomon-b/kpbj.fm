@@ -28,3 +28,13 @@ services:
       - ICECAST_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
       - ICECAST_MOUNT=/stream
     restart: unless-stopped
+
+  webhook:
+    image: ghcr.io/solomon-b/kpbj-webhook:${IMAGE_TAG:-latest}
+    container_name: kpbj-webhook
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./hooks.yaml:/config/hooks.yaml:ro
+    environment:
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+    restart: unless-stopped

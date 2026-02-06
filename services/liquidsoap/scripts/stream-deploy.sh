@@ -30,9 +30,9 @@ ssh "$HOST" "mkdir -p ${REMOTE_DIR}" || {
   exit 1
 }
 
-# Copy compose files
-echo "Copying compose files..."
-scp "${SCRIPT_DIR}/docker-compose.yml" "${SCRIPT_DIR}/${COMPOSE_FILE}" "${HOST}:${REMOTE_DIR}/"
+# Copy compose files and hooks.yaml
+echo "Copying compose files and webhook config..."
+scp "${SCRIPT_DIR}/docker-compose.yml" "${SCRIPT_DIR}/${COMPOSE_FILE}" "${SCRIPT_DIR}/hooks.yaml" "${HOST}:${REMOTE_DIR}/"
 
 # Deploy
 ssh "$HOST" bash -s "$TAG" "$COMPOSE_FILE" << 'REMOTE_SCRIPT'
@@ -44,13 +44,21 @@ cd /opt/kpbj-stream
 
 # Auto-generate secrets on first deploy
 if [ ! -f .env ]; then
-  echo "Generating Icecast secrets..."
+  echo "Generating Icecast and webhook secrets..."
   pw1=$(head /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)
   pw2=$(head /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)
   pw3=$(head /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)
-  printf "ICECAST_SOURCE_PASSWORD=%s\nICECAST_ADMIN_PASSWORD=%s\nICECAST_RELAY_PASSWORD=%s\n" \
-    "$pw1" "$pw2" "$pw3" > .env
+  pw4=$(head /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)
+  printf "ICECAST_SOURCE_PASSWORD=%s\nICECAST_ADMIN_PASSWORD=%s\nICECAST_RELAY_PASSWORD=%s\nWEBHOOK_SECRET=%s\n" \
+    "$pw1" "$pw2" "$pw3" "$pw4" > .env
   chmod 600 .env
+fi
+
+# Ensure WEBHOOK_SECRET exists in existing .env files
+if ! grep -q "WEBHOOK_SECRET" .env 2>/dev/null; then
+  echo "Adding WEBHOOK_SECRET to existing .env..."
+  pw=$(head /dev/urandom | tr -dc a-zA-Z0-9 | head -c 32)
+  printf "WEBHOOK_SECRET=%s\n" "$pw" >> .env
 fi
 
 echo "IMAGE_TAG=${TAG}" > .env.tag
