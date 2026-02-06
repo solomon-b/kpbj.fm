@@ -189,6 +189,7 @@
                   pkgs.icecast
                   pkgs.bashInteractive
                   pkgs.coreutils
+                  pkgs.curl
                   pkgs.gnused
                   pkgs.fakeNss # Provides /etc/passwd and /etc/group with nobody user
                   xml-edit

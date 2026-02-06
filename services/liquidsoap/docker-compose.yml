@@ -10,6 +10,11 @@ services:
     container_name: kpbj-icecast
     # Ports defined in environment-specific overrides (dev: 8000, staging: 8001, prod: 8000)
     # Config is bundled in image; env vars applied at startup by entrypoint
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/status-json.xsl"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
     environment:
       - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
       - ICECAST_ADMIN_PASSWORD=${ICECAST_ADMIN_PASSWORD:-hackme}
@@ -20,7 +25,8 @@ services:
     image: ghcr.io/solomon-b/kpbj-liquidsoap:${IMAGE_TAG:-latest}
     container_name: kpbj-liquidsoap
     depends_on:
-      - icecast
+      icecast:
+        condition: service_healthy
     # Config (radio.liq) is bundled in image
     environment:
       - ICECAST_HOST=icecast
