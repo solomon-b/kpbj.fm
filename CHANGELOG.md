@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Stream Status Indicator** - Green/red dot on the stream settings dashboard showing whether Icecast is reachable, with three states: offline (red), online but no source (green), and online with full stats (green)
 - **Metadata Persistence on Reconnect** - Liquidsoap now re-sends track metadata to Icecast after reconnection, so stream title/artist survive Icecast container restarts
 - **Icecast Healthcheck** - Added Docker healthcheck to Icecast container and `service_healthy` dependency for Liquidsoap, preventing connection failures during startup
 - **Container Management Dashboard** - Admins can restart Icecast and Liquidsoap containers directly from the stream settings dashboard via webhook triggers, with confirmation dialogs and status banners
