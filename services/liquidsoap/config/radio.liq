@@ -28,6 +28,10 @@ end
 # State: URL of the last scheduled show we played (to avoid duplicates)
 last_scheduled = ref("")
 
+# State: last track metadata, re-sent on Icecast reconnect so metadata
+# survives connection drops (e.g. Icecast container restart).
+last_metadata = ref([])
+
 # Fetch a fallback track from the API
 def get_fallback()
   response = http.get(timeout=5., "#{api_base}/fallback")
@@ -116,6 +120,8 @@ radio = source.on_track(radio, fun(m) -> begin
   source_type = m["source_type"] ?? "unknown"
   source_url = m["filename"] ?? ""
 
+  last_metadata := m
+
   log.important("[KPBJ] Now playing: #{artist} - #{title} (#{source_type})")
 
   # POST to web service if playout_secret is configured
@@ -148,6 +154,9 @@ radio = crossfade(duration=1., radio)
 # Safety fallback in case both sources fail
 radio = mksafe(radio)
 
+# Wrap with insert_metadata so we can re-send metadata on Icecast reconnect
+radio = insert_metadata(radio)
+
 # Output to Icecast
 output.icecast(
   %mp3(bitrate=128),
@@ -159,5 +168,14 @@ output.icecast(
   description="Community Radio for Sun Valley and Burbank",
   url="https://kpbj.fm",
   genre="Eclectic",
+  on_connect=fun() -> begin
+    m = last_metadata()
+    if list.length(m) > 0 then
+      log.important("[KPBJ] Reconnected to Icecast, re-sending metadata")
+      thread.run(delay=2., fun() -> begin
+        radio.insert_metadata(m)
+      end)
+    end
+  end,
   radio
 )
