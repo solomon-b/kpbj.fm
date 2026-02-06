@@ -35,6 +35,7 @@ module Lucid.HTMX
 
     -- * User Interaction
     hxConfirm_,
+    hxDisabledElt_,
 
     -- * Events
     hxOn_,
@@ -147,6 +148,15 @@ hxTrigger_ = Lucid.makeAttributes "hx-trigger"
 -- > hxConfirm_ "Are you sure you want to delete this?"
 hxConfirm_ :: Text -> Lucid.Attributes
 hxConfirm_ = Lucid.makeAttributes "hx-confirm"
+
+-- | HTMX hx-disabled-elt attribute.
+--
+-- Disables the specified element(s) while a request is in flight.
+--
+-- > hxDisabledElt_ "this"
+-- > hxDisabledElt_ "closest button"
+hxDisabledElt_ :: Text -> Lucid.Attributes
+hxDisabledElt_ = Lucid.makeAttributes "hx-disabled-elt"
 
 --------------------------------------------------------------------------------
 -- Events

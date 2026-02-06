@@ -509,6 +509,9 @@ stream-dev-build:
   echo "Building Liquidsoap image..."
   nix build .#liquidsoap-docker
   docker load -i result
+  echo "Building Webhook image..."
+  nix build .#webhook-docker
+  docker load -i result
   echo "Done! Images loaded into Docker."
 
 # Start local streaming services (Icecast + Liquidsoap)

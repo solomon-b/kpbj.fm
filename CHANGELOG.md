@@ -5,6 +5,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Container Management Dashboard** - Admins can restart Icecast and Liquidsoap containers directly from the stream settings dashboard via webhook triggers, with confirmation dialogs and status banners
+- **Nix-Built Webhook Image** - Replaced `almir/webhook:latest` Alpine image with a Nix-built Docker image (`ghcr.io/solomon-b/kpbj-webhook`) bundling `webhook` and `docker-client`, fixing the glibc incompatibility when mounting the host Docker binary
 - **Mailing List Signup** - Added newsletter signup form to the About Us page
 - **Playback History Logging** - Added `POST /api/playout/played` endpoint for Liquidsoap to report played tracks
 - **Icecast Status Display** - Stream settings page now shows live Icecast server status
@@ -25,6 +27,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Create Release Tag Action** - Fixed GitHub Actions workflow for creating release tags
 
 ### Infrastructure
+- **Webhook CI Pipeline** - Added webhook image to the stream images build-and-publish GitHub Actions workflow
 - **Docker Compose Ports** - Assigned explicit ports in environment-specific compose files
 - **Stream CI Pipeline** - Added GitHub Actions workflow for building and publishing stream container images
 - **LiquidSoap Secrets** - Added secret generation for LiquidSoap service authentication

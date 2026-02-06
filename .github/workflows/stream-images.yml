@@ -63,9 +63,20 @@ jobs:
           docker tag "$image" ghcr.io/solomon-b/kpbj-liquidsoap:latest
           docker push ghcr.io/solomon-b/kpbj-liquidsoap:latest
 
+      - name: Build and push Webhook image
+        run: |
+          IMAGE_TAG=${{ steps.tag.outputs.tag }} nix build .#webhook-docker --impure
+          image=$(docker load -i result | sed -n 's/Loaded image: //p')
+          echo "Pushing $image"
+          docker push "$image"
+          echo "Tagging and pushing as latest"
+          docker tag "$image" ghcr.io/solomon-b/kpbj-webhook:latest
+          docker push ghcr.io/solomon-b/kpbj-webhook:latest
+
       - name: Summary
         run: |
           echo "### Images Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/solomon-b/kpbj-icecast:${{ steps.tag.outputs.tag }}\` + \`latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/solomon-b/kpbj-liquidsoap:${{ steps.tag.outputs.tag }}\` + \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/solomon-b/kpbj-webhook:${{ steps.tag.outputs.tag }}\` + \`latest\`" >> $GITHUB_STEP_SUMMARY

@@ -10,3 +10,7 @@ services:
     environment:
       - API_BASE=https://www.kpbj.fm/api/playout
       - PLAYOUT_SECRET=${PLAYOUT_SECRET:-}
+
+  webhook:
+    ports:
+      - "127.0.0.1:9000:9000"

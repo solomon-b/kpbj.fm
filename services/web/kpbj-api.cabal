@@ -74,6 +74,7 @@ library
                   , rel8
                   , hs-opentelemetry-sdk
                   , http-api-data
+                  , http-client
                   , http-conduit
                   , http-types
                   , lens
@@ -331,6 +332,10 @@ library
     API.Dashboard.StreamSettings.Get.Handler
     API.Dashboard.StreamSettings.Get.Route
     API.Dashboard.StreamSettings.Get.Templates.Form
+    API.Dashboard.StreamSettings.Restart.Icecast.Post.Handler
+    API.Dashboard.StreamSettings.Restart.Icecast.Post.Route
+    API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Handler
+    API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route
     API.Shows.Slug.Episode.Get.Handler
     API.Shows.Slug.Episode.Get.Route
     API.Shows.Slug.Episode.Get.Templates.Page
@@ -484,6 +489,7 @@ library
     Effects.StagedUploadCleanup
     Effects.StagedUploads
     Effects.Storage.Local
+    Effects.Webhook
     Effects.Storage.S3
     Helpers.RelativeTime
     OrphanInstances.DayOfWeek

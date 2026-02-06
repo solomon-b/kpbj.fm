@@ -16,7 +16,9 @@ module App.CustomContext
     GoogleAnalyticsId (..),
     SmtpConfig (..),
     PlayoutSecret (..),
+    WebhookSecret (..),
     CleanupInterval (..),
+    WebhookConfig (..),
   )
 where
 
@@ -44,10 +46,30 @@ import Text.Read (readMaybe)
 
 -- | Secret used to authenticate Liquidsoap playout requests.
 newtype PlayoutSecret = PlayoutSecret {unPlayoutSecret :: Maybe Text}
-  deriving stock (Show, Eq)
+  deriving newtype (Eq)
+
+instance Show PlayoutSecret where
+  show _ = "**********"
+
+newtype WebhookSecret = WebhookSecret {unWebhookSecret :: Text}
+  deriving newtype (Eq)
+
+instance Show WebhookSecret where
+  show _ = "**********"
 
 -- | Interval in seconds between background cleanup job runs.
 newtype CleanupInterval = CleanupInterval {unCleanupInterval :: Int}
+  deriving stock (Show, Eq)
+
+-- | Configuration for webhook service used to restart containers.
+data WebhookConfig
+  = -- | Webhook is not configured (missing URL or secret).
+    WebhookDisabled
+  | -- | Webhook is fully configured with base URL and secret.
+    WebhookEnabled
+      { wcBaseUrl :: Text,
+        wcSecret :: WebhookSecret
+      }
   deriving stock (Show, Eq)
 
 -- | Custom application context containing all subsystem configurations.
@@ -59,7 +81,8 @@ data CustomContext = CustomContext
     analyticsConfig :: AnalyticsConfig,
     smtpConfig :: Maybe SmtpConfig,
     playoutSecret :: PlayoutSecret,
-    cleanupInterval :: CleanupInterval
+    cleanupInterval :: CleanupInterval,
+    webhookConfig :: WebhookConfig
   }
 
 --------------------------------------------------------------------------------
@@ -84,6 +107,10 @@ instance Has.Has PlayoutSecret CustomContext where
 instance Has.Has CleanupInterval CustomContext where
   getter = cleanupInterval
   modifier f ctx = ctx {cleanupInterval = f (cleanupInterval ctx)}
+
+instance Has.Has WebhookConfig CustomContext where
+  getter = webhookConfig
+  modifier f ctx = ctx {webhookConfig = f (webhookConfig ctx)}
 
 instance Has.Has StorageBackend CustomContext where
   getter = storageBackend . storageContext
@@ -150,10 +177,21 @@ instance Has.Has CleanupInterval (AppContext CustomContext) where
   getter = Has.getter @CleanupInterval . appCustom
   modifier f ctx = ctx {appCustom = Has.modifier @CleanupInterval f (appCustom ctx)}
 
+instance Has.Has WebhookConfig (AppContext CustomContext) where
+  getter = Has.getter @WebhookConfig . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @WebhookConfig f (appCustom ctx)}
+
 --------------------------------------------------------------------------------
 
 -- | All custom configurations loaded from environment (Phase 1).
-type CustomConfigs = (S3ConfigResult, AnalyticsConfig, Maybe SmtpConfig, PlayoutSecret, CleanupInterval)
+data CustomConfigs = CustomConfigs
+  { ccStorageConfig :: S3ConfigResult,
+    ccAnalytics :: AnalyticsConfig,
+    ccSmtp :: Maybe SmtpConfig,
+    ccPlayout :: PlayoutSecret,
+    ccCleanup :: CleanupInterval,
+    ccWebhook :: WebhookConfig
+  }
 
 -- | Load all custom configurations from environment (Phase 1).
 --
@@ -166,7 +204,16 @@ loadCustomConfigs = do
   smtp <- loadSmtpConfig
   playout <- loadPlayoutSecret
   cleanup <- loadCleanupInterval
-  pure (storageConfig, analytics, smtp, playout, cleanup)
+  webhook <- loadWebhookConfig
+  pure
+    CustomConfigs
+      { ccStorageConfig = storageConfig,
+        ccAnalytics = analytics,
+        ccSmtp = smtp,
+        ccPlayout = playout,
+        ccCleanup = cleanup,
+        ccWebhook = webhook
+      }
 
 -- | Build CustomContext inside withAppResources callback (Phase 2).
 --
@@ -177,25 +224,26 @@ buildCustomContext ::
   CustomConfigs ->
   (CustomContext -> IO a) ->
   IO a
-buildCustomContext appCtx (storageConfig, analytics, smtp, playout, cleanup) action = do
-  -- Log analytics, SMTP, and cleanup configuration state
-  logConfigState (appLoggerEnv appCtx) analytics smtp playout cleanup
+buildCustomContext appCtx CustomConfigs {..} action = do
+  -- Log analytics, SMTP, cleanup, and webhook configuration state
+  logConfigState (appLoggerEnv appCtx) ccAnalytics ccSmtp ccPlayout ccCleanup ccWebhook
 
   -- Build storage context (which may log and/or fail)
-  withStorageContext appCtx storageConfig $ \storage -> do
+  withStorageContext appCtx ccStorageConfig $ \storage -> do
     let customCtx =
           CustomContext
             { storageContext = storage,
-              analyticsConfig = analytics,
-              smtpConfig = smtp,
-              playoutSecret = playout,
-              cleanupInterval = cleanup
+              analyticsConfig = ccAnalytics,
+              smtpConfig = ccSmtp,
+              playoutSecret = ccPlayout,
+              cleanupInterval = ccCleanup,
+              webhookConfig = ccWebhook
             }
     action customCtx
 
--- | Log the configuration state for analytics, SMTP, playout, and cleanup.
-logConfigState :: Log.LoggerEnv -> AnalyticsConfig -> Maybe SmtpConfig -> PlayoutSecret -> CleanupInterval -> IO ()
-logConfigState logEnv analytics smtp playout cleanup = do
+-- | Log the configuration state for analytics, SMTP, playout, cleanup, and webhook.
+logConfigState :: Log.LoggerEnv -> AnalyticsConfig -> Maybe SmtpConfig -> PlayoutSecret -> CleanupInterval -> WebhookConfig -> IO ()
+logConfigState logEnv analytics smtp playout cleanup webhook = do
   time <- getCurrentTime
   Log.logMessageIO logEnv time Log.LogInfo "Custom configuration loaded" $
     Aeson.object
@@ -214,7 +262,19 @@ logConfigState logEnv analytics smtp playout cleanup = do
             ["secret_configured" .= isJust (unPlayoutSecret playout)],
         "cleanup"
           .= Aeson.object
-            ["interval_seconds" .= unCleanupInterval cleanup]
+            ["interval_seconds" .= unCleanupInterval cleanup],
+        "webhook"
+          .= case webhook of
+            WebhookDisabled ->
+              Aeson.object
+                [ "enabled" .= False
+                ]
+            WebhookEnabled {wcBaseUrl = url} ->
+              Aeson.object
+                [ "enabled" .= True,
+                  "base_url" .= url,
+                  "secret_configured" .= True
+                ]
       ]
   where
     isJust :: Maybe a -> Bool
@@ -235,3 +295,16 @@ loadCleanupInterval = liftIO $ do
   mInterval <- lookupEnv "APP_CLEANUP_INTERVAL_SECONDS"
   let interval = fromMaybe BackgroundJobs.defaultCleanupIntervalSeconds (mInterval >>= readMaybe)
   pure $ CleanupInterval interval
+
+-- | Load webhook configuration from WEBHOOK_URL and WEBHOOK_SECRET env vars (Phase 1).
+loadWebhookConfig :: (MonadIO m) => m WebhookConfig
+loadWebhookConfig = liftIO $ do
+  mUrl <- lookupEnv "WEBHOOK_URL"
+  mSecret <- lookupEnv "WEBHOOK_SECRET"
+  pure $ case (mUrl, mSecret) of
+    (Just url, Just secret) ->
+      WebhookEnabled
+        { wcBaseUrl = Text.pack url,
+          wcSecret = WebhookSecret $ Text.pack secret
+        }
+    _ -> WebhookDisabled

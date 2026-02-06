@@ -25,6 +25,7 @@ import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
 import Effects.Database.Tables.StreamSettings qualified as StreamSettings
 import Lucid qualified
 import Lucid.Form.Builder
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -46,9 +47,15 @@ data IcecastStatus = IcecastStatus
 
 --------------------------------------------------------------------------------
 
--- URL helper
+-- URL helpers
 dashboardStreamSettingsEditPostUrl :: Links.URI
 dashboardStreamSettingsEditPostUrl = Links.linkURI dashboardStreamSettingsLinks.editPost
+
+restartIcecastUrl :: Links.URI
+restartIcecastUrl = Links.linkURI dashboardStreamSettingsLinks.restartIcecastPost
+
+restartLiquidsoapUrl :: Links.URI
+restartLiquidsoapUrl = Links.linkURI dashboardStreamSettingsLinks.restartLiquidsoapPost
 
 --------------------------------------------------------------------------------
 
@@ -59,6 +66,9 @@ template settings mStatus playbackHistory mError = do
 
   -- Stream status section (if available)
   statusSection mStatus
+
+  -- Container management section
+  containerManagementSection
 
   -- Playback history section
   playbackHistorySection playbackHistory
@@ -125,6 +135,38 @@ dangerZoneSection settings = plain $ do
           class_ $ base ["w-full", Tokens.p2, Tokens.border2, "rounded", Tokens.bgAlt, "focus:outline-none", "focus:" <> Tokens.errorBorder]
         ]
       Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "mt-1"]] "The API endpoint that returns current track information in JSON format"
+
+--------------------------------------------------------------------------------
+
+-- | Container management section for restarting services
+containerManagementSection :: Lucid.Html ()
+containerManagementSection =
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "CONTAINER MANAGEMENT"
+    Lucid.p_
+      [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
+      "Restart streaming services if needed. This will briefly interrupt the stream."
+
+    Lucid.div_ [class_ $ base ["flex", "flex-wrap", "gap-4"]] $ do
+      -- Restart Icecast button
+      Lucid.button_
+        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
+          hxPost_ [i|/#{restartIcecastUrl}|],
+          hxSwap_ "none",
+          hxConfirm_ "Are you sure you want to restart Icecast? This will disconnect all listeners for a few seconds.",
+          hxDisabledElt_ "this"
+        ]
+        "RESTART ICECAST"
+
+      -- Restart Liquidsoap button
+      Lucid.button_
+        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
+          hxPost_ [i|/#{restartLiquidsoapUrl}|],
+          hxSwap_ "none",
+          hxConfirm_ "Are you sure you want to restart Liquidsoap? This will interrupt audio playback for a few seconds.",
+          hxDisabledElt_ "this"
+        ]
+        "RESTART LIQUIDSOAP"
 
 --------------------------------------------------------------------------------
 

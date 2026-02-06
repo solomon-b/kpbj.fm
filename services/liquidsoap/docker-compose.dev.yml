@@ -12,3 +12,7 @@ services:
     environment:
       - API_BASE=http://host.docker.internal:4000/api/playout
       - PLAYOUT_SECRET=${PLAYOUT_SECRET:-}
+
+  webhook:
+    ports:
+      - "9000:9000"
