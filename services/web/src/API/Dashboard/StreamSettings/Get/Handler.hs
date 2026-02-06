@@ -58,17 +58,20 @@ handler cookie (foldHxReq -> hxRequest) =
       Right (Just s) -> pure s
 
     -- 4. Fetch icecast status
-    icecastStatus <- fetchIcecastStatus settings.ssMetadataUrl
+    (icecastReachable, icecastStatus) <- fetchIcecastStatus settings.ssMetadataUrl
 
     -- 5. Fetch recent playback history
     historyResult <- execQuery (PlaybackHistory.getRecentPlayback 50)
     let recentHistory = fromRight [] historyResult
 
     -- 6. Render response
-    renderDashboardTemplate hxRequest userMetadata allShows Nothing NavStreamSettings Nothing Nothing (template settings icecastStatus recentHistory Nothing)
+    renderDashboardTemplate hxRequest userMetadata allShows Nothing NavStreamSettings Nothing Nothing (template settings icecastReachable icecastStatus recentHistory Nothing)
 
 -- | Fetch status from icecast metadata endpoint.
-fetchIcecastStatus :: Text.Text -> AppM (Maybe IcecastStatus)
+--
+-- Returns a pair: whether Icecast responded at all (Bool), and
+-- the parsed source status if available (Maybe IcecastStatus).
+fetchIcecastStatus :: Text.Text -> AppM (Bool, Maybe IcecastStatus)
 fetchIcecastStatus metadataUrl = do
   result <- liftIO $ try @HTTP.HttpException $ do
     request <- HTTP.parseRequest (Text.unpack metadataUrl)
@@ -76,8 +79,8 @@ fetchIcecastStatus metadataUrl = do
     pure (HTTP.getResponseBody response :: Value)
 
   case result of
-    Left _err -> pure Nothing
-    Right json -> pure $ parseIcecastStatus json
+    Left _err -> pure (False, Nothing)
+    Right json -> pure (True, parseIcecastStatus json)
 
 -- | Parse icecast JSON into our status type.
 parseIcecastStatus :: Value -> Maybe IcecastStatus

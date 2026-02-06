@@ -60,18 +60,18 @@ restartLiquidsoapUrl = Links.linkURI dashboardStreamSettingsLinks.restartLiquids
 --------------------------------------------------------------------------------
 
 -- | Stream settings edit template using FormBuilder
-template :: StreamSettings.Model -> Maybe IcecastStatus -> [PlaybackHistory.Model] -> Maybe Text -> Lucid.Html ()
-template settings mStatus playbackHistory mError = do
+template :: StreamSettings.Model -> Bool -> Maybe IcecastStatus -> [PlaybackHistory.Model] -> Maybe Text -> Lucid.Html ()
+template settings icecastReachable mStatus playbackHistory mError = do
   maybe mempty errorAlert mError
 
-  -- Stream status section (if available)
-  statusSection mStatus
-
-  -- Container management section
-  containerManagementSection
+  -- Stream status section
+  statusSection icecastReachable mStatus
 
   -- Playback history section
   playbackHistorySection playbackHistory
+
+  -- Container management section
+  containerManagementSection
 
   -- Settings form
   renderForm config form
@@ -170,16 +170,24 @@ containerManagementSection =
 
 --------------------------------------------------------------------------------
 
--- | Stream status display section
-statusSection :: Maybe IcecastStatus -> Lucid.Html ()
-statusSection Nothing =
+-- | Stream status display section.
+--
+-- Three states: Icecast unreachable (red), reachable but no source (green),
+-- reachable with active source (green + full stats).
+statusSection :: Bool -> Maybe IcecastStatus -> Lucid.Html ()
+statusSection False _ =
   Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "STREAM STATUS"
+    statusHeader False
     Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $
       Lucid.p_ "Unable to connect to stream. Check that Icecast is running and the metadata URL is correct."
-statusSection (Just status) =
+statusSection True Nothing =
   Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "STREAM STATUS"
+    statusHeader True
+    Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $
+      Lucid.p_ "Icecast is running but no active source is connected. Check that Liquidsoap is running."
+statusSection True (Just status) =
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+    statusHeader True
 
     -- Now Playing
     Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
@@ -201,6 +209,23 @@ statusSection (Just status) =
       infoRow "Description" $ fromMaybe "—" status.isServerDescription
       infoRow "Stream Started" $ maybe "—" formatTimestamp status.isStreamStart
       infoRow "Server Started" $ maybe "—" formatTimestamp status.isServerStart
+
+-- | Status section header with green/red indicator dot.
+statusHeader :: Bool -> Lucid.Html ()
+statusHeader online =
+  Lucid.div_ [class_ $ base ["flex", "items-center", "gap-2", Tokens.mb4]] $ do
+    statusDot online
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg]] "STREAM STATUS"
+
+-- | Green/red status indicator dot.
+statusDot :: Bool -> Lucid.Html ()
+statusDot online =
+  Lucid.span_
+    [ class_ $ base ["inline-block", "w-3", "h-3", "rounded-full", color]
+    ]
+    mempty
+  where
+    color = if online then "bg-[var(--theme-success)]" else "bg-[var(--theme-error)]"
 
 -- | Stat box component
 statBox :: Text -> Lucid.Html () -> Lucid.Html ()
