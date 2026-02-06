@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Icecast Healthcheck** - Added Docker healthcheck to Icecast container and `service_healthy` dependency for Liquidsoap, preventing connection failures during startup
 - **Container Management Dashboard** - Admins can restart Icecast and Liquidsoap containers directly from the stream settings dashboard via webhook triggers, with confirmation dialogs and status banners
 - **Nix-Built Webhook Image** - Replaced `almir/webhook:latest` Alpine image with a Nix-built Docker image (`ghcr.io/solomon-b/kpbj-webhook`) bundling `webhook` and `docker-client`, fixing the glibc incompatibility when mounting the host Docker binary
 - **Mailing List Signup** - Added newsletter signup form to the About Us page
