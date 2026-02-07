@@ -9,19 +9,22 @@ import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Effects.Database.Class (MonadDB (..))
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as UUT
 import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
-import Hedgehog (PropertyT, (===))
+import Hedgehog (PropertyT, annotate, failure, (===))
 import Hedgehog qualified
 import Hedgehog.Internal.Property (forAllT)
 import OrphanInstances.DayOfWeek (toDayOfWeek)
+import Test.Database.Helpers (insertTestUser)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
-import Test.Database.Property.Assert (assertJust, assertRight)
+import Test.Database.Property.Assert (assertJust, assertNothing, assertRight)
 import Test.Gen.Tables.ShowSchedule (allWeeksOfMonth, genDayOfWeek, genFutureDay, genTimeRange, genTimezone, genWeeksOfMonth)
 import Test.Gen.Tables.Shows (showInsertGen)
+import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Hedgehog (hedgehog)
 
@@ -55,6 +58,19 @@ spec =
       runs 20 . it "timezone is stored and retrieved correctly" $ hedgehog . prop_timezoneStorage
       runs 10 . it "upcoming dates use correct timezone for timestamp conversion" $ hedgehog . prop_timezoneConversion
 
+      -- Conflict detection
+      describe "checkTimeSlotConflict" $ do
+        runs 10 . it "detects overlapping time slots" $ hedgehog . prop_checkTimeSlotConflict
+
+      -- Validity management
+      describe "Validity" $ do
+        runs 10 . it "getActiveValidityPeriodsForTemplate: returns active validity" $ hedgehog . prop_getActiveValidityPeriodsForTemplate
+        runs 10 . it "endValidity: sets effective_until" $ hedgehog . prop_endValidity
+
+      -- Scheduled shows
+      describe "getScheduledShowsForDate" $ do
+        runs 10 . it "returns shows scheduled for a given date" $ hedgehog . prop_getScheduledShowsForDate
+
 --------------------------------------------------------------------------------
 -- Template CRUD Tests
 
@@ -84,6 +100,7 @@ prop_insertSelectTemplate cfg = do
 
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
         selected <- TRX.statement () (UUT.getScheduleTemplateById templateId)
+        TRX.condemn
         pure (templateId, scheduleInsert, selected)
 
       assert $ do
@@ -119,6 +136,7 @@ prop_getTemplatesForShow cfg = do
         _ <- TRX.statement () (UUT.insertScheduleTemplate schedule1)
         _ <- TRX.statement () (UUT.insertScheduleTemplate schedule2)
         templates <- TRX.statement () (UUT.getScheduleTemplatesForShow showId)
+        TRX.condemn
         pure (showId, templates)
 
       assert $ do
@@ -232,7 +250,9 @@ prop_weeklyScheduleRepeats cfg = do
             diff1 === 7
             diff2 === 7
             diff3 === 7
-          _ -> pure () -- Not enough dates to test, skip
+          _ -> do
+            annotate $ "Expected at least 4 dates but found " <> show (length upcomingDates)
+            failure
 
 prop_upcomingDatesDayOfWeek :: TestDBConfig -> PropertyT IO ()
 prop_upcomingDatesDayOfWeek cfg = do
@@ -306,16 +326,16 @@ prop_handlesYearBoundaries cfg = do
     timezone <- forAllT genTimezone
 
     act $ do
-      -- Use a fixed reference date (Dec 20, 2025) to make the test deterministic.
+      -- Use a fixed reference date (Dec 20, 2026) to make the test deterministic.
       -- This ensures we always get December dates regardless of when the test runs.
-      let referenceDate = fromGregorian 2025 12 20
+      let referenceDate = fromGregorian 2026 12 20
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         showId <- TRX.statement () (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         -- Set validity to start before our reference date
-        let effectiveFrom = fromGregorian 2025 12 15
+        let effectiveFrom = fromGregorian 2026 12 15
             validityInsert = UUT.ValidityInsert templateId effectiveFrom Nothing
         void $ TRX.statement () (UUT.insertValidity validityInsert)
 
@@ -323,14 +343,16 @@ prop_handlesYearBoundaries cfg = do
 
       assert $ do
         upcomingDates <- assertRight result
-        -- Should get dates spanning year boundary (Dec 2025 -> Jan 2026)
+        -- Should get dates spanning year boundary (Dec 2026 -> Jan 2027)
         case upcomingDates of
           (d1 : rest) | not (null rest) -> do
             let (year1, _, _) = toGregorian (UUT.usdShowDate d1)
             let years = map (\d -> let (y, _, _) = toGregorian d.usdShowDate in y) rest
             let crossesBoundary = any (> year1) years
             Hedgehog.assert crossesBoundary
-          _ -> pure () -- Not enough dates
+          _ -> do
+            annotate $ "Expected at least 2 dates but found " <> show (length upcomingDates)
+            failure
 
 prop_unscheduledExcludesScheduled :: TestDBConfig -> PropertyT IO ()
 prop_unscheduledExcludesScheduled cfg = do
@@ -399,6 +421,7 @@ prop_oneTimeShowCreation cfg = do
 
         -- Retrieve the template
         selected <- TRX.statement () (UUT.getScheduleTemplateById templateId)
+        TRX.condemn
         pure (templateId, scheduleInsert, selected)
 
       assert $ do
@@ -431,6 +454,7 @@ prop_timezoneStorage cfg = do
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
         selected <- TRX.statement () (UUT.getScheduleTemplateById templateId)
+        TRX.condemn
         pure (timezone, selected)
 
       assert $ do
@@ -469,4 +493,169 @@ prop_timezoneConversion cfg = do
             -- but the duration should always be 2 hours (7200 seconds)
             let duration = diffUTCTime date.usdEndTime date.usdStartTime
             duration === 7200 -- 2 hours in seconds
-          _ -> pure () -- Skip if no dates
+          _ -> do
+            annotate $ "Expected at least 1 date but found " <> show (length upcomingDates)
+            failure
+
+--------------------------------------------------------------------------------
+-- Conflict Detection Tests
+
+-- | checkTimeSlotConflict: detects overlapping time slots between shows.
+prop_checkTimeSlotConflict :: TestDBConfig -> PropertyT IO ()
+prop_checkTimeSlotConflict cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert1 <- forAllT showInsertGen
+    showInsert2 <- forAllT showInsertGen
+    dow <- forAllT genDayOfWeek
+    timezone <- forAllT genTimezone
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        -- Create first show with a schedule 10:00-12:00
+        let show1 = showInsert1 {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug showInsert1 <> "conflict1"}
+        showId1 <- TRX.statement () (Shows.insertShow show1)
+        let schedule1 = UUT.ScheduleTemplateInsert showId1 (Just dow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
+        templateId1 <- TRX.statement () (UUT.insertScheduleTemplate schedule1)
+        void $ TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId1 (addDays (-7) today) Nothing))
+
+        -- Create second show (to check conflict against show1)
+        let show2 = showInsert2 {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug showInsert2 <> "conflict2"}
+        showId2 <- TRX.statement () (Shows.insertShow show2)
+
+        -- Check overlapping slot (11:00-13:00 overlaps with 10:00-12:00)
+        mConflict <- TRX.statement () (UUT.checkTimeSlotConflict showId2 dow allWeeksOfMonth (TimeOfDay 11 0 0) (TimeOfDay 13 0 0))
+
+        -- Check non-overlapping slot (13:00-15:00 doesn't overlap with 10:00-12:00)
+        mNoConflict <- TRX.statement () (UUT.checkTimeSlotConflict showId2 dow allWeeksOfMonth (TimeOfDay 13 0 0) (TimeOfDay 15 0 0))
+
+        TRX.condemn
+        pure (show1, mConflict, mNoConflict)
+
+      assert $ do
+        (show1, mConflict, mNoConflict) <- assertRight result
+        -- Overlapping slot returns the conflicting show title
+        conflictTitle <- assertJust mConflict
+        conflictTitle === Shows.siTitle show1
+        -- Non-overlapping slot returns Nothing
+        assertNothing mNoConflict
+
+--------------------------------------------------------------------------------
+-- Validity Management Tests
+
+-- | getActiveValidityPeriodsForTemplate: returns currently active validity.
+prop_getActiveValidityPeriodsForTemplate :: TestDBConfig -> PropertyT IO ()
+prop_getActiveValidityPeriodsForTemplate cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+    (startTime, endTime) <- forAllT genTimeRange
+    dayOfWeek <- forAllT $ Just <$> genDayOfWeek
+    timezone <- forAllT genTimezone
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- TRX.statement () (Shows.insertShow showInsert)
+        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
+        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
+
+        -- Active validity (started 7 days ago, no end)
+        validityId1 <- TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+
+        -- Expired validity (ended yesterday)
+        _validityId2 <- TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-30) today) (Just (addDays (-1) today))))
+
+        activeValidities <- TRX.statement () (UUT.getActiveValidityPeriodsForTemplate templateId)
+        TRX.condemn
+        pure (validityId1, activeValidities)
+
+      assert $ do
+        (activeValidityId, activeValidities) <- assertRight result
+        -- Only the active validity should be returned
+        Hedgehog.assert (not $ null activeValidities)
+        let activeIds = map UUT.stvId activeValidities
+        elem activeValidityId activeIds === True
+
+-- | endValidity: sets effective_until on a validity period.
+prop_endValidity :: TestDBConfig -> PropertyT IO ()
+prop_endValidity cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+    (startTime, endTime) <- forAllT genTimeRange
+    dayOfWeek <- forAllT $ Just <$> genDayOfWeek
+    timezone <- forAllT genTimezone
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- TRX.statement () (Shows.insertShow showInsert)
+        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
+        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
+
+        -- Create active validity
+        validityId <- TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+
+        -- Verify active before ending
+        activeBefore <- TRX.statement () (UUT.getActiveScheduleTemplatesForShow showId)
+
+        -- End the validity
+        endResult <- TRX.statement () (UUT.endValidity validityId today)
+
+        -- Verify no longer active
+        activeAfter <- TRX.statement () (UUT.getActiveScheduleTemplatesForShow showId)
+
+        TRX.condemn
+        pure (validityId, activeBefore, endResult, activeAfter)
+
+      assert $ do
+        (validityId, activeBefore, endResult, activeAfter) <- assertRight result
+        -- Was active before
+        Hedgehog.assert (not $ null activeBefore)
+        -- End returned the validity ID
+        endedId <- assertJust endResult
+        endedId === validityId
+        -- No longer active after ending
+        length activeAfter === 0
+
+--------------------------------------------------------------------------------
+-- Scheduled Shows Tests
+
+-- | getScheduledShowsForDate: returns shows with host info for a specific date.
+prop_getScheduledShowsForDate :: TestDBConfig -> PropertyT IO ()
+prop_getScheduledShowsForDate cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    timezone <- forAllT genTimezone
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      -- Find the next occurrence of the target day (use today's DOW)
+      let targetDay = today
+      let targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate today in d
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let show1 = showInsert {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug showInsert <> "sched"}
+        showId <- TRX.statement () (Shows.insertShow show1)
+
+        -- Add host so show appears in results
+        TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert showId userId ShowHost.Host
+
+        -- Create a recurring schedule for today's day of week
+        let scheduleInsert = UUT.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) timezone False
+        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
+
+        -- Add active validity
+        void $ TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+
+        scheduled <- TRX.statement () (UUT.getScheduledShowsForDate targetDay)
+        TRX.condemn
+        pure (show1, scheduled)
+
+      assert $ do
+        (show1, scheduled) <- assertRight result
+        -- Should find at least our show
+        Hedgehog.assert (not $ null scheduled)
+        let matchingShows = filter (\s -> UUT.sswdShowTitle s == Shows.siTitle show1) scheduled
+        Hedgehog.assert (not $ null matchingShows)

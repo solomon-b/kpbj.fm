@@ -559,18 +559,32 @@ test-suite kpbj-api-test
        Effects.DiffSpec
        Effects.MarkdownSpec
        Effects.Database.Tables.BlogPostsSpec
+       Effects.Database.Tables.BlogTagsSpec
        Effects.Database.Tables.CurrentlyAiringSpec
+       Effects.Database.Tables.EmailVerificationTokensSpec
+       Effects.Database.Tables.EphemeralUploadsSpec
+       Effects.Database.Tables.EpisodeTrackSpec
        Effects.Database.Tables.EpisodesSpec
        Effects.Database.Tables.EventsSpec
+       Effects.Database.Tables.PasswordResetTokensSpec
+       Effects.Database.Tables.PlaybackHistorySpec
+       Effects.Database.Tables.ShowBlogPostsSpec
+       Effects.Database.Tables.ShowBlogTagsSpec
        Effects.Database.Tables.ShowHostSpec
        Effects.Database.Tables.ShowScheduleSpec
+       Effects.Database.Tables.ShowTagsSpec
        Effects.Database.Tables.ShowsSpec
+       Effects.Database.Tables.SitePagesSpec
+       Effects.Database.Tables.SitePageRevisionsSpec
        Effects.Database.Tables.StagedUploadsSpec
+       Effects.Database.Tables.StationIdsSpec
+       Effects.Database.Tables.StreamSettingsSpec
        Effects.Database.Tables.UserMetadataSpec
        Effects.Database.Tables.UserRoleSpec
        Effects.MimeTypeValidationSpec
        Effects.StagedUploadsSpec
        Test.Database.Expectation
+       Test.Database.Helpers
        Test.Database.Monad
        Test.Database.Property
        Test.Database.Property.Assert
@@ -579,10 +593,20 @@ test-suite kpbj-api-test
        Test.Gen.EmailAddress
        Test.Gen.Password
        Test.Gen.Tables.BlogPosts
+       Test.Gen.Tables.BlogTags
+       Test.Gen.Tables.EmailVerificationTokens
+       Test.Gen.Tables.EphemeralUploads
+       Test.Gen.Tables.EpisodeTrack
        Test.Gen.Tables.Episodes
        Test.Gen.Tables.Events
+       Test.Gen.Tables.PasswordResetTokens
+       Test.Gen.Tables.PlaybackHistory
+       Test.Gen.Tables.ShowBlogPosts
+       Test.Gen.Tables.ShowBlogTags
        Test.Gen.Tables.Shows
        Test.Gen.Tables.ShowSchedule
+       Test.Gen.Tables.ShowTags
+       Test.Gen.Tables.StationIds
        Test.Gen.Tables.StagedUploads
        Test.Gen.Tables.UserMetadata
        Test.Gen.Text
