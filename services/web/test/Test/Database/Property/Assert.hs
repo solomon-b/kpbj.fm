@@ -31,6 +31,14 @@ assertNothing = \case
     annotateShow v
     failure
 
+assertSingleton :: (Show a) => [a] -> PropertyT IO a
+assertSingleton = \case
+  [x] -> pure x
+  xs -> do
+    annotate $ "Expected exactly one element but found " <> show (length xs) <> ":"
+    annotateShow xs
+    failure
+
 (<==) :: (MonadTest m, Show a, HasCallStack) => a -> (a -> Bool) -> m ()
 (<==) val predicate = withFrozenCallStack $ do
   ok <- withFrozenCallStack $ eval $ predicate val
