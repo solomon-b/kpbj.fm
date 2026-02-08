@@ -6,7 +6,7 @@ import API.Dashboard.Blogs.New.Post.Route (NewShowBlogPostForm (..))
 import API.Links (dashboardBlogsLinks, rootLink)
 import API.Types (DashboardBlogsRoutes (..))
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireRight)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
@@ -54,7 +54,7 @@ handler showSlug cookie form =
     blogPostData <-
       requireRight
         Sanitize.displayContentValidationError
-        (validateNewShowBlogPost form showModel.id (UserMetadata.mUserId userMetadata))
+        (validateNewShowBlogPost form ((.id) showModel) (UserMetadata.mUserId userMetadata))
     handlePostCreation blogPostData form showModel
 
 -- | Validate and convert form data to blog post insert data
@@ -126,8 +126,10 @@ createOrAssociateTag postId tagName =
       -- otherwise, create new tag and associate it
       tagInsertResult <- execQuery (ShowBlogTags.insertShowBlogTag (ShowBlogTags.Insert tagName))
       case tagInsertResult of
-        Right newTagId -> do
+        Right (Just newTagId) -> do
           void $ execQuery (ShowBlogPosts.addTagToShowBlogPost postId newTagId)
+        Right Nothing -> do
+          Log.logInfo ("Tag insert returned Nothing: " <> tagName) ()
         Left dbError -> do
           Log.logInfo ("Database error creating tag: " <> Text.pack (show dbError)) ()
           pure ()
@@ -142,7 +144,8 @@ handlePostCreation blogPostData form showModel = do
   postId <-
     execQuery (ShowBlogPosts.insertShowBlogPost blogPostData) >>= \case
       Left err -> throwDatabaseError err
-      Right pid -> pure pid
+      Right (Just pid) -> pure pid
+      Right Nothing -> throwHandlerFailure "Show blog post insert returned Nothing"
 
   createPostTags postId form
   Log.logInfo "Successfully created show blog post" postId

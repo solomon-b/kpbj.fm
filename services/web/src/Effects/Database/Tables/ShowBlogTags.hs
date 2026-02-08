@@ -1,6 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definition and queries for @show_blog_tags@.
 --
@@ -28,12 +27,12 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Coerce (coerce)
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
 import Hasql.Statement qualified as Hasql
@@ -127,9 +126,9 @@ getShowBlogTagByName tagName = fmap listToMaybe $ run $ select do
   pure tag
 
 -- | Insert a new show blog tag and return its ID.
-insertShowBlogTag :: Insert -> Hasql.Statement () Id
+insertShowBlogTag :: Insert -> Hasql.Statement () (Maybe Id)
 insertShowBlogTag Insert {..} =
-  fmap head $
+  fmap listToMaybe $
     run $
       insert
         Rel8.Insert
@@ -137,7 +136,7 @@ insertShowBlogTag Insert {..} =
             rows =
               values
                 [ ShowBlogTag
-                    { sbtmId = coerce (nextval "show_blog_tags_id_seq"),
+                    { sbtmId = nextId "show_blog_tags_id_seq",
                       sbtmName = lit sbtiName,
                       sbtmCreatedAt = now
                     }

@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definition and queries for @episodes@.
 --
@@ -69,11 +68,14 @@ import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Enum, Insert, Update)
+import Rel8 qualified
+import Rel8.Expr.Time (now)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -177,6 +179,29 @@ episodeSchema =
             createdBy = "created_by",
             createdAt = "created_at",
             updatedAt = "updated_at"
+          }
+    }
+
+--------------------------------------------------------------------------------
+-- Junction Table (episode_tag_assignments)
+
+-- | The @episode_tag_assignments@ junction table definition (internal, not exported).
+data EpisodeTagAssignment f = EpisodeTagAssignment
+  { etaEpisodeId :: Column f Id,
+    etaTagId :: Column f EpisodeTags.Id
+  }
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
+
+-- | Schema for the @episode_tag_assignments@ junction table.
+episodeTagAssignmentSchema :: TableSchema (EpisodeTagAssignment Name)
+episodeTagAssignmentSchema =
+  TableSchema
+    { name = "episode_tag_assignments",
+      columns =
+        EpisodeTagAssignment
+          { etaEpisodeId = "episode_id",
+            etaTagId = "tag_id"
           }
     }
 
@@ -302,19 +327,15 @@ getEpisodesForShow showId' (Limit lim) (Offset off) =
 
 -- | Get episode by show slug and episode number.
 --
--- Uses raw SQL because it requires a JOIN with the shows table.
+-- Joins with shows table to filter by show slug.
 getEpisodeByShowAndNumber :: Slug -> EpisodeNumber -> Hasql.Statement () (Maybe Model)
-getEpisodeByShowAndNumber showSlug episodeNumber =
-  interp
-    False
-    [sql|
-    SELECT e.id, e.show_id, e.description, e.episode_number,
-           e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-           e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at, e.deleted_at, e.created_by, e.created_at, e.updated_at
-    FROM episodes e
-    JOIN shows s ON e.show_id = s.id
-    WHERE s.slug = #{showSlug} AND e.episode_number = #{episodeNumber}
-  |]
+getEpisodeByShowAndNumber showSlug episodeNum = fmap listToMaybe $ run $ select do
+  ep <- each episodeSchema
+  s <- each Shows.showSchema
+  where_ $ showId ep ==. Shows.id s
+  where_ $ Shows.slug s ==. lit showSlug
+  where_ $ episodeNumber ep ==. lit episodeNum
+  pure ep
 
 -- | Get episode by ID.
 getEpisodeById :: Id -> Hasql.Statement () (Maybe Model)
@@ -505,35 +526,55 @@ getCurrentlyAiringEpisode currentTime =
 --
 -- Episode numbers are auto-assigned by a PostgreSQL trigger.
 -- Episodes are always created as published (published_at = NOW()).
-insertEpisode :: Insert -> Hasql.Statement () Id
+insertEpisode :: Insert -> Hasql.Statement () (Maybe Id)
 insertEpisode Insert {..} =
-  getOneRow
-    <$> interp
-      False
-      [sql|
-    INSERT INTO episodes(show_id, description,
-                        audio_file_path, audio_file_size, audio_mime_type, duration_seconds,
-                        artwork_url, schedule_template_id, scheduled_at, published_at, created_by, created_at, updated_at)
-    VALUES (#{eiId}, #{eiDescription},
-            #{eiAudioFilePath}, #{eiAudioFileSize}, #{eiAudioMimeType}, #{eiDurationSeconds},
-            #{eiArtworkUrl}, #{eiScheduleTemplateId}, #{eiScheduledAt}, NOW(), #{eiCreatedBy}, NOW(), NOW())
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      insert
+        Rel8.Insert
+          { into = episodeSchema,
+            rows =
+              values
+                [ Episode
+                    { id = nextId "episodes_id_seq",
+                      showId = lit eiId,
+                      description = lit eiDescription,
+                      episodeNumber = unsafeDefault,
+                      audioFilePath = lit eiAudioFilePath,
+                      audioFileSize = lit eiAudioFileSize,
+                      audioMimeType = lit eiAudioMimeType,
+                      durationSeconds = lit eiDurationSeconds,
+                      artworkUrl = lit eiArtworkUrl,
+                      scheduleTemplateId = lit eiScheduleTemplateId,
+                      scheduledAt = lit eiScheduledAt,
+                      publishedAt = nullify now,
+                      deletedAt = Rel8.null,
+                      createdBy = lit eiCreatedBy,
+                      createdAt = now,
+                      updatedAt = now
+                    }
+                ],
+            onConflict = Abort,
+            returning = Returning (.id)
+          }
 
 -- | Update an episode with partial data (for editing).
---
--- Uses raw SQL because rel8's UPDATE doesn't support partial updates as cleanly.
 updateEpisode :: Update -> Hasql.Statement () (Maybe Id)
 updateEpisode Update {..} =
-  interp
-    False
-    [sql|
-    UPDATE episodes
-    SET description = #{euDescription},
-        updated_at = NOW()
-    WHERE id = #{euId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = episodeSchema,
+            from = pure (),
+            set = \_ ep ->
+              ep
+                { description = lit euDescription,
+                  updatedAt = now
+                },
+            updateWhere = \_ ep -> ep.id ==. lit euId,
+            returning = Returning (.id)
+          }
 
 -- | Update an episode's audio and artwork files.
 --
@@ -567,28 +608,39 @@ updateEpisodeFiles FileUpdate {..} =
 -- Changes both the schedule template reference and the scheduled_at timestamp.
 updateScheduledSlot :: ScheduleSlotUpdate -> Hasql.Statement () (Maybe Id)
 updateScheduledSlot ScheduleSlotUpdate {..} =
-  interp
-    False
-    [sql|
-    UPDATE episodes
-    SET schedule_template_id = #{essuScheduleTemplateId},
-        scheduled_at = #{essuScheduledAt},
-        updated_at = NOW()
-    WHERE id = #{essuId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = episodeSchema,
+            from = pure (),
+            set = \_ ep ->
+              ep
+                { scheduleTemplateId = lit essuScheduleTemplateId,
+                  scheduledAt = lit essuScheduledAt,
+                  updatedAt = now
+                },
+            updateWhere = \_ ep -> ep.id ==. lit essuId,
+            returning = Returning (.id)
+          }
 
 -- | Delete an episode (soft delete by setting deleted_at timestamp).
 deleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
 deleteEpisode episodeId =
-  interp
-    False
-    [sql|
-    UPDATE episodes
-    SET deleted_at = NOW(), updated_at = NOW()
-    WHERE id = #{episodeId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = episodeSchema,
+            from = pure (),
+            set = \_ ep ->
+              ep
+                { deletedAt = nullify now,
+                  updatedAt = now
+                },
+            updateWhere = \_ ep -> ep.id ==. lit episodeId,
+            returning = Returning (.id)
+          }
 
 --------------------------------------------------------------------------------
 -- Tag Junction Queries
@@ -596,15 +648,14 @@ deleteEpisode episodeId =
 -- | Get all tags for an episode.
 getTagsForEpisode :: Id -> Hasql.Statement () [EpisodeTags.Model]
 getTagsForEpisode episodeId =
-  interp
-    False
-    [sql|
-    SELECT et.id, et.name, et.created_at
-    FROM episode_tags et
-    INNER JOIN episode_tag_assignments eta ON et.id = eta.tag_id
-    WHERE eta.episode_id = #{episodeId}
-    ORDER BY et.name
-  |]
+  run $
+    select $
+      orderBy (EpisodeTags.etName >$< asc) do
+        eta <- each episodeTagAssignmentSchema
+        where_ $ etaEpisodeId eta ==. lit episodeId
+        tag <- each EpisodeTags.episodeTagSchema
+        where_ $ EpisodeTags.etId tag ==. etaTagId eta
+        pure tag
 
 -- | Replace all tags for an episode with a new set of tags.
 --

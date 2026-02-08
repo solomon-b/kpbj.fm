@@ -5,7 +5,7 @@ module API.User.Register.Post.Handler where
 import API.Links (userLinks)
 import API.Types
 import API.User.Register.Post.Route (Register (..), RegisterParsed (..))
-import App.Errors (Forbidden (..), throwErr)
+import App.Errors (InternalServerError (..), throwErr)
 import App.Monad (AppM)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow (..))
@@ -92,10 +92,13 @@ registerUser ::
 registerUser _sockAddr _mUserAgent RegisterParsed {..} newsletterSubscription = do
   Log.logInfo "Registering New User" urpEmail
   OneRow uid <- execQueryThrow $ User.insertUser $ User.ModelInsert urpEmail urpPassword
-  _ <- execQueryThrow $ UserMetadata.insertUserMetadata $ UserMetadata.Insert uid urpDisplayName urpFullName Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
+  mMetadataId <- execQueryThrow $ UserMetadata.insertUserMetadata $ UserMetadata.Insert uid urpDisplayName urpFullName Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
+  case mMetadataId of
+    Nothing -> throwErr $ InternalServerError "User metadata insert failed"
+    Just _ -> pure ()
   execQueryThrow (User.getUser uid) >>= \case
     Nothing ->
-      throwErr Forbidden
+      throwErr $ InternalServerError "User not found after registration"
     Just _user -> do
       when (isJust newsletterSubscription) (subscribeToNewsletter urpEmail)
 

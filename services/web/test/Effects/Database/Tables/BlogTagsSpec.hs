@@ -9,6 +9,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
+import Test.Database.Helpers (unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, (->-), (<==))
@@ -51,7 +52,7 @@ prop_insertSelect cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        tagId <- TRX.statement () (UUT.insertTag tagInsert)
+        tagId <- unwrapInsert (UUT.insertTag tagInsert)
         selected <- TRX.statement () (UUT.getTagByName (UUT.btiName tagInsert))
         TRX.condemn
         pure (tagId, tagInsert, selected)
@@ -92,8 +93,9 @@ prop_insertDuplicateName cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        _ <- TRX.statement () (UUT.insertTag tagInsert)
-        _ <- TRX.statement () (UUT.insertTag tagInsert)
+        _ <- unwrapInsert (UUT.insertTag tagInsert)
+        -- Insert with same name (should fail due to unique constraint)
+        _ <- unwrapInsert (UUT.insertTag tagInsert)
         TRX.condemn
         pure ()
 

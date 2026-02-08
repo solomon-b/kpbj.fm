@@ -20,7 +20,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, assertSingleton, (->-), (<==), (=\\=))
@@ -79,7 +79,7 @@ spec =
 
 -- | Set up a show and return its ID.
 insertTestShow :: Shows.Insert -> TRX.Transaction Shows.Id
-insertTestShow showInsert = TRX.statement () (Shows.insertShow showInsert)
+insertTestShow showInsert = unwrapInsert (Shows.insertShow showInsert)
 
 -- | Assert all user-provided fields in an Insert match the corresponding Model fields.
 assertInsertFieldsMatch :: UUT.Insert -> UUT.Model -> PropertyT IO ()
@@ -109,7 +109,7 @@ prop_insertSelect cfg = do
 
         let postInsert = postTemplate {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId}
 
-        postId <- TRX.statement () (UUT.insertShowBlogPost postInsert)
+        postId <- unwrapInsert (UUT.insertShowBlogPost postInsert)
         selected <- TRX.statement () (UUT.getShowBlogPostById postId)
         TRX.condemn
         pure (postId, postInsert, selected)
@@ -121,7 +121,7 @@ prop_insertSelect cfg = do
         selected.id === postId
         postId ->- UUT.Id 0
         case UUT.sbpiStatus postInsert of
-          Published -> void $ assertJust (selected.publishedAt)
+          Published -> void $ assertJust selected.publishedAt
           _ -> selected.publishedAt === Nothing
         pure ()
 
@@ -140,7 +140,7 @@ prop_updateSelect cfg = do
         showId <- insertTestShow showInsert
 
         let original = originalTemplate {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft}
-        postId <- TRX.statement () (UUT.insertShowBlogPost original)
+        postId <- unwrapInsert (UUT.insertShowBlogPost original)
 
         let updated = updateTemplate {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft}
         updateResult <- TRX.statement () (UUT.updateShowBlogPost postId updated)
@@ -176,7 +176,7 @@ prop_updateUpdate cfg = do
         showId <- insertTestShow showInsert
 
         let original = originalTemplate {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft}
-        postId <- TRX.statement () (UUT.insertShowBlogPost original)
+        postId <- unwrapInsert (UUT.insertShowBlogPost original)
 
         let updateA = updateATemplate {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft}
         _ <- TRX.statement () (UUT.updateShowBlogPost postId updateA)
@@ -218,9 +218,9 @@ prop_getShowBlogPosts cfg = do
         let post2 = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
         let post3 = template3 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Deleted, UUT.sbpiSlug = UUT.sbpiSlug template3 <> Slug "3"}
 
-        id1 <- TRX.statement () (UUT.insertShowBlogPost post1)
-        id2 <- TRX.statement () (UUT.insertShowBlogPost post2)
-        id3 <- TRX.statement () (UUT.insertShowBlogPost post3)
+        id1 <- unwrapInsert (UUT.insertShowBlogPost post1)
+        id2 <- unwrapInsert (UUT.insertShowBlogPost post2)
+        id3 <- unwrapInsert (UUT.insertShowBlogPost post3)
 
         allPosts <- TRX.statement () (UUT.getShowBlogPosts showId (Limit 10) (Offset 0))
         TRX.condemn
@@ -250,8 +250,8 @@ prop_getPublishedShowBlogPosts cfg = do
         let publishedPost = template1 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template1 <> Slug "1"}
         let draftPost = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
 
-        publishedId <- TRX.statement () (UUT.insertShowBlogPost publishedPost)
-        _draftId <- TRX.statement () (UUT.insertShowBlogPost draftPost)
+        publishedId <- unwrapInsert (UUT.insertShowBlogPost publishedPost)
+        _draftId <- unwrapInsert (UUT.insertShowBlogPost draftPost)
 
         published <- TRX.statement () (UUT.getPublishedShowBlogPosts showId (Limit 10) (Offset 0))
         TRX.condemn
@@ -283,9 +283,9 @@ prop_getPublishedShowBlogPosts_limit cfg = do
         let post2 = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
         let post3 = template3 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template3 <> Slug "3"}
 
-        _ <- TRX.statement () (UUT.insertShowBlogPost post1)
-        _ <- TRX.statement () (UUT.insertShowBlogPost post2)
-        _ <- TRX.statement () (UUT.insertShowBlogPost post3)
+        _ <- unwrapInsert (UUT.insertShowBlogPost post1)
+        _ <- unwrapInsert (UUT.insertShowBlogPost post2)
+        _ <- unwrapInsert (UUT.insertShowBlogPost post3)
 
         limited <- TRX.statement () (UUT.getPublishedShowBlogPosts showId (Limit 2) (Offset 0))
         TRX.condemn
@@ -315,9 +315,9 @@ prop_getPublishedShowBlogPosts_offset cfg = do
         let post2 = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
         let post3 = template3 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template3 <> Slug "3"}
 
-        _ <- TRX.statement () (UUT.insertShowBlogPost post1)
-        _ <- TRX.statement () (UUT.insertShowBlogPost post2)
-        _ <- TRX.statement () (UUT.insertShowBlogPost post3)
+        _ <- unwrapInsert (UUT.insertShowBlogPost post1)
+        _ <- unwrapInsert (UUT.insertShowBlogPost post2)
+        _ <- unwrapInsert (UUT.insertShowBlogPost post3)
 
         allPosts <- TRX.statement () (UUT.getPublishedShowBlogPosts showId (Limit 10) (Offset 0))
         offset1 <- TRX.statement () (UUT.getPublishedShowBlogPosts showId (Limit 10) (Offset 1))
@@ -351,7 +351,7 @@ prop_deleteShowBlogPost cfg = do
         showId <- insertTestShow showInsert
 
         let post = template {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId}
-        postId <- TRX.statement () (UUT.insertShowBlogPost post)
+        postId <- unwrapInsert (UUT.insertShowBlogPost post)
 
         deleteResult <- TRX.statement () (UUT.deleteShowBlogPost postId)
         afterDelete <- TRX.statement () (UUT.getShowBlogPostById postId)
@@ -384,7 +384,7 @@ prop_updateBlogPost_publishedAt cfg = do
 
         -- Insert as Draft
         let draftPost = template {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft}
-        postId <- TRX.statement () (UUT.insertShowBlogPost draftPost)
+        postId <- unwrapInsert (UUT.insertShowBlogPost draftPost)
 
         -- Transition Draft -> Published: published_at should be set
         let publishUpdate = updateTemplate {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published}
@@ -408,10 +408,10 @@ prop_updateBlogPost_publishedAt cfg = do
         (mAfterPublish, mAfterStayPublished, mAfterBackToDraft) <- assertRight result
 
         afterPublish <- assertJust mAfterPublish
-        publishedAt1 <- assertJust (afterPublish.publishedAt)
+        publishedAt1 <- assertJust afterPublish.publishedAt
 
         afterStayPublished <- assertJust mAfterStayPublished
-        publishedAt2 <- assertJust (afterStayPublished.publishedAt)
+        publishedAt2 <- assertJust afterStayPublished.publishedAt
         publishedAt1 === publishedAt2
 
         afterBackToDraft <- assertJust mAfterBackToDraft
@@ -436,11 +436,11 @@ prop_insertDuplicateSlugPerShow cfg = do
         showId <- insertTestShow showInsert
 
         let post1 = template1 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId}
-        _ <- TRX.statement () (UUT.insertShowBlogPost post1)
+        _ <- unwrapInsert (UUT.insertShowBlogPost post1)
 
         -- Insert with same slug
         let post2 = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiSlug = UUT.sbpiSlug post1}
-        _ <- TRX.statement () (UUT.insertShowBlogPost post2)
+        _ <- unwrapInsert (UUT.insertShowBlogPost post2)
         TRX.condemn
         pure ()
 
@@ -467,11 +467,11 @@ prop_addAndGetTagsForPost cfg = do
         showId <- insertTestShow showInsert
 
         let post = template {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId}
-        postId <- TRX.statement () (UUT.insertShowBlogPost post)
+        postId <- unwrapInsert (UUT.insertShowBlogPost post)
 
         -- Insert tags (suffix to ensure unique names)
-        tagId1 <- TRX.statement () (ShowBlogTags.insertShowBlogTag tagInsert1 {ShowBlogTags.sbtiName = ShowBlogTags.sbtiName tagInsert1 <> "1"})
-        tagId2 <- TRX.statement () (ShowBlogTags.insertShowBlogTag tagInsert2 {ShowBlogTags.sbtiName = ShowBlogTags.sbtiName tagInsert2 <> "2"})
+        tagId1 <- unwrapInsert (ShowBlogTags.insertShowBlogTag tagInsert1 {ShowBlogTags.sbtiName = ShowBlogTags.sbtiName tagInsert1 <> "1"})
+        tagId2 <- unwrapInsert (ShowBlogTags.insertShowBlogTag tagInsert2 {ShowBlogTags.sbtiName = ShowBlogTags.sbtiName tagInsert2 <> "2"})
 
         -- Add tags to post
         TRX.statement () (UUT.addTagToShowBlogPost postId tagId1)
@@ -509,9 +509,9 @@ prop_removeTagFromPost cfg = do
         showId <- insertTestShow showInsert
 
         let post = template {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId}
-        postId <- TRX.statement () (UUT.insertShowBlogPost post)
+        postId <- unwrapInsert (UUT.insertShowBlogPost post)
 
-        tagId <- TRX.statement () (ShowBlogTags.insertShowBlogTag tagInsert)
+        tagId <- unwrapInsert (ShowBlogTags.insertShowBlogTag tagInsert)
         TRX.statement () (UUT.addTagToShowBlogPost postId tagId)
 
         -- Remove the tag
@@ -540,9 +540,9 @@ prop_deleteBlogPost_cascade cfg = do
         showId <- insertTestShow showInsert
 
         let post = template {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId}
-        postId <- TRX.statement () (UUT.insertShowBlogPost post)
+        postId <- unwrapInsert (UUT.insertShowBlogPost post)
 
-        tagId <- TRX.statement () (ShowBlogTags.insertShowBlogTag tagInsert)
+        tagId <- unwrapInsert (ShowBlogTags.insertShowBlogTag tagInsert)
         TRX.statement () (UUT.addTagToShowBlogPost postId tagId)
 
         -- Verify tag is attached
@@ -583,8 +583,8 @@ prop_getPublishedShowBlogPostsBySlug cfg = do
         let publishedPost = template1 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template1 <> Slug "1"}
         let draftPost = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
 
-        publishedId <- TRX.statement () (UUT.insertShowBlogPost publishedPost)
-        _draftId <- TRX.statement () (UUT.insertShowBlogPost draftPost)
+        publishedId <- unwrapInsert (UUT.insertShowBlogPost publishedPost)
+        _draftId <- unwrapInsert (UUT.insertShowBlogPost draftPost)
 
         let showSlug = Shows.siSlug showInsert
         posts <- TRX.statement () (UUT.getPublishedShowBlogPostsBySlug (display showSlug) (Limit 10) (Offset 0))
@@ -623,11 +623,11 @@ prop_getPublishedShowBlogPostsByShowAndTag cfg = do
         let taggedPost = template1 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template1 <> Slug "1"}
         let untaggedPost = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
 
-        taggedId <- TRX.statement () (UUT.insertShowBlogPost taggedPost)
-        _untaggedId <- TRX.statement () (UUT.insertShowBlogPost untaggedPost)
+        taggedId <- unwrapInsert (UUT.insertShowBlogPost taggedPost)
+        _untaggedId <- unwrapInsert (UUT.insertShowBlogPost untaggedPost)
 
         -- Tag only the first post
-        tagId <- TRX.statement () (ShowBlogTags.insertShowBlogTag tagInsert)
+        tagId <- unwrapInsert (ShowBlogTags.insertShowBlogTag tagInsert)
         TRX.statement () (UUT.addTagToShowBlogPost taggedId tagId)
 
         posts <- TRX.statement () (UUT.getPublishedShowBlogPostsByShowAndTag showId tagId (Limit 10) (Offset 0))
@@ -659,9 +659,9 @@ prop_countPublishedShowBlogPosts cfg = do
         let pub2 = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
         let draft = template3 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft, UUT.sbpiSlug = UUT.sbpiSlug template3 <> Slug "3"}
 
-        _ <- TRX.statement () (UUT.insertShowBlogPost pub1)
-        _ <- TRX.statement () (UUT.insertShowBlogPost pub2)
-        _ <- TRX.statement () (UUT.insertShowBlogPost draft)
+        _ <- unwrapInsert (UUT.insertShowBlogPost pub1)
+        _ <- unwrapInsert (UUT.insertShowBlogPost pub2)
+        _ <- unwrapInsert (UUT.insertShowBlogPost draft)
 
         count <- TRX.statement () (UUT.countPublishedShowBlogPosts showId)
         TRX.condemn
@@ -689,10 +689,10 @@ prop_countPublishedShowBlogPostsByTag cfg = do
         let taggedPost = template1 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template1 <> Slug "1"}
         let untaggedPost = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Published, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
 
-        taggedId <- TRX.statement () (UUT.insertShowBlogPost taggedPost)
-        _ <- TRX.statement () (UUT.insertShowBlogPost untaggedPost)
+        taggedId <- unwrapInsert (UUT.insertShowBlogPost taggedPost)
+        _ <- unwrapInsert (UUT.insertShowBlogPost untaggedPost)
 
-        tagId <- TRX.statement () (ShowBlogTags.insertShowBlogTag tagInsert)
+        tagId <- unwrapInsert (ShowBlogTags.insertShowBlogTag tagInsert)
         TRX.statement () (UUT.addTagToShowBlogPost taggedId tagId)
 
         count <- TRX.statement () (UUT.countPublishedShowBlogPostsByTag showId tagId)
@@ -724,11 +724,11 @@ prop_getTagsForShow cfg = do
         -- Draft post with a different tag (should not appear)
         let draftPost = template2 {UUT.sbpiId = showId, UUT.sbpiAuthorId = userId, UUT.sbpiStatus = Draft, UUT.sbpiSlug = UUT.sbpiSlug template2 <> Slug "2"}
 
-        publishedId <- TRX.statement () (UUT.insertShowBlogPost publishedPost)
-        draftId <- TRX.statement () (UUT.insertShowBlogPost draftPost)
+        publishedId <- unwrapInsert (UUT.insertShowBlogPost publishedPost)
+        draftId <- unwrapInsert (UUT.insertShowBlogPost draftPost)
 
-        tagId1 <- TRX.statement () (ShowBlogTags.insertShowBlogTag tagInsert1 {ShowBlogTags.sbtiName = ShowBlogTags.sbtiName tagInsert1 <> "1"})
-        tagId2 <- TRX.statement () (ShowBlogTags.insertShowBlogTag tagInsert2 {ShowBlogTags.sbtiName = ShowBlogTags.sbtiName tagInsert2 <> "2"})
+        tagId1 <- unwrapInsert (ShowBlogTags.insertShowBlogTag tagInsert1 {ShowBlogTags.sbtiName = ShowBlogTags.sbtiName tagInsert1 <> "1"})
+        tagId2 <- unwrapInsert (ShowBlogTags.insertShowBlogTag tagInsert2 {ShowBlogTags.sbtiName = ShowBlogTags.sbtiName tagInsert2 <> "2"})
 
         -- Tag published post with tag1
         TRX.statement () (UUT.addTagToShowBlogPost publishedId tagId1)

@@ -475,6 +475,7 @@ library
     Effects.Database.Tables.EphemeralUploads
     Effects.Database.Tables.PlaybackHistory
     Effects.Database.Tables.UserMetadata
+    Effects.Database.Tables.Util
     Effects.AWS
     Effects.BackgroundJobs
     Effects.ContentSanitization

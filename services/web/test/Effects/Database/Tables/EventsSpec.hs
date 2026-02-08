@@ -13,7 +13,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, assertSingleton, (<==))
@@ -77,7 +77,7 @@ prop_insertSelect cfg = do
 
         let eventInsert = eventTemplate {UUT.eiAuthorId = userId}
 
-        eventId <- TRX.statement () (UUT.insertEvent eventInsert)
+        eventId <- unwrapInsert (UUT.insertEvent eventInsert)
         selected <- TRX.statement () (UUT.getEventById eventId)
         TRX.condemn
         pure (eventId, eventInsert, selected)
@@ -102,7 +102,7 @@ prop_updateSelect cfg = do
         userId <- insertTestUser userWithMetadata
 
         let original = originalTemplate {UUT.eiAuthorId = userId}
-        eventId <- TRX.statement () (UUT.insertEvent original)
+        eventId <- unwrapInsert (UUT.insertEvent original)
 
         let updated = updateTemplate {UUT.eiAuthorId = userId}
         updateResult <- TRX.statement () (UUT.updateEvent eventId updated)
@@ -135,7 +135,7 @@ prop_updateUpdate cfg = do
         userId <- insertTestUser userWithMetadata
 
         let original = originalTemplate {UUT.eiAuthorId = userId}
-        eventId <- TRX.statement () (UUT.insertEvent original)
+        eventId <- unwrapInsert (UUT.insertEvent original)
 
         let updateA = updateATemplate {UUT.eiAuthorId = userId}
         _ <- TRX.statement () (UUT.updateEvent eventId updateA)
@@ -172,8 +172,8 @@ prop_getPublishedEvents cfg = do
         let publishedEvent = template1 {UUT.eiAuthorId = userId, UUT.eiStatus = UUT.Published, UUT.eiSlug = UUT.eiSlug template1 <> Slug "1"}
         let draftEvent = template2 {UUT.eiAuthorId = userId, UUT.eiStatus = UUT.Draft, UUT.eiSlug = UUT.eiSlug template2 <> Slug "2"}
 
-        publishedId <- TRX.statement () (UUT.insertEvent publishedEvent)
-        _draftId <- TRX.statement () (UUT.insertEvent draftEvent)
+        publishedId <- unwrapInsert (UUT.insertEvent publishedEvent)
+        _draftId <- unwrapInsert (UUT.insertEvent draftEvent)
 
         published <- TRX.statement () (UUT.getPublishedEvents (Limit 10) (Offset 0))
         TRX.condemn
@@ -201,8 +201,8 @@ prop_getAllEvents cfg = do
         let event1 = template1 {UUT.eiAuthorId = userId, UUT.eiStatus = UUT.Published, UUT.eiSlug = UUT.eiSlug template1 <> Slug "1"}
         let event2 = template2 {UUT.eiAuthorId = userId, UUT.eiStatus = UUT.Draft, UUT.eiSlug = UUT.eiSlug template2 <> Slug "2"}
 
-        _ <- TRX.statement () (UUT.insertEvent event1)
-        _ <- TRX.statement () (UUT.insertEvent event2)
+        _ <- unwrapInsert (UUT.insertEvent event1)
+        _ <- unwrapInsert (UUT.insertEvent event2)
 
         allEvents <- TRX.statement () (UUT.getAllEvents (Limit 10) (Offset 0))
         TRX.condemn
@@ -230,9 +230,9 @@ prop_getAllEvents_limit cfg = do
         let event2 = template2 {UUT.eiAuthorId = userId, UUT.eiSlug = UUT.eiSlug template2 <> Slug "2"}
         let event3 = template3 {UUT.eiAuthorId = userId, UUT.eiSlug = UUT.eiSlug template3 <> Slug "3"}
 
-        _ <- TRX.statement () (UUT.insertEvent event1)
-        _ <- TRX.statement () (UUT.insertEvent event2)
-        _ <- TRX.statement () (UUT.insertEvent event3)
+        _ <- unwrapInsert (UUT.insertEvent event1)
+        _ <- unwrapInsert (UUT.insertEvent event2)
+        _ <- unwrapInsert (UUT.insertEvent event3)
 
         limited <- TRX.statement () (UUT.getAllEvents (Limit 2) (Offset 0))
         TRX.condemn
@@ -260,9 +260,9 @@ prop_getAllEvents_offset cfg = do
         let event2 = template2 {UUT.eiAuthorId = userId, UUT.eiSlug = UUT.eiSlug template2 <> Slug "2"}
         let event3 = template3 {UUT.eiAuthorId = userId, UUT.eiSlug = UUT.eiSlug template3 <> Slug "3"}
 
-        _ <- TRX.statement () (UUT.insertEvent event1)
-        _ <- TRX.statement () (UUT.insertEvent event2)
-        _ <- TRX.statement () (UUT.insertEvent event3)
+        _ <- unwrapInsert (UUT.insertEvent event1)
+        _ <- unwrapInsert (UUT.insertEvent event2)
+        _ <- unwrapInsert (UUT.insertEvent event3)
 
         allEvents <- TRX.statement () (UUT.getAllEvents (Limit 10) (Offset 0))
         offset1 <- TRX.statement () (UUT.getAllEvents (Limit 10) (Offset 1))
@@ -294,7 +294,7 @@ prop_deleteEvent cfg = do
         userId <- insertTestUser userWithMetadata
 
         let event = template {UUT.eiAuthorId = userId}
-        eventId <- TRX.statement () (UUT.insertEvent event)
+        eventId <- unwrapInsert (UUT.insertEvent event)
 
         deleteResult <- TRX.statement () (UUT.deleteEvent eventId)
         afterDelete <- TRX.statement () (UUT.getEventById eventId)
@@ -324,11 +324,11 @@ prop_insertDuplicateSlug cfg = do
         userId <- insertTestUser userWithMetadata
 
         let event1 = template1 {UUT.eiAuthorId = userId}
-        _ <- TRX.statement () (UUT.insertEvent event1)
+        _ <- unwrapInsert (UUT.insertEvent event1)
 
         -- Insert second event with same slug
         let event2 = template2 {UUT.eiAuthorId = userId, UUT.eiSlug = UUT.eiSlug event1}
-        _ <- TRX.statement () (UUT.insertEvent event2)
+        _ <- unwrapInsert (UUT.insertEvent event2)
         TRX.condemn
         pure ()
 

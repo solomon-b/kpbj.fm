@@ -42,6 +42,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Interpolate (OneRow (..))
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
+import Test.Database.Helpers (unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
 
@@ -207,7 +208,7 @@ setupTestDataWithDuration passHash startTime endTime airsTwiceDaily scheduledAt 
 
   -- Create show
   showId <-
-    TRX.statement () $
+    unwrapInsert $
       Shows.insertShow
         Shows.Insert
           { siTitle = "Test Show",
@@ -233,7 +234,7 @@ setupTestDataWithDuration passHash startTime endTime airsTwiceDaily scheduledAt 
 
   -- Create validity period
   _ <-
-    TRX.statement () $
+    unwrapInsert $
       ShowSchedule.insertValidity
         ShowSchedule.ValidityInsert
           { viTemplateId = templateId,
@@ -243,7 +244,7 @@ setupTestDataWithDuration passHash startTime endTime airsTwiceDaily scheduledAt 
 
   -- Create episode with custom duration
   episodeId <-
-    TRX.statement () $
+    unwrapInsert $
       Episodes.insertEpisode
         Episodes.Insert
           { eiId = showId,
@@ -710,7 +711,6 @@ durationEndedSlotContinues cfg = bracketConn cfg $ do
       scheduledAt = mkTestTime startTime
       queryTime = mkTestTime (TimeOfDay 14 35 0) -- 2:35 PM (past 30-min duration)
       duration = Just 1800 -- 30 minutes in seconds
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     _ <- setupTestDataWithDuration passHash startTime endTime False scheduledAt (Just "audio/test.mp3") testDay Nothing duration
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
@@ -731,7 +731,6 @@ durationMidway cfg = bracketConn cfg $ do
       scheduledAt = mkTestTime startTime
       queryTime = mkTestTime (TimeOfDay 14 15 0) -- 2:15 PM (within 30-min duration)
       duration = Just 1800 -- 30 minutes
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (episodeId, _) <- setupTestDataWithDuration passHash startTime endTime False scheduledAt (Just "audio/test.mp3") testDay Nothing duration
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
@@ -754,7 +753,6 @@ durationNullFallback cfg = bracketConn cfg $ do
       endTime = TimeOfDay 16 0 0 -- 4 PM
       scheduledAt = mkTestTime startTime
       queryTime = mkTestTime (TimeOfDay 15 30 0) -- 3:30 PM
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (episodeId, _) <- setupTestDataWithDuration passHash startTime endTime False scheduledAt (Just "audio/test.mp3") testDay Nothing Nothing
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
@@ -781,7 +779,6 @@ overnightDurationBeforeMidnightWithin cfg = bracketConn cfg $ do
       scheduledAt = mkTestTime startTime
       queryTime = mkTestTime (TimeOfDay 23 15 0) -- 11:15 PM (within 30-min duration)
       duration = Just 1800 -- 30 minutes
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (episodeId, _) <- setupTestDataWithDuration passHash startTime endTime False scheduledAt (Just "audio/test.mp3") testDay Nothing duration
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
@@ -805,7 +802,6 @@ overnightDurationBeforeMidnightPast cfg = bracketConn cfg $ do
       scheduledAt = mkTestTime startTime
       queryTime = mkTestTime (TimeOfDay 23 45 0) -- 11:45 PM (past 30-min duration)
       duration = Just 1800 -- 30 minutes
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     _ <- setupTestDataWithDuration passHash startTime endTime False scheduledAt (Just "audio/test.mp3") testDay Nothing duration
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
@@ -827,7 +823,6 @@ overnightDurationAfterMidnightWithin cfg = bracketConn cfg $ do
       -- Query at 12:30 AM next day (1.5 hours into show, within 2-hour duration)
       queryTime = mkTestTimeNextDay (TimeOfDay 0 30 0)
       duration = Just 7200 -- 2 hours
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (episodeId, _) <- setupTestDataWithDuration passHash startTime endTime False scheduledAt (Just "audio/test.mp3") testDay Nothing duration
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
@@ -852,7 +847,6 @@ overnightDurationEndedBeforeMidnight cfg = bracketConn cfg $ do
       -- Query at 1 AM next day - but duration ended at 11:30 PM
       queryTime = mkTestTimeNextDay (TimeOfDay 1 0 0)
       duration = Just 1800 -- 30 minutes (ends at 11:30 PM)
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     _ <- setupTestDataWithDuration passHash startTime endTime False scheduledAt (Just "audio/test.mp3") testDay Nothing duration
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime

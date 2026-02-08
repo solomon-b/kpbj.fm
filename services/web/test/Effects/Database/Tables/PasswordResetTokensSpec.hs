@@ -15,7 +15,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight)
@@ -67,22 +67,21 @@ prop_insertAndGetByToken cfg = do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
             ins = mkInsert userId token emailText ipAddress userAgent
-        mId <- TRX.statement () (UUT.insert ins)
+        _ <- unwrapInsert (UUT.insert ins)
         mModel <- TRX.statement () (UUT.getByToken token)
         TRX.condemn
-        pure (mId, userId, emailText, token, ipAddress, userAgent, mModel)
+        pure (userId, emailText, token, ipAddress, userAgent, mModel)
 
       assert $ do
-        (mId, userId, emailText, tk, ip, ua, mModel) <- assertRight result
-        _ <- assertJust mId
+        (userId, emailText, tk, ip, ua, mModel) <- assertRight result
         model <- assertJust mModel
-        UUT.userId model === userId
-        UUT.token model === tk
-        UUT.email model === emailText
-        UUT.status model === UUT.Pending
-        UUT.ipAddress model === ip
-        UUT.userAgent model === ua
-        assertNothing (UUT.usedAt model)
+        UUT.prtUserId model === userId
+        UUT.prtToken model === tk
+        UUT.prtEmail model === emailText
+        UUT.prtStatus model === UUT.Pending
+        UUT.prtIpAddress model === ip
+        UUT.prtUserAgent model === ua
+        assertNothing (UUT.prtUsedAt model)
 
 -- | consumeToken returns model with Used status and usedAt set.
 prop_consumeToken :: TestDBConfig -> PropertyT IO ()
@@ -95,7 +94,7 @@ prop_consumeToken cfg = do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
             ins = mkInsert userId token emailText Nothing Nothing
-        _ <- TRX.statement () (UUT.insert ins)
+        _ <- unwrapInsert (UUT.insert ins)
         mResult <- TRX.statement () (UUT.consumeToken token)
         TRX.condemn
         pure mResult
@@ -103,8 +102,8 @@ prop_consumeToken cfg = do
       assert $ do
         mModel <- assertRight result
         model <- assertJust mModel
-        UUT.status model === UUT.Used
-        _ <- assertJust (UUT.usedAt model)
+        UUT.prtStatus model === UUT.Used
+        _ <- assertJust (UUT.prtUsedAt model)
         pure ()
 
 -- | Force expires_at to past, consumeToken returns Nothing.
@@ -118,7 +117,7 @@ prop_consumeToken_expired cfg = do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
             ins = mkInsert userId token emailText Nothing Nothing
-        _ <- TRX.statement () (UUT.insert ins)
+        _ <- unwrapInsert (UUT.insert ins)
 
         -- Force token to be expired
         TRX.statement () $
@@ -149,7 +148,7 @@ prop_consumeToken_alreadyUsed cfg = do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
             ins = mkInsert userId token emailText Nothing Nothing
-        _ <- TRX.statement () (UUT.insert ins)
+        _ <- unwrapInsert (UUT.insert ins)
         firstConsume <- TRX.statement () (UUT.consumeToken token)
         secondConsume <- TRX.statement () (UUT.consumeToken token)
         TRX.condemn
@@ -171,7 +170,7 @@ prop_getByToken_afterConsume cfg = do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
             ins = mkInsert userId token emailText Nothing Nothing
-        _ <- TRX.statement () (UUT.insert ins)
+        _ <- unwrapInsert (UUT.insert ins)
         _ <- TRX.statement () (UUT.consumeToken token)
         mResult <- TRX.statement () (UUT.getByToken token)
         TRX.condemn
@@ -192,8 +191,8 @@ prop_expirePendingForUser cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- TRX.statement () (UUT.insert (mkInsert userId token1 emailText Nothing Nothing))
-        _ <- TRX.statement () (UUT.insert (mkInsert userId token2 emailText Nothing Nothing))
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token1 emailText Nothing Nothing))
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token2 emailText Nothing Nothing))
         TRX.statement () (UUT.expirePendingForUser userId)
         g1 <- TRX.statement () (UUT.getByToken token1)
         g2 <- TRX.statement () (UUT.getByToken token2)
@@ -217,9 +216,9 @@ prop_countRecentForEmail cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- TRX.statement () (UUT.insert (mkInsert userId token1 emailText Nothing Nothing))
-        _ <- TRX.statement () (UUT.insert (mkInsert userId token2 emailText Nothing Nothing))
-        _ <- TRX.statement () (UUT.insert (mkInsert userId token3 emailText Nothing Nothing))
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token1 emailText Nothing Nothing))
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token2 emailText Nothing Nothing))
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token3 emailText Nothing Nothing))
         mResult <- TRX.statement () (UUT.countRecentForEmail emailText)
         TRX.condemn
         pure mResult
@@ -238,7 +237,7 @@ prop_deleteExpired cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- TRX.statement () (UUT.insert (mkInsert userId token emailText Nothing Nothing))
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token emailText Nothing Nothing))
 
         -- Force token to be expired
         TRX.statement () $
@@ -269,7 +268,7 @@ prop_deleteOlderThanDays cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- TRX.statement () (UUT.insert (mkInsert userId token emailText Nothing Nothing))
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token emailText Nothing Nothing))
 
         -- Force created_at to 31 days ago
         TRX.statement () $
@@ -302,7 +301,7 @@ prop_auditFieldsPreserved cfg = do
         userId <- insertTestUser userWithMetadata
         let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
             ins = mkInsert userId token emailText ipAddress userAgent
-        _ <- TRX.statement () (UUT.insert ins)
+        _ <- unwrapInsert (UUT.insert ins)
         mResult <- TRX.statement () (UUT.getByToken token)
         TRX.condemn
         pure mResult
@@ -310,5 +309,5 @@ prop_auditFieldsPreserved cfg = do
       assert $ do
         mModel <- assertRight result
         model <- assertJust mModel
-        UUT.ipAddress model === ipAddress
-        UUT.userAgent model === userAgent
+        UUT.prtIpAddress model === ipAddress
+        UUT.prtUserAgent model === userAgent

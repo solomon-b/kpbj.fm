@@ -1,7 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definition and queries for @show_tags@.
 --
@@ -34,12 +33,12 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Coerce (coerce)
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
@@ -159,9 +158,9 @@ getShowTagByName tagName = fmap listToMaybe $ run $ select do
   pure tag
 
 -- | Insert a new show tag and return its ID.
-insertShowTag :: Insert -> Hasql.Statement () Id
+insertShowTag :: Insert -> Hasql.Statement () (Maybe Id)
 insertShowTag Insert {..} =
-  fmap head $
+  fmap listToMaybe $
     run $
       insert
         Rel8.Insert
@@ -169,7 +168,7 @@ insertShowTag Insert {..} =
             rows =
               values
                 [ ShowTag
-                    { stId = coerce (nextval "show_tags_id_seq"),
+                    { stId = nextId "show_tags_id_seq",
                       stName = lit stiName,
                       stCreatedAt = now
                     }

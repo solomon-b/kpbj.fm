@@ -6,7 +6,7 @@ import API.Dashboard.StationBlog.New.Post.Route (NewBlogPostForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
 import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
@@ -126,8 +126,10 @@ createOrAssociateTag postId tagName =
       -- otherwise, create new tag and associate it
       tagInsertResult <- execQuery (BlogTags.insertTag (BlogTags.Insert tagName))
       case tagInsertResult of
-        Right newTagId -> do
+        Right (Just newTagId) -> do
           void $ execQuery (BlogPosts.addTagToPost postId newTagId)
+        Right Nothing -> do
+          Log.logInfo "Tag insert returned Nothing" (Aeson.object ["tagName" .= tagName])
         Left dbError -> do
           Log.logInfo "Database error creating tag" (Aeson.object ["error" .= Text.pack (show dbError)])
 
@@ -162,4 +164,5 @@ insertBlogPost ::
 insertBlogPost blogPostData =
   execQuery (BlogPosts.insertBlogPost blogPostData) >>= \case
     Left err -> throwDatabaseError err
-    Right postId -> pure postId
+    Right (Just postId) -> pure postId
+    Right Nothing -> throwHandlerFailure "Blog post insert returned Nothing"

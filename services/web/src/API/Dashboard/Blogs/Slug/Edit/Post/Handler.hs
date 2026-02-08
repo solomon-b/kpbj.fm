@@ -150,5 +150,7 @@ createOrAssociateTag postId tagName =
       HT.statement () (ShowBlogPosts.addTagToShowBlogPost postId (ShowBlogTags.sbtmId existingTag))
     Nothing -> do
       -- otherwise, create new tag and associate it
-      newTagId <- HT.statement () (ShowBlogTags.insertShowBlogTag (ShowBlogTags.Insert tagName))
-      HT.statement () (ShowBlogPosts.addTagToShowBlogPost postId newTagId)
+      mNewTagId <- HT.statement () (ShowBlogTags.insertShowBlogTag (ShowBlogTags.Insert tagName))
+      case mNewTagId of
+        Just newTagId -> HT.statement () (ShowBlogPosts.addTagToShowBlogPost postId newTagId)
+        Nothing -> pure () -- Insert failed unexpectedly, skip this tag

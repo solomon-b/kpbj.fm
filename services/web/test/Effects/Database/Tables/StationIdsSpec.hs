@@ -11,7 +11,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, (->-))
@@ -52,18 +52,15 @@ prop_insertSelect cfg = do
         userId <- insertTestUser userWithMetadata
 
         let stationIdInsert = template {UUT.siiCreatorId = userId}
-        mInsertedId <- TRX.statement () (UUT.insertStationId stationIdInsert)
+        insertedId <- unwrapInsert (UUT.insertStationId stationIdInsert)
 
-        mSelected <- case mInsertedId of
-          Nothing -> pure Nothing
-          Just insertedId -> TRX.statement () (UUT.getStationIdById insertedId)
+        mSelected <- TRX.statement () (UUT.getStationIdById insertedId)
 
         TRX.condemn
-        pure (mInsertedId, stationIdInsert, mSelected)
+        pure (insertedId, stationIdInsert, mSelected)
 
       assert $ do
-        (mInsertedId, stationIdInsert, mSelected) <- assertRight result
-        insertedId <- assertJust mInsertedId
+        (insertedId, stationIdInsert, mSelected) <- assertRight result
         selected <- assertJust mSelected
         UUT.simId selected === insertedId
         UUT.simTitle selected === UUT.siiTitle stationIdInsert
@@ -93,9 +90,9 @@ prop_getAllStationIds_paginated cfg = do
         let si2 = template2 {UUT.siiCreatorId = userId}
         let si3 = template3 {UUT.siiCreatorId = userId}
 
-        _ <- TRX.statement () (UUT.insertStationId si1)
-        _ <- TRX.statement () (UUT.insertStationId si2)
-        _ <- TRX.statement () (UUT.insertStationId si3)
+        _ <- unwrapInsert (UUT.insertStationId si1)
+        _ <- unwrapInsert (UUT.insertStationId si2)
+        _ <- unwrapInsert (UUT.insertStationId si3)
 
         allItems <- TRX.statement () (UUT.getAllStationIds (Limit 10) (Offset 0))
         limited <- TRX.statement () (UUT.getAllStationIds (Limit 2) (Offset 0))
@@ -126,21 +123,16 @@ prop_deleteStationId cfg = do
         userId <- insertTestUser userWithMetadata
 
         let stationIdInsert = template {UUT.siiCreatorId = userId}
-        mInsertedId <- TRX.statement () (UUT.insertStationId stationIdInsert)
+        insertedId <- unwrapInsert (UUT.insertStationId stationIdInsert)
 
-        (deleteResult, afterDelete) <- case mInsertedId of
-          Nothing -> pure (Nothing, Nothing)
-          Just insertedId -> do
-            dr <- TRX.statement () (UUT.deleteStationId insertedId)
-            ad <- TRX.statement () (UUT.getStationIdById insertedId)
-            pure (dr, ad)
+        deleteResult <- TRX.statement () (UUT.deleteStationId insertedId)
+        afterDelete <- TRX.statement () (UUT.getStationIdById insertedId)
 
         TRX.condemn
-        pure (mInsertedId, deleteResult, afterDelete)
+        pure (insertedId, deleteResult, afterDelete)
 
       assert $ do
-        (mInsertedId, deleteResult, afterDelete) <- assertRight result
-        insertedId <- assertJust mInsertedId
+        (insertedId, deleteResult, afterDelete) <- assertRight result
         deletedId <- assertJust deleteResult
         deletedId === insertedId
         assertNothing afterDelete

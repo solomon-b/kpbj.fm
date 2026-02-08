@@ -4,7 +4,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definition and queries for @user_metadata@.
 --
@@ -73,7 +72,6 @@ where
 
 import Control.Monad (join)
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Coerce (coerce)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Password.Argon2 (Argon2, PasswordHash)
@@ -89,6 +87,7 @@ import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
@@ -487,9 +486,9 @@ getUserMetadata userId =
   |]
 
 -- | Insert user metadata.
-insertUserMetadata :: Insert -> Hasql.Statement () Id
+insertUserMetadata :: Insert -> Hasql.Statement () (Maybe Id)
 insertUserMetadata Insert {..} =
-  fmap head $
+  fmap listToMaybe $
     run $
       insert
         Rel8.Insert
@@ -497,7 +496,7 @@ insertUserMetadata Insert {..} =
             rows =
               values
                 [ UserMetadata
-                    { umId = coerce (nextval "user_metadata_id_seq"),
+                    { umId = nextId "user_metadata_id_seq",
                       umUserId = lit iUserId,
                       umDisplayName = lit iDisplayName,
                       umFullName = lit iFullName,

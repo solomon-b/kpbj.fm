@@ -3,7 +3,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definition and queries for @shows@.
 --
@@ -56,7 +55,6 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Coerce (coerce)
 import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
@@ -69,8 +67,10 @@ import Domain.Types.Offset (Offset (..))
 import Domain.Types.Search (Search (..))
 import Domain.Types.ShowSortBy (ShowSortBy (..))
 import Domain.Types.Slug (Slug (..))
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
@@ -216,6 +216,29 @@ showSchema =
     }
 
 --------------------------------------------------------------------------------
+-- Junction Table (show_tag_assignments)
+
+-- | The @show_tag_assignments@ junction table definition (internal, not exported).
+data ShowTagAssignment f = ShowTagAssignment
+  { staShowId :: Column f Id,
+    staTagId :: Column f ShowTags.Id
+  }
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
+
+-- | Schema for the @show_tag_assignments@ junction table.
+showTagAssignmentSchema :: TableSchema (ShowTagAssignment Name)
+showTagAssignmentSchema =
+  TableSchema
+    { name = "show_tag_assignments",
+      columns =
+        ShowTagAssignment
+          { staShowId = "show_id",
+            staTagId = "tag_id"
+          }
+    }
+
+--------------------------------------------------------------------------------
 -- Insert Type
 
 -- | Insert type for creating new shows.
@@ -293,9 +316,9 @@ getShowsFiltered maybeTagId maybeStatus sortBy (Limit lim) (Offset off) =
       CreatedOldest -> "created_oldest"
 
 -- | Insert a new show.
-insertShow :: Insert -> Hasql.Statement () Id
+insertShow :: Insert -> Hasql.Statement () (Maybe Id)
 insertShow Insert {..} =
-  fmap head $
+  fmap listToMaybe $
     run $
       insert
         Rel8.Insert
@@ -303,7 +326,7 @@ insertShow Insert {..} =
             rows =
               values
                 [ Show
-                    { id = coerce (nextval "shows_id_seq"),
+                    { id = nextId "shows_id_seq",
                       title = lit siTitle,
                       slug = lit siSlug,
                       description = lit siDescription,
@@ -319,52 +342,64 @@ insertShow Insert {..} =
           }
 
 -- | Update a show.
---
--- Uses raw SQL for consistency with update patterns.
 updateShow :: Id -> Insert -> Hasql.Statement () (Maybe Id)
 updateShow showId Insert {..} =
-  interp
-    False
-    [sql|
-    UPDATE shows
-    SET title = #{siTitle}, slug = #{siSlug}, description = #{siDescription},
-        logo_url = #{siLogoUrl},
-        status = #{siStatus},
-        updated_at = NOW()
-    WHERE id = #{showId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = showSchema,
+            from = pure (),
+            set = \_ showRec ->
+              showRec
+                { title = lit siTitle,
+                  slug = lit siSlug,
+                  description = lit siDescription,
+                  logoUrl = lit siLogoUrl,
+                  status = lit siStatus,
+                  updatedAt = now
+                },
+            updateWhere = \_ showRec -> id showRec ==. lit showId {- HLINT ignore "Redundant id" -},
+            returning = Returning id
+          }
 
 -- | Soft delete a show by setting deleted_at timestamp.
 --
 -- Returns the show ID if successfully deleted, Nothing if already deleted or not found.
 softDeleteShow :: Id -> Hasql.Statement () (Maybe Id)
 softDeleteShow showId =
-  listToMaybe
-    <$> interp
-      True
-      [sql|
-    UPDATE shows
-    SET deleted_at = NOW()
-    WHERE id = #{showId} AND deleted_at IS NULL
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = showSchema,
+            from = pure (),
+            set = \_ showRec ->
+              showRec
+                { deletedAt = nullify now
+                },
+            updateWhere = \_ showRec ->
+              id showRec ==. lit showId {- HLINT ignore "Redundant id" -}
+                &&. isNull (deletedAt showRec),
+            returning = Returning id
+          }
 
 --------------------------------------------------------------------------------
--- Show Host Queries (Junction table queries - use raw SQL)
+-- Show Host Queries
 
 -- | Get shows for a user (active host assignments, excludes soft-deleted shows).
 getShowsForUser :: User.Id -> Hasql.Statement () [Model]
 getShowsForUser userId =
-  interp
-    False
-    [sql|
-    SELECT s.id, s.title, s.slug, s.description, s.logo_url, s.status, s.created_at, s.updated_at, s.deleted_at
-    FROM shows s
-    JOIN show_hosts sh ON s.id = sh.show_id
-    WHERE sh.user_id = #{userId} AND sh.left_at IS NULL AND s.deleted_at IS NULL
-    ORDER BY s.title
-  |]
+  run $
+    select $
+      orderBy (title >$< asc) do
+        s <- each showSchema
+        sh <- each ShowHost.showHostSchema
+        where_ $ id s ==. ShowHost.shmShowId sh {- HLINT ignore "Redundant id" -}
+        where_ $ ShowHost.shmUserId sh ==. lit userId
+        where_ $ isNull (ShowHost.shmLeftAt sh)
+        where_ $ isNull (deletedAt s)
+        pure s
 
 -- | Get all active shows (for admin dashboard, excludes soft-deleted shows).
 getAllActiveShows :: Hasql.Statement () [Model]
@@ -507,37 +542,39 @@ searchShowsWithHostInfo (Search searchTerm) (Limit lim) (Offset off) =
 -- | Get all tags for a show.
 getTagsForShow :: Id -> Hasql.Statement () [ShowTags.Model]
 getTagsForShow showId =
-  interp
-    False
-    [sql|
-    SELECT st.id, st.name, st.created_at
-    FROM show_tags st
-    INNER JOIN show_tag_assignments sta ON st.id = sta.tag_id
-    WHERE sta.show_id = #{showId}
-    ORDER BY st.name
-  |]
+  run $
+    select $
+      orderBy (ShowTags.stName >$< asc) do
+        sta <- each showTagAssignmentSchema
+        where_ $ staShowId sta ==. lit showId
+        tag <- each ShowTags.showTagSchema
+        where_ $ ShowTags.stId tag ==. staTagId sta
+        pure tag
 
 -- | Add a tag to a show.
 --
 -- Uses ON CONFLICT DO NOTHING for idempotent behavior.
 addTagToShow :: Id -> ShowTags.Id -> Hasql.Statement () ()
 addTagToShow showId tagId =
-  interp
-    False
-    [sql|
-    INSERT INTO show_tag_assignments (show_id, tag_id)
-    VALUES (#{showId}, #{tagId})
-    ON CONFLICT DO NOTHING
-  |]
+  run_ $
+    insert
+      Rel8.Insert
+        { into = showTagAssignmentSchema,
+          rows = values [ShowTagAssignment {staShowId = lit showId, staTagId = lit tagId}],
+          onConflict = DoNothing,
+          returning = NoReturning
+        }
 
 -- | Remove all tag assignments from a show.
 --
 -- Used when updating a show's tags (clear all, then re-add).
 removeAllTagsFromShow :: Id -> Hasql.Statement () ()
 removeAllTagsFromShow showId =
-  interp
-    False
-    [sql|
-    DELETE FROM show_tag_assignments
-    WHERE show_id = #{showId}
-  |]
+  run_ $
+    delete
+      Rel8.Delete
+        { from = showTagAssignmentSchema,
+          using = pure (),
+          deleteWhere = \_ sta -> staShowId sta ==. lit showId,
+          returning = NoReturning
+        }

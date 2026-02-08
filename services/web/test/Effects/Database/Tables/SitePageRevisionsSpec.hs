@@ -9,7 +9,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, annotate, failure, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertRight, (->-))
@@ -59,16 +59,11 @@ prop_insertRevision cfg = do
                       UUT.spriEditSummary = Just "Test edit summary",
                       UUT.spriCreatedBy = userId
                     }
-            mRevId <- TRX.statement () (UUT.insertRevision revInsert)
+            revId <- unwrapInsert (UUT.insertRevision revInsert)
 
-            case mRevId of
-              Nothing -> do
-                TRX.condemn
-                pure (Nothing, Nothing)
-              Just revId -> do
-                selected <- TRX.statement () (UUT.getRevisionById revId)
-                TRX.condemn
-                pure (Just revId, selected)
+            selected <- TRX.statement () (UUT.getRevisionById revId)
+            TRX.condemn
+            pure (Just revId, selected)
 
       assert $ do
         (mRevId, mSelected) <- assertRight result
@@ -116,18 +111,15 @@ prop_getRevisionsForPage cfg = do
                       UUT.spriCreatedBy = userId
                     }
 
-            mRevId1 <- TRX.statement () (UUT.insertRevision rev1)
-            mRevId2 <- TRX.statement () (UUT.insertRevision rev2)
+            _ <- unwrapInsert (UUT.insertRevision rev1)
+            _ <- unwrapInsert (UUT.insertRevision rev2)
 
             revisions <- TRX.statement () (UUT.getRevisionsForPage pageId)
             TRX.condemn
-            pure (Just (mRevId1, mRevId2), revisions)
+            pure (Just (), revisions)
 
       assert $ do
-        (mIds, revisions) <- assertRight result
-        (mRevId1, mRevId2) <- assertJust mIds
-        _ <- assertJust mRevId1
-        _ <- assertJust mRevId2
+        (_, revisions) <- assertRight result
 
         -- Most recent should be first (DESC order); there may be others from migrations
         case revisions of
@@ -159,16 +151,11 @@ prop_getRevisionById cfg = do
                       UUT.spriEditSummary = Nothing,
                       UUT.spriCreatedBy = userId
                     }
-            mRevId <- TRX.statement () (UUT.insertRevision revInsert)
+            revId <- unwrapInsert (UUT.insertRevision revInsert)
 
-            case mRevId of
-              Nothing -> do
-                TRX.condemn
-                pure (Nothing, Nothing)
-              Just revId -> do
-                selected <- TRX.statement () (UUT.getRevisionById revId)
-                TRX.condemn
-                pure (Just revId, selected)
+            selected <- TRX.statement () (UUT.getRevisionById revId)
+            TRX.condemn
+            pure (Just revId, selected)
 
       assert $ do
         (mRevId, mSelected) <- assertRight result

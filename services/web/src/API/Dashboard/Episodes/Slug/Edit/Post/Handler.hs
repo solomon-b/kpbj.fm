@@ -429,7 +429,10 @@ insertTrack episodeId (trackNum, track) = do
     Left err -> do
       Log.logInfo "Failed to insert track" (show err)
       pure $ Left "Failed to insert track"
-    Right trackId -> pure $ Right trackId
+    Right (Just trackId) -> pure $ Right trackId
+    Right Nothing -> do
+      Log.logInfo "Track insert returned Nothing" (show track)
+      pure $ Left "Failed to insert track"
 
 --------------------------------------------------------------------------------
 -- Tag Parsing

@@ -25,8 +25,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime)
-import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
@@ -417,8 +417,10 @@ updateSchedulesForShow showId newSchedules = do
             case validityResult of
               Left err ->
                 Log.logInfo "Failed to insert validity" (Text.pack $ show err)
-              Right _ ->
+              Right (Just _) ->
                 Log.logInfo "Created new schedule for show" (show showId, show dow)
+              Right Nothing ->
+                Log.logInfo "insertValidity returned Nothing" (show showId, show dow)
       _ ->
         Log.logInfo "Invalid schedule slot data - skipping" (show slot)
 
@@ -514,9 +516,11 @@ processShowTags showId mTagsText = do
           _ -> do
             -- Tag doesn't exist, create it and associate
             execQuery (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
-              Right newTagId -> do
+              Right (Just newTagId) -> do
                 _ <- execQuery (Shows.addTagToShow showId newTagId)
                 Log.logInfo "Created and associated new tag with show" (show showId, tagName)
+              Right Nothing ->
+                Log.logInfo "Tag insert returned Nothing" tagName
               Left err ->
                 Log.logInfo "Failed to create tag" (tagName, show err)
 
