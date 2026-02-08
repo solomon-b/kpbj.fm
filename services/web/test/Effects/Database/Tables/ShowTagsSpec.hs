@@ -11,7 +11,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, assertSingleton, (->-), (<==))
@@ -62,7 +62,7 @@ prop_insertSelect cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        tagId <- TRX.statement () (UUT.insertShowTag tagInsert)
+        tagId <- unwrapInsert (UUT.insertShowTag tagInsert)
         selected <- TRX.statement () (UUT.getShowTagByName (UUT.stiName tagInsert))
         TRX.condemn
         pure (tagId, tagInsert, selected)
@@ -103,8 +103,9 @@ prop_insertDuplicateName cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        _ <- TRX.statement () (UUT.insertShowTag tagInsert)
-        _ <- TRX.statement () (UUT.insertShowTag tagInsert)
+        _ <- unwrapInsert (UUT.insertShowTag tagInsert)
+        -- Insert with same name (should fail due to unique constraint)
+        _ <- unwrapInsert (UUT.insertShowTag tagInsert)
         TRX.condemn
         pure ()
 
@@ -129,13 +130,13 @@ prop_getShowTagsWithCounts cfg = do
 
         -- Create an active show
         let activeShow = showInsert {Shows.siStatus = Shows.Active}
-        showId <- TRX.statement () (Shows.insertShow activeShow)
+        showId <- unwrapInsert (Shows.insertShow activeShow)
 
         -- Add host so show is valid
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert showId userId ShowHost.Host
 
         -- Create and assign tag
-        tagId <- TRX.statement () (UUT.insertShowTag tagInsert)
+        tagId <- unwrapInsert (UUT.insertShowTag tagInsert)
         TRX.statement () (Shows.addTagToShow showId tagId)
 
         -- Query with counts
@@ -168,15 +169,15 @@ prop_getShowTagsWithCounts_activeOnly cfg = do
         let activeShow = activeTemplate {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug activeTemplate <> "1"}
         let inactiveShow = inactiveTemplate {Shows.siStatus = Shows.Inactive, Shows.siSlug = Shows.siSlug inactiveTemplate <> "2"}
 
-        activeId <- TRX.statement () (Shows.insertShow activeShow)
-        inactiveId <- TRX.statement () (Shows.insertShow inactiveShow)
+        activeId <- unwrapInsert (Shows.insertShow activeShow)
+        inactiveId <- unwrapInsert (Shows.insertShow inactiveShow)
 
         -- Add hosts
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert activeId userId ShowHost.Host
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert inactiveId userId ShowHost.Host
 
         -- Create tag and assign to both shows
-        tagId <- TRX.statement () (UUT.insertShowTag tagInsert)
+        tagId <- unwrapInsert (UUT.insertShowTag tagInsert)
         TRX.statement () (Shows.addTagToShow activeId tagId)
         TRX.statement () (Shows.addTagToShow inactiveId tagId)
 

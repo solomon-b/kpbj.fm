@@ -14,7 +14,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestShowWithSchedule, insertTestUser)
+import Test.Database.Helpers (insertTestShowWithSchedule, insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertRight, assertSingleton)
@@ -63,10 +63,10 @@ prop_insertSelect cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = templateId, Episodes.eiCreatedBy = userId}
-        episodeId <- TRX.statement () (Episodes.insertEpisode episodeInsert)
+        episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         let trackInsert = trackTemplate {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}
-        trackId <- TRX.statement () (UUT.insertEpisodeTrack trackInsert)
+        trackId <- unwrapInsert (UUT.insertEpisodeTrack trackInsert)
 
         tracks <- TRX.statement () (UUT.getTracksForEpisode episodeId)
         TRX.condemn
@@ -101,14 +101,14 @@ prop_getTracksForEpisode cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = templateId, Episodes.eiCreatedBy = userId}
-        episodeId <- TRX.statement () (Episodes.insertEpisode episodeInsert)
+        episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         -- Insert track 2 first, then track 1, to verify ordering
         let track2 = track2Template {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 2}
         let track1 = track1Template {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}
 
-        _ <- TRX.statement () (UUT.insertEpisodeTrack track2)
-        _ <- TRX.statement () (UUT.insertEpisodeTrack track1)
+        _ <- unwrapInsert (UUT.insertEpisodeTrack track2)
+        _ <- unwrapInsert (UUT.insertEpisodeTrack track1)
 
         tracks <- TRX.statement () (UUT.getTracksForEpisode episodeId)
         TRX.condemn
@@ -142,12 +142,12 @@ prop_deleteAllTracksForEpisode cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = templateId, Episodes.eiCreatedBy = userId}
-        episodeId <- TRX.statement () (Episodes.insertEpisode episodeInsert)
+        episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         let track1 = track1Template {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}
         let track2 = track2Template {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 2}
-        _ <- TRX.statement () (UUT.insertEpisodeTrack track1)
-        _ <- TRX.statement () (UUT.insertEpisodeTrack track2)
+        _ <- unwrapInsert (UUT.insertEpisodeTrack track1)
+        _ <- unwrapInsert (UUT.insertEpisodeTrack track2)
 
         -- Delete all
         deleted <- TRX.statement () (UUT.deleteAllTracksForEpisode episodeId)

@@ -1,17 +1,24 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- | Database table definition and queries for @station_ids@.
 --
 -- Station IDs are short audio clips used to identify the station during broadcasts.
 -- Any host can upload station IDs, and they are visible to all hosts.
+--
+-- Uses rel8 for type-safe database queries where possible.
 module Effects.Database.Tables.StationIds
   ( -- * Id Type
     Id (..),
 
-    -- * Model Type
-    Model (..),
+    -- * Table Definition
+    StationId (..),
+    stationIdSchema,
+
+    -- * Model (Result alias)
+    Model,
 
     -- * Insert Type
     Insert (..),
@@ -31,15 +38,21 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text.Display (Display (..))
 import Data.Time (UTCTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
+import OrphanInstances.Rel8 ()
+import Rel8 hiding (Insert)
+import Rel8 qualified
+import Rel8.Expr.Time (now)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -51,29 +64,65 @@ import Servant qualified
 newtype Id = Id {unId :: Int64}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype (Show, Eq, Ord, Num)
+  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq)
   deriving newtype (DecodeValue, EncodeValue)
   deriving newtype (Servant.FromHttpApiData, Servant.ToHttpApiData)
   deriving newtype (ToJSON, FromJSON, Display)
 
 --------------------------------------------------------------------------------
--- Model Type
+-- Table Definition
 
--- | Station ID record from the database.
-data Model = Model
-  { simId :: Id,
-    simTitle :: Text,
-    simAudioFilePath :: Text,
-    simMimeType :: Text,
-    simFileSize :: Int64,
-    simCreatorId :: User.Id,
-    simCreatedAt :: UTCTime
+-- | The @station_ids@ table definition using rel8's higher-kinded data pattern.
+--
+-- The type parameter @f@ determines the context:
+--
+-- - @Expr@: SQL expressions for building queries
+-- - @Result@: Decoded Haskell values from query results
+-- - @Name@: Column names for schema definition
+data StationId f = StationId
+  { simId :: Column f Id,
+    simTitle :: Column f Text,
+    simAudioFilePath :: Column f Text,
+    simMimeType :: Column f Text,
+    simFileSize :: Column f Int64,
+    simCreatorId :: Column f User.Id,
+    simCreatedAt :: Column f UTCTime
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
 
-instance Display Model where
-  displayBuilder m = displayBuilder m.simId <> " - " <> displayBuilder m.simTitle
+deriving stock instance (f ~ Result) => Show (StationId f)
+
+deriving stock instance (f ~ Result) => Eq (StationId f)
+
+-- | DecodeRow instance for hasql-interpolate raw SQL compatibility.
+instance DecodeRow (StationId Result)
+
+-- | Display instance for StationId Result.
+instance Display (StationId Result) where
+  displayBuilder m = displayBuilder (simId m) <> " - " <> displayBuilder (simTitle m)
+
+-- | Type alias for backwards compatibility.
+--
+-- @Model@ is the same as @StationId Result@.
+type Model = StationId Result
+
+-- | Table schema connecting the Haskell type to the database table.
+stationIdSchema :: TableSchema (StationId Name)
+stationIdSchema =
+  TableSchema
+    { name = "station_ids",
+      columns =
+        StationId
+          { simId = "id",
+            simTitle = "title",
+            simAudioFilePath = "audio_file_path",
+            simMimeType = "mime_type",
+            simFileSize = "file_size",
+            simCreatorId = "creator_id",
+            simCreatedAt = "created_at"
+          }
+    }
 
 --------------------------------------------------------------------------------
 -- Insert Type
@@ -128,35 +177,46 @@ getAllStationIds (Limit lim) (Offset off) =
 
 -- | Get a station ID by its ID.
 getStationIdById :: Id -> Hasql.Statement () (Maybe Model)
-getStationIdById stationIdId =
-  interp
-    False
-    [sql|
-    SELECT id, title, audio_file_path, mime_type, file_size, creator_id, created_at
-    FROM station_ids
-    WHERE id = #{stationIdId}
-  |]
+getStationIdById stationIdId = fmap listToMaybe $ run $ select do
+  row <- each stationIdSchema
+  where_ $ simId row ==. lit stationIdId
+  pure row
 
 -- | Insert a new station ID and return its ID.
 insertStationId :: Insert -> Hasql.Statement () (Maybe Id)
 insertStationId Insert {..} =
-  interp
-    False
-    [sql|
-    INSERT INTO station_ids (title, audio_file_path, mime_type, file_size, creator_id)
-    VALUES (#{siiTitle}, #{siiAudioFilePath}, #{siiMimeType}, #{siiFileSize}, #{siiCreatorId})
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      insert
+        Rel8.Insert
+          { into = stationIdSchema,
+            rows =
+              values
+                [ StationId
+                    { simId = nextId "station_ids_id_seq",
+                      simTitle = lit siiTitle,
+                      simAudioFilePath = lit siiAudioFilePath,
+                      simMimeType = lit siiMimeType,
+                      simFileSize = lit siiFileSize,
+                      simCreatorId = lit siiCreatorId,
+                      simCreatedAt = now
+                    }
+                ],
+            onConflict = Abort,
+            returning = Returning simId
+          }
 
 -- | Delete a station ID by its ID.
 --
 -- Returns the ID if successful, Nothing if not found.
 deleteStationId :: Id -> Hasql.Statement () (Maybe Id)
 deleteStationId stationIdId =
-  interp
-    False
-    [sql|
-    DELETE FROM station_ids
-    WHERE id = #{stationIdId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      delete
+        Rel8.Delete
+          { from = stationIdSchema,
+            using = pure (),
+            deleteWhere = \_ row -> simId row ==. lit stationIdId,
+            returning = Returning simId
+          }

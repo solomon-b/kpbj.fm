@@ -45,7 +45,7 @@ import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Tables.Shows qualified as Shows
+import {-# SOURCE #-} Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
@@ -55,6 +55,7 @@ import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import OrphanInstances.UTCTime ()
 import Rel8 hiding (Insert)
+import Rel8.Expr.Time (now)
 
 --------------------------------------------------------------------------------
 -- Host Role Type
@@ -270,17 +271,22 @@ insertShowHost Insert {..} =
   |]
 
 -- | Remove host from show (set left_at timestamp).
---
--- Uses raw SQL for the UPDATE with NOW() timestamp.
 removeShowHost :: Shows.Id -> User.Id -> Hasql.Statement () ()
 removeShowHost showId userId =
-  interp
-    False
-    [sql|
-    UPDATE show_hosts
-    SET left_at = NOW()
-    WHERE show_id = #{showId} AND user_id = #{userId}
-  |]
+  run_ $
+    update
+      Update
+        { target = showHostSchema,
+          from = pure (),
+          set = \_ row ->
+            row
+              { shmLeftAt = nullify now
+              },
+          updateWhere = \_ row ->
+            shmShowId row ==. lit showId
+              &&. shmUserId row ==. lit userId,
+          returning = NoReturning
+        }
 
 -- | Check if user is host of show.
 isUserHostOfShow :: User.Id -> Shows.Id -> Hasql.Statement () Bool

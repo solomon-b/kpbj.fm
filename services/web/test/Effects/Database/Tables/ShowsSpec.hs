@@ -16,7 +16,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, assertSingleton, (<==), (=\\=))
@@ -94,7 +94,7 @@ prop_insertSelect cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        insertedId <- TRX.statement () (UUT.insertShow showInsert)
+        insertedId <- unwrapInsert (UUT.insertShow showInsert)
         selected <- TRX.statement () (UUT.getShowById insertedId)
         TRX.condemn
         pure (insertedId, selected)
@@ -103,7 +103,7 @@ prop_insertSelect cfg = do
         (insertedId, mSelected) <- assertRight result
         selected <- assertJust mSelected
         assertInsertFieldsMatch showInsert selected
-        insertedId === UUT.id selected
+        UUT.id selected === insertedId
 
 -- | Update-Select: update then select returns updated values.
 prop_updateSelect :: TestDBConfig -> PropertyT IO ()
@@ -114,7 +114,7 @@ prop_updateSelect cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (UUT.insertShow originalInsert)
+        showId <- unwrapInsert (UUT.insertShow originalInsert)
 
         updateResult <- TRX.statement () (UUT.updateShow showId updateInsert)
 
@@ -142,7 +142,7 @@ prop_updateUpdate cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (UUT.insertShow originalInsert)
+        showId <- unwrapInsert (UUT.insertShow originalInsert)
 
         _ <- TRX.statement () (UUT.updateShow showId updateAInsert)
         _ <- TRX.statement () (UUT.updateShow showId updateBInsert)
@@ -168,7 +168,7 @@ prop_getShowBySlug cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        insertedId <- TRX.statement () (UUT.insertShow showInsert)
+        insertedId <- unwrapInsert (UUT.insertShow showInsert)
         byId <- TRX.statement () (UUT.getShowById insertedId)
         bySlug <- TRX.statement () (UUT.getShowBySlug $ UUT.siSlug showInsert)
         TRX.condemn
@@ -180,7 +180,7 @@ prop_getShowBySlug cfg = do
         bySlug <- assertJust mBySlug
         UUT.id byId === UUT.id bySlug
         UUT.slug byId === UUT.slug bySlug
-        insertedId === UUT.id bySlug
+        UUT.id bySlug === insertedId
 
 -- | getShowsFiltered: returns matching shows (requires active hosts).
 prop_getShowsFiltered :: TestDBConfig -> PropertyT IO ()
@@ -197,8 +197,8 @@ prop_getShowsFiltered cfg = do
         let show1 = template1 {UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template1 <> Slug "1"}
         let show2 = template2 {UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
 
-        id1 <- TRX.statement () (UUT.insertShow show1)
-        id2 <- TRX.statement () (UUT.insertShow show2)
+        id1 <- unwrapInsert (UUT.insertShow show1)
+        id2 <- unwrapInsert (UUT.insertShow show2)
 
         -- Add hosts so shows appear in filtered results
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id1 userId ShowHost.Host
@@ -232,9 +232,9 @@ prop_getShowsFiltered_limit cfg = do
         let show2 = template2 {UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
         let show3 = template3 {UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template3 <> Slug "3"}
 
-        id1 <- TRX.statement () (UUT.insertShow show1)
-        id2 <- TRX.statement () (UUT.insertShow show2)
-        id3 <- TRX.statement () (UUT.insertShow show3)
+        id1 <- unwrapInsert (UUT.insertShow show1)
+        id2 <- unwrapInsert (UUT.insertShow show2)
+        id3 <- unwrapInsert (UUT.insertShow show3)
 
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id1 userId ShowHost.Host
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id2 userId ShowHost.Host
@@ -266,9 +266,9 @@ prop_getShowsFiltered_offset cfg = do
         let show2 = template2 {UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
         let show3 = template3 {UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template3 <> Slug "3"}
 
-        id1 <- TRX.statement () (UUT.insertShow show1)
-        id2 <- TRX.statement () (UUT.insertShow show2)
-        id3 <- TRX.statement () (UUT.insertShow show3)
+        id1 <- unwrapInsert (UUT.insertShow show1)
+        id2 <- unwrapInsert (UUT.insertShow show2)
+        id3 <- unwrapInsert (UUT.insertShow show3)
 
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id1 userId ShowHost.Host
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id2 userId ShowHost.Host
@@ -301,8 +301,8 @@ prop_getAllActiveShows cfg = do
         let activeShow = template1 {UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template1 <> Slug "1"}
         let inactiveShow = template2 {UUT.siStatus = UUT.Inactive, UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
 
-        activeId <- TRX.statement () (UUT.insertShow activeShow)
-        _inactiveId <- TRX.statement () (UUT.insertShow inactiveShow)
+        activeId <- unwrapInsert (UUT.insertShow activeShow)
+        _inactiveId <- unwrapInsert (UUT.insertShow inactiveShow)
 
         activeShows <- TRX.statement () UUT.getAllActiveShows
         TRX.condemn
@@ -330,8 +330,8 @@ prop_searchShows cfg = do
         let show1 = template1 {UUT.siTitle = "UniqueSearchTerm Alpha", UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template1 <> Slug "1"}
         let show2 = template2 {UUT.siTitle = "Completely Different Beta", UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
 
-        id1 <- TRX.statement () (UUT.insertShow show1)
-        id2 <- TRX.statement () (UUT.insertShow show2)
+        id1 <- unwrapInsert (UUT.insertShow show1)
+        id2 <- unwrapInsert (UUT.insertShow show2)
 
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id1 userId ShowHost.Host
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id2 userId ShowHost.Host
@@ -359,7 +359,7 @@ prop_softDeleteShow cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (UUT.insertShow showInsert)
+        showId <- unwrapInsert (UUT.insertShow showInsert)
 
         deleteResult <- TRX.statement () (UUT.softDeleteShow showId)
         afterDelete <- TRX.statement () (UUT.getShowById showId)
@@ -381,7 +381,7 @@ prop_softDeleteShow_idempotent cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (UUT.insertShow showInsert)
+        showId <- unwrapInsert (UUT.insertShow showInsert)
 
         firstDelete <- TRX.statement () (UUT.softDeleteShow showId)
         secondDelete <- TRX.statement () (UUT.softDeleteShow showId)
@@ -407,9 +407,9 @@ prop_insertDuplicateSlug cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        _ <- TRX.statement () (UUT.insertShow template1)
+        _ <- unwrapInsert (UUT.insertShow template1)
         -- Insert with same slug
-        _ <- TRX.statement () (UUT.insertShow template2 {UUT.siSlug = UUT.siSlug template1})
+        _ <- unwrapInsert (UUT.insertShow template2 {UUT.siSlug = UUT.siSlug template1})
         TRX.condemn
         pure ()
 
@@ -430,10 +430,10 @@ prop_addAndGetTagsForShow cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (UUT.insertShow showInsert)
+        showId <- unwrapInsert (UUT.insertShow showInsert)
 
-        tagId1 <- TRX.statement () (ShowTags.insertShowTag tagInsert1 {ShowTags.stiName = ShowTags.stiName tagInsert1 <> "1"})
-        tagId2 <- TRX.statement () (ShowTags.insertShowTag tagInsert2 {ShowTags.stiName = ShowTags.stiName tagInsert2 <> "2"})
+        tagId1 <- unwrapInsert (ShowTags.insertShowTag tagInsert1 {ShowTags.stiName = ShowTags.stiName tagInsert1 <> "1"})
+        tagId2 <- unwrapInsert (ShowTags.insertShowTag tagInsert2 {ShowTags.stiName = ShowTags.stiName tagInsert2 <> "2"})
 
         TRX.statement () (UUT.addTagToShow showId tagId1)
         TRX.statement () (UUT.addTagToShow showId tagId2)
@@ -464,10 +464,10 @@ prop_removeAllTagsFromShow cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (UUT.insertShow showInsert)
+        showId <- unwrapInsert (UUT.insertShow showInsert)
 
-        tagId1 <- TRX.statement () (ShowTags.insertShowTag tagInsert1 {ShowTags.stiName = ShowTags.stiName tagInsert1 <> "1"})
-        tagId2 <- TRX.statement () (ShowTags.insertShowTag tagInsert2 {ShowTags.stiName = ShowTags.stiName tagInsert2 <> "2"})
+        tagId1 <- unwrapInsert (ShowTags.insertShowTag tagInsert1 {ShowTags.stiName = ShowTags.stiName tagInsert1 <> "1"})
+        tagId2 <- unwrapInsert (ShowTags.insertShowTag tagInsert2 {ShowTags.stiName = ShowTags.stiName tagInsert2 <> "2"})
 
         TRX.statement () (UUT.addTagToShow showId tagId1)
         TRX.statement () (UUT.addTagToShow showId tagId2)
@@ -508,8 +508,8 @@ prop_getShowsForUser cfg = do
         let show1 = template1 {UUT.siSlug = UUT.siSlug template1 <> Slug "1"}
         let show2 = template2 {UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
 
-        id1 <- TRX.statement () (UUT.insertShow show1)
-        id2 <- TRX.statement () (UUT.insertShow show2)
+        id1 <- unwrapInsert (UUT.insertShow show1)
+        id2 <- unwrapInsert (UUT.insertShow show2)
 
         -- User1 hosts show1, User2 hosts show2
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id1 userId1 ShowHost.Host
@@ -546,8 +546,8 @@ prop_getAllShowsWithHostInfo cfg = do
         let show1 = template1 {UUT.siSlug = UUT.siSlug template1 <> Slug "1"}
         let show2 = template2 {UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
 
-        id1 <- TRX.statement () (UUT.insertShow show1)
-        id2 <- TRX.statement () (UUT.insertShow show2)
+        id1 <- unwrapInsert (UUT.insertShow show1)
+        id2 <- unwrapInsert (UUT.insertShow show2)
 
         -- Add host to show1 only
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert id1 userId ShowHost.Host
@@ -583,8 +583,8 @@ prop_getShowsByStatusWithHostInfo cfg = do
         let activeShow = template1 {UUT.siStatus = UUT.Active, UUT.siSlug = UUT.siSlug template1 <> Slug "1"}
         let inactiveShow = template2 {UUT.siStatus = UUT.Inactive, UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
 
-        activeId <- TRX.statement () (UUT.insertShow activeShow)
-        _inactiveId <- TRX.statement () (UUT.insertShow inactiveShow)
+        activeId <- unwrapInsert (UUT.insertShow activeShow)
+        _inactiveId <- unwrapInsert (UUT.insertShow inactiveShow)
 
         activeShows <- TRX.statement () (UUT.getShowsByStatusWithHostInfo UUT.Active (Limit 10) (Offset 0))
         inactiveShows <- TRX.statement () (UUT.getShowsByStatusWithHostInfo UUT.Inactive (Limit 10) (Offset 0))
@@ -613,8 +613,8 @@ prop_searchShowsWithHostInfo cfg = do
         let show1 = template1 {UUT.siTitle = "AdminSearchableUnique Alpha", UUT.siSlug = UUT.siSlug template1 <> Slug "1"}
         let show2 = template2 {UUT.siTitle = "Completely Different Beta", UUT.siSlug = UUT.siSlug template2 <> Slug "2"}
 
-        id1 <- TRX.statement () (UUT.insertShow show1)
-        _id2 <- TRX.statement () (UUT.insertShow show2)
+        id1 <- unwrapInsert (UUT.insertShow show1)
+        _id2 <- unwrapInsert (UUT.insertShow show2)
 
         found <- TRX.statement () (UUT.searchShowsWithHostInfo (Search "AdminSearchableUnique") (Limit 10) (Offset 0))
         notFound <- TRX.statement () (UUT.searchShowsWithHostInfo (Search "ZZNoSuchShowExists") (Limit 10) (Offset 0))

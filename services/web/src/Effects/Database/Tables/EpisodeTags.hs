@@ -10,6 +10,7 @@ module Effects.Database.Tables.EpisodeTags
 
     -- * Table Definition
     EpisodeTag (..),
+    episodeTagSchema,
 
     -- * Model (Result alias)
     Model,
@@ -28,7 +29,7 @@ import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
-import Rel8 (Column, DBEq, DBOrd, DBType, Rel8able, Result)
+import Rel8 (Column, DBEq, DBOrd, DBType, Name, Rel8able, Result, TableSchema (..))
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -83,6 +84,19 @@ instance Display (EpisodeTag Result) where
 --
 -- @Model@ is the same as @EpisodeTag Result@.
 type Model = EpisodeTag Result
+
+-- | Table schema connecting the Haskell type to the database table.
+episodeTagSchema :: TableSchema (EpisodeTag Name)
+episodeTagSchema =
+  TableSchema
+    { name = "episode_tags",
+      columns =
+        EpisodeTag
+          { etId = "id",
+            etName = "name",
+            etCreatedAt = "created_at"
+          }
+    }
 
 --------------------------------------------------------------------------------
 -- Insert Type

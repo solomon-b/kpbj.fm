@@ -138,7 +138,7 @@ processEpisodeUpload _userMetadata user showModel form = do
   Log.logInfo "Duration from form" (Text.pack $ show $ eufDurationSeconds form)
 
   -- Parse remaining form data
-  case parseFormDataWithShow showModel.id showModel.slug form of
+  case parseFormDataWithShow ((.id) showModel) showModel.slug form of
     Left validationError -> pure $ Left $ Sanitize.displayContentValidationError validationError
     Right episodeData -> do
       -- Verify user is host of the show (staff/admins can upload to any show)
@@ -183,7 +183,10 @@ processEpisodeUpload _userMetadata user showModel form = do
                     Left err -> do
                       Log.logInfo "Failed to insert episode" (Text.pack $ show err)
                       pure $ Left "Failed to create episode"
-                    Right episodeId -> do
+                    Right Nothing -> do
+                      Log.logInfo_ "Episode insert returned Nothing"
+                      pure $ Left "Failed to create episode"
+                    Right (Just episodeId) -> do
                       -- Insert tracks if provided
                       _ <- insertTracks episodeId episodeData.tracks
                       -- Replace tags with provided ones (single atomic query)
@@ -293,9 +296,7 @@ processFileUploads ::
   AppM (Either Text (Maybe Text, Maybe Text))
 processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile mAudioToken = do
   -- Get the air date for file organization (use current time as fallback)
-  airDate <- case mScheduledDate of
-    Just d -> pure d
-    Nothing -> currentSystemTime
+  airDate <- maybe currentSystemTime pure mScheduledDate
 
   -- Process main audio file (always required)
   -- Audio is uploaded via staged upload, then moved to final location with air date
@@ -365,7 +366,8 @@ insertTracks episodeId tracks = do
       result <- execQuery (EpisodeTracks.insertEpisodeTrack trackInsert)
       case result of
         Left err -> pure $ Left $ "Failed to insert track: " <> Text.pack (show err)
-        Right trackId -> pure $ Right trackId
+        Right (Just trackId) -> pure $ Right trackId
+        Right Nothing -> pure $ Left "Track insert returned Nothing"
 
 --------------------------------------------------------------------------------
 -- Tag Processing

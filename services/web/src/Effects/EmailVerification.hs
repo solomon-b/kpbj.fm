@@ -199,8 +199,8 @@ verifyEmail tokenText = do
       Log.logInfo "Failed to verify email (token invalid or expired)" tokenText
       pure $ Left TokenInvalid
     Right (Just verifiedToken) -> do
-      Log.logInfo "Email verified successfully" (VerificationTokens.email verifiedToken)
-      pure $ Right (VerificationTokens.userId verifiedToken, VerificationTokens.email verifiedToken)
+      Log.logInfo "Email verified successfully" (VerificationTokens.evtEmail verifiedToken)
+      pure $ Right (VerificationTokens.evtUserId verifiedToken, VerificationTokens.evtEmail verifiedToken)
 
 -- | Resend verification email for a user.
 --

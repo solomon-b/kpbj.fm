@@ -1,6 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 -- | Database table definition and queries for @episode_tracks@.
@@ -10,6 +10,7 @@ module Effects.Database.Tables.EpisodeTrack
 
     -- * Table Definition
     EpisodeTrack (..),
+    episodeTrackSchema,
 
     -- * Model (Result alias)
     Model,
@@ -27,15 +28,20 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), RowsAffected (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
 import Hasql.Statement qualified as Hasql
-import Rel8 (Column, DBEq, DBOrd, DBType, Rel8able, Result)
+import Rel8 hiding (Insert)
+import Rel8 qualified
+import Rel8.Expr.Time (now)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -96,6 +102,22 @@ instance Display (EpisodeTrack Result) where
 -- @Model@ is the same as @EpisodeTrack Result@.
 type Model = EpisodeTrack Result
 
+-- | Table schema connecting the Haskell type to the database table.
+episodeTrackSchema :: TableSchema (EpisodeTrack Name)
+episodeTrackSchema =
+  TableSchema
+    { name = "episode_tracks",
+      columns =
+        EpisodeTrack
+          { id = "id",
+            episodeId = "episode_id",
+            trackNumber = "track_number",
+            title = "title",
+            artist = "artist",
+            createdAt = "created_at"
+          }
+    }
+
 --------------------------------------------------------------------------------
 -- Insert Type
 
@@ -114,39 +136,48 @@ data Insert = Insert
 
 -- | Get tracks for an episode.
 getTracksForEpisode :: Episodes.Id -> Hasql.Statement () [Model]
-getTracksForEpisode episodeId =
-  interp
-    False
-    [sql|
-    SELECT id, episode_id, track_number, title, artist, created_at
-    FROM episode_tracks
-    WHERE episode_id = #{episodeId}
-    ORDER BY track_number
-  |]
+getTracksForEpisode epId =
+  run $
+    select $
+      orderBy ((.trackNumber) >$< asc) do
+        track <- each episodeTrackSchema
+        where_ $ (.episodeId) track ==. lit epId
+        pure track
 
 -- | Insert a new episode track.
-insertEpisodeTrack :: Insert -> Hasql.Statement () Id
+insertEpisodeTrack :: Insert -> Hasql.Statement () (Maybe Id)
 insertEpisodeTrack Insert {..} =
-  getOneRow
-    <$> interp
-      False
-      [sql|
-    INSERT INTO episode_tracks(episode_id, track_number, title, artist, created_at)
-    VALUES (#{etiEpisodeId}, #{etiTrackNumber}, #{etiTitle}, #{etiArtist}, NOW())
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      insert
+        Rel8.Insert
+          { into = episodeTrackSchema,
+            rows =
+              values
+                [ EpisodeTrack
+                    { id = nextId "episode_tracks_id_seq",
+                      episodeId = lit etiEpisodeId,
+                      trackNumber = lit etiTrackNumber,
+                      title = lit etiTitle,
+                      artist = lit etiArtist,
+                      createdAt = now
+                    }
+                ],
+            onConflict = Abort,
+            returning = Returning (.id)
+          }
 
 -- | Delete all tracks for an episode.
 --
 -- Returns the number of rows deleted.
 deleteAllTracksForEpisode :: Episodes.Id -> Hasql.Statement () Int
-deleteAllTracksForEpisode episodeId =
-  fromIntegral . unRowsAffected
-    <$> interp
-      False
-      [sql|
-    DELETE FROM episode_tracks
-    WHERE episode_id = #{episodeId}
-  |]
-  where
-    unRowsAffected (RowsAffected n) = n
+deleteAllTracksForEpisode epId =
+  fmap length $
+    run $
+      delete
+        Rel8.Delete
+          { from = episodeTrackSchema,
+            using = pure (),
+            deleteWhere = \_ track -> (.episodeId) track ==. lit epId,
+            returning = Returning (.id)
+          }

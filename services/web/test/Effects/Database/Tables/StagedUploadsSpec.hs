@@ -13,7 +13,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight)
@@ -55,16 +55,15 @@ prop_insertGetByToken cfg = do
 
         -- Complete the insert with user ID and token
         let stagedUploadInsert = completeInsert userId token partialUpload
-        mUploadId <- TRX.statement () (UUT.insert stagedUploadInsert)
+        uploadId <- unwrapInsert (UUT.insert stagedUploadInsert)
 
         -- Fetch by token
         selected <- TRX.statement () (UUT.getByToken token)
         TRX.condemn
-        pure (mUploadId, stagedUploadInsert, selected)
+        pure (uploadId, stagedUploadInsert, selected)
 
       assert $ do
-        (mUploadId, insertData, mSelected) <- assertRight result
-        uploadId <- assertJust mUploadId
+        (uploadId, insertData, mSelected) <- assertRight result
         selected <- assertJust mSelected
         -- Verify the data matches
         UUT.id selected === uploadId
@@ -102,7 +101,7 @@ prop_claimUpload cfg = do
 
         -- Insert staged upload
         let stagedUploadInsert = completeInsert userId token partialUpload
-        _ <- TRX.statement () (UUT.insert stagedUploadInsert)
+        _ <- unwrapInsert (UUT.insert stagedUploadInsert)
 
         -- Claim it
         claimed <- TRX.statement () (UUT.claimUpload token userId)
@@ -137,7 +136,7 @@ prop_claimUploadWrongUser cfg = do
 
         -- Insert staged upload for user1
         let stagedUploadInsert = completeInsert userId1 token partialUpload
-        _ <- TRX.statement () (UUT.insert stagedUploadInsert)
+        _ <- unwrapInsert (UUT.insert stagedUploadInsert)
 
         -- Try to claim as user2 (should fail)
         mResult <- TRX.statement () (UUT.claimUpload token userId2)
@@ -163,7 +162,7 @@ prop_claimUploadAlreadyClaimed cfg = do
 
         -- Insert staged upload
         let stagedUploadInsert = completeInsert userId token partialUpload
-        _ <- TRX.statement () (UUT.insert stagedUploadInsert)
+        _ <- unwrapInsert (UUT.insert stagedUploadInsert)
 
         -- Claim it once (should succeed)
         firstClaim <- TRX.statement () (UUT.claimUpload token userId)
@@ -194,22 +193,17 @@ prop_deleteById cfg = do
 
         -- Insert staged upload
         let stagedUploadInsert = completeInsert userId token partialUpload
-        mUploadId <- TRX.statement () (UUT.insert stagedUploadInsert)
+        uploadId <- unwrapInsert (UUT.insert stagedUploadInsert)
 
-        deleteResult <- case mUploadId of
-          Nothing -> pure (Nothing, Nothing, Nothing)
-          Just uploadId -> do
-            -- Delete by ID
-            deletedId <- TRX.statement () (UUT.deleteById uploadId)
-            -- Verify it's gone
-            afterDelete <- TRX.statement () (UUT.getByToken token)
-            pure (Just uploadId, deletedId, afterDelete)
+        -- Delete by ID
+        deletedId <- TRX.statement () (UUT.deleteById uploadId)
+        -- Verify it's gone
+        afterDelete <- TRX.statement () (UUT.getByToken token)
         TRX.condemn
-        pure deleteResult
+        pure (uploadId, deletedId, afterDelete)
 
       assert $ do
-        (mUploadId, mDeletedId, mAfterDelete) <- assertRight result
-        uploadId <- assertJust mUploadId
+        (uploadId, mDeletedId, mAfterDelete) <- assertRight result
         deletedId <- assertJust mDeletedId
         -- Delete should return the same ID
         deletedId === uploadId
@@ -230,7 +224,7 @@ prop_getExpiredUploads cfg = do
 
         -- Insert a staged upload normally (not expired)
         let stagedUploadInsert = completeInsert userId token partialUpload
-        _ <- TRX.statement () (UUT.insert stagedUploadInsert)
+        _ <- unwrapInsert (UUT.insert stagedUploadInsert)
 
         -- Force the upload to be expired by setting expires_at to the past
         TRX.statement () $
@@ -265,7 +259,7 @@ prop_getExpiredUploads_empty cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         let stagedUploadInsert = completeInsert userId token partialUpload
-        _ <- TRX.statement () (UUT.insert stagedUploadInsert)
+        _ <- unwrapInsert (UUT.insert stagedUploadInsert)
 
         -- Do NOT expire the upload — it should remain non-expired
         expired <- TRX.statement () UUT.getExpiredUploads

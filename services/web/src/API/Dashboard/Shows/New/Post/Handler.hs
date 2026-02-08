@@ -24,8 +24,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime)
-import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug qualified as Slug
@@ -177,7 +177,11 @@ handleShowCreation showData form = do
                   Log.logInfo "Database error creating show" (Aeson.object ["error" .= Text.pack (show dbError)])
                   let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
                   pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-                Right showId -> do
+                Right Nothing -> do
+                  Log.logInfo_ "Show insert returned Nothing"
+                  let banner = BannerParams Error "Insert Failed" "Failed to create show. Please try again."
+                  pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
+                Right (Just showId) -> do
                   -- Assign hosts to the show
                   assignHostsToShow showId (nsfHosts form)
 
@@ -275,9 +279,11 @@ processShowTags showId (Just tagsText) = do
       _ -> do
         -- Tag doesn't exist, create it and associate
         execQuery (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
-          Right newTagId -> do
+          Right (Just newTagId) -> do
             void $ execQuery (Shows.addTagToShow showId newTagId)
             Log.logInfo "Created and associated new tag with show" (Aeson.object ["tag" .= tagName, "showId" .= show showId])
+          Right Nothing ->
+            Log.logInfo "Tag insert returned Nothing" (Aeson.object ["tag" .= tagName])
           Left dbError ->
             Log.logInfo "Failed to create tag" (Aeson.object ["tag" .= tagName, "error" .= Text.pack (show dbError)])
 
@@ -378,8 +384,10 @@ createSchedulesForShow showId slots = do
             case validityResult of
               Left err ->
                 Log.logInfo "Failed to insert validity" (Aeson.object ["error" .= Text.pack (show err)])
-              Right _ ->
+              Right (Just _) ->
                 Log.logInfo "Created schedule for show" (Aeson.object ["showId" .= show showId, "day" .= show dow])
+              Right Nothing ->
+                Log.logInfo "insertValidity returned Nothing" (Aeson.object ["showId" .= show showId, "day" .= show dow])
       _ ->
         Log.logInfo "Invalid schedule slot data - skipping" (Aeson.object ["slot" .= Aeson.toJSON slot])
 

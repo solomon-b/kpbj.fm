@@ -6,7 +6,7 @@ import API.Dashboard.Events.New.Post.Route (NewEventForm (..))
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
 import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
+import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
@@ -17,11 +17,11 @@ import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
-import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
@@ -114,7 +114,8 @@ handler cookie form =
     eventId <-
       execQuery (Events.insertEvent eventInsert) >>= \case
         Left err -> throwDatabaseError err
-        Right eid -> pure eid
+        Right (Just eid) -> pure eid
+        Right Nothing -> throwHandlerFailure "Event insert returned Nothing"
 
     -- 5. Fetch created event and redirect
     Log.logInfo "Event created successfully" eventId

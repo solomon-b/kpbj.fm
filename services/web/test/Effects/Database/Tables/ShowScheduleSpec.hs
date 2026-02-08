@@ -2,7 +2,7 @@ module Effects.Database.Tables.ShowScheduleSpec where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad (forM_, void)
+import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Time (addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
 import Data.Time.Calendar (fromGregorian, toGregorian)
@@ -18,7 +18,7 @@ import Hedgehog (PropertyT, annotate, failure, (===))
 import Hedgehog qualified
 import Hedgehog.Internal.Property (forAllT)
 import OrphanInstances.DayOfWeek (toDayOfWeek)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight)
@@ -85,7 +85,7 @@ prop_insertSelectTemplate cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
 
         let scheduleInsert =
               UUT.ScheduleTemplateInsert
@@ -128,7 +128,7 @@ prop_getTemplatesForShow cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
 
         let schedule1 = UUT.ScheduleTemplateInsert showId dow1 (Just allWeeksOfMonth) start1 end1 tz1 False
             schedule2 = UUT.ScheduleTemplateInsert showId dow2 (Just allWeeksOfMonth) start2 end2 tz2 False
@@ -159,12 +159,12 @@ prop_getActiveTemplates cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
         activeTemplates <- TRX.statement () (UUT.getActiveScheduleTemplatesForShow showId)
         pure (showId, templateId, activeTemplates)
 
@@ -190,12 +190,12 @@ prop_upcomingDatesInFuture cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
         upcomingDates <- TRX.statement () (UUT.getUpcomingShowDates showId today 10)
         pure (today, upcomingDates)
 
@@ -215,7 +215,7 @@ prop_weeklyScheduleRepeats cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
 
         -- Weekly schedule: airs every occurrence of the weekday
         -- Using [1,2,3,4,5] for weeksOfMonth is functionally equivalent to NULL
@@ -235,7 +235,7 @@ prop_weeklyScheduleRepeats cfg = do
 
         -- Add active validity with fixed dates
         let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
 
         TRX.statement () (UUT.getUpcomingShowDates showId today 4)
 
@@ -265,12 +265,12 @@ prop_upcomingDatesDayOfWeek cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
         upcomingDates <- TRX.statement () (UUT.getUpcomingShowDates showId today 5)
         pure (dayOfWeek, upcomingDates)
 
@@ -295,7 +295,7 @@ prop_respectsValidityPeriods cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
@@ -303,7 +303,7 @@ prop_respectsValidityPeriods cfg = do
         let effectiveFrom = addDays (-30) today
             effectiveUntil = Just $ addDays 7 today -- Ends in 7 days
             validityInsert = UUT.ValidityInsert templateId effectiveFrom effectiveUntil
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
 
         upcomingDates <- TRX.statement () (UUT.getUpcomingShowDates showId today 20)
         pure (effectiveUntil, upcomingDates)
@@ -330,14 +330,14 @@ prop_handlesYearBoundaries cfg = do
       -- This ensures we always get December dates regardless of when the test runs.
       let referenceDate = fromGregorian 2026 12 20
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         -- Set validity to start before our reference date
         let effectiveFrom = fromGregorian 2026 12 15
             validityInsert = UUT.ValidityInsert templateId effectiveFrom Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
 
         TRX.statement () (UUT.getUpcomingShowDates showId referenceDate 10)
 
@@ -365,13 +365,13 @@ prop_unscheduledExcludesScheduled cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         -- Add active validity with fixed dates
         let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
 
         -- Get all upcoming dates
         allDates <- TRX.statement () (UUT.getUpcomingShowDates showId today 10)
@@ -399,7 +399,7 @@ prop_oneTimeShowCreation cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
 
         -- Create one-time show schedule (both dayOfWeek and weeksOfMonth are Nothing)
         let scheduleInsert =
@@ -417,7 +417,7 @@ prop_oneTimeShowCreation cfg = do
 
         -- Add validity for specific date
         let validityInsert = UUT.ValidityInsert templateId specificDate (Just $ addDays 1 specificDate)
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
 
         -- Retrieve the template
         selected <- TRX.statement () (UUT.getScheduleTemplateById templateId)
@@ -449,7 +449,7 @@ prop_timezoneStorage cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
 
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
@@ -475,12 +475,12 @@ prop_timezoneConversion cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         let validityInsert = UUT.ValidityInsert templateId (addDays (-7) today) Nothing
-        void $ TRX.statement () (UUT.insertValidity validityInsert)
+        _ <- unwrapInsert (UUT.insertValidity validityInsert)
 
         TRX.statement () (UUT.getUpcomingShowDates showId today 1)
 
@@ -514,14 +514,14 @@ prop_checkTimeSlotConflict cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Create first show with a schedule 10:00-12:00
         let show1 = showInsert1 {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug showInsert1 <> "conflict1"}
-        showId1 <- TRX.statement () (Shows.insertShow show1)
+        showId1 <- unwrapInsert (Shows.insertShow show1)
         let schedule1 = UUT.ScheduleTemplateInsert showId1 (Just dow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
         templateId1 <- TRX.statement () (UUT.insertScheduleTemplate schedule1)
-        void $ TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId1 (addDays (-7) today) Nothing))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId1 (addDays (-7) today) Nothing))
 
         -- Create second show (to check conflict against show1)
         let show2 = showInsert2 {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug showInsert2 <> "conflict2"}
-        showId2 <- TRX.statement () (Shows.insertShow show2)
+        showId2 <- unwrapInsert (Shows.insertShow show2)
 
         -- Check overlapping slot (11:00-13:00 overlaps with 10:00-12:00)
         mConflict <- TRX.statement () (UUT.checkTimeSlotConflict showId2 dow allWeeksOfMonth (TimeOfDay 11 0 0) (TimeOfDay 13 0 0))
@@ -555,15 +555,15 @@ prop_getActiveValidityPeriodsForTemplate cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         -- Active validity (started 7 days ago, no end)
-        validityId1 <- TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+        validityId1 <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
 
         -- Expired validity (ended yesterday)
-        _validityId2 <- TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-30) today) (Just (addDays (-1) today))))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-30) today) (Just (addDays (-1) today))))
 
         activeValidities <- TRX.statement () (UUT.getActiveValidityPeriodsForTemplate templateId)
         TRX.condemn
@@ -588,12 +588,12 @@ prop_endValidity cfg = do
     act $ do
       today <- liftIO $ utctDay <$> getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        showId <- TRX.statement () (Shows.insertShow showInsert)
+        showId <- unwrapInsert (Shows.insertShow showInsert)
         let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek (Just allWeeksOfMonth) startTime endTime timezone False
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         -- Create active validity
-        validityId <- TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+        validityId <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
 
         -- Verify active before ending
         activeBefore <- TRX.statement () (UUT.getActiveScheduleTemplatesForShow showId)
@@ -637,7 +637,7 @@ prop_getScheduledShowsForDate cfg = do
         userId <- insertTestUser userWithMetadata
 
         let show1 = showInsert {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug showInsert <> "sched"}
-        showId <- TRX.statement () (Shows.insertShow show1)
+        showId <- unwrapInsert (Shows.insertShow show1)
 
         -- Add host so show appears in results
         TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert showId userId ShowHost.Host
@@ -647,7 +647,7 @@ prop_getScheduledShowsForDate cfg = do
         templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
 
         -- Add active validity
-        void $ TRX.statement () (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
 
         scheduled <- TRX.statement () (UUT.getScheduledShowsForDate targetDay)
         TRX.condemn

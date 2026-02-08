@@ -3,7 +3,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definitions and queries for @schedule_templates@ and @schedule_template_validity@.
 --
@@ -61,13 +60,15 @@ import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.DayOfWeek (dayOfWeekName)
 import OrphanInstances.Rel8 ()
 import OrphanInstances.TimeOfDay ()
-import Rel8
+import Rel8 hiding (Insert)
+import Rel8 qualified
 
 --------------------------------------------------------------------------------
 -- Schedule Template Types
@@ -172,6 +173,20 @@ instance DecodeRow (ScheduleTemplateValidity Result)
 
 instance Display (ScheduleTemplateValidity Result) where
   displayBuilder _ = "ScheduleTemplateValidity"
+
+-- | Table schema for schedule_template_validity.
+scheduleTemplateValiditySchema :: TableSchema (ScheduleTemplateValidity Name)
+scheduleTemplateValiditySchema =
+  TableSchema
+    { name = "schedule_template_validity",
+      columns =
+        ScheduleTemplateValidity
+          { stvId = "id",
+            stvTemplateId = "template_id",
+            stvEffectiveFrom = "effective_from",
+            stvEffectiveUntil = "effective_until"
+          }
+    }
 
 -- | Insert type for creating new validity periods.
 data ValidityInsert = ValidityInsert
@@ -310,31 +325,44 @@ getActiveValidityPeriodsForTemplate templateId =
 -- | Insert a new validity period.
 --
 -- Returns the generated ID.
--- Uses raw SQL for consistency.
-insertValidity :: ValidityInsert -> Hasql.Statement () ValidityId
+insertValidity :: ValidityInsert -> Hasql.Statement () (Maybe ValidityId)
 insertValidity ValidityInsert {..} =
-  getOneRow
-    <$> interp
-      False
-      [sql|
-    INSERT INTO schedule_template_validity(template_id, effective_from, effective_until)
-    VALUES (#{viTemplateId}, #{viEffectiveFrom}, #{viEffectiveUntil})
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      insert
+        Rel8.Insert
+          { into = scheduleTemplateValiditySchema,
+            rows =
+              values
+                [ ScheduleTemplateValidity
+                    { stvId = nextId "schedule_template_validity_id_seq",
+                      stvTemplateId = lit viTemplateId,
+                      stvEffectiveFrom = lit viEffectiveFrom,
+                      stvEffectiveUntil = lit viEffectiveUntil
+                    }
+                ],
+            onConflict = Abort,
+            returning = Returning stvId
+          }
 
 -- | End a validity period by setting effective_until to a specific date.
 --
 -- Used to "close" a validity period when a schedule changes.
 endValidity :: ValidityId -> Day -> Hasql.Statement () (Maybe ValidityId)
 endValidity validityId endDate =
-  interp
-    False
-    [sql|
-    UPDATE schedule_template_validity
-    SET effective_until = #{endDate}
-    WHERE id = #{validityId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = scheduleTemplateValiditySchema,
+            from = pure (),
+            set = \_ validity ->
+              validity
+                { stvEffectiveUntil = lit (Just endDate)
+                },
+            updateWhere = \_ validity -> stvId validity ==. lit validityId,
+            returning = Returning stvId
+          }
 
 --------------------------------------------------------------------------------
 -- Scheduled Show With Details (for schedule views)

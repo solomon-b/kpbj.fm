@@ -1,12 +1,9 @@
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definition and queries for @blog_posts@.
 --
--- Uses rel8 for simple queries and raw SQL (hasql-interpolate) for complex joins.
+-- Uses rel8 for type-safe database queries.
 module Effects.Database.Tables.BlogPosts
   ( -- * Id Type
     Id (..),
@@ -45,7 +42,6 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Coerce (coerce)
 import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
@@ -59,8 +55,9 @@ import Domain.Types.Slug (Slug (..))
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Insert)
@@ -231,9 +228,9 @@ getBlogPostById postId = fmap listToMaybe $ run $ select do
   pure post
 
 -- | Insert a new blog post.
-insertBlogPost :: Insert -> Hasql.Statement () Id
+insertBlogPost :: Insert -> Hasql.Statement () (Maybe Id)
 insertBlogPost Insert {..} =
-  fmap head $
+  fmap listToMaybe $
     run $
       insert
         Rel8.Insert
@@ -241,7 +238,7 @@ insertBlogPost Insert {..} =
             rows =
               values
                 [ BlogPost
-                    { bpmId = coerce (nextval "blog_posts_id_seq"),
+                    { bpmId = nextId "blog_posts_id_seq",
                       bpmTitle = lit bpiTitle,
                       bpmSlug = lit bpiSlug,
                       bpmContent = lit bpiContent,
@@ -262,25 +259,38 @@ insertBlogPost Insert {..} =
 
 -- | Update a blog post.
 --
--- Uses raw SQL because rel8's UPDATE with complex CASE expressions
--- for published_at handling would be verbose.
+-- The @published_at@ logic mirrors the original SQL CASE:
+--
+-- - Setting status to Published when @published_at@ is NULL → set to NOW()
+-- - Setting status to non-Published → clear @published_at@ to NULL
+-- - Otherwise → keep existing @published_at@
 updateBlogPost :: Id -> Insert -> Hasql.Statement () (Maybe Id)
 updateBlogPost postId Insert {..} =
-  interp
-    False
-    [sql|
-    UPDATE blog_posts
-    SET title = #{bpiTitle}, slug = #{bpiSlug}, content = #{bpiContent}, excerpt = #{bpiExcerpt},
-        hero_image_url = #{bpiHeroImageUrl}, status = #{bpiStatus},
-        published_at = CASE
-          WHEN #{bpiStatus}::text = 'published' AND published_at IS NULL THEN NOW()
-          WHEN #{bpiStatus}::text != 'published' THEN NULL
-          ELSE published_at
-        END,
-        updated_at = NOW()
-    WHERE id = #{postId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = blogPostSchema,
+            from = pure (),
+            set = \_ post ->
+              post
+                { bpmTitle = lit bpiTitle,
+                  bpmSlug = lit bpiSlug,
+                  bpmContent = lit bpiContent,
+                  bpmExcerpt = lit bpiExcerpt,
+                  bpmHeroImageUrl = lit bpiHeroImageUrl,
+                  bpmStatus = lit bpiStatus,
+                  bpmPublishedAt =
+                    caseExpr
+                      [ (lit bpiStatus ==. lit Published &&. isNull (bpmPublishedAt post), nullify now),
+                        (not_ (lit bpiStatus ==. lit Published), Rel8.null)
+                      ]
+                      (bpmPublishedAt post),
+                  bpmUpdatedAt = now
+                },
+            updateWhere = \_ post -> bpmId post ==. lit postId,
+            returning = Returning bpmId
+          }
 
 -- | Delete a blog post.
 deleteBlogPost :: Id -> Hasql.Statement () (Maybe Id)
@@ -296,54 +306,79 @@ deleteBlogPost postId =
           }
 
 --------------------------------------------------------------------------------
+-- Junction Table (blog_post_tags)
+
+-- | The @blog_post_tags@ junction table definition (internal, not exported).
+data BlogPostTag f = BlogPostTag
+  { bptPostId :: Column f Id,
+    bptTagId :: Column f BlogTags.Id
+  }
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
+
+-- | Schema for the @blog_post_tags@ junction table.
+blogPostTagSchema :: TableSchema (BlogPostTag Name)
+blogPostTagSchema =
+  TableSchema
+    { name = "blog_post_tags",
+      columns =
+        BlogPostTag
+          { bptPostId = "post_id",
+            bptTagId = "tag_id"
+          }
+    }
+
+--------------------------------------------------------------------------------
 -- Junction Table Queries (blog_post_tags)
---
--- These use raw SQL because they involve joins with other tables.
 
 -- | Get tags for a blog post.
 getTagsForPost :: Id -> Hasql.Statement () [BlogTags.Model]
 getTagsForPost postId =
-  interp
-    False
-    [sql|
-    SELECT bt.id, bt.name, bt.created_at
-    FROM blog_tags bt
-    JOIN blog_post_tags bpt ON bt.id = bpt.tag_id
-    WHERE bpt.post_id = #{postId}
-    ORDER BY bt.name
-  |]
+  run $
+    select $
+      orderBy (BlogTags.btmName >$< asc) do
+        bpt <- each blogPostTagSchema
+        where_ $ bptPostId bpt ==. lit postId
+        tag <- each BlogTags.blogTagSchema
+        where_ $ BlogTags.btmId tag ==. bptTagId bpt
+        pure tag
 
 -- | Add tag to post.
 addTagToPost :: Id -> BlogTags.Id -> Hasql.Statement () ()
 addTagToPost postId tagId =
-  interp
-    False
-    [sql|
-    INSERT INTO blog_post_tags(post_id, tag_id)
-    VALUES (#{postId}, #{tagId})
-    ON CONFLICT (post_id, tag_id) DO NOTHING
-  |]
+  run_ $
+    insert
+      Rel8.Insert
+        { into = blogPostTagSchema,
+          rows = values [BlogPostTag {bptPostId = lit postId, bptTagId = lit tagId}],
+          onConflict = DoNothing,
+          returning = NoReturning
+        }
 
 -- | Remove tag from post.
 removeTagFromPost :: Id -> BlogTags.Id -> Hasql.Statement () ()
 removeTagFromPost postId tagId =
-  interp
-    False
-    [sql|
-    DELETE FROM blog_post_tags
-    WHERE post_id = #{postId} AND tag_id = #{tagId}
-  |]
+  run_ $
+    delete
+      Rel8.Delete
+        { from = blogPostTagSchema,
+          using = pure (),
+          deleteWhere = \_ bpt ->
+            bptPostId bpt ==. lit postId &&. bptTagId bpt ==. lit tagId,
+          returning = NoReturning
+        }
 
 -- | Get posts with specific tag.
 getPostsByTag :: BlogTags.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPostsByTag tagId (Limit lim) (Offset off) =
-  interp
-    False
-    [sql|
-    SELECT bp.id, bp.title, bp.slug, bp.content, bp.excerpt, bp.hero_image_url, bp.author_id, bp.status, bp.published_at, bp.created_at, bp.updated_at
-    FROM blog_posts bp
-    JOIN blog_post_tags bpt ON bp.id = bpt.post_id
-    WHERE bpt.tag_id = #{tagId} AND bp.status = 'published'
-    ORDER BY bp.published_at DESC NULLS LAST, bp.created_at DESC
-    LIMIT #{lim} OFFSET #{off}
-  |]
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy ((bpmPublishedAt >$< nullsLast desc) <> (bpmCreatedAt >$< desc)) do
+            post <- each blogPostSchema
+            bpt <- each blogPostTagSchema
+            where_ $ bptPostId bpt ==. bpmId post
+            where_ $ bptTagId bpt ==. lit tagId
+            where_ $ bpmStatus post ==. lit Published
+            pure post

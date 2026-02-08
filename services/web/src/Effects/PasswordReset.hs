@@ -222,7 +222,7 @@ consumeAndResetPassword token newPasswordHash = do
       Log.logInfo "Token consumption failed (invalid or already used)" (display token)
       pure $ Left TokenInvalid
     Right (Just tokenModel) -> do
-      let userId = ResetTokens.userId tokenModel
+      let userId = ResetTokens.prtUserId tokenModel
 
       -- Update the user's password
       updateResult <- execQuery (updateUserPassword userId newPasswordHash)

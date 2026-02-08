@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- | Database table definition and queries for @staged_uploads@.
 --
@@ -20,8 +21,12 @@ module Effects.Database.Tables.StagedUploads
     -- * Status Enum
     Status (..),
 
-    -- * Model Type
-    Model (..),
+    -- * Table Definition
+    StagedUpload (..),
+    stagedUploadSchema,
+
+    -- * Model (Result alias)
+    Model,
 
     -- * Insert Type
     Insert (..),
@@ -39,6 +44,7 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
@@ -49,6 +55,9 @@ import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
+import OrphanInstances.Rel8 ()
+import Rel8 hiding (Enum, Insert, insert)
+import Rel8.Expr.Time (now)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -58,7 +67,7 @@ import Servant qualified
 newtype Id = Id {unId :: Int64}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype (Show, Eq, Ord, Num)
+  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq)
   deriving newtype (DecodeValue, EncodeValue)
   deriving newtype (Servant.FromHttpApiData, Servant.ToHttpApiData)
   deriving newtype (ToJSON, FromJSON, Display)
@@ -73,7 +82,7 @@ newtype Id = Id {unId :: Int64}
 newtype Token = Token {unToken :: Text}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype (Show, Eq, Ord)
+  deriving newtype (Show, Eq, Ord, DBType, DBEq)
   deriving newtype (DecodeValue, EncodeValue)
   deriving newtype (Servant.FromHttpApiData, Servant.ToHttpApiData)
   deriving newtype (ToJSON, FromJSON, Display)
@@ -91,6 +100,24 @@ data UploadType
   | EphemeralAudio
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded, Read)
   deriving anyclass (FromJSON, ToJSON)
+
+instance DBType UploadType where
+  typeInformation =
+    parseTypeInformation
+      ( \case
+          "episode_audio" -> Right EpisodeAudio
+          "station_id_audio" -> Right StationIdAudio
+          "ephemeral_audio" -> Right EphemeralAudio
+          other -> Left $ "Invalid UploadType: " <> Text.unpack other
+      )
+      ( \case
+          EpisodeAudio -> "episode_audio"
+          StationIdAudio -> "station_id_audio"
+          EphemeralAudio -> "ephemeral_audio"
+      )
+      typeInformation
+
+instance DBEq UploadType
 
 instance Display UploadType where
   displayBuilder EpisodeAudio = "episode_audio"
@@ -136,6 +163,24 @@ data Status
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded, Read)
   deriving anyclass (FromJSON, ToJSON)
 
+instance DBType Status where
+  typeInformation =
+    parseTypeInformation
+      ( \case
+          "pending" -> Right Pending
+          "claimed" -> Right Claimed
+          "expired" -> Right Expired
+          other -> Left $ "Invalid Status: " <> Text.unpack other
+      )
+      ( \case
+          Pending -> "pending"
+          Claimed -> "claimed"
+          Expired -> "expired"
+      )
+      typeInformation
+
+instance DBEq Status
+
 instance Display Status where
   displayBuilder Pending = "pending"
   displayBuilder Claimed = "claimed"
@@ -158,28 +203,59 @@ instance EncodeValue Status where
     Expired -> "expired"
 
 --------------------------------------------------------------------------------
--- Model Type
+-- Table Definition
 
--- | Staged upload record from the database.
-data Model = Model
-  { id :: Id,
-    token :: Token,
-    userId :: User.Id,
-    originalName :: Text,
-    storagePath :: Text,
-    mimeType :: Text,
-    fileSize :: Int64,
-    uploadType :: UploadType,
-    status :: Status,
-    createdAt :: UTCTime,
-    claimedAt :: Maybe UTCTime,
-    expiresAt :: UTCTime
+-- | The @staged_uploads@ table definition using rel8's higher-kinded data pattern.
+data StagedUpload f = StagedUpload
+  { id :: Column f Id,
+    token :: Column f Token,
+    userId :: Column f User.Id,
+    originalName :: Column f Text,
+    storagePath :: Column f Text,
+    mimeType :: Column f Text,
+    fileSize :: Column f Int64,
+    uploadType :: Column f UploadType,
+    status :: Column f Status,
+    createdAt :: Column f UTCTime,
+    claimedAt :: Column f (Maybe UTCTime),
+    expiresAt :: Column f UTCTime
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
 
-instance Display Model where
-  displayBuilder m = displayBuilder (token m)
+deriving stock instance (f ~ Result) => Show (StagedUpload f)
+
+deriving stock instance (f ~ Result) => Eq (StagedUpload f)
+
+instance DecodeRow (StagedUpload Result)
+
+instance Display (StagedUpload Result) where
+  displayBuilder m = displayBuilder ((.token) m)
+
+-- | Type alias for backwards compatibility.
+type Model = StagedUpload Result
+
+-- | Table schema connecting the Haskell type to the database table.
+stagedUploadSchema :: TableSchema (StagedUpload Name)
+stagedUploadSchema =
+  TableSchema
+    { name = "staged_uploads",
+      columns =
+        StagedUpload
+          { id = "id",
+            token = "token",
+            userId = "user_id",
+            originalName = "original_name",
+            storagePath = "storage_path",
+            mimeType = "mime_type",
+            fileSize = "file_size",
+            uploadType = "upload_type",
+            status = "status",
+            createdAt = "created_at",
+            claimedAt = "claimed_at",
+            expiresAt = "expires_at"
+          }
+    }
 
 --------------------------------------------------------------------------------
 -- Insert Type
@@ -200,6 +276,8 @@ data Insert = Insert
 -- Queries
 
 -- | Insert a new staged upload and return the ID.
+--
+-- Uses raw SQL because expires_at relies on the DB default (NOW() + INTERVAL '1 hour').
 insert :: Insert -> Hasql.Statement () (Maybe Id)
 insert Insert {..} =
   interp
@@ -214,15 +292,10 @@ insert Insert {..} =
 --
 -- Returns Nothing if the token doesn't exist.
 getByToken :: Token -> Hasql.Statement () (Maybe Model)
-getByToken token =
-  interp
-    False
-    [sql|
-    SELECT id, token, user_id, original_name, storage_path, mime_type, file_size,
-           upload_type, status, created_at, claimed_at, expires_at
-    FROM staged_uploads
-    WHERE token = #{token}
-  |]
+getByToken tokenVal = fmap listToMaybe $ run $ select do
+  row <- each stagedUploadSchema
+  where_ $ (.token) row ==. lit tokenVal
+  pure row
 
 -- | Claim an upload by token, verifying user ownership.
 --
@@ -233,32 +306,40 @@ getByToken token =
 -- - Upload is not in 'pending' status
 -- - Upload has expired
 claimUpload :: Token -> User.Id -> Hasql.Statement () (Maybe Model)
-claimUpload token userId =
-  interp
-    False
-    [sql|
-    UPDATE staged_uploads
-    SET status = 'claimed', claimed_at = NOW()
-    WHERE token = #{token}
-      AND user_id = #{userId}
-      AND status = 'pending'
-      AND expires_at > NOW()
-    RETURNING id, token, user_id, original_name, storage_path, mime_type, file_size,
-              upload_type, status, created_at, claimed_at, expires_at
-  |]
+claimUpload tokenVal userIdVal =
+  fmap listToMaybe $
+    run $
+      update
+        Update
+          { target = stagedUploadSchema,
+            from = pure (),
+            set = \_ row ->
+              row
+                { status = lit Claimed,
+                  claimedAt = nullify now
+                },
+            updateWhere = \_ row ->
+              (.token) row ==. lit tokenVal
+                &&. (.userId) row ==. lit userIdVal
+                &&. (.status) row ==. lit Pending
+                &&. (.expiresAt) row >. now,
+            returning = Returning Prelude.id
+          }
 
 -- | Delete a staged upload by ID.
 --
 -- Returns the ID if successful, Nothing if not found.
 deleteById :: Id -> Hasql.Statement () (Maybe Id)
 deleteById uploadId =
-  interp
-    False
-    [sql|
-    DELETE FROM staged_uploads
-    WHERE id = #{uploadId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      delete
+        Delete
+          { from = stagedUploadSchema,
+            using = pure (),
+            deleteWhere = \_ row -> (.id) row ==. lit uploadId,
+            returning = Returning (.id)
+          }
 
 -- | Get all expired uploads that are still pending.
 --
@@ -266,12 +347,8 @@ deleteById uploadId =
 -- These are candidates for cleanup.
 getExpiredUploads :: Hasql.Statement () [Model]
 getExpiredUploads =
-  interp
-    True
-    [sql|
-    SELECT id, token, user_id, original_name, storage_path, mime_type, file_size,
-           upload_type, status, created_at, claimed_at, expires_at
-    FROM staged_uploads
-    WHERE status = 'pending'
-      AND expires_at < NOW()
-  |]
+  run $ select do
+    row <- each stagedUploadSchema
+    where_ $ (.status) row ==. lit Pending
+    where_ $ (.expiresAt) row <. now
+    pure row

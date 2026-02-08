@@ -11,7 +11,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, (->-))
@@ -55,18 +55,15 @@ prop_insertSelect cfg = do
         userId <- insertTestUser userWithMetadata
 
         let uploadInsert = template {UUT.euiCreatorId = userId}
-        mInsertedId <- TRX.statement () (UUT.insertEphemeralUpload uploadInsert)
+        insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
 
-        mSelected <- case mInsertedId of
-          Nothing -> pure Nothing
-          Just insertedId -> TRX.statement () (UUT.getEphemeralUploadById insertedId)
+        mSelected <- TRX.statement () (UUT.getEphemeralUploadById insertedId)
 
         TRX.condemn
-        pure (mInsertedId, uploadInsert, mSelected)
+        pure (insertedId, uploadInsert, mSelected)
 
       assert $ do
-        (mInsertedId, uploadInsert, mSelected) <- assertRight result
-        insertedId <- assertJust mInsertedId
+        (insertedId, uploadInsert, mSelected) <- assertRight result
         selected <- assertJust mSelected
         UUT.eumId selected === insertedId
         UUT.eumTitle selected === UUT.euiTitle uploadInsert
@@ -96,9 +93,9 @@ prop_getAllEphemeralUploads_paginated cfg = do
         let eu2 = template2 {UUT.euiCreatorId = userId}
         let eu3 = template3 {UUT.euiCreatorId = userId}
 
-        _ <- TRX.statement () (UUT.insertEphemeralUpload eu1)
-        _ <- TRX.statement () (UUT.insertEphemeralUpload eu2)
-        _ <- TRX.statement () (UUT.insertEphemeralUpload eu3)
+        _ <- unwrapInsert (UUT.insertEphemeralUpload eu1)
+        _ <- unwrapInsert (UUT.insertEphemeralUpload eu2)
+        _ <- unwrapInsert (UUT.insertEphemeralUpload eu3)
 
         allItems <- TRX.statement () (UUT.getAllEphemeralUploads (Limit 10) (Offset 0))
         limited <- TRX.statement () (UUT.getAllEphemeralUploads (Limit 2) (Offset 0))
@@ -126,7 +123,7 @@ prop_getRandomEphemeralUpload cfg = do
         userId <- insertTestUser userWithMetadata
 
         let uploadInsert = template {UUT.euiCreatorId = userId}
-        _ <- TRX.statement () (UUT.insertEphemeralUpload uploadInsert)
+        _ <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
 
         randomUpload <- TRX.statement () UUT.getRandomEphemeralUpload
         TRX.condemn
@@ -153,23 +150,19 @@ prop_updateEphemeralUpload cfg = do
         userId <- insertTestUser userWithMetadata
 
         let uploadInsert = template {UUT.euiCreatorId = userId}
-        mInsertedId <- TRX.statement () (UUT.insertEphemeralUpload uploadInsert)
+        insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
 
-        mUpdated <- case mInsertedId of
-          Nothing -> pure Nothing
-          Just insertedId -> do
-            let newTitle = "Updated Title"
-            let newPath = "/updated/path.mp3"
-            let newMime = "audio/wav"
-            let newSize = 42000
-            TRX.statement () (UUT.updateEphemeralUpload insertedId newTitle newPath newMime newSize)
+        let newTitle = "Updated Title"
+        let newPath = "/updated/path.mp3"
+        let newMime = "audio/wav"
+        let newSize = 42000
+        mUpdated <- TRX.statement () (UUT.updateEphemeralUpload insertedId newTitle newPath newMime newSize)
 
         TRX.condemn
-        pure (mInsertedId, mUpdated)
+        pure (insertedId, mUpdated)
 
       assert $ do
-        (mInsertedId, mUpdated) <- assertRight result
-        insertedId <- assertJust mInsertedId
+        (insertedId, mUpdated) <- assertRight result
         updated <- assertJust mUpdated
         UUT.eumId updated === insertedId
         UUT.eumTitle updated === "Updated Title"
@@ -190,21 +183,16 @@ prop_deleteEphemeralUpload cfg = do
         userId <- insertTestUser userWithMetadata
 
         let uploadInsert = template {UUT.euiCreatorId = userId}
-        mInsertedId <- TRX.statement () (UUT.insertEphemeralUpload uploadInsert)
+        insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
 
-        (deleteResult, afterDelete) <- case mInsertedId of
-          Nothing -> pure (Nothing, Nothing)
-          Just insertedId -> do
-            dr <- TRX.statement () (UUT.deleteEphemeralUpload insertedId)
-            ad <- TRX.statement () (UUT.getEphemeralUploadById insertedId)
-            pure (dr, ad)
+        deleteResult <- TRX.statement () (UUT.deleteEphemeralUpload insertedId)
+        afterDelete <- TRX.statement () (UUT.getEphemeralUploadById insertedId)
 
         TRX.condemn
-        pure (mInsertedId, deleteResult, afterDelete)
+        pure (insertedId, deleteResult, afterDelete)
 
       assert $ do
-        (mInsertedId, deleteResult, afterDelete) <- assertRight result
-        insertedId <- assertJust mInsertedId
+        (insertedId, deleteResult, afterDelete) <- assertRight result
         deletedId <- assertJust deleteResult
         deletedId === insertedId
         assertNothing afterDelete

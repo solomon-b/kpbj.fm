@@ -4,6 +4,7 @@ module Effects.Database.Tables.ShowHostSpec where
 
 --------------------------------------------------------------------------------
 
+import Data.Maybe (isNothing)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.ShowHost qualified as UUT
 import Effects.Database.Tables.Shows qualified as Shows
@@ -12,7 +13,7 @@ import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
 import Hedgehog qualified
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestUser)
+import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertRight, assertSingleton)
@@ -66,7 +67,7 @@ prop_insertSelect cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         let hostRole = UUT.Host
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId hostRole
@@ -95,7 +96,7 @@ prop_removeShowHost cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId UUT.Host
 
@@ -123,7 +124,7 @@ prop_removeShowHost_idempotent cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId UUT.Host
 
@@ -153,7 +154,7 @@ prop_isUserHostOfShow cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId UUT.Host
 
@@ -176,7 +177,7 @@ prop_isUserHostOfShow_afterRemoval cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId UUT.Host
         TRX.statement () $ UUT.removeShowHost showId userId
@@ -202,7 +203,7 @@ prop_multipleHostsPerShow cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId1 <- insertTestUser userWithMetadata1
         userId2 <- insertTestUser userWithMetadata2
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId1 UUT.Host
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId2 UUT.CoHost
@@ -232,7 +233,7 @@ prop_getShowHostsWithUsers cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId UUT.Host
 
@@ -259,7 +260,7 @@ prop_isUserHostOfShowSlug cfg = do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId1 <- insertTestUser userWithMetadata1
         userId2 <- insertTestUser userWithMetadata2
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         TRX.statement () $ UUT.insertShowHost $ UUT.Insert showId userId1 UUT.Host
 
@@ -285,7 +286,7 @@ prop_addHostToShow cfg = do
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        showId <- TRX.statement () $ Shows.insertShow showInsert
+        showId <- unwrapInsert $ Shows.insertShow showInsert
 
         -- Add via convenience wrapper
         TRX.statement () $ UUT.addHostToShow showId userId
@@ -313,4 +314,4 @@ prop_addHostToShow cfg = do
         -- After re-add: one host again
         reAddedHost <- assertSingleton hostsAfterReAdd
         reAddedHost.shmUserId === expectedUserId
-        Hedgehog.assert (reAddedHost.shmLeftAt == Nothing)
+        Hedgehog.assert (isNothing reAddedHost.shmLeftAt)

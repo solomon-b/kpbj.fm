@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definition and queries for @show_blog_posts@.
 --
@@ -46,7 +45,7 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Coerce (coerce)
+import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -59,6 +58,7 @@ import Domain.Types.Slug (Slug (..))
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), interp, sql)
 import Hasql.Statement qualified as Hasql
@@ -153,6 +153,29 @@ showBlogPostSchema =
     }
 
 --------------------------------------------------------------------------------
+-- Junction Table (show_blog_post_tags)
+
+-- | The @show_blog_post_tags@ junction table definition (internal, not exported).
+data ShowBlogPostTag f = ShowBlogPostTag
+  { sbptPostId :: Column f Id,
+    sbptTagId :: Column f ShowBlogTags.Id
+  }
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
+
+-- | Schema for the @show_blog_post_tags@ junction table.
+showBlogPostTagSchema :: TableSchema (ShowBlogPostTag Name)
+showBlogPostTagSchema =
+  TableSchema
+    { name = "show_blog_post_tags",
+      columns =
+        ShowBlogPostTag
+          { sbptPostId = "post_id",
+            sbptTagId = "tag_id"
+          }
+    }
+
+--------------------------------------------------------------------------------
 -- Insert Type
 
 -- | Insert type for creating new show blog posts.
@@ -187,15 +210,15 @@ getShowBlogPosts showIdVal (Limit lim) (Offset off) =
 -- | Get published blog posts for a show.
 getPublishedShowBlogPosts :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedShowBlogPosts showIdVal (Limit lim) (Offset off) =
-  interp
-    False
-    [sql|
-    SELECT id, show_id, title, slug, content, excerpt, author_id, status, published_at, created_at, updated_at
-    FROM show_blog_posts
-    WHERE show_id = #{showIdVal} AND status = 'published'
-    ORDER BY published_at DESC NULLS LAST, created_at DESC
-    LIMIT #{lim} OFFSET #{off}
-  |]
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (((.publishedAt) >$< nullsLast desc) <> ((.createdAt) >$< desc)) do
+            post <- each showBlogPostSchema
+            where_ $ (.showId) post ==. lit showIdVal
+            where_ $ (.status) post ==. lit Published
+            pure post
 
 -- | Get show blog post by ID.
 getShowBlogPostById :: Id -> Hasql.Statement () (Maybe Model)
@@ -205,9 +228,9 @@ getShowBlogPostById postId = fmap listToMaybe $ run $ select do
   pure post
 
 -- | Insert a new show blog post.
-insertShowBlogPost :: Insert -> Hasql.Statement () Id
+insertShowBlogPost :: Insert -> Hasql.Statement () (Maybe Id)
 insertShowBlogPost Insert {..} =
-  fmap head $
+  fmap listToMaybe $
     run $
       insert
         Rel8.Insert
@@ -215,7 +238,7 @@ insertShowBlogPost Insert {..} =
             rows =
               values
                 [ ShowBlogPost
-                    { id = coerce (nextval "show_blog_posts_id_seq"),
+                    { id = nextId "show_blog_posts_id_seq",
                       showId = lit sbpiId,
                       title = lit sbpiTitle,
                       slug = lit sbpiSlug,
@@ -236,25 +259,37 @@ insertShowBlogPost Insert {..} =
 
 -- | Update a show blog post.
 --
--- Uses raw SQL because rel8's UPDATE with complex CASE expressions
--- for published_at handling would be verbose.
+-- The @published_at@ logic mirrors the original SQL CASE:
+--
+-- - Setting status to Published when @published_at@ is NULL → set to NOW()
+-- - Setting status to non-Published → clear @published_at@ to NULL
+-- - Otherwise → keep existing @published_at@
 updateShowBlogPost :: Id -> Insert -> Hasql.Statement () (Maybe Id)
 updateShowBlogPost postId Insert {..} =
-  interp
-    False
-    [sql|
-    UPDATE show_blog_posts
-    SET title = #{sbpiTitle}, slug = #{sbpiSlug}, content = #{sbpiContent}, excerpt = #{sbpiExcerpt},
-        status = #{sbpiStatus},
-        published_at = CASE
-          WHEN #{sbpiStatus}::text = 'published' AND published_at IS NULL THEN NOW()
-          WHEN #{sbpiStatus}::text != 'published' THEN NULL
-          ELSE published_at
-        END,
-        updated_at = NOW()
-    WHERE id = #{postId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = showBlogPostSchema,
+            from = pure (),
+            set = \_ post ->
+              post
+                { title = lit sbpiTitle,
+                  slug = lit sbpiSlug,
+                  content = lit sbpiContent,
+                  excerpt = lit sbpiExcerpt,
+                  status = lit sbpiStatus,
+                  publishedAt =
+                    caseExpr
+                      [ (lit sbpiStatus ==. lit Published &&. isNull ((.publishedAt) post), nullify now),
+                        (not_ (lit sbpiStatus ==. lit Published), Rel8.null)
+                      ]
+                      ((.publishedAt) post),
+                  updatedAt = now
+                },
+            updateWhere = \_ post -> (.id) post ==. lit postId,
+            returning = Returning (.id)
+          }
 
 -- | Delete a show blog post.
 deleteShowBlogPost :: Id -> Hasql.Statement () (Maybe Id)
@@ -271,36 +306,39 @@ deleteShowBlogPost postId =
 
 -- | Get published blog posts for a show by show slug.
 --
--- Uses raw SQL because it joins with the shows table.
--- Excludes soft-deleted shows.
+-- Joins with the shows table and excludes soft-deleted shows.
 getPublishedShowBlogPostsBySlug :: Text -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedShowBlogPostsBySlug showSlug (Limit lim) (Offset off) =
-  interp
-    False
-    [sql|
-    SELECT sbp.id, sbp.show_id, sbp.title, sbp.slug, sbp.content, sbp.excerpt, sbp.author_id, sbp.status, sbp.published_at, sbp.created_at, sbp.updated_at
-    FROM show_blog_posts sbp
-    JOIN shows s ON sbp.show_id = s.id
-    WHERE s.slug = #{showSlug} AND s.deleted_at IS NULL AND sbp.status = 'published'
-    ORDER BY sbp.published_at DESC NULLS LAST, sbp.created_at DESC
-    LIMIT #{lim} OFFSET #{off}
-  |]
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (((.publishedAt) >$< nullsLast desc) <> ((.createdAt) >$< desc)) do
+            sbp <- each showBlogPostSchema
+            s <- each Shows.showSchema
+            where_ $ (.showId) sbp ==. (.id) s
+            where_ $ (.slug) s ==. lit (Slug showSlug)
+            where_ $ isNull ((.deletedAt) s)
+            where_ $ (.status) sbp ==. lit Published
+            pure sbp
 
 -- | Get published blog posts for a show filtered by tag.
 --
--- Uses raw SQL because it joins with the junction table.
+-- Joins with the junction table to filter by tag.
 getPublishedShowBlogPostsByShowAndTag :: Shows.Id -> ShowBlogTags.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedShowBlogPostsByShowAndTag showIdVal tagId (Limit lim) (Offset off) =
-  interp
-    False
-    [sql|
-    SELECT sbp.id, sbp.show_id, sbp.title, sbp.slug, sbp.content, sbp.excerpt, sbp.author_id, sbp.status, sbp.published_at, sbp.created_at, sbp.updated_at
-    FROM show_blog_posts sbp
-    JOIN show_blog_post_tags sbpt ON sbp.id = sbpt.post_id
-    WHERE sbp.show_id = #{showIdVal} AND sbpt.tag_id = #{tagId} AND sbp.status = 'published'
-    ORDER BY sbp.published_at DESC NULLS LAST, sbp.created_at DESC
-    LIMIT #{lim} OFFSET #{off}
-  |]
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy (((.publishedAt) >$< nullsLast desc) <> ((.createdAt) >$< desc)) do
+            sbp <- each showBlogPostSchema
+            sbpt <- each showBlogPostTagSchema
+            where_ $ (.id) sbp ==. sbptPostId sbpt
+            where_ $ (.showId) sbp ==. lit showIdVal
+            where_ $ sbptTagId sbpt ==. lit tagId
+            where_ $ (.status) sbp ==. lit Published
+            pure sbp
 
 -- | Count published blog posts for a show.
 countPublishedShowBlogPosts :: Shows.Id -> Hasql.Statement () Int64
@@ -347,39 +385,40 @@ getTagsForShow showIdVal =
 
 --------------------------------------------------------------------------------
 -- Junction Table Queries (show_blog_post_tags)
---
--- These use raw SQL because they involve joins with other tables.
 
 -- | Get tags for a show blog post.
 getTagsForShowBlogPost :: Id -> Hasql.Statement () [ShowBlogTags.Model]
 getTagsForShowBlogPost postId =
-  interp
-    False
-    [sql|
-    SELECT sbt.id, sbt.name, sbt.created_at
-    FROM show_blog_tags sbt
-    JOIN show_blog_post_tags sbpt ON sbt.id = sbpt.tag_id
-    WHERE sbpt.post_id = #{postId}
-    ORDER BY sbt.name
-  |]
+  run $
+    select $
+      orderBy (ShowBlogTags.sbtmName >$< asc) do
+        sbpt <- each showBlogPostTagSchema
+        where_ $ sbptPostId sbpt ==. lit postId
+        tag <- each ShowBlogTags.showBlogTagSchema
+        where_ $ ShowBlogTags.sbtmId tag ==. sbptTagId sbpt
+        pure tag
 
 -- | Add tag to show blog post.
 addTagToShowBlogPost :: Id -> ShowBlogTags.Id -> Hasql.Statement () ()
 addTagToShowBlogPost postId tagId =
-  interp
-    False
-    [sql|
-    INSERT INTO show_blog_post_tags(post_id, tag_id)
-    VALUES (#{postId}, #{tagId})
-    ON CONFLICT (post_id, tag_id) DO NOTHING
-  |]
+  run_ $
+    insert
+      Rel8.Insert
+        { into = showBlogPostTagSchema,
+          rows = values [ShowBlogPostTag {sbptPostId = lit postId, sbptTagId = lit tagId}],
+          onConflict = DoNothing,
+          returning = NoReturning
+        }
 
 -- | Remove tag from show blog post.
 removeTagFromShowBlogPost :: Id -> ShowBlogTags.Id -> Hasql.Statement () ()
 removeTagFromShowBlogPost postId tagId =
-  interp
-    False
-    [sql|
-    DELETE FROM show_blog_post_tags
-    WHERE post_id = #{postId} AND tag_id = #{tagId}
-  |]
+  run_ $
+    delete
+      Rel8.Delete
+        { from = showBlogPostTagSchema,
+          using = pure (),
+          deleteWhere = \_ sbpt ->
+            sbptPostId sbpt ==. lit postId &&. sbptTagId sbpt ==. lit tagId,
+          returning = NoReturning
+        }

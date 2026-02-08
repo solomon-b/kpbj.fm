@@ -1,9 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wno-x-partial #-}
 
 -- | Database table definition and queries for @events@.
 --
@@ -41,7 +39,6 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Coerce (coerce)
 import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
@@ -54,10 +51,11 @@ import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Insert)
@@ -256,9 +254,9 @@ getEventById eventId = fmap listToMaybe $ run $ select do
   pure event
 
 -- | Insert a new event.
-insertEvent :: Insert -> Hasql.Statement () Id
+insertEvent :: Insert -> Hasql.Statement () (Maybe Id)
 insertEvent Insert {..} =
-  fmap head $
+  fmap listToMaybe $
     run $
       insert
         Rel8.Insert
@@ -266,7 +264,7 @@ insertEvent Insert {..} =
             rows =
               values
                 [ Event
-                    { emId = coerce (nextval "events_id_seq"),
+                    { emId = nextId "events_id_seq",
                       emTitle = lit eiTitle,
                       emSlug = lit eiSlug,
                       emDescription = lit eiDescription,
@@ -286,20 +284,30 @@ insertEvent Insert {..} =
           }
 
 -- | Update an event.
---
--- Uses raw SQL for consistency with update patterns.
 updateEvent :: Id -> Insert -> Hasql.Statement () (Maybe Id)
 updateEvent eventId Insert {..} =
-  interp
-    False
-    [sql|
-    UPDATE events
-    SET title = #{eiTitle}, slug = #{eiSlug}, description = #{eiDescription},
-        starts_at = #{eiStartsAt}, ends_at = #{eiEndsAt}, location_name = #{eiLocationName}, location_address = #{eiLocationAddress},
-        status = #{eiStatus}, poster_image_url = #{eiPosterImageUrl}, updated_at = NOW()
-    WHERE id = #{eventId}
-    RETURNING id
-  |]
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = eventSchema,
+            from = pure (),
+            set = \_ event ->
+              event
+                { emTitle = lit eiTitle,
+                  emSlug = lit eiSlug,
+                  emDescription = lit eiDescription,
+                  emStartsAt = lit eiStartsAt,
+                  emEndsAt = lit eiEndsAt,
+                  emLocationName = lit eiLocationName,
+                  emLocationAddress = lit eiLocationAddress,
+                  emStatus = lit eiStatus,
+                  emPosterImageUrl = lit eiPosterImageUrl,
+                  emUpdatedAt = now
+                },
+            updateWhere = \_ event -> emId event ==. lit eventId,
+            returning = Returning emId
+          }
 
 -- | Delete an event.
 deleteEvent :: Id -> Hasql.Statement () (Maybe Id)

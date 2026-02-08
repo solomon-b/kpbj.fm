@@ -109,8 +109,9 @@ renderUnauthTemplate hxRequest templateContent = do
 -- Uses epoch time (1970-01-01 00:00:00 UTC) as a sentinel value for updatedAt.
 defaultStreamSettings :: StreamSettings.Model
 defaultStreamSettings =
-  StreamSettings.Model
-    { StreamSettings.ssStreamUrl = "https://kpbj.hasnoskills.com/listen/kpbj_test_station/radio.mp3",
+  StreamSettings.StreamSetting
+    { StreamSettings.ssId = 1,
+      StreamSettings.ssStreamUrl = "https://kpbj.hasnoskills.com/listen/kpbj_test_station/radio.mp3",
       StreamSettings.ssMetadataUrl = "https://kpbj.hasnoskills.com/api/nowplaying/kpbj_test_station",
       StreamSettings.ssUpdatedAt = epochTime,
       StreamSettings.ssUpdatedBy = Nothing
