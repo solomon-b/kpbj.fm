@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Copy Production S3 Bucket to Staging
-# Copies the production Tigris S3 bucket to staging, completely replacing staging data.
+# Sync Production S3 Bucket to Staging (Incremental)
+# Compares production and staging Tigris buckets by key and file size,
+# then copies only new/changed files and removes stale ones.
 #
 # Usage: ./scripts/prod-to-staging-s3.sh <PROD_AWS_ACCESS_KEY_ID> <PROD_AWS_SECRET_ACCESS_KEY>
 #
@@ -16,10 +17,11 @@
 
 set -euo pipefail
 
-# Configuration
-PROD_BUCKET="production-kpbj-storage"
-STAGING_BUCKET="staging-kpbj-storage"
-TIGRIS_ENDPOINT="https://fly.storage.tigris.dev"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/sync-s3.sh
+source "$SCRIPT_DIR/lib/sync-s3.sh"
 
 # Parse arguments
 if [ $# -lt 2 ]; then
@@ -27,17 +29,18 @@ if [ $# -lt 2 ]; then
   exit 1
 fi
 
-PROD_AWS_ACCESS_KEY_ID="$1"
-PROD_AWS_SECRET_ACCESS_KEY="$2"
+export PROD_AWS_ACCESS_KEY_ID="$1"
+export PROD_AWS_SECRET_ACCESS_KEY="$2"
 
 echo "========================================"
-echo "Production to Staging S3 Copy"
+echo "Production to Staging S3 Sync"
 echo "========================================"
 echo ""
-echo "This will COMPLETELY REPLACE the staging S3 bucket with production data."
+echo "This will incrementally sync the staging S3 bucket with production."
+echo "Only new/changed files will be copied; removed files will be deleted."
 echo ""
 
-read -p "Type 'yes' to confirm: " CONFIRM
+read -rp "Type 'yes' to confirm: " CONFIRM
 if [ "$CONFIRM" != "yes" ]; then
   echo "Aborted."
   exit 1
@@ -53,43 +56,14 @@ if [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
   exit 1
 fi
 
-# Store staging credentials
-STAGING_AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
-STAGING_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+export STAGING_AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+export STAGING_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
 
-# Create temp directory for download
-TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
-
-echo ""
-echo "Downloading from production bucket..."
-echo "  Bucket: $PROD_BUCKET"
-echo "  Using key: ${PROD_AWS_ACCESS_KEY_ID:0:12}..."
-
-# Download from production using prod credentials
-AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID" \
-AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY" \
-aws s3 sync "s3://$PROD_BUCKET" "$TMPDIR" \
-  --endpoint-url "$TIGRIS_ENDPOINT"
-
-FILE_COUNT=$(find "$TMPDIR" -type f | wc -l)
-echo "  Downloaded $FILE_COUNT files"
-
-echo ""
-echo "Uploading to staging bucket..."
-echo "  Bucket: $STAGING_BUCKET"
-echo "  Using key: ${STAGING_AWS_ACCESS_KEY_ID:0:12}..."
-
-# Upload to staging using staging credentials (with --delete to remove extra files)
-AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID" \
-AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY" \
-aws s3 sync "$TMPDIR" "s3://$STAGING_BUCKET" \
-  --endpoint-url "$TIGRIS_ENDPOINT" \
-  --delete
+sync_s3_buckets
 
 echo ""
 echo "========================================"
-echo "S3 copy complete!"
+echo "S3 sync complete!"
 echo "========================================"
 echo ""
 echo "  Files available at: https://$STAGING_BUCKET.fly.storage.tigris.dev/..."
