@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Infrastructure
+- **Terraform + SOPS Infrastructure** - Codified DigitalOcean streaming VPS (separate prod + staging droplets, firewalls, SSH keys) and Cloudflare DNS + proxy settings as Terraform. Secrets managed via SOPS + age encryption. Remote state in Tigris S3.
 
 ---
 
