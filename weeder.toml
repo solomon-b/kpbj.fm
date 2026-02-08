@@ -1,0 +1,51 @@
+# Weeder Configuration
+# https://github.com/ocharles/weeder
+
+# Entry point patterns (regex matching fully-qualified symbol names)
+roots = [
+  "^Main\\.main$",
+  "^Paths_.*",
+  # Test entry points
+  "^Test\\..*\\.spec$",
+  # Servant handlers - type-level routing is invisible to weeder
+  "^API\\..*\\.handler$",
+  "^API\\..*\\.handlerWithSlug$",
+  "^API\\..*\\.handlerWithoutSlug$"
+]
+
+# Modules where ALL exports are considered roots
+# Servant's type-level composition (:<|>) can't be traced, so we need
+# the API module and related utilities as roots
+root-modules = [
+  # Main API composition - Servant :<|> is invisible to HIE
+  "^API$",
+  # Utility functions used throughout
+  "^Utils$",
+  # Background job for cleaning up expired staged uploads
+  "^Effects\\.StagedUploadCleanup$",
+  # Future standalone library for Tailwind style composition
+  "^Design\\.StyleBuilder$",
+  # Design tokens - library of reusable styling constants
+  "^Design\\.Tokens$",
+  # Test utilities - reusable assertion helpers and generators
+  "^Test\\.Database\\.Expectation$",
+  "^Test\\.Database\\.Property\\.Assert$",
+  "^Test\\.Database\\.Monad$",
+  "^Test\\.Gen\\.Text$",
+  # lucid-htmx-alpine library - public API for HTMX/Alpine attributes
+  "^Lucid\\.HTMX$",
+  "^Lucid\\.Alpine$",
+  "^Lucid\\.HTML5\\.Extra$",
+  # lucid-form-builder library - public API for form construction
+  "^Lucid\\.Form\\.Builder.*$",
+  # lucid-tailwind library - Tailwind CSS combinators
+  "^Lucid\\.Tailwind$"
+]
+
+# Type class instance handling
+# false = can detect unused instances (stricter)
+# true = all instances are roots (more permissive)
+type-class-roots = true
+
+# Enable detection of unused type definitions
+unused-types = false
