@@ -52,6 +52,11 @@ _require-gh:
 _require-aws:
   @command -v aws >/dev/null 2>&1 || { echo "ERROR: 'aws' (AWS CLI) is required but not installed."; exit 1; }
 
+[private]
+_require-sops:
+  @command -v sops >/dev/null 2>&1 || { echo "ERROR: 'sops' is required but not installed. Run 'nix develop' to enter the dev shell."; exit 1; }
+  @command -v age >/dev/null 2>&1 || { echo "ERROR: 'age' is required but not installed. Run 'nix develop' to enter the dev shell."; exit 1; }
+
 # =============================================================================
 # Build & Run
 # =============================================================================
@@ -491,6 +496,52 @@ prod-to-local-files PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY: _require-
 # Usage: just prod-to-local <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
 prod-to-local PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY: _require-fly _require-aws
   ./scripts/prod-to-local.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+
+# =============================================================================
+# Terraform
+# =============================================================================
+# Infrastructure as code for DigitalOcean and Cloudflare.
+# Prerequisites: terraform, TERRAFORM_ACCESS_KEY_ID and TERRAFORM_SECRET_ACCESS_KEY env vars
+
+[private]
+_require-terraform:
+  @command -v terraform >/dev/null 2>&1 || { echo "ERROR: 'terraform' is required but not installed."; exit 1; }
+
+[private]
+_require-terraform-env:
+  @test -n "$TERRAFORM_ACCESS_KEY_ID" || { echo "ERROR: TERRAFORM_ACCESS_KEY_ID is not set."; exit 1; }
+  @test -n "$TERRAFORM_SECRET_ACCESS_KEY" || { echo "ERROR: TERRAFORM_SECRET_ACCESS_KEY is not set."; exit 1; }
+
+TF_DIR := "terraform"
+TF_BACKEND_CONFIG := "-backend-config=access_key=$TERRAFORM_ACCESS_KEY_ID -backend-config=secret_key=$TERRAFORM_SECRET_ACCESS_KEY"
+
+# Initialize Terraform (with remote state backend)
+tf-init: _require-terraform _require-terraform-env
+  cd {{TF_DIR}} && terraform init {{TF_BACKEND_CONFIG}}
+
+# Preview infrastructure changes
+tf-plan: _require-terraform
+  cd {{TF_DIR}} && terraform plan
+
+# Apply infrastructure changes
+tf-apply: _require-terraform
+  cd {{TF_DIR}} && terraform apply
+
+# Show current Terraform state
+tf-show: _require-terraform
+  cd {{TF_DIR}} && terraform show
+
+# Format Terraform files
+tf-fmt: _require-terraform
+  cd {{TF_DIR}} && terraform fmt
+
+# Validate Terraform configuration
+tf-validate: _require-terraform
+  cd {{TF_DIR}} && terraform validate
+
+# Open encrypted secrets in $EDITOR, re-encrypts on save
+tf-edit-secrets: _require-sops
+  sops {{TF_DIR}}/secrets.yaml
 
 # =============================================================================
 # Streaming Services (Icecast + Liquidsoap)
