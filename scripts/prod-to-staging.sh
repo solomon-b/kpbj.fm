@@ -3,7 +3,7 @@
 # Copy Production to Staging (Database + S3)
 # Copies both the production database and S3 bucket to staging.
 # Database: PII is sanitized for User and Host accounts.
-# S3: Complete replacement of staging bucket.
+# S3: Incremental sync — only copies new/changed files.
 #
 # Usage: ./scripts/prod-to-staging.sh <PROD_AWS_ACCESS_KEY_ID> <PROD_AWS_SECRET_ACCESS_KEY>
 #
@@ -21,7 +21,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/sync-s3.sh
+source "$SCRIPT_DIR/lib/sync-s3.sh"
 
 # Parse arguments
 if [ $# -lt 2 ]; then
@@ -29,8 +32,8 @@ if [ $# -lt 2 ]; then
   exit 1
 fi
 
-PROD_AWS_ACCESS_KEY_ID="$1"
-PROD_AWS_SECRET_ACCESS_KEY="$2"
+export PROD_AWS_ACCESS_KEY_ID="$1"
+export PROD_AWS_SECRET_ACCESS_KEY="$2"
 
 echo "========================================"
 echo "Production to Staging Full Copy"
@@ -38,7 +41,7 @@ echo "========================================"
 echo ""
 echo "This will COMPLETELY REPLACE the staging environment with production data."
 echo "  - Database: PII sanitized for User/Host accounts"
-echo "  - S3 Bucket: Complete replacement"
+echo "  - S3 Bucket: Incremental sync (new/changed files only)"
 echo ""
 
 read -rp "Type 'yes' to confirm: " CONFIRM
@@ -67,8 +70,8 @@ if [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
 fi
 
 # Store staging S3 credentials before they might be overwritten
-STAGING_AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
-STAGING_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+export STAGING_AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+export STAGING_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
 
 echo ""
 echo "========================================"
@@ -121,36 +124,10 @@ cleanup_proxies
 
 echo ""
 echo "========================================"
-echo "  STEP 2/2: Copying S3 Bucket"
+echo "  STEP 2/2: Syncing S3 Bucket"
 echo "========================================"
 
-# Create temp directory for download
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"; cleanup_proxies' EXIT
-
-echo ""
-echo "Downloading from production bucket..."
-echo "  Bucket: $PROD_BUCKET"
-
-# Download from production using prod credentials
-AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID" \
-AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY" \
-aws s3 sync "s3://$PROD_BUCKET" "$TMPDIR" \
-  --endpoint-url "$TIGRIS_ENDPOINT"
-
-FILE_COUNT=$(find "$TMPDIR" -type f | wc -l)
-echo "  Downloaded $FILE_COUNT files"
-
-echo ""
-echo "Uploading to staging bucket..."
-echo "  Bucket: $STAGING_BUCKET"
-
-# Upload to staging using staging credentials (with --delete to remove extra files)
-AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID" \
-AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY" \
-aws s3 sync "$TMPDIR" "s3://$STAGING_BUCKET" \
-  --endpoint-url "$TIGRIS_ENDPOINT" \
-  --delete
+sync_s3_buckets
 
 echo ""
 echo "Restarting staging app..."
