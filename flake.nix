@@ -120,6 +120,8 @@
               pkgs.rclone
               pkgs.shellcheck
               pkgs.sqlx-cli
+              pkgs.sops
+              pkgs.age
               pkgs.sloc
               pkgs.pkg-config
             ];

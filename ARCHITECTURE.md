@@ -110,3 +110,25 @@ docker-compose.prod.yml     # Production VPS overrides
 ```
 
 Deploy commands: `just stream-staging-deploy <tag>`, `just stream-prod-deploy <tag>`
+
+## Infrastructure as Code (Terraform)
+
+Infrastructure provisioning is managed by Terraform in `terraform/`. This covers resource creation and configuration — CI/CD workflows and on-VPS Docker Compose remain separate.
+
+### What Terraform Manages
+
+| Resource                             | Provider        | File              |
+|--------------------------------------|-----------------|-------------------|
+| DigitalOcean streaming droplets (prod + staging) | `digitalocean`  | `digitalocean.tf` |
+| DigitalOcean firewalls (prod + staging)          | `digitalocean`  | `digitalocean.tf` |
+| DigitalOcean SSH keys                | `digitalocean`  | `digitalocean.tf` |
+| Cloudflare DNS records               | `cloudflare`    | `cloudflare.tf`   |
+| Cloudflare proxy settings            | `cloudflare`    | `cloudflare.tf`   |
+
+### What Stays Manual
+
+- Fly.io web service (managed via `flyctl` + CI/CD)
+- GitHub Actions CI/CD (`.github/workflows/`)
+- Docker Compose on VPS (`just stream-*-deploy`)
+- Nginx + certbot on VPS (one-time setup)
+- `fly.toml` / `fly.staging.toml` (used by CI deploy workflows)

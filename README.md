@@ -129,6 +129,19 @@ Trigger the production deployment manually:
 gh workflow run "Deploy to Production" -f tag=v0.3.2
 ```
 
+### Infrastructure (Terraform)
+
+Infrastructure for DigitalOcean and Cloudflare is codified in `terraform/`. See [terraform/README.md](terraform/README.md) for full setup and import instructions.
+
+```bash
+cd terraform/
+terraform init                # Install providers
+terraform plan                # Preview changes
+terraform apply               # Apply changes
+```
+
+Terraform manages: DigitalOcean streaming droplets (prod + staging) + firewalls, and Cloudflare DNS records + proxy settings.
+
 ### Operations
 
 ```bash
