@@ -15,11 +15,15 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Icecast Status Display** - Stream settings page now shows live Icecast server status
 - **Stream Metadata Proxy** - Added `/api/stream/metadata` endpoint that proxies Icecast stream metadata for the web player
 - **Playout API Metadata** - Playout API responses now include track metadata (title, artist, show info)
+- **Full Database Query Test Coverage** - Added comprehensive test suites for all database table modules with property-based generators, covering CRUD operations, edge cases, and constraint validation
 - **Local Streaming Stack** - Added Docker Compose setup for Icecast + Liquidsoap streaming infrastructure:
   - `just stream-dev-start/stop/logs/restart/status` commands for local development
   - Liquidsoap polls `/api/playout/now` and `/api/playout/fallback` endpoints
   - Automatic URL rewriting for Docker-to-host communication
   - Stream available at `http://localhost:8000/stream`
+
+### Refactoring
+- **Convert Queries to Rel8** - Migrated all database queries from `hasql-interpolate` to `rel8`, a type-safe relational algebra library, across all table modules (~2k lines changed across 56 files)
 
 ### Fixes
 - **Audio Player Preserved on Back/Forward** - Browser history navigation no longer interrupts audio playback. Added `hx-history-elt` to scope HTMX history snapshots to `#main-content`, preserving the player's Alpine state and audio element.
@@ -28,6 +32,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Episode Metadata Escaping** - Fixed HTML escaping in episode metadata to prevent XSS
 - **Form Builder Progress Bar** - Progress bar now only shows on forms with file upload fields
 - **Create Release Tag Action** - Fixed GitHub Actions workflow for creating release tags
+- **Duplicate cabal.project** - Removed duplicate `cabal.project` file
 
 ### Infrastructure
 - **Webhook CI Pipeline** - Added webhook image to the stream images build-and-publish GitHub Actions workflow
@@ -40,11 +45,13 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Two-Phase CustomContext Initialization** - Refactored `CustomContext` initialization to separate config loading from resource building, with structured JSON logging
 - **StorageContext Uses Environment** - StorageContext now respects the Environment setting for storage backend selection
 - **Script Library Refactor** - Extracted shared constants and functions into `scripts/lib/common.sh` (database ports, bucket names, sanitized password hash) and centralized PII sanitization into `scripts/lib/sanitize-pii.sql`. Refactored all prod-to-local and prod-to-staging scripts to use the common library.
+- **Incremental Prod-to-Staging Sync** - Prod-to-staging S3 sync is now incremental via a shared `scripts/lib/sync-s3.sh` library, avoiding full re-uploads on every sync
 - **Remote Backup Commands** - Added `just prod-backup-remote` and `just prod-backup-s3` for automated backups from external servers (e.g., TrueNAS cron jobs)
 - **Justfile Cleanup** - Removed unused test-postgres commands, staging mock data commands, and duplicate constants. Staging now uses production data sync instead of mock data.
 - **Stream Container Commands** - Added `just stream-rebuild` and `just stream-reload` commands
 - **Fetch Ephemeral Audio Script** - Added utility script to download ephemeral audio files
 - **Backfill Episode Durations Script** - Added script to populate missing episode duration values
+- **Add weeder.toml to Root** - Added Weeder configuration file to the project root for dead code detection
 
 ### Documentation
 - **ARCHITECTURE.md** - New system architecture doc covering all three services (Web, Liquidsoap, Icecast), deployment topology, environments, playout API, and CI/CD pipelines
