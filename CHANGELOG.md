@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.7.0] - 2026-02-09
+
 ### Features
 - **Stream Status Indicator** - Green/red dot on the stream settings dashboard showing whether Icecast is reachable, with three states: offline (red), online but no source (green), and online with full stats (green)
 - **Metadata Persistence on Reconnect** - Liquidsoap now re-sends track metadata to Icecast after reconnection, so stream title/artist survive Icecast container restarts
