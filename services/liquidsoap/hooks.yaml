@@ -5,7 +5,7 @@
     - source: string
       name: restart
     - source: environment
-      name: ICECAST_CONTAINER
+      envname: ICECAST_CONTAINER
   trigger-rule:
     match:
       type: value
@@ -21,7 +21,7 @@
     - source: string
       name: restart
     - source: environment
-      name: LIQUIDSOAP_CONTAINER
+      envname: LIQUIDSOAP_CONTAINER
   trigger-rule:
     match:
       type: value
