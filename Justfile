@@ -423,9 +423,9 @@ prod-machines:
 prod-backup: _require-fly
   #!/usr/bin/env bash
   set -euo pipefail
-  mkdir -p backups
+  mkdir -p backups/postgres
   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-  BACKUP_FILE="backups/kpbj_fm_${TIMESTAMP}.dump"
+  BACKUP_FILE="backups/postgres/kpbj_fm_${TIMESTAMP}.dump"
   echo "🗄️  Backing up production database..."
   echo "   Starting proxy..."
   fly proxy {{PROD_PROXY_PORT}}:5432 -a {{PROD_DB_APP}} &
