@@ -16,3 +16,6 @@ services:
   webhook:
     ports:
       - "9000:9000"
+    environment:
+      - ICECAST_CONTAINER=liquidsoap-icecast-1
+      - LIQUIDSOAP_CONTAINER=liquidsoap-liquidsoap-1
