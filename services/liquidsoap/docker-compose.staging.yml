@@ -14,3 +14,6 @@ services:
   webhook:
     ports:
       - "127.0.0.1:9001:9000"
+    environment:
+      - ICECAST_CONTAINER=kpbj-stream-staging-icecast-1
+      - LIQUIDSOAP_CONTAINER=kpbj-stream-staging-liquidsoap-1

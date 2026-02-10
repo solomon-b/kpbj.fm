@@ -18,7 +18,8 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="docker-compose.${ENV}.yml"
-REMOTE_DIR="/opt/kpbj-stream"
+PROJECT_NAME="kpbj-stream-${ENV}"
+REMOTE_DIR="/opt/${PROJECT_NAME}"
 
 echo "Deploying streaming services to ${ENV} (tag: ${TAG})..."
 
@@ -35,12 +36,14 @@ echo "Copying compose files and webhook config..."
 scp "${SCRIPT_DIR}/docker-compose.yml" "${SCRIPT_DIR}/${COMPOSE_FILE}" "${SCRIPT_DIR}/hooks.yaml" "${HOST}:${REMOTE_DIR}/"
 
 # Deploy
-ssh "$HOST" bash -s "$TAG" "$COMPOSE_FILE" << 'REMOTE_SCRIPT'
+ssh "$HOST" bash -s "$TAG" "$COMPOSE_FILE" "$PROJECT_NAME" "$REMOTE_DIR" << 'REMOTE_SCRIPT'
 set -euo pipefail
 TAG="$1"
 COMPOSE_FILE="$2"
+PROJECT_NAME="$3"
+REMOTE_DIR="$4"
 
-cd /opt/kpbj-stream
+cd "$REMOTE_DIR"
 
 # Auto-generate secrets on first deploy
 if [ ! -f .env ]; then
@@ -62,8 +65,8 @@ if ! grep -q "WEBHOOK_SECRET" .env 2>/dev/null; then
 fi
 
 echo "IMAGE_TAG=${TAG}" > .env.tag
-docker compose -f docker-compose.yml -f "$COMPOSE_FILE" pull
-docker compose -f docker-compose.yml -f "$COMPOSE_FILE" up -d
+docker compose -p "$PROJECT_NAME" -f docker-compose.yml -f "$COMPOSE_FILE" pull
+docker compose -p "$PROJECT_NAME" -f docker-compose.yml -f "$COMPOSE_FILE" up -d
 REMOTE_SCRIPT
 
 echo "Done!"

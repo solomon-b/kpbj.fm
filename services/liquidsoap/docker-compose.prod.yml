@@ -4,7 +4,7 @@
 services:
   icecast:
     ports:
-      - "8000:8000"
+      - "8002:8000"
 
   liquidsoap:
     environment:
@@ -13,4 +13,7 @@ services:
 
   webhook:
     ports:
-      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9002:9000"
+    environment:
+      - ICECAST_CONTAINER=kpbj-stream-prod-icecast-1
+      - LIQUIDSOAP_CONTAINER=kpbj-stream-prod-liquidsoap-1
