@@ -8,10 +8,15 @@
     web-server-core = {
       url = github:solomon-b/web-server;
     };
+
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, web-server-core }:
-    flake-utils.lib.eachDefaultSystem
+  outputs = { self, nixpkgs, flake-utils, web-server-core, sops-nix }:
+    (flake-utils.lib.eachDefaultSystem
       (system:
         let
           pkgs = import nixpkgs {
@@ -122,6 +127,8 @@
               pkgs.sqlx-cli
               pkgs.sops
               pkgs.age
+              pkgs.ssh-to-age
+              pkgs.nixos-rebuild
               pkgs.sloc
               pkgs.pkg-config
             ];
@@ -172,7 +179,7 @@
 
                   edit() { ${xml-edit}/bin/xml-edit "$1" "$2" /tmp/icecast.xml; }
 
-                  [ -n "$ICECAST_SOURCE_PASSWORD" ] && edit source-password "$ICECAST_SOURCE_PASSWORD"
+                  [ -n "$ICECAST_PASSWORD" ]        && edit source-password "$ICECAST_PASSWORD"
                   [ -n "$ICECAST_RELAY_PASSWORD" ]  && edit relay-password "$ICECAST_RELAY_PASSWORD"
                   [ -n "$ICECAST_ADMIN_PASSWORD" ]  && edit admin-password "$ICECAST_ADMIN_PASSWORD"
                   [ -n "$ICECAST_ADMIN_USER" ]      && edit admin-user "$ICECAST_ADMIN_USER"
@@ -323,5 +330,24 @@
             publish = flake-utils.lib.mkApp { drv = self.packages.${system}.publish; };
             default = self.apps.${system}.kpbj-api;
           };
-        });
+        }))
+    //
+    {
+      nixosConfigurations = {
+        kpbj-stream-prod = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            sops-nix.nixosModules.sops
+            ./nixos/prod.nix
+          ];
+        };
+        kpbj-stream-staging = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            sops-nix.nixosModules.sops
+            ./nixos/staging.nix
+          ];
+        };
+      };
+    };
 }

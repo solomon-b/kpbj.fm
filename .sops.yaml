@@ -2,11 +2,29 @@ keys:
   - &pc_nightshade age1hm87e69thh5c4glk9w2gn2dn3mhexe7cen3c57upfg9zech9qe9sz0ha4j
   - &pc_lorean age1h9eclrfude5fkzvt0v7sjyhfsu5f839xw0wwh29lrptq70mfvgescqng6a
   - &pc_voice-of-evening age1esadyxrm9kjt25jlg9y0mmp8u75mh05pncxxd8csl7z6dsycy3pszhrh35
+  - &vps_stream_prod age19nrffgaz7xtwk9jlznxt2003znguk7jvewz6s3clkzjxe0m07qlsjfkwet
+  - &vps_stream_staging age15juydyd334ah2dhvhyfz7e87dtuj3nnj7l8572ndkaukcxth3dts95qwm2
 
 creation_rules:
-  - path_regex: terraform/secrets\.yaml$
+  - path_regex: secrets/terraform\.yaml$
     key_groups:
       - age:
           - *pc_nightshade
           - *pc_lorean
           - *pc_voice-of-evening
+
+  - path_regex: secrets/prod-streaming\.yaml$
+    key_groups:
+      - age:
+          - *pc_nightshade
+          - *pc_lorean
+          - *pc_voice-of-evening
+          - *vps_stream_prod
+
+  - path_regex: secrets/staging-streaming\.yaml$
+    key_groups:
+      - age:
+          - *pc_nightshade
+          - *pc_lorean
+          - *pc_voice-of-evening
+          - *vps_stream_staging

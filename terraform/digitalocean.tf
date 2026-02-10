@@ -3,9 +3,11 @@
 # ──────────────────────────────────────────────────────────────
 #
 # Separate droplets for production and staging streaming stacks
-# (Icecast, Liquidsoap, Webhook) via Docker Compose. Nginx
-# reverse proxy with certbot TLS is configured manually after
-# initial provisioning.
+# (Icecast, Liquidsoap, Webhook). Droplets start as Ubuntu and
+# are automatically converted to NixOS via nixos-infect on first
+# boot. After infect completes, run `just nixos-setup` then
+# `just nixos-deploy-*` to push the declarative NixOS config
+# (Podman containers, nginx + ACME).
 # ──────────────────────────────────────────────────────────────
 
 resource "digitalocean_ssh_key" "stream" {
@@ -25,35 +27,14 @@ resource "digitalocean_droplet" "stream_prod" {
   image    = var.droplet_image
   ssh_keys = [for k in digitalocean_ssh_key.stream : k.fingerprint]
 
-  user_data = <<-CLOUDINIT
+  # nixos-infect converts Ubuntu to NixOS on first boot.
+  # After infect completes (~5-10min), run: just nixos-setup root@<ip> prod
+  user_data = <<-NIXOSINFECT
     #!/bin/bash
-    set -euo pipefail
-
-    # Install Docker
-    apt-get update
-    apt-get install -y ca-certificates curl gnupg
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-      tee /etc/apt/sources.list.d/docker.list > /dev/null
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-    # Create deploy user
-    useradd -m -s /bin/bash -G docker deploy || true
-
-    # Create streaming directory structure
-    mkdir -p /opt/kpbj-stream
-    chown deploy:deploy /opt/kpbj-stream
-
-    # Install nginx
-    apt-get install -y nginx certbot python3-certbot-nginx
-
-    echo "Cloud-init provisioning complete."
-  CLOUDINIT
+    umount /boot/efi 2>/dev/null || true
+    curl https://raw.githubusercontent.com/elitak/nixos-infect/36f48d8feb89ca508261d7390355144fc0048932/nixos-infect | \
+      PROVIDER=digitalocean NIX_CHANNEL=nixos-25.05 bash 2>&1 | tee /tmp/nixos-infect.log
+  NIXOSINFECT
 
   lifecycle {
     ignore_changes = [user_data]
@@ -71,35 +52,14 @@ resource "digitalocean_droplet" "stream_staging" {
   image    = var.droplet_image
   ssh_keys = [for k in digitalocean_ssh_key.stream : k.fingerprint]
 
-  user_data = <<-CLOUDINIT
+  # nixos-infect converts Ubuntu to NixOS on first boot.
+  # After infect completes (~5-10min), run: just nixos-setup root@<ip> staging
+  user_data = <<-NIXOSINFECT
     #!/bin/bash
-    set -euo pipefail
-
-    # Install Docker
-    apt-get update
-    apt-get install -y ca-certificates curl gnupg
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-      tee /etc/apt/sources.list.d/docker.list > /dev/null
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-    # Create deploy user
-    useradd -m -s /bin/bash -G docker deploy || true
-
-    # Create streaming directory structure
-    mkdir -p /opt/kpbj-stream
-    chown deploy:deploy /opt/kpbj-stream
-
-    # Install nginx
-    apt-get install -y nginx certbot python3-certbot-nginx
-
-    echo "Cloud-init provisioning complete."
-  CLOUDINIT
+    umount /boot/efi 2>/dev/null || true
+    curl https://raw.githubusercontent.com/elitak/nixos-infect/36f48d8feb89ca508261d7390355144fc0048932/nixos-infect | \
+      PROVIDER=digitalocean NIX_CHANNEL=nixos-25.05 bash 2>&1 | tee /tmp/nixos-infect.log
+  NIXOSINFECT
 
   lifecycle {
     ignore_changes = [user_data]

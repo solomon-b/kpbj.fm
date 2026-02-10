@@ -21,7 +21,7 @@ variable "droplet_size_staging" {
 }
 
 variable "droplet_image" {
-  description = "Droplet base image"
+  description = "Droplet base image (initial creation only — nixos-infect converts to NixOS on first boot)"
   type        = string
   default     = "ubuntu-24-04-x64"
 }
