@@ -7,7 +7,6 @@
 services:
   icecast:
     image: ghcr.io/solomon-b/kpbj-icecast:${IMAGE_TAG:-latest}
-    container_name: kpbj-icecast
     # Ports defined in environment-specific overrides (dev: 8000, staging: 8001, prod: 8000)
     # Config is bundled in image; env vars applied at startup by entrypoint
     healthcheck:
@@ -23,7 +22,6 @@ services:
 
   liquidsoap:
     image: ghcr.io/solomon-b/kpbj-liquidsoap:${IMAGE_TAG:-latest}
-    container_name: kpbj-liquidsoap
     depends_on:
       icecast:
         condition: service_healthy
@@ -37,7 +35,6 @@ services:
 
   webhook:
     image: ghcr.io/solomon-b/kpbj-webhook:${IMAGE_TAG:-latest}
-    container_name: kpbj-webhook
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./hooks.yaml:/config/hooks.yaml:ro

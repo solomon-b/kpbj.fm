@@ -4,8 +4,8 @@
   pass-arguments-to-command:
     - source: string
       name: restart
-    - source: string
-      name: kpbj-icecast
+    - source: environment
+      name: ICECAST_CONTAINER
   trigger-rule:
     match:
       type: value
@@ -20,8 +20,8 @@
   pass-arguments-to-command:
     - source: string
       name: restart
-    - source: string
-      name: kpbj-liquidsoap
+    - source: environment
+      name: LIQUIDSOAP_CONTAINER
   trigger-rule:
     match:
       type: value
