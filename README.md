@@ -134,13 +134,33 @@ gh workflow run "Deploy to Production" -f tag=v0.3.2
 Infrastructure for DigitalOcean and Cloudflare is codified in `terraform/`. See [terraform/README.md](terraform/README.md) for full setup and import instructions.
 
 ```bash
-cd terraform/
-terraform init                # Install providers
-terraform plan                # Preview changes
-terraform apply               # Apply changes
+just tf-init                  # Initialize with remote state backend
+just tf-plan                  # Preview changes
+just tf-apply                 # Apply changes
 ```
 
 Terraform manages: DigitalOcean streaming droplets (prod + staging) + firewalls, and Cloudflare DNS records + proxy settings.
+
+### Secrets (SOPS)
+
+All secrets are SOPS-encrypted with age keys and stored in `secrets/`:
+
+| File                             | Purpose                                               |
+|----------------------------------|-------------------------------------------------------|
+| `secrets/terraform.yaml`         | Terraform provider tokens (DO, Cloudflare)            |
+| `secrets/prod-streaming.yaml`    | Production Icecast passwords, playout/webhook secrets |
+| `secrets/staging-streaming.yaml` | Staging Icecast passwords, playout/webhook secrets    |
+
+Streaming secrets are decrypted on the VPS at deploy time via [sops-nix](https://github.com/Mic92/sops-nix). The same secrets are synced to Fly.io for the web service.
+
+```bash
+just tf-edit-secrets                   # Edit Terraform secrets
+just sops-edit-prod-streaming          # Edit production streaming secrets
+just sops-edit-staging-streaming       # Edit staging streaming secrets
+just fly-sync-secrets-prod             # Sync secrets to Fly.io (production)
+just fly-sync-secrets-staging          # Sync secrets to Fly.io (staging)
+just sops-host-key <host>              # Get a VPS host's age public key
+```
 
 ### Operations
 
@@ -150,12 +170,19 @@ just staging-status / just prod-status  # Deployment status
 just staging-ssh / just prod-ssh        # SSH into container
 ```
 
-### Streaming
+### Streaming (NixOS VPS)
 
-Liquidsoap and Icecast run on a separate VPS. See [services/liquidsoap/README.md](services/liquidsoap/README.md) for details.
+Liquidsoap and Icecast run on NixOS streaming droplets with secrets managed via sops-nix. See [services/liquidsoap/README.md](services/liquidsoap/README.md) for container details.
 
 ```bash
-just stream-publish sha-abc123          # Build and push images to GHCR
-just stream-staging-deploy sha-abc123   # Deploy to staging VPS
-just stream-prod-deploy sha-abc123      # Deploy to production VPS
+# Fresh droplet setup (after terraform apply)
+just nixos-setup root@<ip> prod        # Wait for NixOS, get host age key
+just nixos-setup root@<ip> staging
+
+# Deploy NixOS configuration
+just nixos-deploy-prod                 # Deploy to production VPS
+just nixos-deploy-staging              # Deploy to staging VPS
+
+# Build and push container images
+just stream-publish sha-abc123         # Build and push images to GHCR
 ```

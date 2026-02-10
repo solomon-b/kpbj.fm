@@ -6,6 +6,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Infrastructure
 - **Terraform + SOPS Infrastructure** - Codified DigitalOcean streaming VPS (separate prod + staging droplets, firewalls, SSH keys) and Cloudflare DNS + proxy settings as Terraform. Secrets managed via SOPS + age encryption. Remote state in Tigris S3.
+- **NixOS Streaming VPS** - Replaced Ubuntu/Docker Compose/manual nginx+certbot setup with fully declarative NixOS configuration. Droplets are provisioned via nixos-infect in Terraform user_data and configured with Podman OCI containers (Icecast, Liquidsoap, Webhook), NixOS-managed nginx with automatic ACME/Let's Encrypt TLS, and systemd service management. Deploy with `just nixos-deploy-staging` / `just nixos-deploy-prod` via `nixos-rebuild --target-host`.
+- **sops-nix for Streaming Secrets** - Streaming secrets (Icecast passwords, `PLAYOUT_SECRET`, `WEBHOOK_SECRET`) are now SOPS-encrypted in the repo under `secrets/` and decrypted on VPS at deploy time via sops-nix using the host's SSH key. Replaces per-VPS random secret generation. New Justfile commands (`just fly-sync-secrets-prod`, `just fly-sync-secrets-staging`) sync the same secrets to Fly.io. Consolidated all SOPS files into `secrets/` directory.
+- **Consolidate Icecast source password** - Icecast entrypoint now reads `ICECAST_PASSWORD` for `<source-password>` (matching Liquidsoap), eliminating the separate `ICECAST_SOURCE_PASSWORD` variable.
+- **Per-environment networking configs** - `nixos-setup` now captures nixos-infect's static IP networking config as `networking-staging.nix` / `networking-prod.nix`, imported by each environment's NixOS config. Replaces DHCP (which doesn't work reliably on DigitalOcean after nixos-infect).
+- **Safe NixOS deploys** - `nixos-rebuild boot` + reboot instead of `nixos-rebuild switch` to avoid hangs on first deploy to freshly-infected hosts.
 
 ---
 

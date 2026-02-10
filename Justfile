@@ -541,7 +541,49 @@ tf-validate: _require-terraform
 
 # Open encrypted secrets in $EDITOR, re-encrypts on save
 tf-edit-secrets: _require-sops
-  sops {{TF_DIR}}/secrets.yaml
+  sops secrets/terraform.yaml
+
+# =============================================================================
+# SOPS Secrets (Streaming)
+# =============================================================================
+# Manage SOPS-encrypted streaming secrets and sync to Fly.io.
+# Prerequisites: sops, age, ssh-to-age (provided via Nix flake)
+
+# Edit production streaming secrets
+sops-edit-prod-streaming: _require-sops
+  sops secrets/prod-streaming.yaml
+
+# Edit staging streaming secrets
+sops-edit-staging-streaming: _require-sops
+  sops secrets/staging-streaming.yaml
+
+# Sync streaming secrets to Fly.io (production)
+fly-sync-secrets-prod: _require-sops _require-fly
+  #!/usr/bin/env bash
+  set -euo pipefail
+  PLAYOUT_SECRET=$(sops -d --extract '["playout_secret"]' secrets/prod-streaming.yaml)
+  WEBHOOK_SECRET=$(sops -d --extract '["webhook_secret"]' secrets/prod-streaming.yaml)
+  fly secrets set \
+    "PLAYOUT_SECRET=$PLAYOUT_SECRET" \
+    "WEBHOOK_SECRET=$WEBHOOK_SECRET" \
+    "WEBHOOK_URL=https://stream.kpbj.fm" \
+    --app kpbj-fm
+
+# Sync streaming secrets to Fly.io (staging)
+fly-sync-secrets-staging: _require-sops _require-fly
+  #!/usr/bin/env bash
+  set -euo pipefail
+  PLAYOUT_SECRET=$(sops -d --extract '["playout_secret"]' secrets/staging-streaming.yaml)
+  WEBHOOK_SECRET=$(sops -d --extract '["webhook_secret"]' secrets/staging-streaming.yaml)
+  fly secrets set \
+    "PLAYOUT_SECRET=$PLAYOUT_SECRET" \
+    "WEBHOOK_SECRET=$WEBHOOK_SECRET" \
+    "WEBHOOK_URL=https://stream.staging.kpbj.fm" \
+    --app kpbj-fm-staging
+
+# Get a VPS host's age public key (for adding to .sops.yaml)
+sops-host-key HOST:
+  ssh-keyscan -t ed25519 {{HOST}} 2>/dev/null | ssh-to-age
 
 # =============================================================================
 # Streaming Services (Icecast + Liquidsoap)
@@ -641,3 +683,45 @@ stream-prod-deploy TAG="latest":
     exit 1
   fi
   ./services/liquidsoap/scripts/stream-deploy.sh "$PROD_STREAM_HOST" prod "{{TAG}}"
+
+# =============================================================================
+# NixOS Deployment (Streaming VPS)
+# =============================================================================
+# Declarative NixOS configuration for streaming droplets. Builds locally
+# and copies via SSH (1GB droplets can't build NixOS closures).
+# Prerequisites: NixOS flake builds, SSH access to target host
+
+PROD_STREAM_TARGET := "root@stream.kpbj.fm"
+STAGING_STREAM_TARGET := "root@stream.staging.kpbj.fm"
+
+# Complete NixOS setup on a freshly-provisioned droplet
+nixos-setup HOST ENV:
+  ./scripts/nixos-setup.sh {{HOST}} {{ENV}}
+
+# Deploy NixOS config to production streaming VPS
+# Uses 'boot' instead of 'switch' to avoid hangs on first deploy,
+# then reboots. Safe for ongoing deploys too (activates on next boot).
+nixos-deploy-prod:
+  nixos-rebuild boot --flake .#kpbj-stream-prod --target-host {{PROD_STREAM_TARGET}}
+  ssh {{PROD_STREAM_TARGET}} reboot
+
+# Deploy NixOS config to staging streaming VPS
+nixos-deploy-staging:
+  nixos-rebuild boot --flake .#kpbj-stream-staging --target-host {{STAGING_STREAM_TARGET}}
+  ssh {{STAGING_STREAM_TARGET}} reboot
+
+# Preview NixOS changes for production (dry-activate)
+nixos-deploy-prod-dry:
+  nixos-rebuild dry-activate --flake .#kpbj-stream-prod --target-host {{PROD_STREAM_TARGET}}
+
+# Preview NixOS changes for staging (dry-activate)
+nixos-deploy-staging-dry:
+  nixos-rebuild dry-activate --flake .#kpbj-stream-staging --target-host {{STAGING_STREAM_TARGET}}
+
+# Build production NixOS config locally (verify it evaluates)
+nixos-build-prod:
+  nix build .#nixosConfigurations.kpbj-stream-prod.config.system.build.toplevel
+
+# Build staging NixOS config locally (verify it evaluates)
+nixos-build-staging:
+  nix build .#nixosConfigurations.kpbj-stream-staging.config.system.build.toplevel
