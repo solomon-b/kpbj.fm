@@ -31,8 +31,8 @@ IMPORTS_FILE="terraform/imports.tf"
 FAILED=()
 
 # Extract Cloudflare credentials from project config
-CLOUDFLARE_API_TOKEN=$(sops -d --extract '["cloudflare_api_token"]' terraform/secrets.yaml)
-CLOUDFLARE_ZONE_ID=$(sops -d --extract '["cloudflare_zone_id"]' terraform/secrets.yaml)
+CLOUDFLARE_API_TOKEN=$(sops -d --extract '["cloudflare_api_token"]' secrets/terraform.yaml)
+CLOUDFLARE_ZONE_ID=$(sops -d --extract '["cloudflare_zone_id"]' secrets/terraform.yaml)
 
 if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
   echo "ERROR: Could not extract cloudflare_api_token from secrets.yaml"
