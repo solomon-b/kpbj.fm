@@ -646,30 +646,6 @@ stream-publish TAG="":
   fi
   echo "Workflow triggered. Run 'gh run watch' to monitor progress."
 
-# Deploy streaming services to staging VPS
-# Requires STAGING_STREAM_HOST env var (e.g., deploy@staging-stream.kpbj.fm)
-stream-staging-deploy TAG="latest":
-  #!/usr/bin/env bash
-  set -euo pipefail
-  if [ -z "${STAGING_STREAM_HOST:-}" ]; then
-    echo "ERROR: STAGING_STREAM_HOST environment variable is required"
-    echo "Example: STAGING_STREAM_HOST=deploy@staging-stream.kpbj.fm just stream-staging-deploy"
-    exit 1
-  fi
-  ./services/liquidsoap/scripts/stream-deploy.sh "$STAGING_STREAM_HOST" staging "{{TAG}}"
-
-# Deploy streaming services to production VPS
-# Requires PROD_STREAM_HOST env var (e.g., deploy@stream.kpbj.fm)
-stream-prod-deploy TAG="latest":
-  #!/usr/bin/env bash
-  set -euo pipefail
-  if [ -z "${PROD_STREAM_HOST:-}" ]; then
-    echo "ERROR: PROD_STREAM_HOST environment variable is required"
-    echo "Example: PROD_STREAM_HOST=deploy@stream.kpbj.fm just stream-prod-deploy"
-    exit 1
-  fi
-  ./services/liquidsoap/scripts/stream-deploy.sh "$PROD_STREAM_HOST" prod "{{TAG}}"
-
 # =============================================================================
 # NixOS Deployment (Streaming VPS)
 # =============================================================================
