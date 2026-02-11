@@ -14,6 +14,7 @@ import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Data.Either (fromRight)
+import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
@@ -49,4 +50,5 @@ handler cookie (foldHxReq -> hxRequest) =
       Right ps -> pure ps
 
     -- 4. Render response
-    renderDashboardTemplate hxRequest userMetadata allShows Nothing NavSitePages Nothing Nothing (template pages)
+    let selectedShow = listToMaybe allShows
+    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavSitePages Nothing Nothing (template pages)

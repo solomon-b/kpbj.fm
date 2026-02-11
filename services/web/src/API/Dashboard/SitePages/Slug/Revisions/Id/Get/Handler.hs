@@ -15,6 +15,7 @@ import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans.Maybe
 import Data.Either (fromRight)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -63,4 +64,5 @@ handler pageSlug revisionId cookie (foldHxReq -> hxRequest) =
       Right (Just result) -> pure result
 
     -- 4. Render response with diff between revision and current content
-    renderDashboardTemplate hxRequest userMetadata allShows Nothing NavSitePages Nothing Nothing (template page revision)
+    let selectedShow = listToMaybe allShows
+    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavSitePages Nothing Nothing (template page revision)
