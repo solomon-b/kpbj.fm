@@ -257,9 +257,9 @@ playbackHistorySection [] =
 playbackHistorySection history =
   Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
     Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "PLAYBACK HISTORY"
-    Lucid.div_ [class_ $ base ["overflow-x-auto"]] $ do
+    Lucid.div_ [class_ $ base ["overflow-x-auto", "overflow-y-auto", "max-h-[640px]"]] $ do
       Lucid.table_ [class_ $ base ["w-full", Tokens.textSm]] $ do
-        Lucid.thead_ $ do
+        Lucid.thead_ [class_ $ base ["sticky", "top-0", Tokens.bgAlt]] $ do
           Lucid.tr_ [class_ $ base ["border-b", Tokens.border2]] $ do
             Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Started"
             Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Title"
