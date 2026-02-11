@@ -3,28 +3,16 @@
 # Copy Production S3 Files to Local Dev
 # Downloads the production Tigris S3 bucket to local filesystem at /tmp/kpbj.
 #
-# Usage: ./scripts/prod-to-local-files.sh <PROD_AWS_ACCESS_KEY_ID> <PROD_AWS_SECRET_ACCESS_KEY>
+# Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
 #
-# Arguments:
-#   PROD_AWS_ACCESS_KEY_ID      - Production Tigris access key ID
-#   PROD_AWS_SECRET_ACCESS_KEY  - Production Tigris secret access key
+# Usage: ./scripts/prod-to-local-files.sh
 #
 
 set -euo pipefail
 
-# Configuration
-PROD_BUCKET="production-kpbj-storage"
-TIGRIS_ENDPOINT="https://fly.storage.tigris.dev"
-LOCAL_STORAGE_ROOT="/tmp/kpbj"
-
-# Parse arguments
-if [ $# -lt 2 ]; then
-  echo "Usage: $0 <PROD_AWS_ACCESS_KEY_ID> <PROD_AWS_SECRET_ACCESS_KEY>"
-  exit 1
-fi
-
-PROD_AWS_ACCESS_KEY_ID="$1"
-PROD_AWS_SECRET_ACCESS_KEY="$2"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
 echo "========================================"
 echo "Production to Local Dev Files Copy"
@@ -39,6 +27,10 @@ if [ "$CONFIRM" != "yes" ]; then
   echo "Aborted."
   exit 1
 fi
+
+echo "Loading credentials from SOPS..."
+PROD_AWS_ACCESS_KEY_ID=$(load_secret prod aws_access_key_id)
+PROD_AWS_SECRET_ACCESS_KEY=$(load_secret prod aws_secret_access_key)
 
 # Create local storage directory if it doesn't exist
 mkdir -p "$LOCAL_STORAGE_ROOT"

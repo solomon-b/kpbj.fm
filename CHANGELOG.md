@@ -7,6 +7,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Fixes
 - **Icecast Stream Choppy Audio on Refresh** - Fixed audio jumping between two buffers when refreshing the page during live stream playback. Added `beforeunload` handler to tear down the audio element before page unload, cache-busting on the stream URL to prevent stale connection reuse, and halved Icecast `burst-size` from 65536 to 32768 to reduce audio overlap on reconnect.
 
+### Chores
+- **SOPS-Managed Backup & Sync Credentials** - All backup and data sync scripts (`prod-backup-pg`, `prod-backup-s3`, `prod-to-staging-*`, `prod-to-local-*`) now load credentials from SOPS-encrypted `secrets/backup.yaml` instead of requiring env vars in `.envrc.local`. Added `load_secret` helper to `scripts/lib/common.sh`, new `just sops-edit-backup` command, and `prod-backup-s3.sh` falls back to env vars for TrueNAS cron contexts. Renamed `prod-backup` to `prod-backup-pg`.
+
 ### Infrastructure
 - **Terraform + SOPS Infrastructure** - Codified DigitalOcean streaming VPS (separate prod + staging droplets, firewalls, SSH keys) and Cloudflare DNS + proxy settings as Terraform. Secrets managed via SOPS + age encryption. Remote state in Tigris S3.
 - **NixOS Streaming VPS** - Replaced Ubuntu/Docker Compose/manual nginx+certbot setup with fully declarative NixOS configuration. Droplets are provisioned via nixos-infect in Terraform user_data and configured with Podman OCI containers (Icecast, Liquidsoap, Webhook), NixOS-managed nginx with automatic ACME/Let's Encrypt TLS, and systemd service management. Deploy with `just nixos-deploy-staging` / `just nixos-deploy-prod` via `nixos-rebuild --target-host`.

@@ -1,25 +1,25 @@
 #!/bin/bash
-# Remote production S3 backup script using rclone with snapshots.
+# Production S3 backup script using rclone with date-based snapshots.
 #
 # Creates date-based snapshots of the production Tigris S3 bucket.
 # Uses hardlinks between snapshots to deduplicate unchanged files (rsync-style).
 #
-# Required environment variables:
-#   AWS_ACCESS_KEY_ID      - Production Tigris access key ID
-#   AWS_SECRET_ACCESS_KEY  - Production Tigris secret access key
+# Credentials: Loaded from SOPS-encrypted secrets/backup.yaml when available,
+# or from environment variables (for remote/cron contexts like TrueNAS).
 #
 # Optional environment variables:
-#   BACKUP_DIR         - Where to store backups (default: ./backups/s3)
-#   RETENTION_DAYS     - Days to keep snapshots (default: 14)
-#   BUCKET_NAME        - S3 bucket name (default: production-kpbj-storage)
+#   AWS_ACCESS_KEY_ID      - Production Tigris access key ID (skips SOPS if set)
+#   AWS_SECRET_ACCESS_KEY  - Production Tigris secret access key (skips SOPS if set)
+#   BACKUP_DIR             - Where to store backups (default: ./backups/s3)
+#   RETENTION_DAYS         - Days to keep snapshots (default: 14)
+#   BUCKET_NAME            - S3 bucket name (default: production-kpbj-storage)
 #
 # Usage:
-#   export AWS_ACCESS_KEY_ID="..."
-#   export AWS_SECRET_ACCESS_KEY="..."
-#   ./scripts/prod-backup-s3.sh
+#   ./scripts/prod-backup-s3.sh                    # loads from SOPS
+#   AWS_ACCESS_KEY_ID=... ./scripts/prod-backup-s3.sh  # uses env vars
 #
 # TrueNAS cron example (4 AM daily, after DB backup):
-#   0 4 * * * /path/to/prod-backup-s3.sh >> /var/log/kpbj-s3-backup.log 2>&1
+#   0 4 * * * AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... /path/to/prod-backup-s3.sh >> /var/log/kpbj-s3-backup.log 2>&1
 #
 # Rclone config:
 #   This script creates a temporary rclone config. Alternatively, create a
@@ -33,15 +33,18 @@ RETENTION_DAYS="${RETENTION_DAYS:-14}"
 BUCKET_NAME="${BUCKET_NAME:-production-kpbj-storage}"
 TIGRIS_ENDPOINT="https://fly.storage.tigris.dev"
 
-# Validate required env vars
-if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
-    echo "Error: AWS_ACCESS_KEY_ID environment variable is required" >&2
-    exit 1
-fi
-
-if [[ -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
-    echo "Error: AWS_SECRET_ACCESS_KEY environment variable is required" >&2
-    exit 1
+# Load credentials: use environment variables if set, otherwise load from SOPS
+if [[ -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [[ -f "$SCRIPT_DIR/lib/common.sh" ]]; then
+        source "$SCRIPT_DIR/lib/common.sh"
+        echo "[$(date -Iseconds)] Loading credentials from SOPS..."
+        export AWS_ACCESS_KEY_ID=$(load_secret prod aws_access_key_id)
+        export AWS_SECRET_ACCESS_KEY=$(load_secret prod aws_secret_access_key)
+    else
+        echo "Error: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables are required" >&2
+        exit 1
+    fi
 fi
 
 # Check for required tools

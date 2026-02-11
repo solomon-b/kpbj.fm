@@ -5,14 +5,9 @@
 # Database: PII is sanitized for User and Host accounts.
 # Files: Downloaded to /tmp/kpbj.
 #
-# Usage: ./scripts/prod-to-local.sh <PROD_AWS_ACCESS_KEY_ID> <PROD_AWS_SECRET_ACCESS_KEY>
+# Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
 #
-# Arguments:
-#   PROD_AWS_ACCESS_KEY_ID      - Production Tigris access key ID
-#   PROD_AWS_SECRET_ACCESS_KEY  - Production Tigris secret access key
-#
-# Required environment variables:
-#   PROD_DB_PASSWORD  - Production database password
+# Usage: ./scripts/prod-to-local.sh
 #
 # Prerequisites:
 #   - Local PostgreSQL running (just dev-postgres-start)
@@ -23,15 +18,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
-
-# Parse arguments
-if [ $# -lt 2 ]; then
-  echo "Usage: $0 <PROD_AWS_ACCESS_KEY_ID> <PROD_AWS_SECRET_ACCESS_KEY>"
-  exit 1
-fi
-
-PROD_AWS_ACCESS_KEY_ID="$1"
-PROD_AWS_SECRET_ACCESS_KEY="$2"
 
 echo "========================================"
 echo "Production to Local Dev Full Copy"
@@ -48,12 +34,10 @@ if [ "$CONFIRM" != "yes" ]; then
   exit 1
 fi
 
-# Validate required credentials
-if [ -z "${PROD_DB_PASSWORD:-}" ]; then
-  echo "ERROR: PROD_DB_PASSWORD environment variable is not set."
-  echo "Add to your .envrc.local: export PROD_DB_PASSWORD=\"<password>\""
-  exit 1
-fi
+echo "Loading credentials from SOPS..."
+export PROD_DB_PASSWORD=$(load_secret prod db_password)
+PROD_AWS_ACCESS_KEY_ID=$(load_secret prod aws_access_key_id)
+PROD_AWS_SECRET_ACCESS_KEY=$(load_secret prod aws_secret_access_key)
 
 # Check if local postgres is running
 if ! pg_isready -h localhost -p "$DEV_DB_PORT" -q; then

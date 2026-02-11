@@ -424,22 +424,9 @@ prod-machines:
   fly machines list --app {{PROD_APP}}
 
 # Backup production database to local file
-# Requires PROD_DB_PASSWORD env var
-prod-backup: _require-fly
-  #!/usr/bin/env bash
-  set -euo pipefail
-  mkdir -p backups/postgres
-  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-  BACKUP_FILE="backups/postgres/kpbj_fm_${TIMESTAMP}.dump"
-  echo "🗄️  Backing up production database..."
-  echo "   Starting proxy..."
-  fly proxy {{PROD_PROXY_PORT}}:5432 -a {{PROD_DB_APP}} &
-  PROXY_PID=$!
-  sleep 2
-  echo "   Running pg_dump..."
-  PGPASSWORD="${PROD_DB_PASSWORD}" pg_dump -h localhost -p {{PROD_PROXY_PORT}} -U kpbj_fm -Fc {{PROD_DB_NAME}} > "$BACKUP_FILE"
-  kill $PROXY_PID 2>/dev/null || true
-  echo "✨ Backup saved to: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+# Credentials loaded from SOPS-encrypted secrets/backup.yaml
+prod-backup-pg: _require-sops _require-fly
+  ./scripts/prod-backup-pg.sh
 
 # Backup production database from remote server (e.g., TrueNAS)
 # Requires FLY_API_TOKEN and PROD_DB_PASSWORD env vars
@@ -448,9 +435,9 @@ prod-backup-remote:
   ./scripts/prod-backup-remote.sh
 
 # Backup production S3 bucket using rclone with date-based snapshots
-# Requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY env vars
+# Credentials loaded from SOPS-encrypted secrets/backup.yaml
 # Optional: BACKUP_DIR (default: ./backups/s3), RETENTION_DAYS (default: 14)
-prod-backup-s3: _require-aws
+prod-backup-s3: _require-sops _require-aws
   ./scripts/prod-backup-s3.sh
 
 # =============================================================================
@@ -458,44 +445,39 @@ prod-backup-s3: _require-aws
 # =============================================================================
 # Copy production data to staging with PII sanitization.
 # User/Host accounts get anonymized; Staff/Admin accounts keep real credentials.
-# Prerequisites: flyctl, PROD_DB_PASSWORD, STAGING_DB_PASSWORD, AWS credentials for S3
+# Credentials loaded from SOPS-encrypted secrets/backup.yaml.
 
 # Copy production database to staging with PII sanitization
-# Requires PROD_DB_PASSWORD and STAGING_DB_PASSWORD env vars
-prod-to-staging-db: _require-fly
+prod-to-staging-db: _require-sops _require-fly
   ./scripts/prod-to-staging-db.sh
 
 # Copy production Tigris S3 bucket to staging
-# Usage: just prod-to-staging-s3 <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
-prod-to-staging-s3 PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY: _require-aws
-  ./scripts/prod-to-staging-s3.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+prod-to-staging-s3: _require-sops _require-aws
+  ./scripts/prod-to-staging-s3.sh
 
 # Copy both production database and S3 bucket to staging
-# Usage: just prod-to-staging <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
-prod-to-staging PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY: _require-fly _require-aws
-  ./scripts/prod-to-staging.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+prod-to-staging: _require-sops _require-fly _require-aws
+  ./scripts/prod-to-staging.sh
 
 # =============================================================================
 # Data Sync (Production to Local)
 # =============================================================================
 # Copy production data to local development with PII sanitization.
 # User/Host accounts get anonymized; Staff/Admin accounts keep real credentials.
-# Prerequisites: flyctl, local postgres running, PROD_DB_PASSWORD, AWS credentials for S3
+# Credentials loaded from SOPS-encrypted secrets/backup.yaml.
 
 # Copy production database to local dev with PII sanitization
-# Requires PROD_DB_PASSWORD env var and local postgres running (just dev-postgres-start)
-prod-to-local-db: _require-fly
+# Requires local postgres running (just dev-postgres-start)
+prod-to-local-db: _require-sops _require-fly
   ./scripts/prod-to-local-db.sh
 
 # Copy production Tigris S3 files to local dev (/tmp/kpbj)
-# Usage: just prod-to-local-files <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
-prod-to-local-files PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY: _require-aws
-  ./scripts/prod-to-local-files.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+prod-to-local-files: _require-sops _require-aws
+  ./scripts/prod-to-local-files.sh
 
 # Copy both production database and files to local dev
-# Usage: just prod-to-local <PROD_AWS_KEY_ID> <PROD_AWS_SECRET_KEY>
-prod-to-local PROD_AWS_ACCESS_KEY_ID PROD_AWS_SECRET_ACCESS_KEY: _require-fly _require-aws
-  ./scripts/prod-to-local.sh "{{PROD_AWS_ACCESS_KEY_ID}}" "{{PROD_AWS_SECRET_ACCESS_KEY}}"
+prod-to-local: _require-sops _require-fly _require-aws
+  ./scripts/prod-to-local.sh
 
 # =============================================================================
 # Terraform
@@ -548,6 +530,10 @@ tf-edit-secrets: _require-sops
 # =============================================================================
 # Manage SOPS-encrypted streaming secrets and sync to Fly.io.
 # Prerequisites: sops, age, ssh-to-age (provided via Nix flake)
+
+# Edit backup/sync credentials (prod + staging AWS keys, DB passwords)
+sops-edit-backup: _require-sops
+  sops secrets/backup.yaml
 
 # Edit production streaming secrets
 sops-edit-prod-streaming: _require-sops

@@ -13,6 +13,13 @@ creation_rules:
           - *pc_lorean
           - *pc_voice-of-evening
 
+  - path_regex: secrets/backup\.yaml$
+    key_groups:
+      - age:
+          - *pc_nightshade
+          - *pc_lorean
+          - *pc_voice-of-evening
+
   - path_regex: secrets/prod-streaming\.yaml$
     key_groups:
       - age:
