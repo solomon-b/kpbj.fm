@@ -19,6 +19,7 @@ import Data.Aeson (Value (..))
 import Data.Aeson.Key (fromText)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Either (fromRight)
+import Data.Maybe (listToMaybe)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -65,7 +66,8 @@ handler cookie (foldHxReq -> hxRequest) =
     let recentHistory = fromRight [] historyResult
 
     -- 6. Render response
-    renderDashboardTemplate hxRequest userMetadata allShows Nothing NavStreamSettings Nothing Nothing (template settings icecastReachable icecastStatus recentHistory Nothing)
+    let selectedShow = listToMaybe allShows
+    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStreamSettings Nothing Nothing (template settings icecastReachable icecastStatus recentHistory Nothing)
 
 -- | Fetch status from icecast metadata endpoint.
 --
