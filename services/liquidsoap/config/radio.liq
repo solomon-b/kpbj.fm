@@ -151,6 +151,17 @@ end)
 # Add crossfade between tracks (1s fade) to smooth transitions
 radio = crossfade(duration=1., radio)
 
+# --- Audio Processing Chain ---
+
+# Normalize volume levels across tracks (target -14 LUFS-ish)
+radio = normalize(target=0., window=0.5, gain_min=-6., gain_max=6., radio)
+
+# Compress dynamic range for consistent broadcast loudness
+radio = compress(threshold=-10., ratio=3., attack=10., release=200., gain=3., radio)
+
+# Hard limit to prevent clipping
+radio = limit(threshold=-1., attack=5., release=50., radio)
+
 # Safety fallback in case both sources fail
 radio = mksafe(radio)
 
