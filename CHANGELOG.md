@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Improvements
+- **Scrollable Playback History** - Playback history table on the stream settings dashboard is now capped at ~15 visible rows with a scrollable container and sticky column headers.
+
 ### Fixes
 - **Icecast Stream Choppy Audio on Refresh** - Fixed audio jumping between two buffers when refreshing the page during live stream playback. Added `beforeunload` handler to tear down the audio element before page unload, cache-busting on the stream URL to prevent stale connection reuse, and halved Icecast `burst-size` from 65536 to 32768 to reduce audio overlap on reconnect.
 
