@@ -206,10 +206,13 @@ musicPlayerWrapper settings content =
         const audio = this.$refs.audio;
 
         // Use current mode's source
-        const sourceUrl = this.mode === 'episode' ? this.episodeUrl : this.streamUrl;
+        // Cache-bust stream URL to prevent browser from reusing stale buffered data
+        const sourceUrl = this.mode === 'episode'
+          ? this.episodeUrl
+          : this.streamUrl + '?t=' + Date.now();
 
-        // Load source if needed
-        if (!audio.src || audio.src === '') {
+        // Load source if needed (always reload for stream to get fresh connection)
+        if (this.mode === 'stream' || !audio.src || audio.src === '') {
           audio.src = sourceUrl;
         }
 
@@ -273,9 +276,9 @@ musicPlayerWrapper settings content =
         this.episodeTitle = '';
         this.currentShow = '';
 
-        // Clear and reload audio source
+        // Clear and reload audio source with cache-bust
         const audio = this.$refs.audio;
-        audio.src = this.streamUrl;
+        audio.src = this.streamUrl + '?t=' + Date.now();
 
         // Start playing and fetch metadata
         this.fetchMetadata();
@@ -341,6 +344,19 @@ playerScript =
   [i|
     // Global state to track which player is currently active
     window.currentActivePlayer = null;
+
+    // Tear down audio before page unload to prevent choppy overlap on refresh
+    window.addEventListener('beforeunload', () => {
+      const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
+      if (navbarPlayerEl) {
+        const audio = navbarPlayerEl.querySelector('audio');
+        if (audio) {
+          audio.pause();
+          audio.src = '';
+          audio.load();
+        }
+      }
+    });
 
     // Pause all other players when a new one starts
     function pauseOtherPlayers(currentPlayerId) {
