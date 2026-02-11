@@ -9,6 +9,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Chores
 - **SOPS-Managed Backup & Sync Credentials** - All backup and data sync scripts (`prod-backup-pg`, `prod-backup-s3`, `prod-to-staging-*`, `prod-to-local-*`) now load credentials from SOPS-encrypted `secrets/backup.yaml` instead of requiring env vars in `.envrc.local`. Added `load_secret` helper to `scripts/lib/common.sh`, new `just sops-edit-backup` command, and `prod-backup-s3.sh` falls back to env vars for TrueNAS cron contexts. Renamed `prod-backup` to `prod-backup-pg`.
+- **SOPS-Managed Terraform State Backend Credentials** - `just tf-init` now loads state backend S3 keys from SOPS-encrypted `secrets/terraform.yaml` instead of requiring `TERRAFORM_ACCESS_KEY_ID` / `TERRAFORM_SECRET_ACCESS_KEY` env vars. Renamed `tf-edit-secrets` to `sops-edit-terraform` and grouped all `sops-edit-*` commands under a unified "SOPS Secrets" section.
 - **Remove Deprecated Stream Deploy Commands** - Removed `just stream-staging-deploy` and `just stream-prod-deploy` Justfile recipes, replaced by NixOS deployment (`just nixos-deploy-staging` / `just nixos-deploy-prod`).
 
 ### Infrastructure

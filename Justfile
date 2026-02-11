@@ -483,23 +483,21 @@ prod-to-local: _require-sops _require-fly _require-aws
 # Terraform
 # =============================================================================
 # Infrastructure as code for DigitalOcean and Cloudflare.
-# Prerequisites: terraform, TERRAFORM_ACCESS_KEY_ID and TERRAFORM_SECRET_ACCESS_KEY env vars
+# Credentials loaded from SOPS-encrypted secrets/terraform.yaml
 
 [private]
 _require-terraform:
   @command -v terraform >/dev/null 2>&1 || { echo "ERROR: 'terraform' is required but not installed."; exit 1; }
 
-[private]
-_require-terraform-env:
-  @test -n "$TERRAFORM_ACCESS_KEY_ID" || { echo "ERROR: TERRAFORM_ACCESS_KEY_ID is not set."; exit 1; }
-  @test -n "$TERRAFORM_SECRET_ACCESS_KEY" || { echo "ERROR: TERRAFORM_SECRET_ACCESS_KEY is not set."; exit 1; }
-
 TF_DIR := "terraform"
-TF_BACKEND_CONFIG := "-backend-config=access_key=$TERRAFORM_ACCESS_KEY_ID -backend-config=secret_key=$TERRAFORM_SECRET_ACCESS_KEY"
 
 # Initialize Terraform (with remote state backend)
-tf-init: _require-terraform _require-terraform-env
-  cd {{TF_DIR}} && terraform init {{TF_BACKEND_CONFIG}}
+tf-init: _require-terraform _require-sops
+  #!/usr/bin/env bash
+  set -euo pipefail
+  ACCESS_KEY=$(sops -d --extract '["state_backend_access_key_id"]' secrets/terraform.yaml)
+  SECRET_KEY=$(sops -d --extract '["state_backend_secret_access_key"]' secrets/terraform.yaml)
+  cd {{TF_DIR}} && terraform init -backend-config="access_key=$ACCESS_KEY" -backend-config="secret_key=$SECRET_KEY"
 
 # Preview infrastructure changes
 tf-plan: _require-terraform
@@ -521,15 +519,15 @@ tf-fmt: _require-terraform
 tf-validate: _require-terraform
   cd {{TF_DIR}} && terraform validate
 
-# Open encrypted secrets in $EDITOR, re-encrypts on save
-tf-edit-secrets: _require-sops
-  sops secrets/terraform.yaml
-
 # =============================================================================
-# SOPS Secrets (Streaming)
+# SOPS Secrets
 # =============================================================================
-# Manage SOPS-encrypted streaming secrets and sync to Fly.io.
+# Manage SOPS-encrypted secrets.
 # Prerequisites: sops, age, ssh-to-age (provided via Nix flake)
+
+# Edit Terraform secrets (provider tokens, state backend keys)
+sops-edit-terraform: _require-sops
+  sops secrets/terraform.yaml
 
 # Edit backup/sync credentials (prod + staging AWS keys, DB passwords)
 sops-edit-backup: _require-sops
