@@ -401,9 +401,44 @@ playerScript =
         const navbarPlayer = Alpine.$data(navbarPlayerEl);
         if (navbarPlayer) {
           if (isNavbarPlayingEpisode(episodeAudioUrl)) {
+            // Currently playing this episode — pause it
             navbarPlayer.pause();
+          } else if (navbarPlayer.mode === 'episode' && navbarPlayer.episodeUrl === episodeAudioUrl) {
+            // Paused on this episode — resume without reloading
+            navbarPlayer.play();
           } else {
+            // Different episode or stream mode — load and play
             navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle);
+          }
+        }
+      }
+    }
+
+    // Get currentTime/duration from navbar player if it's playing the given episode
+    function getNavbarEpisodeState(episodeAudioUrl) {
+      const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
+      if (navbarPlayerEl) {
+        const navbarPlayer = Alpine.$data(navbarPlayerEl);
+        if (navbarPlayer && navbarPlayer.mode === 'episode' && navbarPlayer.episodeUrl === episodeAudioUrl) {
+          const audio = navbarPlayerEl.querySelector('audio');
+          if (audio) {
+            return { currentTime: audio.currentTime, duration: audio.duration || 0 };
+          }
+        }
+      }
+      return { currentTime: 0, duration: 0 };
+    }
+
+    // Seek the navbar player to a specific time if it's playing the given episode
+    function seekNavbarEpisode(episodeAudioUrl, time) {
+      const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
+      if (navbarPlayerEl) {
+        const navbarPlayer = Alpine.$data(navbarPlayerEl);
+        if (navbarPlayer && navbarPlayer.mode === 'episode' && navbarPlayer.episodeUrl === episodeAudioUrl) {
+          const audio = navbarPlayerEl.querySelector('audio');
+          if (audio) {
+            const duration = audio.duration || 0;
+            audio.currentTime = Math.max(0, Math.min(time, duration));
           }
         }
       }

@@ -37,6 +37,8 @@ module Lucid.Alpine
     xOnChange_,
     xOnBlur_,
     xOnClickOutside_,
+    xOnMousedown_,
+    xOnTouchstart_,
     xOnDragover_,
     xOnDragleave_,
     xOnDrop_,
@@ -201,6 +203,18 @@ xOnDragleave_ = Lucid.makeAttributes "x-on:dragleave.prevent"
 -- > xOnDrop_ "handleDrop($event)"
 xOnDrop_ :: Text -> Lucid.Attributes
 xOnDrop_ = Lucid.makeAttributes "x-on:drop.prevent"
+
+-- | Alpine.js x-on:mousedown.prevent handler.
+--
+-- > xOnMousedown_ "startDrag($event)"
+xOnMousedown_ :: Text -> Lucid.Attributes
+xOnMousedown_ = Lucid.makeAttributes "x-on:mousedown.prevent"
+
+-- | Alpine.js x-on:touchstart.prevent handler.
+--
+-- > xOnTouchstart_ "startDrag($event)"
+xOnTouchstart_ :: Text -> Lucid.Attributes
+xOnTouchstart_ = Lucid.makeAttributes "x-on:touchstart.prevent"
 
 --------------------------------------------------------------------------------
 -- Bindings
