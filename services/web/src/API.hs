@@ -67,6 +67,7 @@ import API.Dashboard.Events.Slug.Edit.Get.Handler qualified as Dashboard.Events.
 import API.Dashboard.Events.Slug.Edit.Post.Handler qualified as Dashboard.Events.Slug.Edit.Post
 import API.Dashboard.Events.Slug.Get.Handler qualified as Dashboard.Events.Slug.Get
 import API.Dashboard.Get.Handler qualified as Dashboard.Get
+import API.Dashboard.MissingEpisodes.Get.Handler qualified as Dashboard.MissingEpisodes.Get
 import API.Dashboard.Profile.Edit.Get.Handler qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Handler qualified as Dashboard.Profile.Edit.Post
 import API.Dashboard.Shows.Get.Handler qualified as Dashboard.Shows.Get
@@ -297,7 +298,8 @@ server =
           events = dashboardEventsRoutes,
           users = dashboardUsersRoutes,
           sitePages = dashboardSitePagesRoutes,
-          streamSettings = dashboardStreamSettingsRoutes
+          streamSettings = dashboardStreamSettingsRoutes,
+          missingEpisodes = Dashboard.MissingEpisodes.Get.handler
         }
 
     dashboardStreamSettingsRoutes =

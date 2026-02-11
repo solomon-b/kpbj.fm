@@ -10,7 +10,22 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardBlogsLinks, dashboardEphemeralUploadsLinks, dashboardEpisodesLinks, dashboardEventsLinks, dashboardLinks, dashboardShowsLinks, dashboardSitePagesLinks, dashboardStationBlogLinks, dashboardStationIdsLinks, dashboardStreamSettingsLinks, dashboardUsersLinks, userLinks)
+import API.Links
+  ( apiLinks,
+    dashboardBlogsLinks,
+    dashboardEphemeralUploadsLinks,
+    dashboardEpisodesLinks,
+    dashboardEventsLinks,
+    dashboardLinks,
+    dashboardMissingEpisodesLink,
+    dashboardShowsLinks,
+    dashboardSitePagesLinks,
+    dashboardStationBlogLinks,
+    dashboardStationIdsLinks,
+    dashboardStreamSettingsLinks,
+    dashboardUsersLinks,
+    userLinks,
+  )
 import API.Types
 import Component.Banner (bannerContainerId)
 import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript, htmxIndicatorStyles)
@@ -80,6 +95,9 @@ dashboardSitePagesGetUrl = Links.linkURI dashboardSitePagesLinks.list
 dashboardStreamSettingsGetUrl :: Links.URI
 dashboardStreamSettingsGetUrl = Links.linkURI dashboardStreamSettingsLinks.get
 
+dashboardMissingEpisodesGetUrl :: Links.URI
+dashboardMissingEpisodesGetUrl = Links.linkURI dashboardMissingEpisodesLink
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -96,6 +114,7 @@ data DashboardNav
   | NavEphemeralUploads
   | NavSitePages
   | NavStreamSettings
+  | NavMissingEpisodes
   deriving (Eq, Show)
 
 -- | Get display title for navigation item
@@ -113,6 +132,7 @@ navTitle = \case
   NavEphemeralUploads -> "Ephemeral Uploads"
   NavSitePages -> "Site Pages"
   NavStreamSettings -> "Stream Settings"
+  NavMissingEpisodes -> "Missing Episodes"
 
 -- | Check if navigation requires show context
 isShowScoped :: DashboardNav -> Bool
@@ -129,6 +149,7 @@ isShowScoped = \case
   NavEphemeralUploads -> False
   NavSitePages -> False
   NavStreamSettings -> False
+  NavMissingEpisodes -> False
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
@@ -216,6 +237,7 @@ sidebar userMeta activeNav selectedShow =
             staffNavItem "SHOWS" NavShows activeNav
             staffNavItem "STATION BLOG" NavStationBlog activeNav
             staffNavItem "EVENTS" NavEvents activeNav
+            staffNavItem "MISSING EPISODES" NavMissingEpisodes activeNav
             staffNavItem "SITE PAGES" NavSitePages activeNav
             -- Admin-only items
             when (UserMetadata.isAdmin userMeta.mUserRole) $
@@ -324,6 +346,7 @@ staffNavUrl = \case
   NavEphemeralUploads -> Just dashboardEphemeralUploadsGetUrl
   NavSitePages -> Just dashboardSitePagesGetUrl
   NavStreamSettings -> Just dashboardStreamSettingsGetUrl
+  NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
   other -> navUrl other Nothing
 
 -- | Get URL for navigation item
@@ -345,6 +368,7 @@ navUrl nav mShow =
         NavEphemeralUploads -> Just dashboardEphemeralUploadsGetUrl
         NavSitePages -> Just dashboardSitePagesGetUrl
         NavStreamSettings -> Just dashboardStreamSettingsGetUrl
+        NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
 
 -- | Top bar with page title, show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()

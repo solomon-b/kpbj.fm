@@ -166,6 +166,9 @@ library
     API.Dashboard.Events.Get.Route
     API.Dashboard.Events.Get.Templates.ItemsFragment
     API.Dashboard.Events.Get.Templates.Page
+    API.Dashboard.MissingEpisodes.Get.Handler
+    API.Dashboard.MissingEpisodes.Get.Route
+    API.Dashboard.MissingEpisodes.Get.Templates.Page
     API.Dashboard.Events.New.Get.Handler
     API.Dashboard.Events.New.Get.Route
     API.Dashboard.Events.New.Get.Templates.Form
@@ -572,6 +575,7 @@ test-suite kpbj-api-test
        Effects.Database.Tables.ShowBlogPostsSpec
        Effects.Database.Tables.ShowBlogTagsSpec
        Effects.Database.Tables.ShowHostSpec
+       Effects.Database.Tables.ShowScheduleMissingEpisodesSpec
        Effects.Database.Tables.ShowScheduleSpec
        Effects.Database.Tables.ShowTagsSpec
        Effects.Database.Tables.ShowsSpec

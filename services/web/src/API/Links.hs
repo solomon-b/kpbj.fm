@@ -42,6 +42,7 @@ module API.Links
     dashboardUsersLinks,
     dashboardSitePagesLinks,
     dashboardStreamSettingsLinks,
+    dashboardMissingEpisodesLink,
   )
 where
 
@@ -154,3 +155,7 @@ dashboardSitePagesLinks = dashboardAdminLinks.sitePages
 -- | Dashboard stream settings route links
 dashboardStreamSettingsLinks :: DashboardStreamSettingsRoutes (AsLink Link)
 dashboardStreamSettingsLinks = dashboardAdminLinks.streamSettings
+
+-- | Dashboard missing episodes link
+dashboardMissingEpisodesLink :: Link
+dashboardMissingEpisodesLink = dashboardAdminLinks.missingEpisodes
