@@ -10,6 +10,7 @@ import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwHandler
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Control.Monad (void)
 import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
@@ -23,10 +24,11 @@ import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuery)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload (uploadEventPosterImage)
+import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import Servant qualified
@@ -97,7 +99,8 @@ handler cookie form =
       requireRight Sanitize.displayContentValidationError (validateEventForm form)
 
     -- 4. Insert event
-    let slug = Slug.mkSlug title
+    let featuredOnHomepage = nefFeaturedOnHomepage form == "true"
+        slug = Slug.mkSlug title
         eventInsert =
           Events.Insert
             { Events.eiTitle = title,
@@ -109,13 +112,26 @@ handler cookie form =
               Events.eiLocationAddress = locationAddress,
               Events.eiStatus = status,
               Events.eiAuthorId = User.mId user,
-              Events.eiPosterImageUrl = posterImagePath
+              Events.eiPosterImageUrl = posterImagePath,
+              Events.eiFeaturedOnHomepage = featuredOnHomepage
             }
     eventId <-
-      execQuery (Events.insertEvent eventInsert) >>= \case
-        Left err -> throwDatabaseError err
-        Right (Just eid) -> pure eid
-        Right Nothing -> throwHandlerFailure "Event insert returned Nothing"
+      if featuredOnHomepage
+        then
+          execTransaction
+            ( do
+                void $ HT.statement () Events.clearFeaturedEvents
+                HT.statement () (Events.insertEvent eventInsert)
+            )
+            >>= \case
+              Left err -> throwDatabaseError err
+              Right (Just eid) -> pure eid
+              Right Nothing -> throwHandlerFailure "Event insert returned Nothing"
+        else
+          execQuery (Events.insertEvent eventInsert) >>= \case
+            Left err -> throwDatabaseError err
+            Right (Just eid) -> pure eid
+            Right Nothing -> throwHandlerFailure "Event insert returned Nothing"
 
     -- 5. Fetch created event and redirect
     Log.logInfo "Event created successfully" eventId

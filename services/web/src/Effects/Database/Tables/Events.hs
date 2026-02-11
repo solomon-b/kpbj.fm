@@ -30,6 +30,8 @@ module Effects.Database.Tables.Events
     updateEvent,
     deleteEvent,
     getAllEvents,
+    getFeaturedEvent,
+    clearFeaturedEvents,
 
     -- * Result Types
     EventWithAuthor (..),
@@ -149,6 +151,7 @@ data Event f = Event
     emStatus :: Column f Status,
     emAuthorId :: Column f User.Id,
     emPosterImageUrl :: Column f (Maybe Text),
+    emFeaturedOnHomepage :: Column f Bool,
     emCreatedAt :: Column f UTCTime,
     emUpdatedAt :: Column f UTCTime
   }
@@ -196,6 +199,7 @@ eventSchema =
             emStatus = "status",
             emAuthorId = "author_id",
             emPosterImageUrl = "poster_image_url",
+            emFeaturedOnHomepage = "featured_on_homepage",
             emCreatedAt = "created_at",
             emUpdatedAt = "updated_at"
           }
@@ -226,7 +230,8 @@ data Insert = Insert
     eiLocationAddress :: Text,
     eiStatus :: Status,
     eiAuthorId :: User.Id,
-    eiPosterImageUrl :: Maybe Text
+    eiPosterImageUrl :: Maybe Text,
+    eiFeaturedOnHomepage :: Bool
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Insert)
@@ -275,6 +280,7 @@ insertEvent Insert {..} =
                       emStatus = lit eiStatus,
                       emAuthorId = lit eiAuthorId,
                       emPosterImageUrl = lit eiPosterImageUrl,
+                      emFeaturedOnHomepage = lit eiFeaturedOnHomepage,
                       emCreatedAt = now,
                       emUpdatedAt = now
                     }
@@ -303,6 +309,7 @@ updateEvent eventId Insert {..} =
                   emLocationAddress = lit eiLocationAddress,
                   emStatus = lit eiStatus,
                   emPosterImageUrl = lit eiPosterImageUrl,
+                  emFeaturedOnHomepage = lit eiFeaturedOnHomepage,
                   emUpdatedAt = now
                 },
             updateWhere = \_ event -> emId event ==. lit eventId,
@@ -331,3 +338,24 @@ getAllEvents (Limit lim) (Offset off) =
         Rel8.offset (fromIntegral off) $
           orderBy (emStartsAt >$< desc) do
             each eventSchema
+
+-- | Get the single featured event (must be published).
+getFeaturedEvent :: Hasql.Statement () (Maybe Model)
+getFeaturedEvent = fmap listToMaybe $ run $ select do
+  event <- each eventSchema
+  where_ $ emFeaturedOnHomepage event ==. lit True
+  where_ $ emStatus event ==. lit Published
+  pure event
+
+-- | Clear the featured flag from all events. Returns the IDs of events that were unfeatured.
+clearFeaturedEvents :: Hasql.Statement () [Id]
+clearFeaturedEvents =
+  run $
+    update
+      Rel8.Update
+        { target = eventSchema,
+          from = pure (),
+          set = \_ event -> event {emFeaturedOnHomepage = lit False},
+          updateWhere = \_ event -> emFeaturedOnHomepage event ==. lit True,
+          returning = Returning emId
+        }

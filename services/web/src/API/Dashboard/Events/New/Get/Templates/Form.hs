@@ -75,6 +75,13 @@ template userMeta = do
           maxSize 10
           aspectRatio (3, 4)
 
+        toggleField "featured_on_homepage" $ do
+          offLabel "No"
+          onLabel "Yes"
+          offValue "false"
+          onValue "true"
+          hint "Display this event's flyer on the homepage"
+
       -- Date & Time Section
       section "DATE & TIME" $ do
         dateTimeField "starts_at" $ do

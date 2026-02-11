@@ -11,11 +11,11 @@ where
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
 import Data.String.Interpolate (i)
-import Domain.Types.Timezone (formatPacificForDateTimeInput)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
+import Domain.Types.Timezone (formatPacificForDateTimeInput)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -85,6 +85,14 @@ template backend event userMeta = do
           maxSize 10
           aspectRatio (3, 4)
           currentFile imageUrl
+
+        toggleField "featured_on_homepage" $ do
+          offLabel "No"
+          onLabel "Yes"
+          offValue "false"
+          onValue "true"
+          when event.emFeaturedOnHomepage checked
+          hint "Display this event's flyer on the homepage"
 
       -- Date & Time Section
       section "DATE & TIME" $ do

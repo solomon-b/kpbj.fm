@@ -50,6 +50,18 @@ spec =
       describe "Constraints" $ do
         runs 10 . it "rejects duplicate slug on insert" $ hedgehog . prop_insertDuplicateSlug
 
+      describe "Featured on Homepage" $ do
+        runs 10 . it "getFeaturedEvent returns the featured published event" $
+          hedgehog . prop_getFeaturedEvent
+        runs 10 . it "getFeaturedEvent excludes draft events" $
+          hedgehog . prop_getFeaturedEvent_draft_excluded
+        runs 10 . it "getFeaturedEvent returns Nothing when none featured" $
+          hedgehog . prop_getFeaturedEvent_none
+        runs 10 . it "clearFeaturedEvents clears the featured flag" $
+          hedgehog . prop_clearFeaturedEvents
+        runs 10 . it "rejects two featured events (unique constraint)" $
+          hedgehog . prop_featuredUniqueConstraint
+
 -- | Assert all user-provided fields in an Insert match the corresponding Model fields.
 assertInsertFieldsMatch :: UUT.Insert -> UUT.Model -> PropertyT IO ()
 assertInsertFieldsMatch insert model = do
@@ -60,6 +72,7 @@ assertInsertFieldsMatch insert model = do
   UUT.eiLocationAddress insert === UUT.emLocationAddress model
   UUT.eiStatus insert === UUT.emStatus model
   UUT.eiAuthorId insert === UUT.emAuthorId model
+  UUT.eiFeaturedOnHomepage insert === UUT.emFeaturedOnHomepage model
 
 --------------------------------------------------------------------------------
 -- Lens Laws
@@ -329,6 +342,171 @@ prop_insertDuplicateSlug cfg = do
         -- Insert second event with same slug
         let event2 = template2 {UUT.eiAuthorId = userId, UUT.eiSlug = UUT.eiSlug event1}
         _ <- unwrapInsert (UUT.insertEvent event2)
+        TRX.condemn
+        pure ()
+
+      assert $ do
+        result <== isLeft
+        pure ()
+
+--------------------------------------------------------------------------------
+-- Featured on Homepage tests
+
+-- | getFeaturedEvent returns the featured published event.
+prop_getFeaturedEvent :: TestDBConfig -> PropertyT IO ()
+prop_getFeaturedEvent cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template1 <- forAllT $ eventInsertGen (User.Id 1)
+    template2 <- forAllT $ eventInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let featured =
+              template1
+                { UUT.eiAuthorId = userId,
+                  UUT.eiStatus = UUT.Published,
+                  UUT.eiFeaturedOnHomepage = True,
+                  UUT.eiSlug = UUT.eiSlug template1 <> Slug "1"
+                }
+        let notFeatured =
+              template2
+                { UUT.eiAuthorId = userId,
+                  UUT.eiStatus = UUT.Published,
+                  UUT.eiFeaturedOnHomepage = False,
+                  UUT.eiSlug = UUT.eiSlug template2 <> Slug "2"
+                }
+
+        featuredId <- unwrapInsert (UUT.insertEvent featured)
+        _ <- unwrapInsert (UUT.insertEvent notFeatured)
+        mFeatured <- TRX.statement () UUT.getFeaturedEvent
+        TRX.condemn
+        pure (featuredId, mFeatured)
+
+      assert $ do
+        (featuredId, mFeatured) <- assertRight result
+        event <- assertJust mFeatured
+        UUT.emId event === featuredId
+        UUT.emFeaturedOnHomepage event === True
+        pure ()
+
+-- | getFeaturedEvent excludes draft events.
+prop_getFeaturedEvent_draft_excluded :: TestDBConfig -> PropertyT IO ()
+prop_getFeaturedEvent_draft_excluded cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template1 <- forAllT $ eventInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let featuredDraft =
+              template1
+                { UUT.eiAuthorId = userId,
+                  UUT.eiStatus = UUT.Draft,
+                  UUT.eiFeaturedOnHomepage = True
+                }
+
+        _ <- unwrapInsert (UUT.insertEvent featuredDraft)
+        mFeatured <- TRX.statement () UUT.getFeaturedEvent
+        TRX.condemn
+        pure mFeatured
+
+      assert $ do
+        mFeatured <- assertRight result
+        assertNothing mFeatured
+        pure ()
+
+-- | getFeaturedEvent returns Nothing when no event is featured.
+prop_getFeaturedEvent_none :: TestDBConfig -> PropertyT IO ()
+prop_getFeaturedEvent_none cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template1 <- forAllT $ eventInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let notFeatured =
+              template1
+                { UUT.eiAuthorId = userId,
+                  UUT.eiStatus = UUT.Published,
+                  UUT.eiFeaturedOnHomepage = False
+                }
+
+        _ <- unwrapInsert (UUT.insertEvent notFeatured)
+        mFeatured <- TRX.statement () UUT.getFeaturedEvent
+        TRX.condemn
+        pure mFeatured
+
+      assert $ do
+        mFeatured <- assertRight result
+        assertNothing mFeatured
+        pure ()
+
+-- | clearFeaturedEvents clears the featured flag.
+prop_clearFeaturedEvents :: TestDBConfig -> PropertyT IO ()
+prop_clearFeaturedEvents cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template1 <- forAllT $ eventInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let featured =
+              template1
+                { UUT.eiAuthorId = userId,
+                  UUT.eiStatus = UUT.Published,
+                  UUT.eiFeaturedOnHomepage = True
+                }
+
+        eventId <- unwrapInsert (UUT.insertEvent featured)
+        clearedIds <- TRX.statement () UUT.clearFeaturedEvents
+        mEvent <- TRX.statement () (UUT.getEventById eventId)
+        TRX.condemn
+        pure (eventId, clearedIds, mEvent)
+
+      assert $ do
+        (eventId, clearedIds, mEvent) <- assertRight result
+        clearedId <- assertSingleton clearedIds
+        clearedId === eventId
+        event <- assertJust mEvent
+        UUT.emFeaturedOnHomepage event === False
+        pure ()
+
+-- | Rejects two featured events (unique constraint).
+prop_featuredUniqueConstraint :: TestDBConfig -> PropertyT IO ()
+prop_featuredUniqueConstraint cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template1 <- forAllT $ eventInsertGen (User.Id 1)
+    template2 <- forAllT $ eventInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let featured1 =
+              template1
+                { UUT.eiAuthorId = userId,
+                  UUT.eiFeaturedOnHomepage = True,
+                  UUT.eiSlug = UUT.eiSlug template1 <> Slug "1"
+                }
+        let featured2 =
+              template2
+                { UUT.eiAuthorId = userId,
+                  UUT.eiFeaturedOnHomepage = True,
+                  UUT.eiSlug = UUT.eiSlug template2 <> Slug "2"
+                }
+
+        _ <- unwrapInsert (UUT.insertEvent featured1)
+        _ <- unwrapInsert (UUT.insertEvent featured2)
         TRX.condemn
         pure ()
 
