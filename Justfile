@@ -570,26 +570,11 @@ sops-host-key HOST:
   ssh-keyscan -t ed25519 {{HOST}} 2>/dev/null | ssh-to-age
 
 # =============================================================================
-# Streaming Services (Icecast + Liquidsoap)
+# Streaming Services (Local Dev)
 # =============================================================================
-# Build, run, and deploy the audio streaming infrastructure.
-# Local dev uses Docker Compose; production deploys to VPS.
-# Prerequisites: Docker, Nix, gh CLI for publishing, SSH access for VPS deployment
-
-# Build and load Nix streaming images locally
-stream-dev-build:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  echo "Building Icecast image..."
-  nix build .#icecast-docker
-  docker load -i result
-  echo "Building Liquidsoap image..."
-  nix build .#liquidsoap-docker
-  docker load -i result
-  echo "Building Webhook image..."
-  nix build .#webhook-docker
-  docker load -i result
-  echo "Done! Images loaded into Docker."
+# Run the audio streaming stack locally via Docker Compose.
+# Production/staging use native NixOS systemd services (see nixos/).
+# Prerequisites: Docker
 
 # Start local streaming services (Icecast + Liquidsoap)
 stream-dev-start: _require-docker
@@ -611,38 +596,10 @@ stream-dev-restart:
   docker compose -f services/liquidsoap/docker-compose.yml \
                  -f services/liquidsoap/docker-compose.dev.yml restart
 
-# Rebuild and restart local streaming services (use after changing radio.liq or icecast.xml)
-stream-dev-rebuild:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  echo "🔨 Building Icecast image..."
-  nix build .#icecast-docker
-  docker load -i result
-  echo "🔨 Building Liquidsoap image..."
-  nix build .#liquidsoap-docker
-  docker load -i result
-  echo "🔄 Restarting streaming services..."
-  docker compose -f services/liquidsoap/docker-compose.yml \
-                 -f services/liquidsoap/docker-compose.dev.yml down
-  docker compose -f services/liquidsoap/docker-compose.yml \
-                 -f services/liquidsoap/docker-compose.dev.yml up -d
-  echo "✨ Done! Streaming services rebuilt and restarted."
-
 # View local streaming service status
 stream-dev-status:
   docker compose -f services/liquidsoap/docker-compose.yml \
                  -f services/liquidsoap/docker-compose.dev.yml ps
-
-# Build and push streaming images via GitHub Actions
-stream-publish TAG="":
-  #!/usr/bin/env bash
-  set -euo pipefail
-  if [ -n "{{TAG}}" ]; then
-    gh workflow run stream-images.yml -f tag="{{TAG}}"
-  else
-    gh workflow run stream-images.yml
-  fi
-  echo "Workflow triggered. Run 'gh run watch' to monitor progress."
 
 # =============================================================================
 # NixOS Deployment (Streaming VPS)

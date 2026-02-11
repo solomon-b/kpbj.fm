@@ -2,8 +2,9 @@
 # SOPS secrets — decrypts streaming secrets at deploy time
 # ──────────────────────────────────────────────────────────────
 #
-# Declares all streaming secrets and renders a combined env file
-# that gets mounted into Podman containers. The SOPS-encrypted
+# Declares all streaming secrets and renders per-service env
+# files. Icecast reads secrets directly from sops secret file
+# paths (via ExecStartPre sed substitution). The SOPS-encrypted
 # YAML in the repo is decrypted on the VPS using the host's SSH
 # key (converted to age).
 # ──────────────────────────────────────────────────────────────
@@ -23,28 +24,34 @@ in
     sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
     sops.defaultSopsFile = cfg.secretsFile;
 
-    sops.secrets.icecast_admin_password = { };
-    sops.secrets.icecast_relay_password = { };
-    sops.secrets.icecast_password = { };
+    # ── Individual secrets ──────────────────────────────────────
+    # Icecast reads these directly via config.sops.secrets.*.path
+    sops.secrets.icecast_admin_password = {
+      restartUnits = [ "kpbj-icecast.service" ];
+    };
+    sops.secrets.icecast_relay_password = {
+      restartUnits = [ "kpbj-icecast.service" ];
+    };
+    sops.secrets.icecast_password = {
+      restartUnits = [ "kpbj-icecast.service" ];
+    };
     sops.secrets.webhook_secret = { };
     sops.secrets.playout_secret = { };
 
-    sops.templates."kpbj-stream.env" = {
+    # ── Per-service env files ───────────────────────────────────
+    sops.templates."kpbj-liquidsoap.env" = {
       content = ''
-        ICECAST_ADMIN_PASSWORD=${config.sops.placeholder.icecast_admin_password}
-        ICECAST_RELAY_PASSWORD=${config.sops.placeholder.icecast_relay_password}
         ICECAST_PASSWORD=${config.sops.placeholder.icecast_password}
-        WEBHOOK_SECRET=${config.sops.placeholder.webhook_secret}
         PLAYOUT_SECRET=${config.sops.placeholder.playout_secret}
       '';
-      restartUnits = [
-        "podman-kpbj-icecast.service"
-        "podman-kpbj-liquidsoap.service"
-        "podman-kpbj-webhook.service"
-      ];
+      restartUnits = [ "kpbj-liquidsoap.service" ];
     };
 
-    # Wire the rendered env file into the streaming module
-    kpbj.streaming.environmentFiles = [ config.sops.templates."kpbj-stream.env".path ];
+    sops.templates."kpbj-webhook.env" = {
+      content = ''
+        WEBHOOK_SECRET=${config.sops.placeholder.webhook_secret}
+      '';
+      restartUnits = [ "kpbj-webhook.service" ];
+    };
   };
 }

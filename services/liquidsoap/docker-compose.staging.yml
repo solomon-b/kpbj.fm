@@ -15,5 +15,6 @@ services:
     ports:
       - "127.0.0.1:9001:9000"
     environment:
-      - ICECAST_CONTAINER=kpbj-stream-staging-icecast-1
-      - LIQUIDSOAP_CONTAINER=kpbj-stream-staging-liquidsoap-1
+      - RESTART_CMD=/bin/docker
+      - ICECAST_SERVICE=kpbj-stream-staging-icecast-1
+      - LIQUIDSOAP_SERVICE=kpbj-stream-staging-liquidsoap-1

@@ -17,5 +17,6 @@ services:
     ports:
       - "9000:9000"
     environment:
-      - ICECAST_CONTAINER=liquidsoap-icecast-1
-      - LIQUIDSOAP_CONTAINER=liquidsoap-liquidsoap-1
+      - RESTART_CMD=/bin/docker
+      - ICECAST_SERVICE=liquidsoap-icecast-1
+      - LIQUIDSOAP_SERVICE=liquidsoap-liquidsoap-1
