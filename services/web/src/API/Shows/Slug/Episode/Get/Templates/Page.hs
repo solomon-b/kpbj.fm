@@ -14,7 +14,8 @@ import API.Links (showsLinks)
 import API.Types
 import Component.Card.Episode (renderEpisodeCard)
 import Component.Tags qualified as Tags
-import Control.Monad (unless)
+import Control.Monad (unless, when)
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -54,6 +55,12 @@ template backend showModel episode tracks tags = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Episode card (reuses the same component from show page)
     renderEpisodeCard backend showModel episode
+
+    -- Description section
+    when (isJust episode.description) $ do
+      Lucid.div_ [class_ $ base ["mt-6"]] $ do
+        Lucid.p_ [class_ $ base [Tokens.textBase, Tokens.fgPrimary]] $
+          Lucid.toHtml (maybe "" id episode.description)
 
     -- Tags section
     unless (null tags) $ do

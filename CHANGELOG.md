@@ -5,7 +5,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Chores
-- **Dashboard design tuneupes** - Various small adjustments to the dashboard design and layouts.
+  - **Add description to episode detail page** - Episode descriptions were missing from the template.
+  - **Dashboard design tuneups** - Various small adjustments to the dashboard design and layouts.
 
 ---
 
