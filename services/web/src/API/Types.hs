@@ -61,6 +61,7 @@ import API.Dashboard.Events.New.Post.Route qualified as Dashboard.Events.New.Pos
 import API.Dashboard.Events.Slug.Delete.Route qualified as Dashboard.Events.Slug.Delete
 import API.Dashboard.Events.Slug.Edit.Get.Route qualified as Dashboard.Events.Slug.Edit.Get
 import API.Dashboard.Events.Slug.Edit.Post.Route qualified as Dashboard.Events.Slug.Edit.Post
+import API.Dashboard.Events.Slug.Feature.Post.Route qualified as Dashboard.Events.Slug.Feature.Post
 import API.Dashboard.Events.Slug.Get.Route qualified as Dashboard.Events.Slug.Get
 import API.Dashboard.Get.Route qualified as Dashboard.Get
 import API.Dashboard.MissingEpisodes.Get.Route qualified as Dashboard.MissingEpisodes.Get
@@ -392,7 +393,9 @@ data DashboardEventsRoutes mode = DashboardEventsRoutes
     -- | @POST /dashboard/events/:slug/edit@ - Update event
     editPost :: mode :- Dashboard.Events.Slug.Edit.Post.Route,
     -- | @DELETE /dashboard/events/:slug@ - Delete event
-    delete :: mode :- Dashboard.Events.Slug.Delete.Route
+    delete :: mode :- Dashboard.Events.Slug.Delete.Route,
+    -- | @POST /dashboard/events/:id/:slug/feature@ - Toggle frontpage feature
+    feature :: mode :- Dashboard.Events.Slug.Feature.Post.Route
   }
   deriving stock (Generic)
 

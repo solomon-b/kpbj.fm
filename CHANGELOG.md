@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Featured Event on Homepage** - Staff/admins can promote a single event's flyer to the homepage, replacing the default range map image. The flyer links to the event detail page via HTMX navigation. When no event is featured (or the featured event has no poster), the default FCC range map is shown. A "Promote"/"Demote" action in the events dashboard dropdown toggles the featured status, automatically clearing any previously featured event. A partial unique index enforces that at most one event can be featured at a time.
+
 ### Chores
   - **Add description to episode detail page** - Episode descriptions were missing from the template.
   - **Dashboard design tuneups** - Various small adjustments to the dashboard design and layouts.

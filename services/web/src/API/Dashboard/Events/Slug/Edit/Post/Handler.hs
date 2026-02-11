@@ -12,7 +12,9 @@ import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuth
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Control.Monad (void, when)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Has (getter)
@@ -112,7 +114,8 @@ updateEvent eventId event editForm = do
           pure (Just $ Text.pack $ uploadResultStoragePath result)
 
   -- 7. Build update data
-  let newSlug = Slug.mkSlug validTitle
+  let featuredOnHomepage = eefFeaturedOnHomepage editForm == "true"
+      newSlug = Slug.mkSlug validTitle
       updateData =
         Events.Insert
           { Events.eiTitle = validTitle,
@@ -124,11 +127,16 @@ updateEvent eventId event editForm = do
             Events.eiLocationAddress = validLocationAddress,
             Events.eiStatus = parsedStatus,
             Events.eiAuthorId = event.emAuthorId,
-            Events.eiPosterImageUrl = posterImagePath
+            Events.eiPosterImageUrl = posterImagePath,
+            Events.eiFeaturedOnHomepage = featuredOnHomepage
           }
 
   -- 8. Update the event in a transaction
   mUpdateResult <- execTransaction $ runMaybeT $ do
+    when featuredOnHomepage $
+      lift $
+        void $
+          HT.statement () Events.clearFeaturedEvents
     _ <- MaybeT $ HT.statement () (Events.updateEvent event.emId updateData)
     pure ()
 

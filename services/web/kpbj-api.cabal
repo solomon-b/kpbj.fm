@@ -176,6 +176,8 @@ library
     API.Dashboard.Events.New.Post.Route
     API.Dashboard.Events.Slug.Delete.Handler
     API.Dashboard.Events.Slug.Delete.Route
+    API.Dashboard.Events.Slug.Feature.Post.Handler
+    API.Dashboard.Events.Slug.Feature.Post.Route
     API.Dashboard.Events.Slug.Edit.Get.Handler
     API.Dashboard.Events.Slug.Edit.Get.Route
     API.Dashboard.Events.Slug.Edit.Get.Templates.Form

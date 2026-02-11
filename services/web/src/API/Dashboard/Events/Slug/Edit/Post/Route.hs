@@ -5,9 +5,9 @@ module API.Dashboard.Events.Slug.Edit.Post.Route where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
-import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
+import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Servant ((:>))
@@ -40,7 +40,8 @@ data EventEditForm = EventEditForm
     eefLocationAddress :: Text,
     eefStatus :: Text,
     eefPosterImage :: Maybe (FileData Mem),
-    eefPosterImageClear :: Bool -- True if user explicitly removed the poster image
+    eefPosterImageClear :: Bool, -- True if user explicitly removed the poster image
+    eefFeaturedOnHomepage :: Text
   }
   deriving (Show)
 
@@ -56,6 +57,7 @@ instance FromMultipart Mem EventEditForm where
       <*> lookupInput "status" multipartData
       <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
       <*> pure (parseClearFlag "poster_image_clear")
+      <*> lookupInput "featured_on_homepage" multipartData
     where
       fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
       fileDataToNothing (Just fileData)

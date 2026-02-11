@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -26,10 +27,10 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
-import Domain.Types.Timezone (utcToPacific)
 import Design (base, class_)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
+import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Servant.Links qualified as Links
@@ -85,8 +86,12 @@ renderEventRow event =
       editUrl = Links.linkURI $ dashboardEventsLinks.editGet eventId eventSlug
       viewUrl = Links.linkURI $ eventsLinks.detailWithSlug eventId eventSlug
       deleteUrl = Links.linkURI $ dashboardEventsLinks.delete eventId eventSlug
+      featureUrl = Links.linkURI $ dashboardEventsLinks.feature eventId eventSlug
       eventIdText = display eventId
-      rowId = [i|event-row-#{eventIdText}|]
+      rowId = [i|event-row-#{eventIdText}|] :: Text
+      isFeatured = event.emFeaturedOnHomepage
+      featureLabel = if isFeatured then "Demote" :: Text else "Promote"
+      rowSelector = "#" <> rowId :: Text
       deleteConfirmMessage =
         "Are you sure you want to delete the event \""
           <> display title
@@ -110,6 +115,14 @@ renderEventRow event =
             ActionsDropdown.render
               [ ActionsDropdown.navigateAction "edit" "Edit" [i|/#{editUrl}|],
                 ActionsDropdown.navigateAction "view" "View" [i|/#{viewUrl}|],
+                ActionsDropdown.htmxPostAction
+                  "feature"
+                  featureLabel
+                  [i|/#{featureUrl}|]
+                  rowSelector
+                  ActionsDropdown.SwapOuterHTML
+                  Nothing
+                  [],
                 ActionsDropdown.htmxDeleteAction
                   "delete"
                   "Delete"
