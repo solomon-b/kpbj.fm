@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Liquidsoap Audio Processing** - Added normalization, compression, and limiting to the Liquidsoap broadcast chain. Normalizes volume across tracks (±6 dB range), compresses dynamic range (3:1 ratio, -10 dB threshold), and hard-limits at -1 dB to prevent clipping.
+
 ### Improvements
 - **Scrollable Playback History** - Playback history table on the stream settings dashboard is now capped at ~15 visible rows with a scrollable container and sticky column headers.
 
