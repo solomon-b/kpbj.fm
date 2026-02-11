@@ -8,8 +8,6 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardEpisodesLinks)
-import API.Types
 import Component.AudioPlayer.Waveform qualified as WaveformPlayer
 import Control.Monad (unless)
 import Data.Maybe (isJust)
@@ -18,8 +16,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
-import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Domain.Types.Timezone (formatPacificDateLong)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
@@ -28,35 +26,14 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.HTMX
-import Servant.Links qualified as Links
-
---------------------------------------------------------------------------------
-
-dashboardEpisodesGetUrl :: Slug -> Links.URI
-dashboardEpisodesGetUrl showSlug = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
 
 --------------------------------------------------------------------------------
 
 -- | Dashboard episode detail template
 template :: StorageBackend -> UserMetadata.Model -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Lucid.Html ()
 template backend _userMeta showModel episode tracks tags = do
-  -- Back button and header
-  Lucid.div_ [class_ $ base [Tokens.mb6]] $ do
-    let backUrl = dashboardEpisodesGetUrl showModel.slug
-    Lucid.a_
-      [ Lucid.href_ [i|/#{backUrl}|],
-        hxGet_ [i|/#{backUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        class_ $ base [Tokens.fgMuted, "hover:[color:var(--fg-primary)]", Tokens.textSm, "inline-flex", "items-center", Tokens.gap2]
-      ]
-      $ do
-        Lucid.i_ [Lucid.class_ "fa-solid fa-arrow-left"] mempty
-        "Back to Episodes"
-
   -- Main episode container
-  Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
     -- Episode header with artwork
     Lucid.div_ [class_ $ base ["border-b", Tokens.borderDefault, Tokens.p6]] $ do
       Lucid.div_ [class_ $ base ["flex", Tokens.gap6, Tokens.mb6]] $ do

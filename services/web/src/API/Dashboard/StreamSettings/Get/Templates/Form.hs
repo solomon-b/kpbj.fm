@@ -19,6 +19,7 @@ import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
@@ -70,9 +71,6 @@ template settings icecastReachable mStatus playbackHistory mError = do
   -- Playback history section
   playbackHistorySection playbackHistory
 
-  -- Container management section
-  containerManagementSection
-
   -- Settings form
   renderForm config form
   where
@@ -88,7 +86,6 @@ template settings icecastReachable mStatus playbackHistory mError = do
     form :: FormBuilder
     form = do
       formTitle "STREAM SETTINGS"
-      formSubtitle "Configure the Icecast stream URL and metadata endpoint"
 
       -- Danger zone section
       dangerZoneSection settings
@@ -100,7 +97,7 @@ template settings icecastReachable mStatus playbackHistory mError = do
 -- | Danger zone section for stream configuration
 dangerZoneSection :: StreamSettings.Model -> FormBuilder
 dangerZoneSection settings = plain $ do
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, "rounded", "border-2", Tokens.errorBorder, Tokens.errorBg]] $ do
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, "rounded", "border-2", Tokens.errorBorder, Tokens.bgMain]] $ do
     -- Header
     Lucid.div_ [class_ $ base ["flex", "items-center", "gap-2", Tokens.mb4]] $ do
       Lucid.span_ [class_ $ base [Tokens.errorText, Tokens.fontBold, Tokens.textLg]] "DANGER ZONE"
@@ -136,37 +133,33 @@ dangerZoneSection settings = plain $ do
         ]
       Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "mt-1"]] "The API endpoint that returns current track information in JSON format"
 
---------------------------------------------------------------------------------
+    -- Container management
+    Lucid.div_ [class_ $ base ["border-t", Tokens.errorBorder, "mt-6", "pt-4"]] $ do
+      Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "CONTAINER MANAGEMENT"
+      Lucid.p_
+        [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
+        "Restart streaming services if needed. This will briefly interrupt the stream."
 
--- | Container management section for restarting services
-containerManagementSection :: Lucid.Html ()
-containerManagementSection =
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "CONTAINER MANAGEMENT"
-    Lucid.p_
-      [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
-      "Restart streaming services if needed. This will briefly interrupt the stream."
+      Lucid.div_ [class_ $ base ["flex", "flex-wrap", "gap-4"]] $ do
+        -- Restart Icecast button
+        Lucid.button_
+          [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
+            hxPost_ [i|/#{restartIcecastUrl}|],
+            hxSwap_ "none",
+            hxConfirm_ "Are you sure you want to restart Icecast? This will disconnect all listeners for a few seconds.",
+            hxDisabledElt_ "this"
+          ]
+          "RESTART ICECAST"
 
-    Lucid.div_ [class_ $ base ["flex", "flex-wrap", "gap-4"]] $ do
-      -- Restart Icecast button
-      Lucid.button_
-        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
-          hxPost_ [i|/#{restartIcecastUrl}|],
-          hxSwap_ "none",
-          hxConfirm_ "Are you sure you want to restart Icecast? This will disconnect all listeners for a few seconds.",
-          hxDisabledElt_ "this"
-        ]
-        "RESTART ICECAST"
-
-      -- Restart Liquidsoap button
-      Lucid.button_
-        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
-          hxPost_ [i|/#{restartLiquidsoapUrl}|],
-          hxSwap_ "none",
-          hxConfirm_ "Are you sure you want to restart Liquidsoap? This will interrupt audio playback for a few seconds.",
-          hxDisabledElt_ "this"
-        ]
-        "RESTART LIQUIDSOAP"
+        -- Restart Liquidsoap button
+        Lucid.button_
+          [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
+            hxPost_ [i|/#{restartLiquidsoapUrl}|],
+            hxSwap_ "none",
+            hxConfirm_ "Are you sure you want to restart Liquidsoap? This will interrupt audio playback for a few seconds.",
+            hxDisabledElt_ "this"
+          ]
+          "RESTART LIQUIDSOAP"
 
 --------------------------------------------------------------------------------
 
@@ -176,17 +169,17 @@ containerManagementSection =
 -- reachable with active source (green + full stats).
 statusSection :: Bool -> Maybe IcecastStatus -> Lucid.Html ()
 statusSection False _ =
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
     statusHeader False
     Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $
       Lucid.p_ "Unable to connect to stream. Check that Icecast is running and the metadata URL is correct."
 statusSection True Nothing =
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
     statusHeader True
     Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $
       Lucid.p_ "Icecast is running but no active source is connected. Check that Liquidsoap is running."
 statusSection True (Just status) =
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
     statusHeader True
 
     -- Now Playing
@@ -250,12 +243,12 @@ formatTimestamp = id
 -- | Playback history section
 playbackHistorySection :: [PlaybackHistory.Model] -> Lucid.Html ()
 playbackHistorySection [] =
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
     Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "PLAYBACK HISTORY"
     Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $
       Lucid.p_ "No playback history recorded yet."
 playbackHistorySection history =
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgAlt, "rounded", Tokens.border2]] $ do
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
     Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb4]] "PLAYBACK HISTORY"
     Lucid.div_ [class_ $ base ["overflow-x-auto", "overflow-y-auto", "max-h-[640px]"]] $ do
       Lucid.table_ [class_ $ base ["w-full", Tokens.textSm]] $ do

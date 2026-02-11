@@ -19,6 +19,7 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_, class_')
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Alpine
@@ -58,7 +59,7 @@ data Config = Config
 
 -- | Default CSS classes for each element.
 defaultContainerClasses, defaultButtonClasses, defaultProgressBarClasses, defaultProgressFillClasses, defaultTimeDisplayClasses :: Text
-defaultContainerClasses = class_' $ base [Tokens.bgAlt, "border-2", Tokens.borderDefault, Tokens.p6]
+defaultContainerClasses = class_' $ base [Tokens.bgAlt, "border", Theme.borderMuted, Tokens.p6]
 defaultButtonClasses = class_' $ base [Tokens.bgInverse, Tokens.fgInverse, "px-8", "py-3", Tokens.fontBold, "hover:opacity-80", Tokens.textLg]
 defaultProgressBarClasses = class_' $ base ["flex-grow", Tokens.bgAlt, "h-8", "relative", "cursor-pointer", "rounded", "border", Tokens.borderMuted]
 defaultProgressFillClasses = class_' $ base [Tokens.bgInverse, "h-8", "rounded", "absolute", "top-0", "left-0", "transition-all", "duration-100"]
