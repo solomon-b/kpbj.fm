@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Fixes
+- **Icecast Stream Choppy Audio on Refresh** - Fixed audio jumping between two buffers when refreshing the page during live stream playback. Added `beforeunload` handler to tear down the audio element before page unload, cache-busting on the stream URL to prevent stale connection reuse, and halved Icecast `burst-size` from 65536 to 32768 to reduce audio overlap on reconnect.
+
 ### Infrastructure
 - **Terraform + SOPS Infrastructure** - Codified DigitalOcean streaming VPS (separate prod + staging droplets, firewalls, SSH keys) and Cloudflare DNS + proxy settings as Terraform. Secrets managed via SOPS + age encryption. Remote state in Tigris S3.
 - **NixOS Streaming VPS** - Replaced Ubuntu/Docker Compose/manual nginx+certbot setup with fully declarative NixOS configuration. Droplets are provisioned via nixos-infect in Terraform user_data and configured with Podman OCI containers (Icecast, Liquidsoap, Webhook), NixOS-managed nginx with automatic ACME/Let's Encrypt TLS, and systemd service management. Deploy with `just nixos-deploy-staging` / `just nixos-deploy-prod` via `nixos-rebuild --target-host`.
