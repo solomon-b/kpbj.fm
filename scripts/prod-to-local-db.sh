@@ -5,10 +5,9 @@
 # User and Host accounts have their email, password, and names anonymized.
 # Staff and Admin accounts retain their real credentials.
 #
-# Usage: ./scripts/prod-to-local-db.sh
+# Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
 #
-# Required environment variables:
-#   PROD_DB_PASSWORD  - Production database password
+# Usage: ./scripts/prod-to-local-db.sh
 #
 # Prerequisites:
 #   - Local PostgreSQL running (just dev-postgres-start)
@@ -35,12 +34,8 @@ if [ "$CONFIRM" != "yes" ]; then
   exit 1
 fi
 
-# Validate environment variables
-if [ -z "${PROD_DB_PASSWORD:-}" ]; then
-  echo "ERROR: PROD_DB_PASSWORD environment variable is not set."
-  echo "Add to your .envrc.local: export PROD_DB_PASSWORD=\"<password>\""
-  exit 1
-fi
+echo "Loading credentials from SOPS..."
+export PROD_DB_PASSWORD=$(load_secret prod db_password)
 
 # Check if local postgres is running
 if ! pg_isready -h localhost -p "$DEV_DB_PORT" -q; then

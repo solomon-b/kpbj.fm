@@ -5,17 +5,9 @@
 # Database: PII is sanitized for User and Host accounts.
 # S3: Incremental sync — only copies new/changed files.
 #
-# Usage: ./scripts/prod-to-staging.sh <PROD_AWS_ACCESS_KEY_ID> <PROD_AWS_SECRET_ACCESS_KEY>
+# Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
 #
-# Arguments:
-#   PROD_AWS_ACCESS_KEY_ID      - Production Tigris access key ID
-#   PROD_AWS_SECRET_ACCESS_KEY  - Production Tigris secret access key
-#
-# Required environment variables:
-#   PROD_DB_PASSWORD       - Production database password
-#   STAGING_DB_PASSWORD    - Staging database password
-#   AWS_ACCESS_KEY_ID      - Staging Tigris access key ID
-#   AWS_SECRET_ACCESS_KEY  - Staging Tigris secret access key
+# Usage: ./scripts/prod-to-staging.sh
 #
 
 set -euo pipefail
@@ -25,15 +17,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 # shellcheck source=lib/sync-s3.sh
 source "$SCRIPT_DIR/lib/sync-s3.sh"
-
-# Parse arguments
-if [ $# -lt 2 ]; then
-  echo "Usage: $0 <PROD_AWS_ACCESS_KEY_ID> <PROD_AWS_SECRET_ACCESS_KEY>"
-  exit 1
-fi
-
-export PROD_AWS_ACCESS_KEY_ID="$1"
-export PROD_AWS_SECRET_ACCESS_KEY="$2"
 
 echo "========================================"
 echo "Production to Staging Full Copy"
@@ -50,28 +33,13 @@ if [ "$CONFIRM" != "yes" ]; then
   exit 1
 fi
 
-# Validate all required credentials
-if [ -z "${PROD_DB_PASSWORD:-}" ]; then
-  echo "ERROR: PROD_DB_PASSWORD environment variable is not set."
-  echo "Add to your .envrc.local: export PROD_DB_PASSWORD=\"<password>\""
-  exit 1
-fi
-if [ -z "${STAGING_DB_PASSWORD:-}" ]; then
-  echo "ERROR: STAGING_DB_PASSWORD environment variable is not set."
-  exit 1
-fi
-if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
-  echo "ERROR: AWS_ACCESS_KEY_ID environment variable is not set (for staging)."
-  exit 1
-fi
-if [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-  echo "ERROR: AWS_SECRET_ACCESS_KEY environment variable is not set (for staging)."
-  exit 1
-fi
-
-# Store staging S3 credentials before they might be overwritten
-export STAGING_AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
-export STAGING_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+echo "Loading credentials from SOPS..."
+export PROD_DB_PASSWORD=$(load_secret prod db_password)
+export STAGING_DB_PASSWORD=$(load_secret staging db_password)
+export PROD_AWS_ACCESS_KEY_ID=$(load_secret prod aws_access_key_id)
+export PROD_AWS_SECRET_ACCESS_KEY=$(load_secret prod aws_secret_access_key)
+export STAGING_AWS_ACCESS_KEY_ID=$(load_secret staging aws_access_key_id)
+export STAGING_AWS_SECRET_ACCESS_KEY=$(load_secret staging aws_secret_access_key)
 
 echo ""
 echo "========================================"

@@ -6,6 +6,16 @@
 # Usage: source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 #
 
+SECRETS_FILE="secrets/backup.yaml"
+
+# Load a secret from the SOPS-encrypted backup secrets file.
+# Usage: load_secret "prod" "db_password"
+load_secret() {
+  local section="$1"
+  local key="$2"
+  sops -d --extract "[\"${section}\"][\"${key}\"]" "$SECRETS_FILE"
+}
+
 # Argon2 hash for "hunter2" - used to sanitize passwords in non-production databases
 # Password: hunter2
 # shellcheck disable=SC2016  # Literal $ signs in Argon2 hash, not variables
