@@ -41,6 +41,10 @@ module Effects.Database.Tables.ShowSchedule
     getUpcomingShowDates,
     getUpcomingUnscheduledShowDates,
     makeUpcomingShowDateFromTemplate,
+
+    -- * Missing Episodes
+    ShowMissingEpisode (..),
+    getShowsMissingEpisodes,
   )
 where
 
@@ -752,3 +756,100 @@ makeUpcomingShowDateFromTemplate template scheduledAt =
               else -- Overnight show: add 24 hours worth of seconds
                 (24 * 60 * 60) - timeOfDayToTime startTod + timeOfDayToTime endTod
        in addUTCTime (realToFrac durationSecs) startTime
+
+--------------------------------------------------------------------------------
+-- Missing Episodes
+
+-- | A show scheduled within the next 7 days that is missing an episode upload.
+data ShowMissingEpisode = ShowMissingEpisode
+  { smeShowId :: Shows.Id,
+    smeShowTitle :: Text,
+    smeShowSlug :: Slug,
+    smeHostNames :: Text,
+    smeShowDate :: Day,
+    smeDayOfWeek :: DayOfWeek,
+    smeStartTime :: TimeOfDay,
+    smeEndTime :: TimeOfDay
+  }
+  deriving stock (Show, Generic, Eq)
+  deriving anyclass (DecodeRow)
+
+instance Display ShowMissingEpisode where
+  displayBuilder _ = "ShowMissingEpisode"
+
+-- | Get all shows scheduled in the next 7 days that are missing episode uploads.
+--
+-- A show is "missing" if either:
+-- - No episode exists for that scheduled time slot
+-- - An episode exists but has no audio file uploaded
+--
+-- Excludes soft-deleted shows. Results are sorted by scheduled date ascending.
+getShowsMissingEpisodes :: Hasql.Statement () [ShowMissingEpisode]
+getShowsMissingEpisodes =
+  interp
+    False
+    [sql|
+    WITH RECURSIVE date_series AS (
+      SELECT CURRENT_DATE as date, 1 as n
+      UNION ALL
+      SELECT date + 1, n + 1
+      FROM date_series
+      WHERE n < 7
+    ),
+    schedule_instances AS (
+      SELECT DISTINCT
+        st.show_id,
+        s.title as show_title,
+        s.slug as show_slug,
+        ds.date as show_date,
+        st.day_of_week,
+        st.start_time,
+        st.end_time,
+        st.timezone
+      FROM schedule_templates st
+      JOIN schedule_template_validity stv ON stv.template_id = st.id
+      JOIN shows s ON s.id = st.show_id
+      CROSS JOIN date_series ds
+      WHERE s.status = 'active'
+        AND s.deleted_at IS NULL
+        AND st.day_of_week IS NOT NULL
+        AND stv.effective_from <= ds.date
+        AND (stv.effective_until IS NULL OR stv.effective_until > ds.date)
+        AND EXTRACT(DOW FROM ds.date)::INTEGER =
+            CASE st.day_of_week::TEXT
+              WHEN 'sunday' THEN 0
+              WHEN 'monday' THEN 1
+              WHEN 'tuesday' THEN 2
+              WHEN 'wednesday' THEN 3
+              WHEN 'thursday' THEN 4
+              WHEN 'friday' THEN 5
+              WHEN 'saturday' THEN 6
+            END
+        AND (
+          st.weeks_of_month IS NULL OR
+          CEIL(EXTRACT(DAY FROM ds.date) / 7.0)::INTEGER = ANY(st.weeks_of_month)
+        )
+    )
+    SELECT
+      si.show_id,
+      si.show_title,
+      si.show_slug,
+      COALESCE(
+        STRING_AGG(COALESCE(um.display_name, um.full_name), ', ' ORDER BY sh.joined_at),
+        'TBD'
+      ) as host_names,
+      si.show_date,
+      si.day_of_week,
+      si.start_time,
+      si.end_time
+    FROM schedule_instances si
+    LEFT JOIN episodes e ON e.show_id = si.show_id
+      AND e.scheduled_at = (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone
+      AND e.deleted_at IS NULL
+    LEFT JOIN show_hosts sh ON sh.show_id = si.show_id AND sh.left_at IS NULL
+    LEFT JOIN users u ON u.id = sh.user_id
+    LEFT JOIN user_metadata um ON um.user_id = u.id
+    WHERE (e.id IS NULL OR e.audio_file_path IS NULL)
+    GROUP BY si.show_id, si.show_title, si.show_slug, si.show_date, si.day_of_week, si.start_time, si.end_time
+    ORDER BY si.show_date ASC, si.start_time ASC
+  |]

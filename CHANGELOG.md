@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Missing Episodes Dashboard** - Added admin page at `/dashboard/missing-episodes` showing shows scheduled within the next 7 days that are missing episode uploads (no episode or episode without audio). Table displays show title, hosts, scheduled date, day of week, and time slot, sorted by soonest deadline first. Accessible to staff and admin roles via the sidebar.
 - **Liquidsoap Audio Processing** - Added normalization, compression, and limiting to the Liquidsoap broadcast chain. Normalizes volume across tracks (±6 dB range), compresses dynamic range (3:1 ratio, -10 dB threshold), and hard-limits at -1 dB to prevent clipping.
 
 ### Improvements

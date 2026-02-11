@@ -63,6 +63,7 @@ import API.Dashboard.Events.Slug.Edit.Get.Route qualified as Dashboard.Events.Sl
 import API.Dashboard.Events.Slug.Edit.Post.Route qualified as Dashboard.Events.Slug.Edit.Post
 import API.Dashboard.Events.Slug.Get.Route qualified as Dashboard.Events.Slug.Get
 import API.Dashboard.Get.Route qualified as Dashboard.Get
+import API.Dashboard.MissingEpisodes.Get.Route qualified as Dashboard.MissingEpisodes.Get
 import API.Dashboard.Profile.Edit.Get.Route qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Route qualified as Dashboard.Profile.Edit.Post
 import API.Dashboard.Shows.Get.Route qualified as Dashboard.Shows.Get
@@ -334,7 +335,9 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @/dashboard/site-pages/...@ - Site pages management routes
     sitePages :: mode :- NamedRoutes DashboardSitePagesRoutes,
     -- | @/dashboard/stream-settings/...@ - Stream settings routes
-    streamSettings :: mode :- NamedRoutes DashboardStreamSettingsRoutes
+    streamSettings :: mode :- NamedRoutes DashboardStreamSettingsRoutes,
+    -- | @GET /dashboard/missing-episodes@ - Shows missing episode uploads
+    missingEpisodes :: mode :- Dashboard.MissingEpisodes.Get.Route
   }
   deriving stock (Generic)
 

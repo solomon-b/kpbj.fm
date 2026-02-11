@@ -22,6 +22,7 @@ import Effects.Database.Tables.PlaybackHistorySpec qualified as PlaybackHistory
 import Effects.Database.Tables.ShowBlogPostsSpec qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTagsSpec qualified as ShowBlogTags
 import Effects.Database.Tables.ShowHostSpec qualified as ShowHost
+import Effects.Database.Tables.ShowScheduleMissingEpisodesSpec qualified as ShowScheduleMissingEpisodes
 import Effects.Database.Tables.ShowScheduleSpec qualified as ShowSchedule
 import Effects.Database.Tables.ShowTagsSpec qualified as ShowTags
 import Effects.Database.Tables.ShowsSpec qualified as Shows
@@ -83,6 +84,7 @@ main = do
     Events.spec
     ShowHost.spec
     ShowSchedule.spec
+    ShowScheduleMissingEpisodes.spec
     StagedUploads.spec
 
     -- DB Models - Tags
