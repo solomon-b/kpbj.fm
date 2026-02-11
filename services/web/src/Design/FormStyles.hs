@@ -22,6 +22,6 @@ import Data.Text.Encoding (decodeUtf8)
 formBuilderCSS :: Text
 formBuilderCSS = decodeUtf8 formBuilderCSSBytes
 
--- | Raw CSS bytes embedded from static/forms.css
+-- | Raw CSS bytes embedded from static/forms.css.
 formBuilderCSSBytes :: ByteString
 formBuilderCSSBytes = $(embedFile "static/forms.css")
