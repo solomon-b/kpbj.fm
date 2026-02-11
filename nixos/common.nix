@@ -29,13 +29,6 @@
     allowedTCPPorts = [ 22 80 443 ];
   };
 
-  # ── Podman ──────────────────────────────────────────────────
-  virtualisation.podman = {
-    enable = true;
-    dockerSocket.enable = true; # Podman socket as /var/run/docker.sock
-    defaultNetwork.settings.dns_enabled = true;
-  };
-
   # ── Nix ─────────────────────────────────────────────────────
   nix = {
     settings.experimental-features = [ "nix-command" "flakes" ];

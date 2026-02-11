@@ -1,11 +1,11 @@
 - id: restart-icecast
-  execute-command: /bin/docker
+  execute-command: '{{ getenv "RESTART_CMD" }}'
   command-working-directory: /
   pass-arguments-to-command:
     - source: string
       name: restart
-    - source: environment
-      envname: ICECAST_CONTAINER
+    - source: string
+      name: '{{ getenv "ICECAST_SERVICE" }}'
   trigger-rule:
     match:
       type: value
@@ -15,13 +15,13 @@
         name: X-Webhook-Secret
 
 - id: restart-liquidsoap
-  execute-command: /bin/docker
+  execute-command: '{{ getenv "RESTART_CMD" }}'
   command-working-directory: /
   pass-arguments-to-command:
     - source: string
       name: restart
-    - source: environment
-      envname: LIQUIDSOAP_CONTAINER
+    - source: string
+      name: '{{ getenv "LIQUIDSOAP_SERVICE" }}'
   trigger-rule:
     match:
       type: value
