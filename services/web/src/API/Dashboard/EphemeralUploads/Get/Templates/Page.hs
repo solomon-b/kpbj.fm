@@ -21,6 +21,7 @@ import Component.Table
   )
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
@@ -89,6 +90,7 @@ renderEphemeralUploadRow ::
 renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
   let ephemeralUploadId = ephemeralUpload.euwcId
       title = ephemeralUpload.euwcTitle
+      desc = ephemeralUpload.euwcDescription
       creatorName = ephemeralUpload.euwcCreatorDisplayName
       createdAt = ephemeralUpload.euwcCreatedAt
       audioPath = ephemeralUpload.euwcAudioFilePath
@@ -115,9 +117,11 @@ renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
    in do
         Lucid.tr_ (rowAttrs rowId) $ do
           -- Title cell
-          Lucid.td_ [class_ $ base [Tokens.p4]] $
+          Lucid.td_ [class_ $ base [Tokens.p4]] $ do
             Lucid.span_ [Lucid.class_ Tokens.fontBold] $
               Lucid.toHtml title
+            Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "truncate", "max-w-xs"]] $
+              Lucid.toHtml (Text.take 100 desc)
 
           -- Creator cell
           Lucid.td_ [class_ $ base [Tokens.p4]] $

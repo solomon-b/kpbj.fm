@@ -29,6 +29,7 @@ type Route =
 -- | Form data for ephemeral upload edit
 data FormData = FormData
   { fdTitle :: Text,
+    fdDescription :: Text,
     -- | Optional new audio file token (empty if not re-uploading)
     fdAudioToken :: Text
   }
@@ -38,4 +39,5 @@ instance FromMultipart Mem FormData where
   fromMultipart multipartData =
     FormData
       <$> lookupInput "title" multipartData
+      <*> lookupInput "description" multipartData
       <*> pure (fromRight "" $ lookupInput "audio_file_token" multipartData)

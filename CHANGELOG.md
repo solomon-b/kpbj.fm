@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Features
+- **Ephemeral Upload Descriptions** - Added a required `description` field to ephemeral uploads (min 80 characters). Existing uploads are backfilled with their title. Both new and edit forms include an editorial guidelines notice reminding submitters that ephemeral clips speak as the voice of the station. Description is shown as a truncated secondary line in the uploads list.
 - **Host Email Sync Job** - New standalone Haskell job (`sync-host-emails`) that syncs host email addresses to a Google Group via the Google Admin SDK. Runs as a NixOS systemd timer on the VPS. Google service account credentials managed via SOPS. Terraform provisions the Google project and service account.
 
 ### Fixes

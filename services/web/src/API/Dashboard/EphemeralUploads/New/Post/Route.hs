@@ -14,18 +14,19 @@ import Text.HTML (HTML)
 
 -- | "POST /dashboard/ephemeral-uploads/new"
 type Route =
-    "dashboard"
-      :> "ephemeral-uploads"
-      :> "new"
-      :> Servant.Header "Cookie" Cookie
-      :> MultipartForm Mem FormData
-      :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  "dashboard"
+    :> "ephemeral-uploads"
+    :> "new"
+    :> Servant.Header "Cookie" Cookie
+    :> MultipartForm Mem FormData
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 
 --------------------------------------------------------------------------------
 
 -- | Form data for ephemeral upload
 data FormData = FormData
   { fdTitle :: Text,
+    fdDescription :: Text,
     fdAudioToken :: Text
   }
   deriving stock (Show)
@@ -34,4 +35,5 @@ instance FromMultipart Mem FormData where
   fromMultipart multipartData =
     FormData
       <$> lookupInput "title" multipartData
+      <*> lookupInput "description" multipartData
       <*> lookupInput "audio_file_token" multipartData
