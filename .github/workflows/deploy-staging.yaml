@@ -38,9 +38,6 @@ jobs:
       - name: Deploy NixOS configuration
         run: |
           nix shell nixpkgs#nixos-rebuild -c \
-            nixos-rebuild boot \
+            nixos-rebuild switch \
             --flake .#kpbj-stream-staging \
             --target-host root@staging.kpbj.fm
-
-      - name: Reboot into new configuration
-        run: ssh root@staging.kpbj.fm reboot
