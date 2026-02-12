@@ -30,7 +30,6 @@ import Effects.Database.Tables.SitePageRevisionsSpec qualified as SitePageRevisi
 import Effects.Database.Tables.SitePagesSpec qualified as SitePages
 import Effects.Database.Tables.StagedUploadsSpec qualified as StagedUploads
 import Effects.Database.Tables.StationIdsSpec qualified as StationIds
-import Effects.Database.Tables.StreamSettingsSpec qualified as StreamSettings
 import Effects.Database.Tables.UserMetadataSpec qualified as UserMetadata
 import Effects.Database.Tables.UserRoleSpec qualified as UserRole
 import Effects.DiffSpec qualified as Diff
@@ -103,7 +102,6 @@ main = do
 
     -- DB Models - Special Tables
     PlaybackHistory.spec
-    StreamSettings.spec
 
     -- DB Models - Auth Tokens
     EmailVerificationTokens.spec

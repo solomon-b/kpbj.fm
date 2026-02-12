@@ -9,16 +9,19 @@ import API.Dashboard.StreamSettings.Get.Templates.Form (IcecastStatus (..), temp
 import API.Links (apiLinks)
 import API.Types (Routes (..))
 import App.Common (renderDashboardTemplate)
+import App.CustomContext (StreamConfig (..))
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
+import App.Handler.Error (handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (asks)
 import Data.Aeson (Value (..))
 import Data.Aeson.Key (fromText)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Either (fromRight)
+import Data.Has (getter)
 import Data.Maybe (listToMaybe)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
@@ -26,7 +29,6 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.StreamSettings qualified as StreamSettings
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -51,15 +53,11 @@ handler cookie (foldHxReq -> hxRequest) =
         else execQuery (Shows.getShowsForUser (User.mId user))
     let allShows = fromRight [] showsResult
 
-    -- 3. Fetch stream settings
-    settingsResult <- execQuery StreamSettings.getStreamSettings
-    settings <- case settingsResult of
-      Left err -> throwDatabaseError err
-      Right Nothing -> throwNotFound "Stream settings not found in database."
-      Right (Just s) -> pure s
+    -- 3. Read stream config from environment
+    streamCfg <- asks (getter @StreamConfig)
 
     -- 4. Fetch icecast status
-    (icecastReachable, icecastStatus) <- fetchIcecastStatus settings.ssMetadataUrl
+    (icecastReachable, icecastStatus) <- fetchIcecastStatus streamCfg.scMetadataUrl
 
     -- 5. Fetch recent playback history
     historyResult <- execQuery (PlaybackHistory.getRecentPlayback 50)
@@ -67,7 +65,7 @@ handler cookie (foldHxReq -> hxRequest) =
 
     -- 6. Render response
     let selectedShow = listToMaybe allShows
-    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStreamSettings Nothing Nothing (template settings icecastReachable icecastStatus recentHistory Nothing)
+    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStreamSettings Nothing Nothing (template icecastReachable icecastStatus recentHistory)
 
 -- | Fetch status from icecast metadata endpoint.
 --
