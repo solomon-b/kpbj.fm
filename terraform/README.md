@@ -94,7 +94,7 @@ just tf-validate
 - **GitHub Actions CI/CD** — workflows in `.github/workflows/`
 - **NixOS streaming VPS configuration** — deployed via `just nixos-deploy-*`
 - **Streaming secrets** — SOPS-encrypted in `secrets/`, decrypted by sops-nix on VPS
-- **fly.toml / fly.staging.toml** — used by CI deploy workflows
+- **fly.toml** — used by CI production deploy workflow
 - **GHCR image builds** — handled by GitHub Actions
 
 ## File Overview

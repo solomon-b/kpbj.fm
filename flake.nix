@@ -213,6 +213,7 @@
       nixosConfigurations =
         let
           sync-host-emails = self.packages.x86_64-linux.sync-host-emails;
+          kpbj-api = self.packages.x86_64-linux.kpbj-api;
         in
         {
           kpbj-stream-prod = nixpkgs.lib.nixosSystem {
@@ -225,7 +226,7 @@
           };
           kpbj-stream-staging = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails; };
+            specialArgs = { inherit sync-host-emails kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               ./nixos/staging.nix

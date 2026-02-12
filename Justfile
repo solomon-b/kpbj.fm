@@ -289,84 +289,76 @@ release-notes-preview:
 # =============================================================================
 # Deployment (Staging)
 # =============================================================================
-# Deploy and manage the staging environment on Fly.io.
-# Prerequisites: flyctl (authenticated), STAGING_DB_PASSWORD env var for migrations
+# Deploy and manage the staging environment on the DigitalOcean VPS.
+# The staging web service runs as a native NixOS systemd service.
+# Prerequisites: SSH access to staging VPS, sops (for DB password)
 
-STAGING_APP := "kpbj-fm-staging"
-STAGING_DB_APP := "kpbj-postgres-staging"
-STAGING_DB_NAME := "kpbj_fm_staging"
-STAGING_CONFIG := "services/web/fly.staging.toml"
+STAGING_VPS_TARGET := "root@staging.kpbj.fm"
+STAGING_DB_NAME := "kpbj_fm"
+STAGING_DB_USER := "kpbj_fm"
 
-# Deploy to staging
-staging-deploy: _require-fly
-  fly deploy -c {{STAGING_CONFIG}}
+# View staging web service logs
+staging-logs:
+  ssh {{STAGING_VPS_TARGET}} journalctl -u kpbj-web -f
 
-# View staging logs
-staging-logs: _require-fly
-  fly logs --app {{STAGING_APP}}
-
-# View staging app status
-staging-status: _require-fly
-  fly status --app {{STAGING_APP}}
+# View staging service status
+staging-status:
+  ssh {{STAGING_VPS_TARGET}} systemctl status kpbj-web kpbj-postgres-setup postgresql
 
 # Open staging in browser
 staging-open:
-  fly open --app {{STAGING_APP}}
+  xdg-open https://staging.kpbj.fm 2>/dev/null || open https://staging.kpbj.fm
 
-# Connect to staging database with psql
-staging-psql: _require-fly
-  fly postgres connect --app {{STAGING_DB_APP}} -d {{STAGING_DB_NAME}}
+# Connect to staging database with psql (via SSH tunnel)
+staging-psql:
+  ssh -t {{STAGING_VPS_TARGET}} sudo -u postgres psql -d {{STAGING_DB_NAME}}
+
+# Run migrations on staging (via SSH tunnel)
+staging-migrations-run: _require-sops
+  #!/usr/bin/env bash
+  set -euo pipefail
+  STAGING_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/staging-web.yaml)
+  echo "Opening SSH tunnel..."
+  ssh -f -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}}
+  TUNNEL_PID=$!
+  trap "kill $TUNNEL_PID 2>/dev/null || true" EXIT
+  sleep 2
+  DATABASE_URL="postgres://{{STAGING_DB_USER}}:${STAGING_DB_PASSWORD}@localhost:{{STAGING_PROXY_PORT}}/{{STAGING_DB_NAME}}" \
+    sqlx migrate run --source services/web/migrations
 
 # Reset staging database (drops all tables, re-runs migrations)
-staging-migrations-reset:
-  @echo "⚠️  Resetting staging database (this will delete all data)..."
-  @echo "Starting proxy in background..."
-  fly proxy {{STAGING_PROXY_PORT}}:5432 -a {{STAGING_DB_APP}} &
-  @sleep 3
-  @echo "Stopping staging app to release database connections..."
-  fly scale count 0 --app {{STAGING_APP}} --yes
-  @echo "Dropping database..."
-  psql "postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:{{STAGING_PROXY_PORT}}/postgres" -c "DROP DATABASE IF EXISTS {{STAGING_DB_NAME}} WITH (FORCE);"
-  @echo "Creating database..."
-  psql "postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:{{STAGING_PROXY_PORT}}/postgres" -c "CREATE DATABASE {{STAGING_DB_NAME}};"
-  @echo "Running migrations..."
-  DATABASE_URL='postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:{{STAGING_PROXY_PORT}}/{{STAGING_DB_NAME}}' sqlx migrate run --source services/web/migrations
-  @echo "Restarting staging app..."
-  fly scale count 1 --app {{STAGING_APP}} --yes
-  @just staging-proxy-close
-  @echo "✨ Staging database reset complete!"
+staging-migrations-reset: _require-sops
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "⚠️  Resetting staging database (this will delete all data)..."
+  read -rp "Type 'yes' to confirm: " CONFIRM
+  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
+  STAGING_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/staging-web.yaml)
+  echo "Stopping staging web service..."
+  ssh {{STAGING_VPS_TARGET}} systemctl stop kpbj-web
+  echo "Opening SSH tunnel..."
+  ssh -f -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}}
+  TUNNEL_PID=$!
+  trap "kill $TUNNEL_PID 2>/dev/null || true; ssh {{STAGING_VPS_TARGET}} systemctl start kpbj-web" EXIT
+  sleep 2
+  echo "Dropping and recreating database..."
+  ssh {{STAGING_VPS_TARGET}} "sudo -u postgres psql -c \"DROP DATABASE IF EXISTS {{STAGING_DB_NAME}} WITH (FORCE);\" && sudo -u postgres psql -c \"CREATE DATABASE {{STAGING_DB_NAME}} OWNER {{STAGING_DB_USER}};\""
+  echo "Running migrations..."
+  DATABASE_URL="postgres://{{STAGING_DB_USER}}:${STAGING_DB_PASSWORD}@localhost:{{STAGING_PROXY_PORT}}/{{STAGING_DB_NAME}}" \
+    sqlx migrate run --source services/web/migrations
+  echo "✨ Staging database reset complete!"
 
-# Run migrations on staging (via proxy)
-staging-migrations-run:
-  @echo "Starting proxy in background..."
-  fly proxy {{STAGING_PROXY_PORT}}:5432 -a {{STAGING_DB_APP}} &
-  @sleep 2
-  DATABASE_URL='postgres://postgres:{{env_var("STAGING_DB_PASSWORD")}}@localhost:{{STAGING_PROXY_PORT}}/{{STAGING_DB_NAME}}' sqlx migrate run --source services/web/migrations
-  @pkill -f "fly proxy {{STAGING_PROXY_PORT}}"
+# SSH into staging VPS
+staging-ssh:
+  ssh {{STAGING_VPS_TARGET}}
 
-# Open proxy to staging database (runs in foreground)
-staging-proxy-open:
-  fly proxy {{STAGING_PROXY_PORT}}:5432 -a {{STAGING_DB_APP}}
+# Restart staging web service
+staging-restart:
+  ssh {{STAGING_VPS_TARGET}} systemctl restart kpbj-web
 
-# Close staging database proxy
-staging-proxy-close:
-  @kill $(lsof -ti:{{STAGING_PROXY_PORT}}) 2>/dev/null && echo "Proxy closed" || echo "No proxy running"
-
-# SSH into staging app
-staging-ssh: _require-fly
-  fly ssh console --app {{STAGING_APP}}
-
-# Restart staging app
-staging-restart: _require-fly
-  fly apps restart {{STAGING_APP}}
-
-# View staging secrets
-staging-secrets:
-  fly secrets list --app {{STAGING_APP}}
-
-# View staging machines
-staging-machines:
-  fly machines list --app {{STAGING_APP}}
+# Edit staging web secrets
+staging-secrets: _require-sops
+  sops secrets/staging-web.yaml
 
 # =============================================================================
 # Deployment (Production)
@@ -565,25 +557,9 @@ fly-sync-secrets-prod: _require-sops _require-fly
     "GOOGLE_GROUP_EMAIL=$GOOGLE_GROUP_EMAIL" \
     --app kpbj-fm
 
-# Sync streaming secrets to Fly.io (staging)
-fly-sync-secrets-staging: _require-sops _require-fly
-  #!/usr/bin/env bash
-  set -euo pipefail
-  PLAYOUT_SECRET=$(sops -d --extract '["playout_secret"]' secrets/staging-streaming.yaml)
-  WEBHOOK_SECRET=$(sops -d --extract '["webhook_secret"]' secrets/staging-streaming.yaml)
-  GOOGLE_SA_EMAIL=$(sops -d --extract '["google_sa_email"]' secrets/google.yaml)
-  GOOGLE_SA_PRIVATE_KEY=$(sops -d --extract '["google_sa_private_key"]' secrets/google.yaml)
-  GOOGLE_DELEGATED_USER=$(sops -d --extract '["google_delegated_user"]' secrets/google.yaml)
-  GOOGLE_GROUP_EMAIL=$(sops -d --extract '["google_group_email"]' secrets/google.yaml)
-  fly secrets set \
-    "PLAYOUT_SECRET=$PLAYOUT_SECRET" \
-    "WEBHOOK_SECRET=$WEBHOOK_SECRET" \
-    "WEBHOOK_URL=https://stream.staging.kpbj.fm" \
-    "GOOGLE_SA_EMAIL=$GOOGLE_SA_EMAIL" \
-    "GOOGLE_SA_PRIVATE_KEY=$GOOGLE_SA_PRIVATE_KEY" \
-    "GOOGLE_DELEGATED_USER=$GOOGLE_DELEGATED_USER" \
-    "GOOGLE_GROUP_EMAIL=$GOOGLE_GROUP_EMAIL" \
-    --app kpbj-fm-staging
+# Edit staging web secrets (DB password, SMTP, AWS keys)
+sops-edit-staging-web: _require-sops
+  sops secrets/staging-web.yaml
 
 # Get a VPS host's age public key (for adding to .sops.yaml)
 sops-host-key HOST:

@@ -198,17 +198,6 @@ curl -I https://stream.staging.kpbj.fm/stream
 ssh root@stream.staging.kpbj.fm systemctl status nginx
 ```
 
-### Sync staging secrets to Fly.io
-
-```bash
-just fly-sync-secrets-staging
-
-# Verify
-fly secrets list --app kpbj-fm-staging
-```
-
-The staging web service will restart with the new `PLAYOUT_SECRET` and `WEBHOOK_SECRET`. Verify that the playout API works end-to-end (Liquidsoap should be polling and streaming).
-
 ## Phase 8: Deploy Production
 
 Once staging is verified:
@@ -360,7 +349,7 @@ ssh root@<ip> "podman pull ghcr.io/solomon-b/kpbj-liquidsoap:latest && systemctl
 | Edit streaming secrets | `just sops-edit-prod-streaming` / `just sops-edit-staging-streaming` |
 | Edit Terraform secrets | `just tf-edit-secrets` |
 | Deploy NixOS config | `just nixos-deploy-prod` / `just nixos-deploy-staging` |
-| Sync secrets to Fly.io | `just fly-sync-secrets-prod` / `just fly-sync-secrets-staging` |
+| Sync secrets to Fly.io | `just fly-sync-secrets-prod` |
 | Get a host's age key | `just sops-host-key <hostname>` |
 | Preview infra changes | `just tf-plan` |
 | Apply infra changes | `just tf-apply` |

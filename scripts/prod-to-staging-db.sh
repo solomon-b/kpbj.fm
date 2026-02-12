@@ -5,7 +5,8 @@
 # User and Host accounts have their email, password, and names anonymized.
 # Staff and Admin accounts retain their real credentials.
 #
-# Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
+# Production database lives on Fly.io, staging database lives on the VPS.
+# Credentials are loaded from SOPS-encrypted secrets.
 #
 # Usage: ./scripts/prod-to-staging-db.sh
 #
@@ -32,39 +33,33 @@ fi
 
 echo "Loading credentials from SOPS..."
 export PROD_DB_PASSWORD=$(load_secret prod db_password)
-export STAGING_DB_PASSWORD=$(load_secret staging db_password)
-
-echo ""
-echo "Starting database proxies..."
-
-# Start production proxy
-fly proxy "$PROD_PROXY_PORT:5432" -a "$PROD_DB_APP" &
-PROD_PROXY_PID=$!
-
-# Start staging proxy
-fly proxy "$STAGING_PROXY_PORT:5432" -a "$STAGING_DB_APP" &
-STAGING_PROXY_PID=$!
+export STAGING_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/staging-web.yaml)
 
 # Cleanup function
 cleanup() {
-  echo "Cleaning up proxies..."
+  echo "Cleaning up..."
   kill "$PROD_PROXY_PID" 2>/dev/null || true
-  kill "$STAGING_PROXY_PID" 2>/dev/null || true
+  kill "$STAGING_TUNNEL_PID" 2>/dev/null || true
+  ssh "$STAGING_VPS_TARGET" systemctl start kpbj-web 2>/dev/null || true
 }
 trap cleanup EXIT
 
+echo ""
+echo "Starting production database proxy..."
+fly proxy "$PROD_PROXY_PORT:5432" -a "$PROD_DB_APP" &
+PROD_PROXY_PID=$!
+
+echo "Opening SSH tunnel to staging VPS..."
+ssh -f -N -L "$STAGING_PROXY_PORT:127.0.0.1:5432" "$STAGING_VPS_TARGET"
+STAGING_TUNNEL_PID=$(lsof -ti:"$STAGING_PROXY_PORT" 2>/dev/null || true)
+
 sleep 3
 
-echo "Stopping staging app to release database connections..."
-fly scale count 0 --app "$STAGING_APP" --yes
+echo "Stopping staging web service to release database connections..."
+ssh "$STAGING_VPS_TARGET" systemctl stop kpbj-web
 
-echo "Dropping staging database..."
-psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/postgres" \
-  -c "DROP DATABASE IF EXISTS $STAGING_DB_NAME WITH (FORCE);"
-
-echo "Creating staging database..."
-psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/postgres" \
-  -c "CREATE DATABASE $STAGING_DB_NAME;"
+echo "Dropping and recreating staging database..."
+ssh "$STAGING_VPS_TARGET" "sudo -u postgres psql -c \"DROP DATABASE IF EXISTS $STAGING_DB_NAME WITH (FORCE);\" && sudo -u postgres psql -c \"CREATE DATABASE $STAGING_DB_NAME OWNER $STAGING_DB_USER;\""
 
 echo "Copying production database to staging..."
 pg_dump "postgres://$PROD_DB_USER:$PROD_DB_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
@@ -75,8 +70,8 @@ psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_
   -v password_hash="'$SANITIZED_PASSWORD_HASH'" \
   -f "$SCRIPT_DIR/lib/sanitize-pii.sql"
 
-echo "Restarting staging app..."
-fly scale count 1 --app "$STAGING_APP" --yes
+echo "Starting staging web service..."
+ssh "$STAGING_VPS_TARGET" systemctl start kpbj-web
 
 echo ""
 echo "========================================"

@@ -16,42 +16,50 @@
             │ HTTPS                     └─────────────┬─────────────┘
             │                                         │
             ▼                                         ▼
-┌──────────────────────────┐            ┌───────────────────────────────────┐
-│      STREAMING VPS       │            │           FLY.IO                  │
-│                          │            │                                   │
-│  ┌─────────────────┐     │   HTTPS    │  ┌─────────────────────────────┐  │
-│  │      Nginx      │ ◄───────────────────│       WEB SERVICE           │  │
-│  └────────┬────────┘     │(poll+fetch)│  │                             │  │
-│           │              │            │  │  • Haskell/Servant          │  │
-│           │ HTTP         │            │  │  • Server-side HTML         │  │
-│           ▼              │            │  │  • Episode management       │  │
-│  ┌─────────────────┐     │   ┌───────────│  • User authentication      │  │
-│  │     Icecast     │     │   │        │  │                             │  │
-│  │                 │     │   │        │  └──────────────┬──────────────┘  │
-│  │  • /stream      │     │   │        │                 │                 │
-│  │  • 100 clients  │     │   │        │        ┌────────┴────────┐        │
-│  │  • 128kbps MP3  │     │   │        │        │                 │        │
-│  └────────▲────────┘     │   │        │        ▼                 ▼        │
-│           │              │   │        │  ┌───────────┐    ┌───────────┐   │
-│           │ MP3          │   │        │  │ PostgreSQL│    │ Tigris S3 │   │
-│           │              │   │        │  │           │    │           │   │
-│  ┌────────┴────────┐     │   │        │  │ • Users   │    │ • Audio   │   │
-│  │    Liquidsoap   │     │   │        │  │ • Shows   │    │ • Images  │   │
-│  │                 │─────────┘        │  │ • Episodes│    │           │   │
-│  │  • Polls API    │     │            │  │ • Blogs   │    │           │   │
-│  │  • Mixes audio  │     │            │  └───────────┘    └───────────┘   │
-│  │  • Crossfades   │     │            │                                   │
-│  └─────────────────┘     │            └───────────────────────────────────┘
-│                          │
-└──────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DIGITALOCEAN VPS (staging)                          │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────┐           │
+│  │                          Nginx                               │           │
+│  │  stream.staging.kpbj.fm → Icecast     staging.kpbj.fm → Web │           │
+│  └───────┬──────────────────────────────────────────┬───────────┘           │
+│          │ HTTP                                     │ HTTP                  │
+│          ▼                                          ▼                      │
+│  ┌─────────────────┐                       ┌─────────────────┐             │
+│  │     Icecast     │                       │   WEB SERVICE   │             │
+│  │  • /stream      │                       │  • Haskell      │             │
+│  │  • 128kbps MP3  │                       │  • Servant      │             │
+│  └────────▲────────┘                       │  • HTMX         │             │
+│           │ MP3                             └────────┬────────┘             │
+│  ┌────────┴────────┐                                │                      │
+│  │    Liquidsoap   │       localhost                 │                      │
+│  │  • Polls API ───────────────────────────────────►│                      │
+│  │  • Crossfades   │                       ┌────────┴────────┐             │
+│  └─────────────────┘                       │   PostgreSQL    │             │
+│                                            │  • Users, Shows │             │
+│                                            │  • Episodes     │             │
+│                                            └─────────────────┘             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 
+                             ┌───────────┐
+Production web               │  FLY.IO   │        ┌───────────┐
+service remains on  ────────►│  (prod)   │───────►│ Tigris S3 │
+Fly.io for now               └───────────┘        │ • Audio   │
+                                                  │ • Images  │
+Staging web service                               └───────────┘
+uses VPS PostgreSQL,                                    ▲
+but still uses Tigris S3 ──────────────────────────────┘
 ```
 
 ## Services
 
-### Web Service (Fly.io)
+### Web Service
 
 Haskell/Servant application with server-side HTML rendering (Lucid2 + HTMX). Serves the public website, host dashboard, and playout API. Uses PostgreSQL for data and Tigris S3 for media files.
+
+- **Production**: Fly.io (Docker container) with managed PostgreSQL
+- **Staging**: DigitalOcean VPS (native NixOS systemd service) with local PostgreSQL
 
 ### Liquidsoap (VPS)
 
@@ -88,15 +96,16 @@ All builds use Nix. Docker images are pushed to GitHub Container Registry (`ghcr
 | Workflow                  | Trigger                    | Action                                                              |
 |---------------------------|----------------------------|---------------------------------------------------------------------|
 | `nix.yaml`                | Push, PR                   | Build with Nix                                                      |
-| `deploy-staging.yaml`     | Push to `main`             | Build image → push `sha-<commit>` → deploy to Fly.io staging        |
 | `create-release-tag.yaml` | Merge release PR           | Create `v*` git tag                                                 |
 | `deploy-production.yaml`  | Manual (`gh workflow run`) | Build image → push version + `latest` → deploy to Fly.io production |
 
-Config: `services/web/fly.toml` (prod), `services/web/fly.staging.toml` (staging)
+Staging deploys via `just nixos-deploy-staging` (manual NixOS rebuild to VPS).
 
-### Streaming Services
+Config: `services/web/fly.toml` (prod)
 
-**VPS Configuration**: Streaming droplets run NixOS with native systemd services. Configuration is declarative in `nixos/`:
+### VPS Services (NixOS)
+
+**VPS Configuration**: Droplets run NixOS with native systemd services. Configuration is declarative in `nixos/`:
 
 ```
 nixos/
@@ -104,8 +113,11 @@ nixos/
   hardware-digitalocean.nix  # DigitalOcean hardware baseline
   networking-prod.nix     # Production droplet static IP (generated by nixos-setup)
   networking-staging.nix  # Staging droplet static IP (generated by nixos-setup)
-  streaming.nix           # Native systemd services (Icecast, Liquidsoap, Webhook)
+  streaming.nix           # Streaming services (Icecast, Liquidsoap, Webhook)
+  postgresql.nix          # PostgreSQL database (staging web service)
+  web.nix                 # Web service (staging, native systemd)
   nginx.nix               # Reverse proxy + ACME (Let's Encrypt)
+  sync-host-emails.nix    # Host email sync job (Google Groups)
   sops.nix                # sops-nix secrets (per-service env files + secret paths)
   prod.nix                # Production host config
   staging.nix             # Staging host config
@@ -132,19 +144,24 @@ secrets/
   terraform.yaml           # Terraform provider tokens (DO, Cloudflare)
   prod-streaming.yaml      # Production: Icecast passwords, playout/webhook secrets
   staging-streaming.yaml   # Staging: Icecast passwords, playout/webhook secrets
+  staging-web.yaml         # Staging web: DB password, SMTP, AWS keys
+  google.yaml              # Google Groups service account credentials
+  backup.yaml              # Backup/sync credentials (prod + staging)
 ```
 
 **Encryption keys** are defined in `.sops.yaml`: three developer PC keys plus one VPS host key per environment. VPS host keys are derived from the host's SSH ed25519 key via `ssh-to-age`.
 
-**Streaming secrets flow:**
+**VPS secrets flow:**
 1. SOPS-encrypted YAML is committed to git
 2. On `nixos-rebuild boot`, [sops-nix](https://github.com/Mic92/sops-nix) decrypts secrets at boot using the host's SSH key (converted to age)
-3. sops-nix renders per-service env files (`kpbj-liquidsoap.env`, `kpbj-webhook.env`) and restarts affected services; Icecast reads secrets directly from sops secret file paths via its ExecStartPre script
-4. The same SOPS source feeds Fly.io via `just fly-sync-secrets-prod` / `just fly-sync-secrets-staging`
+3. sops-nix renders per-service env files (`kpbj-liquidsoap.env`, `kpbj-webhook.env`, `kpbj-web.env`) and restarts affected services
+4. Icecast reads secrets directly from sops secret file paths via its ExecStartPre script
+
+**Production web service** (Fly.io) receives secrets via `just fly-sync-secrets-prod`.
 
 ## Infrastructure as Code (Terraform)
 
-Infrastructure provisioning is managed by Terraform in `terraform/`. This covers resource creation — CI/CD workflows remain separate. Streaming VPS configuration is managed declaratively via NixOS (`nixos/`).
+Infrastructure provisioning is managed by Terraform in `terraform/`. This covers resource creation — CI/CD workflows remain separate. VPS configuration is managed declaratively via NixOS (`nixos/`).
 
 ### What Terraform Manages
 
@@ -158,8 +175,8 @@ Infrastructure provisioning is managed by Terraform in `terraform/`. This covers
 
 ### What Stays Manual
 
-- Fly.io web service (managed via `flyctl` + CI/CD)
+- Fly.io production web service (managed via `flyctl` + CI/CD)
 - GitHub Actions CI/CD (`.github/workflows/`)
-- NixOS streaming VPS configuration (`just nixos-deploy-*`)
-- Streaming secrets (SOPS-encrypted in `secrets/`, decrypted by sops-nix on VPS, synced to Fly.io via Justfile)
-- `fly.toml` / `fly.staging.toml` (used by CI deploy workflows)
+- NixOS VPS configuration (`just nixos-deploy-*`)
+- Secrets (SOPS-encrypted in `secrets/`, decrypted by sops-nix on VPS, synced to Fly.io for production)
+- `fly.toml` (used by CI production deploy workflow)
