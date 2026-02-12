@@ -22,7 +22,7 @@
   kpbj.streaming = {
     icecastPort = 8001;
     webhookPort = 9001;
-    apiBase = "https://staging.kpbj.fm/api/playout";
+    apiBase = "http://127.0.0.1:4000/api/playout";
   };
 
   kpbj.syncHostEmails = {
