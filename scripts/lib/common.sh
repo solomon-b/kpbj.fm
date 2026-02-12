@@ -34,11 +34,10 @@ export PROD_DB_APP="kpbj-postgres"
 export PROD_DB_NAME="kpbj_fm"
 export PROD_DB_USER="kpbj_fm"
 
-# Staging database
-export STAGING_APP="kpbj-fm-staging"
-export STAGING_DB_APP="kpbj-postgres-staging"
-export STAGING_DB_NAME="kpbj_fm_staging"
-export STAGING_DB_USER="postgres"
+# Staging database (VPS)
+export STAGING_VPS_TARGET="root@staging.kpbj.fm"
+export STAGING_DB_NAME="kpbj_fm"
+export STAGING_DB_USER="kpbj_fm"
 
 # Local database
 export LOCAL_DB_NAME="dev_db"

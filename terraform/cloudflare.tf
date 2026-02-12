@@ -33,18 +33,18 @@ resource "cloudflare_dns_record" "www_aaaa" {
 }
 
 # ──────────────────────────────────────────────────────────────
-# Staging — Web Service (Fly.io)
+# Staging — Web Service (DigitalOcean VPS)
 # ──────────────────────────────────────────────────────────────
 
-# staging.kpbj.fm → Fly.io
-resource "cloudflare_dns_record" "staging_aaaa" {
+# staging.kpbj.fm → DigitalOcean staging droplet (DNS-only for ACME HTTP-01)
+resource "cloudflare_dns_record" "staging_a" {
   zone_id = local.cloudflare_zone_id
   name    = "staging"
-  type    = "AAAA"
-  content = "2a09:8280:1::b7:5014:0"
-  proxied = true
+  type    = "A"
+  content = digitalocean_droplet.stream_staging.ipv4_address
+  proxied = false
   ttl     = 1
-  comment = "Staging web (Fly.io)"
+  comment = "Staging web (DO VPS)"
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ resource "cloudflare_dns_record" "planka" {
 }
 
 # ──────────────────────────────────────────────────────────────
-# File Uploads (Fly.io)
+# File Uploads
 # ──────────────────────────────────────────────────────────────
 
 resource "cloudflare_dns_record" "uploads" {
@@ -115,20 +115,19 @@ resource "cloudflare_dns_record" "uploads" {
 resource "cloudflare_dns_record" "uploads_staging" {
   zone_id = local.cloudflare_zone_id
   name    = "uploads.staging"
-  type    = "CNAME"
-  content = "pn6zlok.kpbj-fm-staging.fly.dev"
+  type    = "A"
+  content = digitalocean_droplet.stream_staging.ipv4_address
   proxied = false
   ttl     = 1
-  comment = "Staging file uploads (Fly.io)"
+  comment = "Staging file uploads (DO VPS)"
 }
 
 # ──────────────────────────────────────────────────────────────
-# Fly.io TLS Certificate Validation
+# Fly.io TLS Certificate Validation (Production only)
 # ──────────────────────────────────────────────────────────────
 #
 # CNAME delegation to Fly's DNS for ACME challenge resolution.
-# These are stable once created — Fly manages the actual
-# challenge records behind these CNAMEs.
+# Staging uses NixOS ACME (HTTP-01) on the VPS directly.
 # ──────────────────────────────────────────────────────────────
 
 resource "cloudflare_dns_record" "acme_challenge_root" {
@@ -141,16 +140,6 @@ resource "cloudflare_dns_record" "acme_challenge_root" {
   comment = "TLS cert validation for kpbj.fm (Fly.io)"
 }
 
-resource "cloudflare_dns_record" "acme_challenge_staging" {
-  zone_id = local.cloudflare_zone_id
-  name    = "_acme-challenge.staging"
-  type    = "CNAME"
-  content = "staging.kpbj.fm.pn6zlok.flydns.net"
-  proxied = false
-  ttl     = 1
-  comment = "TLS cert validation for staging (Fly.io)"
-}
-
 resource "cloudflare_dns_record" "acme_challenge_uploads" {
   zone_id = local.cloudflare_zone_id
   name    = "_acme-challenge.uploads"
@@ -159,16 +148,6 @@ resource "cloudflare_dns_record" "acme_challenge_uploads" {
   proxied = false
   ttl     = 1
   comment = "TLS cert validation for uploads (Fly.io)"
-}
-
-resource "cloudflare_dns_record" "acme_challenge_uploads_staging" {
-  zone_id = local.cloudflare_zone_id
-  name    = "_acme-challenge.uploads.staging"
-  type    = "CNAME"
-  content = "uploads.staging.kpbj.fm.pn6zlok.flydns.net"
-  proxied = false
-  ttl     = 1
-  comment = "TLS cert validation for uploads.staging (Fly.io)"
 }
 
 # ──────────────────────────────────────────────────────────────

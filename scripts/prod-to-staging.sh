@@ -5,7 +5,8 @@
 # Database: PII is sanitized for User and Host accounts.
 # S3: Incremental sync — only copies new/changed files.
 #
-# Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
+# Production database lives on Fly.io, staging database lives on the VPS.
+# Credentials are loaded from SOPS-encrypted secrets.
 #
 # Usage: ./scripts/prod-to-staging.sh
 #
@@ -35,7 +36,7 @@ fi
 
 echo "Loading credentials from SOPS..."
 export PROD_DB_PASSWORD=$(load_secret prod db_password)
-export STAGING_DB_PASSWORD=$(load_secret staging db_password)
+export STAGING_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/staging-web.yaml)
 export PROD_AWS_ACCESS_KEY_ID=$(load_secret prod aws_access_key_id)
 export PROD_AWS_SECRET_ACCESS_KEY=$(load_secret prod aws_secret_access_key)
 export STAGING_AWS_ACCESS_KEY_ID=$(load_secret staging aws_access_key_id)
@@ -46,37 +47,30 @@ echo "========================================"
 echo "  STEP 1/2: Copying Database"
 echo "========================================"
 
-echo ""
-echo "Starting database proxies..."
+# Cleanup function
+cleanup() {
+  echo "Cleaning up..."
+  kill "$PROD_PROXY_PID" 2>/dev/null || true
+  kill "$(lsof -ti:"$STAGING_PROXY_PORT" 2>/dev/null)" 2>/dev/null || true
+  ssh "$STAGING_VPS_TARGET" systemctl start kpbj-web 2>/dev/null || true
+}
+trap cleanup EXIT
 
-# Start production proxy
+echo ""
+echo "Starting production database proxy..."
 fly proxy "$PROD_PROXY_PORT:5432" -a "$PROD_DB_APP" &
 PROD_PROXY_PID=$!
 
-# Start staging proxy
-fly proxy "$STAGING_PROXY_PORT:5432" -a "$STAGING_DB_APP" &
-STAGING_PROXY_PID=$!
-
-# Cleanup function for proxies
-cleanup_proxies() {
-  echo "Cleaning up proxies..."
-  kill "$PROD_PROXY_PID" 2>/dev/null || true
-  kill "$STAGING_PROXY_PID" 2>/dev/null || true
-}
-trap cleanup_proxies EXIT
+echo "Opening SSH tunnel to staging VPS..."
+ssh -f -N -L "$STAGING_PROXY_PORT:127.0.0.1:5432" "$STAGING_VPS_TARGET"
 
 sleep 3
 
-echo "Stopping staging app to release database connections..."
-fly scale count 0 --app "$STAGING_APP" --yes
+echo "Stopping staging web service to release database connections..."
+ssh "$STAGING_VPS_TARGET" systemctl stop kpbj-web
 
-echo "Dropping staging database..."
-psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/postgres" \
-  -c "DROP DATABASE IF EXISTS $STAGING_DB_NAME WITH (FORCE);"
-
-echo "Creating staging database..."
-psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/postgres" \
-  -c "CREATE DATABASE $STAGING_DB_NAME;"
+echo "Dropping and recreating staging database..."
+ssh "$STAGING_VPS_TARGET" "sudo -u postgres psql -c \"DROP DATABASE IF EXISTS $STAGING_DB_NAME WITH (FORCE);\" && sudo -u postgres psql -c \"CREATE DATABASE $STAGING_DB_NAME OWNER $STAGING_DB_USER;\""
 
 echo "Copying production database to staging..."
 pg_dump "postgres://$PROD_DB_USER:$PROD_DB_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
@@ -87,8 +81,9 @@ psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_
   -v password_hash="'$SANITIZED_PASSWORD_HASH'" \
   -f "$SCRIPT_DIR/lib/sanitize-pii.sql"
 
-# Close database proxies before S3 copy
-cleanup_proxies
+# Close proxies/tunnels before S3 copy
+kill "$PROD_PROXY_PID" 2>/dev/null || true
+kill "$(lsof -ti:"$STAGING_PROXY_PORT" 2>/dev/null)" 2>/dev/null || true
 
 echo ""
 echo "========================================"
@@ -98,8 +93,8 @@ echo "========================================"
 sync_s3_buckets
 
 echo ""
-echo "Restarting staging app..."
-fly scale count 1 --app "$STAGING_APP" --yes
+echo "Starting staging web service..."
+ssh "$STAGING_VPS_TARGET" systemctl start kpbj-web
 
 echo ""
 echo "========================================"

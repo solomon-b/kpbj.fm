@@ -158,7 +158,6 @@ just tf-edit-secrets                   # Edit Terraform secrets
 just sops-edit-prod-streaming          # Edit production streaming secrets
 just sops-edit-staging-streaming       # Edit staging streaming secrets
 just fly-sync-secrets-prod             # Sync secrets to Fly.io (production)
-just fly-sync-secrets-staging          # Sync secrets to Fly.io (staging)
 just sops-host-key <host>              # Get a VPS host's age public key
 ```
 
