@@ -16,6 +16,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Staging Web Service VPS Migration** - Migrated staging web service from Fly.io to NixOS-managed DigitalOcean VPS. PostgreSQL managed via NixOS module with automated backups. CI deploys via `nixos-rebuild switch --target-host`. Removed `fly.staging.toml`.
 - **Production Web Service VPS Migration** - Migrated production web service from Fly.io to NixOS-managed DigitalOcean VPS. Removed `fly.toml`.
 - **Stable Streaming During Deploys** - Added `restartIfChanged = false` to Icecast and Liquidsoap systemd services to prevent stream interruptions during NixOS updates.
+- **Faster NixOS Deploys** - Changed CI from `nixos-rebuild boot` + reboot to `nixos-rebuild switch` for immediate rollouts.
 
 ---
 
