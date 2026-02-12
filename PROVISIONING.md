@@ -1,6 +1,6 @@
 # Provisioning & Deployment Guide
 
-Complete instructions for provisioning the KPBJ streaming infrastructure from scratch. This covers Terraform, NixOS droplets, sops-nix secrets, and Fly.io sync.
+Complete instructions for provisioning the KPBJ infrastructure from scratch. This covers Terraform, NixOS droplets, and sops-nix secrets.
 
 ## Current State
 
@@ -220,20 +220,6 @@ curl -I http://<prod-droplet-ip>:8000/stream
 
 Note: HTTPS won't work until DNS points here (ACME needs the domain to resolve to the droplet for certificate issuance).
 
-### Sync production secrets to Fly.io
-
-```bash
-just fly-sync-secrets-prod
-
-# Verify
-fly secrets list --app kpbj-fm
-```
-
-**Important:** After syncing, the Fly.io web service will restart with the new `PLAYOUT_SECRET`. This means the legacy VPS's Liquidsoap (which has the old secret) will start getting 401s from the playout API. You have two options:
-
-1. **Cut over DNS immediately after syncing** (go to Phase 9)
-2. **Temporarily set the old PLAYOUT_SECRET on Fly.io** until you're ready to cut over, then sync again when you switch DNS
-
 ## Phase 9: Production DNS Cutover
 
 When you're confident the new NixOS prod droplet is working:
@@ -349,7 +335,7 @@ ssh root@<ip> "podman pull ghcr.io/solomon-b/kpbj-liquidsoap:latest && systemctl
 | Edit streaming secrets | `just sops-edit-prod-streaming` / `just sops-edit-staging-streaming` |
 | Edit Terraform secrets | `just tf-edit-secrets` |
 | Deploy NixOS config | `just nixos-deploy-prod` / `just nixos-deploy-staging` |
-| Sync secrets to Fly.io | `just fly-sync-secrets-prod` |
+| Edit web secrets | `just sops-edit-prod-web` / `just sops-edit-staging-web` |
 | Get a host's age key | `just sops-host-key <hostname>` |
 | Preview infra changes | `just tf-plan` |
 | Apply infra changes | `just tf-apply` |

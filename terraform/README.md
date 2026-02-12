@@ -90,11 +90,9 @@ just tf-validate
 
 ## What Stays Manual
 
-- **Fly.io web service** — managed via `flyctl` + CI/CD
 - **GitHub Actions CI/CD** — workflows in `.github/workflows/`
-- **NixOS streaming VPS configuration** — deployed via `just nixos-deploy-*`
-- **Streaming secrets** — SOPS-encrypted in `secrets/`, decrypted by sops-nix on VPS
-- **fly.toml** — used by CI production deploy workflow
+- **NixOS VPS configuration** — deployed via `just nixos-deploy-*`
+- **Secrets** — SOPS-encrypted in `secrets/`, decrypted by sops-nix on VPS
 - **GHCR image builds** — handled by GitHub Actions
 
 ## File Overview

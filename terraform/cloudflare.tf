@@ -7,29 +7,29 @@ locals {
 }
 
 # ──────────────────────────────────────────────────────────────
-# Production — Web Service (Fly.io)
+# Production — Web Service (DigitalOcean VPS)
 # ──────────────────────────────────────────────────────────────
 
-# kpbj.fm → Fly.io (AAAA only — Cloudflare proxy handles IPv4 at the edge)
-resource "cloudflare_dns_record" "root_aaaa" {
+# kpbj.fm → Production VPS (DNS-only for ACME HTTP-01)
+resource "cloudflare_dns_record" "root_a" {
   zone_id = local.cloudflare_zone_id
   name    = "kpbj.fm"
-  type    = "AAAA"
-  content = "2a09:8280:1::c2:ea7e:0"
-  proxied = true
-  ttl     = 1 # Auto when proxied
-  comment = "Production web (Fly.io)"
+  type    = "A"
+  content = digitalocean_droplet.stream_prod.ipv4_address
+  proxied = false
+  ttl     = 1
+  comment = "Production web (DO VPS)"
 }
 
-# www.kpbj.fm → Fly.io
-resource "cloudflare_dns_record" "www_aaaa" {
+# www.kpbj.fm → Production VPS (DNS-only for ACME HTTP-01)
+resource "cloudflare_dns_record" "www_a" {
   zone_id = local.cloudflare_zone_id
   name    = "www"
-  type    = "AAAA"
-  content = "2a09:8280:1::c2:ea7e:0"
-  proxied = true
+  type    = "A"
+  content = digitalocean_droplet.stream_prod.ipv4_address
+  proxied = false
   ttl     = 1
-  comment = "Production web www (Fly.io)"
+  comment = "Production web www (DO VPS)"
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -105,11 +105,11 @@ resource "cloudflare_dns_record" "planka" {
 resource "cloudflare_dns_record" "uploads" {
   zone_id = local.cloudflare_zone_id
   name    = "uploads"
-  type    = "CNAME"
-  content = "m2y621y.kpbj-fm.fly.dev"
+  type    = "A"
+  content = digitalocean_droplet.stream_prod.ipv4_address
   proxied = false
   ttl     = 1
-  comment = "Production file uploads (Fly.io)"
+  comment = "Production file uploads (DO VPS)"
 }
 
 resource "cloudflare_dns_record" "uploads_staging" {
@@ -120,34 +120,6 @@ resource "cloudflare_dns_record" "uploads_staging" {
   proxied = false
   ttl     = 1
   comment = "Staging file uploads (DO VPS)"
-}
-
-# ──────────────────────────────────────────────────────────────
-# Fly.io TLS Certificate Validation (Production only)
-# ──────────────────────────────────────────────────────────────
-#
-# CNAME delegation to Fly's DNS for ACME challenge resolution.
-# Staging uses NixOS ACME (HTTP-01) on the VPS directly.
-# ──────────────────────────────────────────────────────────────
-
-resource "cloudflare_dns_record" "acme_challenge_root" {
-  zone_id = local.cloudflare_zone_id
-  name    = "_acme-challenge"
-  type    = "CNAME"
-  content = "www.kpbj.fm.m2y621y.flydns.net"
-  proxied = false
-  ttl     = 1
-  comment = "TLS cert validation for kpbj.fm (Fly.io)"
-}
-
-resource "cloudflare_dns_record" "acme_challenge_uploads" {
-  zone_id = local.cloudflare_zone_id
-  name    = "_acme-challenge.uploads"
-  type    = "CNAME"
-  content = "uploads.kpbj.fm.m2y621y.flydns.net"
-  proxied = false
-  ttl     = 1
-  comment = "TLS cert validation for uploads (Fly.io)"
 }
 
 # ──────────────────────────────────────────────────────────────
