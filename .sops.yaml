@@ -3,7 +3,7 @@ keys:
   - &pc_lorean age1h9eclrfude5fkzvt0v7sjyhfsu5f839xw0wwh29lrptq70mfvgescqng6a
   - &pc_voice-of-evening age1esadyxrm9kjt25jlg9y0mmp8u75mh05pncxxd8csl7z6dsycy3pszhrh35
   - &vps_stream_prod age19nrffgaz7xtwk9jlznxt2003znguk7jvewz6s3clkzjxe0m07qlsjfkwet
-  - &vps_stream_staging age15juydyd334ah2dhvhyfz7e87dtuj3nnj7l8572ndkaukcxth3dts95qwm2
+  - &vps_stream_staging age1kvwcm2txc4knu5wqm34g307u7gazv3svs4vnm7z2p92xvd9tv3eqhy9smg
 
 creation_rules:
   - path_regex: secrets/terraform\.yaml$
