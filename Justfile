@@ -363,57 +363,54 @@ staging-secrets: _require-sops
 # =============================================================================
 # Deployment (Production)
 # =============================================================================
-# Deploy and manage the production environment on Fly.io.
-# Prerequisites: flyctl (authenticated), PROD_DB_PASSWORD env var for migrations/backups
+# Deploy and manage the production environment on the DigitalOcean VPS.
+# The production web service runs as a native NixOS systemd service.
+# Prerequisites: SSH access to production VPS, sops (for DB password)
 
-PROD_APP := "kpbj-fm"
-PROD_DB_APP := "kpbj-postgres"
+PROD_VPS_TARGET := "root@stream.kpbj.fm"
 PROD_DB_NAME := "kpbj_fm"
-PROD_CONFIG := "services/web/fly.toml"
+PROD_DB_USER := "kpbj_fm"
 
-# Deploy to production
-prod-deploy: _require-fly
-  fly deploy -c {{PROD_CONFIG}}
+# View production web service logs
+prod-logs:
+  ssh {{PROD_VPS_TARGET}} journalctl -u kpbj-web -f
 
-# View production logs
-prod-logs: _require-fly
-  fly logs --app {{PROD_APP}}
-
-# View production app status
-prod-status: _require-fly
-  fly status --app {{PROD_APP}}
+# View production service status
+prod-status:
+  ssh {{PROD_VPS_TARGET}} systemctl status kpbj-web kpbj-postgres-setup postgresql
 
 # Open production in browser
 prod-open:
-  fly open --app {{PROD_APP}}
+  xdg-open https://www.kpbj.fm 2>/dev/null || open https://www.kpbj.fm
 
-# Connect to production database with psql
-prod-psql: _require-fly
-  fly postgres connect --app {{PROD_DB_APP}} -d {{PROD_DB_NAME}}
+# Connect to production database with psql (via SSH)
+prod-psql:
+  ssh -t {{PROD_VPS_TARGET}} sudo -u postgres psql -d {{PROD_DB_NAME}}
 
-# Run migrations on production (via proxy)
-prod-migrations-run:
-  @echo "Starting proxy in background..."
-  fly proxy {{PROD_PROXY_PORT}}:5432 -a {{PROD_DB_APP}} &
-  @sleep 2
-  DATABASE_URL='postgres://postgres:{{env_var("PROD_DB_PASSWORD")}}@localhost:{{PROD_PROXY_PORT}}/{{PROD_DB_NAME}}' sqlx migrate run --source services/web/migrations
-  @pkill -f "fly proxy {{PROD_PROXY_PORT}}"
+# Run migrations on production (via SSH tunnel)
+prod-migrations-run: _require-sops
+  #!/usr/bin/env bash
+  set -euo pipefail
+  PROD_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/prod-web.yaml)
+  echo "Opening SSH tunnel..."
+  ssh -f -N -L {{PROD_PROXY_PORT}}:127.0.0.1:5432 {{PROD_VPS_TARGET}}
+  TUNNEL_PID=$!
+  trap "kill $TUNNEL_PID 2>/dev/null || true" EXIT
+  sleep 2
+  DATABASE_URL="postgres://{{PROD_DB_USER}}:${PROD_DB_PASSWORD}@localhost:{{PROD_PROXY_PORT}}/{{PROD_DB_NAME}}" \
+    sqlx migrate run --source services/web/migrations
 
-# SSH into production app
-prod-ssh: _require-fly
-  fly ssh console --app {{PROD_APP}}
+# SSH into production VPS
+prod-ssh:
+  ssh {{PROD_VPS_TARGET}}
 
-# Restart production app
-prod-restart: _require-fly
-  fly apps restart {{PROD_APP}}
+# Restart production web service
+prod-restart:
+  ssh {{PROD_VPS_TARGET}} systemctl restart kpbj-web
 
-# View production secrets
-prod-secrets:
-  fly secrets list --app {{PROD_APP}}
-
-# View production machines
-prod-machines:
-  fly machines list --app {{PROD_APP}}
+# Edit production web secrets
+prod-secrets: _require-sops
+  sops secrets/prod-web.yaml
 
 # Backup production database to local file
 # Credentials loaded from SOPS-encrypted secrets/backup.yaml
@@ -421,7 +418,6 @@ prod-backup-pg: _require-sops _require-fly
   ./scripts/prod-backup-pg.sh
 
 # Backup production database from remote server (e.g., TrueNAS)
-# Requires FLY_API_TOKEN and PROD_DB_PASSWORD env vars
 # Optional: BACKUP_DIR (default: ./backups/postgres), RETENTION_DAYS (default: 14)
 prod-backup-remote:
   ./scripts/prod-backup-remote.sh
@@ -537,25 +533,9 @@ sops-edit-staging-streaming: _require-sops
 sops-edit-google: _require-sops
   sops secrets/google.yaml
 
-# Sync streaming secrets to Fly.io (production)
-fly-sync-secrets-prod: _require-sops _require-fly
-  #!/usr/bin/env bash
-  set -euo pipefail
-  PLAYOUT_SECRET=$(sops -d --extract '["playout_secret"]' secrets/prod-streaming.yaml)
-  WEBHOOK_SECRET=$(sops -d --extract '["webhook_secret"]' secrets/prod-streaming.yaml)
-  GOOGLE_SA_EMAIL=$(sops -d --extract '["google_sa_email"]' secrets/google.yaml)
-  GOOGLE_SA_PRIVATE_KEY=$(sops -d --extract '["google_sa_private_key"]' secrets/google.yaml)
-  GOOGLE_DELEGATED_USER=$(sops -d --extract '["google_delegated_user"]' secrets/google.yaml)
-  GOOGLE_GROUP_EMAIL=$(sops -d --extract '["google_group_email"]' secrets/google.yaml)
-  fly secrets set \
-    "PLAYOUT_SECRET=$PLAYOUT_SECRET" \
-    "WEBHOOK_SECRET=$WEBHOOK_SECRET" \
-    "WEBHOOK_URL=https://stream.kpbj.fm" \
-    "GOOGLE_SA_EMAIL=$GOOGLE_SA_EMAIL" \
-    "GOOGLE_SA_PRIVATE_KEY=$GOOGLE_SA_PRIVATE_KEY" \
-    "GOOGLE_DELEGATED_USER=$GOOGLE_DELEGATED_USER" \
-    "GOOGLE_GROUP_EMAIL=$GOOGLE_GROUP_EMAIL" \
-    --app kpbj-fm
+# Edit production web secrets (DB password, SMTP, AWS keys)
+sops-edit-prod-web: _require-sops
+  sops secrets/prod-web.yaml
 
 # Edit staging web secrets (DB password, SMTP, AWS keys)
 sops-edit-staging-web: _require-sops

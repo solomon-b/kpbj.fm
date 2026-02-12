@@ -45,6 +45,14 @@ creation_rules:
           - *pc_voice-of-evening
           - *vps_stream_staging
 
+  - path_regex: secrets/prod-web\.yaml$
+    key_groups:
+      - age:
+          - *pc_nightshade
+          - *pc_lorean
+          - *pc_voice-of-evening
+          - *vps_stream_prod
+
   - path_regex: secrets/staging-web\.yaml$
     key_groups:
       - age:

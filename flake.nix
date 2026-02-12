@@ -218,7 +218,7 @@
         {
           kpbj-stream-prod = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails; };
+            specialArgs = { inherit sync-host-emails kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               ./nixos/prod.nix
