@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Host Email Sync Job** - New standalone Haskell job (`sync-host-emails`) that syncs host email addresses to a Google Group via the Google Admin SDK. Runs as a NixOS systemd timer on the VPS. Google service account credentials managed via SOPS. Terraform provisions the Google project and service account.
+
 ### Infrastructure
 - **Rebuilt Staging Droplet** - Rebuilt staging DigitalOcean droplet with updated networking configuration and SOPS keys.
 - **Service Directory Reorganization** - Moved Icecast, Liquidsoap, and webhook configs to top-level service directories. Added root `docker-compose.yml` for local development.
