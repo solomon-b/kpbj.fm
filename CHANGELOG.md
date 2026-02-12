@@ -6,6 +6,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Infrastructure
 - **Rebuilt Staging Droplet** - Rebuilt staging DigitalOcean droplet with updated networking configuration and SOPS keys.
+- **Service Directory Reorganization** - Moved Icecast, Liquidsoap, and webhook configs to top-level service directories. Added root `docker-compose.yml` for local development.
 
 ---
 

@@ -13,7 +13,7 @@ let
   cfg = config.kpbj.streaming;
 
   # Bundle hooks.yaml into the Nix store
-  hooksYaml = ../services/liquidsoap/hooks.yaml;
+  hooksYaml = ../services/webhook/hooks.yaml;
 
   # Wrapper script that calls sudo systemctl restart <unit>
   restartCmd = pkgs.writeShellScriptBin "kpbj-restart" ''
@@ -66,7 +66,7 @@ in
             ${sed} -i "s|<$tag>[^<]*</$tag>|<$tag>$value</$tag>|g" "$cfg"
           }
 
-          cp ${../services/liquidsoap/config/icecast.xml} "$cfg"
+          cp ${../services/icecast/icecast.xml} "$cfg"
           chmod 644 "$cfg"
 
           # Secrets from sops
@@ -117,7 +117,7 @@ in
         Type = "simple";
         DynamicUser = true;
         EnvironmentFile = [ config.sops.templates."kpbj-liquidsoap.env".path ];
-        ExecStart = "${pkgs.liquidsoap}/bin/liquidsoap ${../services/liquidsoap/config/radio.liq}";
+        ExecStart = "${pkgs.liquidsoap}/bin/liquidsoap ${../services/liquidsoap/radio.liq}";
         Restart = "on-failure";
         RestartSec = 5;
 
