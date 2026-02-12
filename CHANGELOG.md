@@ -11,6 +11,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Icecast Runtime Directory Permissions** - Fixed systemd `RuntimeDirectory` permissions for the Icecast service.
 - **CI SSH Key Consolidation** - Consolidated staging and production CI deployments to use a single SSH key.
 - **Webhook Endpoint Security** - Removed public-facing webhook endpoint from nginx configuration.
+- **Liquidsoap Local Icecast Connection** - Liquidsoap now connects to Icecast via localhost instead of routing through the public network.
 
 ### Infrastructure
 - **Rebuilt Staging Droplet** - Rebuilt staging DigitalOcean droplet with updated networking configuration and SOPS keys.
