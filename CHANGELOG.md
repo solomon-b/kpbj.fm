@@ -15,6 +15,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Service Directory Reorganization** - Moved Icecast, Liquidsoap, and webhook configs to top-level service directories. Added root `docker-compose.yml` for local development.
 - **Staging Web Service VPS Migration** - Migrated staging web service from Fly.io to NixOS-managed DigitalOcean VPS. PostgreSQL managed via NixOS module with automated backups. CI deploys via `nixos-rebuild switch --target-host`. Removed `fly.staging.toml`.
 - **Production Web Service VPS Migration** - Migrated production web service from Fly.io to NixOS-managed DigitalOcean VPS. Removed `fly.toml`.
+- **Stable Streaming During Deploys** - Added `restartIfChanged = false` to Icecast and Liquidsoap systemd services to prevent stream interruptions during NixOS updates.
 
 ---
 

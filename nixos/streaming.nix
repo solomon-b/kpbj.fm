@@ -44,6 +44,7 @@ in
     # ── Icecast ─────────────────────────────────────────────────
     systemd.services.kpbj-icecast = {
       description = "KPBJ Icecast streaming server";
+      restartIfChanged = false;
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
@@ -104,6 +105,7 @@ in
     # ── Liquidsoap ──────────────────────────────────────────────
     systemd.services.kpbj-liquidsoap = {
       description = "KPBJ Liquidsoap audio automation";
+      restartIfChanged = false;
       after = [ "kpbj-icecast.service" "network-online.target" ];
       requires = [ "kpbj-icecast.service" ];
       wants = [ "network-online.target" ];
