@@ -34,7 +34,6 @@
     domain = "stream.staging.kpbj.fm";
     acmeEmail = "contact@kpbj.fm";
     icecastPort = 8001;
-    webhookPort = 9001;
   };
 
   # ── PostgreSQL ───────────────────────────────────────────────
@@ -69,6 +68,6 @@
     baseUrl = "https://staging.kpbj.fm";
 
     # Webhook (co-located on same VPS)
-    webhookUrl = "https://stream.staging.kpbj.fm";
+    webhookUrl = "http://127.0.0.1:9001";
   };
 }

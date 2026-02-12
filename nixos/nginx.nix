@@ -26,11 +26,6 @@ in
       type = lib.types.port;
       description = "Local port where Icecast is listening.";
     };
-
-    webhookPort = lib.mkOption {
-      type = lib.types.port;
-      description = "Local port where webhook is listening.";
-    };
   };
 
   config = {
@@ -57,10 +52,6 @@ in
             proxy_read_timeout 24h;
             proxy_send_timeout 24h;
           '';
-        };
-
-        locations."/hooks/" = {
-          proxyPass = "http://127.0.0.1:${toString cfg.webhookPort}";
         };
       };
     };
