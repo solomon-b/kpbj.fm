@@ -12,14 +12,9 @@ on:
 
 permissions:
   contents: read
-  packages: write
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/solomon-b/kpbj.fm
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,24 +22,12 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
-      - name: Extract version from tag
-        id: extract-version
-        run: |
-          # Handle both tag push and manual dispatch
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
-          VERSION="${TAG#v}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Deploying version: $VERSION (tag: $TAG)"
-
       - name: Install Nix
         uses: cachix/install-nix-action@v20
         with:
           nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            extra-platforms = aarch64-linux
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v12
@@ -52,37 +35,19 @@ jobs:
           name: kpbj-fm
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        env:
-          IMAGE_TAG: ${{ steps.extract-version.outputs.version }}
+      - name: Setup SSH
         run: |
-          echo "Building image with tag: $IMAGE_TAG"
-          nix build .#docker --impure
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H stream.kpbj.fm >> ~/.ssh/known_hosts
 
-          image=$(docker load -i result | sed -n 's#^Loaded image: \([a-zA-Z0-9\.\/\-\:]*\)#\1#p')
-          echo "Loaded image: $image"
-          docker push "$image"
-
-          # Also tag and push as latest for production releases
-          echo "Tagging and pushing as :latest"
-          docker tag "$image" "${{ env.IMAGE_NAME }}:latest"
-          docker push "${{ env.IMAGE_NAME }}:latest"
-
-      - name: Setup Fly.io CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy to Production
+      - name: Deploy NixOS configuration
         run: |
-          flyctl deploy \
-            --remote-only \
-            --config services/web/fly.toml \
-            --image "${{ env.IMAGE_NAME }}:${{ steps.extract-version.outputs.version }}"
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          nix shell nixpkgs#nixos-rebuild -c \
+            nixos-rebuild boot \
+            --flake .#kpbj-stream-prod \
+            --target-host root@stream.kpbj.fm
+
+      - name: Reboot into new configuration
+        run: ssh root@stream.kpbj.fm reboot

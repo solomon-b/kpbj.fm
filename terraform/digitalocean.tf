@@ -21,11 +21,12 @@ resource "digitalocean_ssh_key" "stream" {
 # ──────────────────────────────────────────────────────────────
 
 resource "digitalocean_droplet" "stream_prod" {
-  name     = "kpbj-stream-prod"
-  region   = var.droplet_region
-  size     = var.droplet_size
-  image    = var.droplet_image
-  ssh_keys = [for k in digitalocean_ssh_key.stream : k.fingerprint]
+  name       = "kpbj-stream-prod"
+  region     = var.droplet_region
+  size       = var.droplet_size
+  image      = var.droplet_image
+  ssh_keys   = [for k in digitalocean_ssh_key.stream : k.fingerprint]
+  backups    = true
 
   # nixos-infect converts Ubuntu to NixOS on first boot.
   # After infect completes (~5-10min), run: just nixos-setup root@<ip> prod

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Production streaming host — stream.kpbj.fm
+# Production host — www.kpbj.fm + stream.kpbj.fm
 # ──────────────────────────────────────────────────────────────
 { ... }:
 {
@@ -11,6 +11,8 @@
     ./sync-host-emails.nix
     ./nginx.nix
     ./sops.nix
+    ./postgresql.nix
+    ./web.nix
   ];
 
   networking.hostName = "kpbj-stream-prod";
@@ -33,5 +35,39 @@
     acmeEmail = "contact@kpbj.fm";
     icecastPort = 8000;
     webhookPort = 9000;
+  };
+
+  # ── PostgreSQL ───────────────────────────────────────────────
+  kpbj.postgresql = {
+    enable = true;
+    dbName = "kpbj_fm";
+    dbUser = "kpbj_fm";
+  };
+
+  # ── Web service ──────────────────────────────────────────────
+  kpbj.web = {
+    enable = true;
+    secretsFile = ../secrets/prod-web.yaml;
+    hostname = "https://www.kpbj.fm";
+    environment = "Production";
+    serverName = "www.kpbj.fm";
+    domain = "www.kpbj.fm";
+    port = 4000;
+
+    # S3 (Tigris)
+    bucketName = "production-kpbj-storage";
+    awsRegion = "auto";
+    awsEndpointUrl = "https://fly.storage.tigris.dev";
+
+    # SMTP
+    smtpServer = "smtp.gmail.com";
+    smtpPort = 587;
+    smtpUsername = "noreply@kpbj.fm";
+    smtpFromEmail = "noreply@kpbj.fm";
+    smtpFromName = "KPBJ 95.9FM";
+    baseUrl = "https://www.kpbj.fm";
+
+    # Webhook (co-located on same VPS)
+    webhookUrl = "https://stream.kpbj.fm";
   };
 }
