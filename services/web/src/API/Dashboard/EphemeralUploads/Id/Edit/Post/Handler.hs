@@ -94,23 +94,31 @@ processEphemeralUploadEdit user ephemeralUpload form = do
       let banner = BannerParams Error "Update Failed" "Title is required."
       pure $ Servant.addHeader (buildRedirectUrl editUrlText banner) (redirectWithBanner editUrlText banner)
     else do
-      -- Check if we have a new audio file to upload
-      let audioToken = fdAudioToken form
-      if Text.null audioToken
+      -- Validate and sanitize description
+      let description = Sanitize.sanitizePlainText (fdDescription form)
+      if Text.length description < 80
         then do
-          -- No new audio, just update title (keep existing audio fields)
-          updateResult <-
-            execQuery $
-              EphemeralUploads.updateEphemeralUpload
-                ephemeralUploadId
-                title
-                ephemeralUpload.eumAudioFilePath
-                ephemeralUpload.eumMimeType
-                ephemeralUpload.eumFileSize
-          handleUpdateResult title listUrlText updateResult
+          let banner = BannerParams Error "Update Failed" "Description must be at least 80 characters (approximately 2 sentences)."
+          pure $ Servant.addHeader (buildRedirectUrl editUrlText banner) (redirectWithBanner editUrlText banner)
         else do
-          -- New audio file uploaded - process it
-          processWithNewAudio user ephemeralUpload title audioToken editUrlText listUrlText
+          -- Check if we have a new audio file to upload
+          let audioToken = fdAudioToken form
+          if Text.null audioToken
+            then do
+              -- No new audio, just update title and description (keep existing audio fields)
+              updateResult <-
+                execQuery $
+                  EphemeralUploads.updateEphemeralUpload
+                    ephemeralUploadId
+                    title
+                    description
+                    ephemeralUpload.eumAudioFilePath
+                    ephemeralUpload.eumMimeType
+                    ephemeralUpload.eumFileSize
+              handleUpdateResult title listUrlText updateResult
+            else do
+              -- New audio file uploaded - process it
+              processWithNewAudio user ephemeralUpload title description audioToken editUrlText listUrlText
 
 processWithNewAudio ::
   User.Model ->
@@ -119,8 +127,9 @@ processWithNewAudio ::
   Text ->
   Text ->
   Text ->
+  Text ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-processWithNewAudio user ephemeralUpload title audioToken editUrlText listUrlText = do
+processWithNewAudio user ephemeralUpload title description audioToken editUrlText listUrlText = do
   let ephemeralUploadId = ephemeralUpload.eumId
 
   -- Get the staged upload to retrieve metadata
@@ -168,6 +177,7 @@ processWithNewAudio user ephemeralUpload title audioToken editUrlText listUrlTex
               EphemeralUploads.updateEphemeralUpload
                 ephemeralUploadId
                 title
+                description
                 newStoragePath
                 (StagedUploads.mimeType stagedUpload)
                 (StagedUploads.fileSize stagedUpload)
