@@ -67,7 +67,10 @@ in
           cp ${config.sops.secrets.google_sa_private_key.path} "$dir/sa-private-key"
           cp ${config.sops.secrets.google_delegated_user.path} "$dir/delegated-user"
           cp ${config.sops.secrets.google_group_email.path} "$dir/group-email"
-          chmod 444 "$dir"/*
+
+          # Chown to the DynamicUser so ExecStart can read the secrets.
+          # The RuntimeDirectory (0700) already restricts access.
+          chown "$(stat -c %u "$dir")" "$dir"/*
         '';
 
         ExecStart = pkgs.writeShellScript "kpbj-sync-host-emails-run" ''
