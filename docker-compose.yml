@@ -1,0 +1,49 @@
+# Local development streaming stack (Icecast + Liquidsoap + Webhook)
+# Usage: docker compose up -d
+# Requires the web service running on port 4000.
+
+services:
+  icecast:
+    image: ghcr.io/solomon-b/kpbj-icecast:${IMAGE_TAG:-latest}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/status-json.xsl"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    environment:
+      - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
+      - ICECAST_ADMIN_PASSWORD=${ICECAST_ADMIN_PASSWORD:-hackme}
+      - ICECAST_RELAY_PASSWORD=${ICECAST_RELAY_PASSWORD:-hackme}
+    restart: unless-stopped
+
+  liquidsoap:
+    image: ghcr.io/solomon-b/kpbj-liquidsoap:${IMAGE_TAG:-latest}
+    depends_on:
+      icecast:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - ICECAST_HOST=icecast
+      - ICECAST_PORT=8000
+      - ICECAST_PASSWORD=${ICECAST_SOURCE_PASSWORD:-hackme}
+      - ICECAST_MOUNT=/stream
+      - API_BASE=http://host.docker.internal:4000/api/playout
+      - PLAYOUT_SECRET=${PLAYOUT_SECRET:-}
+    restart: unless-stopped
+
+  webhook:
+    image: ghcr.io/solomon-b/kpbj-webhook:${IMAGE_TAG:-latest}
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./services/webhook/hooks.yaml:/config/hooks.yaml:ro
+    environment:
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      - RESTART_CMD=/bin/docker
+      - ICECAST_SERVICE=kpbj-fm-icecast-1
+      - LIQUIDSOAP_SERVICE=kpbj-fm-liquidsoap-1
+    restart: unless-stopped

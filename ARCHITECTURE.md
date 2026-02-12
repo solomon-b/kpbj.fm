@@ -111,13 +111,14 @@ nixos/
   staging.nix             # Staging host config
 ```
 
-**Local development** uses Docker Compose files in `services/liquidsoap/`:
+**Local development** uses `docker-compose.yml` at the project root.
+
+Service configs live in their own directories:
 
 ```
-docker-compose.yml          # Base config
-docker-compose.dev.yml      # Local dev overrides
-docker-compose.staging.yml  # Staging VPS overrides (legacy)
-docker-compose.prod.yml     # Production VPS overrides (legacy)
+services/icecast/icecast.xml    # Icecast server config
+services/liquidsoap/radio.liq   # Liquidsoap automation script
+services/webhook/hooks.yaml     # Webhook definitions
 ```
 
 Deploy commands: `just nixos-deploy-staging`, `just nixos-deploy-prod`

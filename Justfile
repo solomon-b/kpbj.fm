@@ -578,28 +578,23 @@ sops-host-key HOST:
 
 # Start local streaming services (Icecast + Liquidsoap)
 stream-dev-start: _require-docker
-  docker compose -f services/liquidsoap/docker-compose.yml \
-                 -f services/liquidsoap/docker-compose.dev.yml up -d
+  docker compose up -d
 
 # Stop local streaming services
 stream-dev-stop:
-  docker compose -f services/liquidsoap/docker-compose.yml \
-                 -f services/liquidsoap/docker-compose.dev.yml down
+  docker compose down
 
 # View local streaming service logs
 stream-dev-logs:
-  docker compose -f services/liquidsoap/docker-compose.yml \
-                 -f services/liquidsoap/docker-compose.dev.yml logs -f
+  docker compose logs -f
 
 # Restart local streaming services
 stream-dev-restart:
-  docker compose -f services/liquidsoap/docker-compose.yml \
-                 -f services/liquidsoap/docker-compose.dev.yml restart
+  docker compose restart
 
 # View local streaming service status
 stream-dev-status:
-  docker compose -f services/liquidsoap/docker-compose.yml \
-                 -f services/liquidsoap/docker-compose.dev.yml ps
+  docker compose ps
 
 # =============================================================================
 # NixOS Deployment (Streaming VPS)

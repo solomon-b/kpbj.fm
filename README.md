@@ -172,7 +172,7 @@ just staging-ssh / just prod-ssh        # SSH into container
 
 ### Streaming (NixOS VPS)
 
-Liquidsoap and Icecast run on NixOS streaming droplets with secrets managed via sops-nix. See [services/liquidsoap/README.md](services/liquidsoap/README.md) for container details.
+Liquidsoap and Icecast run on NixOS streaming droplets with secrets managed via sops-nix.
 
 ```bash
 # Fresh droplet setup (after terraform apply)
