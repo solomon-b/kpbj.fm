@@ -12,6 +12,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **CI SSH Key Consolidation** - Consolidated staging and production CI deployments to use a single SSH key.
 - **Webhook Endpoint Security** - Removed public-facing webhook endpoint from nginx configuration.
 - **Liquidsoap Local Icecast Connection** - Liquidsoap now connects to Icecast via localhost instead of routing through the public network.
+- **Stream Subdomain Proxy** - Added nginx proxy rule to route the `stream` subdomain to the Icecast server.
 
 ### Infrastructure
 - **Rebuilt Staging Droplet** - Rebuilt staging DigitalOcean droplet with updated networking configuration and SOPS keys.
