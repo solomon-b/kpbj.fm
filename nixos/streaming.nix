@@ -52,6 +52,7 @@ in
         Type = "simple";
         DynamicUser = true;
         RuntimeDirectory = "kpbj-icecast";
+        RuntimeDirectoryMode = "0700";
         LogsDirectory = "kpbj-icecast";
 
         # Copy icecast.xml template and substitute secrets + NixOS paths.
@@ -67,7 +68,10 @@ in
           }
 
           cp ${../services/icecast/icecast.xml} "$cfg"
-          chmod 644 "$cfg"
+
+          # Chown to the DynamicUser so ExecStart can read the config.
+          # The RuntimeDirectory (0700) already restricts access.
+          chown "$(stat -c %u /run/kpbj-icecast)" "$cfg"
 
           # Secrets from sops
           xml_edit source-password "$(cat ${config.sops.secrets.icecast_password.path})"
