@@ -93,7 +93,6 @@ import API.Dashboard.StationIds.Get.Route qualified as Dashboard.StationIds.Get
 import API.Dashboard.StationIds.Id.Delete.Route qualified as Dashboard.StationIds.Id.Delete
 import API.Dashboard.StationIds.New.Get.Route qualified as Dashboard.StationIds.New.Get
 import API.Dashboard.StationIds.New.Post.Route qualified as Dashboard.StationIds.New.Post
-import API.Dashboard.StreamSettings.Edit.Post.Route qualified as Dashboard.StreamSettings.Edit.Post
 import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StreamSettings.Restart.Icecast.Post.Route qualified as Dashboard.StreamSettings.Restart.Icecast.Post
 import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route qualified as Dashboard.StreamSettings.Restart.Liquidsoap.Post
@@ -524,13 +523,11 @@ data DashboardSitePagesRoutes mode = DashboardSitePagesRoutes
 
 -- | Dashboard stream settings management routes under @/dashboard/stream-settings@.
 --
--- For admins to configure the Icecast stream URL and metadata URL,
--- and to restart streaming containers.
+-- Shows stream status, playback history, and container restart controls.
+-- Stream URLs are configured via environment variables (STREAM_URL, METADATA_URL).
 data DashboardStreamSettingsRoutes mode = DashboardStreamSettingsRoutes
-  { -- | @GET /dashboard/stream-settings@ - Stream settings form
+  { -- | @GET /dashboard/stream-settings@ - Stream settings page
     get :: mode :- Dashboard.StreamSettings.Get.Route,
-    -- | @POST /dashboard/stream-settings/edit@ - Update stream settings
-    editPost :: mode :- Dashboard.StreamSettings.Edit.Post.Route,
     -- | @POST /dashboard/stream-settings/restart/icecast@ - Restart Icecast container
     restartIcecastPost :: mode :- Dashboard.StreamSettings.Restart.Icecast.Post.Route,
     -- | @POST /dashboard/stream-settings/restart/liquidsoap@ - Restart Liquidsoap container

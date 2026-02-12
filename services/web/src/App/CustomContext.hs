@@ -19,6 +19,7 @@ module App.CustomContext
     WebhookSecret (..),
     CleanupInterval (..),
     WebhookConfig (..),
+    StreamConfig (..),
   )
 where
 
@@ -72,6 +73,16 @@ data WebhookConfig
       }
   deriving stock (Show, Eq)
 
+-- | Stream URLs loaded from environment variables.
+--
+-- These are infrastructure concerns determined by the nginx/icecast config,
+-- not editable at runtime.
+data StreamConfig = StreamConfig
+  { scStreamUrl :: Text,
+    scMetadataUrl :: Text
+  }
+  deriving stock (Show, Eq)
+
 -- | Custom application context containing all subsystem configurations.
 --
 -- This is the type passed to 'App.runApp' and made available to handlers
@@ -82,7 +93,8 @@ data CustomContext = CustomContext
     smtpConfig :: Maybe SmtpConfig,
     playoutSecret :: PlayoutSecret,
     cleanupInterval :: CleanupInterval,
-    webhookConfig :: WebhookConfig
+    webhookConfig :: WebhookConfig,
+    streamConfig :: StreamConfig
   }
 
 --------------------------------------------------------------------------------
@@ -111,6 +123,10 @@ instance Has.Has CleanupInterval CustomContext where
 instance Has.Has WebhookConfig CustomContext where
   getter = webhookConfig
   modifier f ctx = ctx {webhookConfig = f (webhookConfig ctx)}
+
+instance Has.Has StreamConfig CustomContext where
+  getter = streamConfig
+  modifier f ctx = ctx {streamConfig = f (streamConfig ctx)}
 
 instance Has.Has StorageBackend CustomContext where
   getter = storageBackend . storageContext
@@ -181,6 +197,10 @@ instance Has.Has WebhookConfig (AppContext CustomContext) where
   getter = Has.getter @WebhookConfig . appCustom
   modifier f ctx = ctx {appCustom = Has.modifier @WebhookConfig f (appCustom ctx)}
 
+instance Has.Has StreamConfig (AppContext CustomContext) where
+  getter = Has.getter @StreamConfig . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @StreamConfig f (appCustom ctx)}
+
 --------------------------------------------------------------------------------
 
 -- | All custom configurations loaded from environment (Phase 1).
@@ -190,7 +210,8 @@ data CustomConfigs = CustomConfigs
     ccSmtp :: Maybe SmtpConfig,
     ccPlayout :: PlayoutSecret,
     ccCleanup :: CleanupInterval,
-    ccWebhook :: WebhookConfig
+    ccWebhook :: WebhookConfig,
+    ccStream :: StreamConfig
   }
 
 -- | Load all custom configurations from environment (Phase 1).
@@ -205,6 +226,7 @@ loadCustomConfigs = do
   playout <- loadPlayoutSecret
   cleanup <- loadCleanupInterval
   webhook <- loadWebhookConfig
+  stream <- loadStreamConfig
   pure
     CustomConfigs
       { ccStorageConfig = storageConfig,
@@ -212,7 +234,8 @@ loadCustomConfigs = do
         ccSmtp = smtp,
         ccPlayout = playout,
         ccCleanup = cleanup,
-        ccWebhook = webhook
+        ccWebhook = webhook,
+        ccStream = stream
       }
 
 -- | Build CustomContext inside withAppResources callback (Phase 2).
@@ -225,8 +248,8 @@ buildCustomContext ::
   (CustomContext -> IO a) ->
   IO a
 buildCustomContext appCtx CustomConfigs {..} action = do
-  -- Log analytics, SMTP, cleanup, and webhook configuration state
-  logConfigState (appLoggerEnv appCtx) ccAnalytics ccSmtp ccPlayout ccCleanup ccWebhook
+  -- Log analytics, SMTP, cleanup, webhook, and stream configuration state
+  logConfigState (appLoggerEnv appCtx) ccAnalytics ccSmtp ccPlayout ccCleanup ccWebhook ccStream
 
   -- Build storage context (which may log and/or fail)
   withStorageContext appCtx ccStorageConfig $ \storage -> do
@@ -237,13 +260,14 @@ buildCustomContext appCtx CustomConfigs {..} action = do
               smtpConfig = ccSmtp,
               playoutSecret = ccPlayout,
               cleanupInterval = ccCleanup,
-              webhookConfig = ccWebhook
+              webhookConfig = ccWebhook,
+              streamConfig = ccStream
             }
     action customCtx
 
--- | Log the configuration state for analytics, SMTP, playout, cleanup, and webhook.
-logConfigState :: Log.LoggerEnv -> AnalyticsConfig -> Maybe SmtpConfig -> PlayoutSecret -> CleanupInterval -> WebhookConfig -> IO ()
-logConfigState logEnv analytics smtp playout cleanup webhook = do
+-- | Log the configuration state for analytics, SMTP, playout, cleanup, webhook, and stream.
+logConfigState :: Log.LoggerEnv -> AnalyticsConfig -> Maybe SmtpConfig -> PlayoutSecret -> CleanupInterval -> WebhookConfig -> StreamConfig -> IO ()
+logConfigState logEnv analytics smtp playout cleanup webhook stream = do
   time <- getCurrentTime
   Log.logMessageIO logEnv time Log.LogInfo "Custom configuration loaded" $
     Aeson.object
@@ -274,7 +298,12 @@ logConfigState logEnv analytics smtp playout cleanup webhook = do
                 [ "enabled" .= True,
                   "base_url" .= url,
                   "secret_configured" .= True
-                ]
+                ],
+        "stream"
+          .= Aeson.object
+            [ "stream_url" .= scStreamUrl stream,
+              "metadata_url" .= scMetadataUrl stream
+            ]
       ]
   where
     isJust :: Maybe a -> Bool
@@ -308,3 +337,19 @@ loadWebhookConfig = liftIO $ do
           wcSecret = WebhookSecret $ Text.pack secret
         }
     _ -> WebhookDisabled
+
+-- | Load stream configuration from STREAM_URL and METADATA_URL env vars (Phase 1).
+--
+-- Both variables are required. Crashes at startup if either is missing.
+loadStreamConfig :: (MonadIO m) => m StreamConfig
+loadStreamConfig = liftIO $ do
+  mStreamUrl <- lookupEnv "STREAM_URL"
+  mMetadataUrl <- lookupEnv "METADATA_URL"
+  case (mStreamUrl, mMetadataUrl) of
+    (Just streamUrl, Just metadataUrl) ->
+      pure
+        StreamConfig
+          { scStreamUrl = Text.pack streamUrl,
+            scMetadataUrl = Text.pack metadataUrl
+          }
+    _ -> error "STREAM_URL and METADATA_URL environment variables are required"
