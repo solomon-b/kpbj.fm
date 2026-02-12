@@ -2,7 +2,7 @@
 
 Community radio station website for Shadow Hills CA.
 
-**Web Service** — Haskell/Servant app with server-side HTML (Lucid2 + HTMX). Handles the website, host dashboard, and playout API. Deployed to Fly.io with PostgreSQL and Tigris S3.
+**Web Service** — Haskell/Servant app with server-side HTML (Lucid2 + HTMX). Handles the website, host dashboard, and playout API. Runs on a NixOS VPS with PostgreSQL and Tigris S3.
 
 **Liquidsoap** — Audio automation. Polls the web service for scheduled episodes and streams to Icecast. Runs on a VPS.
 
@@ -84,7 +84,7 @@ Stream available at `http://localhost:8000/stream`. Requires the web service run
 
 ## Deployment
 
-Automated via GitHub Actions and Fly.io.
+Automated via GitHub Actions and NixOS.
 
 | Environment | URL                     | Trigger              |
 |-------------|-------------------------|----------------------|
@@ -149,15 +149,18 @@ All secrets are SOPS-encrypted with age keys and stored in `secrets/`:
 |----------------------------------|-------------------------------------------------------|
 | `secrets/terraform.yaml`         | Terraform provider tokens (DO, Cloudflare)            |
 | `secrets/prod-streaming.yaml`    | Production Icecast passwords, playout/webhook secrets |
+| `secrets/prod-web.yaml`          | Production web DB password, SMTP, AWS keys            |
 | `secrets/staging-streaming.yaml` | Staging Icecast passwords, playout/webhook secrets    |
+| `secrets/staging-web.yaml`       | Staging web DB password, SMTP, AWS keys               |
 
-Streaming secrets are decrypted on the VPS at deploy time via [sops-nix](https://github.com/Mic92/sops-nix). The same secrets are synced to Fly.io for the web service.
+Secrets are decrypted on the VPS at deploy time via [sops-nix](https://github.com/Mic92/sops-nix).
 
 ```bash
 just tf-edit-secrets                   # Edit Terraform secrets
 just sops-edit-prod-streaming          # Edit production streaming secrets
+just sops-edit-prod-web                # Edit production web secrets
 just sops-edit-staging-streaming       # Edit staging streaming secrets
-just fly-sync-secrets-prod             # Sync secrets to Fly.io (production)
+just sops-edit-staging-web             # Edit staging web secrets
 just sops-host-key <host>              # Get a VPS host's age public key
 ```
 
@@ -166,7 +169,7 @@ just sops-host-key <host>              # Get a VPS host's age public key
 ```bash
 just staging-logs / just prod-logs      # View logs
 just staging-status / just prod-status  # Deployment status
-just staging-ssh / just prod-ssh        # SSH into container
+just staging-ssh / just prod-ssh        # SSH into VPS
 ```
 
 ### Streaming (NixOS VPS)
