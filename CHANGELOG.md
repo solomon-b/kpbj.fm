@@ -21,6 +21,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Production Web Service VPS Migration** - Migrated production web service from Fly.io to NixOS-managed DigitalOcean VPS. Removed `fly.toml`.
 - **Stable Streaming During Deploys** - Added `restartIfChanged = false` to Icecast and Liquidsoap systemd services to prevent stream interruptions during NixOS updates.
 - **Faster NixOS Deploys** - Changed CI from `nixos-rebuild boot` + reboot to `nixos-rebuild switch` for immediate rollouts.
+- **Stream Config in NixOS** - Moved stream URL and path configuration from the `stream_settings` database table into NixOS infrastructure config (`StreamConfig` in `CustomContext`). Dropped `stream_settings` table via migration. Removed stream settings edit handler; dashboard now shows read-only values from app config.
 
 ---
 
