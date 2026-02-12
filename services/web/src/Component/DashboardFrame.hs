@@ -240,7 +240,7 @@ sidebar userMeta activeNav selectedShow =
             staffNavItem "MISSING EPISODES" NavMissingEpisodes activeNav
             staffNavItem "SITE PAGES" NavSitePages activeNav
             -- Admin-only items
-            when (UserMetadata.isAdmin userMeta.mUserRole) $
+            when (UserMetadata.isAdmin userMeta.mUserRole) $ do
               staffNavItem "STREAM" NavStreamSettings activeNav
 
     -- User info at bottom (always visible)

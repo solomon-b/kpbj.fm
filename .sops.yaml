@@ -28,6 +28,15 @@ creation_rules:
           - *pc_voice-of-evening
           - *vps_stream_prod
 
+  - path_regex: secrets/google\.yaml$
+    key_groups:
+      - age:
+          - *pc_nightshade
+          - *pc_lorean
+          - *pc_voice-of-evening
+          - *vps_stream_prod
+          - *vps_stream_staging
+
   - path_regex: secrets/staging-streaming\.yaml$
     key_groups:
       - age:

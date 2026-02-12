@@ -8,6 +8,7 @@
     ./networking-prod.nix
     ./common.nix
     ./streaming.nix
+    ./sync-host-emails.nix
     ./nginx.nix
     ./sops.nix
   ];
@@ -20,6 +21,11 @@
     icecastPort = 8000;
     webhookPort = 9000;
     apiBase = "https://www.kpbj.fm/api/playout";
+  };
+
+  kpbj.syncHostEmails = {
+    enable = true;
+    dryRun = false;
   };
 
   kpbj.nginx = {

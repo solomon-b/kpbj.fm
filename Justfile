@@ -541,16 +541,28 @@ sops-edit-prod-streaming: _require-sops
 sops-edit-staging-streaming: _require-sops
   sops secrets/staging-streaming.yaml
 
+# Edit Google Groups / GCP secrets (service account, delegated user, group email)
+sops-edit-google: _require-sops
+  sops secrets/google.yaml
+
 # Sync streaming secrets to Fly.io (production)
 fly-sync-secrets-prod: _require-sops _require-fly
   #!/usr/bin/env bash
   set -euo pipefail
   PLAYOUT_SECRET=$(sops -d --extract '["playout_secret"]' secrets/prod-streaming.yaml)
   WEBHOOK_SECRET=$(sops -d --extract '["webhook_secret"]' secrets/prod-streaming.yaml)
+  GOOGLE_SA_EMAIL=$(sops -d --extract '["google_sa_email"]' secrets/google.yaml)
+  GOOGLE_SA_PRIVATE_KEY=$(sops -d --extract '["google_sa_private_key"]' secrets/google.yaml)
+  GOOGLE_DELEGATED_USER=$(sops -d --extract '["google_delegated_user"]' secrets/google.yaml)
+  GOOGLE_GROUP_EMAIL=$(sops -d --extract '["google_group_email"]' secrets/google.yaml)
   fly secrets set \
     "PLAYOUT_SECRET=$PLAYOUT_SECRET" \
     "WEBHOOK_SECRET=$WEBHOOK_SECRET" \
     "WEBHOOK_URL=https://stream.kpbj.fm" \
+    "GOOGLE_SA_EMAIL=$GOOGLE_SA_EMAIL" \
+    "GOOGLE_SA_PRIVATE_KEY=$GOOGLE_SA_PRIVATE_KEY" \
+    "GOOGLE_DELEGATED_USER=$GOOGLE_DELEGATED_USER" \
+    "GOOGLE_GROUP_EMAIL=$GOOGLE_GROUP_EMAIL" \
     --app kpbj-fm
 
 # Sync streaming secrets to Fly.io (staging)
@@ -559,10 +571,18 @@ fly-sync-secrets-staging: _require-sops _require-fly
   set -euo pipefail
   PLAYOUT_SECRET=$(sops -d --extract '["playout_secret"]' secrets/staging-streaming.yaml)
   WEBHOOK_SECRET=$(sops -d --extract '["webhook_secret"]' secrets/staging-streaming.yaml)
+  GOOGLE_SA_EMAIL=$(sops -d --extract '["google_sa_email"]' secrets/google.yaml)
+  GOOGLE_SA_PRIVATE_KEY=$(sops -d --extract '["google_sa_private_key"]' secrets/google.yaml)
+  GOOGLE_DELEGATED_USER=$(sops -d --extract '["google_delegated_user"]' secrets/google.yaml)
+  GOOGLE_GROUP_EMAIL=$(sops -d --extract '["google_group_email"]' secrets/google.yaml)
   fly secrets set \
     "PLAYOUT_SECRET=$PLAYOUT_SECRET" \
     "WEBHOOK_SECRET=$WEBHOOK_SECRET" \
     "WEBHOOK_URL=https://stream.staging.kpbj.fm" \
+    "GOOGLE_SA_EMAIL=$GOOGLE_SA_EMAIL" \
+    "GOOGLE_SA_PRIVATE_KEY=$GOOGLE_SA_PRIVATE_KEY" \
+    "GOOGLE_DELEGATED_USER=$GOOGLE_DELEGATED_USER" \
+    "GOOGLE_GROUP_EMAIL=$GOOGLE_GROUP_EMAIL" \
     --app kpbj-fm-staging
 
 # Get a VPS host's age public key (for adding to .sops.yaml)

@@ -27,3 +27,8 @@ output "cloudflare_zone_id" {
   value       = local.cloudflare_zone_id
   sensitive   = true
 }
+
+output "google_groups_sa_email" {
+  description = "Google Groups service account email"
+  value       = google_service_account.google_groups.email
+}

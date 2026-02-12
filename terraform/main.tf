@@ -27,6 +27,11 @@ terraform {
       source  = "carlpett/sops"
       version = "~> 1.0"
     }
+
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 6.0"
+    }
   }
 
   # Remote state in Tigris S3. Credentials are passed via
@@ -64,4 +69,8 @@ provider "cloudflare" {
 
 provider "digitalocean" {
   token = data.sops_file.secrets.data["digitalocean_token"]
+}
+
+provider "google" {
+  project = data.sops_file.secrets.data["google_project_id"]
 }
