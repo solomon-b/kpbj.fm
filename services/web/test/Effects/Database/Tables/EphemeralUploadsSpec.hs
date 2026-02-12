@@ -67,6 +67,7 @@ prop_insertSelect cfg = do
         selected <- assertJust mSelected
         UUT.eumId selected === insertedId
         UUT.eumTitle selected === UUT.euiTitle uploadInsert
+        UUT.eumDescription selected === UUT.euiDescription uploadInsert
         UUT.eumAudioFilePath selected === UUT.euiAudioFilePath uploadInsert
         UUT.eumMimeType selected === UUT.euiMimeType uploadInsert
         UUT.eumFileSize selected === UUT.euiFileSize uploadInsert
@@ -153,10 +154,11 @@ prop_updateEphemeralUpload cfg = do
         insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
 
         let newTitle = "Updated Title"
+        let newDescription = "Updated description for testing purposes"
         let newPath = "/updated/path.mp3"
         let newMime = "audio/wav"
         let newSize = 42000
-        mUpdated <- TRX.statement () (UUT.updateEphemeralUpload insertedId newTitle newPath newMime newSize)
+        mUpdated <- TRX.statement () (UUT.updateEphemeralUpload insertedId newTitle newDescription newPath newMime newSize)
 
         TRX.condemn
         pure (insertedId, mUpdated)
@@ -166,6 +168,7 @@ prop_updateEphemeralUpload cfg = do
         updated <- assertJust mUpdated
         UUT.eumId updated === insertedId
         UUT.eumTitle updated === "Updated Title"
+        UUT.eumDescription updated === "Updated description for testing purposes"
         UUT.eumAudioFilePath updated === "/updated/path.mp3"
         UUT.eumMimeType updated === "audio/wav"
         UUT.eumFileSize updated === 42000

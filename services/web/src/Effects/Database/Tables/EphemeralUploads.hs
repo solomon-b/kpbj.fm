@@ -84,6 +84,7 @@ newtype Id = Id {unId :: Int64}
 data EphemeralUpload f = EphemeralUpload
   { eumId :: Column f Id,
     eumTitle :: Column f Text,
+    eumDescription :: Column f Text,
     eumAudioFilePath :: Column f Text,
     eumMimeType :: Column f Text,
     eumFileSize :: Column f Int64,
@@ -118,6 +119,7 @@ ephemeralUploadSchema =
         EphemeralUpload
           { eumId = "id",
             eumTitle = "title",
+            eumDescription = "description",
             eumAudioFilePath = "audio_file_path",
             eumMimeType = "mime_type",
             eumFileSize = "file_size",
@@ -132,6 +134,7 @@ ephemeralUploadSchema =
 -- | Insert type for creating new ephemeral uploads.
 data Insert = Insert
   { euiTitle :: Text,
+    euiDescription :: Text,
     euiAudioFilePath :: Text,
     euiMimeType :: Text,
     euiFileSize :: Int64,
@@ -146,6 +149,7 @@ data Insert = Insert
 data EphemeralUploadWithCreator = EphemeralUploadWithCreator
   { euwcId :: Id,
     euwcTitle :: Text,
+    euwcDescription :: Text,
     euwcAudioFilePath :: Text,
     euwcMimeType :: Text,
     euwcFileSize :: Int64,
@@ -168,7 +172,7 @@ getAllEphemeralUploads (Limit lim) (Offset off) =
   interp
     True
     [sql|
-    SELECT eu.id, eu.title, eu.audio_file_path, eu.mime_type, eu.file_size,
+    SELECT eu.id, eu.title, eu.description, eu.audio_file_path, eu.mime_type, eu.file_size,
            eu.creator_id, eu.created_at, um.display_name
     FROM ephemeral_uploads eu
     JOIN user_metadata um ON eu.creator_id = um.user_id
@@ -193,7 +197,7 @@ getRandomEphemeralUpload =
   interp
     False
     [sql|
-    SELECT id, title, audio_file_path, mime_type, file_size, creator_id, created_at
+    SELECT id, title, description, audio_file_path, mime_type, file_size, creator_id, created_at
     FROM ephemeral_uploads
     ORDER BY RANDOM()
     LIMIT 1
@@ -212,6 +216,7 @@ insertEphemeralUpload Insert {..} =
                 [ EphemeralUpload
                     { eumId = nextId "ephemeral_uploads_id_seq",
                       eumTitle = lit euiTitle,
+                      eumDescription = lit euiDescription,
                       eumAudioFilePath = lit euiAudioFilePath,
                       eumMimeType = lit euiMimeType,
                       eumFileSize = lit euiFileSize,
@@ -227,8 +232,8 @@ insertEphemeralUpload Insert {..} =
 --
 -- Updates all mutable fields. Pass existing values for fields you don't want to change.
 -- Returns the updated model if successful, Nothing if not found.
-updateEphemeralUpload :: Id -> Text -> Text -> Text -> Int64 -> Hasql.Statement () (Maybe Model)
-updateEphemeralUpload ephemeralUploadId newTitle newAudioFilePath newMimeType newFileSize =
+updateEphemeralUpload :: Id -> Text -> Text -> Text -> Text -> Int64 -> Hasql.Statement () (Maybe Model)
+updateEphemeralUpload ephemeralUploadId newTitle newDescription newAudioFilePath newMimeType newFileSize =
   fmap listToMaybe $
     run $
       update
@@ -238,6 +243,7 @@ updateEphemeralUpload ephemeralUploadId newTitle newAudioFilePath newMimeType ne
             set = \_ row ->
               row
                 { eumTitle = lit newTitle,
+                  eumDescription = lit newDescription,
                   eumAudioFilePath = lit newAudioFilePath,
                   eumMimeType = lit newMimeType,
                   eumFileSize = lit newFileSize

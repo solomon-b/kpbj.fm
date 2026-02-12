@@ -66,67 +66,75 @@ processEphemeralUpload user form = do
       let banner = BannerParams Error "Upload Failed" "Title is required."
       pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
     else do
-      -- Validate audio token is provided
-      let audioToken = fdAudioToken form
-      if Text.null audioToken
+      -- Validate and sanitize description
+      let description = Sanitize.sanitizePlainText (fdDescription form)
+      if Text.length description < 80
         then do
-          let banner = BannerParams Error "Upload Failed" "Audio file is required."
+          let banner = BannerParams Error "Upload Failed" "Description must be at least 80 characters (approximately 2 sentences)."
           pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
         else do
-          -- First, get the staged upload to retrieve metadata
-          stagedUploadResult <- execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
-          case stagedUploadResult of
-            Left err -> do
-              Log.logInfo "Failed to get staged upload" (Text.pack $ show err)
-              throwDatabaseError err
-            Right Nothing -> do
-              Log.logInfo_ "Staged upload not found"
-              let banner = BannerParams Error "Upload Failed" "Uploaded file not found or expired."
+          -- Validate audio token is provided
+          let audioToken = fdAudioToken form
+          if Text.null audioToken
+            then do
+              let banner = BannerParams Error "Upload Failed" "Audio file is required."
               pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-            Right (Just stagedUpload) -> do
-              -- Get current time for date hierarchy
-              now <- liftIO getCurrentTime
-
-              -- Claim and relocate the staged upload to final location
-              -- Use slugified title as filename prefix for easier identification
-              let Slug titleSlug = mkSlug title
-              claimResult <-
-                claimAndRelocateUpload
-                  (User.mId user)
-                  audioToken
-                  StagedUploads.EphemeralAudio
-                  AudioBucket
-                  EphemeralAudio
-                  now
-                  titleSlug
-
-              case claimResult of
+            else do
+              -- First, get the staged upload to retrieve metadata
+              stagedUploadResult <- execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
+              case stagedUploadResult of
                 Left err -> do
-                  Log.logInfo "Failed to claim staged upload" err
-                  let banner = BannerParams Error "Upload Failed" err
+                  Log.logInfo "Failed to get staged upload" (Text.pack $ show err)
+                  throwDatabaseError err
+                Right Nothing -> do
+                  Log.logInfo_ "Staged upload not found"
+                  let banner = BannerParams Error "Upload Failed" "Uploaded file not found or expired."
                   pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-                Right storagePath -> do
-                  -- Create the ephemeral upload record
-                  let insert =
-                        EphemeralUploads.Insert
-                          { EphemeralUploads.euiTitle = title,
-                            EphemeralUploads.euiAudioFilePath = storagePath,
-                            EphemeralUploads.euiMimeType = StagedUploads.mimeType stagedUpload,
-                            EphemeralUploads.euiFileSize = StagedUploads.fileSize stagedUpload,
-                            EphemeralUploads.euiCreatorId = User.mId user
-                          }
+                Right (Just stagedUpload) -> do
+                  -- Get current time for date hierarchy
+                  now <- liftIO getCurrentTime
 
-                  insertResult <- execQuery (EphemeralUploads.insertEphemeralUpload insert)
-                  case insertResult of
+                  -- Claim and relocate the staged upload to final location
+                  -- Use slugified title as filename prefix for easier identification
+                  let Slug titleSlug = mkSlug title
+                  claimResult <-
+                    claimAndRelocateUpload
+                      (User.mId user)
+                      audioToken
+                      StagedUploads.EphemeralAudio
+                      AudioBucket
+                      EphemeralAudio
+                      now
+                      titleSlug
+
+                  case claimResult of
                     Left err -> do
-                      Log.logInfo "Failed to insert ephemeral upload" (Text.pack $ show err)
-                      throwDatabaseError err
-                    Right Nothing -> do
-                      Log.logInfo_ "Ephemeral upload insert returned Nothing"
-                      let banner = BannerParams Error "Upload Failed" "Failed to create ephemeral upload record."
+                      Log.logInfo "Failed to claim staged upload" err
+                      let banner = BannerParams Error "Upload Failed" err
                       pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-                    Right (Just _ephemeralUploadId) -> do
-                      Log.logInfo "Ephemeral upload completed successfully" title
-                      let banner = BannerParams Success "Ephemeral Uploaded" "Your ephemeral clip has been uploaded successfully."
-                          redirectUrl = buildRedirectUrl listUrlText banner
-                      pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrlText banner)
+                    Right storagePath -> do
+                      -- Create the ephemeral upload record
+                      let insert =
+                            EphemeralUploads.Insert
+                              { EphemeralUploads.euiTitle = title,
+                                EphemeralUploads.euiDescription = description,
+                                EphemeralUploads.euiAudioFilePath = storagePath,
+                                EphemeralUploads.euiMimeType = StagedUploads.mimeType stagedUpload,
+                                EphemeralUploads.euiFileSize = StagedUploads.fileSize stagedUpload,
+                                EphemeralUploads.euiCreatorId = User.mId user
+                              }
+
+                      insertResult <- execQuery (EphemeralUploads.insertEphemeralUpload insert)
+                      case insertResult of
+                        Left err -> do
+                          Log.logInfo "Failed to insert ephemeral upload" (Text.pack $ show err)
+                          throwDatabaseError err
+                        Right Nothing -> do
+                          Log.logInfo_ "Ephemeral upload insert returned Nothing"
+                          let banner = BannerParams Error "Upload Failed" "Failed to create ephemeral upload record."
+                          pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
+                        Right (Just _ephemeralUploadId) -> do
+                          Log.logInfo "Ephemeral upload completed successfully" title
+                          let banner = BannerParams Success "Ephemeral Uploaded" "Your ephemeral clip has been uploaded successfully."
+                              redirectUrl = buildRedirectUrl listUrlText banner
+                          pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrlText banner)

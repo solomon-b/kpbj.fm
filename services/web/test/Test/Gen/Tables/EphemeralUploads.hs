@@ -15,6 +15,7 @@ import Test.Gen.Text (genText, genUrl)
 ephemeralUploadInsertGen :: (MonadGen m) => User.Id -> m EphemeralUploads.Insert
 ephemeralUploadInsertGen userId = do
   euiTitle <- genText
+  euiDescription <- genText
   euiAudioFilePath <- genUrl
   euiMimeType <- Gen.element ["audio/mpeg", "audio/ogg", "audio/wav"]
   euiFileSize <- Gen.integral (Range.linear 1000 10000000 :: Range.Range Int64)
