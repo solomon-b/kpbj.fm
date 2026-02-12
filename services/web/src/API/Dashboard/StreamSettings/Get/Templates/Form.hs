@@ -23,9 +23,7 @@ import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
-import Effects.Database.Tables.StreamSettings qualified as StreamSettings
 import Lucid qualified
-import Lucid.Form.Builder
 import Lucid.HTMX
 import Servant.Links qualified as Links
 
@@ -49,9 +47,6 @@ data IcecastStatus = IcecastStatus
 --------------------------------------------------------------------------------
 
 -- URL helpers
-dashboardStreamSettingsEditPostUrl :: Links.URI
-dashboardStreamSettingsEditPostUrl = Links.linkURI dashboardStreamSettingsLinks.editPost
-
 restartIcecastUrl :: Links.URI
 restartIcecastUrl = Links.linkURI dashboardStreamSettingsLinks.restartIcecastPost
 
@@ -60,10 +55,14 @@ restartLiquidsoapUrl = Links.linkURI dashboardStreamSettingsLinks.restartLiquids
 
 --------------------------------------------------------------------------------
 
--- | Stream settings edit template using FormBuilder
-template :: StreamSettings.Model -> Bool -> Maybe IcecastStatus -> [PlaybackHistory.Model] -> Maybe Text -> Lucid.Html ()
-template settings icecastReachable mStatus playbackHistory mError = do
-  maybe mempty errorAlert mError
+-- | Stream settings page template.
+--
+-- Shows stream status, playback history, and container management controls.
+-- Stream URLs are configured via environment variables, not editable here.
+template :: Bool -> Maybe IcecastStatus -> [PlaybackHistory.Model] -> Lucid.Html ()
+template icecastReachable mStatus playbackHistory = do
+  -- Page title
+  Lucid.h1_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb6]] "STREAM SETTINGS"
 
   -- Stream status section
   statusSection icecastReachable mStatus
@@ -71,95 +70,40 @@ template settings icecastReachable mStatus playbackHistory mError = do
   -- Playback history section
   playbackHistorySection playbackHistory
 
-  -- Settings form
-  renderForm config form
-  where
-    config :: FormConfig
-    config =
-      defaultFormConfig
-        { fcAction = [i|/#{dashboardStreamSettingsEditPostUrl}|],
-          fcMethod = "post",
-          fcHtmxTarget = Just "#main-content",
-          fcHtmxSwap = Just "innerHTML"
-        }
-
-    form :: FormBuilder
-    form = do
-      formTitle "STREAM SETTINGS"
-
-      -- Danger zone section
-      dangerZoneSection settings
-
-      submitButton "SAVE SETTINGS"
+  -- Container management section
+  containerManagementSection
 
 --------------------------------------------------------------------------------
 
--- | Danger zone section for stream configuration
-dangerZoneSection :: StreamSettings.Model -> FormBuilder
-dangerZoneSection settings = plain $ do
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, "rounded", "border-2", Tokens.errorBorder, Tokens.bgMain]] $ do
-    -- Header
-    Lucid.div_ [class_ $ base ["flex", "items-center", "gap-2", Tokens.mb4]] $ do
-      Lucid.span_ [class_ $ base [Tokens.errorText, Tokens.fontBold, Tokens.textLg]] "DANGER ZONE"
+-- | Container management section for restarting streaming services.
+containerManagementSection :: Lucid.Html ()
+containerManagementSection =
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb2]] "CONTAINER MANAGEMENT"
     Lucid.p_
       [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
-      "Changing these settings will affect the live stream. Only modify if you know what you're doing."
+      "Restart streaming services if needed. This will briefly interrupt the stream."
 
-    -- Stream URL field
-    Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
-      Lucid.label_ [class_ $ base [Tokens.fontBold, Tokens.textSm, "block", Tokens.mb2], Lucid.for_ "stream_url"] "Stream URL"
-      Lucid.input_
-        [ Lucid.type_ "text",
-          Lucid.name_ "stream_url",
-          Lucid.id_ "stream_url",
-          Lucid.value_ settings.ssStreamUrl,
-          Lucid.placeholder_ "https://example.com/listen/station/radio.mp3",
-          Lucid.required_ "required",
-          class_ $ base ["w-full", Tokens.p2, Tokens.border2, "rounded", Tokens.bgAlt, "focus:outline-none", "focus:" <> Tokens.errorBorder]
+    Lucid.div_ [class_ $ base ["flex", "flex-wrap", "gap-4"]] $ do
+      -- Restart Icecast button
+      Lucid.button_
+        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
+          hxPost_ [i|/#{restartIcecastUrl}|],
+          hxSwap_ "none",
+          hxConfirm_ "Are you sure you want to restart Icecast? This will disconnect all listeners for a few seconds.",
+          hxDisabledElt_ "this"
         ]
-      Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "mt-1"]] "The direct URL to the audio stream (MP3 or OGG format)"
+        "RESTART ICECAST"
 
-    -- Metadata URL field
-    Lucid.div_ [] $ do
-      Lucid.label_ [class_ $ base [Tokens.fontBold, Tokens.textSm, "block", Tokens.mb2], Lucid.for_ "metadata_url"] "Metadata URL"
-      Lucid.input_
-        [ Lucid.type_ "text",
-          Lucid.name_ "metadata_url",
-          Lucid.id_ "metadata_url",
-          Lucid.value_ settings.ssMetadataUrl,
-          Lucid.placeholder_ "https://example.com/api/nowplaying/station",
-          Lucid.required_ "required",
-          class_ $ base ["w-full", Tokens.p2, Tokens.border2, "rounded", Tokens.bgAlt, "focus:outline-none", "focus:" <> Tokens.errorBorder]
+      -- Restart Liquidsoap button
+      Lucid.button_
+        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
+          hxPost_ [i|/#{restartLiquidsoapUrl}|],
+          hxSwap_ "none",
+          hxConfirm_ "Are you sure you want to restart Liquidsoap? This will interrupt audio playback for a few seconds.",
+          hxDisabledElt_ "this"
         ]
-      Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "mt-1"]] "The API endpoint that returns current track information in JSON format"
-
-    -- Container management
-    Lucid.div_ [class_ $ base ["border-t", Tokens.errorBorder, "mt-6", "pt-4"]] $ do
-      Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "CONTAINER MANAGEMENT"
-      Lucid.p_
-        [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
-        "Restart streaming services if needed. This will briefly interrupt the stream."
-
-      Lucid.div_ [class_ $ base ["flex", "flex-wrap", "gap-4"]] $ do
-        -- Restart Icecast button
-        Lucid.button_
-          [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
-            hxPost_ [i|/#{restartIcecastUrl}|],
-            hxSwap_ "none",
-            hxConfirm_ "Are you sure you want to restart Icecast? This will disconnect all listeners for a few seconds.",
-            hxDisabledElt_ "this"
-          ]
-          "RESTART ICECAST"
-
-        -- Restart Liquidsoap button
-        Lucid.button_
-          [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
-            hxPost_ [i|/#{restartLiquidsoapUrl}|],
-            hxSwap_ "none",
-            hxConfirm_ "Are you sure you want to restart Liquidsoap? This will interrupt audio playback for a few seconds.",
-            hxDisabledElt_ "this"
-          ]
-          "RESTART LIQUIDSOAP"
+        "RESTART LIQUIDSOAP"
 
 --------------------------------------------------------------------------------
 
@@ -283,10 +227,3 @@ sourceTypeBadge "ephemeral" =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.infoBg, Tokens.infoText]] "ephemeral"
 sourceTypeBadge other =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.bgInverse, Tokens.fgInverse]] $ Lucid.toHtml other
-
--- | Error alert component
-errorAlert :: Text -> Lucid.Html ()
-errorAlert message =
-  Lucid.div_
-    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
-    $ Lucid.toHtml message

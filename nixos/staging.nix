@@ -69,5 +69,9 @@
 
     # Webhook (co-located on same VPS)
     webhookUrl = "http://127.0.0.1:9001";
+
+    # Stream
+    streamUrl = "https://stream.staging.kpbj.fm/";
+    metadataUrl = "https://stream.staging.kpbj.fm/status";
   };
 }

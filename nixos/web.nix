@@ -106,6 +106,16 @@ in
       type = lib.types.str;
       description = "URL of the webhook listener for service restarts.";
     };
+
+    streamUrl = lib.mkOption {
+      type = lib.types.str;
+      description = "URL of the Icecast audio stream (e.g. https://stream.kpbj.fm/).";
+    };
+
+    metadataUrl = lib.mkOption {
+      type = lib.types.str;
+      description = "URL of the Icecast metadata/status endpoint (e.g. https://stream.kpbj.fm/status).";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -189,6 +199,10 @@ in
 
         # Webhook
         WEBHOOK_URL = cfg.webhookUrl;
+
+        # Stream
+        STREAM_URL = cfg.streamUrl;
+        METADATA_URL = cfg.metadataUrl;
 
         # TLS certificates for outbound HTTPS
         SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";

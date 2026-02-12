@@ -16,8 +16,8 @@ import Design.FormStyles (formBuilderCSS)
 import Design.Theme (defaultTheme, themeCSS)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
+import App.CustomContext (StreamConfig (..))
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId (..))
-import Effects.Database.Tables.StreamSettings qualified as StreamSettings
 import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
@@ -156,8 +156,8 @@ mobileArchiveBanner =
       Lucid.span_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, "px-3", "py-1", Tokens.fontBold]] "GO LIVE"
 
 -- | Audio element wrapper with Alpine state (shared between mobile and desktop)
-musicPlayerWrapper :: StreamSettings.Model -> Lucid.Html () -> Lucid.Html ()
-musicPlayerWrapper settings content =
+musicPlayerWrapper :: StreamConfig -> Lucid.Html () -> Lucid.Html ()
+musicPlayerWrapper cfg content =
   Lucid.div_ [xData_ playerData, class_ $ base ["flex", "flex-col", "flex-1"]] $ do
     Lucid.audio_
       [ xRef_ "audio",
@@ -166,15 +166,13 @@ musicPlayerWrapper settings content =
       mempty
     content
   where
-    streamUrl = settings.ssStreamUrl
-    metadataUrl = settings.ssMetadataUrl
+    streamUrl = scStreamUrl cfg
     playerData =
       [i|{
       playerId: 'navbar-player',
       isPlaying: false,
       volume: 80,
       streamUrl: '#{streamUrl}',
-      metadataUrl: '#{metadataUrl}',
 
       // Playback mode: 'stream' for live radio, 'episode' for on-demand episodes
       mode: 'stream',
@@ -795,7 +793,7 @@ suspensionBanner Suspended =
       Lucid.p_ [class_ $ base [Tokens.textSm, "mt-2"]] $
         Lucid.toHtml @Text "If you believe this is an error, please contact us at contact@kpbj.fm"
 
-template :: Maybe GoogleAnalyticsId -> StreamSettings.Model -> Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
+template :: Maybe GoogleAnalyticsId -> StreamConfig -> Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
 template mGoogleAnalyticsId streamSettings mUser main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
@@ -922,10 +920,10 @@ template mGoogleAnalyticsId streamSettings mUser main =
 
 --------------------------------------------------------------------------------
 
-loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamSettings.Model -> Lucid.Html () -> m (Lucid.Html ())
+loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> Lucid.Html () -> m (Lucid.Html ())
 loadFrame mGoogleAnalyticsId streamSettings = pure . template mGoogleAnalyticsId streamSettings Nothing
 
-loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamSettings.Model -> UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
+loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
 loadFrameWithUser mGoogleAnalyticsId streamSettings user = pure . template mGoogleAnalyticsId streamSettings (Just user)
 
 -- | Load content-only for HTMX responses
