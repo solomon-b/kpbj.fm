@@ -45,6 +45,19 @@ in
         forceSSL = true;
         enableACME = true;
 
+        locations."= /" = {
+          proxyPass = "http://127.0.0.1:${toString cfg.icecastPort}/stream";
+          extraConfig = ''
+            proxy_buffering off;
+            proxy_read_timeout 24h;
+            proxy_send_timeout 24h;
+          '';
+        };
+
+        locations."= /status" = {
+          proxyPass = "http://127.0.0.1:${toString cfg.icecastPort}/status-json.xsl";
+        };
+
         locations."/" = {
           proxyPass = "http://127.0.0.1:${toString cfg.icecastPort}";
           extraConfig = ''
