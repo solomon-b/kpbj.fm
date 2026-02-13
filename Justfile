@@ -383,9 +383,10 @@ prod-status:
 prod-open:
   xdg-open https://www.kpbj.fm 2>/dev/null || open https://www.kpbj.fm
 
-# Connect to production database with psql (via SSH)
-prod-psql:
-  ssh -t {{PROD_VPS_TARGET}} sudo -u postgres psql -d {{PROD_DB_NAME}}
+# Connect to production database with psql (via SSH, read-only by default, pass --write to allow writes)
+prod-psql *args:
+  ssh -t {{PROD_VPS_TARGET}} sudo -u postgres psql -d {{PROD_DB_NAME}} \
+    {{ if args == "--write" { "" } else { "-v default_transaction_read_only=on" } }}
 
 # Run migrations on production (via SSH tunnel)
 prod-migrations-run: _require-sops

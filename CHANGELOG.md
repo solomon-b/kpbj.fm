@@ -13,6 +13,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Configurable SSL/ACME** - Added `enableSSL` option (default `true`) to both `nginx.nix` and `web.nix` NixOS modules, allowing SSL to be disabled for initial deploys before DNS cutover.
 - **Per-Host PostgreSQL Version Pinning** - Replaced the hardcoded PostgreSQL package in the shared `postgresql.nix` module with a required `pgPackage` option that each host must set explicitly. Prevents accidental major-version upgrades (which destroy the data directory) from propagating silently across environments.
 - **Pre-Deploy Database Backup in Production CI** - The production deploy workflow now runs a full pgBackRest backup via SSH before `nixos-rebuild switch`, ensuring a fresh restore point exists before every production deploy. If the backup fails, the deploy aborts.
+- **Read-Only Production psql** - `just prod-psql` now connects in read-only mode by default. Pass `--write` to allow writes.
 
 ### Fixes
 - **Stream Settings Resilience** - Stream settings dashboard and metadata proxy no longer crash when Icecast is down or returns non-JSON responses (e.g. 404 HTML). Switched from `httpJSON` (which throws uncaught `JSONException`) to `httpLBS` with manual JSON decoding. Added 5-second response timeout to both endpoints.
