@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -18,6 +19,7 @@ import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Data.Aeson (Value (..))
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Key (fromText)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Either (fromRight)
@@ -32,6 +34,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Network.HTTP.Client qualified as HTTPClient
 import Network.HTTP.Simple qualified as HTTP
 
 --------------------------------------------------------------------------------
@@ -71,16 +74,21 @@ handler cookie (foldHxReq -> hxRequest) =
 --
 -- Returns a pair: whether Icecast responded at all (Bool), and
 -- the parsed source status if available (Maybe IcecastStatus).
+-- Uses 'httpLBS' with a 5-second timeout to avoid hanging when
+-- Icecast is down, and to gracefully handle non-JSON responses.
 fetchIcecastStatus :: Text.Text -> AppM (Bool, Maybe IcecastStatus)
 fetchIcecastStatus metadataUrl = do
   result <- liftIO $ try @HTTP.HttpException $ do
     request <- HTTP.parseRequest (Text.unpack metadataUrl)
-    response <- HTTP.httpJSON request
-    pure (HTTP.getResponseBody response :: Value)
+    let request' = HTTP.setRequestResponseTimeout (HTTPClient.responseTimeoutMicro 5_000_000) request
+    response <- HTTP.httpLBS request'
+    pure (HTTP.getResponseBody response)
 
   case result of
     Left _err -> pure (False, Nothing)
-    Right json -> pure (True, parseIcecastStatus json)
+    Right body -> case Aeson.decode body of
+      Nothing -> pure (False, Nothing)
+      Just json -> pure (True, parseIcecastStatus json)
 
 -- | Parse icecast JSON into our status type.
 parseIcecastStatus :: Value -> Maybe IcecastStatus

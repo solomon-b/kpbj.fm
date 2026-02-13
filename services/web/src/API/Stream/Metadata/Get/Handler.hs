@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
 -- | Handler for GET /api/stream/metadata.
@@ -14,8 +15,10 @@ import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Data.Aeson (Value, object, (.=))
+import Data.Aeson qualified as Aeson
 import Data.Has (getter)
 import Data.Text qualified as Text
+import Network.HTTP.Client qualified as HTTPClient
 import Network.HTTP.Simple qualified as HTTP
 
 --------------------------------------------------------------------------------
@@ -28,15 +31,18 @@ handler :: AppM Value
 handler = do
   streamCfg <- asks (getter @StreamConfig)
 
-  -- Fetch from icecast
+  -- Fetch from icecast with a 5-second timeout
   result <- liftIO $ try @HTTP.HttpException $ do
     request <- HTTP.parseRequest (Text.unpack streamCfg.scMetadataUrl)
-    response <- HTTP.httpJSON request
-    pure (HTTP.getResponseBody response :: Value)
+    let request' = HTTP.setRequestResponseTimeout (HTTPClient.responseTimeoutMicro 5_000_000) request
+    response <- HTTP.httpLBS request'
+    pure (HTTP.getResponseBody response)
 
   case result of
     Left _err -> pure fallbackResponse
-    Right json -> pure json
+    Right body -> case Aeson.decode body of
+      Nothing -> pure fallbackResponse
+      Just json -> pure json
 
 -- | Fallback response when icecast is unavailable.
 fallbackResponse :: Value
