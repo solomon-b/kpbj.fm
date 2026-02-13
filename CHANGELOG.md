@@ -6,6 +6,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Features
 - **Ephemeral Upload Descriptions** - Added a required `description` field to ephemeral uploads (min 80 characters). Existing uploads are backfilled with their title. Both new and edit forms include an editorial guidelines notice reminding submitters that ephemeral clips speak as the voice of the station. Description is shown as a truncated secondary line in the uploads list.
+- **Ephemeral Upload Flagging** - Staff and admins can flag ephemeral uploads with a reason (inappropriate content, poor audio quality, copyright concern). Flagged uploads are dimmed with a visible `[FLAGGED: reason]` label in the dashboard, sorted to the top of the list for staff visibility. Regular users and the Liquidsoap fallback playback endpoint no longer see flagged uploads. Staff can unflag uploads to restore them. New `flag_reason` enum, `flagged_at`/`flagged_by`/`flag_reason` columns, and a partial index on unflagged uploads.
 - **Host Email Sync Job** - New standalone Haskell job (`sync-host-emails`) that syncs host email addresses to a Google Group via the Google Admin SDK. Runs as a NixOS systemd timer on the VPS. Google service account credentials managed via SOPS. Terraform provisions the Google project and service account.
 
 ### Fixes

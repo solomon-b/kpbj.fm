@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Dashboard.EphemeralUploads.Get.Templates.Page
@@ -19,6 +20,7 @@ import Component.Table
     renderIndexTable,
     rowAttrs,
   )
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -82,7 +84,7 @@ template backend ephemeralUploads (PageNumber pageNum) hasMore userMeta = do
 renderEphemeralUploadRow ::
   -- | Storage backend for building media URLs
   StorageBackend ->
-  -- | Whether the current user is staff or admin (can edit)
+  -- | Whether the current user is staff or admin (can edit/flag)
   Bool ->
   -- | The ephemeral upload to render
   EphemeralUploads.EphemeralUploadWithCreator ->
@@ -94,15 +96,59 @@ renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
       creatorName = ephemeralUpload.euwcCreatorDisplayName
       createdAt = ephemeralUpload.euwcCreatedAt
       audioPath = ephemeralUpload.euwcAudioFilePath
+      isFlagged = isJust ephemeralUpload.euwcFlaggedAt
+      flagReason = maybe "" EphemeralUploads.flagReasonToText ephemeralUpload.euwcFlagReason
       ephemeralUploadIdText = display ephemeralUploadId
       rowId = [i|ephemeral-upload-row-#{ephemeralUploadIdText}|]
+      rowTarget = "#" <> rowId
       editUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.editGet ephemeralUploadId
       deleteUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.delete ephemeralUploadId
+      flagUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.flagPost ephemeralUploadId
+      unflagUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.unflagPost ephemeralUploadId
       deleteConfirmMessage =
         "Are you sure you want to delete the ephemeral upload \""
           <> display title
           <> "\"? This action cannot be undone."
       audioUrl = buildMediaUrl backend audioPath
+      -- Flag/unflag actions for staff/admin
+      flagActions
+        | not isStaffOrAdmin = []
+        | isFlagged =
+            [ ActionsDropdown.htmxPostAction
+                "unflag"
+                "Unflag"
+                [i|/#{unflagUrl}|]
+                rowTarget
+                ActionsDropdown.SwapOuterHTML
+                (Just [i|Unflag "#{title}"?|])
+                []
+            ]
+        | otherwise =
+            [ ActionsDropdown.htmxPostAction
+                "inappropriate"
+                "Flag: Inappropriate"
+                [i|/#{flagUrl}|]
+                rowTarget
+                ActionsDropdown.SwapOuterHTML
+                (Just [i|Flag "#{title}" as inappropriate content?|])
+                [("reason", "Inappropriate content")],
+              ActionsDropdown.htmxPostAction
+                "audioquality"
+                "Flag: Audio quality"
+                [i|/#{flagUrl}|]
+                rowTarget
+                ActionsDropdown.SwapOuterHTML
+                (Just [i|Flag "#{title}" for poor audio quality?|])
+                [("reason", "Poor audio quality")],
+              ActionsDropdown.htmxPostAction
+                "copyright"
+                "Flag: Copyright"
+                [i|/#{flagUrl}|]
+                rowTarget
+                ActionsDropdown.SwapOuterHTML
+                (Just [i|Flag "#{title}" for copyright concern?|])
+                [("reason", "Copyright concern")]
+            ]
       -- Build actions list based on permissions
       actions =
         [ActionsDropdown.navigateAction "edit" "Edit" [i|/#{editUrl}|] | isStaffOrAdmin]
@@ -110,16 +156,24 @@ renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
                  "delete"
                  "Delete"
                  [i|/#{deleteUrl}|]
-                 ("#" <> rowId)
+                 rowTarget
                  ActionsDropdown.SwapOuterHTML
                  deleteConfirmMessage
              ]
+          <> flagActions
+      -- Dim flagged rows
+      rowOpacity = if isFlagged then "opacity-60" else ""
    in do
-        Lucid.tr_ (rowAttrs rowId) $ do
+        Lucid.tr_ (rowAttrs rowId <> [Lucid.class_ rowOpacity | isFlagged]) $ do
           -- Title cell
           Lucid.td_ [class_ $ base [Tokens.p4]] $ do
             Lucid.span_ [Lucid.class_ Tokens.fontBold] $
               Lucid.toHtml title
+            if isFlagged
+              then
+                Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.warningText, Tokens.fontBold, "ml-2"]] $
+                  Lucid.toHtml ("[FLAGGED: " <> flagReason <> "]")
+              else mempty
             Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "truncate", "max-w-xs"]] $
               Lucid.toHtml (Text.take 100 desc)
 
