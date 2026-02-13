@@ -26,6 +26,12 @@ in
       type = lib.types.port;
       description = "Local port where Icecast is listening.";
     };
+
+    enableSSL = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Enable ACME certificates and force HTTPS for the streaming vhost.";
+    };
   };
 
   config = {
@@ -42,8 +48,8 @@ in
       recommendedProxySettings = true;
 
       virtualHosts.${cfg.domain} = {
-        forceSSL = true;
-        enableACME = true;
+        forceSSL = cfg.enableSSL;
+        enableACME = cfg.enableSSL;
 
         locations."= /" = {
           proxyPass = "http://127.0.0.1:${toString cfg.icecastPort}/stream";

@@ -52,15 +52,14 @@ resource "cloudflare_dns_record" "staging_a" {
 # ──────────────────────────────────────────────────────────────
 
 # stream.kpbj.fm → Production streaming VPS (DNS-only for audio streaming)
-# TODO: Switch to digitalocean_droplet.stream_prod.ipv4_address after NixOS cutover
 resource "cloudflare_dns_record" "stream" {
   zone_id = local.cloudflare_zone_id
   name    = "stream"
   type    = "A"
-  content = "167.172.122.186"
+  content = digitalocean_droplet.stream_prod.ipv4_address
   proxied = false
   ttl     = 1
-  comment = "Production audio stream (legacy VPS)"
+  comment = "Production audio stream (DO VPS)"
 }
 
 # stream.staging.kpbj.fm → DigitalOcean staging droplet (DNS-only for audio streaming)

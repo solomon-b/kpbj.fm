@@ -7,10 +7,15 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Infrastructure
 - **Token Cleanup Batch Job** - Extracted background token cleanup from the web server process into a standalone `token-cleanup` executable run by a systemd timer (hourly). Deletes expired pending tokens and purges tokens older than 90 days from `email_verification_tokens` and `password_reset_tokens`. Supports `--dry-run` mode (enabled on staging). Reads `DATABASE_URL` from the existing `kpbj-web.env` SOPS template. Removed `Effects.BackgroundJobs` module, `CleanupInterval` config, and `Async.withAsync` wiring from the web server.
 - **pgBackRest Automated Backups** - Added NixOS module (`nixos/pgbackrest.nix`) for automatic PostgreSQL backups using pgBackRest with WAL archiving for point-in-time recovery (PITR). Daily full backups with 14-day retention, zstd compression, local repository at `/var/lib/pgbackrest`. Stanza initialization runs as a oneshot service after PostgreSQL starts. Replaces the old `fly proxy` + `pg_dump` approach from Fly.io-managed database.
+- **Object Storage Migration to DigitalOcean Spaces** - Migrated both staging and production object storage from Tigris (Fly.io) to DigitalOcean Spaces (SFO3). Terraform manages Spaces buckets with `public-read` ACL. Sync scripts now use per-environment endpoints (`PROD_ENDPOINT`/`STAGING_ENDPOINT`) instead of a single `TIGRIS_ENDPOINT`. Added one-time migration script (`scripts/migrate-tigris-to-spaces.sh`) and ACL fix script (`scripts/staging-fix-acls.sh`).
+- **Production DNS Cutover to DigitalOcean** - Switched all production DNS records (`kpbj.fm`, `www`, `stream`, `uploads`) from Fly.io to the DigitalOcean VPS via Terraform-managed Cloudflare DNS. ACME/Let's Encrypt certificates issued via HTTP-01 challenge after DNS propagation.
+- **PostgreSQL 17** - Upgraded from PostgreSQL 16 to 17 in the NixOS module.
+- **Configurable SSL/ACME** - Added `enableSSL` option (default `true`) to both `nginx.nix` and `web.nix` NixOS modules, allowing SSL to be disabled for initial deploys before DNS cutover.
 
 ### Fixes
 - **Stream Settings Resilience** - Stream settings dashboard and metadata proxy no longer crash when Icecast is down or returns non-JSON responses (e.g. 404 HTML). Switched from `httpJSON` (which throws uncaught `JSONException`) to `httpLBS` with manual JSON decoding. Added 5-second response timeout to both endpoints.
 - **S3 Base URL Derived from Endpoint** - The public-facing media URL was hardcoded to `fly.storage.tigris.dev`, which broke file uploads after migrating staging off Fly.io. The base URL is now derived from the configured `AWS_ENDPOINT_URL_S3` endpoint. A new optional `S3_BASE_URL` env var allows explicit override for custom domains or CDNs.
+- **S3 Public-Read ACL on Uploads** - Added `ObjectCannedACL_Public_read` to all S3 `PutObject` and `CopyObject` operations in `Effects/Storage/S3.hs`. DigitalOcean Spaces does not inherit bucket-level ACLs to objects (unlike Tigris), so each upload must explicitly set the ACL for files to be publicly accessible.
 
 ---
 
