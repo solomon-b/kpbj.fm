@@ -28,6 +28,11 @@ output "cloudflare_zone_id" {
   sensitive   = true
 }
 
+output "prod_spaces_endpoint" {
+  description = "Production Spaces bucket endpoint"
+  value       = "https://${digitalocean_spaces_bucket.prod_storage.name}.${digitalocean_spaces_bucket.prod_storage.region}.digitaloceanspaces.com"
+}
+
 output "staging_spaces_endpoint" {
   description = "Staging Spaces bucket endpoint"
   value       = "https://${digitalocean_spaces_bucket.staging_storage.name}.${digitalocean_spaces_bucket.staging_storage.region}.digitaloceanspaces.com"

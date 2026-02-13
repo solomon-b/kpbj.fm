@@ -71,6 +71,12 @@ resource "digitalocean_droplet" "stream_staging" {
 # Spaces (S3-compatible object storage)
 # ──────────────────────────────────────────────────────────────
 
+resource "digitalocean_spaces_bucket" "prod_storage" {
+  name   = "production-kpbj-storage"
+  region = "sfo3"
+  acl    = "public-read"
+}
+
 resource "digitalocean_spaces_bucket" "staging_storage" {
   name   = "staging-kpbj-storage"
   region = "sfo3"
