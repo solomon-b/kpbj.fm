@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────
 # Production host — www.kpbj.fm + stream.kpbj.fm
 # ──────────────────────────────────────────────────────────────
-{ ... }:
+{ pkgs, ... }:
 {
   imports = [
     ./hardware-digitalocean.nix
@@ -49,6 +49,7 @@
   # ── PostgreSQL ───────────────────────────────────────────────
   kpbj.postgresql = {
     enable = true;
+    pgPackage = pkgs.postgresql_17;
     dbName = "kpbj_fm";
     dbUser = "kpbj_fm";
   };
