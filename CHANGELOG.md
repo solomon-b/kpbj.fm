@@ -9,6 +9,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Fixes
 - **Stream Settings Resilience** - Stream settings dashboard and metadata proxy no longer crash when Icecast is down or returns non-JSON responses (e.g. 404 HTML). Switched from `httpJSON` (which throws uncaught `JSONException`) to `httpLBS` with manual JSON decoding. Added 5-second response timeout to both endpoints.
+- **S3 Base URL Derived from Endpoint** - The public-facing media URL was hardcoded to `fly.storage.tigris.dev`, which broke file uploads after migrating staging off Fly.io. The base URL is now derived from the configured `AWS_ENDPOINT_URL_S3` endpoint. A new optional `S3_BASE_URL` env var allows explicit override for custom domains or CDNs.
 
 ---
 
