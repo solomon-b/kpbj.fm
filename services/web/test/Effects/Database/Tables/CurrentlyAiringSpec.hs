@@ -103,6 +103,12 @@ spec =
         it "overnight: returns episode after midnight when duration extends past midnight" overnightDurationAfterMidnightWithin
         it "overnight: returns Nothing after midnight when duration ended before midnight" overnightDurationEndedBeforeMidnight
 
+      -- Schedule template transitions (slot-level diffing correctness)
+      describe "schedule template transitions" $ do
+        it "preserved slot keeps episode visible" transitionPreservedSlot
+        it "replaced slot orphans episode" transitionReplacedSlot
+        it "removed slot correctly hides episode" transitionRemovedSlot
+
 --------------------------------------------------------------------------------
 -- Test Helpers
 
@@ -849,6 +855,228 @@ overnightDurationEndedBeforeMidnight cfg = bracketConn cfg $ do
       duration = Just 1800 -- 30 minutes (ends at 11:30 PM)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     _ <- setupTestDataWithDuration passHash startTime endTime False scheduledAt (Just "audio/test.mp3") testDay Nothing duration
+    TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+--------------------------------------------------------------------------------
+-- Schedule Template Transition Tests
+--
+-- These tests document the behavior difference between slot-level diffing
+-- (preserving unchanged templates) and nuke-and-rebuild (terminating all templates).
+
+-- | Preserved slot keeps episode visible.
+--
+-- When adding a new slot to a show, the existing slot's template and validity
+-- are left untouched. Episodes linked to the original template remain visible.
+transitionPreservedSlot :: TestDBConfig -> IO ()
+transitionPreservedSlot cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let startTime = TimeOfDay 14 0 0 -- 2 PM (existing slot)
+      endTime = TimeOfDay 16 0 0 -- 4 PM
+      scheduledAt = mkTestTime startTime
+      queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (mid-show)
+      effectiveFrom = addDays (-30) testDay
+
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    -- Create T1 (2-4 PM) with episode — the existing slot
+    (episodeId, showId) <- setupTestData passHash startTime endTime False scheduledAt (Just "audio/test.mp3") effectiveFrom Nothing
+
+    -- Create T2 (6-8 PM) — simulating an added slot (slot-level diff leaves T1 alone)
+    templateId2 <-
+      TRX.statement () $
+        ShowSchedule.insertScheduleTemplate
+          ShowSchedule.ScheduleTemplateInsert
+            { stiShowId = showId,
+              stiDayOfWeek = Nothing,
+              stiWeeksOfMonth = Nothing,
+              stiStartTime = TimeOfDay 18 0 0,
+              stiEndTime = TimeOfDay 20 0 0,
+              stiTimezone = "America/Los_Angeles",
+              stiAirsTwiceDaily = False
+            }
+
+    _ <-
+      unwrapInsert $
+        ShowSchedule.insertValidity
+          ShowSchedule.ValidityInsert
+            { viTemplateId = templateId2,
+              viEffectiveFrom = testDay,
+              viEffectiveUntil = Nothing
+            }
+
+    -- T1's validity is NOT ended — this is the slot-level diff behavior
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    pure (episodeId, mEpisode)
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (expectedId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      Episodes.id episode `shouldBe` expectedId
+
+-- | Replaced slot orphans episode.
+--
+-- When nuke-and-rebuild terminates an existing template and creates a new one
+-- with identical times, episodes linked to the old template become orphaned
+-- because the old template's validity has ended.
+transitionReplacedSlot :: TestDBConfig -> IO ()
+transitionReplacedSlot cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let startTime = TimeOfDay 14 0 0 -- 2 PM
+      endTime = TimeOfDay 16 0 0 -- 4 PM
+      scheduledAt = mkTestTime startTime
+      queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (mid-show)
+      effectiveFrom = addDays (-30) testDay
+      slotDuration = 7200 -- 2 hours in seconds
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    -- Inline setup to capture the validity ID
+    (OneRow userId) <-
+      TRX.statement () $
+        User.insertUser $
+          User.ModelInsert (mkEmailAddress "test@example.com") passHash
+    _ <-
+      TRX.statement () $
+        UserMetadata.insertUserMetadata $
+          UserMetadata.Insert userId (mkDisplayNameUnsafe "Test User") (mkFullNameUnsafe "Test User") Nothing UserMetadata.Staff UserMetadata.Automatic UserMetadata.DefaultTheme
+
+    showId <-
+      unwrapInsert $
+        Shows.insertShow
+          Shows.Insert {siTitle = "Test Show", siSlug = mkSlug "test-show", siDescription = Nothing, siLogoUrl = Nothing, siStatus = Shows.Active}
+
+    templateId1 <-
+      TRX.statement () $
+        ShowSchedule.insertScheduleTemplate
+          ShowSchedule.ScheduleTemplateInsert
+            { stiShowId = showId,
+              stiDayOfWeek = Nothing,
+              stiWeeksOfMonth = Nothing,
+              stiStartTime = startTime,
+              stiEndTime = endTime,
+              stiTimezone = "America/Los_Angeles",
+              stiAirsTwiceDaily = False
+            }
+
+    validityId1 <-
+      unwrapInsert $
+        ShowSchedule.insertValidity
+          ShowSchedule.ValidityInsert {viTemplateId = templateId1, viEffectiveFrom = effectiveFrom, viEffectiveUntil = Nothing}
+
+    _ <-
+      unwrapInsert $
+        Episodes.insertEpisode
+          Episodes.Insert
+            { eiId = showId,
+              eiDescription = Just "Test Episode",
+              eiAudioFilePath = Just "audio/test.mp3",
+              eiAudioFileSize = Just 1000000,
+              eiAudioMimeType = Just "audio/mpeg",
+              eiDurationSeconds = Just slotDuration,
+              eiArtworkUrl = Nothing,
+              eiScheduleTemplateId = templateId1,
+              eiScheduledAt = scheduledAt,
+              eiCreatedBy = userId
+            }
+
+    -- End T1's validity — simulating nuke-and-rebuild
+    _ <- TRX.statement () $ ShowSchedule.endValidity validityId1 testDay
+
+    -- Create T2 with identical times + new validity — simulating recreation
+    templateId2 <-
+      TRX.statement () $
+        ShowSchedule.insertScheduleTemplate
+          ShowSchedule.ScheduleTemplateInsert
+            { stiShowId = showId,
+              stiDayOfWeek = Nothing,
+              stiWeeksOfMonth = Nothing,
+              stiStartTime = startTime,
+              stiEndTime = endTime,
+              stiTimezone = "America/Los_Angeles",
+              stiAirsTwiceDaily = False
+            }
+
+    _ <-
+      unwrapInsert $
+        ShowSchedule.insertValidity
+          ShowSchedule.ValidityInsert {viTemplateId = templateId2, viEffectiveFrom = testDay, viEffectiveUntil = Nothing}
+
+    -- Episode is linked to T1, but T1's validity ended → orphaned
+    TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | Removed slot correctly hides episode.
+--
+-- When a slot is genuinely removed, its template's validity is ended.
+-- Episodes linked to that template should no longer be visible.
+transitionRemovedSlot :: TestDBConfig -> IO ()
+transitionRemovedSlot cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let startTime = TimeOfDay 14 0 0 -- 2 PM
+      endTime = TimeOfDay 16 0 0 -- 4 PM
+      scheduledAt = mkTestTime startTime
+      queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (mid-show)
+      effectiveFrom = addDays (-30) testDay
+      slotDuration = 7200 -- 2 hours in seconds
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    -- Inline setup to capture the validity ID
+    (OneRow userId) <-
+      TRX.statement () $
+        User.insertUser $
+          User.ModelInsert (mkEmailAddress "test@example.com") passHash
+    _ <-
+      TRX.statement () $
+        UserMetadata.insertUserMetadata $
+          UserMetadata.Insert userId (mkDisplayNameUnsafe "Test User") (mkFullNameUnsafe "Test User") Nothing UserMetadata.Staff UserMetadata.Automatic UserMetadata.DefaultTheme
+
+    showId <-
+      unwrapInsert $
+        Shows.insertShow
+          Shows.Insert {siTitle = "Test Show", siSlug = mkSlug "test-show", siDescription = Nothing, siLogoUrl = Nothing, siStatus = Shows.Active}
+
+    templateId1 <-
+      TRX.statement () $
+        ShowSchedule.insertScheduleTemplate
+          ShowSchedule.ScheduleTemplateInsert
+            { stiShowId = showId,
+              stiDayOfWeek = Nothing,
+              stiWeeksOfMonth = Nothing,
+              stiStartTime = startTime,
+              stiEndTime = endTime,
+              stiTimezone = "America/Los_Angeles",
+              stiAirsTwiceDaily = False
+            }
+
+    validityId1 <-
+      unwrapInsert $
+        ShowSchedule.insertValidity
+          ShowSchedule.ValidityInsert {viTemplateId = templateId1, viEffectiveFrom = effectiveFrom, viEffectiveUntil = Nothing}
+
+    _ <-
+      unwrapInsert $
+        Episodes.insertEpisode
+          Episodes.Insert
+            { eiId = showId,
+              eiDescription = Just "Test Episode",
+              eiAudioFilePath = Just "audio/test.mp3",
+              eiAudioFileSize = Just 1000000,
+              eiAudioMimeType = Just "audio/mpeg",
+              eiDurationSeconds = Just slotDuration,
+              eiArtworkUrl = Nothing,
+              eiScheduleTemplateId = templateId1,
+              eiScheduledAt = scheduledAt,
+              eiCreatedBy = userId
+            }
+
+    -- End T1's validity — simulating genuine slot removal
+    _ <- TRX.statement () $ ShowSchedule.endValidity validityId1 testDay
+
+    -- No replacement template created — the slot was truly removed
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
   case result of

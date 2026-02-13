@@ -546,6 +546,7 @@ test-suite kpbj-api-test
                     , mtl
                     , password
                     , postgres-options
+                    , rel8
                     , string-interpolate
                     , text
                     , text-display
@@ -556,6 +557,7 @@ test-suite kpbj-api-test
                     , uuid
                     , vector
     other-modules:
+       API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec
        App.CookieSpec
        App.DomainsSpec
        Domain.Types.FileUploadSpec
