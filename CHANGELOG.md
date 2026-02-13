@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixes
+- **Stream Settings Resilience** - Stream settings dashboard and metadata proxy no longer crash when Icecast is down or returns non-JSON responses (e.g. 404 HTML). Switched from `httpJSON` (which throws uncaught `JSONException`) to `httpLBS` with manual JSON decoding. Added 5-second response timeout to both endpoints.
 
 ---
 
