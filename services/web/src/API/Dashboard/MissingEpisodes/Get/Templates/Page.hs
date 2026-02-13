@@ -25,7 +25,7 @@ import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.HTMX
-import OrphanInstances.DayOfWeek (dayOfWeekName)
+import Data.Text.Display (display)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links
 
@@ -78,7 +78,7 @@ renderRow sme =
 
         Lucid.td_ [class_ $ base [Tokens.p4]] $
           Lucid.span_ [Lucid.class_ Tokens.textSm] $
-            Lucid.toHtml (dayOfWeekName sme.smeDayOfWeek)
+            Lucid.toHtml (display sme.smeDayOfWeek)
 
         Lucid.td_ [class_ $ base [Tokens.p4]] $
           Lucid.span_ [Lucid.class_ Tokens.textSm] $

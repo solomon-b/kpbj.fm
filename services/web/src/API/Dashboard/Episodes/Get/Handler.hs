@@ -40,7 +40,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
 import Lucid.HTMX
-import OrphanInstances.DayOfWeek (dayOfWeekToText)
+import Data.Text.Display (display)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Rel8 (Result)
 import Servant.Links qualified as Links
@@ -136,7 +136,7 @@ handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
     renderScheduleInfo [] = Lucid.span_ [] "Not scheduled"
     renderScheduleInfo (firstSchedule : rest) =
       let allSchedules = firstSchedule : rest
-          dayNames = mapMaybe (fmap dayOfWeekToText . (.stDayOfWeek)) allSchedules
+          dayNames = mapMaybe (fmap display . ShowSchedule.stDayOfWeek) allSchedules
           dayText = if null dayNames then "One-time" else Text.intercalate ", " dayNames
           timeRange = formatTimeOfDay firstSchedule.stStartTime <> "-" <> formatTimeOfDay firstSchedule.stEndTime
        in Lucid.span_ [] $ Lucid.toHtml $ dayText <> " " <> timeRange

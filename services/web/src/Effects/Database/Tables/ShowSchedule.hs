@@ -68,7 +68,8 @@ import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
-import OrphanInstances.DayOfWeek (dayOfWeekName)
+import Data.Text.Display (display)
+import OrphanInstances.DayOfWeek ()
 import OrphanInstances.Rel8 ()
 import OrphanInstances.TimeOfDay ()
 import Rel8 hiding (Insert)
@@ -545,7 +546,7 @@ instance Display UpcomingShowDate where
         endTimePacific = utcToPacific (usdEndTime usd)
         formatTimeOfDay = Text.pack . formatTime defaultTimeLocale "%l:%M %p"
      in displayBuilder $
-          dayOfWeekName (usdDayOfWeek usd)
+          display (usdDayOfWeek usd)
             <> ", "
             <> Text.pack (show (usdShowDate usd))
             <> " ("

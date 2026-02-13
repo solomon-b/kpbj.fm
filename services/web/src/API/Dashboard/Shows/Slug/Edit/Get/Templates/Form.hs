@@ -20,7 +20,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
-import Data.Time (DayOfWeek (..))
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
@@ -33,6 +32,7 @@ import Lucid qualified
 import Lucid.Alpine
 import Lucid.Form.Builder
 import Lucid.HTMX
+import OrphanInstances.DayOfWeek (dayOfWeekToPostgres)
 import Rel8 (Result)
 import Servant.Links qualified as Links
 
@@ -267,22 +267,12 @@ renderScheduleSection = do
 --------------------------------------------------------------------------------
 -- Schedule Management JavaScript
 
--- | Convert DayOfWeek to lowercase text for JavaScript
-dayOfWeekToText :: DayOfWeek -> Text
-dayOfWeekToText Sunday = "sunday"
-dayOfWeekToText Monday = "monday"
-dayOfWeekToText Tuesday = "tuesday"
-dayOfWeekToText Wednesday = "wednesday"
-dayOfWeekToText Thursday = "thursday"
-dayOfWeekToText Friday = "friday"
-dayOfWeekToText Saturday = "saturday"
-
 -- | Convert schedule templates from database to JSON for the form
 schedulesToJson :: [ShowSchedule.ScheduleTemplate Result] -> Text
 schedulesToJson schedules =
   let scheduleData =
         [ Aeson.object
-            [ "dayOfWeek" Aeson..= maybe ("" :: Text) dayOfWeekToText sched.stDayOfWeek,
+            [ "dayOfWeek" Aeson..= maybe ("" :: Text) dayOfWeekToPostgres sched.stDayOfWeek,
               "weeksOfMonth" Aeson..= maybe ([] :: [Int]) (map fromIntegral) sched.stWeeksOfMonth,
               "startTime" Aeson..= Text.take 5 (Text.pack $ show sched.stStartTime),
               "endTime" Aeson..= Text.take 5 (Text.pack $ show sched.stEndTime)
