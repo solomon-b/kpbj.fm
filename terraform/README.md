@@ -83,7 +83,7 @@ just tf-validate
 | DigitalOcean droplets (prod + staging) | digitalocean | `digitalocean.tf` |
 | DigitalOcean firewalls (prod + staging) | digitalocean | `digitalocean.tf` |
 | DigitalOcean SSH keys                | digitalocean | `digitalocean.tf` |
-| DigitalOcean Spaces bucket (staging) | digitalocean | `digitalocean.tf` |
+| DigitalOcean Spaces buckets (prod + staging) | digitalocean | `digitalocean.tf` |
 | Cloudflare DNS records               | cloudflare   | `cloudflare.tf`   |
 | Cloudflare proxy settings            | cloudflare   | `cloudflare.tf`   |
 | GCP Admin SDK API enablement         | google       | `google.tf`       |

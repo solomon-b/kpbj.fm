@@ -43,13 +43,10 @@ export STAGING_DB_USER="kpbj_fm"
 export LOCAL_DB_NAME="dev_db"
 export LOCAL_DB_USER="postgres"
 
-# S3 Endpoints
-export PROD_ENDPOINT="https://fly.storage.tigris.dev"
+# S3 Endpoints (DigitalOcean Spaces)
+export PROD_ENDPOINT="https://sfo3.digitaloceanspaces.com"
 export STAGING_ENDPOINT="https://sfo3.digitaloceanspaces.com"
 
 # Buckets
 export PROD_BUCKET="production-kpbj-storage"
 export STAGING_BUCKET="staging-kpbj-storage"
-
-# Keep TIGRIS_ENDPOINT as alias for prod (backup scripts use it)
-export TIGRIS_ENDPOINT="$PROD_ENDPOINT"

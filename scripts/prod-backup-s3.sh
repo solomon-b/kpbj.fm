@@ -1,18 +1,19 @@
 #!/bin/bash
 # Production S3 backup script using rclone with date-based snapshots.
 #
-# Creates date-based snapshots of the production Tigris S3 bucket.
+# Creates date-based snapshots of the production DO Spaces S3 bucket.
 # Uses hardlinks between snapshots to deduplicate unchanged files (rsync-style).
 #
 # Credentials: Loaded from SOPS-encrypted secrets/backup.yaml when available,
 # or from environment variables (for remote/cron contexts like TrueNAS).
 #
 # Optional environment variables:
-#   AWS_ACCESS_KEY_ID      - Production Tigris access key ID (skips SOPS if set)
-#   AWS_SECRET_ACCESS_KEY  - Production Tigris secret access key (skips SOPS if set)
+#   AWS_ACCESS_KEY_ID      - Production DO Spaces access key ID (skips SOPS if set)
+#   AWS_SECRET_ACCESS_KEY  - Production DO Spaces secret access key (skips SOPS if set)
 #   BACKUP_DIR             - Where to store backups (default: ./backups/s3)
 #   RETENTION_DAYS         - Days to keep snapshots (default: 14)
 #   BUCKET_NAME            - S3 bucket name (default: production-kpbj-storage)
+#   S3_ENDPOINT            - S3 endpoint URL (default: https://sfo3.digitaloceanspaces.com)
 #
 # Usage:
 #   ./scripts/prod-backup-s3.sh                    # loads from SOPS
@@ -23,7 +24,7 @@
 #
 # Rclone config:
 #   This script creates a temporary rclone config. Alternatively, create a
-#   permanent config with: rclone config create tigris s3 provider=Other ...
+#   permanent config with: rclone config create spaces s3 provider=Other ...
 
 set -euo pipefail
 
@@ -31,7 +32,7 @@ set -euo pipefail
 BACKUP_DIR="${BACKUP_DIR:-./backups/s3}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 BUCKET_NAME="${BUCKET_NAME:-production-kpbj-storage}"
-TIGRIS_ENDPOINT="https://fly.storage.tigris.dev"
+S3_ENDPOINT="${S3_ENDPOINT:-https://sfo3.digitaloceanspaces.com}"
 
 # Load credentials: use environment variables if set, otherwise load from SOPS
 if [[ -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
@@ -73,12 +74,12 @@ echo "[$(date -Iseconds)] Destination: $SNAPSHOT_DIR"
 # Create temporary rclone config
 RCLONE_CONFIG=$(mktemp)
 cat > "$RCLONE_CONFIG" <<EOF
-[tigris]
+[spaces]
 type = s3
 provider = Other
 access_key_id = ${AWS_ACCESS_KEY_ID}
 secret_access_key = ${AWS_SECRET_ACCESS_KEY}
-endpoint = ${TIGRIS_ENDPOINT}
+endpoint = ${S3_ENDPOINT}
 acl = private
 EOF
 
@@ -105,7 +106,7 @@ rclone sync \
     --transfers 8 \
     --checkers 16 \
     $LINK_DEST_OPTS \
-    "tigris:${BUCKET_NAME}" \
+    "spaces:${BUCKET_NAME}" \
     "$SNAPSHOT_DIR"
 
 # Update latest symlink

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Copy Production S3 Files to Local Dev
-# Downloads the production Tigris S3 bucket to local filesystem at /tmp/kpbj.
+# Downloads the production S3 bucket to local filesystem at /tmp/kpbj.
 #
 # Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
 #
@@ -45,7 +45,7 @@ echo "  Using key: ${PROD_AWS_ACCESS_KEY_ID:0:12}..."
 AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID" \
 AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY" \
 aws s3 sync "s3://$PROD_BUCKET" "$LOCAL_STORAGE_ROOT" \
-  --endpoint-url "$TIGRIS_ENDPOINT" \
+  --endpoint-url "$PROD_ENDPOINT" \
   --delete
 
 FILE_COUNT=$(find "$LOCAL_STORAGE_ROOT" -type f | wc -l)
