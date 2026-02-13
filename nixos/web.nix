@@ -58,13 +58,11 @@ in
 
     awsRegion = lib.mkOption {
       type = lib.types.str;
-      default = "auto";
-      description = "AWS/S3 region.";
+      description = "AWS/S3 region (e.g. us-east-1, sfo3, auto).";
     };
 
     awsEndpointUrl = lib.mkOption {
       type = lib.types.str;
-      default = "https://fly.storage.tigris.dev";
       description = "S3-compatible endpoint URL.";
     };
 

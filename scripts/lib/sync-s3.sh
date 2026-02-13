@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Incremental S3 Sync Library
-# Compares two Tigris buckets by key and file size, then copies only
+# Compares two S3-compatible buckets by key and file size, then copies only
 # new/changed files and removes stale ones from the destination.
 #
 # Usage: source "$(dirname "${BASH_SOURCE[0]}")/lib/sync-s3.sh"
@@ -13,7 +13,8 @@
 #   STAGING_AWS_SECRET_ACCESS_KEY
 #   PROD_BUCKET
 #   STAGING_BUCKET
-#   TIGRIS_ENDPOINT
+#   PROD_ENDPOINT
+#   STAGING_ENDPOINT
 #
 
 # List a bucket as tab-separated "size\tkey" lines.
@@ -22,11 +23,12 @@ list_bucket() {
   local access_key="$1"
   local secret_key="$2"
   local bucket="$3"
+  local endpoint="$4"
 
   AWS_ACCESS_KEY_ID="$access_key" \
   AWS_SECRET_ACCESS_KEY="$secret_key" \
   aws s3 ls "s3://$bucket" --recursive \
-    --endpoint-url "$TIGRIS_ENDPOINT" \
+    --endpoint-url "$endpoint" \
     | awk '{key=""; for(i=4;i<=NF;i++) key=key (i>4?" ":"") $i; print $3 "\t" key}' \
     | sort -t$'\t' -k2
 }
@@ -42,11 +44,11 @@ sync_s3_buckets() {
 
   echo ""
   echo "Listing production bucket..."
-  list_bucket "$PROD_AWS_ACCESS_KEY_ID" "$PROD_AWS_SECRET_ACCESS_KEY" "$PROD_BUCKET" \
+  list_bucket "$PROD_AWS_ACCESS_KEY_ID" "$PROD_AWS_SECRET_ACCESS_KEY" "$PROD_BUCKET" "$PROD_ENDPOINT" \
     > "$tmpdir/prod.txt"
 
   echo "Listing staging bucket..."
-  list_bucket "$STAGING_AWS_ACCESS_KEY_ID" "$STAGING_AWS_SECRET_ACCESS_KEY" "$STAGING_BUCKET" \
+  list_bucket "$STAGING_AWS_ACCESS_KEY_ID" "$STAGING_AWS_SECRET_ACCESS_KEY" "$STAGING_BUCKET" "$STAGING_ENDPOINT" \
     > "$tmpdir/staging.txt"
 
   local prod_count staging_count
@@ -98,12 +100,12 @@ sync_s3_buckets() {
       AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID" \
       AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY" \
       aws s3 cp "s3://$PROD_BUCKET/$key" "$tmpdir/transfer" \
-        --endpoint-url "$TIGRIS_ENDPOINT" --quiet
+        --endpoint-url "$PROD_ENDPOINT" --quiet
 
       AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID" \
       AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY" \
       aws s3 cp "$tmpdir/transfer" "s3://$STAGING_BUCKET/$key" \
-        --endpoint-url "$TIGRIS_ENDPOINT" --quiet
+        --endpoint-url "$STAGING_ENDPOINT" --acl public-read --quiet
 
       rm -f "$tmpdir/transfer"
     done < "$tmpdir/to_copy.txt"
@@ -117,7 +119,7 @@ sync_s3_buckets() {
       AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID" \
       AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY" \
       aws s3 rm "s3://$STAGING_BUCKET/$key" \
-        --endpoint-url "$TIGRIS_ENDPOINT" --quiet
+        --endpoint-url "$STAGING_ENDPOINT" --quiet
     done < "$tmpdir/to_delete.txt"
   fi
 
