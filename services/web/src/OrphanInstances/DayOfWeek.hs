@@ -7,6 +7,7 @@ module OrphanInstances.DayOfWeek where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (Display (..))
 import Data.Time (DayOfWeek (..))
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
@@ -15,9 +16,9 @@ import Rel8 (DBEq, DBOrd, DBType (..), parseTypeInformation)
 
 --------------------------------------------------------------------------------
 
--- | Convert DayOfWeek to PostgreSQL text representation
-dayOfWeekToText :: DayOfWeek -> Text
-dayOfWeekToText = \case
+-- | Convert DayOfWeek to lowercase text for PostgreSQL enum encoding.
+dayOfWeekToPostgres :: DayOfWeek -> Text
+dayOfWeekToPostgres = \case
   Sunday -> "sunday"
   Monday -> "monday"
   Tuesday -> "tuesday"
@@ -39,7 +40,7 @@ dayOfWeekFromText txt = case Text.toLower txt of
   _ -> Nothing
 
 instance EncodeValue DayOfWeek where
-  encodeValue = Encoders.enum dayOfWeekToText
+  encodeValue = Encoders.enum dayOfWeekToPostgres
 
 instance DecodeValue DayOfWeek where
   decodeValue = Decoders.enum dayOfWeekFromText
@@ -58,7 +59,7 @@ instance DBType DayOfWeek where
           "saturday" -> Right Saturday
           other -> Left $ "Invalid DayOfWeek: " <> Text.unpack other
       )
-      dayOfWeekToText
+      dayOfWeekToPostgres
       typeInformation
 
 -- | DBEq instance for DayOfWeek for rel8 queries.
@@ -66,6 +67,17 @@ instance DBEq DayOfWeek
 
 -- | DBOrd instance for DayOfWeek for rel8 queries.
 instance DBOrd DayOfWeek
+
+-- | Display DayOfWeek as capitalized names for human-readable UI text.
+instance Display DayOfWeek where
+  displayBuilder = \case
+    Sunday -> "Sunday"
+    Monday -> "Monday"
+    Tuesday -> "Tuesday"
+    Wednesday -> "Wednesday"
+    Thursday -> "Thursday"
+    Friday -> "Friday"
+    Saturday -> "Saturday"
 
 --------------------------------------------------------------------------------
 
@@ -91,13 +103,3 @@ fromDayOfWeek = \case
   Saturday -> 5
   Sunday -> 6
 
--- | Convert DayOfWeek to display text (capitalized)
-dayOfWeekName :: DayOfWeek -> Text
-dayOfWeekName = \case
-  Sunday -> "Sunday"
-  Monday -> "Monday"
-  Tuesday -> "Tuesday"
-  Wednesday -> "Wednesday"
-  Thursday -> "Thursday"
-  Friday -> "Friday"
-  Saturday -> "Saturday"

@@ -10,7 +10,6 @@ import API.Types
 import Data.List (sortBy)
 import Data.Map.Strict qualified as Map
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..))
 import Data.Time qualified as Time
@@ -24,6 +23,7 @@ import Lucid qualified
 import Lucid.Alpine
 import Lucid.Base (Attributes)
 import Lucid.HTMX
+import Data.Text.Display (display)
 import OrphanInstances.DayOfWeek (fromDayOfWeek)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links
@@ -146,22 +146,12 @@ dayLabelStyles = class_ $ do
 renderDayLabel :: Map.Map DayOfWeek Day -> Maybe DayOfWeek -> (Int, DayOfWeek) -> Lucid.Html ()
 renderDayLabel dayToDate currentDayOfWeek (idx, day) = do
   let isToday = Just day == currentDayOfWeek
-      dayName = if isToday then "Today" else dayOfWeekName day
+      dayName = if isToday then "Today" else display day
       mDate = Map.lookup day dayToDate
       dateText = maybe "" (\d -> ", " <> Text.pack (formatTime defaultTimeLocale "%b %-d" d)) mDate
       dayText = dayName <> dateText
       showCondition = [i|currentDay === #{idx :: Int}|]
   Lucid.span_ [xShow_ showCondition] $ Lucid.toHtml dayText
-
--- | Get display name for day of week
-dayOfWeekName :: DayOfWeek -> Text
-dayOfWeekName Monday = "Monday"
-dayOfWeekName Tuesday = "Tuesday"
-dayOfWeekName Wednesday = "Wednesday"
-dayOfWeekName Thursday = "Thursday"
-dayOfWeekName Friday = "Friday"
-dayOfWeekName Saturday = "Saturday"
-dayOfWeekName Sunday = "Sunday"
 
 -- | Render a day panel (shown/hidden by Alpine based on currentDay)
 renderMobileDayPanel :: StorageBackend -> [ShowSchedule.ScheduledShowWithDetails] -> Maybe DayOfWeek -> Maybe TimeOfDay -> (Int, DayOfWeek) -> Lucid.Html ()

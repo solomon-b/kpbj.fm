@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Chores
+- **DayOfWeek Text Cleanup** - Renamed `dayOfWeekToText` to `dayOfWeekToPostgres` to clarify it's for PostgreSQL enum encoding. Added `Display DayOfWeek` instance for human-readable UI text. Removed duplicate `dayOfWeekToText` in `Form.hs` and `dayOfWeekName` in `Components.hs`, consolidating both into `OrphanInstances.DayOfWeek`.
+
 ### Infrastructure
 - **Token Cleanup Batch Job** - Extracted background token cleanup from the web server process into a standalone `token-cleanup` executable run by a systemd timer (hourly). Deletes expired pending tokens and purges tokens older than 90 days from `email_verification_tokens` and `password_reset_tokens`. Supports `--dry-run` mode (enabled on staging). Reads `DATABASE_URL` from the existing `kpbj-web.env` SOPS template. Removed `Effects.BackgroundJobs` module, `CleanupInterval` config, and `Async.withAsync` wiring from the web server.
 - **pgBackRest Automated Backups** - Added NixOS module (`nixos/pgbackrest.nix`) for automatic PostgreSQL backups using pgBackRest with WAL archiving for point-in-time recovery (PITR). Daily full backups with 14-day retention, zstd compression, local repository at `/var/lib/pgbackrest`. Stanza initialization runs as a oneshot service after PostgreSQL starts. Replaces the old `fly proxy` + `pg_dump` approach from Fly.io-managed database.
