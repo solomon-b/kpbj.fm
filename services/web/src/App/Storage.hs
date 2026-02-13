@@ -69,23 +69,26 @@ data S3ConfigResult
 
 -- | Load storage configuration from environment (Phase 1).
 --
--- Reads: BUCKET_NAME, AWS_REGION, AWS_ENDPOINT_URL_S3
+-- Reads: BUCKET_NAME, AWS_REGION, AWS_ENDPOINT_URL_S3, S3_BASE_URL
 -- Does NOT determine backend - that requires Environment from AppContext.
 loadStorageConfig :: (MonadIO m) => m S3ConfigResult
 loadStorageConfig = liftIO $ do
   mBucket <- lookupEnvText "BUCKET_NAME"
   mRegion <- lookupEnvText "AWS_REGION"
   mEndpoint <- lookupEnvText "AWS_ENDPOINT_URL_S3"
+  mBaseUrl <- lookupEnvText "S3_BASE_URL"
 
   case (mBucket, mRegion) of
     -- All required vars set - valid configuration
     (Just bucket, Just region) -> do
-      -- Construct base URL based on whether we have a custom endpoint
-      let baseUrl = case mEndpoint of
-            -- Tigris/S3-compatible: use bucket subdomain on Tigris
-            Just _ -> "https://" <> bucket <> ".fly.storage.tigris.dev"
-            -- Standard AWS S3: use standard URL format
-            Nothing -> "https://" <> bucket <> ".s3." <> region <> ".amazonaws.com"
+      let baseUrl = case mBaseUrl of
+            -- Explicit base URL override (for custom domains, CDNs, etc.)
+            Just url -> Text.dropWhileEnd (== '/') url
+            Nothing -> case mEndpoint of
+              -- S3-compatible: derive base URL from endpoint (bucket subdomain)
+              Just endpoint -> "https://" <> bucket <> "." <> stripScheme endpoint
+              -- Standard AWS S3: use standard URL format
+              Nothing -> "https://" <> bucket <> ".s3." <> region <> ".amazonaws.com"
       pure $
         ValidS3Config
           S3StorageConfig
@@ -187,3 +190,10 @@ lookupEnvText :: String -> IO (Maybe Text)
 lookupEnvText name = do
   mVal <- lookupEnv name
   pure $ Text.pack <$> mVal
+
+-- | Strip the scheme (https:// or http://) from a URL.
+stripScheme :: Text -> Text
+stripScheme url
+  | "https://" `Text.isPrefixOf` url = Text.drop 8 url
+  | "http://" `Text.isPrefixOf` url = Text.drop 7 url
+  | otherwise = url
