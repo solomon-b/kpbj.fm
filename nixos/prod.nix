@@ -55,6 +55,13 @@
   };
 
   # ── Web service ──────────────────────────────────────────────
+  # ── Bare domain → www redirect ─────────────────────────────
+  services.nginx.virtualHosts."kpbj.fm" = {
+    forceSSL = true;
+    enableACME = true;
+    globalRedirect = "www.kpbj.fm";
+  };
+
   kpbj.web = {
     enable = true;
     secretsFile = ../secrets/prod-web.yaml;
