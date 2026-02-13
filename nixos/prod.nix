@@ -62,6 +62,7 @@
     environment = "Production";
     serverName = "www.kpbj.fm";
     domain = "www.kpbj.fm";
+    uploadsDomain = "uploads.kpbj.fm";
     port = 4000;
 
     # S3 (DigitalOcean Spaces)
