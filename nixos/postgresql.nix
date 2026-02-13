@@ -2,7 +2,7 @@
 # PostgreSQL — local database for the KPBJ web service
 # ──────────────────────────────────────────────────────────────
 #
-# Runs PostgreSQL 16 with a dedicated database and user.
+# Runs PostgreSQL 17 with a dedicated database and user.
 # A oneshot service sets the DB user password from a file
 # (typically a SOPS secret) after PostgreSQL starts.
 # ──────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ in
     # ── PostgreSQL service ───────────────────────────────────────
     services.postgresql = {
       enable = true;
-      package = pkgs.postgresql_16;
+      package = pkgs.postgresql_17;
 
       ensureDatabases = [ cfg.dbName ];
       ensureUsers = [

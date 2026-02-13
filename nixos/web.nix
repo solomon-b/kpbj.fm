@@ -19,6 +19,12 @@ in
   options.kpbj.web = {
     enable = lib.mkEnableOption "KPBJ web service";
 
+    enableSSL = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Enable ACME certificates and force HTTPS for web vhosts.";
+    };
+
     secretsFile = lib.mkOption {
       type = lib.types.path;
       description = "Path to the SOPS-encrypted YAML file for web service secrets.";
@@ -235,8 +241,8 @@ in
     # ── Nginx vhosts ─────────────────────────────────────────────
     services.nginx.virtualHosts = {
       ${cfg.domain} = {
-        forceSSL = true;
-        enableACME = true;
+        forceSSL = cfg.enableSSL;
+        enableACME = cfg.enableSSL;
 
         locations."/" = {
           proxyPass = "http://127.0.0.1:${toString cfg.port}";
@@ -248,8 +254,8 @@ in
       };
 
       "uploads.${cfg.domain}" = {
-        forceSSL = true;
-        enableACME = true;
+        forceSSL = cfg.enableSSL;
+        enableACME = cfg.enableSSL;
 
         locations."/" = {
           proxyPass = "http://127.0.0.1:${toString cfg.port}";

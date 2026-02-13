@@ -2,10 +2,9 @@
   # This file was populated at runtime with the networking
   # details gathered from the active system.
   networking = {
-    nameservers = [
-      "8.8.8.8"
-    ];
-    defaultGateway = "24.199.96.1";
+    nameservers = [ "8.8.8.8"
+ ];
+    defaultGateway = "143.110.144.1";
     defaultGateway6 = {
       address = "";
       interface = "eth0";
@@ -15,27 +14,27 @@
     interfaces = {
       eth0 = {
         ipv4.addresses = [
-          { address = "24.199.102.244"; prefixLength = 20; }
-          { address = "10.48.0.7"; prefixLength = 16; }
+          { address="143.110.149.232"; prefixLength=20; }
+{ address="10.48.0.7"; prefixLength=16; }
         ];
         ipv6.addresses = [
-          { address = "fe80::8463:6dff:fede:33a6"; prefixLength = 64; }
+          { address="fe80::c0af:13ff:fea7:c4df"; prefixLength=64; }
         ];
-        ipv4.routes = [{ address = "24.199.96.1"; prefixLength = 32; }];
-        ipv6.routes = [{ address = ""; prefixLength = 128; }];
+        ipv4.routes = [ { address = "143.110.144.1"; prefixLength = 32; } ];
+        ipv6.routes = [ { address = ""; prefixLength = 128; } ];
       };
-      eth1 = {
+            eth1 = {
         ipv4.addresses = [
-          { address = "10.124.0.4"; prefixLength = 20; }
+          { address="10.124.0.4"; prefixLength=20; }
         ];
         ipv6.addresses = [
-          { address = "fe80::d438:44ff:fe5a:9d5c"; prefixLength = 64; }
+          { address="fe80::40a5:e8ff:fec1:613d"; prefixLength=64; }
         ];
-      };
+        };
     };
   };
   services.udev.extraRules = ''
-    ATTR{address}=="86:63:6d:de:33:a6", NAME="eth0"
-    ATTR{address}=="d6:38:44:5a:9d:5c", NAME="eth1"
+    ATTR{address}=="c2:af:13:a7:c4:df", NAME="eth0"
+    ATTR{address}=="42:a5:e8:c1:61:3d", NAME="eth1"
   '';
 }
