@@ -47,6 +47,8 @@ import API.Dashboard.EphemeralUploads.Get.Route qualified as Dashboard.Ephemeral
 import API.Dashboard.EphemeralUploads.Id.Delete.Route qualified as Dashboard.EphemeralUploads.Id.Delete
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.Route qualified as Dashboard.EphemeralUploads.Id.Edit.Get
 import API.Dashboard.EphemeralUploads.Id.Edit.Post.Route qualified as Dashboard.EphemeralUploads.Id.Edit.Post
+import API.Dashboard.EphemeralUploads.Id.Flag.Post.Route qualified as Dashboard.EphemeralUploads.Id.Flag.Post
+import API.Dashboard.EphemeralUploads.Id.Unflag.Post.Route qualified as Dashboard.EphemeralUploads.Id.Unflag.Post
 import API.Dashboard.EphemeralUploads.New.Get.Route qualified as Dashboard.EphemeralUploads.New.Get
 import API.Dashboard.EphemeralUploads.New.Post.Route qualified as Dashboard.EphemeralUploads.New.Post
 import API.Dashboard.Episodes.Get.Route qualified as Dashboard.Episodes.Get
@@ -497,7 +499,11 @@ data DashboardEphemeralUploadsRoutes mode = DashboardEphemeralUploadsRoutes
     -- | @POST /dashboard/ephemeral-uploads/:id/edit@ - Update ephemeral upload
     editPost :: mode :- Dashboard.EphemeralUploads.Id.Edit.Post.Route,
     -- | @DELETE /dashboard/ephemeral-uploads/:id@ - Delete ephemeral upload
-    delete :: mode :- Dashboard.EphemeralUploads.Id.Delete.Route
+    delete :: mode :- Dashboard.EphemeralUploads.Id.Delete.Route,
+    -- | @POST /dashboard/ephemeral-uploads/:id/flag@ - Flag ephemeral upload
+    flagPost :: mode :- Dashboard.EphemeralUploads.Id.Flag.Post.Route,
+    -- | @POST /dashboard/ephemeral-uploads/:id/unflag@ - Unflag ephemeral upload
+    unflagPost :: mode :- Dashboard.EphemeralUploads.Id.Unflag.Post.Route
   }
   deriving stock (Generic)
 

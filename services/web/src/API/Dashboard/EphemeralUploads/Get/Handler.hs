@@ -61,13 +61,13 @@ handler maybePage cookie (foldHxReq -> hxRequest) =
     let allShows = fromRight [] showsResult
         selectedShow = listToMaybe allShows
 
-    -- 5. Fetch ephemeral uploads
-    allEphemeralUploads <- fetchEphemeralUploads limit offset
+    -- 5. Fetch ephemeral uploads (staff/admin see flagged uploads too)
+    let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+    allEphemeralUploads <- fetchEphemeralUploads isStaffOrAdmin limit offset
 
     -- 6. Render response
     let ephemeralUploads = take (fromIntegral limit) allEphemeralUploads
         hasMore = length allEphemeralUploads > fromIntegral limit
-        isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
 
     if isAppendRequest
       then pure $ renderItemsFragment backend isStaffOrAdmin ephemeralUploads page hasMore
@@ -75,9 +75,9 @@ handler maybePage cookie (foldHxReq -> hxRequest) =
         let ephemeralUploadsTemplate = template backend ephemeralUploads page hasMore userMetadata
         renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavEphemeralUploads Nothing (Just actionButton) ephemeralUploadsTemplate
 
-fetchEphemeralUploads :: Limit -> Offset -> AppM [EphemeralUploads.EphemeralUploadWithCreator]
-fetchEphemeralUploads limit offset = do
-  ephemeralUploadsResult <- execQuery (EphemeralUploads.getAllEphemeralUploads (limit + 1) offset)
+fetchEphemeralUploads :: Bool -> Limit -> Offset -> AppM [EphemeralUploads.EphemeralUploadWithCreator]
+fetchEphemeralUploads includeFlagged limit offset = do
+  ephemeralUploadsResult <- execQuery (EphemeralUploads.getAllEphemeralUploads includeFlagged (limit + 1) offset)
   case ephemeralUploadsResult of
     Left err -> throwDatabaseError err
     Right ephemeralUploads -> pure ephemeralUploads

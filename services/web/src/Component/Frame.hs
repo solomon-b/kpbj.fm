@@ -6,6 +6,7 @@ module Component.Frame where
 
 import API.Links (apiLinks, dashboardLinks, eventsLinks, scheduleLink, showsLinks, userLinks)
 import API.Types
+import App.CustomContext (StreamConfig (..))
 import Component.Banner (bannerContainerId)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
@@ -16,7 +17,6 @@ import Design.FormStyles (formBuilderCSS)
 import Design.Theme (defaultTheme, themeCSS)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
-import App.CustomContext (StreamConfig (..))
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId (..))
 import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
