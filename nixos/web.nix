@@ -56,6 +56,12 @@ in
       description = "Domain for Nginx vhost (e.g. staging.kpbj.fm).";
     };
 
+    uploadsDomain = lib.mkOption {
+      type = lib.types.str;
+      default = "uploads.${cfg.domain}";
+      description = "Domain for the uploads Nginx vhost (e.g. uploads.kpbj.fm).";
+    };
+
     # S3 storage
     bucketName = lib.mkOption {
       type = lib.types.str;
@@ -253,7 +259,7 @@ in
         };
       };
 
-      "uploads.${cfg.domain}" = {
+      ${cfg.uploadsDomain} = {
         forceSSL = cfg.enableSSL;
         enableACME = cfg.enableSSL;
 
