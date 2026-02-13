@@ -12,6 +12,7 @@
     ./token-cleanup.nix
     ./nginx.nix
     ./sops.nix
+    ./pgbackrest.nix
     ./postgresql.nix
     ./web.nix
   ];
@@ -41,6 +42,9 @@
     acmeEmail = "contact@kpbj.fm";
     icecastPort = 8000;
   };
+
+  # ── pgBackRest (PG backups + WAL archiving) ──────────────────
+  kpbj.pgbackrest.enable = true;
 
   # ── PostgreSQL ───────────────────────────────────────────────
   kpbj.postgresql = {
