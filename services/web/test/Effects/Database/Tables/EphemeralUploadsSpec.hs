@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Effects.Database.Tables.EphemeralUploadsSpec where
 
 --------------------------------------------------------------------------------
@@ -40,6 +42,13 @@ spec =
         runs 10 . it "updateEphemeralUpload: updates fields" $ hedgehog . prop_updateEphemeralUpload
         runs 10 . it "deleteEphemeralUpload: removes upload" $ hedgehog . prop_deleteEphemeralUpload
 
+      describe "Flagging" $ do
+        runs 10 . it "flagEphemeralUpload: sets flagged fields" $ hedgehog . prop_flagEphemeralUpload
+        runs 10 . it "unflagEphemeralUpload: clears flagged fields" $ hedgehog . prop_unflagEphemeralUpload
+        runs 10 . it "flagged uploads excluded from getRandomEphemeralUpload" $ hedgehog . prop_flaggedExcludedFromRandom
+        runs 10 . it "getAllEphemeralUploads excludes flagged when includeFlagged=False" $ hedgehog . prop_getAllExcludesFlagged
+        runs 10 . it "getAllEphemeralUploads includes flagged when includeFlagged=True" $ hedgehog . prop_getAllIncludesFlagged
+
 --------------------------------------------------------------------------------
 -- Lens Laws
 
@@ -71,6 +80,9 @@ prop_insertSelect cfg = do
         UUT.eumAudioFilePath selected === UUT.euiAudioFilePath uploadInsert
         UUT.eumMimeType selected === UUT.euiMimeType uploadInsert
         UUT.eumFileSize selected === UUT.euiFileSize uploadInsert
+        UUT.eumFlaggedAt selected === Nothing
+        UUT.eumFlaggedBy selected === Nothing
+        UUT.eumFlagReason selected === Nothing
         insertedId ->- UUT.Id 0
         pure ()
 
@@ -98,9 +110,9 @@ prop_getAllEphemeralUploads_paginated cfg = do
         _ <- unwrapInsert (UUT.insertEphemeralUpload eu2)
         _ <- unwrapInsert (UUT.insertEphemeralUpload eu3)
 
-        allItems <- TRX.statement () (UUT.getAllEphemeralUploads (Limit 10) (Offset 0))
-        limited <- TRX.statement () (UUT.getAllEphemeralUploads (Limit 2) (Offset 0))
-        offset <- TRX.statement () (UUT.getAllEphemeralUploads (Limit 10) (Offset 2))
+        allItems <- TRX.statement () (UUT.getAllEphemeralUploads True (Limit 10) (Offset 0))
+        limited <- TRX.statement () (UUT.getAllEphemeralUploads True (Limit 2) (Offset 0))
+        offset <- TRX.statement () (UUT.getAllEphemeralUploads True (Limit 10) (Offset 2))
 
         TRX.condemn
         pure (allItems, limited, offset)
@@ -199,4 +211,165 @@ prop_deleteEphemeralUpload cfg = do
         deletedId <- assertJust deleteResult
         deletedId === insertedId
         assertNothing afterDelete
+        pure ()
+
+--------------------------------------------------------------------------------
+-- Flagging tests
+
+-- | flagEphemeralUpload: sets flagged_at, flagged_by, and flag_reason.
+prop_flagEphemeralUpload :: TestDBConfig -> PropertyT IO ()
+prop_flagEphemeralUpload cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let uploadInsert = template {UUT.euiCreatorId = userId}
+        insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
+
+        mFlagged <- TRX.statement () (UUT.flagEphemeralUpload insertedId userId UUT.InappropriateContent)
+        mAfterFlag <- TRX.statement () (UUT.getEphemeralUploadById insertedId)
+
+        TRX.condemn
+        pure (insertedId, userId, mFlagged, mAfterFlag)
+
+      assert $ do
+        (insertedId, userId, mFlagged, mAfterFlag) <- assertRight result
+        flagged <- assertJust mFlagged
+        UUT.eumId flagged === insertedId
+        UUT.eumFlaggedBy flagged === Just userId
+        UUT.eumFlagReason flagged === Just UUT.InappropriateContent
+        -- flagged_at should be set (not Nothing)
+        afterFlag <- assertJust mAfterFlag
+        afterFlag.eumFlaggedBy === Just userId
+        afterFlag.eumFlagReason === Just UUT.InappropriateContent
+        _ <- assertJust (UUT.eumFlaggedAt afterFlag)
+        pure ()
+
+-- | unflagEphemeralUpload: clears flagged fields.
+prop_unflagEphemeralUpload :: TestDBConfig -> PropertyT IO ()
+prop_unflagEphemeralUpload cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let uploadInsert = template {UUT.euiCreatorId = userId}
+        insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
+
+        -- Flag first
+        _ <- TRX.statement () (UUT.flagEphemeralUpload insertedId userId UUT.PoorAudioQuality)
+        -- Then unflag
+        mUnflagged <- TRX.statement () (UUT.unflagEphemeralUpload insertedId)
+        mAfterUnflag <- TRX.statement () (UUT.getEphemeralUploadById insertedId)
+
+        TRX.condemn
+        pure (insertedId, mUnflagged, mAfterUnflag)
+
+      assert $ do
+        (insertedId, mUnflagged, mAfterUnflag) <- assertRight result
+        unflagged <- assertJust mUnflagged
+        UUT.eumId unflagged === insertedId
+        UUT.eumFlaggedAt unflagged === Nothing
+        UUT.eumFlaggedBy unflagged === Nothing
+        UUT.eumFlagReason unflagged === Nothing
+        afterUnflag <- assertJust mAfterUnflag
+        UUT.eumFlaggedAt afterUnflag === Nothing
+        UUT.eumFlaggedBy afterUnflag === Nothing
+        UUT.eumFlagReason afterUnflag === Nothing
+        pure ()
+
+-- | Flagged uploads are excluded from getRandomEphemeralUpload.
+prop_flaggedExcludedFromRandom :: TestDBConfig -> PropertyT IO ()
+prop_flaggedExcludedFromRandom cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let uploadInsert = template {UUT.euiCreatorId = userId}
+        insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
+
+        -- Flag the only upload
+        _ <- TRX.statement () (UUT.flagEphemeralUpload insertedId userId UUT.CopyrightConcern)
+        -- Random should return Nothing now
+        randomUpload <- TRX.statement () UUT.getRandomEphemeralUpload
+
+        TRX.condemn
+        pure randomUpload
+
+      assert $ do
+        mRandom <- assertRight result
+        assertNothing mRandom
+        pure ()
+
+-- | getAllEphemeralUploads with includeFlagged=False excludes flagged uploads.
+prop_getAllExcludesFlagged :: TestDBConfig -> PropertyT IO ()
+prop_getAllExcludesFlagged cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template1 <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+    template2 <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let eu1 = template1 {UUT.euiCreatorId = userId}
+        let eu2 = template2 {UUT.euiCreatorId = userId}
+
+        id1 <- unwrapInsert (UUT.insertEphemeralUpload eu1)
+        _ <- unwrapInsert (UUT.insertEphemeralUpload eu2)
+
+        -- Flag the first upload
+        _ <- TRX.statement () (UUT.flagEphemeralUpload id1 userId UUT.InappropriateContent)
+
+        unflaggedOnly <- TRX.statement () (UUT.getAllEphemeralUploads False (Limit 10) (Offset 0))
+
+        TRX.condemn
+        pure unflaggedOnly
+
+      assert $ do
+        unflaggedOnly <- assertRight result
+        length unflaggedOnly === 1
+        pure ()
+
+-- | getAllEphemeralUploads with includeFlagged=True returns all uploads.
+prop_getAllIncludesFlagged :: TestDBConfig -> PropertyT IO ()
+prop_getAllIncludesFlagged cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template1 <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+    template2 <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let eu1 = template1 {UUT.euiCreatorId = userId}
+        let eu2 = template2 {UUT.euiCreatorId = userId}
+
+        id1 <- unwrapInsert (UUT.insertEphemeralUpload eu1)
+        _ <- unwrapInsert (UUT.insertEphemeralUpload eu2)
+
+        -- Flag the first upload
+        _ <- TRX.statement () (UUT.flagEphemeralUpload id1 userId UUT.PoorAudioQuality)
+
+        allItems <- TRX.statement () (UUT.getAllEphemeralUploads True (Limit 10) (Offset 0))
+
+        TRX.condemn
+        pure allItems
+
+      assert $ do
+        allItems <- assertRight result
+        length allItems === 2
         pure ()

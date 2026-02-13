@@ -51,6 +51,8 @@ import API.Dashboard.EphemeralUploads.Get.Handler qualified as Dashboard.Ephemer
 import API.Dashboard.EphemeralUploads.Id.Delete.Handler qualified as Dashboard.EphemeralUploads.Id.Delete
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.Handler qualified as Dashboard.EphemeralUploads.Id.Edit.Get
 import API.Dashboard.EphemeralUploads.Id.Edit.Post.Handler qualified as Dashboard.EphemeralUploads.Id.Edit.Post
+import API.Dashboard.EphemeralUploads.Id.Flag.Post.Handler qualified as Dashboard.EphemeralUploads.Id.Flag.Post
+import API.Dashboard.EphemeralUploads.Id.Unflag.Post.Handler qualified as Dashboard.EphemeralUploads.Id.Unflag.Post
 import API.Dashboard.EphemeralUploads.New.Get.Handler qualified as Dashboard.EphemeralUploads.New.Get
 import API.Dashboard.EphemeralUploads.New.Post.Handler qualified as Dashboard.EphemeralUploads.New.Post
 import API.Dashboard.Episodes.Get.Handler qualified as Dashboard.Episodes.Get
@@ -288,7 +290,9 @@ server =
           newPost = Dashboard.EphemeralUploads.New.Post.handler,
           editGet = Dashboard.EphemeralUploads.Id.Edit.Get.handler,
           editPost = Dashboard.EphemeralUploads.Id.Edit.Post.handler,
-          delete = Dashboard.EphemeralUploads.Id.Delete.handler
+          delete = Dashboard.EphemeralUploads.Id.Delete.handler,
+          flagPost = Dashboard.EphemeralUploads.Id.Flag.Post.handler,
+          unflagPost = Dashboard.EphemeralUploads.Id.Unflag.Post.handler
         }
 
     dashboardAdminRoutes =
