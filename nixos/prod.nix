@@ -9,6 +9,7 @@
     ./common.nix
     ./streaming.nix
     ./sync-host-emails.nix
+    ./token-cleanup.nix
     ./nginx.nix
     ./sops.nix
     ./postgresql.nix
@@ -26,6 +27,11 @@
   };
 
   kpbj.syncHostEmails = {
+    enable = true;
+    dryRun = false;
+  };
+
+  kpbj.tokenCleanup = {
     enable = true;
     dryRun = false;
   };

@@ -57,6 +57,8 @@
 
               sync-host-emails = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "sync-host-emails" ./jobs/sync-host-emails { });
 
+              token-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "token-cleanup" ./jobs/token-cleanup { });
+
               lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./services/web/lib/lucid-form-builder { });
 
               lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./services/web/lib/lucid-htmx-alpine { });
@@ -110,7 +112,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: [ p.kpbj-api p.sync-host-emails ];
+            packages = p: [ p.kpbj-api p.sync-host-emails p.token-cleanup ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
@@ -141,6 +143,7 @@
           packages = flake-utils.lib.flattenTree {
             kpbj-api = hsPkgs.kpbj-api;
             sync-host-emails = hsPkgs.sync-host-emails;
+            token-cleanup = hsPkgs.token-cleanup;
 
             # Docker image with configurable tag
             # For local builds: nix build .#docker (uses cabal version)
@@ -213,12 +216,13 @@
       nixosConfigurations =
         let
           sync-host-emails = self.packages.x86_64-linux.sync-host-emails;
+          token-cleanup = self.packages.x86_64-linux.token-cleanup;
           kpbj-api = self.packages.x86_64-linux.kpbj-api;
         in
         {
           kpbj-stream-prod = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               ./nixos/prod.nix
@@ -226,7 +230,7 @@
           };
           kpbj-stream-staging = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               ./nixos/staging.nix

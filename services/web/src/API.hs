@@ -147,12 +147,8 @@ import API.User.VerifyEmailResend.Post.Handler qualified as User.VerifyEmailRese
 import API.User.VerifyEmailSent.Get.Handler qualified as User.VerifyEmailSent.Get
 import App qualified
 import App.Context (AppContext (..))
-import App.CustomContext (CleanupInterval (..), buildCustomContext, loadCustomConfigs)
+import App.CustomContext (buildCustomContext, loadCustomConfigs)
 import App.Monad (AppM)
-import Control.Concurrent.Async qualified as Async
-import Data.Has qualified as Has
-import Effects.BackgroundJobs qualified as BackgroundJobs
-import Hasql.Pool qualified as HSQL.Pool
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -162,8 +158,6 @@ import Servant qualified
 -- Uses two-phase initialization:
 -- 1. Load configs (pure env var reading) before withAppResources
 -- 2. Build resources with AppContext inside withAppResources callback
---
--- Then spawns background cleanup jobs alongside the main server using the shared pool.
 runApi :: IO ()
 runApi = do
   configs <- loadCustomConfigs
@@ -171,16 +165,7 @@ runApi = do
   App.withAppResources () $ \baseAppCtx ->
     buildCustomContext baseAppCtx configs $ \customCtx -> do
       let appCtx = baseAppCtx {appCustom = customCtx}
-          pool = Has.getter @HSQL.Pool.Pool appCtx
-          CleanupInterval interval = Has.getter @CleanupInterval appCtx
-
-      -- Start background jobs, then run the main server.
-      -- When the server exits, withAsync automatically cancels the background task.
-      -- Note: If the server is terminated mid-cleanup (e.g., SIGTERM), the current
-      -- query may be interrupted. This is acceptable since cleanup queries are
-      -- idempotent DELETEs that will run again on next startup.
-      Async.withAsync (BackgroundJobs.runCleanupLoop interval pool) $ \_cleanupJob -> do
-        App.runServer @API (const server) appCtx
+      App.runServer @API (const server) appCtx
 
 --------------------------------------------------------------------------------
 

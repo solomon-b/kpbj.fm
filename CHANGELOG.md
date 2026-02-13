@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Infrastructure
+- **Token Cleanup Batch Job** - Extracted background token cleanup from the web server process into a standalone `token-cleanup` executable run by a systemd timer (hourly). Deletes expired pending tokens and purges tokens older than 90 days from `email_verification_tokens` and `password_reset_tokens`. Supports `--dry-run` mode (enabled on staging). Reads `DATABASE_URL` from the existing `kpbj-web.env` SOPS template. Removed `Effects.BackgroundJobs` module, `CleanupInterval` config, and `Async.withAsync` wiring from the web server.
+
 ### Fixes
 - **Stream Settings Resilience** - Stream settings dashboard and metadata proxy no longer crash when Icecast is down or returns non-JSON responses (e.g. 404 HTML). Switched from `httpJSON` (which throws uncaught `JSONException`) to `httpLBS` with manual JSON decoding. Added 5-second response timeout to both endpoints.
 
