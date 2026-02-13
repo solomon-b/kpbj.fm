@@ -2,7 +2,8 @@
 # PostgreSQL — local database for the KPBJ web service
 # ──────────────────────────────────────────────────────────────
 #
-# Runs PostgreSQL 17 with a dedicated database and user.
+# Each host MUST set pgPackage explicitly to prevent accidental
+# major-version upgrades (which destroy the data directory).
 # A oneshot service sets the DB user password from a file
 # (typically a SOPS secret) after PostgreSQL starts.
 # ──────────────────────────────────────────────────────────────
@@ -14,6 +15,11 @@ in
 {
   options.kpbj.postgresql = {
     enable = lib.mkEnableOption "KPBJ PostgreSQL database";
+
+    pgPackage = lib.mkOption {
+      type = lib.types.package;
+      description = "PostgreSQL package to use. Each host must pin this explicitly to prevent accidental major-version upgrades.";
+    };
 
     dbName = lib.mkOption {
       type = lib.types.str;
@@ -37,7 +43,7 @@ in
     # ── PostgreSQL service ───────────────────────────────────────
     services.postgresql = {
       enable = true;
-      package = pkgs.postgresql_17;
+      package = cfg.pgPackage;
 
       ensureDatabases = [ cfg.dbName ];
       ensureUsers = [

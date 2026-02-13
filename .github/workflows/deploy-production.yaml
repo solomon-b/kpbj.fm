@@ -42,6 +42,11 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H stream.kpbj.fm >> ~/.ssh/known_hosts
 
+      - name: Pre-deploy database backup
+        run: |
+          ssh root@stream.kpbj.fm \
+            'sudo -u postgres pgbackrest backup --stanza=kpbj --type=full'
+
       - name: Deploy NixOS configuration
         run: |
           nix shell nixpkgs#nixos-rebuild -c \
