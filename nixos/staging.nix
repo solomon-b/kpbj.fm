@@ -60,10 +60,10 @@
     domain = "staging.kpbj.fm";
     port = 4000;
 
-    # S3 (Tigris)
+    # S3 (DigitalOcean Spaces)
     bucketName = "staging-kpbj-storage";
-    awsRegion = "auto";
-    awsEndpointUrl = "https://fly.storage.tigris.dev";
+    awsRegion = "sfo3";
+    awsEndpointUrl = "https://sfo3.digitaloceanspaces.com";
 
     # SMTP
     smtpServer = "smtp.gmail.com";

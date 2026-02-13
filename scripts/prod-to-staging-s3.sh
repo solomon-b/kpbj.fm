@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Sync Production S3 Bucket to Staging (Incremental)
-# Compares production and staging Tigris buckets by key and file size,
-# then copies only new/changed files and removes stale ones.
+# Compares production (Tigris) and staging (DO Spaces) buckets by key
+# and file size, then copies only new/changed files and removes stale ones.
 #
 # Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
 #
@@ -44,5 +44,5 @@ echo "========================================"
 echo "S3 sync complete!"
 echo "========================================"
 echo ""
-echo "  Files available at: https://$STAGING_BUCKET.fly.storage.tigris.dev/..."
+echo "  Files available at: https://$STAGING_BUCKET.sfo3.digitaloceanspaces.com/..."
 echo ""

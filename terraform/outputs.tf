@@ -28,6 +28,11 @@ output "cloudflare_zone_id" {
   sensitive   = true
 }
 
+output "staging_spaces_endpoint" {
+  description = "Staging Spaces bucket endpoint"
+  value       = "https://${digitalocean_spaces_bucket.staging_storage.name}.${digitalocean_spaces_bucket.staging_storage.region}.digitaloceanspaces.com"
+}
+
 output "google_groups_sa_email" {
   description = "Google Groups service account email"
   value       = google_service_account.google_groups.email

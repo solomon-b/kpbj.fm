@@ -16,7 +16,9 @@ where
 
 import Amazonka qualified as AWS
 import Amazonka.S3 qualified as S3
-import Amazonka.S3.PutObject (putObject_contentType)
+import Amazonka.S3.CopyObject (copyObject_acl)
+import Amazonka.S3.PutObject (putObject_acl, putObject_contentType)
+import Amazonka.S3.Types (ObjectCannedACL (..))
 import Control.Exception (IOException, SomeException)
 import Control.Exception qualified as Exception
 import Control.Lens ((&), (?~))
@@ -92,6 +94,7 @@ storeFileS3 awsEnv config bucketType resourceType dateHier filename content mime
     let req =
           S3.newPutObject bucket key body
             & putObject_contentType ?~ mimeType
+            & putObject_acl ?~ ObjectCannedACL_Public_read
     AWS.send awsEnv req
 
   case result of
@@ -176,6 +179,7 @@ storeFileStagingS3 awsEnv config bucketType subdir filename content mimeType = l
     let req =
           S3.newPutObject bucket key body
             & putObject_contentType ?~ mimeType
+            & putObject_acl ?~ ObjectCannedACL_Public_read
     AWS.send awsEnv req
 
   case result of
@@ -211,7 +215,9 @@ moveFileS3 awsEnv config sourceKey destBucketType destResourceType destDateHier 
 
   -- Copy to new location
   copyResult <- Exception.try $ runResourceT $ do
-    let req = S3.newCopyObject bucket copySource destKeyObj
+    let req =
+          S3.newCopyObject bucket copySource destKeyObj
+            & copyObject_acl ?~ ObjectCannedACL_Public_read
     AWS.send awsEnv req
 
   case copyResult of
