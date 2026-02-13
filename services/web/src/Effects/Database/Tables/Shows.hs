@@ -10,6 +10,7 @@
 module Effects.Database.Tables.Shows
   ( -- * Status Type
     Status (..),
+    decodeStatus,
 
     -- * Id Type
     Id (..),

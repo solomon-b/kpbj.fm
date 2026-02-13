@@ -2,6 +2,7 @@ module Main where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec qualified as ScheduleDiff
 import App.CookieSpec qualified as Cookie
 import App.DomainsSpec qualified as Domains
 import Data.Maybe (fromMaybe)
@@ -61,6 +62,7 @@ main = do
   hspecWith cfg $ parallel $ do
     Cookie.spec
     Domains.spec
+    ScheduleDiff.spec
     ContentSanitization.spec
     Diff.spec
     Markdown.spec
