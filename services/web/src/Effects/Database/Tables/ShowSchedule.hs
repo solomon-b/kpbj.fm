@@ -434,6 +434,7 @@ getScheduledShowsForDate targetDate =
     LEFT JOIN user_metadata um ON um.user_id = u.id
     WHERE s.status = 'active'
       AND s.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM show_hosts sh2 WHERE sh2.show_id = s.id AND sh2.left_at IS NULL)
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
       AND (
@@ -493,6 +494,7 @@ getScheduledShowsForDate targetDate =
     LEFT JOIN user_metadata um ON um.user_id = u.id
     WHERE s.status = 'active'
       AND s.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM show_hosts sh2 WHERE sh2.show_id = s.id AND sh2.left_at IS NULL)
       AND st.airs_twice_daily = TRUE
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
