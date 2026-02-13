@@ -483,7 +483,6 @@ library
     Effects.Database.Tables.UserMetadata
     Effects.Database.Tables.Util
     Effects.AWS
-    Effects.BackgroundJobs
     Effects.ContentSanitization
     Effects.Diff
     Effects.EmailVerification
