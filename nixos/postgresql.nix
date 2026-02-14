@@ -37,6 +37,18 @@ in
       type = lib.types.path;
       description = "File containing the database user password (e.g. a SOPS secret path).";
     };
+
+    readonlyPasswordFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = "File containing the read-only DB role password.";
+    };
+
+    readwritePasswordFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = "File containing the read-write DB role password.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -51,6 +63,8 @@ in
           name = cfg.dbUser;
           ensureDBOwnership = true;
         }
+        { name = "kpbj_readonly"; }
+        { name = "kpbj_readwrite"; }
       ];
 
       # Allow MD5 (password) authentication for TCP connections on localhost.
@@ -77,10 +91,34 @@ in
         RemainAfterExit = true;
         ExecStart = pkgs.writeShellScript "kpbj-postgres-setup" ''
           set -euo pipefail
+          PSQL="${pkgs.util-linux}/bin/runuser -u postgres -- ${config.services.postgresql.package}/bin/psql"
+
           PASSWORD=$(cat ${cfg.passwordFile})
-          ${pkgs.util-linux}/bin/runuser -u postgres -- \
-            ${config.services.postgresql.package}/bin/psql -c \
-            "ALTER USER ${cfg.dbUser} PASSWORD '$PASSWORD';"
+          $PSQL -c "ALTER USER ${cfg.dbUser} PASSWORD '$PASSWORD';"
+
+          ${lib.optionalString (cfg.readonlyPasswordFile != null) ''
+            RO_PASSWORD=$(cat ${cfg.readonlyPasswordFile})
+            $PSQL -c "ALTER USER kpbj_readonly PASSWORD '$RO_PASSWORD';"
+            $PSQL -d ${cfg.dbName} -c "
+              GRANT CONNECT ON DATABASE ${cfg.dbName} TO kpbj_readonly;
+              GRANT USAGE ON SCHEMA public TO kpbj_readonly;
+              GRANT SELECT ON ALL TABLES IN SCHEMA public TO kpbj_readonly;
+              ALTER DEFAULT PRIVILEGES FOR ROLE ${cfg.dbUser} IN SCHEMA public GRANT SELECT ON TABLES TO kpbj_readonly;
+            "
+          ''}
+
+          ${lib.optionalString (cfg.readwritePasswordFile != null) ''
+            RW_PASSWORD=$(cat ${cfg.readwritePasswordFile})
+            $PSQL -c "ALTER USER kpbj_readwrite PASSWORD '$RW_PASSWORD';"
+            $PSQL -d ${cfg.dbName} -c "
+              GRANT CONNECT ON DATABASE ${cfg.dbName} TO kpbj_readwrite;
+              GRANT USAGE ON SCHEMA public TO kpbj_readwrite;
+              GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kpbj_readwrite;
+              GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kpbj_readwrite;
+              ALTER DEFAULT PRIVILEGES FOR ROLE ${cfg.dbUser} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO kpbj_readwrite;
+              ALTER DEFAULT PRIVILEGES FOR ROLE ${cfg.dbUser} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO kpbj_readwrite;
+            "
+          ''}
         '';
       };
     };
