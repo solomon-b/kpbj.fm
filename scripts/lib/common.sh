@@ -16,6 +16,25 @@ load_secret() {
   sops -d --extract "[\"${section}\"][\"${key}\"]" "$SECRETS_FILE"
 }
 
+# Open an SSH tunnel to a remote PostgreSQL instance.
+# Kills any stale process on the port first.
+# Usage: open_ssh_tunnel PORT TARGET
+#   Sets TUNNEL_PID for the caller to clean up via trap.
+open_ssh_tunnel() {
+  local port="$1" target="$2"
+  local stale_pid
+  stale_pid=$(lsof -ti:"$port" 2>/dev/null || true)
+  if [ -n "$stale_pid" ]; then
+    echo "  Killing stale process on port $port (PID $stale_pid)..."
+    kill "$stale_pid" 2>/dev/null || true
+    sleep 1
+  fi
+  echo "Opening SSH tunnel on port $port..."
+  ssh -N -L "$port:127.0.0.1:5432" "$target" &
+  TUNNEL_PID=$!
+  sleep 2
+}
+
 # Argon2 hash for "hunter2" - used to sanitize passwords in non-production databases
 # Password: hunter2
 # shellcheck disable=SC2016  # Literal $ signs in Argon2 hash, not variables
@@ -29,10 +48,11 @@ export PROD_PROXY_PORT="15433"
 export DEV_DB_PORT="5433"
 export LOCAL_STORAGE_ROOT="/tmp/kpbj"
 
-# Production database
-export PROD_DB_APP="kpbj-postgres"
+# Production database (VPS)
+export PROD_VPS_TARGET="root@stream.kpbj.fm"
 export PROD_DB_NAME="kpbj_fm"
 export PROD_DB_USER="kpbj_fm"
+export PROD_READONLY_USER="kpbj_readonly"
 
 # Staging database (VPS)
 export STAGING_VPS_TARGET="root@staging.kpbj.fm"

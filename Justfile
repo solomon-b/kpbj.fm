@@ -320,8 +320,9 @@ staging-psql *args: _require-sops
     DB_USER="kpbj_readonly"
     DB_PASSWORD=$(sops -d --extract '["db_readonly_password"]' secrets/staging-web.yaml)
   fi
+  kill "$(lsof -ti:{{STAGING_PROXY_PORT}})" 2>/dev/null || true
   echo "Opening SSH tunnel..."
-  ssh -f -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}}
+  ssh -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}} &
   TUNNEL_PID=$!
   trap "kill $TUNNEL_PID 2>/dev/null || true" EXIT
   sleep 2
@@ -332,8 +333,9 @@ staging-migrations-run: _require-sops
   #!/usr/bin/env bash
   set -euo pipefail
   STAGING_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/staging-web.yaml)
+  kill "$(lsof -ti:{{STAGING_PROXY_PORT}})" 2>/dev/null || true
   echo "Opening SSH tunnel..."
-  ssh -f -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}}
+  ssh -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}} &
   TUNNEL_PID=$!
   trap "kill $TUNNEL_PID 2>/dev/null || true" EXIT
   sleep 2
@@ -351,8 +353,9 @@ staging-migrations-reset: _require-sops
   STAGING_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/staging-web.yaml)
   echo "Stopping staging web service..."
   ssh {{STAGING_VPS_TARGET}} systemctl stop kpbj-web
+  kill "$(lsof -ti:{{STAGING_PROXY_PORT}})" 2>/dev/null || true
   echo "Opening SSH tunnel..."
-  ssh -f -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}}
+  ssh -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}} &
   TUNNEL_PID=$!
   trap "kill $TUNNEL_PID 2>/dev/null || true; ssh {{STAGING_VPS_TARGET}} systemctl start kpbj-web" EXIT
   sleep 2
@@ -409,8 +412,9 @@ prod-psql *args: _require-sops
     DB_USER="kpbj_readonly"
     DB_PASSWORD=$(sops -d --extract '["db_readonly_password"]' secrets/prod-web.yaml)
   fi
+  kill "$(lsof -ti:{{PROD_PROXY_PORT}})" 2>/dev/null || true
   echo "Opening SSH tunnel..."
-  ssh -f -N -L {{PROD_PROXY_PORT}}:127.0.0.1:5432 {{PROD_VPS_TARGET}}
+  ssh -N -L {{PROD_PROXY_PORT}}:127.0.0.1:5432 {{PROD_VPS_TARGET}} &
   TUNNEL_PID=$!
   trap "kill $TUNNEL_PID 2>/dev/null || true" EXIT
   sleep 2
@@ -421,8 +425,9 @@ prod-migrations-run: _require-sops
   #!/usr/bin/env bash
   set -euo pipefail
   PROD_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/prod-web.yaml)
+  kill "$(lsof -ti:{{PROD_PROXY_PORT}})" 2>/dev/null || true
   echo "Opening SSH tunnel..."
-  ssh -f -N -L {{PROD_PROXY_PORT}}:127.0.0.1:5432 {{PROD_VPS_TARGET}}
+  ssh -N -L {{PROD_PROXY_PORT}}:127.0.0.1:5432 {{PROD_VPS_TARGET}} &
   TUNNEL_PID=$!
   trap "kill $TUNNEL_PID 2>/dev/null || true" EXIT
   sleep 2

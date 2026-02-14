@@ -5,13 +5,13 @@
 # Database: PII is sanitized for User and Host accounts.
 # Files: Downloaded to /tmp/kpbj.
 #
-# Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
+# Credentials are loaded from SOPS-encrypted secrets.
 #
 # Usage: ./scripts/prod-to-local.sh
 #
 # Prerequisites:
 #   - Local PostgreSQL running (just dev-postgres-start)
-#   - flyctl installed and authenticated
+#   - SSH access to production VPS
 #
 
 set -euo pipefail
@@ -35,7 +35,7 @@ if [ "$CONFIRM" != "yes" ]; then
 fi
 
 echo "Loading credentials from SOPS..."
-export PROD_DB_PASSWORD=$(load_secret prod db_password)
+PROD_READONLY_PASSWORD=$(sops -d --extract '["db_readonly_password"]' secrets/prod-web.yaml)
 PROD_AWS_ACCESS_KEY_ID=$(load_secret prod aws_access_key_id)
 PROD_AWS_SECRET_ACCESS_KEY=$(load_secret prod aws_secret_access_key)
 
@@ -52,20 +52,14 @@ echo "  STEP 1/2: Copying Database"
 echo "========================================"
 
 echo ""
-echo "Starting production database proxy..."
+open_ssh_tunnel "$PROD_PROXY_PORT" "$PROD_VPS_TARGET"
 
-# Start production proxy
-fly proxy "$PROD_PROXY_PORT:5432" -a "$PROD_DB_APP" &
-PROD_PROXY_PID=$!
-
-# Cleanup function for proxy
-cleanup_proxy() {
-  echo "Cleaning up proxy..."
-  kill "$PROD_PROXY_PID" 2>/dev/null || true
+# Cleanup function
+cleanup() {
+  echo "Cleaning up tunnel..."
+  kill "$TUNNEL_PID" 2>/dev/null || true
 }
-trap cleanup_proxy EXIT
-
-sleep 3
+trap cleanup EXIT
 
 echo "Dropping local database..."
 psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
@@ -76,7 +70,7 @@ psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
   -c "CREATE DATABASE $LOCAL_DB_NAME;"
 
 echo "Copying production database to local..."
-pg_dump "postgres://$PROD_DB_USER:$PROD_DB_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
+pg_dump "postgres://$PROD_READONLY_USER:$PROD_READONLY_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
   | psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME"
 
 echo "Sanitizing PII for User and Host accounts..."
@@ -84,8 +78,8 @@ psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME" \
   -v password_hash="'$SANITIZED_PASSWORD_HASH'" \
   -f "$SCRIPT_DIR/lib/sanitize-pii.sql"
 
-# Close database proxy before file copy
-cleanup_proxy
+# Close tunnel before file copy
+cleanup
 
 echo ""
 echo "========================================"
