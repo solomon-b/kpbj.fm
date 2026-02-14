@@ -34,11 +34,6 @@ _require CMD:
   @command -v {{CMD}} >/dev/null 2>&1 || { echo "ERROR: '{{CMD}}' is required but not installed."; exit 1; }
 
 [private]
-_require-fly:
-  @command -v fly >/dev/null 2>&1 || { echo "ERROR: 'fly' (flyctl) is required but not installed."; exit 1; }
-  @fly auth whoami >/dev/null 2>&1 || { echo "ERROR: Not logged in to Fly.io. Run 'fly auth login' first."; exit 1; }
-
-[private]
 _require-docker:
   @command -v docker >/dev/null 2>&1 || { echo "ERROR: 'docker' is required but not installed."; exit 1; }
   @docker info >/dev/null 2>&1 || { echo "ERROR: Docker daemon is not running."; exit 1; }
@@ -448,7 +443,7 @@ prod-secrets: _require-sops
 
 # Backup production database to local file
 # Credentials loaded from SOPS-encrypted secrets/backup.yaml
-prod-backup-pg: _require-sops _require-fly
+prod-backup-pg: _require-sops
   ./scripts/prod-backup-pg.sh
 
 # Backup production database from remote server (e.g., TrueNAS)
@@ -470,7 +465,7 @@ prod-backup-s3: _require-sops _require-aws
 # Credentials loaded from SOPS-encrypted secrets/backup.yaml.
 
 # Copy production database to staging with PII sanitization
-prod-to-staging-db: _require-sops _require-fly
+prod-to-staging-db: _require-sops
   ./scripts/prod-to-staging-db.sh
 
 # Copy production S3 bucket to staging
@@ -478,7 +473,7 @@ prod-to-staging-s3: _require-sops _require-aws
   ./scripts/prod-to-staging-s3.sh
 
 # Copy both production database and S3 bucket to staging
-prod-to-staging: _require-sops _require-fly _require-aws
+prod-to-staging: _require-sops _require-aws
   ./scripts/prod-to-staging.sh
 
 # =============================================================================
@@ -490,7 +485,7 @@ prod-to-staging: _require-sops _require-fly _require-aws
 
 # Copy production database to local dev with PII sanitization
 # Requires local postgres running (just dev-postgres-start)
-prod-to-local-db: _require-sops _require-fly
+prod-to-local-db: _require-sops
   ./scripts/prod-to-local-db.sh
 
 # Copy production S3 files to local dev (/tmp/kpbj)
@@ -498,7 +493,7 @@ prod-to-local-files: _require-sops _require-aws
   ./scripts/prod-to-local-files.sh
 
 # Copy both production database and files to local dev
-prod-to-local: _require-sops _require-fly _require-aws
+prod-to-local: _require-sops _require-aws
   ./scripts/prod-to-local.sh
 
 # =============================================================================
