@@ -45,7 +45,7 @@
                                                      │ S3 API
                                                      ▼
                                               ┌───────────┐
-                                              │ Tigris S3 │
+                                              │ DO Spaces │
                                               │ • Audio   │
                                               │ • Images  │
                                               └───────────┘
@@ -55,7 +55,7 @@
 
 ### Web Service
 
-Haskell/Servant application with server-side HTML rendering (Lucid2 + HTMX). Serves the public website, host dashboard, and playout API. Uses PostgreSQL for data and Tigris S3 for media files.
+Haskell/Servant application with server-side HTML rendering (Lucid2 + HTMX). Serves the public website, host dashboard, and playout API. Uses PostgreSQL for data and DigitalOcean Spaces for media files.
 
 - **Production**: DigitalOcean VPS (native NixOS systemd service) with local PostgreSQL
 - **Staging**: DigitalOcean VPS (native NixOS systemd service) with local PostgreSQL

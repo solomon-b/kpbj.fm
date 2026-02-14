@@ -473,7 +473,7 @@ prod-backup-s3: _require-sops _require-aws
 prod-to-staging-db: _require-sops _require-fly
   ./scripts/prod-to-staging-db.sh
 
-# Copy production Tigris S3 bucket to staging
+# Copy production S3 bucket to staging
 prod-to-staging-s3: _require-sops _require-aws
   ./scripts/prod-to-staging-s3.sh
 
@@ -493,7 +493,7 @@ prod-to-staging: _require-sops _require-fly _require-aws
 prod-to-local-db: _require-sops _require-fly
   ./scripts/prod-to-local-db.sh
 
-# Copy production Tigris S3 files to local dev (/tmp/kpbj)
+# Copy production S3 files to local dev (/tmp/kpbj)
 prod-to-local-files: _require-sops _require-aws
   ./scripts/prod-to-local-files.sh
 

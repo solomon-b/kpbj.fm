@@ -146,7 +146,7 @@ Enforcement: `user_metadata.role` enum, `requireRole` middleware, role in sessio
 
 ## File Storage
 
-**Backends**: Local filesystem (dev) or S3-compatible (prod via Tigris)
+**Backends**: Local filesystem (dev) or S3-compatible (prod via DigitalOcean Spaces)
 
 **Staged Uploads**: Two-phase commit pattern
 1. Upload to staging with UUID token → `/api/uploads/audio`
@@ -190,7 +190,7 @@ See [README.md](README.md) for full setup, deployment, and release process.
 ## Environment
 
 - **Development**: Port 4000, PostgreSQL on port 5433, local file storage (`/tmp/kpbj`)
-- **Production**: Fly.io, managed PostgreSQL, Tigris S3
+- **Production**: DigitalOcean VPS, local PostgreSQL, DigitalOcean Spaces
 
 ```haskell
 data Environment = Development | Production

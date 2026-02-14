@@ -15,7 +15,7 @@ Complete instructions for provisioning the KPBJ infrastructure from scratch. Thi
 Enter the dev shell and ensure these env vars are set (in `.envrc.local`):
 
 ```bash
-# Tigris S3 (Terraform remote state backend)
+# DigitalOcean Spaces (Terraform remote state backend)
 export TERRAFORM_ACCESS_KEY_ID="..."
 export TERRAFORM_SECRET_ACCESS_KEY="..."
 

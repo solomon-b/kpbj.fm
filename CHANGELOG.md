@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Infrastructure
+- **Terraform State Migration to DigitalOcean Spaces** - Migrated Terraform remote state backend from Tigris S3 to DigitalOcean Spaces (SFO3), completing the full migration off Tigris.
+
 ### Fixes
 - **pgBackRest WAL Archiving Broken by Systemd Sandbox** - PostgreSQL's `ProtectSystem=strict` sandbox made `/var/lib/pgbackrest` read-only for the `archive_command`, preventing WAL archiving and blocking pre-deploy backups in CI. Added `ReadWritePaths` for the pgBackRest repo path to the PostgreSQL service configuration.
 

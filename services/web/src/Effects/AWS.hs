@@ -23,12 +23,12 @@ import Data.Text.Encoding qualified as TextEnc
 -- 4. Container credentials (when running in ECS/Fargate)
 --
 -- The region is set from the provided configuration.
--- Optionally accepts a custom endpoint URL for S3-compatible services like Tigris.
+-- Optionally accepts a custom endpoint URL for S3-compatible services like DigitalOcean Spaces.
 initAWSEnv ::
   (MonadIO m) =>
-  -- | AWS region (e.g., "us-west-2" or "auto" for Tigris)
+  -- | AWS region (e.g., "us-west-2" or "sfo3" for DigitalOcean Spaces)
   Text ->
-  -- | Optional custom S3 endpoint URL (e.g., "https://fly.storage.tigris.dev")
+  -- | Optional custom S3 endpoint URL (e.g., "https://sfo3.digitaloceanspaces.com")
   Maybe Text ->
   m AWS.Env
 initAWSEnv region mEndpointUrl = liftIO $ do
@@ -38,7 +38,7 @@ initAWSEnv region mEndpointUrl = liftIO $ do
   case mEndpointUrl of
     Nothing -> pure baseEnv
     Just endpointUrl -> do
-      -- Configure custom endpoint for S3-compatible services (e.g., Tigris, MinIO, LocalStack)
+      -- Configure custom endpoint for S3-compatible services (e.g., DigitalOcean Spaces, MinIO, LocalStack)
       -- Uses path-style addressing which is required by most S3-compatible services
       let (isSecure, host) = parseEndpoint endpointUrl
           customEndpoint = AWS.setEndpoint isSecure (TextEnc.encodeUtf8 host) 443
@@ -46,8 +46,8 @@ initAWSEnv region mEndpointUrl = liftIO $ do
 
 -- | Parse an endpoint URL into (isSecure, host) components.
 --
--- >>> parseEndpoint "https://fly.storage.tigris.dev"
--- (True, "fly.storage.tigris.dev")
+-- >>> parseEndpoint "https://sfo3.digitaloceanspaces.com"
+-- (True, "sfo3.digitaloceanspaces.com")
 --
 -- >>> parseEndpoint "http://localhost:9000"
 -- (False, "localhost:9000")

@@ -21,9 +21,9 @@ just tf-init
 just tf-plan
 ```
 
-The S3 backend requires `-backend-config` credentials for Tigris. `just tf-init` handles this using `TERRAFORM_ACCESS_KEY_ID` and `TERRAFORM_SECRET_ACCESS_KEY` from your environment.
+The S3 backend requires `-backend-config` credentials for DigitalOcean Spaces. `just tf-init` handles this using SOPS-encrypted keys from `secrets/terraform.yaml`.
 
-**State locking is not available.** Tigris S3 does not support DynamoDB-style lock tables, so concurrent `terraform apply` runs can corrupt state. Only one person should run plan/apply at a time.
+**State locking is not available.** DigitalOcean Spaces does not support DynamoDB-style lock tables, so concurrent `terraform apply` runs can corrupt state. Only one person should run plan/apply at a time.
 
 ## Importing Existing Resources
 
