@@ -499,7 +499,7 @@ updateScheduleTemplates showId activeTemplates parsedSlots today = do
               ShowSchedule.stiStartTime = pssStart slot,
               ShowSchedule.stiEndTime = pssEnd slot,
               ShowSchedule.stiTimezone = "America/Los_Angeles",
-              ShowSchedule.stiAirsTwiceDaily = False
+              ShowSchedule.stiAirsTwiceDaily = True
             }
 
     templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
