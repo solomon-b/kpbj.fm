@@ -103,7 +103,9 @@ in
               GRANT CONNECT ON DATABASE ${cfg.dbName} TO kpbj_readonly;
               GRANT USAGE ON SCHEMA public TO kpbj_readonly;
               GRANT SELECT ON ALL TABLES IN SCHEMA public TO kpbj_readonly;
+              GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO kpbj_readonly;
               ALTER DEFAULT PRIVILEGES FOR ROLE ${cfg.dbUser} IN SCHEMA public GRANT SELECT ON TABLES TO kpbj_readonly;
+              ALTER DEFAULT PRIVILEGES FOR ROLE ${cfg.dbUser} IN SCHEMA public GRANT SELECT ON SEQUENCES TO kpbj_readonly;
             "
           ''}
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Sync Production S3 Bucket to Staging (Incremental)
-# Compares production (Tigris) and staging (DO Spaces) buckets by key
-# and file size, then copies only new/changed files and removes stale ones.
+# Compares production and staging DO Spaces buckets by key and file size,
+# then copies only new/changed files and removes stale ones.
 #
 # Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
 #

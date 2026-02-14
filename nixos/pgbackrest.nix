@@ -67,13 +67,14 @@ in
     # ── PostgreSQL WAL archiving ───────────────────────────────
     services.postgresql.settings = {
       archive_mode = "on";
-      archive_command = "pgbackrest --stanza=${cfg.stanzaName} archive-push %p";
+      archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=${cfg.stanzaName} archive-push %p";
       wal_level = "replica";
     };
 
-    # ── Repo directory ─────────────────────────────────────────
+    # ── Repo + log directories ───────────────────────────────────
     systemd.tmpfiles.rules = [
       "d ${cfg.repoPath} 0750 postgres postgres -"
+      "d /var/log/pgbackrest 0750 postgres postgres -"
     ];
 
     # ── Stanza init (oneshot) ──────────────────────────────────

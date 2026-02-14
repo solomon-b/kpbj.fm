@@ -5,7 +5,7 @@
 # User and Host accounts have their email, password, and names anonymized.
 # Staff and Admin accounts retain their real credentials.
 #
-# Production database lives on Fly.io, staging database lives on the VPS.
+# Both databases live on VPS hosts, accessed via SSH tunnel.
 # Credentials are loaded from SOPS-encrypted secrets.
 #
 # Usage: ./scripts/prod-to-staging-db.sh
@@ -32,28 +32,24 @@ if [ "$CONFIRM" != "yes" ]; then
 fi
 
 echo "Loading credentials from SOPS..."
-export PROD_DB_PASSWORD=$(load_secret prod db_password)
-export STAGING_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/staging-web.yaml)
+PROD_READONLY_PASSWORD=$(sops -d --extract '["db_readonly_password"]' secrets/prod-web.yaml)
+STAGING_DB_PASSWORD=$(sops -d --extract '["db_password"]' secrets/staging-web.yaml)
 
 # Cleanup function
 cleanup() {
   echo "Cleaning up..."
-  kill "$PROD_PROXY_PID" 2>/dev/null || true
+  kill "$PROD_TUNNEL_PID" 2>/dev/null || true
   kill "$STAGING_TUNNEL_PID" 2>/dev/null || true
   ssh "$STAGING_VPS_TARGET" systemctl start kpbj-web 2>/dev/null || true
 }
 trap cleanup EXIT
 
 echo ""
-echo "Starting production database proxy..."
-fly proxy "$PROD_PROXY_PORT:5432" -a "$PROD_DB_APP" &
-PROD_PROXY_PID=$!
+open_ssh_tunnel "$PROD_PROXY_PORT" "$PROD_VPS_TARGET"
+PROD_TUNNEL_PID=$TUNNEL_PID
 
-echo "Opening SSH tunnel to staging VPS..."
-ssh -f -N -L "$STAGING_PROXY_PORT:127.0.0.1:5432" "$STAGING_VPS_TARGET"
-STAGING_TUNNEL_PID=$(lsof -ti:"$STAGING_PROXY_PORT" 2>/dev/null || true)
-
-sleep 3
+open_ssh_tunnel "$STAGING_PROXY_PORT" "$STAGING_VPS_TARGET"
+STAGING_TUNNEL_PID=$TUNNEL_PID
 
 echo "Stopping staging web service to release database connections..."
 ssh "$STAGING_VPS_TARGET" systemctl stop kpbj-web
@@ -62,7 +58,7 @@ echo "Dropping and recreating staging database..."
 ssh "$STAGING_VPS_TARGET" "sudo -u postgres psql -c \"DROP DATABASE IF EXISTS $STAGING_DB_NAME WITH (FORCE);\" && sudo -u postgres psql -c \"CREATE DATABASE $STAGING_DB_NAME OWNER $STAGING_DB_USER;\""
 
 echo "Copying production database to staging..."
-pg_dump "postgres://$PROD_DB_USER:$PROD_DB_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
+pg_dump "postgres://$PROD_READONLY_USER:$PROD_READONLY_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
   | psql "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/$STAGING_DB_NAME"
 
 echo "Sanitizing PII for User and Host accounts..."
