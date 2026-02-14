@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.8.3] - 2026-02-13
+
 ### Fixes
 - **Slot-Level Schedule Diffing** - Schedule updates now use set-difference logic instead of nuke-and-rebuild. When a staff member changes a show's schedule, only removed slots have their validity terminated and only added slots get new templates created — unchanged slots are left alone entirely. Previously, any schedule edit (e.g. adding a Monday slot to a show with an existing Friday slot) would destroy and recreate all templates, orphaning episodes that hosts had uploaded for upcoming airings. When the schedule hasn't changed at all, the update is skipped entirely to avoid unnecessary DB round-trips.
 - **New Schedule Templates Default to Airs Twice Daily** - Schedule templates created via the new show and edit show forms now set `airs_twice_daily = TRUE`, enabling automatic replay airings for all new schedule slots.
