@@ -71,6 +71,11 @@ in
       wal_level = "replica";
     };
 
+    # Allow archive_command (child of postgresql.service) to write
+    # to the backup repo.  ProtectSystem=strict makes / read-only
+    # for the service, so the repo path must be explicitly allowed.
+    systemd.services.postgresql.serviceConfig.ReadWritePaths = [ cfg.repoPath ];
+
     # ── Repo + log directories ───────────────────────────────────
     systemd.tmpfiles.rules = [
       "d ${cfg.repoPath} 0750 postgres postgres -"
