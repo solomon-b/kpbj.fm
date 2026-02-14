@@ -4,7 +4,17 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Infrastructure
+- **CI Cache Improvements** - Overhauled GitHub Actions caching strategy for faster builds and deploys:
+  - Updated `cachix/install-nix-action` from v20 to v31 and `cachix/cachix-action` from v12 to v15
+  - Added `pushFilter` to Cachix so only project derivations are cached (stops pushing all of nixpkgs)
+  - Added `nix-community/cache-nix-action` as a fast GitHub Actions cache layer on top of Cachix
+  - Staging deploys now wait for CI build to complete (`workflow_run` trigger) so they pull `kpbj-api` from warm cache instead of rebuilding
+  - CI now builds the full NixOS staging closure on main branch pushes, warming the cache for both staging and production deploys
+  - Removed unused `extra-platforms = aarch64-linux` from deploy workflows
+
+### Chores
+- **Remove Docker/GHCR Artifacts** - Removed `packages.docker`, `packages.publish`, `apps.publish` from `flake.nix` and deleted `services/web/docker.nix`. Removed `flyctl` from devShell. These were leftovers from the Fly.io migration.
 
 ---
 
