@@ -5,13 +5,13 @@
 # User and Host accounts have their email, password, and names anonymized.
 # Staff and Admin accounts retain their real credentials.
 #
-# Credentials are loaded from SOPS-encrypted secrets/backup.yaml.
+# Credentials are loaded from SOPS-encrypted secrets.
 #
 # Usage: ./scripts/prod-to-local-db.sh
 #
 # Prerequisites:
 #   - Local PostgreSQL running (just dev-postgres-start)
-#   - flyctl installed and authenticated
+#   - SSH access to production VPS
 #
 
 set -euo pipefail
@@ -35,7 +35,7 @@ if [ "$CONFIRM" != "yes" ]; then
 fi
 
 echo "Loading credentials from SOPS..."
-export PROD_DB_PASSWORD=$(load_secret prod db_password)
+PROD_READONLY_PASSWORD=$(sops -d --extract '["db_readonly_password"]' secrets/prod-web.yaml)
 
 # Check if local postgres is running
 if ! pg_isready -h localhost -p "$DEV_DB_PORT" -q; then
@@ -45,20 +45,14 @@ if ! pg_isready -h localhost -p "$DEV_DB_PORT" -q; then
 fi
 
 echo ""
-echo "Starting production database proxy..."
-
-# Start production proxy
-fly proxy "$PROD_PROXY_PORT:5432" -a "$PROD_DB_APP" &
-PROD_PROXY_PID=$!
+open_ssh_tunnel "$PROD_PROXY_PORT" "$PROD_VPS_TARGET"
 
 # Cleanup function
 cleanup() {
-  echo "Cleaning up proxy..."
-  kill "$PROD_PROXY_PID" 2>/dev/null || true
+  echo "Cleaning up tunnel..."
+  kill "$TUNNEL_PID" 2>/dev/null || true
 }
 trap cleanup EXIT
-
-sleep 3
 
 echo "Dropping local database..."
 psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
@@ -69,7 +63,7 @@ psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
   -c "CREATE DATABASE $LOCAL_DB_NAME;"
 
 echo "Copying production database to local..."
-pg_dump "postgres://$PROD_DB_USER:$PROD_DB_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
+pg_dump "postgres://$PROD_READONLY_USER:$PROD_READONLY_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
   | psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME"
 
 echo "Sanitizing PII for User and Host accounts..."
