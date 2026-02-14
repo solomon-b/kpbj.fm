@@ -23,17 +23,17 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v20
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
-            extra-platforms = aarch64-linux
+        uses: cachix/install-nix-action@v31
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@v8
 
       - name: Setup Cachix
-        uses: cachix/cachix-action@v12
+        uses: cachix/cachix-action@v15
         with:
           name: kpbj-fm
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          pushFilter: '(-kpbj-api|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
 
       - name: Setup SSH
         run: |
