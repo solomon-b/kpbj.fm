@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.8.4] - 2026-02-13
+
 ### Infrastructure
 - **Terraform State Migration to DigitalOcean Spaces** - Migrated Terraform remote state backend from Tigris S3 to DigitalOcean Spaces (SFO3), completing the full migration off Tigris.
 
