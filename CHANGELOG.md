@@ -21,6 +21,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Per-Host PostgreSQL Version Pinning** - Replaced the hardcoded PostgreSQL package in the shared `postgresql.nix` module with a required `pgPackage` option that each host must set explicitly. Prevents accidental major-version upgrades (which destroy the data directory) from propagating silently across environments.
 - **Pre-Deploy Database Backup in Production CI** - The production deploy workflow now runs a full pgBackRest backup via SSH before `nixos-rebuild switch`, ensuring a fresh restore point exists before every production deploy. If the backup fails, the deploy aborts.
 - **Read-Only Production psql** - `just prod-psql` now connects in read-only mode by default. Pass `--write` to allow writes.
+- **SSH Tunnel + Dedicated DB Roles for psql** - Replaced root SSH + `sudo -u postgres psql` with SSH tunnel connections using dedicated PostgreSQL roles. Added `kpbj_readonly` and `kpbj_readwrite` roles to the NixOS PostgreSQL module with appropriate grants (`SELECT`-only vs full DML). `just prod-psql` and `just staging-psql` now connect via SSH tunnel as `kpbj_readonly` by default; pass `--write` for `kpbj_readwrite`. Eliminates the need for root VPS access just to run queries.
 
 ### Fixes
 - **Bare Domain SSL Error** - Visiting `https://kpbj.fm` returned `ERR_CERT_COMMON_NAME_INVALID` because DNS pointed to the VPS but nginx had no vhost or certificate for the bare domain. Added an nginx vhost in `prod.nix` that obtains its own ACME cert for `kpbj.fm` and 301-redirects to `www.kpbj.fm`.

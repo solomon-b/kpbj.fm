@@ -134,6 +134,14 @@ in
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" "kpbj-postgres-setup.service" ];
     };
+    sops.secrets.db_readonly_password = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-postgres-setup.service" ];
+    };
+    sops.secrets.db_readwrite_password = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-postgres-setup.service" ];
+    };
     sops.secrets.smtp_password = {
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" ];
@@ -170,6 +178,8 @@ in
 
     # ── Wire passwordFile into postgresql module ─────────────────
     kpbj.postgresql.passwordFile = config.sops.secrets.db_password.path;
+    kpbj.postgresql.readonlyPasswordFile = config.sops.secrets.db_readonly_password.path;
+    kpbj.postgresql.readwritePasswordFile = config.sops.secrets.db_readwrite_password.path;
 
     # ── Systemd service ──────────────────────────────────────────
     systemd.services.kpbj-web = {

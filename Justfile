@@ -309,9 +309,23 @@ staging-status:
 staging-open:
   xdg-open https://staging.kpbj.fm 2>/dev/null || open https://staging.kpbj.fm
 
-# Connect to staging database with psql (via SSH tunnel)
-staging-psql:
-  ssh -t {{STAGING_VPS_TARGET}} sudo -u postgres psql -d {{STAGING_DB_NAME}}
+# Connect to staging database with psql (via SSH tunnel, read-only by default, pass --write to allow writes)
+staging-psql *args: _require-sops
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ "{{args}}" = "--write" ]; then
+    DB_USER="kpbj_readwrite"
+    DB_PASSWORD=$(sops -d --extract '["db_readwrite_password"]' secrets/staging-web.yaml)
+  else
+    DB_USER="kpbj_readonly"
+    DB_PASSWORD=$(sops -d --extract '["db_readonly_password"]' secrets/staging-web.yaml)
+  fi
+  echo "Opening SSH tunnel..."
+  ssh -f -N -L {{STAGING_PROXY_PORT}}:127.0.0.1:5432 {{STAGING_VPS_TARGET}}
+  TUNNEL_PID=$!
+  trap "kill $TUNNEL_PID 2>/dev/null || true" EXIT
+  sleep 2
+  PGPASSWORD="$DB_PASSWORD" psql -h localhost -p {{STAGING_PROXY_PORT}} -U "$DB_USER" -d {{STAGING_DB_NAME}}
 
 # Run migrations on staging (via SSH tunnel)
 staging-migrations-run: _require-sops
@@ -327,6 +341,7 @@ staging-migrations-run: _require-sops
     sqlx migrate run --source services/web/migrations
 
 # Reset staging database (drops all tables, re-runs migrations)
+# NOTE: Uses root SSH because DROP DATABASE requires superuser privileges.
 staging-migrations-reset: _require-sops
   #!/usr/bin/env bash
   set -euo pipefail
@@ -383,10 +398,23 @@ prod-status:
 prod-open:
   xdg-open https://www.kpbj.fm 2>/dev/null || open https://www.kpbj.fm
 
-# Connect to production database with psql (via SSH, read-only by default, pass --write to allow writes)
-prod-psql *args:
-  ssh -t {{PROD_VPS_TARGET}} sudo -u postgres psql -d {{PROD_DB_NAME}} \
-    {{ if args == "--write" { "" } else { "-v default_transaction_read_only=on" } }}
+# Connect to production database with psql (via SSH tunnel, read-only by default, pass --write to allow writes)
+prod-psql *args: _require-sops
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ "{{args}}" = "--write" ]; then
+    DB_USER="kpbj_readwrite"
+    DB_PASSWORD=$(sops -d --extract '["db_readwrite_password"]' secrets/prod-web.yaml)
+  else
+    DB_USER="kpbj_readonly"
+    DB_PASSWORD=$(sops -d --extract '["db_readonly_password"]' secrets/prod-web.yaml)
+  fi
+  echo "Opening SSH tunnel..."
+  ssh -f -N -L {{PROD_PROXY_PORT}}:127.0.0.1:5432 {{PROD_VPS_TARGET}}
+  TUNNEL_PID=$!
+  trap "kill $TUNNEL_PID 2>/dev/null || true" EXIT
+  sleep 2
+  PGPASSWORD="$DB_PASSWORD" psql -h localhost -p {{PROD_PROXY_PORT}} -U "$DB_USER" -d {{PROD_DB_NAME}}
 
 # Run migrations on production (via SSH tunnel)
 prod-migrations-run: _require-sops
