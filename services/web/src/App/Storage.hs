@@ -168,7 +168,7 @@ withStorageContext appCtx s3ConfigResult action = do
         Aeson.object
           [ "environment" .= show env,
             "required_vars" .= (["BUCKET_NAME", "AWS_REGION"] :: [Text]),
-            "hint" .= ("For S3-compatible services (Tigris, MinIO), also set AWS_ENDPOINT_URL_S3" :: Text)
+            "hint" .= ("For S3-compatible services (DigitalOcean Spaces, MinIO), also set AWS_ENDPOINT_URL_S3" :: Text)
           ]
       error $ "Fatal: S3 configuration required for " <> show env
 

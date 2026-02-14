@@ -36,15 +36,15 @@ newtype LocalStorageConfig = LocalStorageConfig
 
 -- | AWS S3 storage configuration.
 --
--- Supports both standard AWS S3 and S3-compatible services like Tigris.
+-- Supports both standard AWS S3 and S3-compatible services like DigitalOcean Spaces.
 data S3StorageConfig = S3StorageConfig
-  { -- | S3 bucket name (e.g., "kpbj-media" or "staging-kpbj-bucket")
+  { -- | S3 bucket name (e.g., "kpbj-media" or "staging-kpbj-storage")
     s3BucketName :: Text,
-    -- | AWS region (e.g., "us-west-2" or "auto" for Tigris)
+    -- | AWS region (e.g., "us-west-2" or "sfo3" for DigitalOcean Spaces)
     s3Region :: Text,
-    -- | Base URL for public access (e.g., "https://staging-kpbj-bucket.fly.storage.tigris.dev")
+    -- | Base URL for public access (e.g., "https://staging-kpbj-storage.sfo3.digitaloceanspaces.com")
     s3BaseUrl :: Text,
-    -- | Custom S3 endpoint URL for S3-compatible services (e.g., "https://fly.storage.tigris.dev")
+    -- | Custom S3 endpoint URL for S3-compatible services (e.g., "https://sfo3.digitaloceanspaces.com")
     -- When Nothing, uses standard AWS S3 endpoints.
     s3EndpointUrl :: Maybe Text
   }

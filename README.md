@@ -2,7 +2,7 @@
 
 Community radio station website for Shadow Hills CA.
 
-**Web Service** — Haskell/Servant app with server-side HTML (Lucid2 + HTMX). Handles the website, host dashboard, and playout API. Runs on a NixOS VPS with PostgreSQL and Tigris S3.
+**Web Service** — Haskell/Servant app with server-side HTML (Lucid2 + HTMX). Handles the website, host dashboard, and playout API. Runs on a NixOS VPS with PostgreSQL and DigitalOcean Spaces.
 
 **Liquidsoap** — Audio automation. Polls the web service for scheduled episodes and streams to Icecast. Runs on a VPS.
 

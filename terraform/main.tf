@@ -34,18 +34,18 @@ terraform {
     }
   }
 
-  # Remote state in Tigris S3. Credentials are passed via
-  # -backend-config at init time (see README.md).
+  # Remote state in DigitalOcean Spaces (S3-compatible). Credentials
+  # are passed via -backend-config at init time (see README.md).
   backend "s3" {
     bucket = "kpbj-terraform-state"
     key    = "terraform.tfstate"
-    region = "auto"
+    region = "sfo3"
 
     endpoints = {
-      s3 = "https://fly.storage.tigris.dev"
+      s3 = "https://sfo3.digitaloceanspaces.com"
     }
 
-    # Tigris S3 compatibility
+    # DigitalOcean Spaces S3 compatibility
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_requesting_account_id  = true
