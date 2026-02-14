@@ -365,7 +365,7 @@ createSchedulesForShow showId slots = do
                   ShowSchedule.stiStartTime = start,
                   ShowSchedule.stiEndTime = end,
                   ShowSchedule.stiTimezone = "America/Los_Angeles",
-                  ShowSchedule.stiAirsTwiceDaily = False
+                  ShowSchedule.stiAirsTwiceDaily = True
                 }
 
         templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
