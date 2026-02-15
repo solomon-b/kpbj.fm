@@ -51,11 +51,18 @@ in
     systemd.services.kpbj-sync-host-emails = {
       description = "KPBJ host email sync";
 
+      # Wait for postgresql to be available
+      after = [ "postgresql.service" ];
+      requires = [ "postgresql.service" ];
+
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
         RuntimeDirectory = "kpbj-sync-host-emails";
         RuntimeDirectoryMode = "0700";
+
+        # Reuse the existing kpbj-web.env which contains DATABASE_URL
+        EnvironmentFile = [ config.sops.templates."kpbj-web.env".path ];
 
         # The '+' prefix runs ExecStartPre as root so it can read
         # sops secret files, then copies them to RuntimeDirectory

@@ -9,16 +9,20 @@ build-type:         Simple
 executable sync-host-emails
   main-is:          Main.hs
   other-modules:    GoogleGroups
+                  , Database
   build-depends:    base
                   , aeson
                   , bytestring
+                  , containers
                   , crypton-x509
                   , crypton-x509-store
+                  , hasql
                   , http-client
                   , http-conduit
                   , http-types
                   , jose               >= 0.11 && < 0.12
                   , optparse-applicative
+                  , rel8
                   , string-interpolate
                   , text
                   , time
@@ -26,6 +30,7 @@ executable sync-host-emails
   hs-source-dirs:   .
   default-language: Haskell2010
   default-extensions:
+      BlockArguments
       DerivingStrategies
       ImportQualifiedPost
       LambdaCase
