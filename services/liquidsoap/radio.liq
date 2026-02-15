@@ -28,6 +28,11 @@ end
 # State: URL of the last scheduled show we played (to avoid duplicates)
 last_scheduled = ref("")
 
+# Consecutive "no show" poll count. We only clear last_scheduled after 2
+# consecutive null responses, so a single transient API/DB error mid-show
+# won't cause the episode to restart from the beginning.
+null_poll_count = ref(0)
+
 # State: last track metadata, re-sent on Icecast reconnect so metadata
 # survives connection drops (e.g. Icecast container restart).
 last_metadata = ref([])
@@ -79,11 +84,17 @@ def poll()
     # API returns "null" when nothing is scheduled
     if body == "null" or body == "" then
       log.info("[KPBJ] No show currently scheduled")
+      null_poll_count := null_poll_count() + 1
+      if null_poll_count() >= 2 and last_scheduled() != "" then
+        log.important("[KPBJ] Clearing last_scheduled after #{null_poll_count()} consecutive empty polls")
+        last_scheduled := ""
+      end
     else
       try
         let json.parse (data : {url: string, title: string?, artist: string?}) = body
         url = rewrite_url(data.url)
 
+        null_poll_count := 0
         if url == last_scheduled() then
           log.info("[KPBJ] Same show as before, not replaying: #{url}")
         else

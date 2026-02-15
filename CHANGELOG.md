@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Fixes
+- **Twice-Daily Shows Skipped on Replay Airing** - Liquidsoap's `last_scheduled` deduplication state was never cleared between show airings, so when a show's replay airing came around (e.g. 8am → 8pm), it was rejected as a duplicate. The schedule API returned the correct episode, but Liquidsoap logged "Same show as before, not replaying" and continued playing fallback content. Now clears `last_scheduled` after 2 consecutive empty schedule polls, with a single-poll grace period to protect against transient API/DB errors mid-show.
+
 ### Infrastructure
 - **CI Cache Improvements** - Overhauled GitHub Actions caching strategy for faster builds and deploys:
   - Updated `cachix/install-nix-action` from v20 to v31 and `cachix/cachix-action` from v12 to v15
