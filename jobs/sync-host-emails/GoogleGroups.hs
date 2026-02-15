@@ -6,8 +6,14 @@ module GoogleGroups
     GoogleGroupsError (..),
     displayError,
 
+    -- * Session
+    AccessToken,
+    acquireToken,
+
     -- * API
     listGroupMembers,
+    addGroupMember,
+    removeGroupMember,
   )
 where
 
@@ -50,6 +56,9 @@ data GoogleGroupsConfig = GoogleGroupsConfig
     ggGroupEmail :: Text
   }
 
+-- | An opaque OAuth2 access token.
+newtype AccessToken = AccessToken Text
+
 -- | Role of a member within a Google Group.
 data GroupMemberRole
   = RoleOwner
@@ -67,16 +76,20 @@ data GroupMember = GroupMember
   }
   deriving stock (Show, Eq)
 
--- | Error that can occur while fetching Google Group members.
+-- | Error that can occur while interacting with Google Groups.
 data GoogleGroupsError
   = KeyParsingFailed Text
   | ClaimsCreationFailed Text
   | JWTSigningFailed JOSE.Error
   | TokenExchangeHttpError HTTP.HttpException
-  | TokenExchangeUnexpectedResponse
+  | TokenExchangeUnexpectedResponse Text
   | MembersApiHttpError HTTP.HttpException
   | MembersApiHttpStatus Int
   | MembersApiParseFailed
+  | AddMemberHttpError HTTP.HttpException
+  | AddMemberHttpStatus Int Text
+  | RemoveMemberHttpError HTTP.HttpException
+  | RemoveMemberHttpStatus Int Text
   deriving stock (Show)
 
 -- | Render an error as user-facing text.
@@ -86,10 +99,14 @@ displayError = \case
   ClaimsCreationFailed err -> [i|Claims creation failed: #{err}|]
   JWTSigningFailed _err -> "JWT signing failed."
   TokenExchangeHttpError _err -> "Token exchange HTTP error."
-  TokenExchangeUnexpectedResponse -> "Token exchange: unexpected response body."
+  TokenExchangeUnexpectedResponse body -> [i|Token exchange: unexpected response body: #{body}|]
   MembersApiHttpError _err -> "Members API HTTP error."
   MembersApiHttpStatus code -> [i|Members API error: HTTP #{code}.|]
   MembersApiParseFailed -> "Failed to parse members response."
+  AddMemberHttpError _err -> "Add member HTTP error."
+  AddMemberHttpStatus code email -> [i|Add member #{email}: HTTP #{code}.|]
+  RemoveMemberHttpError _err -> "Remove member HTTP error."
+  RemoveMemberHttpStatus code email -> [i|Remove member #{email}: HTTP #{code}.|]
 
 -- | Catch 'HTTP.HttpException' and wrap it with the given constructor.
 tryHttp :: (HTTP.HttpException -> GoogleGroupsError) -> IO a -> ExceptT GoogleGroupsError IO a
@@ -99,19 +116,63 @@ tryHttp wrapErr action = ExceptT $ first wrapErr <$> try @HTTP.HttpException act
 -- Public API
 --------------------------------------------------------------------------------
 
--- | List all members of the configured Google Group.
-listGroupMembers :: GoogleGroupsConfig -> IO (Either GoogleGroupsError [GroupMember])
-listGroupMembers GoogleGroupsConfig {..} = runExceptT $ do
+-- | Acquire an OAuth2 access token for Google Admin SDK.
+acquireToken :: GoogleGroupsConfig -> IO (Either GoogleGroupsError AccessToken)
+acquireToken GoogleGroupsConfig {..} = runExceptT $ do
   token <- getAccessToken ggSaEmail ggSaKey ggDelegatedUser
-  fetchAllMembers token ggGroupEmail
+  pure (AccessToken token)
+
+-- | List all members of the configured Google Group.
+listGroupMembers :: AccessToken -> Text -> IO (Either GoogleGroupsError [GroupMember])
+listGroupMembers (AccessToken token) groupEmail = runExceptT $
+  fetchAllMembers token groupEmail
+
+-- | Add an email address to a Google Group as a MEMBER.
+addGroupMember :: AccessToken -> Text -> Text -> IO (Either GoogleGroupsError ())
+addGroupMember (AccessToken token) groupEmail memberEmail = runExceptT $ do
+  let url = [i|https://admin.googleapis.com/admin/directory/v1/groups/#{groupEmail}/members|] :: String
+      body =
+        Aeson.object
+          [ "email" .= memberEmail,
+            "role" .= ("MEMBER" :: Text)
+          ]
+  response <-
+    tryHttp AddMemberHttpError $ do
+      request <- HTTP.parseRequest url
+      let req =
+            HTTP.setRequestResponseTimeout (HTTPClient.responseTimeoutMicro 10_000_000) $
+              HTTP.setRequestMethod "POST" $
+                HTTP.addRequestHeader "Authorization" [i|Bearer #{token}|] $
+                  HTTP.addRequestHeader "Content-Type" "application/json" $
+                    HTTP.setRequestBodyJSON body request
+      HTTP.httpNoBody req
+  let status = HTTP.getResponseStatus response
+  unless (HTTP.statusIsSuccessful status) $
+    throwE (AddMemberHttpStatus (HTTP.statusCode status) memberEmail)
+
+-- | Remove an email address from a Google Group.
+removeGroupMember :: AccessToken -> Text -> Text -> IO (Either GoogleGroupsError ())
+removeGroupMember (AccessToken token) groupEmail memberEmail = runExceptT $ do
+  let url = [i|https://admin.googleapis.com/admin/directory/v1/groups/#{groupEmail}/members/#{memberEmail}|] :: String
+  response <-
+    tryHttp RemoveMemberHttpError $ do
+      request <- HTTP.parseRequest url
+      let req =
+            HTTP.setRequestResponseTimeout (HTTPClient.responseTimeoutMicro 10_000_000) $
+              HTTP.setRequestMethod "DELETE" $
+                HTTP.addRequestHeader "Authorization" [i|Bearer #{token}|] request
+      HTTP.httpNoBody req
+  let status = HTTP.getResponseStatus response
+  unless (HTTP.statusIsSuccessful status) $
+    throwE (RemoveMemberHttpStatus (HTTP.statusCode status) memberEmail)
 
 --------------------------------------------------------------------------------
 -- Google OAuth2 JWT Authentication
 --------------------------------------------------------------------------------
 
--- | Google Admin SDK scope for read-only group member access.
+-- | Google Admin SDK scope for group member management.
 directoryScope :: Text
-directoryScope = "https://www.googleapis.com/auth/admin.directory.group.member.readonly"
+directoryScope = "https://www.googleapis.com/auth/admin.directory.group.member"
 
 -- | Get an OAuth2 access token using service account credentials.
 getAccessToken :: Text -> Text -> Text -> ExceptT GoogleGroupsError IO Text
@@ -165,7 +226,9 @@ exchangeToken assertion = do
   let body = HTTP.getResponseBody response :: Aeson.Value
   case parseMaybe (Aeson.withObject "token" (.: "access_token")) body of
     Just token -> pure token
-    Nothing -> throwE TokenExchangeUnexpectedResponse
+    Nothing ->
+      let bodyText = Text.decodeUtf8 $ LBS.toStrict $ Aeson.encode body
+       in throwE (TokenExchangeUnexpectedResponse bodyText)
 
 --------------------------------------------------------------------------------
 -- Google Directory API
