@@ -59,6 +59,28 @@
         source: header
         name: X-Webhook-Secret
 
+- id: stop-stream
+  execute-command: '{{ getenv "STOP_STREAM_CMD" }}'
+  command-working-directory: /
+  trigger-rule:
+    match:
+      type: value
+      value: '{{ getenv "WEBHOOK_SECRET" }}'
+      parameter:
+        source: header
+        name: X-Webhook-Secret
+
+- id: start-stream
+  execute-command: '{{ getenv "START_STREAM_CMD" }}'
+  command-working-directory: /
+  trigger-rule:
+    match:
+      type: value
+      value: '{{ getenv "WEBHOOK_SECRET" }}'
+      parameter:
+        source: header
+        name: X-Webhook-Secret
+
 - id: health
   execute-command: /bin/echo
   pass-arguments-to-command:
