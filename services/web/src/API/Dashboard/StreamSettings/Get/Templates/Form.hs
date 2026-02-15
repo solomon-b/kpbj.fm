@@ -56,6 +56,12 @@ restartLiquidsoapUrl = Links.linkURI dashboardStreamSettingsLinks.restartLiquids
 skipTrackUrl :: Links.URI
 skipTrackUrl = Links.linkURI dashboardStreamSettingsLinks.skipTrackPost
 
+stopStreamUrl :: Links.URI
+stopStreamUrl = Links.linkURI dashboardStreamSettingsLinks.stopStreamPost
+
+startStreamUrl :: Links.URI
+startStreamUrl = Links.linkURI dashboardStreamSettingsLinks.startStreamPost
+
 episodeSearchUrl :: Links.URI
 episodeSearchUrl = Links.linkURI $ dashboardStreamSettingsLinks.episodeSearch Nothing
 
@@ -80,7 +86,7 @@ template icecastReachable mStatus playbackHistory = do
   forceEpisodeSection
 
   -- Stream controls section
-  streamControlSection
+  streamControlSection icecastReachable
 
 --------------------------------------------------------------------------------
 
@@ -106,8 +112,8 @@ forceEpisodeSection =
 --------------------------------------------------------------------------------
 
 -- | Stream control section for managing playback and restarting services.
-streamControlSection :: Lucid.Html ()
-streamControlSection =
+streamControlSection :: Bool -> Lucid.Html ()
+streamControlSection icecastReachable =
   Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
     Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb2]] "STREAM CONTROLS"
     Lucid.p_
@@ -144,6 +150,27 @@ streamControlSection =
           hxDisabledElt_ "this"
         ]
         "SKIP TRACK"
+
+      -- Stop/Start Stream toggle button (based on whether Icecast is reachable)
+      if icecastReachable
+        then
+          Lucid.button_
+            [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.errorBorder, Tokens.errorText, Tokens.errorBg, "hover:opacity-80"],
+              hxPost_ [i|/#{stopStreamUrl}|],
+              hxSwap_ "none",
+              hxConfirm_ "Are you sure you want to STOP the stream? This will shut down both Liquidsoap and Icecast, disconnecting all listeners.",
+              hxDisabledElt_ "this"
+            ]
+            "STOP STREAM"
+        else
+          Lucid.button_
+            [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.successBorder, Tokens.successText, Tokens.successBg, "hover:opacity-80"],
+              hxPost_ [i|/#{startStreamUrl}|],
+              hxSwap_ "none",
+              hxConfirm_ "Start the stream? This will start Icecast and Liquidsoap.",
+              hxDisabledElt_ "this"
+            ]
+            "START STREAM"
 
 --------------------------------------------------------------------------------
 

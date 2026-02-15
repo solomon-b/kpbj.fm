@@ -101,6 +101,8 @@ import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSetti
 import API.Dashboard.StreamSettings.Restart.Icecast.Post.Route qualified as Dashboard.StreamSettings.Restart.Icecast.Post
 import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route qualified as Dashboard.StreamSettings.Restart.Liquidsoap.Post
 import API.Dashboard.StreamSettings.SkipTrack.Post.Route qualified as Dashboard.StreamSettings.SkipTrack.Post
+import API.Dashboard.StreamSettings.StartStream.Post.Route qualified as Dashboard.StreamSettings.StartStream.Post
+import API.Dashboard.StreamSettings.StopStream.Post.Route qualified as Dashboard.StreamSettings.StopStream.Post
 import API.Dashboard.Users.Delete.Route qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Route qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Route qualified as Dashboard.Users.Edit.Get
@@ -546,7 +548,11 @@ data DashboardStreamSettingsRoutes mode = DashboardStreamSettingsRoutes
     -- | @POST /dashboard/stream-settings/force-episode@ - Force-play an episode
     forceEpisodePost :: mode :- Dashboard.StreamSettings.ForceEpisode.Post.Route,
     -- | @POST /dashboard/stream-settings/skip-track@ - Skip current track to fallback
-    skipTrackPost :: mode :- Dashboard.StreamSettings.SkipTrack.Post.Route
+    skipTrackPost :: mode :- Dashboard.StreamSettings.SkipTrack.Post.Route,
+    -- | @POST /dashboard/stream-settings/stop-stream@ - Stop entire stream (Liquidsoap then Icecast)
+    stopStreamPost :: mode :- Dashboard.StreamSettings.StopStream.Post.Route,
+    -- | @POST /dashboard/stream-settings/start-stream@ - Start entire stream (Icecast then Liquidsoap)
+    startStreamPost :: mode :- Dashboard.StreamSettings.StartStream.Post.Route
   }
   deriving stock (Generic)
 

@@ -34,6 +34,17 @@ let
     { printf 'skip_track\nquit\n'; sleep 2; } | ${pkgs.nmap}/bin/ncat -i 5 127.0.0.1 1234 > /dev/null
   '';
 
+  # Stop-stream script: stop Liquidsoap first (stop sending audio), then Icecast.
+  stopStreamCmd = pkgs.writeShellScriptBin "kpbj-stop-stream" ''
+    exec /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl stop kpbj-liquidsoap.service kpbj-icecast.service
+  '';
+
+  # Start-stream script: start Icecast first (ready to accept), then Liquidsoap.
+  startStreamCmd = pkgs.writeShellScriptBin "kpbj-start-stream" ''
+    /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl start kpbj-icecast.service
+    /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl start kpbj-liquidsoap.service
+  '';
+
   sed = "${pkgs.gnused}/bin/sed";
 in
 {
@@ -183,6 +194,18 @@ in
             command = "${pkgs.systemd}/bin/systemctl restart kpbj-liquidsoap.service";
             options = [ "NOPASSWD" ];
           }
+          {
+            command = "${pkgs.systemd}/bin/systemctl stop kpbj-liquidsoap.service kpbj-icecast.service";
+            options = [ "NOPASSWD" ];
+          }
+          {
+            command = "${pkgs.systemd}/bin/systemctl start kpbj-icecast.service";
+            options = [ "NOPASSWD" ];
+          }
+          {
+            command = "${pkgs.systemd}/bin/systemctl start kpbj-liquidsoap.service";
+            options = [ "NOPASSWD" ];
+          }
         ];
       }
     ];
@@ -199,6 +222,8 @@ in
         RESTART_CMD = "${restartCmd}/bin/kpbj-restart";
         FORCE_PLAY_CMD = "${forcePlayCmd}/bin/kpbj-force-play";
         SKIP_TRACK_CMD = "${skipTrackCmd}/bin/kpbj-skip-track";
+        STOP_STREAM_CMD = "${stopStreamCmd}/bin/kpbj-stop-stream";
+        START_STREAM_CMD = "${startStreamCmd}/bin/kpbj-start-stream";
       };
 
       serviceConfig = {

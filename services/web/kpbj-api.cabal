@@ -349,6 +349,10 @@ library
     API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route
     API.Dashboard.StreamSettings.SkipTrack.Post.Handler
     API.Dashboard.StreamSettings.SkipTrack.Post.Route
+    API.Dashboard.StreamSettings.StartStream.Post.Handler
+    API.Dashboard.StreamSettings.StartStream.Post.Route
+    API.Dashboard.StreamSettings.StopStream.Post.Handler
+    API.Dashboard.StreamSettings.StopStream.Post.Route
     API.Shows.Slug.Episode.Get.Handler
     API.Shows.Slug.Episode.Get.Route
     API.Shows.Slug.Episode.Get.Templates.Page
