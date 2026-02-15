@@ -15,7 +15,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full system topology.
 ### Prerequisites
 
 - [Nix](https://nixos.org/download.html) with flakes enabled
-- Docker (for PostgreSQL)
+- Docker (for local PostgreSQL)
 
 ### Environment Variables
 
@@ -71,16 +71,16 @@ just hlint-changed      # Lint changed Haskell files
 
 ### Streaming (optional)
 
-To run the full stack locally with Liquidsoap and Icecast:
+To run the full streaming stack locally (Icecast + Liquidsoap + Webhook) in a NixOS QEMU VM — the same configuration as staging/prod:
 
 ```bash
-just stream-dev-build    # Build Docker images with Nix
-just stream-dev-start    # Start Liquidsoap + Icecast
-just stream-dev-logs     # View logs
-just stream-dev-stop     # Stop services
+sops secrets/dev-streaming.yaml   # Create dev streaming secrets (first time only)
+just stream-dev-build             # Build the VM
+just stream-dev-start             # Start the VM (ports 8000, 9000)
+just stream-dev-stop              # Stop the VM
 ```
 
-Stream available at `http://localhost:8000/stream`. Requires the web service running.
+Stream available at `http://localhost:8000/stream`. Webhook at `http://localhost:9000`. Requires the web service running on port 4000.
 
 ## Deployment
 
@@ -148,6 +148,7 @@ All secrets are SOPS-encrypted with age keys and stored in `secrets/`:
 | File                             | Purpose                                               |
 |----------------------------------|-------------------------------------------------------|
 | `secrets/terraform.yaml`         | Terraform provider tokens (DO, Cloudflare)            |
+| `secrets/dev-streaming.yaml`     | Dev VM Icecast passwords, playout/webhook secrets     |
 | `secrets/prod-streaming.yaml`    | Production Icecast passwords, playout/webhook secrets |
 | `secrets/prod-web.yaml`          | Production web DB password, SMTP, AWS keys            |
 | `secrets/staging-streaming.yaml` | Staging Icecast passwords, playout/webhook secrets    |
@@ -157,6 +158,7 @@ Secrets are decrypted on the VPS at deploy time via [sops-nix](https://github.co
 
 ```bash
 just tf-edit-secrets                   # Edit Terraform secrets
+just sops-edit-dev-streaming           # Edit dev streaming secrets
 just sops-edit-prod-streaming          # Edit production streaming secrets
 just sops-edit-prod-web                # Edit production web secrets
 just sops-edit-staging-streaming       # Edit staging streaming secrets
@@ -184,7 +186,4 @@ just nixos-setup root@<ip> staging
 # Deploy NixOS configuration
 just nixos-deploy-prod                 # Deploy to production VPS
 just nixos-deploy-staging              # Deploy to staging VPS
-
-# Build and push container images
-just stream-publish sha-abc123         # Build and push images to GHCR
 ```

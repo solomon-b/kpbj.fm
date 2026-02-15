@@ -20,6 +20,15 @@ let
     exec /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl "$@"
   '';
 
+  # Force-play script: sends annotate URI to liquidsoap via telnet
+  forcePlayCmd = pkgs.writeShellScriptBin "kpbj-force-play" ''
+    URL="$1"
+    TITLE="$2"
+    ARTIST="$3"
+    ANNOTATED="annotate:title=\"''${TITLE}\",artist=\"''${ARTIST}\",source_type=\"episode\":''${URL}"
+    printf 'force_play %s\nquit\n' "$ANNOTATED" | ${pkgs.netcat-gnu}/bin/nc -q 1 127.0.0.1 1234
+  '';
+
   sed = "${pkgs.gnused}/bin/sed";
 in
 {
@@ -37,6 +46,12 @@ in
     apiBase = lib.mkOption {
       type = lib.types.str;
       description = "Base URL for the playout API (e.g. https://www.kpbj.fm/api/playout).";
+    };
+
+    rewriteHost = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      description = "Replace 'localhost' in audio URLs with this host. Used in dev VM (10.0.2.2).";
     };
   };
 
@@ -116,6 +131,7 @@ in
         ICECAST_PORT = toString cfg.icecastPort;
         ICECAST_MOUNT = "/stream";
         API_BASE = cfg.apiBase;
+        REWRITE_HOST = cfg.rewriteHost;
         SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
       };
 
@@ -170,6 +186,7 @@ in
         ICECAST_SERVICE = "kpbj-icecast.service";
         LIQUIDSOAP_SERVICE = "kpbj-liquidsoap.service";
         RESTART_CMD = "${restartCmd}/bin/kpbj-restart";
+        FORCE_PLAY_CMD = "${forcePlayCmd}/bin/kpbj-force-play";
       };
 
       serviceConfig = {

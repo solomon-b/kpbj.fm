@@ -37,6 +37,13 @@ creation_rules:
           - *vps_stream_prod
           - *vps_stream_staging
 
+  - path_regex: secrets/dev-streaming\.yaml$
+    key_groups:
+      - age:
+          - *pc_nightshade
+          - *pc_lorean
+          - *pc_voice-of-evening
+
   - path_regex: secrets/staging-streaming\.yaml$
     key_groups:
       - age:
