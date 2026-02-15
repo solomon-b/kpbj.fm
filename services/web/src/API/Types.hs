@@ -100,6 +100,7 @@ import API.Dashboard.StreamSettings.ForceEpisode.Post.Route qualified as Dashboa
 import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StreamSettings.Restart.Icecast.Post.Route qualified as Dashboard.StreamSettings.Restart.Icecast.Post
 import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route qualified as Dashboard.StreamSettings.Restart.Liquidsoap.Post
+import API.Dashboard.StreamSettings.SkipTrack.Post.Route qualified as Dashboard.StreamSettings.SkipTrack.Post
 import API.Dashboard.Users.Delete.Route qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Route qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Route qualified as Dashboard.Users.Edit.Get
@@ -543,7 +544,9 @@ data DashboardStreamSettingsRoutes mode = DashboardStreamSettingsRoutes
     -- | @GET /dashboard/stream-settings/episodes/search@ - Search episodes for force-play
     episodeSearch :: mode :- Dashboard.StreamSettings.Episodes.Search.Get.Route,
     -- | @POST /dashboard/stream-settings/force-episode@ - Force-play an episode
-    forceEpisodePost :: mode :- Dashboard.StreamSettings.ForceEpisode.Post.Route
+    forceEpisodePost :: mode :- Dashboard.StreamSettings.ForceEpisode.Post.Route,
+    -- | @POST /dashboard/stream-settings/skip-track@ - Skip current track to fallback
+    skipTrackPost :: mode :- Dashboard.StreamSettings.SkipTrack.Post.Route
   }
   deriving stock (Generic)
 

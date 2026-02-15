@@ -53,6 +53,9 @@ restartIcecastUrl = Links.linkURI dashboardStreamSettingsLinks.restartIcecastPos
 restartLiquidsoapUrl :: Links.URI
 restartLiquidsoapUrl = Links.linkURI dashboardStreamSettingsLinks.restartLiquidsoapPost
 
+skipTrackUrl :: Links.URI
+skipTrackUrl = Links.linkURI dashboardStreamSettingsLinks.skipTrackPost
+
 episodeSearchUrl :: Links.URI
 episodeSearchUrl = Links.linkURI $ dashboardStreamSettingsLinks.episodeSearch Nothing
 
@@ -76,8 +79,8 @@ template icecastReachable mStatus playbackHistory = do
   -- Force episode section
   forceEpisodeSection
 
-  -- Container management section
-  containerManagementSection
+  -- Stream controls section
+  streamControlSection
 
 --------------------------------------------------------------------------------
 
@@ -102,14 +105,14 @@ forceEpisodeSection =
 
 --------------------------------------------------------------------------------
 
--- | Container management section for restarting streaming services.
-containerManagementSection :: Lucid.Html ()
-containerManagementSection =
+-- | Stream control section for managing playback and restarting services.
+streamControlSection :: Lucid.Html ()
+streamControlSection =
   Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb2]] "CONTAINER MANAGEMENT"
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb2]] "STREAM CONTROLS"
     Lucid.p_
       [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
-      "Restart streaming services if needed. This will briefly interrupt the stream."
+      "Skip tracks or restart streaming services. These actions will briefly interrupt the stream."
 
     Lucid.div_ [class_ $ base ["flex", "flex-wrap", "gap-4"]] $ do
       -- Restart Icecast button
@@ -131,6 +134,16 @@ containerManagementSection =
           hxDisabledElt_ "this"
         ]
         "RESTART LIQUIDSOAP"
+
+      -- Skip Track button
+      Lucid.button_
+        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
+          hxPost_ [i|/#{skipTrackUrl}|],
+          hxSwap_ "none",
+          hxConfirm_ "Are you sure you want to skip the current track? This will drop to fallback audio.",
+          hxDisabledElt_ "this"
+        ]
+        "SKIP TRACK"
 
 --------------------------------------------------------------------------------
 
