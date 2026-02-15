@@ -232,7 +232,6 @@ The station embodies DIY community radio values—substance over polish, authent
 - Harsh Patel's design work
 
 **What to avoid**:
-- Rounded corners, soft shadows, gradients
 - Decorative elements that don't serve function
 - Corporate polish or startup aesthetics
 - Excessive whitespace or "airy" layouts

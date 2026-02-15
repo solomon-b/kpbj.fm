@@ -95,6 +95,8 @@ import API.Dashboard.StationIds.Get.Route qualified as Dashboard.StationIds.Get
 import API.Dashboard.StationIds.Id.Delete.Route qualified as Dashboard.StationIds.Id.Delete
 import API.Dashboard.StationIds.New.Get.Route qualified as Dashboard.StationIds.New.Get
 import API.Dashboard.StationIds.New.Post.Route qualified as Dashboard.StationIds.New.Post
+import API.Dashboard.StreamSettings.Episodes.Search.Get.Route qualified as Dashboard.StreamSettings.Episodes.Search.Get
+import API.Dashboard.StreamSettings.ForceEpisode.Post.Route qualified as Dashboard.StreamSettings.ForceEpisode.Post
 import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StreamSettings.Restart.Icecast.Post.Route qualified as Dashboard.StreamSettings.Restart.Icecast.Post
 import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route qualified as Dashboard.StreamSettings.Restart.Liquidsoap.Post
@@ -537,7 +539,11 @@ data DashboardStreamSettingsRoutes mode = DashboardStreamSettingsRoutes
     -- | @POST /dashboard/stream-settings/restart/icecast@ - Restart Icecast container
     restartIcecastPost :: mode :- Dashboard.StreamSettings.Restart.Icecast.Post.Route,
     -- | @POST /dashboard/stream-settings/restart/liquidsoap@ - Restart Liquidsoap container
-    restartLiquidsoapPost :: mode :- Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route
+    restartLiquidsoapPost :: mode :- Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route,
+    -- | @GET /dashboard/stream-settings/episodes/search@ - Search episodes for force-play
+    episodeSearch :: mode :- Dashboard.StreamSettings.Episodes.Search.Get.Route,
+    -- | @POST /dashboard/stream-settings/force-episode@ - Force-play an episode
+    forceEpisodePost :: mode :- Dashboard.StreamSettings.ForceEpisode.Post.Route
   }
   deriving stock (Generic)
 

@@ -24,6 +24,7 @@
     icecastPort = 8001;
     webhookPort = 9001;
     apiBase = "http://127.0.0.1:4000/api/playout";
+    restartOnDeploy = true;
   };
 
   kpbj.syncHostEmails = {

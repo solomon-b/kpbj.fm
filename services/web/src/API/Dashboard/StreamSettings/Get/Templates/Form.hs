@@ -53,6 +53,9 @@ restartIcecastUrl = Links.linkURI dashboardStreamSettingsLinks.restartIcecastPos
 restartLiquidsoapUrl :: Links.URI
 restartLiquidsoapUrl = Links.linkURI dashboardStreamSettingsLinks.restartLiquidsoapPost
 
+episodeSearchUrl :: Links.URI
+episodeSearchUrl = Links.linkURI $ dashboardStreamSettingsLinks.episodeSearch Nothing
+
 --------------------------------------------------------------------------------
 
 -- | Stream settings page template.
@@ -70,8 +73,32 @@ template icecastReachable mStatus playbackHistory = do
   -- Playback history section
   playbackHistorySection playbackHistory
 
+  -- Force episode section
+  forceEpisodeSection
+
   -- Container management section
   containerManagementSection
+
+--------------------------------------------------------------------------------
+
+-- | Force episode section for pushing an episode to the stream.
+forceEpisodeSection :: Lucid.Html ()
+forceEpisodeSection =
+  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
+    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb2]] "FORCE EPISODE"
+    Lucid.p_
+      [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
+      "Search for an episode and force-play it immediately. This will interrupt the current stream."
+    Lucid.input_
+      [ Lucid.type_ "search",
+        Lucid.name_ "q",
+        Lucid.placeholder_ "Search by show name...",
+        class_ $ base ["w-full", Tokens.p3, Tokens.border2, Tokens.bgMain, Tokens.textSm],
+        hxGet_ [i|/#{episodeSearchUrl}|],
+        hxTrigger_ "input changed delay:300ms, search",
+        hxTarget_ "#episode-search-results"
+      ]
+    Lucid.div_ [Lucid.id_ "episode-search-results", class_ $ base [Tokens.mt4]] mempty
 
 --------------------------------------------------------------------------------
 
