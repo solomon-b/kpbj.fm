@@ -28,6 +28,12 @@ let
     { printf 'force_play %s\nquit\n' "$PAYLOAD"; sleep 2; } | ${pkgs.nmap}/bin/ncat -i 5 127.0.0.1 1234 > /dev/null
   '';
 
+  # Skip-track script: tells liquidsoap to skip the current scheduled source,
+  # dropping to fallback audio immediately.
+  skipTrackCmd = pkgs.writeShellScriptBin "kpbj-skip-track" ''
+    { printf 'skip_track\nquit\n'; sleep 2; } | ${pkgs.nmap}/bin/ncat -i 5 127.0.0.1 1234 > /dev/null
+  '';
+
   sed = "${pkgs.gnused}/bin/sed";
 in
 {
@@ -192,6 +198,7 @@ in
         LIQUIDSOAP_SERVICE = "kpbj-liquidsoap.service";
         RESTART_CMD = "${restartCmd}/bin/kpbj-restart";
         FORCE_PLAY_CMD = "${forcePlayCmd}/bin/kpbj-force-play";
+        SKIP_TRACK_CMD = "${skipTrackCmd}/bin/kpbj-skip-track";
       };
 
       serviceConfig = {

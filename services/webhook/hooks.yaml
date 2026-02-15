@@ -48,6 +48,17 @@
         source: header
         name: X-Webhook-Secret
 
+- id: skip-track
+  execute-command: '{{ getenv "SKIP_TRACK_CMD" }}'
+  command-working-directory: /
+  trigger-rule:
+    match:
+      type: value
+      value: '{{ getenv "WEBHOOK_SECRET" }}'
+      parameter:
+        source: header
+        name: X-Webhook-Secret
+
 - id: health
   execute-command: /bin/echo
   pass-arguments-to-command:

@@ -104,6 +104,7 @@ import API.Dashboard.StreamSettings.ForceEpisode.Post.Handler qualified as Dashb
 import API.Dashboard.StreamSettings.Get.Handler qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StreamSettings.Restart.Icecast.Post.Handler qualified as Dashboard.StreamSettings.Restart.Icecast.Post
 import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Handler qualified as Dashboard.StreamSettings.Restart.Liquidsoap.Post
+import API.Dashboard.StreamSettings.SkipTrack.Post.Handler qualified as Dashboard.StreamSettings.SkipTrack.Post
 import API.Dashboard.Users.Delete.Handler qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Handler qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Handler qualified as Dashboard.Users.Edit.Get
@@ -299,7 +300,8 @@ server =
           restartIcecastPost = Dashboard.StreamSettings.Restart.Icecast.Post.handler,
           restartLiquidsoapPost = Dashboard.StreamSettings.Restart.Liquidsoap.Post.handler,
           episodeSearch = Dashboard.StreamSettings.Episodes.Search.Get.handler,
-          forceEpisodePost = Dashboard.StreamSettings.ForceEpisode.Post.handler
+          forceEpisodePost = Dashboard.StreamSettings.ForceEpisode.Post.handler,
+          skipTrackPost = Dashboard.StreamSettings.SkipTrack.Post.handler
         }
 
     dashboardSitePagesRoutes =

@@ -64,10 +64,10 @@ end
 
 # Fallback source - always has something to play
 # prefetch=1 for accurate metadata timing (higher values queue tracks ahead)
-fallback_source = request.dynamic(prefetch=1, get_fallback)
+fallback_queue = request.dynamic(prefetch=1, get_fallback)
 
 # Add buffer to absorb latency from HTTP downloads (5s buffer, 10s max)
-fallback_source = buffer(buffer=5., max=10., fallback_source)
+fallback_source = buffer(buffer=5., max=10., fallback_queue)
 
 # Scheduled source - queue that we manually push to
 scheduled_queue = request.queue(id="scheduled")
@@ -135,6 +135,15 @@ server.register("force_play", fun(param) -> begin
     log.important("[KPBJ] Force play: failed to parse: #{param}")
     "ERROR: invalid JSON"
   end
+end)
+
+# Skip track: clear scheduled state and skip current source to drop to fallback.
+server.register("skip_track", fun(_) -> begin
+  log.important("[KPBJ] Skip track: dropping to fallback")
+  last_scheduled := ""
+  source.skip(scheduled_queue)
+  source.skip(fallback_queue)
+  "OK"
 end)
 
 # Poll at :00 and :30 each hour
