@@ -550,6 +550,10 @@ sops-edit-terraform: _require-sops
 sops-edit-backup: _require-sops
   sops secrets/backup.yaml
 
+# Edit dev streaming secrets
+sops-edit-dev-streaming: _require-sops
+  sops secrets/dev-streaming.yaml
+
 # Edit production streaming secrets
 sops-edit-prod-streaming: _require-sops
   sops secrets/prod-streaming.yaml
@@ -577,29 +581,59 @@ sops-host-key HOST:
 # =============================================================================
 # Streaming Services (Local Dev)
 # =============================================================================
-# Run the audio streaming stack locally via Docker Compose.
-# Production/staging use native NixOS systemd services (see nixos/).
-# Prerequisites: Docker
+# Run the streaming stack locally in a NixOS QEMU VM.
+# Uses the exact same streaming.nix config as staging/prod.
+# Prerequisites: Nix, QEMU (via nixpkgs virtualisation module)
 
-# Start local streaming services (Icecast + Liquidsoap)
-stream-dev-start: _require-docker
-  docker compose up -d
+STREAM_VM_PIDFILE := "/tmp/kpbj-stream-dev.pid"
+SOPS_KEY_DIR := "/tmp/kpbj-dev-sops-key"
 
-# Stop local streaming services
-stream-dev-stop:
-  docker compose down
+# Build the dev streaming VM
+stream-dev-build:
+  nix build .#nixosConfigurations.kpbj-stream-dev.config.system.build.vm
 
-# View local streaming service logs
+# Start the dev streaming VM (backgrounded)
+stream-dev-start: stream-dev-build _require-sops
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ -f "{{STREAM_VM_PIDFILE}}" ] && kill -0 "$(cat "{{STREAM_VM_PIDFILE}}")" 2>/dev/null; then
+    echo "VM already running (PID $(cat "{{STREAM_VM_PIDFILE}}"))."
+    exit 0
+  fi
+  mkdir -p "{{SOPS_KEY_DIR}}"
+  cp "$HOME/.config/sops/age/keys.txt" "{{SOPS_KEY_DIR}}/keys.txt"
+  echo "Starting dev streaming VM..."
+  ./result/bin/run-kpbj-stream-dev-vm &
+  echo $! > "{{STREAM_VM_PIDFILE}}"
+  echo "VM started (PID $(cat "{{STREAM_VM_PIDFILE}}"))."
+  echo "Icecast: http://localhost:8000  Webhook: http://localhost:9000"
+
+# SSH into the dev streaming VM
+stream-dev-ssh:
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 root@localhost
+
+# View dev streaming VM logs (all three services)
 stream-dev-logs:
-  docker compose logs -f
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 root@localhost journalctl -u 'kpbj-*' -f
 
-# Restart local streaming services
-stream-dev-restart:
-  docker compose restart
-
-# View local streaming service status
-stream-dev-status:
-  docker compose ps
+# Stop the dev streaming VM
+stream-dev-stop:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ ! -f "{{STREAM_VM_PIDFILE}}" ]; then
+    echo "No VM pidfile found."
+    exit 0
+  fi
+  PID=$(cat "{{STREAM_VM_PIDFILE}}")
+  if kill -0 "$PID" 2>/dev/null; then
+    echo "Stopping VM (PID $PID)..."
+    kill "$PID"
+    rm -f "{{STREAM_VM_PIDFILE}}"
+    echo "VM stopped."
+  else
+    echo "VM not running (stale pidfile). Cleaning up."
+    rm -f "{{STREAM_VM_PIDFILE}}"
+  fi
 
 # =============================================================================
 # NixOS Deployment (Streaming VPS)

@@ -6,23 +6,27 @@
 # Uses request.queue() with manual push to avoid prefetch bugs.
 # Tracks last_scheduled to prevent replaying the same show.
 
-# Allow running as root (required for Docker)
 settings.init.allow_root.set(true)
 
 settings.server.telnet.set(true)
 settings.log.level.set(4)
 
 # Configuration from environment
-api_base = environment.get("API_BASE") ?? "http://host.docker.internal:4000/api/playout"
-icecast_host = environment.get("ICECAST_HOST") ?? "icecast"
+api_base = environment.get("API_BASE") ?? "http://localhost:4000/api/playout"
+icecast_host = environment.get("ICECAST_HOST") ?? "127.0.0.1"
 icecast_port = int_of_string(environment.get("ICECAST_PORT") ?? "8000")
 icecast_password = environment.get("ICECAST_PASSWORD") ?? "hackme"
 icecast_mount = environment.get("ICECAST_MOUNT") ?? "/stream"
 playout_secret = environment.get("PLAYOUT_SECRET") ?? ""
 
-# Rewrite localhost URLs to be reachable from Docker
+# Rewrite localhost URLs to be reachable from the VM/container.
+# REWRITE_HOST is set by the NixOS streaming module (e.g. "10.0.2.2" for QEMU).
+# When unset, localhost URLs pass through unchanged (native host usage).
+rewrite_host = environment.get("REWRITE_HOST") ?? ""
 def rewrite_url(url)
-  string.replace(pattern="localhost", fun(_) -> "host.docker.internal", url)
+  if rewrite_host == "" then url
+  else string.replace(pattern="localhost", fun(_) -> rewrite_host, url)
+  end
 end
 
 # State: URL of the last scheduled show we played (to avoid duplicates)

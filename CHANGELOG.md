@@ -8,6 +8,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Twice-Daily Shows Skipped on Replay Airing** - Liquidsoap's `last_scheduled` deduplication state was never cleared between show airings, so when a show's replay airing came around (e.g. 8am → 8pm), it was rejected as a duplicate. The schedule API returned the correct episode, but Liquidsoap logged "Same show as before, not replaying" and continued playing fallback content. Now clears `last_scheduled` after 2 consecutive empty schedule polls, with a single-poll grace period to protect against transient API/DB errors mid-show.
 
 ### Infrastructure
+- **NixOS VM for Local Streaming Dev** - Replaced Docker Compose streaming stack with a NixOS QEMU VM that runs the exact same `streaming.nix` configuration as staging/prod. Eliminates divergent codepaths (container name mismatches, missing tools in containers). The VM port-forwards Icecast (8000) and webhook (9000) to the host and uses the developer's existing age key for sops decryption. New Justfile recipes: `stream-dev-build`, `stream-dev-start`, `stream-dev-stop`, `stream-dev-ssh`, `stream-dev-logs`. Deleted `docker-compose.yml` and `force-play-docker.sh`.
 - **CI Cache Improvements** - Overhauled GitHub Actions caching strategy for faster builds and deploys:
   - Updated `cachix/install-nix-action` from v20 to v31 and `cachix/cachix-action` from v12 to v15
   - Added `pushFilter` to Cachix so only project derivations are cached (stops pushing all of nixpkgs)
