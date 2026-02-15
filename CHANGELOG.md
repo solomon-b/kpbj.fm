@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Features
+- **Force Episode Escape Hatch** - Admins can now force-play a specific episode immediately from the stream settings dashboard, bypassing the normal schedule. A search-by-show-name input finds episodes with audio, and a "FORCE PLAY" button pushes the episode directly to Liquidsoap via the webhook service. Adds a `force_play` telnet command to Liquidsoap, a `callWebhookWithPayload` function for sending JSON to webhooks, and a new `force-play-episode` webhook hook with NixOS and Docker scripts.
+
 ### Fixes
 - **Twice-Daily Shows Skipped on Replay Airing** - Liquidsoap's `last_scheduled` deduplication state was never cleared between show airings, so when a show's replay airing came around (e.g. 8am → 8pm), it was rejected as a duplicate. The schedule API returned the correct episode, but Liquidsoap logged "Same show as before, not replaying" and continued playing fallback content. Now clears `last_scheduled` after 2 consecutive empty schedule polls, with a single-poll grace period to protect against transient API/DB errors mid-show.
 

@@ -5,6 +5,7 @@
 module Effects.Webhook
   ( WebhookResult (..),
     callWebhook,
+    callWebhookWithPayload,
   )
 where
 
@@ -31,17 +32,21 @@ data WebhookResult
   | WebhookNotConfigured
   | WebhookError Text
 
--- | Call the webhook service to execute a hook.
+-- | Call the webhook service to execute a hook with an empty JSON body.
 callWebhook :: WebhookConfig -> Text -> AppM WebhookResult
-callWebhook WebhookDisabled _ = pure WebhookNotConfigured
-callWebhook WebhookEnabled {..} hookId = do
+callWebhook config hookId = callWebhookWithPayload config hookId (Aeson.object [])
+
+-- | Call the webhook service to execute a hook with a JSON payload.
+callWebhookWithPayload :: WebhookConfig -> Text -> Aeson.Value -> AppM WebhookResult
+callWebhookWithPayload WebhookDisabled _ _ = pure WebhookNotConfigured
+callWebhookWithPayload WebhookEnabled {..} hookId payload = do
   let url = Text.unpack [i|#{wcBaseUrl}/hooks/#{hookId}|]
   result <- liftIO $ try @HTTP.HttpException $ do
     request <- HTTP.parseRequest url
     let requestWithMethod =
           HTTP.setRequestResponseTimeout (HTTPClient.responseTimeoutMicro 10_000_000) $
             HTTP.setRequestMethod "POST" $
-              HTTP.setRequestBodyJSON (Aeson.object []) $
+              HTTP.setRequestBodyJSON payload $
                 HTTP.addRequestHeader "X-Webhook-Secret" (Text.encodeUtf8 $ unWebhookSecret wcSecret) request
     HTTP.httpBS requestWithMethod
 

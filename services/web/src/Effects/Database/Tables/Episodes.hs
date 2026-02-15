@@ -45,6 +45,10 @@ module Effects.Database.Tables.Episodes
 
     -- * Result Types
     EpisodeWithShow (..),
+    SearchResult (..),
+
+    -- * Search Queries
+    searchEpisodesWithAudio,
 
     -- * Tag Junction Queries
     getTagsForEpisode,
@@ -293,6 +297,18 @@ data EpisodeWithShow = EpisodeWithShow
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance EpisodeWithShow)
 
+-- | Search result for force-play episode lookup.
+data SearchResult = SearchResult
+  { srId :: Id,
+    srShowTitle :: Text,
+    srEpisodeNumber :: EpisodeNumber,
+    srScheduledAt :: UTCTime,
+    srDurationSeconds :: Maybe Int64
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (DecodeRow)
+  deriving (Display) via (RecordInstance SearchResult)
+
 --------------------------------------------------------------------------------
 -- Queries
 
@@ -337,11 +353,12 @@ getEpisodeByShowAndNumber showSlug episodeNum = fmap listToMaybe $ run $ select 
   where_ $ episodeNumber ep ==. lit episodeNum
   pure ep
 
--- | Get episode by ID.
+-- | Get non-deleted episode by ID.
 getEpisodeById :: Id -> Hasql.Statement () (Maybe Model)
 getEpisodeById episodeId = fmap listToMaybe $ run $ select do
   ep <- each episodeSchema
   where_ $ ep.id ==. lit episodeId
+  where_ $ isNull (ep.deletedAt)
   pure ep
 
 -- | Get non-deleted episodes by user (episodes they created).
@@ -641,6 +658,30 @@ deleteEpisode episodeId =
             updateWhere = \_ ep -> ep.id ==. lit episodeId,
             returning = Returning (.id)
           }
+
+--------------------------------------------------------------------------------
+-- Search Queries
+
+-- | Search episodes that have audio, joining with shows for the title.
+--
+-- Filters by show title ILIKE match, ordered by scheduled_at descending.
+-- Used by the force-play admin feature to find episodes to push to the stream.
+searchEpisodesWithAudio :: Text -> Hasql.Statement () [SearchResult]
+searchEpisodesWithAudio query =
+  let pattern = "%" <> query <> "%"
+   in interp
+        False
+        [sql|
+    SELECT e.id, s.title, e.episode_number, e.scheduled_at, e.duration_seconds
+    FROM episodes e
+    JOIN shows s ON s.id = e.show_id
+    WHERE e.audio_file_path IS NOT NULL
+      AND e.deleted_at IS NULL
+      AND s.deleted_at IS NULL
+      AND s.title ILIKE #{pattern}
+    ORDER BY e.scheduled_at DESC
+    LIMIT 20
+  |]
 
 --------------------------------------------------------------------------------
 -- Tag Junction Queries

@@ -116,6 +116,27 @@ def poll()
   end
 end
 
+# Force-play: accepts JSON {"url":..,"title":..,"artist":..}, pushes to queue.
+# Mirrors the poll path: rewrites only the URL, builds annotate string internally.
+# The fallback(track_sensitive=false) switch picks it up automatically.
+# Used by the webhook when an admin forces an episode from the dashboard.
+server.register("force_play", fun(param) -> begin
+  try
+    let json.parse (data : {url: string, title: string?, artist: string?}) = param
+    url = rewrite_url(data.url)
+    title = data.title ?? "KPBJ 95.9 FM"
+    artist = data.artist ?? "KPBJ 95.9 FM"
+    annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\":#{url}"
+    log.important("[KPBJ] Force play: #{url}")
+    last_scheduled := url
+    scheduled_queue.push(request.create(annotated))
+    "OK"
+  catch _ do
+    log.important("[KPBJ] Force play: failed to parse: #{param}")
+    "ERROR: invalid JSON"
+  end
+end)
+
 # Poll at :00 and :30 each hour
 thread.when({0m0s}, poll)
 thread.when({30m0s}, poll)
@@ -151,7 +172,7 @@ radio = source.on_track(radio, fun(m) -> begin
       prStartedAt = started_at
     })
 
-    ignore(http.post(
+    response = http.post(
       timeout=5.,
       headers=[
         ("Content-Type", "application/json"),
@@ -159,7 +180,10 @@ radio = source.on_track(radio, fun(m) -> begin
       ],
       data=body,
       "#{api_base}/played"
-    ))
+    )
+    if response.status_code != 200 then
+      log.important("[KPBJ] Playout POST failed: #{response.status_code}")
+    end
   end
 end)
 

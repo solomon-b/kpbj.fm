@@ -336,6 +336,10 @@ library
     API.Dashboard.SitePages.Slug.Revisions.Id.Get.Templates.Page
     API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler
     API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route
+    API.Dashboard.StreamSettings.Episodes.Search.Get.Handler
+    API.Dashboard.StreamSettings.Episodes.Search.Get.Route
+    API.Dashboard.StreamSettings.ForceEpisode.Post.Handler
+    API.Dashboard.StreamSettings.ForceEpisode.Post.Route
     API.Dashboard.StreamSettings.Get.Handler
     API.Dashboard.StreamSettings.Get.Route
     API.Dashboard.StreamSettings.Get.Templates.Form

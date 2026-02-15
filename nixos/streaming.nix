@@ -20,13 +20,12 @@ let
     exec /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl "$@"
   '';
 
-  # Force-play script: sends annotate URI to liquidsoap via telnet
+  # Force-play script: sends JSON to liquidsoap via telnet.
+  # Liquidsoap parses the JSON and builds the annotate URI internally.
   forcePlayCmd = pkgs.writeShellScriptBin "kpbj-force-play" ''
-    URL="$1"
-    TITLE="$2"
-    ARTIST="$3"
-    ANNOTATED="annotate:title=\"''${TITLE}\",artist=\"''${ARTIST}\",source_type=\"episode\":''${URL}"
-    printf 'force_play %s\nquit\n' "$ANNOTATED" | ${pkgs.netcat-gnu}/bin/nc -q 1 127.0.0.1 1234
+    PAYLOAD=$(${pkgs.jq}/bin/jq -cn --arg url "$1" --arg title "$2" --arg artist "$3" \
+      '{url: $url, title: $title, artist: $artist}')
+    { printf 'force_play %s\nquit\n' "$PAYLOAD"; sleep 2; } | ${pkgs.nmap}/bin/ncat -i 5 127.0.0.1 1234 > /dev/null
   '';
 
   sed = "${pkgs.gnused}/bin/sed";
@@ -53,13 +52,19 @@ in
       default = "";
       description = "Replace 'localhost' in audio URLs with this host. Used in dev VM (10.0.2.2).";
     };
+
+    restartOnDeploy = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Whether to restart Icecast and Liquidsoap on deploy. Enable for staging, keep false for production to avoid dropping listeners.";
+    };
   };
 
   config = {
     # ── Icecast ─────────────────────────────────────────────────
     systemd.services.kpbj-icecast = {
       description = "KPBJ Icecast streaming server";
-      restartIfChanged = false;
+      restartIfChanged = cfg.restartOnDeploy;
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
@@ -120,7 +125,7 @@ in
     # ── Liquidsoap ──────────────────────────────────────────────
     systemd.services.kpbj-liquidsoap = {
       description = "KPBJ Liquidsoap audio automation";
-      restartIfChanged = false;
+      restartIfChanged = cfg.restartOnDeploy;
       after = [ "kpbj-icecast.service" "network-online.target" ];
       requires = [ "kpbj-icecast.service" ];
       wants = [ "network-online.target" ];
