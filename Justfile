@@ -361,6 +361,10 @@ staging-migrations-reset: _require-sops
     sqlx migrate run --source services/web/migrations
   echo "✨ Staging database reset complete!"
 
+# Open Grafana dashboard (SSH tunnel)
+staging-grafana:
+  ssh -N -L 3000:127.0.0.1:3000 {{STAGING_VPS_TARGET}}
+
 # SSH into staging VPS
 staging-ssh:
   ssh {{STAGING_VPS_TARGET}}
@@ -428,6 +432,10 @@ prod-migrations-run: _require-sops
   sleep 2
   DATABASE_URL="postgres://{{PROD_DB_USER}}:${PROD_DB_PASSWORD}@localhost:{{PROD_PROXY_PORT}}/{{PROD_DB_NAME}}" \
     sqlx migrate run --source services/web/migrations
+
+# Open Grafana dashboard (SSH tunnel)
+prod-grafana:
+  ssh -N -L 3000:127.0.0.1:3000 {{PROD_VPS_TARGET}}
 
 # SSH into production VPS
 prod-ssh:
