@@ -10,6 +10,7 @@
     ./streaming.nix
     ./sync-host-emails.nix
     ./token-cleanup.nix
+    ./monitoring.nix
     ./nginx.nix
     ./sops.nix
     ./pgbackrest.nix
@@ -42,6 +43,9 @@
     acmeEmail = "contact@kpbj.fm";
     icecastPort = 8000;
   };
+
+  # ── Monitoring (Grafana + Loki + Promtail) ───────────────────
+  kpbj.monitoring.enable = true;
 
   # ── pgBackRest (PG backups + WAL archiving) ──────────────────
   kpbj.pgbackrest.enable = true;
