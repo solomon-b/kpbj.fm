@@ -1,7 +1,9 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module API.Shows.Get.Templates.Page
-  ( template,
+  ( ShowsViewData (..),
+    template,
     renderFilters,
   )
 where
@@ -30,9 +32,31 @@ import Lucid qualified
 import Lucid.Alpine
 import Servant.Links qualified as Links
 
--- | Main shows list template
-template :: StorageBackend -> [Shows.Model] -> [ShowTags.ShowTagWithCount] -> PageNumber -> Bool -> Maybe ShowTags.Id -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()
-template backend allShows allTags currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy = do
+-- | All data needed to render the shows list page.
+data ShowsViewData = ShowsViewData
+  { svStorageBackend :: StorageBackend,
+    svShows :: [Shows.Model],
+    svTags :: [ShowTags.ShowTagWithCount],
+    svCurrentPage :: PageNumber,
+    svHasMore :: Bool,
+    svTagFilter :: Maybe ShowTags.Id,
+    svStatusFilter :: Maybe Shows.Status,
+    svSearchFilter :: Maybe Search,
+    svSortByFilter :: Maybe ShowSortBy
+  }
+
+-- | Main shows list template.
+template :: ShowsViewData -> Lucid.Html ()
+template vd = do
+  let allShows = vd.svShows
+      allTags = vd.svTags
+      currentPage = vd.svCurrentPage
+      hasMore = vd.svHasMore
+      maybeTagId = vd.svTagFilter
+      maybeStatus = vd.svStatusFilter
+      maybeSearch = vd.svSearchFilter
+      maybeSortBy = vd.svSortByFilter
+      backend = vd.svStorageBackend
   -- Page container with Alpine state for filter panel
   Lucid.div_ [xData_ "{ filterOpen: false }", class_ $ base [Tokens.fullWidth]] $ do
     -- Header row with filter button on mobile
@@ -91,7 +115,7 @@ template backend allShows allTags currentPage hasMore maybeTagId maybeStatus may
             renderPagination currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
   where
     nextPageUrl :: Links.URI
-    nextPageUrl = Links.linkURI $ showsLinks.list (Just (currentPage + 1)) (fmap (Filter . Just) maybeTagId) (fmap (Filter . Just) maybeStatus) (fmap (Filter . Just) maybeSearch) (fmap (Filter . Just) maybeSortBy)
+    nextPageUrl = Links.linkURI $ showsLinks.list (Just (vd.svCurrentPage + 1)) (fmap (Filter . Just) vd.svTagFilter) (fmap (Filter . Just) vd.svStatusFilter) (fmap (Filter . Just) vd.svSearchFilter) (fmap (Filter . Just) vd.svSortByFilter)
 
 -- | Render show filters (displayed in collapsible panel)
 renderFilters :: [ShowTags.ShowTagWithCount] -> Maybe ShowTags.Id -> Maybe Shows.Status -> Maybe Search -> Maybe ShowSortBy -> Lucid.Html ()

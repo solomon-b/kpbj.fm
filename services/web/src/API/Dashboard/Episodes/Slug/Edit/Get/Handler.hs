@@ -45,6 +45,7 @@ import Servant qualified
 
 --------------------------------------------------------------------------------
 
+-- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Slug ->
   Episodes.EpisodeNumber ->
@@ -53,52 +54,88 @@ handler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
   handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
-    -- 1. Require authentication
-    (user, userMetadata) <- requireAuth cookie
-
-    -- 2. Get storage backend
-    backend <- asks getter
-
-    -- 3. Fetch episode context (episode, show, tracks, isHost) in transaction
-    (episode, showModel, tracks, isHost) <- fetchEpisodeContext showSlug episodeNumber user userMetadata
-
-    -- 4. Check authorization
-    let isAuthorized = episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-    unless isAuthorized $
-      throwNotAuthorized "You can only edit your own episodes." (Just userMetadata.mUserRole)
-
-    -- 5. Fetch additional data for the edit form
-    Log.logInfo "Authorized user accessing episode edit form" episode.id
-    currentTime <- liftIO getCurrentTime
-
-    episodeTags <- fetchEpisodeTags episode.id
-    mCurrentSlot <- fetchCurrentSlot episode
-    upcomingDates <- fetchUpcomingDates showModel.id
-    allShows <- fetchUserShows user userMetadata
-
-    -- 6. Get upload URL (bypasses Cloudflare in production)
-    env <- asks (Has.getter @Environment)
-    let uploadUrl = audioUploadUrl env
-
-    -- 7. Render the edit form
-    let editContext =
-          EpisodeEditContext
-            { eecUploadUrl = uploadUrl,
-              eecBackend = backend,
-              eecCurrentTime = currentTime,
-              eecShow = showModel,
-              eecEpisode = episode,
-              eecTracks = tracks,
-              eecTags = episodeTags,
-              eecCurrentSlot = mCurrentSlot,
-              eecUpcomingDates = upcomingDates,
-              eecIsStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-            }
-        editTemplate = template editContext
-        statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
-
-    html <- renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavEpisodes (Just statsContent) Nothing editTemplate
+    vd <- action showSlug episodeNumber cookie
+    html <-
+      renderDashboardTemplate
+        hxRequest
+        vd.eevUserMetadata
+        vd.eevAllShows
+        (Just vd.eevShowModel)
+        NavEpisodes
+        (Just vd.eevStatsContent)
+        Nothing
+        (template vd.eevEditContext)
     pure $ Servant.noHeader html
+
+--------------------------------------------------------------------------------
+
+-- | All data needed to render the episode edit page.
+data EpisodeEditViewData = EpisodeEditViewData
+  { eevEditContext :: EpisodeEditContext,
+    eevUserMetadata :: UserMetadata.Model,
+    eevAllShows :: [Shows.Model],
+    eevShowModel :: Shows.Model,
+    eevStatsContent :: Lucid.Html ()
+  }
+
+-- | Business logic: auth, fetch episode context, authorization, build edit context.
+action ::
+  Slug ->
+  Episodes.EpisodeNumber ->
+  Maybe Cookie ->
+  AppM EpisodeEditViewData
+action showSlug episodeNumber cookie = do
+  -- 1. Require authentication
+  (user, userMetadata) <- requireAuth cookie
+
+  -- 2. Get storage backend
+  backend <- asks getter
+
+  -- 3. Fetch episode context (episode, show, tracks, isHost) in transaction
+  (episode, showModel, tracks, isHost) <- fetchEpisodeContext showSlug episodeNumber user userMetadata
+
+  -- 4. Check authorization
+  let isAuthorized = episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+  unless isAuthorized $
+    throwNotAuthorized "You can only edit your own episodes." (Just userMetadata.mUserRole)
+
+  -- 5. Fetch additional data for the edit form
+  Log.logInfo "Authorized user accessing episode edit form" episode.id
+  currentTime <- liftIO getCurrentTime
+
+  episodeTags <- fetchEpisodeTags episode.id
+  mCurrentSlot <- fetchCurrentSlot episode
+  upcomingDates <- fetchUpcomingDates showModel.id
+  allShows <- fetchUserShows user userMetadata
+
+  -- 6. Get upload URL (bypasses Cloudflare in production)
+  env <- asks (Has.getter @Environment)
+  let uploadUrl = audioUploadUrl env
+
+  -- 7. Build view data
+  let editContext =
+        EpisodeEditContext
+          { eecUploadUrl = uploadUrl,
+            eecBackend = backend,
+            eecCurrentTime = currentTime,
+            eecShow = showModel,
+            eecEpisode = episode,
+            eecTracks = tracks,
+            eecTags = episodeTags,
+            eecCurrentSlot = mCurrentSlot,
+            eecUpcomingDates = upcomingDates,
+            eecIsStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+          }
+      statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
+
+  pure
+    EpisodeEditViewData
+      { eevEditContext = editContext,
+        eevUserMetadata = userMetadata,
+        eevAllShows = allShows,
+        eevShowModel = showModel,
+        eevStatsContent = statsContent
+      }
 
 --------------------------------------------------------------------------------
 -- Inline Helpers

@@ -1,4 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Shows.Get.Handler where
@@ -7,20 +6,17 @@ module API.Shows.Get.Handler where
 
 import API.Links (apiLinks)
 import API.Shows.Get.Templates.ItemsFragment (renderItemsFragment)
-import API.Shows.Get.Templates.Page (template)
+import API.Shows.Get.Templates.Page (ShowsViewData (..), template)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
-import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
 import Control.Monad.Reader (asks)
-import Data.Aeson ((.=))
-import Data.Aeson qualified as Aeson
 import Data.Coerce (coerce)
+import Data.Functor ((<&>))
 import Data.Has (getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
-import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
@@ -34,7 +30,6 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool qualified as HSQL.Pool
-import Log qualified
 import Lucid qualified
 import Servant.Links qualified as Links
 
@@ -43,8 +38,7 @@ import Servant.Links qualified as Links
 rootGetUrl :: Links.URI
 rootGetUrl = Links.linkURI apiLinks.rootGet
 
---------------------------------------------------------------------------------
-
+-- | Servant handler: thin glue composing action + render with request boilerplate.
 handler ::
   Maybe PageNumber ->
   Maybe (Filter ShowTags.Id) ->
@@ -54,44 +48,60 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSearchFilter maybeSortByFilter (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) = do
+handler mPage mTag mStatus mSearch mSort (coerce -> cookie) (fromMaybe IsNotHxRequest -> hxRequest) =
+  handleHtmlErrors "Shows list" apiLinks.rootGet $ do
+    mUserInfo <- getUserInfo cookie <&> fmap snd
+    let isAppendRequest = hxRequest == IsHxRequest && fromMaybe 1 mPage > 1
+    viewData <- action mPage mTag mStatus mSearch mSort
+    if isAppendRequest
+      then pure (renderItemsFragment viewData)
+      else renderTemplate hxRequest mUserInfo (template viewData)
+
+--------------------------------------------------------------------------------
+
+-- | Business logic: fetch tags, shows, compute pagination.
+action ::
+  Maybe PageNumber ->
+  Maybe (Filter ShowTags.Id) ->
+  Maybe (Filter Shows.Status) ->
+  Maybe (Filter Search) ->
+  Maybe (Filter ShowSortBy) ->
+  AppM ShowsViewData
+action (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSearchFilter maybeSortByFilter = do
   storageBackend <- asks getter
   let maybeTagId = maybeTagIdFilter >>= getFilter
       maybeStatus = maybeStatusFilter >>= getFilter
       maybeSearch = maybeSearchFilter >>= getFilter
       maybeSortBy = maybeSortByFilter >>= getFilter
-  getUserInfo cookie >>= \(fmap snd -> mUserInfo) -> do
-    let limit = 12 :: Limit
-        offset = fromIntegral $ ((coerce page :: Int64) - 1) * fromIntegral limit :: Offset
-        sortBy = fromMaybe NameAZ maybeSortBy
-        -- Infinite scroll request = HTMX request for page > 1
-        isAppendRequest = htmxRequest == IsHxRequest && page > 1
+      limit = 12 :: Limit
+      offset = fromIntegral $ ((coerce page :: Int64) - 1) * fromIntegral limit :: Offset
+      sortBy = fromMaybe NameAZ maybeSortBy
 
-    -- Fetch all available tags for the filter UI
+  allTags <-
     execQuery ShowTags.getShowTagsWithCounts >>= \case
-      Left tagsErr -> do
-        Log.logInfo "Failed to fetch tags from database" (Aeson.object ["error" .= show tagsErr])
-        let banner = BannerParams Error "Error" "Failed to load shows. Please try again."
-        renderTemplate htmxRequest mUserInfo (redirectWithBanner [i|/#{rootGetUrl}|] banner)
-      Right allTags -> do
-        -- Fetch limit + 1 to check if there are more results
-        getShows (limit + 1) offset maybeSearch maybeTagId maybeStatus sortBy >>= \case
-          Left err -> do
-            Log.logInfo "Failed to fetch shows from database" (Aeson.object ["error" .= show err])
-            let banner = BannerParams Error "Error" "Failed to load shows. Please try again."
-            renderTemplate htmxRequest mUserInfo (redirectWithBanner [i|/#{rootGetUrl}|] banner)
-          Right allShows -> do
-            let someShows = take (fromIntegral limit) allShows
-                hasMore = length allShows > fromIntegral limit
+      Left err -> throwDatabaseError err
+      Right tags -> pure tags
 
-            if isAppendRequest
-              then
-                -- Infinite scroll: return only new items + sentinel (no page wrapper)
-                pure $ renderItemsFragment storageBackend someShows page hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
-              else do
-                -- Full page: render with header, items, sentinel, and noscript pagination
-                let showsTemplate = template storageBackend someShows allTags page hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
-                renderTemplate htmxRequest mUserInfo showsTemplate
+  allShows <-
+    getShows (limit + 1) offset maybeSearch maybeTagId maybeStatus sortBy >>= \case
+      Left err -> throwDatabaseError err
+      Right results -> pure results
+
+  let someShows = take (fromIntegral limit) allShows
+      hasMore = length allShows > fromIntegral limit
+
+  pure
+    ShowsViewData
+      { svStorageBackend = storageBackend,
+        svShows = someShows,
+        svTags = allTags,
+        svCurrentPage = page,
+        svHasMore = hasMore,
+        svTagFilter = maybeTagId,
+        svStatusFilter = maybeStatus,
+        svSearchFilter = maybeSearch,
+        svSortByFilter = maybeSortBy
+      }
 
 getShows ::
   Limit ->
