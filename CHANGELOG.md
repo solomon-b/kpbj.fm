@@ -12,6 +12,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Fixes
 - **Twice-Daily Shows Skipped on Replay Airing** - Liquidsoap's `last_scheduled` deduplication state was never cleared between show airings, so when a show's replay airing came around (e.g. 8am → 8pm), it was rejected as a duplicate. The schedule API returned the correct episode, but Liquidsoap logged "Same show as before, not replaying" and continued playing fallback content. Now clears `last_scheduled` after 2 consecutive empty schedule polls, with a single-poll grace period to protect against transient API/DB errors mid-show.
+- **Episode Soft Delete Test Assertion Mismatch** - `prop_deleteEpisode` was asserting that `getEpisodeById` returns a deleted episode, but `getEpisodeById` correctly filters on `deleted_at IS NULL`. Updated the test to verify that `getEpisodeById` returns `Nothing` after soft deletion, confirming the episode is properly hidden.
 
 ### Infrastructure
 - **Grafana + Loki + Promtail Monitoring** - Added centralized log aggregation via a new `nixos/monitoring.nix` NixOS module. Promtail scrapes journald for all `kpbj-*`, `postgresql`, and `icecast` units and ships logs to Loki. Grafana is pre-configured with Loki as a datasource. All services bind to localhost only — access via SSH tunnel (`just staging-grafana` / `just prod-grafana`). Enabled on both staging and production.
