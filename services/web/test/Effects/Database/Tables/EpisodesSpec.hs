@@ -332,10 +332,10 @@ prop_deleteEpisode cfg = do
 
         deleteResult <- TRX.statement () (UUT.deleteEpisode episodeId)
 
-        -- getEpisodeById still returns it (no deleted_at filter), but check deleted_at is set
+        -- getEpisodeById filters on deleted_at IS NULL, so it should return Nothing
         afterDelete <- TRX.statement () (UUT.getEpisodeById episodeId)
 
-        -- getEpisodesForShow should exclude it
+        -- getEpisodesForShow should also exclude it
         episodesForShow <- TRX.statement () (UUT.getEpisodesForShow showId (Limit 10) (Offset 0))
 
         TRX.condemn
@@ -346,11 +346,10 @@ prop_deleteEpisode cfg = do
         deletedId <- assertJust deleteResult
         deletedId === episodeId
 
-        -- Episode still exists in getById (no soft-delete filter)
-        afterDelete <- assertJust mAfterDelete
-        _ <- assertJust (UUT.deletedAt afterDelete)
+        -- Episode no longer visible via getById (soft-delete filter excludes it)
+        mAfterDelete === Nothing
 
-        -- But excluded from getEpisodesForShow
+        -- Also excluded from getEpisodesForShow
         length episodesForShow === 0
         pure ()
 
