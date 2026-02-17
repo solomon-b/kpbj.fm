@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.8.5] - 2026-02-16
+
 ### Features
 - **Force Episode Escape Hatch** - Admins can now force-play a specific episode immediately from the stream settings dashboard, bypassing the normal schedule. A search-by-show-name input finds episodes with audio, and a "FORCE PLAY" button pushes the episode directly to Liquidsoap via the webhook service. Adds a `force_play` telnet command to Liquidsoap, a `callWebhookWithPayload` function for sending JSON to webhooks, and a new `force-play-episode` webhook hook with NixOS and Docker scripts.
 - **Skip Track** - Admins can skip the currently playing scheduled track from the stream settings dashboard, immediately dropping to fallback audio. Adds a `skip_track` telnet command to Liquidsoap that clears the scheduled state and skips the source. New `POST /dashboard/stream-settings/skip-track` endpoint with confirmation dialog. "Container Management" section renamed to "Stream Controls" to reflect the broader scope.
