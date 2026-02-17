@@ -79,6 +79,18 @@ in
     };
 
     # ── Promtail — scrapes journald, ships to Loki ─────────────
+    #
+    # Disable namespace sandboxing — the NixOS module enables
+    # PrivateTmp / ProtectSystem by default, which requires
+    # user-namespace support.  Some VPS kernels block this,
+    # causing ExecStartPre to exit 226/NAMESPACE.
+    systemd.services.promtail.serviceConfig = {
+      PrivateTmp = lib.mkForce false;
+      ProtectSystem = lib.mkForce false;
+      ProtectHome = lib.mkForce false;
+      PrivateDevices = lib.mkForce false;
+    };
+
     services.promtail = {
       enable = true;
       configuration = {
