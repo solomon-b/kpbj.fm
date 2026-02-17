@@ -87,8 +87,6 @@ in
           http_listen_port = 9080;
         };
 
-        positions.filename = "/var/lib/promtail/positions.yaml";
-
         clients = [{
           url = "http://127.0.0.1:${toString cfg.lokiPort}/loki/api/v1/push";
         }];
