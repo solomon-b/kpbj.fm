@@ -190,7 +190,7 @@ radio = source.on_track(radio, fun(m) -> begin
       data=body,
       "#{api_base}/played"
     )
-    if response.status_code != 200 then
+    if response.status_code < 200 or response.status_code >= 300 then
       log.important("[KPBJ] Playout POST failed: #{response.status_code}")
     end
   end

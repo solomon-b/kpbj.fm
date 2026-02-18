@@ -7,6 +7,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Fixes
 - **Promtail/Loki Port Conflict** - Promtail failed to start because Loki's default gRPC server was already bound to port 9095. Disabled Promtail's unused gRPC server (`grpc_listen_port = 0`) and explicitly bound Loki's gRPC to localhost.
 - **Loki Query Frontend Unreachable** - Loki queries hung indefinitely because the internal query frontend worker tried to deliver results via the server's public IP, which was unreachable after binding gRPC to localhost. Added `frontend_worker.frontend_address = "127.0.0.1:9095"` so all internal gRPC traffic routes through localhost.
+- **Liquidsoap False "Playout POST Failed" Logs** - The `POST /api/playout/played` endpoint returns 204 No Content, but Liquidsoap only accepted 200 as success, logging false failures on every track change. Updated the status check to accept any 2xx response.
 
 ---
 
