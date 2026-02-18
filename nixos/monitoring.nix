@@ -41,6 +41,8 @@ in
         server = {
           http_listen_address = "127.0.0.1";
           http_listen_port = cfg.lokiPort;
+          grpc_listen_address = "127.0.0.1";
+          grpc_listen_port = 9095;
         };
 
         common = {
@@ -51,6 +53,10 @@ in
           };
           replication_factor = 1;
         };
+
+        # Tell the query frontend worker to reach gRPC via
+        # localhost, not the public IP the hostname resolves to.
+        frontend_worker.frontend_address = "127.0.0.1:9095";
 
         schema_config.configs = [{
           from = "2024-01-01";
@@ -97,6 +103,7 @@ in
         server = {
           http_listen_address = "127.0.0.1";
           http_listen_port = 9080;
+          grpc_listen_port = 0; # Disable unused gRPC server
         };
 
         clients = [{
