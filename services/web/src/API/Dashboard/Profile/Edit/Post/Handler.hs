@@ -8,13 +8,14 @@ module API.Dashboard.Profile.Edit.Post.Handler where
 import API.Links (dashboardLinks, rootLink)
 import API.Types (DashboardRoutes (..))
 import App.Handler.Combinators (requireAuth)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwUserSuspended, throwValidationError)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwUserSuspended, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (when)
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -25,7 +26,7 @@ import Domain.Types.DisplayName qualified as DisplayName
 import Domain.Types.FileUpload qualified
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
-import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -38,6 +39,7 @@ import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, looku
 
 --------------------------------------------------------------------------------
 
+-- | Servant handler: thin glue composing action + redirect.
 handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
@@ -45,35 +47,39 @@ handler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler cookie (foldHxReq -> _hxRequest) multipartData =
   handleRedirectErrors "Profile update" dashboardLinks.profileEditGet $ do
-    -- 1. Require authentication
     (user, userMetadata) <- requireAuth cookie
-
-    -- 2. Check not suspended
     when (UserMetadata.isSuspended userMetadata) throwUserSuspended
-
-    -- 3. Parse and validate form fields
-    (newDisplayName, newFullName, newColorScheme, newTheme) <- parseFormFields (inputs multipartData)
-
-    -- 4. Handle avatar upload if provided
-    (maybeAvatarPath, avatarClear) <- handleAvatarUpload user multipartData
-
-    -- 5. Update user metadata
-    updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme newTheme
-
-    -- 6. Success redirect
-    Log.logInfo "Profile updated successfully" ()
+    action user multipartData
     let detailUrl = rootLink dashboardLinks.profileEditGet
         banner = BannerParams Success "Profile Updated" "Your profile has been updated successfully."
         redirectUrl = buildRedirectUrl detailUrl banner
     pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
 
 --------------------------------------------------------------------------------
+
+-- | Business logic: parse form, upload avatar, update profile.
+action ::
+  User.Model ->
+  MultipartData Mem ->
+  ExceptT HandlerError AppM ()
+action user multipartData = do
+  -- 1. Parse and validate form fields
+  (newDisplayName, newFullName, newColorScheme, newTheme) <- parseFormFields (inputs multipartData)
+
+  -- 2. Handle avatar upload if provided
+  (maybeAvatarPath, avatarClear) <- handleAvatarUpload user multipartData
+
+  -- 3. Update user metadata
+  updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme newTheme
+
+  Log.logInfo "Profile updated successfully" ()
+
+--------------------------------------------------------------------------------
 -- Helpers
 
 parseFormFields ::
-  (MonadThrow m) =>
   [Input] ->
-  m (DisplayName, FullName, UserMetadata.ColorScheme, UserMetadata.ThemeName)
+  ExceptT HandlerError AppM (DisplayName, FullName, UserMetadata.ColorScheme, UserMetadata.ThemeName)
 parseFormFields formInputs =
   case extractFormFields formInputs of
     Left errorMsg -> throwValidationError errorMsg
@@ -82,7 +88,7 @@ parseFormFields formInputs =
 handleAvatarUpload ::
   User.Model ->
   MultipartData Mem ->
-  AppM (Maybe Text, Bool) -- (Maybe new path, should clear)
+  ExceptT HandlerError AppM (Maybe Text, Bool)
 handleAvatarUpload user multipartData = do
   -- Check if user wants to clear the avatar
   let avatarClear = case lookupInput "avatar_clear" multipartData of
@@ -94,7 +100,7 @@ handleAvatarUpload user multipartData = do
     Right avatarFile -> do
       storageBackend <- asks getter
       mAwsEnv <- asks getter
-      uploadResult <- FileUpload.uploadUserAvatar storageBackend mAwsEnv (display (User.mId user)) avatarFile
+      uploadResult <- lift $ FileUpload.uploadUserAvatar storageBackend mAwsEnv (display (User.mId user)) avatarFile
       case uploadResult of
         Left err -> do
           Log.logAttention "Avatar upload failed" (Text.pack $ show err)
@@ -111,7 +117,7 @@ updateUserProfile ::
   FullName ->
   UserMetadata.ColorScheme ->
   UserMetadata.ThemeName ->
-  AppM ()
+  ExceptT HandlerError AppM ()
 updateUserProfile user maybeAvatarPath avatarClear newDisplayName newFullName newColorScheme newTheme = do
   updateResult <- execTransaction $ do
     maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata (User.mId user))

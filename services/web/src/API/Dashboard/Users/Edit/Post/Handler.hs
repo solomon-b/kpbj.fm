@@ -8,11 +8,13 @@ module API.Dashboard.Users.Edit.Post.Handler where
 import API.Links (dashboardUsersLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Has (getter)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -52,84 +54,82 @@ handler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler targetUserId cookie multipartData =
   handleRedirectErrors "User edit" (dashboardUsersLinks.detail targetUserId) $ do
-    -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit users." userMetadata
+    action targetUserId multipartData
+    let detailUrl = userDetailUrl targetUserId
+        banner = BannerParams Success "User Updated" "The user's information has been updated."
+        redirectUrl = buildRedirectUrl detailUrl banner
+    pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
 
-    -- Parse form fields
-    let formInputs = inputs multipartData
+--------------------------------------------------------------------------------
 
-    (newDisplayName, newFullName, newRole) <- case extractFormFields formInputs of
-      Left errorMsg -> throwValidationError errorMsg
-      Right result -> pure result
+-- | Business logic: validate form, update user.
+action ::
+  User.Id ->
+  MultipartData Mem ->
+  ExceptT HandlerError AppM ()
+action targetUserId multipartData = do
+  -- Parse form fields
+  let formInputs = inputs multipartData
 
-    -- Check if admin wants to clear the avatar
-    let avatarClear = case lookupInput "avatar_clear" multipartData of
-          Right "true" -> True
-          _ -> False
+  (newDisplayName, newFullName, newRole) <- case extractFormFields formInputs of
+    Left errorMsg -> throwValidationError errorMsg
+    Right result -> pure result
 
-    -- Handle avatar upload if provided
-    maybeAvatarPath <- case lookupFile "avatar" multipartData of
-      Left _ -> pure Nothing
-      Right avatarFile -> do
-        storageBackend <- asks getter
-        mAwsEnv <- asks getter
-        uploadResult <- FileUpload.uploadUserAvatar storageBackend mAwsEnv (display targetUserId) avatarFile
-        case uploadResult of
-          Left err -> do
-            Log.logAttention "Avatar upload failed" (Text.pack $ show err)
-            throwValidationError "Failed to upload avatar image"
-          Right Nothing -> pure Nothing
-          Right (Just result) ->
-            pure $ Just $ Text.pack $ Domain.Types.FileUpload.uploadResultStoragePath result
+  -- Check if admin wants to clear the avatar
+  let avatarClear = case lookupInput "avatar_clear" multipartData of
+        Right "true" -> True
+        _ -> False
 
-    -- Update user metadata and role in transaction
-    updateResult <- execTransaction $ do
-      -- Get current metadata
-      maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata targetUserId)
-      case maybeMetadata of
-        Nothing -> pure Nothing
-        Just currentMetadata -> do
-          -- Determine final avatar URL:
-          -- 1. New upload takes priority
-          -- 2. If clear flag set and no new upload, clear the avatar
-          -- 3. Otherwise keep existing
-          let finalAvatarUrl = case maybeAvatarPath of
-                Just path -> Just path
-                Nothing
-                  | avatarClear -> Nothing
-                  | otherwise -> currentMetadata.mAvatarUrl
+  -- Handle avatar upload if provided
+  maybeAvatarPath <- case lookupFile "avatar" multipartData of
+    Left _ -> pure Nothing
+    Right avatarFile -> do
+      storageBackend <- asks getter
+      mAwsEnv <- asks getter
+      uploadResult <- lift $ FileUpload.uploadUserAvatar storageBackend mAwsEnv (display targetUserId) avatarFile
+      case uploadResult of
+        Left err -> do
+          Log.logAttention "Avatar upload failed" (Text.pack $ show err)
+          throwValidationError "Failed to upload avatar image"
+        Right Nothing -> pure Nothing
+        Right (Just result) ->
+          pure $ Just $ Text.pack $ Domain.Types.FileUpload.uploadResultStoragePath result
 
-          -- Update metadata fields (color scheme and theme are not editable by admins, users set it themselves)
-          let metadataUpdate =
-                UserMetadata.Update
-                  { UserMetadata.uDisplayName = Just newDisplayName,
-                    UserMetadata.uFullName = Just newFullName,
-                    UserMetadata.uAvatarUrl = Just finalAvatarUrl,
-                    UserMetadata.uColorScheme = Nothing,
-                    UserMetadata.uTheme = Nothing
-                  }
-          _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
+  -- Update user metadata and role in transaction
+  updateResult <- execTransaction $ do
+    maybeMetadata <- HT.statement () (UserMetadata.getUserMetadata targetUserId)
+    case maybeMetadata of
+      Nothing -> pure Nothing
+      Just currentMetadata -> do
+        let finalAvatarUrl = case maybeAvatarPath of
+              Just path -> Just path
+              Nothing
+                | avatarClear -> Nothing
+                | otherwise -> currentMetadata.mAvatarUrl
 
-          -- Update role
-          _ <- HT.statement () (UserMetadata.updateUserRole targetUserId newRole)
+            metadataUpdate =
+              UserMetadata.Update
+                { UserMetadata.uDisplayName = Just newDisplayName,
+                  UserMetadata.uFullName = Just newFullName,
+                  UserMetadata.uAvatarUrl = Just finalAvatarUrl,
+                  UserMetadata.uColorScheme = Nothing,
+                  UserMetadata.uTheme = Nothing
+                }
+        _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
+        _ <- HT.statement () (UserMetadata.updateUserRole targetUserId newRole)
+        pure $ Just ()
 
-          pure $ Just ()
-
-    case updateResult of
-      Left err -> throwDatabaseError err
-      Right Nothing -> throwNotFound "User metadata"
-      Right (Just ()) -> do
-        Log.logInfo "User updated successfully" ()
-        let detailUrl = userDetailUrl targetUserId
-            banner = BannerParams Success "User Updated" "The user's information has been updated."
-            redirectUrl = buildRedirectUrl detailUrl banner
-        pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+  case updateResult of
+    Left err -> throwDatabaseError err
+    Right Nothing -> throwNotFound "User metadata"
+    Right (Just ()) -> Log.logInfo "User updated successfully" ()
 
 extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.UserRole)
-extractFormFields inputs = do
+extractFormFields formInputs = do
   -- Convert Input to (Text, Text) for lookup
-  let inputPairs = [(iName input, iValue input) | input <- inputs]
+  let inputPairs = [(iName input, iValue input) | input <- formInputs]
 
   -- Extract text fields
   displayNameText <- maybe (Left "Missing display_name") Right $ lookup "display_name" inputPairs

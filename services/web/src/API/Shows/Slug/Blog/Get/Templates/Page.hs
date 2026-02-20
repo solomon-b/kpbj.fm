@@ -13,7 +13,6 @@ import Data.Int (Int64)
 import Data.Maybe (isNothing)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Text.Display (display)
 import Design (base, class_, desktop, tablet)
 import Design qualified
 import Design.Tokens qualified as Tokens
@@ -142,21 +141,3 @@ renderPagination showModel maybeTag currentPage totalPages = do
           class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "Tokens.hoverBg", Tokens.fontBold]
         ]
         "Next →"
-
---------------------------------------------------------------------------------
-
-notFoundTemplate :: Slug -> Lucid.Html ()
-notFoundTemplate slug = do
-  Lucid.div_ [class_ $ base ["max-w-7xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [Lucid.class_ "text-center"] $ do
-      Lucid.h1_ [class_ $ base ["text-4xl", Tokens.fontBold, Tokens.mb4]] "Show Not Found"
-      Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted, Tokens.mb8]] $ do
-        "We couldn't find a show with the slug: "
-        Lucid.code_ [class_ $ base [Tokens.bgAlt, "px-2", "py-1"]] $ Lucid.toHtml (display slug)
-
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [class_ $ base ["max-w-7xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
-      Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "Error"
-      Lucid.p_ [Lucid.class_ Tokens.errorText] $ Lucid.toHtml errorMsg

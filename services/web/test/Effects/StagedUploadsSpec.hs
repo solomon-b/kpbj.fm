@@ -14,7 +14,6 @@ import Effects.Database.Tables.StagedUploads
 import Effects.StagedUploads (generateSecureToken)
 import Hedgehog
 import Hedgehog.Gen qualified as Gen
-import Hedgehog.Range qualified as Range
 import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 
@@ -23,7 +22,7 @@ import Test.Hspec.Hedgehog (hedgehog)
 
 -- | Generate a random UploadType
 genUploadType :: (MonadGen m) => m UploadType
-genUploadType = Gen.element [EpisodeAudio]
+genUploadType = Gen.element [EpisodeAudio, StationIdAudio, EphemeralAudio]
 
 -- | Generate a random Status
 genStatus :: (MonadGen m) => m Status
@@ -113,11 +112,15 @@ isUrlSafe c = isAsciiLower c || isDigit c
 encodeUploadType :: UploadType -> Text
 encodeUploadType = \case
   EpisodeAudio -> "episode_audio"
+  StationIdAudio -> "station_id_audio"
+  EphemeralAudio -> "ephemeral_audio"
 
 -- | Decode UploadType from database string (matches DecodeValue instance)
 decodeUploadType :: Text -> Maybe UploadType
 decodeUploadType = \case
   "episode_audio" -> Just EpisodeAudio
+  "station_id_audio" -> Just StationIdAudio
+  "ephemeral_audio" -> Just EphemeralAudio
   _ -> Nothing
 
 -- | Encode Status to database string
@@ -137,7 +140,7 @@ decodeStatus = \case
 
 -- | Valid upload type strings in the database
 validUploadTypes :: [Text]
-validUploadTypes = ["episode_audio"]
+validUploadTypes = ["episode_audio", "station_id_audio", "ephemeral_audio"]
 
 -- | Valid status strings in the database
 validStatuses :: [Text]

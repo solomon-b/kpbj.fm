@@ -2,7 +2,6 @@
 
 module API.Blog.Post.Get.Templates.Page
   ( template,
-    notFoundTemplate,
   )
 where
 
@@ -19,7 +18,6 @@ import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
@@ -120,26 +118,5 @@ template backend post author tags renderedContent = do
         backButtonStyle
       ]
       "← BACK TO BLOG"
-  where
-    backButtonStyle = class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80", "inline-block"]
-
--- | Template for when blog post is not found
-notFoundTemplate :: Slug -> Lucid.Html ()
-notFoundTemplate slug = do
-  Lucid.div_ [Lucid.class_ Tokens.cardBase] $ do
-    Lucid.div_ [class_ $ base ["text-center"]] $ do
-      Lucid.h1_ [class_ $ base [Tokens.heading2xl, Tokens.mb4]] "Blog Post Not Found"
-      Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] $ do
-        "The blog post with slug \""
-        Lucid.code_ [class_ $ base [Tokens.bgAlt, "px-2", "py-1"]] $ Lucid.toHtml $ display slug
-        "\" could not be found."
-      Lucid.a_
-        [ Lucid.href_ [i|/#{blogGetUrl}|],
-          hxGet_ [i|/#{blogGetUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          backButtonStyle
-        ]
-        "← BACK TO BLOG"
   where
     backButtonStyle = class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80", "inline-block"]

@@ -3,8 +3,6 @@
 
 module API.Shows.Slug.Get.Templates.Page
   ( template,
-    notFoundTemplate,
-    errorTemplate,
   )
 where
 
@@ -16,11 +14,8 @@ import API.Types
 import Component.Card.Episode (renderEpisodeCard)
 import Control.Monad (when)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
-import Data.Text.Display (display)
 import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -34,42 +29,6 @@ import Rel8 (Result)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
-
--- URL helpers
-showsGetUrl :: Links.URI
-showsGetUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Nothing
-
---------------------------------------------------------------------------------
-
--- | Template for show not found
-notFoundTemplate :: Slug -> Lucid.Html ()
-notFoundTemplate slug = do
-  Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "Show Not Found"
-    Lucid.p_ [class_ $ base [Tokens.mb4, Tokens.fgMuted]] $ "The show '" <> Lucid.toHtml (display slug) <> "' could not be found."
-    Lucid.a_
-      [ Lucid.href_ [i|/#{showsGetUrl}|],
-        hxGet_ [i|/#{showsGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
-      ]
-      "BROWSE ALL SHOWS"
-
--- | Template for general error
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder, Tokens.p8, "text-center"]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4]] "Error"
-    Lucid.p_ [class_ $ base [Tokens.mb4, Tokens.fgMuted]] $ Lucid.toHtml errorMsg
-    Lucid.a_
-      [ Lucid.href_ [i|/#{showsGetUrl}|],
-        hxGet_ [i|/#{showsGetUrl}|],
-        hxTarget_ "#main-content",
-        hxPushUrl_ "true",
-        class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
-      ]
-      "BROWSE ALL SHOWS"
 
 -- | Main show page template
 template :: StorageBackend -> Shows.Model -> [Episodes.Model] -> [ShowHost.ShowHostWithUser] -> [ShowSchedule.ScheduleTemplate Result] -> [ShowBlogPosts.Model] -> [ShowTags.Model] -> Int -> Lucid.Html ()

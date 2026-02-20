@@ -9,9 +9,11 @@ import API.Shows.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Shows.Get.Templates.Page (ShowsViewData (..), template)
 import API.Types
 import App.Common (getUserInfo, renderTemplate)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Coerce (coerce)
 import Data.Functor ((<&>))
 import Data.Has (getter)
@@ -31,12 +33,9 @@ import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool qualified as HSQL.Pool
 import Lucid qualified
-import Servant.Links qualified as Links
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
-
-rootGetUrl :: Links.URI
-rootGetUrl = Links.linkURI apiLinks.rootGet
 
 -- | Servant handler: thin glue composing action + render with request boilerplate.
 handler ::
@@ -50,12 +49,12 @@ handler ::
   AppM (Lucid.Html ())
 handler mPage mTag mStatus mSearch mSort (coerce -> cookie) (fromMaybe IsNotHxRequest -> hxRequest) =
   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
-    mUserInfo <- getUserInfo cookie <&> fmap snd
+    mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     let isAppendRequest = hxRequest == IsHxRequest && fromMaybe 1 mPage > 1
     viewData <- action mPage mTag mStatus mSearch mSort
     if isAppendRequest
       then pure (renderItemsFragment viewData)
-      else renderTemplate hxRequest mUserInfo (template viewData)
+      else lift $ renderTemplate hxRequest mUserInfo (template viewData)
 
 --------------------------------------------------------------------------------
 
@@ -66,7 +65,7 @@ action ::
   Maybe (Filter Shows.Status) ->
   Maybe (Filter Search) ->
   Maybe (Filter ShowSortBy) ->
-  AppM ShowsViewData
+  ExceptT HandlerError AppM ShowsViewData
 action (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSearchFilter maybeSortByFilter = do
   storageBackend <- asks getter
   let maybeTagId = maybeTagIdFilter >>= getFilter
@@ -77,15 +76,9 @@ action (fromMaybe 1 -> page) maybeTagIdFilter maybeStatusFilter maybeSearchFilte
       offset = fromIntegral $ ((coerce page :: Int64) - 1) * fromIntegral limit :: Offset
       sortBy = fromMaybe NameAZ maybeSortBy
 
-  allTags <-
-    execQuery ShowTags.getShowTagsWithCounts >>= \case
-      Left err -> throwDatabaseError err
-      Right tags -> pure tags
+  allTags <- fromRightM throwDatabaseError $ execQuery ShowTags.getShowTagsWithCounts
 
-  allShows <-
-    getShows (limit + 1) offset maybeSearch maybeTagId maybeStatus sortBy >>= \case
-      Left err -> throwDatabaseError err
-      Right results -> pure results
+  allShows <- fromRightM throwDatabaseError $ lift $ getShows (limit + 1) offset maybeSearch maybeTagId maybeStatus sortBy
 
   let someShows = take (fromIntegral limit) allShows
       hasMore = length allShows > fromIntegral limit

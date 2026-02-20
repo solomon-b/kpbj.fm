@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.StationBlog.Slug.Get.Handler (handler) where
+module API.Dashboard.StationBlog.Slug.Get.Handler (handler, action, StationBlogDetailViewData (..)) where
 
 --------------------------------------------------------------------------------
 
@@ -10,9 +10,11 @@ import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Maybe (listToMaybe)
 import Design (base, class_)
@@ -29,9 +31,49 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
 import Lucid.HTMX
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | All data needed to render the station blog post detail page.
+data StationBlogDetailViewData = StationBlogDetailViewData
+  { sbdvUserMetadata :: UserMetadata.Model,
+    sbdvAllShows :: [Shows.Model],
+    sbdvSelectedShow :: Maybe Shows.Model,
+    sbdvPost :: BlogPosts.Model,
+    sbdvTags :: [BlogTags.Model],
+    sbdvAuthor :: Maybe UserMetadata.Model
+  }
+
+-- | Business logic: fetch post and sidebar data.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  BlogPosts.Id ->
+  ExceptT HandlerError AppM StationBlogDetailViewData
+action user userMetadata postId = do
+  -- 1. Fetch shows for sidebar
+  showsResult <-
+    if UserMetadata.isAdmin userMetadata.mUserRole
+      then execQuery Shows.getAllActiveShows
+      else execQuery (Shows.getShowsForUser (User.mId user))
+  let allShows = fromRight [] showsResult
+      selectedShow = listToMaybe allShows
+
+  -- 2. Fetch blog post with tags and author
+  (post, tags, mAuthor) <- fetchBlogPostOrNotFound postId
+
+  pure
+    StationBlogDetailViewData
+      { sbdvUserMetadata = userMetadata,
+        sbdvAllShows = allShows,
+        sbdvSelectedShow = selectedShow,
+        sbdvPost = post,
+        sbdvTags = tags,
+        sbdvAuthor = mAuthor
+      }
+
+-- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   BlogPosts.Id ->
   Slug ->
@@ -40,24 +82,20 @@ handler ::
   AppM (Lucid.Html ())
 handler postId _slug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station blog post detail" (dashboardStationBlogLinks.list Nothing) $ do
-    -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-
-    -- 2. Fetch shows for sidebar
-    showsResult <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuery Shows.getAllActiveShows
-        else execQuery (Shows.getShowsForUser (User.mId user))
-    let allShows = fromRight [] showsResult
-        selectedShow = listToMaybe allShows
-
-    -- 3. Fetch blog post with tags and author
-    (post, tags, mAuthor) <- fetchBlogPostOrNotFound postId
-
-    -- 4. Render template
-    let postTemplate = template post tags mAuthor
-    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStationBlog Nothing (Just actionButton) postTemplate
+    vd <- action user userMetadata postId
+    let postTemplate = template vd.sbdvPost vd.sbdvTags vd.sbdvAuthor
+    lift $
+      renderDashboardTemplate
+        hxRequest
+        vd.sbdvUserMetadata
+        vd.sbdvAllShows
+        vd.sbdvSelectedShow
+        NavStationBlog
+        Nothing
+        (Just actionButton)
+        postTemplate
 
 -- | Action button for creating new blog post
 actionButton :: Lucid.Html ()
@@ -75,12 +113,11 @@ actionButton =
 -- | Fetch blog post with tags and author, throwing on error or not found.
 fetchBlogPostOrNotFound ::
   BlogPosts.Id ->
-  AppM (BlogPosts.Model, [BlogTags.Model], Maybe UserMetadata.Model)
+  ExceptT HandlerError AppM (BlogPosts.Model, [BlogTags.Model], Maybe UserMetadata.Model)
 fetchBlogPostOrNotFound postId =
-  execTransaction (fetchBlogPostData postId) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Blog post"
-    Right (Just result) -> pure result
+  fromMaybeM (throwNotFound "Blog post") $
+    fromRightM throwDatabaseError $
+      execTransaction (fetchBlogPostData postId)
 
 -- | Fetch blog post data for detail view
 fetchBlogPostData ::

@@ -528,7 +528,7 @@ test-suite kpbj-api-test
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
     main-is:          Main.hs
-    ghc-options:      -Wall -threaded -rtsopts -with-rtsopts=-N -O0 -fwrite-ide-info
+    ghc-options:      -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -O0 -fwrite-ide-info
     build-depends:    base >=4.19.2.0
                     , kpbj-api
                     , web-server-core
@@ -553,7 +553,10 @@ test-suite kpbj-api-test
                     , iproute
                     , log-base
                     , lucid2
+                    , directory
+                    , filepath
                     , mtl
+                    , network
                     , password
                     , postgres-options
                     , rel8
@@ -562,12 +565,92 @@ test-suite kpbj-api-test
                     , text-display
                     , time
                     , tmp-postgres
+                    , servant-multipart
+                    , transformers
                     , typed-process
                     , unliftio-core
                     , uuid
                     , vector
     other-modules:
+       App.Handler.CombinatorsSpec
+       API.Blog.Get.HandlerSpec
+       API.Blog.Post.Get.HandlerSpec
+       API.Dashboard.Blogs.Get.HandlerSpec
+       API.Dashboard.Blogs.New.Get.HandlerSpec
+       API.Dashboard.Blogs.New.Post.HandlerSpec
+       API.Dashboard.Blogs.Slug.Delete.HandlerSpec
+       API.Dashboard.Blogs.Slug.Edit.Get.HandlerSpec
+       API.Dashboard.Blogs.Slug.Edit.Post.HandlerSpec
+       API.Dashboard.Blogs.Slug.Get.HandlerSpec
+       API.Dashboard.Profile.Edit.Get.HandlerSpec
+       API.Dashboard.Profile.Edit.Post.HandlerSpec
+       API.Dashboard.Users.Delete.HandlerSpec
+       API.Dashboard.Users.Detail.Get.HandlerSpec
+       API.Dashboard.Users.Edit.Get.HandlerSpec
+       API.Dashboard.Users.Edit.Post.HandlerSpec
+       API.Dashboard.Users.Get.HandlerSpec
+       API.Dashboard.Users.Role.Patch.HandlerSpec
+       API.Dashboard.Users.Suspend.Post.HandlerSpec
+       API.Dashboard.Users.Unsuspend.Post.HandlerSpec
+       API.Dashboard.Events.Get.HandlerSpec
+       API.Dashboard.Events.New.Get.HandlerSpec
+       API.Dashboard.Events.New.Post.HandlerSpec
+       API.Dashboard.Events.Slug.Delete.HandlerSpec
+       API.Dashboard.Events.Slug.Edit.Get.HandlerSpec
+       API.Dashboard.Events.Slug.Edit.Post.HandlerSpec
+       API.Dashboard.Events.Slug.Feature.HandlerSpec
+       API.Dashboard.Events.Slug.Get.HandlerSpec
+       API.Dashboard.Episodes.Get.HandlerSpec
+       API.Dashboard.Episodes.Redirect.HandlerSpec
+       API.Dashboard.Episodes.Slug.Delete.HandlerSpec
+       API.Dashboard.Episodes.Slug.Edit.Get.HandlerSpec
+       API.Dashboard.Episodes.Slug.Edit.Post.HandlerSpec
+       API.Dashboard.Episodes.Slug.Get.HandlerSpec
+       API.Dashboard.StationBlog.Get.HandlerSpec
+       API.Dashboard.StationBlog.New.Get.HandlerSpec
+       API.Dashboard.StationBlog.New.Post.HandlerSpec
+       API.Dashboard.StationBlog.Slug.Delete.HandlerSpec
+       API.Dashboard.StationBlog.Slug.Edit.Get.HandlerSpec
+       API.Dashboard.StationBlog.Slug.Edit.Post.HandlerSpec
+       API.Dashboard.StationBlog.Slug.Get.HandlerSpec
+       API.Dashboard.EphemeralUploads.Get.HandlerSpec
+       API.Dashboard.EphemeralUploads.Id.Delete.HandlerSpec
+       API.Dashboard.EphemeralUploads.Id.Edit.Get.HandlerSpec
+       API.Dashboard.EphemeralUploads.Id.Flag.Post.HandlerSpec
+       API.Dashboard.EphemeralUploads.Id.Unflag.Post.HandlerSpec
+       API.Dashboard.EphemeralUploads.New.Get.HandlerSpec
+       API.Dashboard.SitePages.Get.HandlerSpec
+       API.Dashboard.SitePages.Slug.Edit.Get.HandlerSpec
+       API.Dashboard.SitePages.Slug.Edit.Post.HandlerSpec
+       API.Dashboard.SitePages.Slug.History.Get.HandlerSpec
+       API.Dashboard.SitePages.Slug.Revisions.Id.Get.HandlerSpec
+       API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.HandlerSpec
+       API.Dashboard.StationIds.Get.HandlerSpec
+       API.Dashboard.StationIds.Id.Delete.HandlerSpec
+       API.Dashboard.StationIds.New.Get.HandlerSpec
+       API.Dashboard.StreamSettings.Episodes.Search.Get.HandlerSpec
+       API.Dashboard.MissingEpisodes.Get.HandlerSpec
+       API.Dashboard.Shows.Get.HandlerSpec
+       API.Dashboard.Shows.New.Post.HandlerSpec
+       API.Dashboard.Shows.Slug.Delete.HandlerSpec
+       API.Dashboard.Shows.Slug.Edit.Post.HandlerSpec
+       API.Dashboard.Shows.New.Get.HandlerSpec
+       API.Dashboard.Shows.Slug.Get.HandlerSpec
+       API.Dashboard.Shows.Slug.Edit.Get.HandlerSpec
+       API.Dashboard.Shows.Slug.Episode.New.Post.HandlerSpec
        API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec
+       API.Events.Event.Get.HandlerSpec
+       API.Events.Get.HandlerSpec
+       API.Get.HandlerSpec
+       API.Schedule.Get.HandlerSpec
+       API.Shows.Get.HandlerSpec
+       API.Shows.Slug.Blog.Get.HandlerSpec
+       API.Shows.Slug.Blog.Post.Get.HandlerSpec
+       API.Shows.Slug.Episode.Get.HandlerSpec
+       API.Shows.Slug.Get.HandlerSpec
+       API.User.ForgotPassword.Post.HandlerSpec
+       API.User.Login.Post.HandlerSpec
+       API.User.Register.Post.HandlerSpec
        App.CookieSpec
        App.DomainsSpec
        Domain.Types.FileUploadSpec
@@ -629,3 +712,5 @@ test-suite kpbj-api-test
        Test.Gen.Tables.UserMetadata
        Test.Gen.Text
        Test.Gen.Time
+       Test.Handler.Fixtures
+       Test.Handler.Monad

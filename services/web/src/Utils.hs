@@ -1,5 +1,6 @@
 module Utils
   ( fromRightM,
+    fromMaybeM,
     catEithers,
     partitionEithers,
     escapeJsString,
@@ -16,6 +17,9 @@ import Data.Text qualified as Text
 
 fromRightM :: (Monad m) => (a -> m b) -> m (Either a b) -> m b
 fromRightM f m = either f pure =<< m
+
+fromMaybeM :: (Monad m) => m a -> m (Maybe a) -> m a
+fromMaybeM f m = maybe f pure =<< m
 
 catEithers :: [Either e a] -> [a]
 catEithers = mapMaybe (either (const Nothing) Just)

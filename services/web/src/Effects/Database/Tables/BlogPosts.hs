@@ -22,6 +22,7 @@ module Effects.Database.Tables.BlogPosts
     getAllBlogPosts,
     getPublishedBlogPosts,
     getBlogPostById,
+    getBlogPostBySlug,
     insertBlogPost,
     updateBlogPost,
     deleteBlogPost,
@@ -225,6 +226,13 @@ getBlogPostById :: Id -> Hasql.Statement () (Maybe Model)
 getBlogPostById postId = fmap listToMaybe $ run $ select do
   post <- each blogPostSchema
   where_ $ bpmId post ==. lit postId
+  pure post
+
+-- | Get blog post by slug.
+getBlogPostBySlug :: Slug -> Hasql.Statement () (Maybe Model)
+getBlogPostBySlug postSlug = fmap listToMaybe $ run $ select do
+  post <- each blogPostSchema
+  where_ $ bpmSlug post ==. lit postSlug
   pure post
 
 -- | Insert a new blog post.

@@ -11,16 +11,19 @@ import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Time (Day, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
@@ -40,13 +43,78 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
 import Lucid.HTMX
-import Data.Text.Display (display)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Rel8 (Result)
 import Servant.Links qualified as Links
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | All data needed to render the episode list page.
+data EpisodeListViewData = EpisodeListViewData
+  { elvUserMetadata :: UserMetadata.Model,
+    elvAllShows :: [Shows.Model],
+    elvSelectedShow :: Maybe Shows.Model,
+    elvEpisodes :: [Episodes.Model],
+    elvSchedules :: [ShowSchedule.ScheduleTemplate Result],
+    elvNextShow :: Maybe ShowSchedule.UpcomingShowDate,
+    elvPage :: Int64,
+    elvHasMore :: Bool
+  }
+
+-- | Business logic: pagination setup, show/episode fetching.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  Slug ->
+  Maybe Int64 ->
+  ExceptT HandlerError AppM EpisodeListViewData
+action user userMetadata showSlug maybePage = do
+  -- 1. Set up pagination (use Pacific time for "today")
+  nowUtc <- liftIO getCurrentTime
+  let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
+      nowPacific = utcToLocalTime pacificTz nowUtc
+      today = localDay nowPacific
+  let page = fromMaybe 1 maybePage
+      limit = 20 :: Limit
+      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+
+  -- 2. Fetch shows for sidebar (admins see all, hosts see their own)
+  allShows <- lift $ fetchShowsForUser user userMetadata
+
+  -- 3. Determine which show to display
+  let selectedShow = find (\s -> s.slug == showSlug) allShows
+  case selectedShow of
+    Nothing ->
+      pure
+        EpisodeListViewData
+          { elvUserMetadata = userMetadata,
+            elvAllShows = allShows,
+            elvSelectedShow = Nothing,
+            elvEpisodes = [],
+            elvSchedules = [],
+            elvNextShow = Nothing,
+            elvPage = page,
+            elvHasMore = False
+          }
+    Just showToFetch -> do
+      -- 4. Fetch episodes for the show
+      (allEpisodes, schedules, nextShow) <- fetchEpisodesData today showToFetch limit offset
+      let episodes = take (fromIntegral limit) allEpisodes
+          hasMore = length allEpisodes > fromIntegral limit
+      pure
+        EpisodeListViewData
+          { elvUserMetadata = userMetadata,
+            elvAllShows = allShows,
+            elvSelectedShow = Just showToFetch,
+            elvEpisodes = episodes,
+            elvSchedules = schedules,
+            elvNextShow = nextShow,
+            elvPage = page,
+            elvHasMore = hasMore
+          }
+
+-- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Slug ->
   Maybe Int64 ->
@@ -55,58 +123,39 @@ handler ::
   AppM (Lucid.Html ())
 handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes list" apiLinks.rootGet $ do
-    -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
-
-    -- 2. Set up pagination (use Pacific time for "today")
-    nowUtc <- liftIO getCurrentTime
-    let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
-        nowPacific = utcToLocalTime pacificTz nowUtc
-        today = localDay nowPacific
-    let page = fromMaybe 1 maybePage
-        limit = 20 :: Limit
-        offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
-        isAppendRequest = hxRequest == IsHxRequest && page > 1
-
-    -- 3. Fetch shows for sidebar (admins see all, hosts see their own)
-    allShows <- fetchShowsForUser user userMetadata
-
-    -- 4. Determine which show to display
-    let selectedShow = find (\s -> s.slug == showSlug) allShows
-    case selectedShow of
-      Nothing -> do
-        -- No matching show found - render empty state
-        let content = template userMetadata Nothing [] page False
-        renderDashboardTemplate hxRequest userMetadata allShows Nothing NavEpisodes (statsContent userMetadata [] [] Nothing) Nothing content
-      Just showToFetch -> do
-        -- 5. Fetch episodes for the show
-        (allEpisodes, schedules, nextShow) <- fetchEpisodesData today showToFetch limit offset
-
-        let episodes = take (fromIntegral limit) allEpisodes
-            hasMore = length allEpisodes > fromIntegral limit
-
-        if isAppendRequest
-          then
-            -- Infinite scroll: return only new rows + sentinel
-            pure $ renderItemsFragment userMetadata showToFetch episodes page hasMore
-          else do
-            -- Full page: render with table, sentinel, and noscript pagination
-            let content = template userMetadata (Just showToFetch) episodes page hasMore
-            renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavEpisodes (statsContent userMetadata episodes schedules nextShow) (actionButton showToFetch) content
+    vd <- action user userMetadata showSlug maybePage
+    let isAppendRequest = hxRequest == IsHxRequest && vd.elvPage > 1
+    case (isAppendRequest, vd.elvSelectedShow) of
+      (True, Just showToFetch) ->
+        -- Infinite scroll: return only new rows + sentinel
+        pure $ renderItemsFragment vd.elvUserMetadata showToFetch vd.elvEpisodes vd.elvPage vd.elvHasMore
+      _ -> do
+        -- Full page: render with table, sentinel, and noscript pagination
+        let content = template vd.elvUserMetadata vd.elvSelectedShow vd.elvEpisodes vd.elvPage vd.elvHasMore
+        lift $
+          renderDashboardTemplate
+            hxRequest
+            vd.elvUserMetadata
+            vd.elvAllShows
+            vd.elvSelectedShow
+            NavEpisodes
+            (statsContent vd.elvUserMetadata vd.elvEpisodes vd.elvSchedules vd.elvNextShow)
+            (fmap actionButton vd.elvSelectedShow)
+            content
   where
-    actionButton :: Shows.Model -> Maybe (Lucid.Html ())
+    actionButton :: Shows.Model -> Lucid.Html ()
     actionButton showModel =
       let uploadUrl = Links.linkURI $ dashboardShowsLinks.episodeNewGet showModel.slug
-       in Just $
-            Lucid.a_
-              [ Lucid.href_ [i|/#{uploadUrl}|],
-                hxGet_ [i|/#{uploadUrl}|],
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-              ]
-              "New Episode"
+       in Lucid.a_
+            [ Lucid.href_ [i|/#{uploadUrl}|],
+              hxGet_ [i|/#{uploadUrl}|],
+              hxTarget_ "#main-content",
+              hxPushUrl_ "true",
+              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
+            ]
+            "New Episode"
 
     statsContent ::
       UserMetadata.Model ->
@@ -157,11 +206,10 @@ fetchEpisodesData ::
   Shows.Model ->
   Limit ->
   Offset ->
-  AppM ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
+  ExceptT HandlerError AppM ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
 fetchEpisodesData today showModel limit offset =
-  execTransaction (fetchEpisodesDataPaginated today showModel limit offset) >>= \case
-    Left err -> throwDatabaseError err
-    Right result -> pure result
+  fromRightM throwDatabaseError $
+    execTransaction (fetchEpisodesDataPaginated today showModel limit offset)
 
 -- | Fetch episodes data for dashboard with pagination
 fetchEpisodesDataPaginated :: Day -> Shows.Model -> Limit -> Offset -> Txn.Transaction ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)

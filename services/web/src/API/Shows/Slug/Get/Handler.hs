@@ -6,21 +6,24 @@ module API.Shows.Slug.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Shows.Slug.Get.Templates.Page (errorTemplate, notFoundTemplate, template)
+import API.Shows.Slug.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
+import App.Handler.Error (HandlerError, handlePublicErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Functor ((<&>))
 import Data.Has (getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
-import Data.Text.Display (display)
 import Data.Time (UTCTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Execute (execQuery)
@@ -32,9 +35,9 @@ import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
-import Log qualified
 import Lucid qualified
 import Rel8 (Result)
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -42,35 +45,79 @@ import Rel8 (Result)
 episodesPerPage :: Int64
 episodesPerPage = 10
 
+data ShowViewData = ShowViewData
+  { svdStorageBackend :: StorageBackend,
+    svdShowModel :: Shows.Model,
+    svdEpisodes :: [Episodes.Model],
+    svdHosts :: [ShowHost.ShowHostWithUser],
+    svdSchedule :: [ShowSchedule.ScheduleTemplate Result],
+    svdBlogPosts :: [ShowBlogPosts.Model],
+    svdTags :: [ShowTags.Model],
+    svdPage :: Int
+  }
+
+--------------------------------------------------------------------------------
+
 handler ::
   Slug ->
   Maybe Int ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler slug mPage cookie (foldHxReq -> hxRequest) = do
-  mUserInfo <- getUserInfo cookie <&> fmap snd
+handler slug mPage cookie (foldHxReq -> hxRequest) =
+  handlePublicErrors "Show detail" renderError $ do
+    mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
+    vd <- action slug mPage
+    lift $
+      renderTemplate hxRequest mUserInfo $
+        template
+          vd.svdStorageBackend
+          vd.svdShowModel
+          vd.svdEpisodes
+          vd.svdHosts
+          vd.svdSchedule
+          vd.svdBlogPosts
+          vd.svdTags
+          vd.svdPage
+  where
+    renderError content = do
+      mUserInfo <- getUserInfo cookie <&> fmap snd
+      renderTemplate hxRequest mUserInfo content
+
+--------------------------------------------------------------------------------
+
+-- | Business logic: fetch show and all related details.
+action ::
+  Slug ->
+  Maybe Int ->
+  ExceptT HandlerError AppM ShowViewData
+action slug mPage = do
   backend <- asks getter
   let page = fromMaybe 1 mPage
       limit = fromIntegral episodesPerPage
       offset = fromIntegral (page - 1) * fromIntegral episodesPerPage
-  execQuery (Shows.getShowBySlug slug) >>= \case
-    Left err -> do
-      Log.logInfo "Failed to fetch show from database" (show err)
-      renderTemplate hxRequest mUserInfo (errorTemplate "Failed to load show. Please try again.")
-    Right Nothing -> do
-      Log.logInfo ("Show not found: " <> display slug) ()
-      renderTemplate hxRequest mUserInfo (notFoundTemplate slug)
-    Right (Just showModel) -> do
-      now <- currentSystemTime
-      fetchShowDetails now showModel limit offset >>= \case
-        Left err -> do
-          Log.logAttention "Failed to fetch show details from database" (show err)
-          let showTemplate = template backend showModel [] [] [] [] [] page
-          renderTemplate hxRequest mUserInfo showTemplate
-        Right (hosts, schedule, episodes, blogPosts, tags) -> do
-          let showTemplate = template backend showModel episodes hosts schedule blogPosts tags page
-          renderTemplate hxRequest mUserInfo showTemplate
+
+  sm <-
+    fromMaybeM (throwNotFound "Show") $
+      fromRightM throwDatabaseError $
+        execQuery (Shows.getShowBySlug slug)
+
+  now <- lift currentSystemTime
+  (hosts, schedule, episodes, blogPosts, tags) <-
+    fromRightM throwDatabaseError $
+      lift $
+        fetchShowDetails now sm limit offset
+  pure
+    ShowViewData
+      { svdStorageBackend = backend,
+        svdShowModel = sm,
+        svdEpisodes = episodes,
+        svdHosts = hosts,
+        svdSchedule = schedule,
+        svdBlogPosts = blogPosts,
+        svdTags = tags,
+        svdPage = page
+      }
 
 fetchShowDetails ::
   UTCTime ->

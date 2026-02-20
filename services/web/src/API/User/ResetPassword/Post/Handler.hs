@@ -10,14 +10,17 @@ module API.User.ResetPassword.Post.Handler (handler) where
 --------------------------------------------------------------------------------
 
 import API.Links (userLinks)
-import API.Types
+import API.Types (UserRoutes (..))
 import API.User.ResetPassword.Get.Templates.InvalidToken qualified as InvalidTokenTemplate
 import API.User.ResetPassword.Get.Templates.Page qualified as Templates
 import API.User.ResetPassword.Post.Route (ResetPasswordForm (..))
 import App.Common (renderUnauthTemplate)
+import App.Handler.Error (HandlerError, logHandlerError)
 import App.Monad (AppM)
 import Control.Monad.IO.Class (liftIO)
-import Data.Foldable (foldl')
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
+import Data.List (foldl')
 import Data.Password.Argon2 (Argon2, Password, PasswordCheck (..), PasswordHash, checkPassword, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
 import Data.Text (Text)
@@ -48,6 +51,47 @@ instance Display ValidationError where
 
 --------------------------------------------------------------------------------
 
+-- | Result of the password reset action.
+data ResetResult
+  = -- | Validation or reset failed — render error content.
+    ResetRenderContent (Lucid.Html ())
+  | -- | Reset succeeded — redirect URL and confirmation content.
+    ResetRedirect Text (Lucid.Html ())
+
+--------------------------------------------------------------------------------
+
+-- | Core business logic for password reset form submission.
+--
+-- Validates the passwords, consumes the token, and resets the password.
+-- Returns a 'ResetResult' describing the response to render.
+action ::
+  HxRequest ->
+  ResetPasswordForm ->
+  ExceptT HandlerError AppM ResetResult
+action hxRequest ResetPasswordForm {..} = do
+  passwordValidation <- lift $ validatePassword rpfPassword rpfPasswordConfirm
+  case passwordValidation of
+    Failure (firstError : _) -> do
+      Log.logInfo "Password reset form validation failed" (display firstError)
+      content <- lift $ renderFormWithError hxRequest rpfToken firstError
+      pure $ ResetRenderContent content
+    Failure [] -> do
+      Log.logInfo "Password reset form validation failed with no errors" (display rpfToken)
+      content <- lift $ renderFormWithError hxRequest rpfToken PasswordMismatch
+      pure $ ResetRenderContent content
+    Success passwordHash -> do
+      resetResult <- lift $ PasswordReset.consumeAndResetPassword rpfToken passwordHash
+      case resetResult of
+        Left err -> do
+          Log.logInfo "Password reset failed" (PasswordReset.passwordResetErrorToText err)
+          content <- lift $ renderInvalidToken hxRequest
+          pure $ ResetRenderContent content
+        Right _userId -> do
+          Log.logInfo "Password reset successful" (display rpfToken)
+          let redirectUrl = "/" <> Http.toUrlPiece (userLinks.loginGet Nothing Nothing)
+          content <- lift $ renderUnauthTemplate hxRequest successContent
+          pure $ ResetRedirect redirectUrl content
+
 handler ::
   Maybe HxRequest ->
   ResetPasswordForm ->
@@ -57,37 +101,17 @@ handler ::
          ]
         (Lucid.Html ())
     )
-handler (foldHxReq -> hxRequest) ResetPasswordForm {..} = do
-  -- Validate the password first (pure validation, no DB call).
-  -- This avoids unnecessary DB operations if the password is invalid.
-  passwordValidation <- validatePassword rpfPassword rpfPasswordConfirm
-  case passwordValidation of
-    Failure (firstError : _) -> do
-      -- Show form with error
-      Log.logInfo "Password reset form validation failed" (display firstError)
-      content <- renderFormWithError hxRequest rpfToken firstError
+handler (foldHxReq -> hxRequest) form = do
+  result <- runExceptT $ action hxRequest form
+  case result of
+    Left err -> do
+      logHandlerError "Reset password" err
+      content <- renderInvalidToken hxRequest
       pure $ Servant.noHeader content
-    Failure [] -> do
-      -- Should never happen, but handle gracefully
-      Log.logInfo "Password reset form validation failed with no errors" (display rpfToken)
-      content <- renderFormWithError hxRequest rpfToken PasswordMismatch
+    Right (ResetRenderContent content) ->
       pure $ Servant.noHeader content
-    Success passwordHash -> do
-      -- Atomically consume token and reset password.
-      -- This validates the token and consumes it in a single operation,
-      -- avoiding TOCTOU race conditions.
-      resetResult <- PasswordReset.consumeAndResetPassword rpfToken passwordHash
-      case resetResult of
-        Left err -> do
-          Log.logInfo "Password reset failed" (PasswordReset.passwordResetErrorToText err)
-          content <- renderInvalidToken hxRequest
-          pure $ Servant.noHeader content
-        Right _userId -> do
-          Log.logInfo "Password reset successful" (display rpfToken)
-          -- Redirect to login with success message
-          let redirectUrl = "/" <> Http.toUrlPiece (userLinks.loginGet Nothing Nothing)
-          content <- renderUnauthTemplate hxRequest successContent
-          pure $ Servant.addHeader redirectUrl content
+    Right (ResetRedirect redirectUrl content) ->
+      pure $ Servant.addHeader redirectUrl content
 
 --------------------------------------------------------------------------------
 

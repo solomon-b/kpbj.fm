@@ -1,24 +1,25 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.EphemeralUploads.Id.Edit.Post.Handler (handler) where
+module API.Dashboard.EphemeralUploads.Id.Edit.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.EphemeralUploads.Id.Edit.Post.Route (FormData (..))
-import API.Links (dashboardEphemeralUploadsLinks)
+import API.Links (dashboardEphemeralUploadsLinks, rootLink)
 import API.Types
 import Amazonka qualified as AWS
-import App.Handler.Combinators (requireAuth)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Has qualified as Has
-import Data.String.Interpolate (i)
+import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
@@ -34,14 +35,14 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.StagedUploadCleanup (deleteFile)
 import Effects.StagedUploads (claimAndRelocateUpload)
-import Hasql.Pool qualified
 import Log qualified
 import Lucid qualified
 import Servant qualified
-import Servant.Links qualified as Links
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | Servant handler: thin glue running action.
 handler ::
   EphemeralUploads.Id ->
   Maybe Cookie ->
@@ -49,154 +50,110 @@ handler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler ephemeralUploadId cookie form =
   handleRedirectErrors "Ephemeral upload edit" (dashboardEphemeralUploadsLinks.list Nothing) $ do
-    -- 1. Require authentication and staff/admin role
     (user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "Only staff and admins can edit ephemeral uploads." userMetadata
+    action user userMetadata ephemeralUploadId form
+    let listUrl = rootLink $ dashboardEphemeralUploadsLinks.list Nothing
+        banner = BannerParams Success "Ephemeral Updated" "The ephemeral upload has been updated successfully."
+        redirectUrl = buildRedirectUrl listUrl banner
+    pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
 
-    -- 2. Check authorization: must be staff/admin
-    let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-    unless isStaffOrAdmin $
-      throwNotAuthorized "Only staff and admins can edit ephemeral uploads." (Just userMetadata.mUserRole)
+--------------------------------------------------------------------------------
 
-    -- 3. Fetch ephemeral upload
-    ephemeralUpload <- fetchEphemeralUpload ephemeralUploadId
+-- | Business logic: fetch, validate, update.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  EphemeralUploads.Id ->
+  FormData ->
+  ExceptT HandlerError AppM ()
+action user _userMetadata ephemeralUploadId form = do
+  -- 1. Fetch ephemeral upload
+  ephemeralUpload <- fetchEphemeralUpload ephemeralUploadId
 
-    -- 4. Process the update
-    processEphemeralUploadEdit user ephemeralUpload form
+  -- 2. Validate and sanitize title
+  let title = Sanitize.sanitizePlainText (fdTitle form)
+  when (Text.null title) $ throwValidationError "Title is required."
+
+  -- 3. Validate and sanitize description
+  let description = Sanitize.sanitizePlainText (fdDescription form)
+  when (Text.length description < 80) $
+    throwValidationError "Description must be at least 80 characters (approximately 2 sentences)."
+
+  -- 4. Process audio replacement or keep existing
+  let audioToken = fdAudioToken form
+  (storagePath, mimeType, fileSize) <-
+    if Text.null audioToken
+      then pure (ephemeralUpload.eumAudioFilePath, ephemeralUpload.eumMimeType, ephemeralUpload.eumFileSize)
+      else processNewAudio user ephemeralUpload title audioToken
+
+  -- 5. Update the database record
+  _ <-
+    fromMaybeM (throwNotFound "Ephemeral upload") $
+      fromRightM throwDatabaseError $
+        execQuery $
+          EphemeralUploads.updateEphemeralUpload
+            ephemeralUploadId
+            title
+            description
+            storagePath
+            mimeType
+            fileSize
+
+  Log.logInfo "Ephemeral upload updated successfully" title
 
 --------------------------------------------------------------------------------
 -- Helpers
 
 fetchEphemeralUpload ::
   EphemeralUploads.Id ->
-  AppM EphemeralUploads.Model
+  ExceptT HandlerError AppM EphemeralUploads.Model
 fetchEphemeralUpload ephemeralUploadId =
-  execQuery (EphemeralUploads.getEphemeralUploadById ephemeralUploadId) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Ephemeral upload"
-    Right (Just ephemeralUpload) -> pure ephemeralUpload
+  fromMaybeM (throwNotFound "Ephemeral upload") $
+    fromRightM throwDatabaseError $
+      execQuery (EphemeralUploads.getEphemeralUploadById ephemeralUploadId)
 
-processEphemeralUploadEdit ::
+-- | Process a new audio upload: claim staged upload, delete old file, return new metadata.
+processNewAudio ::
   User.Model ->
   EphemeralUploads.Model ->
-  FormData ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-processEphemeralUploadEdit user ephemeralUpload form = do
-  let ephemeralUploadId = ephemeralUpload.eumId
-      editUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.editGet ephemeralUploadId
-      editUrlText = [i|/#{editUrl}|] :: Text
-      listUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.list Nothing
-      listUrlText = [i|/#{listUrl}|] :: Text
-
-  -- Validate and sanitize title
-  let title = Sanitize.sanitizePlainText (fdTitle form)
-  if Text.null title
-    then do
-      let banner = BannerParams Error "Update Failed" "Title is required."
-      pure $ Servant.addHeader (buildRedirectUrl editUrlText banner) (redirectWithBanner editUrlText banner)
-    else do
-      -- Validate and sanitize description
-      let description = Sanitize.sanitizePlainText (fdDescription form)
-      if Text.length description < 80
-        then do
-          let banner = BannerParams Error "Update Failed" "Description must be at least 80 characters (approximately 2 sentences)."
-          pure $ Servant.addHeader (buildRedirectUrl editUrlText banner) (redirectWithBanner editUrlText banner)
-        else do
-          -- Check if we have a new audio file to upload
-          let audioToken = fdAudioToken form
-          if Text.null audioToken
-            then do
-              -- No new audio, just update title and description (keep existing audio fields)
-              updateResult <-
-                execQuery $
-                  EphemeralUploads.updateEphemeralUpload
-                    ephemeralUploadId
-                    title
-                    description
-                    ephemeralUpload.eumAudioFilePath
-                    ephemeralUpload.eumMimeType
-                    ephemeralUpload.eumFileSize
-              handleUpdateResult title listUrlText updateResult
-            else do
-              -- New audio file uploaded - process it
-              processWithNewAudio user ephemeralUpload title description audioToken editUrlText listUrlText
-
-processWithNewAudio ::
-  User.Model ->
-  EphemeralUploads.Model ->
+  -- | Sanitized title
   Text ->
+  -- | Audio token
   Text ->
-  Text ->
-  Text ->
-  Text ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-processWithNewAudio user ephemeralUpload title description audioToken editUrlText listUrlText = do
-  let ephemeralUploadId = ephemeralUpload.eumId
-
+  -- | (storagePath, mimeType, fileSize)
+  ExceptT HandlerError AppM (Text, Text, Int64)
+processNewAudio user ephemeralUpload title audioToken = do
   -- Get the staged upload to retrieve metadata
-  stagedUploadResult <- execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
-  case stagedUploadResult of
+  stagedUpload <-
+    fromMaybeM (throwValidationError "Uploaded file not found or expired.") $
+      fromRightM throwDatabaseError $
+        execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
+
+  -- Claim and relocate the staged upload to final location
+  now <- liftIO getCurrentTime
+  let Slug titleSlug = mkSlug title
+  claimResult <-
+    lift $
+      claimAndRelocateUpload
+        (User.mId user)
+        audioToken
+        StagedUploads.EphemeralAudio
+        AudioBucket
+        EphemeralAudio
+        now
+        titleSlug
+  newStoragePath <- case claimResult of
     Left err -> do
-      Log.logInfo "Failed to get staged upload" (Text.pack $ show err)
-      throwDatabaseError err
-    Right Nothing -> do
-      Log.logInfo_ "Staged upload not found"
-      let banner = BannerParams Error "Update Failed" "Uploaded file not found or expired."
-      pure $ Servant.addHeader (buildRedirectUrl editUrlText banner) (redirectWithBanner editUrlText banner)
-    Right (Just stagedUpload) -> do
-      -- Get current time for date hierarchy
-      now <- liftIO getCurrentTime
+      Log.logInfo "Failed to claim staged upload" err
+      throwValidationError err
+    Right path -> pure path
 
-      -- Claim and relocate the staged upload to final location
-      let Slug titleSlug = mkSlug title
-      claimResult <-
-        claimAndRelocateUpload
-          (User.mId user)
-          audioToken
-          StagedUploads.EphemeralAudio
-          AudioBucket
-          EphemeralAudio
-          now
-          titleSlug
+  -- Delete old audio file (best effort)
+  backend <- asks (Has.getter @StorageBackend)
+  mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
+  fileDeleted <- deleteFile backend mAwsEnv ephemeralUpload.eumAudioFilePath
+  unless fileDeleted $
+    Log.logInfo "Failed to delete old ephemeral upload file" ephemeralUpload.eumAudioFilePath
 
-      case claimResult of
-        Left err -> do
-          Log.logInfo "Failed to claim staged upload" err
-          let banner = BannerParams Error "Update Failed" err
-          pure $ Servant.addHeader (buildRedirectUrl editUrlText banner) (redirectWithBanner editUrlText banner)
-        Right newStoragePath -> do
-          -- Delete old audio file (best effort)
-          backend <- asks (Has.getter @StorageBackend)
-          mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
-          fileDeleted <- deleteFile backend mAwsEnv ephemeralUpload.eumAudioFilePath
-          unless fileDeleted $
-            Log.logInfo "Failed to delete old ephemeral upload file" ephemeralUpload.eumAudioFilePath
-
-          -- Update the database record with new audio info
-          updateResult <-
-            execQuery $
-              EphemeralUploads.updateEphemeralUpload
-                ephemeralUploadId
-                title
-                description
-                newStoragePath
-                (StagedUploads.mimeType stagedUpload)
-                (StagedUploads.fileSize stagedUpload)
-          handleUpdateResult title listUrlText updateResult
-
-handleUpdateResult ::
-  Text ->
-  Text ->
-  Either Hasql.Pool.UsageError (Maybe EphemeralUploads.Model) ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handleUpdateResult title listUrlText = \case
-  Left err -> do
-    Log.logInfo "Failed to update ephemeral upload" (Text.pack $ show err)
-    throwDatabaseError err
-  Right Nothing -> do
-    Log.logInfo_ "Ephemeral upload not found during update"
-    throwNotFound "Ephemeral upload"
-  Right (Just _) -> do
-    Log.logInfo "Ephemeral upload updated successfully" title
-    let banner = BannerParams Success "Ephemeral Updated" "The ephemeral upload has been updated successfully."
-        redirectUrl = buildRedirectUrl listUrlText banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrlText banner)
+  pure (newStoragePath, StagedUploads.mimeType stagedUpload, StagedUploads.fileSize stagedUpload)

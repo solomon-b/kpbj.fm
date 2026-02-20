@@ -10,25 +10,80 @@ import API.Links (apiLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Has (getter)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery)
+import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | All data needed to render the episode detail page.
+data EpisodeDetailViewData = EpisodeDetailViewData
+  { edvUserMetadata :: UserMetadata.Model,
+    edvAllShows :: [Shows.Model],
+    edvShowModel :: Shows.Model,
+    edvEpisode :: Episodes.Model,
+    edvTracks :: [EpisodeTrack.Model],
+    edvTags :: [EpisodeTags.Model],
+    edvBackend :: StorageBackend
+  }
+
+-- | Business logic: fetch episode + show, authorization, fetch tracks/tags.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  Slug ->
+  Episodes.EpisodeNumber ->
+  ExceptT HandlerError AppM EpisodeDetailViewData
+action user userMetadata showSlug episodeNumber = do
+  -- 1. Get storage backend
+  backend <- asks getter
+
+  -- 2. Fetch the episode
+  episode <- fetchEpisodeOrNotFound showSlug episodeNumber
+
+  -- 3. Fetch the show
+  showModel <- fetchShowOrNotFound episode.showId
+
+  -- 4. Verify user has access to this show
+  requireShowAccess user userMetadata showModel
+
+  -- 5. Fetch tracks and tags for the episode
+  tracks <- fromRight [] <$> execQuery (EpisodeTrack.getTracksForEpisode episode.id)
+  tags <- fromRight [] <$> execQuery (Episodes.getTagsForEpisode episode.id)
+
+  -- 6. Get user's shows for sidebar
+  userShows <- lift $ fetchShowsForUser user userMetadata
+
+  pure
+    EpisodeDetailViewData
+      { edvUserMetadata = userMetadata,
+        edvAllShows = userShows,
+        edvShowModel = showModel,
+        edvEpisode = episode,
+        edvTracks = tracks,
+        edvTags = tags,
+        edvBackend = backend
+      }
+
+-- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Slug ->
   Episodes.EpisodeNumber ->
@@ -37,60 +92,46 @@ handler ::
   AppM (Lucid.Html ())
 handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episode detail" apiLinks.rootGet $ do
-    -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
-
-    -- 2. Get storage backend
-    backend <- asks getter
-
-    -- 3. Fetch the episode
-    episode <- fetchEpisodeOrNotFound showSlug episodeNumber
-
-    -- 4. Fetch the show
-    showModel <- fetchShowOrNotFound episode.showId
-
-    -- 5. Verify user has access to this show
-    requireShowAccess user userMetadata showModel
-
-    -- 6. Fetch tracks and tags for the episode
-    tracks <- fromRight [] <$> execQuery (EpisodeTrack.getTracksForEpisode episode.id)
-    tags <- fromRight [] <$> execQuery (Episodes.getTagsForEpisode episode.id)
-
-    -- 7. Get user's shows for sidebar
-    userShows <- fetchShowsForUser user userMetadata
-
-    -- 8. Render template
-    let content = template backend userMetadata showModel episode tracks tags
-    renderDashboardTemplate hxRequest userMetadata userShows (Just showModel) NavEpisodes Nothing Nothing content
+    vd <- action user userMetadata showSlug episodeNumber
+    let content = template vd.edvBackend vd.edvUserMetadata vd.edvShowModel vd.edvEpisode vd.edvTracks vd.edvTags
+    lift $
+      renderDashboardTemplate
+        hxRequest
+        vd.edvUserMetadata
+        vd.edvAllShows
+        (Just vd.edvShowModel)
+        NavEpisodes
+        Nothing
+        Nothing
+        content
 
 -- | Fetch episode by show slug and episode number
 fetchEpisodeOrNotFound ::
   Slug ->
   Episodes.EpisodeNumber ->
-  AppM Episodes.Model
+  ExceptT HandlerError AppM Episodes.Model
 fetchEpisodeOrNotFound showSlug episodeNumber =
-  execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Episode"
-    Right (Just episode) -> pure episode
+  fromMaybeM (throwNotFound "Episode") $
+    fromRightM throwDatabaseError $
+      execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
 
 -- | Fetch show by ID
 fetchShowOrNotFound ::
   Shows.Id ->
-  AppM Shows.Model
+  ExceptT HandlerError AppM Shows.Model
 fetchShowOrNotFound showId =
-  execQuery (Shows.getShowById showId) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Show"
-    Right (Just showModel) -> pure showModel
+  fromMaybeM (throwNotFound "Show") $
+    fromRightM throwDatabaseError $
+      execQuery (Shows.getShowById showId)
 
 -- | Verify user has access to the show (admin or assigned host)
 requireShowAccess ::
   User.Model ->
   UserMetadata.Model ->
   Shows.Model ->
-  AppM ()
+  ExceptT HandlerError AppM ()
 requireShowAccess user userMetadata showModel =
   if UserMetadata.isAdmin userMetadata.mUserRole
     then pure ()

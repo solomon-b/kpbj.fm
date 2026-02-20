@@ -1,21 +1,23 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Shows.New.Post.Handler (handler) where
+module API.Dashboard.Shows.New.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..), ScheduleSlotInfo (..))
-import API.Links (apiLinks, dashboardShowsLinks)
+import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleRedirectErrors)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (forM_, void)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (getter)
@@ -48,12 +50,6 @@ import Servant.Multipart (FileData, Mem)
 --------------------------------------------------------------------------------
 
 -- URL helpers
-dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
-
-dashboardShowsNewGetUrl :: Links.URI
-dashboardShowsNewGetUrl = Links.linkURI dashboardShowsLinks.newGet
-
 dashboardShowDetailUrl :: Shows.Id -> Slug.Slug -> Links.URI
 dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail showId slug Nothing
 
@@ -64,19 +60,96 @@ handler ::
   NewShowForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler cookie form =
-  handleRedirectErrors "Show creation" apiLinks.rootGet $ do
-    -- 1. Require authentication and admin role
+  handleRedirectErrors "Show creation" dashboardShowsLinks.newGet $ do
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "Only Admin users can create shows." userMetadata
+    createdShow <- action form
+    let showId = createdShow.id
+        showSlug = createdShow.slug
+        showTitle = createdShow.title
+        detailUrl = [i|/#{dashboardShowDetailUrl showId showSlug}|] :: Text
+        banner = BannerParams Success "Show Created" [i|"#{showTitle}" has been created successfully.|]
+        redirectUrl = buildRedirectUrl detailUrl banner
+    pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
 
-    -- 2. Validate form data
-    case validateNewShow form of
-      Left validationError -> do
-        Log.logInfo "Show creation failed validation" (Aeson.object ["error" .= validationError])
-        let banner = BannerParams Error "Validation Error" validationError
-        pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-      Right showData ->
-        handleShowCreation showData form
+--------------------------------------------------------------------------------
+
+-- | Business logic: validate form, create show with all side effects.
+--
+-- Returns the created 'Shows.Model' so the handler can build the redirect.
+action ::
+  NewShowForm ->
+  ExceptT HandlerError AppM Shows.Model
+action form = do
+  -- 1. Validate form data
+  showData <- case validateNewShow form of
+    Left validationError -> do
+      Log.logInfo "Show creation failed validation" (Aeson.object ["error" .= validationError])
+      throwValidationError validationError
+    Right sd -> pure sd
+
+  -- 2. Parse and validate schedules
+  schedules <- case parseSchedules (nsfSchedulesJson form) of
+    Left err -> do
+      Log.logInfo "Failed to parse schedules" (Aeson.object ["error" .= err])
+      throwValidationError ("Invalid schedule data: " <> err)
+    Right s -> pure s
+
+  -- 3. Check schedule conflicts (Shows.Id 0 means check against ALL active shows)
+  conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules
+  case conflictResult of
+    Left conflictErr -> do
+      Log.logInfo "Schedule conflict detected" (Aeson.object ["error" .= conflictErr])
+      throwValidationError conflictErr
+    Right () -> pure ()
+
+  -- 4. Process file uploads
+  uploadResult <- lift $ processShowArtworkUploads showData.siSlug (nsfLogoFile form)
+  mLogoPath <- case uploadResult of
+    Left uploadErr -> do
+      Log.logInfo "Failed to upload show artwork" uploadErr
+      throwValidationError ("File upload error: " <> uploadErr)
+    Right path -> pure path
+
+  -- 5. Check slug uniqueness
+  existingShow <- execQuery (Shows.getShowBySlug showData.siSlug)
+  case existingShow of
+    Left dbErr -> throwDatabaseError dbErr
+    Right (Just _) -> throwValidationError "A show with this URL already exists. Try a different title."
+    Right Nothing -> pure ()
+
+  -- 6. Insert show
+  let finalShowData = showData {Shows.siLogoUrl = mLogoPath}
+  insertResult <- execQuery (Shows.insertShow finalShowData)
+  showId <- case insertResult of
+    Left dbError -> do
+      Log.logInfo "Database error creating show" (Aeson.object ["error" .= Text.pack (show dbError)])
+      throwDatabaseError dbError
+    Right Nothing -> do
+      Log.logInfo_ "Show insert returned Nothing"
+      throwHandlerFailure "Failed to create show."
+    Right (Just sid) -> pure sid
+
+  -- 7. Post-creation side effects (fire and forget)
+  lift $ do
+    assignHostsToShow showId (nsfHosts form)
+    processShowTags showId (nsfTags form)
+    createSchedulesForShow showId schedules
+
+  -- 8. Fetch created show
+  fetchResult <- execQuery (Shows.getShowById showId)
+  createdShow <- case fetchResult of
+    Right (Just s) -> pure s
+    _ -> do
+      Log.logInfo_ "Created show but failed to retrieve it"
+      throwHandlerFailure "Show was created but there was an error loading it."
+
+  -- 9. Send host notification emails
+  let mTimeslot = buildTimeslotDescription schedules
+  lift $ HostNotifications.sendHostAssignmentNotifications createdShow mTimeslot (nsfHosts form)
+
+  Log.logInfo "Successfully created show" (Aeson.object ["title" .= createdShow.title, "id" .= show showId])
+  pure createdShow
 
 -- | Validate and convert form data to show insert data (without file paths yet)
 validateNewShow :: NewShowForm -> Either Text Shows.Insert
@@ -133,84 +206,6 @@ processShowArtworkUploads showSlug mLogoFile = do
         Right Nothing -> pure $ Right Nothing -- No file selected
         Right (Just uploadResult) ->
           pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
-
--- | Handle show creation after validation passes
-handleShowCreation ::
-  Shows.Insert ->
-  NewShowForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handleShowCreation showData form = do
-  -- Parse schedules first to check for conflicts before creating the show
-  case parseSchedules (nsfSchedulesJson form) of
-    Left err -> do
-      Log.logInfo "Failed to parse schedules" (Aeson.object ["error" .= err])
-      let banner = BannerParams Error "Invalid Schedule" ("Invalid schedule data: " <> err)
-      pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-    Right schedules -> do
-      -- Check for schedule conflicts before creating the show
-      -- Use Shows.Id 0 as placeholder since the show doesn't exist yet
-      -- This means we check against ALL active shows (no exclusion)
-      conflictResult <- checkScheduleConflicts (Shows.Id 0) schedules
-      case conflictResult of
-        Left conflictErr -> do
-          Log.logInfo "Schedule conflict detected" (Aeson.object ["error" .= conflictErr])
-          let banner = BannerParams Error "Schedule Conflict" conflictErr
-          pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-        Right () -> do
-          -- No conflicts, proceed with file uploads
-          uploadResults <- processShowArtworkUploads showData.siSlug (nsfLogoFile form)
-
-          case uploadResults of
-            Left uploadErr -> do
-              Log.logInfo "Failed to upload show artwork" uploadErr
-              let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
-              pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-            Right mLogoPath -> do
-              -- Update show data with file paths
-              let finalShowData =
-                    showData
-                      { Shows.siLogoUrl = mLogoPath
-                      }
-
-              execQuery (Shows.insertShow finalShowData) >>= \case
-                Left dbError -> do
-                  Log.logInfo "Database error creating show" (Aeson.object ["error" .= Text.pack (show dbError)])
-                  let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
-                  pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-                Right Nothing -> do
-                  Log.logInfo_ "Show insert returned Nothing"
-                  let banner = BannerParams Error "Insert Failed" "Failed to create show. Please try again."
-                  pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsNewGetUrl}|] banner)
-                Right (Just showId) -> do
-                  -- Assign hosts to the show
-                  assignHostsToShow showId (nsfHosts form)
-
-                  -- Process tags
-                  processShowTags showId (nsfTags form)
-
-                  -- Create schedules (already validated for conflicts)
-                  createSchedulesForShow showId schedules
-
-                  -- Fetch the created show
-                  execQuery (Shows.getShowById showId) >>= \case
-                    Right (Just createdShow) -> do
-                      Log.logInfo "Successfully created show" (Aeson.object ["title" .= Shows.siTitle finalShowData, "id" .= show showId])
-
-                      -- Send host assignment notification emails
-                      let mTimeslot = buildTimeslotDescription schedules
-                      HostNotifications.sendHostAssignmentNotifications createdShow mTimeslot (nsfHosts form)
-
-                      let showSlug = createdShow.slug
-                          showTitle = createdShow.title
-                          detailLink = dashboardShowDetailUrl showId showSlug
-                          detailUrl = [i|/#{detailLink}|] :: Text
-                          banner = BannerParams Success "Show Created" [i|"#{showTitle}" has been created successfully.|]
-                          redirectUrl = buildRedirectUrl detailUrl banner
-                      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
-                    _ -> do
-                      Log.logInfo_ "Created show but failed to retrieve it"
-                      let banner = BannerParams Error "Error" "Show was created but there was an error displaying the confirmation."
-                      pure $ Servant.noHeader (redirectWithBanner [i|/#{dashboardShowsGetUrl}|] banner)
 
 -- | Assign hosts to a show and auto-promote regular users to Host role
 assignHostsToShow ::

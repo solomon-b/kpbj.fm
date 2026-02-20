@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module API.Dashboard.StationBlog.Slug.Edit.Post.Handler (handler) where
+module API.Dashboard.StationBlog.Slug.Edit.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
@@ -8,13 +8,14 @@ import API.Dashboard.StationBlog.Slug.Edit.Post.Route (BlogEditForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
 import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Foldable (traverse_)
@@ -35,9 +36,40 @@ import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import Servant qualified
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | Data returned by action after successful blog post update.
+data EditBlogPostResult = EditBlogPostResult
+  { ebprRedirectUrl :: Text,
+    ebprBanner :: BannerParams
+  }
+
+-- | Business logic: fetch, validate, update post, return redirect info.
+action ::
+  BlogPosts.Id ->
+  Slug ->
+  BlogEditForm ->
+  ExceptT HandlerError AppM EditBlogPostResult
+action blogPostId _slug editForm = do
+  -- 1. Fetch blog post and old tags
+  mResult <-
+    fromRightM throwDatabaseError $
+      execTransaction $
+        runMaybeT $ do
+          blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
+          oldTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
+          pure (blogPost, oldTags)
+
+  (blogPost, oldTags) <- case mResult of
+    Nothing -> throwNotFound "Blog post"
+    Just result -> pure result
+
+  -- 2. Update the blog post
+  updateBlogPost blogPost oldTags editForm
+
+-- | Servant handler: thin glue composing action + return redirect response.
 handler ::
   BlogPosts.Id ->
   Slug ->
@@ -46,29 +78,16 @@ handler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler blogPostId slug cookie editForm =
   handleRedirectErrors "Station blog update" (dashboardStationBlogLinks.editGet blogPostId slug) $ do
-    -- 1. Require authentication and staff role
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit station blog posts." userMetadata
-
-    -- 2. Fetch blog post and old tags
-    mResult <- execTransaction $ runMaybeT $ do
-      blogPost <- MaybeT $ HT.statement () (BlogPosts.getBlogPostById blogPostId)
-      oldTags <- lift $ HT.statement () (BlogPosts.getTagsForPost blogPost.bpmId)
-      pure (blogPost, oldTags)
-
-    (blogPost, oldTags) <- case mResult of
-      Left err -> throwDatabaseError err
-      Right Nothing -> throwNotFound "Blog post"
-      Right (Just result) -> pure result
-
-    -- 3. Update the blog post
-    updateBlogPost blogPost oldTags editForm
+    result <- action blogPostId slug editForm
+    pure $ Servant.addHeader result.ebprRedirectUrl (redirectWithBanner result.ebprRedirectUrl result.ebprBanner)
 
 updateBlogPost ::
   BlogPosts.Model ->
   [BlogTags.Model] ->
   BlogEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  ExceptT HandlerError AppM EditBlogPostResult
 updateBlogPost blogPost oldTags editForm = do
   -- 4. Validate status
   parsedStatus <- requireJust "Invalid blog post status value." (decodeBlogPost (befStatus editForm))
@@ -86,7 +105,7 @@ updateBlogPost blogPost oldTags editForm = do
       let slug = Slug.mkSlug (befTitle editForm)
       storageBackend <- asks getter
       mAwsEnv <- asks getter
-      uploadResult <- uploadBlogHeroImage storageBackend mAwsEnv slug heroImageFile
+      uploadResult <- lift $ uploadBlogHeroImage storageBackend mAwsEnv slug heroImageFile
       case uploadResult of
         Left uploadError -> do
           Log.logInfo "Hero image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
@@ -124,21 +143,23 @@ updateBlogPost blogPost oldTags editForm = do
           }
 
   -- 8. Update in transaction
-  mUpdateResult <- execTransaction $ runMaybeT $ do
-    _ <- MaybeT $ HT.statement () (BlogPosts.updateBlogPost blogPost.bpmId updateData)
-    lift $ traverse_ (\tag -> HT.statement () (BlogPosts.removeTagFromPost blogPost.bpmId tag.btmId)) oldTags
-    lift $ updatePostTags blogPost.bpmId editForm
-    pure ()
+  mUpdateResult <-
+    fromRightM throwDatabaseError $
+      execTransaction $
+        runMaybeT $ do
+          _ <- MaybeT $ HT.statement () (BlogPosts.updateBlogPost blogPost.bpmId updateData)
+          lift $ traverse_ (\tag -> HT.statement () (BlogPosts.removeTagFromPost blogPost.bpmId tag.btmId)) oldTags
+          lift $ updatePostTags blogPost.bpmId editForm
+          pure ()
 
   case mUpdateResult of
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwDatabaseError (error "Blog post update returned Nothing")
-    Right (Just _) -> do
+    Nothing -> throwHandlerFailure "Blog post update returned Nothing"
+    Just _ -> do
       Log.logInfo "Successfully updated blog post" blogPost.bpmId
       let detailUrl = rootLink $ dashboardStationBlogLinks.detail blogPost.bpmId newSlug
           banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated and saved."
           redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+      pure $ EditBlogPostResult redirectUrl banner
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::

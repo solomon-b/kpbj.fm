@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Episodes.Redirect.Handler (handler) where
+module API.Dashboard.Episodes.Redirect.Handler (handler, action, EpisodeRedirectViewData (..)) where
 
 --------------------------------------------------------------------------------
 
@@ -9,10 +9,12 @@ import API.Links (apiLinks, dashboardEpisodesLinks)
 import API.Types
 import App.Common (renderDashboardTemplate, renderTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
-import App.Handler.Error (handleHtmlErrors)
+import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Component.Redirect (redirectTemplate)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.List (uncons)
 import Data.String.Interpolate (i)
@@ -36,6 +38,27 @@ dashboardEpisodesGetUrl showModel = Links.linkURI $ dashboardEpisodesLinks.list 
 
 --------------------------------------------------------------------------------
 
+-- | Data needed to render the episodes redirect page.
+data EpisodeRedirectViewData = EpisodeRedirectViewData
+  { ervUserMetadata :: UserMetadata.Model,
+    ervUserShows :: [Shows.Model]
+  }
+
+-- | Business logic: show fetching.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  ExceptT HandlerError AppM EpisodeRedirectViewData
+action user userMetadata = do
+  -- 1. Fetch shows (admins see all, hosts see their own)
+  userShows <- lift $ fetchShowsForUser user userMetadata
+
+  pure
+    EpisodeRedirectViewData
+      { ervUserMetadata = userMetadata,
+        ervUserShows = userShows
+      }
+
 -- | Handler that redirects to the first show's episodes page
 handler ::
   Maybe Cookie ->
@@ -43,21 +66,16 @@ handler ::
   AppM (Lucid.Html ())
 handler cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes redirect" apiLinks.rootGet $ do
-    -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
-
-    -- 2. Fetch shows (admins see all, hosts see their own)
-    userShows <- fetchShowsForUser user userMetadata
-
-    -- 3. Redirect to first show's episodes page, or show empty state
-    case uncons userShows of
-      Nothing -> do
+    vd <- action user userMetadata
+    case uncons vd.ervUserShows of
+      Nothing ->
         -- No shows available - render dashboard with empty state
-        renderDashboardTemplate hxRequest userMetadata [] Nothing NavEpisodes Nothing Nothing renderNoShowsEmptyState
+        lift $ renderDashboardTemplate hxRequest vd.ervUserMetadata [] Nothing NavEpisodes Nothing Nothing renderNoShowsEmptyState
       Just (firstShow, _) -> do
         Log.logInfo "Redirecting to first show's episodes" firstShow.slug
-        renderTemplate hxRequest (Just userMetadata) (redirectTemplate [i|/#{dashboardEpisodesGetUrl firstShow}|])
+        lift $ renderTemplate hxRequest (Just vd.ervUserMetadata) (redirectTemplate [i|/#{dashboardEpisodesGetUrl firstShow}|])
 
 -- | Empty state when user has no shows assigned
 renderNoShowsEmptyState :: Lucid.Html ()

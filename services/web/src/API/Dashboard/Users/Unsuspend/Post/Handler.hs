@@ -6,10 +6,11 @@ module API.Dashboard.Users.Unsuspend.Post.Handler where
 
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleBannerErrors)
+import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
@@ -26,36 +27,19 @@ import Lucid qualified
 
 --------------------------------------------------------------------------------
 
-handler ::
-  User.Id ->
-  Maybe Cookie ->
-  AppM (Lucid.Html ())
-handler targetUserId cookie =
-  handleBannerErrors "User unsuspend" $ do
-    -- Require admin authentication
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only admins can unsuspend users." userMetadata
-
-    -- Execute unsuspension
-    Log.logInfo "Unsuspending user" (Aeson.object ["targetUserId" .= display targetUserId])
-    now <- liftIO getCurrentTime
-    result <- executeUnsuspension targetUserId
-    renderUnsuspendResult (User.mId user) now result
-
---------------------------------------------------------------------------------
-
--- | Result of attempting to unsuspend a user
+-- | Result of attempting to unsuspend a user.
 data UnsuspendResult
   = UnsuspendSuccess UserMetadata.UserWithMetadata
   | TargetUserNotFound User.Id
-  | UserNotSuspended User.Id
   | UnsuspendFailed HSQL.UsageError
 
--- | Execute user unsuspension with database operations
-executeUnsuspension ::
+-- | Business logic: execute unsuspension.
+action ::
   User.Id ->
-  AppM UnsuspendResult
-executeUnsuspension targetUserId = do
+  ExceptT HandlerError AppM UnsuspendResult
+action targetUserId = do
+  Log.logInfo "Unsuspending user" (Aeson.object ["targetUserId" .= display targetUserId])
+
   result <- runDBTransaction $ runMaybeT $ do
     _ <- MaybeT $ TRX.statement () (UserMetadata.getUserWithMetadataById targetUserId)
     _ <- MaybeT $ TRX.statement () (UserMetadata.unsuspendUser targetUserId)
@@ -63,14 +47,25 @@ executeUnsuspension targetUserId = do
     MaybeT $ TRX.statement () (UserMetadata.getUserWithMetadataById targetUserId)
 
   pure $ case result of
-    Left err ->
-      UnsuspendFailed err
-    Right Nothing ->
-      TargetUserNotFound targetUserId
-    Right (Just updatedUser) ->
-      UnsuspendSuccess updatedUser
+    Left err -> UnsuspendFailed err
+    Right Nothing -> TargetUserNotFound targetUserId
+    Right (Just updatedUser) -> UnsuspendSuccess updatedUser
 
--- | Render the appropriate HTML response based on unsuspension result
+handler ::
+  User.Id ->
+  Maybe Cookie ->
+  AppM (Lucid.Html ())
+handler targetUserId cookie =
+  handleBannerErrors "User unsuspend" $ do
+    (user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "Only admins can unsuspend users." userMetadata
+    result <- action targetUserId
+    now <- liftIO getCurrentTime
+    renderUnsuspendResult (User.mId user) now result
+
+--------------------------------------------------------------------------------
+
+-- | Render the appropriate HTML response based on unsuspension result.
 renderUnsuspendResult :: (Log.MonadLog m) => User.Id -> UTCTime -> UnsuspendResult -> m (Lucid.Html ())
 renderUnsuspendResult viewerId now = \case
   UnsuspendSuccess updatedUser -> do
@@ -84,9 +79,6 @@ renderUnsuspendResult viewerId now = \case
   TargetUserNotFound uid -> do
     Log.logInfo "User not found during unsuspend" (Aeson.object ["userId" .= display uid])
     pure $ renderBanner Error "Unsuspend Failed" "User not found or not suspended."
-  UserNotSuspended uid -> do
-    Log.logInfo "User not suspended" (Aeson.object ["userId" .= display uid])
-    pure $ renderBanner Error "Unsuspend Failed" "User is not currently suspended."
   UnsuspendFailed err -> do
     Log.logInfo "Database error during unsuspension" (Aeson.object ["error" .= show err])
     pure $ renderBanner Error "Unsuspend Failed" "Failed to unsuspend user. Please try again."

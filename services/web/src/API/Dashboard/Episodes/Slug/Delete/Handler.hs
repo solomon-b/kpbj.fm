@@ -4,11 +4,11 @@ module API.Dashboard.Episodes.Slug.Delete.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (HandlerError (..), catchHandlerError, logHandlerError, throwDatabaseError, throwNotFound)
+import App.Handler.Error (HandlerError (..), logHandlerError, throwDatabaseError, throwHandlerFailure, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Text (Text)
@@ -16,10 +16,9 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
-import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -35,64 +34,46 @@ handler ::
   AppM (Lucid.Html ())
 handler showSlug episodeNumber cookie =
   handleArchiveErrors $ do
-    -- 1. Require authentication
     (_user, userMeta) <- requireAuth cookie
-
-    -- 2. Require staff role (not suspended)
     requireStaffNotSuspended
       "Only staff members can archive episodes."
       userMeta
+    action showSlug episodeNumber
+    pure $ do
+      emptyResponse
+      renderBanner Success "Episode Archived" "The episode has been archived."
 
-    -- 3. Fetch show and episode
-    showModel <- fetchShow showSlug
-    episode <- fetchEpisode showSlug episodeNumber
+-- | Business logic: fetch, verify, archive.
+action ::
+  Slug ->
+  Episodes.EpisodeNumber ->
+  ExceptT HandlerError AppM ()
+action showSlug episodeNumber = do
+  -- 1. Fetch show and episode
+  episode <- fetchEpisode showSlug episodeNumber
 
-    -- 4. Execute archive
-    archiveEpisode showModel episode userMeta
+  -- 2. Execute archive
+  execQuery (Episodes.deleteEpisode episode.id) >>= \case
+    Left err -> do
+      Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
+      throwDatabaseError err
+    Right Nothing -> do
+      Log.logInfo "Archive failed: Episode not found during archive" (Aeson.object ["episodeId" .= episode.id])
+      throwHandlerFailure "Episode not found during archive operation."
+    Right (Just _) ->
+      Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
 
 --------------------------------------------------------------------------------
 -- Data Fetching
 
-fetchShow ::
-  Slug ->
-  AppM Shows.Model
-fetchShow showSlug =
-  execQuery (Shows.getShowBySlug showSlug) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Show"
-    Right (Just showModel) -> pure showModel
-
 fetchEpisode ::
   Slug ->
   Episodes.EpisodeNumber ->
-  AppM Episodes.Model
+  ExceptT HandlerError AppM Episodes.Model
 fetchEpisode showSlug episodeNumber =
-  execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Episode"
-    Right (Just episode) -> pure episode
-
---------------------------------------------------------------------------------
--- Archive Execution
-
-archiveEpisode ::
-  Shows.Model ->
-  Episodes.Model ->
-  UserMetadata.Model ->
-  AppM (Lucid.Html ())
-archiveEpisode showModel episode userMeta = do
-  execQuery (Episodes.deleteEpisode episode.id) >>= \case
-    Left err -> do
-      Log.logInfo "Archive failed: Database error" (Aeson.object ["error" .= show err, "episodeId" .= episode.id])
-      pure $ renderErrorWithRow userMeta showModel episode "Failed to archive episode due to a database error."
-    Right Nothing -> do
-      Log.logInfo "Archive failed: Episode not found during archive" (Aeson.object ["episodeId" .= episode.id])
-      pure $ renderErrorWithRow userMeta showModel episode "Episode not found during archive operation."
-    Right (Just _) -> do
-      Log.logInfo "Episode archived successfully" (Aeson.object ["episodeId" .= episode.id])
-      pure $ do
-        emptyResponse
-        renderBanner Success "Episode Archived" "The episode has been archived."
+  fromMaybeM (throwNotFound "Episode") $
+    fromRightM throwDatabaseError $
+      execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
 
 --------------------------------------------------------------------------------
 -- Error Handling
@@ -102,12 +83,14 @@ archiveEpisode showModel episode userMeta = do
 -- Early errors (auth, not found) return just a banner since we don't have row context.
 -- Late errors (during archive) are handled inline with row preservation.
 handleArchiveErrors ::
-  AppM (Lucid.Html ()) ->
+  ExceptT HandlerError AppM (Lucid.Html ()) ->
   AppM (Lucid.Html ())
-handleArchiveErrors action =
-  action `catchHandlerError` \err -> do
-    logHandlerError "Episode archive" err
-    pure $ renderBanner Error "Archive Failed" (errorMessage err)
+handleArchiveErrors archiveAction =
+  runExceptT archiveAction >>= \case
+    Right html -> pure html
+    Left err -> do
+      logHandlerError "Episode archive" err
+      pure $ renderBanner Error "Archive Failed" (errorMessage err)
 
 errorMessage :: HandlerError -> Text
 errorMessage = \case
@@ -118,15 +101,6 @@ errorMessage = \case
   ValidationError msg -> msg
   UserSuspended -> "Your account is suspended."
   HandlerFailure msg -> msg
-
---------------------------------------------------------------------------------
--- Rendering Helpers
-
--- | Render an error banner AND the episode row (to prevent row removal on error)
-renderErrorWithRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Text -> Lucid.Html ()
-renderErrorWithRow userMeta showModel episode errorMsg = do
-  renderEpisodeTableRow userMeta showModel episode
-  renderBanner Error "Archive Failed" errorMsg
 
 -- | Empty response for successful deletes (row is removed by HTMX)
 emptyResponse :: Lucid.Html ()

@@ -19,9 +19,8 @@ import App.Config (Environment)
 import App.Domains qualified as Domains
 import App.Handler.Combinators (requireAuth)
 import App.Monad (AppM)
-import Control.Exception (SomeException)
-import Control.Monad.Catch (try)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
@@ -92,7 +91,7 @@ handler cookie mOrigin form = do
     Left err -> pure $ noCorsHeaders $ UploadError err
     Right validatedOrigin -> do
       -- Require authentication (any logged-in user can upload)
-      authResult <- try @_ @SomeException $ requireAuth cookie
+      authResult <- runExceptT $ requireAuth cookie
       case authResult of
         Left _ -> pure $ addCorsHeaders validatedOrigin $ UploadError "Authentication required"
         Right (user, _userMetadata) -> do

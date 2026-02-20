@@ -4,10 +4,30 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Refactoring
+- **ExceptT Error Handling** - Migrated all ~90 handlers from exception-based error handling (`MonadThrow`/`MonadCatch`) to explicit `ExceptT HandlerError AppM`. Errors are now visible in types and can't be accidentally dropped. The `HandlerError` type is no longer an `Exception` instance — throw helpers use `throwE` instead of `throwM`, and handler wrappers use `runExceptT` instead of `catch`.
+- **Handler/Action Split** - Extracted business logic from every handler into a standalone `action` function that runs in `ExceptT HandlerError AppM` and returns a typed view-data record. Handlers are now thin glue that composes `action` with HTTP response formatting (redirects, banners, headers). This separation makes business logic independently testable without constructing HTTP requests.
+- **Centralized Public Error Pages** - Removed per-template `notFoundTemplate` and `errorTemplate` functions from ~6 public page template modules. Error content is now rendered by `notFoundContent` and `errorContent` in `App.Handler.Error`, giving all public pages consistent error presentation.
+- **Inline Error Rendering for Public Pages** - Added `handlePublicErrors` error handler that renders not-found and other content errors inline at the same URL instead of redirecting visitors to the homepage. Auth errors still redirect to login. Previously, a missing show or blog post would redirect to `/` with a banner — now visitors see a contextual "not found" page at the URL they requested.
+- **Combinators Use ExceptT** - Authorization combinators (`requireAuth`, `requireHostNotSuspended`, `requireStaffNotSuspended`, `requireAdminNotSuspended`, `requireShowHostOrStaff`, `requireJust`, `requireRight`) now operate in `ExceptT HandlerError AppM` instead of requiring `MonadThrow` constraints.
+- **Error Response Consolidation** - Extracted `errorRedirectParams :: Link -> HandlerError -> (Text, BannerParams)` as a single source of truth for error-to-redirect mapping, used by both `handleHtmlErrors` (client-side redirect) and `handleRedirectErrors` (HX-Redirect header). Removed the duplicated `mkErrorRedirect` and `mkHtmlErrorRedirect` functions.
+
+### Tests
+- **Handler Integration Tests** - Added ~70 new test files covering handler `action` functions against a real test database. Tests verify auth checks (role hierarchy, suspension), not-found paths, happy-path CRUD, and business logic edge cases. Every dashboard section (blogs, shows, episodes, events, users, ephemeral uploads, site pages, station blog, station IDs, stream settings) and public page (home, shows, blog, events, schedule) has test coverage.
+- **Combinator Tests** - Added `CombinatorsSpec` with 18 test cases covering `requireHostNotSuspended`, `requireStaffNotSuspended`, `requireAdminNotSuspended`, `requireShowHostOrStaff`, `requireJust`, and `requireRight` against real database state including suspended users and cross-show host checks.
+- **Test Infrastructure** - Added `Test.Handler.Monad` (`bracketAppM`) to bridge the existing `TestDBConfig` to a full `AppContext`, enabling `AppM` actions in tests. Added `Test.Handler.Fixtures` with shared helpers: `mkUserInsert`, `setupUserModels`, `expectSetupRight`, `defaultScheduleInsert`, `nonExistentId`. Shared `noOpLoggerEnv` between database and handler test suites. Added `runDBTransaction` method to `MonadDB` test instance. New database helpers: `insertTestBlogPost`, `insertTestShowBlogPost`, `insertTestEvent`, `insertTestEpisode`, `insertTestEphemeralUpload`, `insertTestStationId`, `addTestShowHost`, `verifyTestUserEmail`.
+- **`-Werror` on Test Suite** - Test suite GHC options now include `-Werror` to catch unused imports and incomplete patterns at compile time.
+- **Upload Type Generator Coverage** - `StagedUploadsSpec` generator now covers `StationIdAudio` and `EphemeralAudio` in addition to `EpisodeAudio`.
+
+### Additions
+- **`getBlogPostBySlug`** - New database query in `Effects.Database.Tables.BlogPosts` for fetching blog posts by slug.
+- **`fromMaybeM`** - New utility in `Utils` for monadic `Maybe` unwrapping, complementing the existing `fromRightM`.
+
 ### Fixes
 - **Promtail/Loki Port Conflict** - Promtail failed to start because Loki's default gRPC server was already bound to port 9095. Disabled Promtail's unused gRPC server (`grpc_listen_port = 0`) and explicitly bound Loki's gRPC to localhost.
 - **Loki Query Frontend Unreachable** - Loki queries hung indefinitely because the internal query frontend worker tried to deliver results via the server's public IP, which was unreachable after binding gRPC to localhost. Added `frontend_worker.frontend_address = "127.0.0.1:9095"` so all internal gRPC traffic routes through localhost.
 - **Liquidsoap False "Playout POST Failed" Logs** - The `POST /api/playout/played` endpoint returns 204 No Content, but Liquidsoap only accepted 200 as success, logging false failures on every track change. Updated the status check to accept any 2xx response.
+- **Test Database Teardown Error Message** - Fixed misleading "Failed to create test database" error message during test teardown — now correctly says "Failed to drop test database".
 
 ---
 

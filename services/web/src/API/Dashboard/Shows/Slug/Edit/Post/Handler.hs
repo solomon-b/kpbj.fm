@@ -3,6 +3,7 @@
 
 module API.Dashboard.Shows.Slug.Edit.Post.Handler
   ( handler,
+    action,
     ParsedScheduleSlot (..),
     normalizeTemplate,
     parseScheduleSlot,
@@ -13,17 +14,19 @@ where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..), ShowEditForm (..))
-import API.Links (apiLinks, dashboardShowsLinks)
+import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (forM_, when)
-import Data.Function ((&))
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson qualified as Aeson
+import Data.Function ((&))
 import Data.Has (getter)
 import Data.Int (Int64)
 import Data.List (sort)
@@ -57,6 +60,7 @@ import Rel8 (Result)
 import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (FileData, Mem)
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -77,11 +81,6 @@ data ParsedScheduleSlot = ParsedScheduleSlot
 -- URL helpers
 dashboardShowDetailUrl :: Shows.Id -> Slug -> Links.URI
 dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail showId slug Nothing
-
-dashboardShowEditGetUrl :: Slug -> Text
-dashboardShowEditGetUrl slug =
-  let uri = Links.linkURI $ dashboardShowsLinks.editGet slug
-   in [i|/#{uri}|]
 
 -- | Process logo file upload
 processShowArtworkUploads ::
@@ -114,131 +113,115 @@ handler ::
   ShowEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler slug cookie editForm =
-  handleRedirectErrors "Show edit" apiLinks.rootGet $ do
-    -- 1. Require authentication and authorization (host of show or staff+)
+  handleRedirectErrors "Show edit" (dashboardShowsLinks.editGet slug) $ do
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId slug userMetadata
+    (showId, newSlug) <- action userMetadata slug editForm
+    let showUrl = [i|/#{dashboardShowDetailUrl showId newSlug}|] :: Text
+        banner = BannerParams Success "Show Updated" "Your show has been updated successfully."
+        redirectUrl = buildRedirectUrl showUrl banner
+    pure $ Servant.addHeader redirectUrl (redirectWithBanner showUrl banner)
 
-    -- 2. Fetch the show
-    showModel <- fetchShowOrNotFound slug
+--------------------------------------------------------------------------------
 
-    -- 3. Process the edit
-    updateShow userMetadata showModel editForm
+-- | Business logic: fetch show, validate, update.
+--
+-- Returns the show ID and (potentially updated) slug for the redirect.
+action ::
+  UserMetadata.Model ->
+  Slug ->
+  ShowEditForm ->
+  ExceptT HandlerError AppM (Shows.Id, Slug)
+action userMetadata slug editForm = do
+  -- 1. Fetch the show
+  showModel <- fetchShowOrNotFound slug
+
+  let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+
+  -- 2. Validate status
+  parsedStatus <- case Shows.decodeStatus (sefStatus editForm) of
+    Nothing -> do
+      Log.logInfo "Invalid status in show edit form" (sefStatus editForm)
+      throwValidationError "Invalid show status value."
+    Just s -> pure s
+  let finalStatus = if isStaff then parsedStatus else showModel.status
+
+  -- 3. Generate slug from title
+  let generatedSlug = Slug.mkSlug (sefTitle editForm)
+
+  -- 4. Process file uploads
+  uploadResult <- lift $ processShowArtworkUploads generatedSlug (sefLogoFile editForm)
+  mLogoPath <- case uploadResult of
+    Left uploadErr -> do
+      Log.logInfo "Failed to upload show artwork" uploadErr
+      throwValidationError ("File upload error: " <> uploadErr)
+    Right path -> pure path
+
+  -- 5. Determine final logo URL: new upload > explicit clear > keep existing
+  let finalLogoUrl = case (mLogoPath, sefLogoClear editForm) of
+        (Just path, _) -> Just path
+        (Nothing, True) -> Nothing
+        (Nothing, False) -> showModel.logoUrl
+
+      mDescription =
+        let desc = sefDescription editForm
+         in if Text.null (Text.strip desc) then Nothing else Just desc
+
+      updateData =
+        Shows.Insert
+          { siTitle = sefTitle editForm,
+            siSlug = generatedSlug,
+            siDescription = mDescription,
+            siLogoUrl = finalLogoUrl,
+            siStatus = finalStatus
+          }
+
+  -- 6. Update the show
+  updateResult <- execQuery (Shows.updateShow showModel.id updateData)
+  case updateResult of
+    Left err -> do
+      Log.logInfo "Failed to update show" (showModel.id, show err)
+      throwDatabaseError err
+    Right Nothing -> do
+      Log.logInfo "Show update returned Nothing" showModel.id
+      throwHandlerFailure "Failed to update show."
+    Right (Just _updatedId) ->
+      Log.logInfo "Successfully updated show" showModel.id
+
+  -- 7. Process tags (fire and forget)
+  lift $ processShowTags showModel.id (sefTags editForm)
+
+  -- 8. Process schedule and host updates if staff
+  when isStaff $ do
+    schedules <- case parseSchedules (sefSchedulesJson editForm) of
+      Left err -> do
+        Log.logInfo "Schedule validation failed" err
+        throwValidationError err
+      Right s -> pure s
+
+    conflictCheck <- lift $ checkScheduleConflicts showModel.id schedules
+    case conflictCheck of
+      Left conflictErr -> do
+        Log.logInfo "Schedule conflict with other show" conflictErr
+        throwValidationError conflictErr
+      Right () -> pure ()
+
+    lift $ do
+      updateSchedulesForShow showModel.id schedules
+      newlyAddedHosts <- updateHostsForShow showModel.id (sefHosts editForm)
+      let mTimeslot = buildTimeslotDescription schedules
+      HostNotifications.sendHostAssignmentNotifications showModel mTimeslot newlyAddedHosts
+
+  pure (showModel.id, generatedSlug)
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::
   Slug ->
-  AppM Shows.Model
+  ExceptT HandlerError AppM Shows.Model
 fetchShowOrNotFound slug =
-  execQuery (Shows.getShowBySlug slug) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Show"
-    Right (Just showModel) -> pure showModel
-
-updateShow ::
-  UserMetadata.Model ->
-  Shows.Model ->
-  ShowEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-updateShow userMetadata showModel editForm = do
-  let isStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-      editUrl = dashboardShowEditGetUrl showModel.slug
-
-  -- Parse and validate form data
-  case Shows.decodeStatus (sefStatus editForm) of
-    Nothing -> do
-      Log.logInfo "Invalid status in show edit form" (sefStatus editForm)
-      let banner = BannerParams Error "Validation Error" "Invalid show status value."
-      pure (Servant.noHeader (redirectWithBanner editUrl banner))
-    Just parsedStatus -> do
-      -- If not staff, preserve original schedule/settings values
-      let finalStatus = if isStaff then parsedStatus else showModel.status
-
-          -- Generate slug from title
-          generatedSlug = Slug.mkSlug (sefTitle editForm)
-
-      -- Process file uploads
-      uploadResults <- processShowArtworkUploads generatedSlug (sefLogoFile editForm)
-
-      case uploadResults of
-        Left uploadErr -> do
-          Log.logInfo "Failed to upload show artwork" uploadErr
-          let banner = BannerParams Error "Upload Error" ("File upload error: " <> uploadErr)
-          pure (Servant.noHeader (redirectWithBanner editUrl banner))
-        Right mLogoPath -> do
-          -- Determine final URL based on: new upload > explicit clear > keep existing
-          let finalLogoUrl = case (mLogoPath, sefLogoClear editForm) of
-                (Just path, _) -> Just path -- New file uploaded
-                (Nothing, True) -> Nothing -- User explicitly cleared
-                (Nothing, False) -> showModel.logoUrl -- Keep existing
-
-              -- Treat empty description as Nothing
-              mDescription =
-                let desc = sefDescription editForm
-                 in if Text.null (Text.strip desc) then Nothing else Just desc
-
-              updateData =
-                Shows.Insert
-                  { siTitle = sefTitle editForm,
-                    siSlug = generatedSlug,
-                    siDescription = mDescription,
-                    siLogoUrl = finalLogoUrl,
-                    siStatus = finalStatus
-                  }
-
-          -- Update the show
-          execQuery (Shows.updateShow showModel.id updateData) >>= \case
-            Left err -> do
-              Log.logInfo "Failed to update show" (showModel.id, show err)
-              let banner = BannerParams Error "Database Error" "Database error occurred. Please try again."
-              pure (Servant.noHeader (redirectWithBanner editUrl banner))
-            Right Nothing -> do
-              Log.logInfo "Show update returned Nothing" showModel.id
-              let banner = BannerParams Error "Update Failed" "Failed to update show. Please try again."
-              pure (Servant.noHeader (redirectWithBanner editUrl banner))
-            Right (Just _updatedId) -> do
-              Log.logInfo "Successfully updated show" showModel.id
-              -- Process tags: clear existing and add new ones
-              processShowTags showModel.id (sefTags editForm)
-              -- Process schedule updates if staff
-              if isStaff
-                then case parseSchedules (sefSchedulesJson editForm) of
-                  Left err -> do
-                    Log.logInfo "Schedule validation failed" err
-                    let banner = BannerParams Error "Schedule Error" err
-                    pure (Servant.noHeader (redirectWithBanner editUrl banner))
-                  Right schedules -> do
-                    -- Check for conflicts with other shows
-                    conflictCheck <- checkScheduleConflicts showModel.id schedules
-                    case conflictCheck of
-                      Left conflictErr -> do
-                        Log.logInfo "Schedule conflict with other show" conflictErr
-                        let banner = BannerParams Error "Schedule Conflict" conflictErr
-                        pure (Servant.noHeader (redirectWithBanner editUrl banner))
-                      Right () -> do
-                        -- Update schedules
-                        updateSchedulesForShow showModel.id schedules
-                        -- Update hosts and get newly added ones
-                        newlyAddedHosts <- updateHostsForShow showModel.id (sefHosts editForm)
-                        -- Send notification emails to newly added hosts
-                        let mTimeslot = buildTimeslotDescription schedules
-                        HostNotifications.sendHostAssignmentNotifications showModel mTimeslot newlyAddedHosts
-                        redirectToShowPage showModel.id generatedSlug
-                else redirectToShowPage showModel.id generatedSlug
-  where
-    -- Redirect to the dashboard show detail page with a success banner
-    redirectToShowPage :: Shows.Id -> Slug -> AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-    redirectToShowPage showId newSlug = do
-      let showUrl = [i|/#{dashboardShowDetailUrl showId newSlug}|] :: Text
-          bannerParams =
-            BannerParams
-              { bpType = Success,
-                bpTitle = "Show Updated",
-                bpMessage = "Your show has been updated successfully."
-              }
-          -- Build the full URL with banner params for the HX-Redirect header
-          redirectUrl = buildRedirectUrl showUrl bannerParams
-      pure $ Servant.addHeader redirectUrl (redirectWithBanner showUrl bannerParams)
+  fromMaybeM (throwNotFound "Show") $
+    fromRightM throwDatabaseError $
+      execQuery (Shows.getShowBySlug slug)
 
 --------------------------------------------------------------------------------
 -- Schedule Update Helpers
@@ -458,9 +441,10 @@ updateScheduleTemplates showId activeTemplates parsedSlots today = do
       templateMap :: Map.Map ParsedScheduleSlot [ShowSchedule.ScheduleTemplate Result]
       templateMap =
         foldMap
-          ( \t -> normalizeTemplate t & \case
-              Just slot -> Map.singleton slot [t]
-              Nothing -> Map.empty
+          ( \t ->
+              normalizeTemplate t & \case
+                Just slot -> Map.singleton slot [t]
+                Nothing -> Map.empty
           )
           activeTemplates
 

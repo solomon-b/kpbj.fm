@@ -1,10 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module API.Shows.Slug.Episode.Get.Templates.Page
   ( template,
-    errorTemplate,
-    notFoundTemplate,
   )
 where
 
@@ -15,26 +12,18 @@ import API.Types
 import Component.Card.Episode (renderEpisodeCard)
 import Component.Tags qualified as Tags
 import Control.Monad (unless, when)
-import Data.Maybe (isJust)
-import Data.String.Interpolate (i)
-import Data.Text (Text)
-import Data.Text.Display (display)
+import Data.Maybe (fromMaybe, isJust)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
-
-showGetUrl :: Slug -> Links.URI
-showGetUrl slug = Links.linkURI $ showsLinks.detail slug Nothing
 
 showsListUrl :: Links.URI
 showsListUrl = Links.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Nothing
@@ -60,7 +49,7 @@ template backend showModel episode tracks tags = do
     when (isJust episode.description) $ do
       Lucid.div_ [class_ $ base ["mt-6"]] $ do
         Lucid.p_ [class_ $ base [Tokens.textBase, Tokens.fgPrimary]] $
-          Lucid.toHtml (maybe "" id episode.description)
+          Lucid.toHtml (fromMaybe "" episode.description)
 
     -- Tags section
     unless (null tags) $ do
@@ -93,37 +82,3 @@ renderTrackRow track = do
 
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $ do
         Lucid.toHtml track.artist
-
---------------------------------------------------------------------------------
-
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
-      Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4, Tokens.errorText]] "Error Loading Episode"
-      Lucid.p_ [class_ $ base [Tokens.errorText, Tokens.mb6]] $ Lucid.toHtml errorMsg
-      Lucid.a_
-        [ Lucid.href_ "/shows",
-          hxGet_ "/shows",
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
-        ]
-        "Back to Shows"
-
-notFoundTemplate :: Slug -> Episodes.EpisodeNumber -> Lucid.Html ()
-notFoundTemplate showSlug episodeNumber = do
-  let showUrl = showGetUrl showSlug
-  Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.cardBorder, "p-8", "text-center"]] $ do
-      Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "Episode Not Found"
-      Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] $
-        "We couldn't find Episode " <> Lucid.toHtml (display episodeNumber) <> " for show \"" <> Lucid.toHtml (display showSlug) <> "\"."
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showUrl}|],
-          hxGet_ [i|/#{showUrl}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
-        ]
-        "Back to Show"
