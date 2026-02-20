@@ -1,4 +1,4 @@
-module API.Dashboard.Events.New.Post.Handler (handler) where
+module API.Dashboard.Events.New.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
@@ -6,12 +6,14 @@ import API.Dashboard.Events.New.Post.Route (NewEventForm (..))
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
 import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (void)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (getter)
@@ -32,6 +34,7 @@ import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import Servant qualified
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -81,73 +84,89 @@ validateStatus status = case status of
 
 --------------------------------------------------------------------------------
 
+-- | All data needed to build the post-creation redirect.
+data NewEventRedirectData = NewEventRedirectData
+  { nerRedirectUrl :: Text,
+    nerBanner :: BannerParams
+  }
+
+-- | Business logic: validate, create event, build redirect data.
+action ::
+  User.Model ->
+  NewEventForm ->
+  ExceptT HandlerError AppM NewEventRedirectData
+action user form = do
+  -- 1. Upload poster image if provided
+  posterImagePath <- lift $ handlePosterUpload form
+
+  -- 2. Validate form
+  (title, description, startsAt, endsAt, locationName, locationAddress, status) <-
+    requireRight Sanitize.displayContentValidationError (validateEventForm form)
+
+  -- 3. Insert event
+  let featuredOnHomepage = nefFeaturedOnHomepage form == "true"
+      slug = Slug.mkSlug title
+      eventInsert =
+        Events.Insert
+          { Events.eiTitle = title,
+            Events.eiSlug = slug,
+            Events.eiDescription = description,
+            Events.eiStartsAt = startsAt,
+            Events.eiEndsAt = endsAt,
+            Events.eiLocationName = locationName,
+            Events.eiLocationAddress = locationAddress,
+            Events.eiStatus = status,
+            Events.eiAuthorId = User.mId user,
+            Events.eiPosterImageUrl = posterImagePath,
+            Events.eiFeaturedOnHomepage = featuredOnHomepage
+          }
+  eventId <-
+    if featuredOnHomepage
+      then do
+        result <-
+          fromRightM throwDatabaseError $
+            execTransaction $ do
+              void $ HT.statement () Events.clearFeaturedEvents
+              HT.statement () (Events.insertEvent eventInsert)
+        case result of
+          Just eid -> pure eid
+          Nothing -> throwHandlerFailure "Event insert returned Nothing"
+      else do
+        result <-
+          fromRightM throwDatabaseError $
+            execQuery (Events.insertEvent eventInsert)
+        case result of
+          Just eid -> pure eid
+          Nothing -> throwHandlerFailure "Event insert returned Nothing"
+
+  -- 4. Fetch created event and build redirect data
+  Log.logInfo "Event created successfully" eventId
+  fetchResult <- execQuery (Events.getEventById eventId)
+  case fetchResult of
+    Right (Just event) -> do
+      let eventSlug = Events.emSlug event
+          detailUrl = rootLink $ dashboardEventsLinks.detail eventId eventSlug
+          banner = BannerParams Success "Event Created" "Your event has been created successfully."
+          redirectUrl = buildRedirectUrl detailUrl banner
+      pure $ NewEventRedirectData redirectUrl banner
+    _ -> do
+      Log.logInfo "Failed to fetch event" (Aeson.object ["eventId" .= eventId])
+      let listUrl = rootLink $ dashboardEventsLinks.list Nothing
+          banner = BannerParams Success "Event Created" "Your event has been created."
+          redirectUrl = buildRedirectUrl listUrl banner
+      pure $ NewEventRedirectData redirectUrl banner
+
+-- | Servant handler: thin glue composing action + building redirect response.
 handler ::
   Maybe Cookie ->
   NewEventForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler cookie form =
   handleRedirectErrors "Event creation" dashboardEventsLinks.newGet $ do
-    -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to create events." userMetadata
-
-    -- 2. Upload poster image if provided
-    posterImagePath <- handlePosterUpload form
-
-    -- 3. Validate form
-    (title, description, startsAt, endsAt, locationName, locationAddress, status) <-
-      requireRight Sanitize.displayContentValidationError (validateEventForm form)
-
-    -- 4. Insert event
-    let featuredOnHomepage = nefFeaturedOnHomepage form == "true"
-        slug = Slug.mkSlug title
-        eventInsert =
-          Events.Insert
-            { Events.eiTitle = title,
-              Events.eiSlug = slug,
-              Events.eiDescription = description,
-              Events.eiStartsAt = startsAt,
-              Events.eiEndsAt = endsAt,
-              Events.eiLocationName = locationName,
-              Events.eiLocationAddress = locationAddress,
-              Events.eiStatus = status,
-              Events.eiAuthorId = User.mId user,
-              Events.eiPosterImageUrl = posterImagePath,
-              Events.eiFeaturedOnHomepage = featuredOnHomepage
-            }
-    eventId <-
-      if featuredOnHomepage
-        then
-          execTransaction
-            ( do
-                void $ HT.statement () Events.clearFeaturedEvents
-                HT.statement () (Events.insertEvent eventInsert)
-            )
-            >>= \case
-              Left err -> throwDatabaseError err
-              Right (Just eid) -> pure eid
-              Right Nothing -> throwHandlerFailure "Event insert returned Nothing"
-        else
-          execQuery (Events.insertEvent eventInsert) >>= \case
-            Left err -> throwDatabaseError err
-            Right (Just eid) -> pure eid
-            Right Nothing -> throwHandlerFailure "Event insert returned Nothing"
-
-    -- 5. Fetch created event and redirect
-    Log.logInfo "Event created successfully" eventId
-    execQuery (Events.getEventById eventId) >>= \case
-      Right (Just event) -> do
-        let eventSlug = Events.emSlug event
-            detailUrl = rootLink $ dashboardEventsLinks.detail eventId eventSlug
-            banner = BannerParams Success "Event Created" "Your event has been created successfully."
-            redirectUrl = buildRedirectUrl detailUrl banner
-        pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
-      _ -> do
-        Log.logInfo "Failed to fetch event" (Aeson.object ["eventId" .= eventId])
-        let listUrl = rootLink $ dashboardEventsLinks.list Nothing
-            banner = BannerParams Success "Event Created" "Your event has been created."
-            redirectUrl = buildRedirectUrl listUrl banner
-        pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+    vd <- action user form
+    pure $ Servant.addHeader vd.nerRedirectUrl (redirectWithBanner vd.nerRedirectUrl vd.nerBanner)
 
 -- | Handle poster image upload
 handlePosterUpload ::

@@ -7,10 +7,12 @@ module API.Dashboard.EphemeralUploads.Id.Flag.Post.Handler where
 import API.Dashboard.EphemeralUploads.Get.Templates.Page (renderEphemeralUploadRow)
 import API.Dashboard.EphemeralUploads.Id.Flag.Post.Route (FlagForm (..))
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleBannerErrors, throwValidationError)
+import App.Handler.Error (HandlerError, handleBannerErrors, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
@@ -28,27 +30,43 @@ import Lucid qualified
 
 --------------------------------------------------------------------------------
 
+-- | All data needed to render the flag result row + banner (Pattern D).
+data UploadFlagViewData = UploadFlagViewData
+  { ufvBackend :: StorageBackend,
+    ufvResult :: FlagResult
+  }
+
+-- | Business logic: validate reason, execute flag.
+action ::
+  User.Model ->
+  EphemeralUploads.Id ->
+  FlagForm ->
+  ExceptT HandlerError AppM UploadFlagViewData
+action user targetId FlagForm {..} = do
+  -- 1. Parse and validate reason
+  reason <- case EphemeralUploads.parseFlagReason ffReason of
+    Nothing -> throwValidationError "Invalid flag reason."
+    Just r -> pure r
+
+  -- 2. Execute the flag operation
+  Log.logInfo "Flagging ephemeral upload" (Aeson.object ["targetId" .= display targetId, "reason" .= display reason])
+  backend <- asks getter
+  result <- lift $ executeFlag targetId (User.mId user) reason
+
+  pure UploadFlagViewData {ufvBackend = backend, ufvResult = result}
+
+-- | Servant handler: thin glue running action and rendering row + banner.
 handler ::
   EphemeralUploads.Id ->
   Maybe Cookie ->
   FlagForm ->
   AppM (Lucid.Html ())
-handler targetId cookie FlagForm {..} =
+handler targetId cookie flagForm =
   handleBannerErrors "Ephemeral upload flag" $ do
-    -- 1. Require staff authentication
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "Only staff can flag ephemeral uploads." userMetadata
-
-    -- 2. Parse and validate reason
-    case EphemeralUploads.parseFlagReason ffReason of
-      Nothing ->
-        throwValidationError "Invalid flag reason."
-      Just reason -> do
-        -- 3. Execute the flag operation
-        Log.logInfo "Flagging ephemeral upload" (Aeson.object ["targetId" .= display targetId, "reason" .= display reason])
-        backend <- asks getter
-        result <- executeFlag targetId (User.mId user) reason
-        renderFlagResult backend result
+    vd <- action user targetId flagForm
+    lift $ renderFlagResult vd.ufvBackend vd.ufvResult
 
 --------------------------------------------------------------------------------
 

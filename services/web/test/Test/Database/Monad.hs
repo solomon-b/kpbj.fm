@@ -9,6 +9,7 @@ module Test.Database.Monad
     withAuth,
     bracketConn,
     withTracer,
+    noOpLoggerEnv,
     TestDBInitConfig (..),
     TestDBConfig (..),
     TestDB (..),
@@ -44,7 +45,6 @@ import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.ServerSessions qualified as ServerSessions
-import Effects.Database.Tables.ServerSessions qualified as Session
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.IO (unsafePerformIO)
@@ -138,6 +138,10 @@ instance MonadDB TestDB where
     conn <- asks Has.getter
     first SessionUsageError <$> liftIO (run session conn)
 
+  runDBTransaction :: TRX.Transaction a -> TestDB (Either UsageError a)
+  runDBTransaction tx =
+    runDB (TRX.transaction TRX.Serializable TRX.Write tx)
+
 newtype TestSetupException = TestSetupException Text deriving (Show)
 
 instance Exception TestSetupException
@@ -171,12 +175,11 @@ withTracer f =
 
 --------------------------------------------------------------------------------
 
--- No-Op Logger for test suite
-logger :: Log.Logger
-logger = Log.Internal.Logger (\_ -> pure ()) (pure ()) (pure ())
-
-loggerEnv :: Log.LoggerEnv
-loggerEnv = Log.LoggerEnv logger "test-suite" [] [] Log.defaultLogLevel
+-- | No-op logger for test suites. Shared between database and handler tests.
+noOpLoggerEnv :: Log.LoggerEnv
+noOpLoggerEnv = Log.LoggerEnv noOpLogger "test" [] [] Log.defaultLogLevel
+  where
+    noOpLogger = Log.Internal.Logger (\_ -> pure ()) (pure ()) (pure ())
 
 --------------------------------------------------------------------------------
 
@@ -192,7 +195,7 @@ bracketConn perTestConfig actionTestDB =
             Right conn -> pure conn
       )
       release
-      (\connection -> runTestDB actionTestDB (connection, tracer) loggerEnv)
+      (\connection -> runTestDB actionTestDB (connection, tracer) noOpLoggerEnv)
 
 withAuth :: SpecWith (Authz, TestDBConfig) -> SpecWith TestDBConfig
 withAuth = beforeWith getAuth
@@ -260,7 +263,7 @@ withTestDB = around $ bracket before after . during
             ]
 
       when (ec /= ExitSuccess) $
-        throw (TestSetupException $ "Failed to create test database: \n" <> decodeUtf8 (toStrict stde))
+        throw (TestSetupException $ "Failed to drop test database: \n" <> decodeUtf8 (toStrict stde))
 
     during :: ActionWith TestDBConfig -> TestDBConfig -> IO ()
     during = ($)

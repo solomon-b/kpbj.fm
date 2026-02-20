@@ -10,8 +10,9 @@ import API.Dashboard.Users.Role.Patch.Route (RoleUpdateForm (..))
 import API.Links (dashboardUsersLinks)
 import API.Types (DashboardUsersRoutes (..))
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
-import App.Handler.Error (handleBannerErrors)
+import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -28,6 +29,29 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
+-- | Result of a role update attempt.
+data RoleUpdateResult
+  = RoleUpdateSuccess UserMetadata.UserRole
+  | RoleUpdateNotFound
+  | RoleUpdateFailed
+
+-- | Business logic: update role.
+action ::
+  User.Id ->
+  UserMetadata.UserRole ->
+  ExceptT HandlerError AppM RoleUpdateResult
+action targetUserId newRole = do
+  execQuery (UserMetadata.updateUserRole targetUserId newRole) >>= \case
+    Left _err -> do
+      Log.logInfo "Failed to update user role" ()
+      pure RoleUpdateFailed
+    Right Nothing -> do
+      Log.logInfo "User not found for role update" ()
+      pure RoleUpdateNotFound
+    Right (Just _) -> do
+      Log.logInfo "User role updated successfully" ()
+      pure $ RoleUpdateSuccess newRole
+
 handler ::
   User.Id ->
   Maybe Cookie ->
@@ -35,20 +59,13 @@ handler ::
   AppM (Lucid.Html ())
 handler targetUserId cookie (RoleUpdateForm newRole) =
   handleBannerErrors "Role update" $ do
-    -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
     requireAdminNotSuspended "Only admins can change user roles." userMetadata
-
-    execQuery (UserMetadata.updateUserRole targetUserId newRole) >>= \case
-      Left _err -> do
-        Log.logInfo "Failed to update user role" ()
-        pure $ errorResponse targetUserId newRole "Failed to update role"
-      Right Nothing -> do
-        Log.logInfo "User not found for role update" ()
-        pure $ errorResponse targetUserId newRole "User not found"
-      Right (Just _) -> do
-        Log.logInfo "User role updated successfully" ()
-        pure $ successResponse targetUserId newRole
+    result <- action targetUserId newRole
+    pure $ case result of
+      RoleUpdateSuccess updatedRole -> successResponse targetUserId updatedRole
+      RoleUpdateNotFound -> errorResponse targetUserId newRole "User not found"
+      RoleUpdateFailed -> errorResponse targetUserId newRole "Failed to update role"
 
 --------------------------------------------------------------------------------
 -- Response Templates

@@ -6,10 +6,12 @@ module API.Dashboard.EphemeralUploads.Id.Unflag.Post.Handler where
 
 import API.Dashboard.EphemeralUploads.Get.Templates.Page (renderEphemeralUploadRow)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleBannerErrors)
+import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
@@ -26,21 +28,35 @@ import Lucid qualified
 
 --------------------------------------------------------------------------------
 
+-- | All data needed to render the unflag result row + banner (Pattern D).
+data UploadUnflagViewData = UploadUnflagViewData
+  { uuvBackend :: StorageBackend,
+    uuvResult :: UnflagResult
+  }
+
+-- | Business logic: execute unflag.
+action ::
+  EphemeralUploads.Id ->
+  ExceptT HandlerError AppM UploadUnflagViewData
+action targetId = do
+  -- 1. Execute the unflag operation
+  Log.logInfo "Unflagging ephemeral upload" (Aeson.object ["targetId" .= display targetId])
+  backend <- asks getter
+  result <- lift $ executeUnflag targetId
+
+  pure UploadUnflagViewData {uuvBackend = backend, uuvResult = result}
+
+-- | Servant handler: thin glue running action and rendering row + banner.
 handler ::
   EphemeralUploads.Id ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
 handler targetId cookie =
   handleBannerErrors "Ephemeral upload unflag" $ do
-    -- 1. Require staff authentication
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "Only staff can unflag ephemeral uploads." userMetadata
-
-    -- 2. Execute the unflag operation
-    Log.logInfo "Unflagging ephemeral upload" (Aeson.object ["targetId" .= display targetId])
-    backend <- asks getter
-    result <- executeUnflag targetId
-    renderUnflagResult backend result
+    vd <- action targetId
+    lift $ renderUnflagResult vd.uuvBackend vd.uuvResult
 
 --------------------------------------------------------------------------------
 

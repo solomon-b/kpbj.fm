@@ -1,7 +1,7 @@
 -- | Reusable handler combinators for common patterns.
 --
--- These combinators use the exception-based error handling from "App.Handler.Error"
--- to provide early-exit semantics that work with MonadUnliftIO.
+-- These combinators use ExceptT-based error handling from "App.Handler.Error"
+-- to provide early-exit semantics in handler pipelines.
 --
 -- Add new combinators here only when they are used in 2+ handlers.
 module App.Handler.Combinators
@@ -23,10 +23,11 @@ where
 --------------------------------------------------------------------------------
 
 import App.Common (getUserInfo)
-import App.Handler.Error (throwDatabaseError, throwNotAuthenticated, throwNotAuthorized, throwValidationError)
+import App.Handler.Error (HandlerError, throwDatabaseError, throwNotAuthenticated, throwNotAuthorized, throwValidationError)
 import App.Monad (AppM)
 import Control.Monad (unless, when)
-import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
@@ -34,6 +35,7 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -46,9 +48,9 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 --   (user, userMeta) <- requireAuth cookie
 --   -- ... rest of handler with guaranteed authenticated user
 -- @
-requireAuth :: Maybe Cookie -> AppM (User.Model, UserMetadata.Model)
+requireAuth :: Maybe Cookie -> ExceptT HandlerError AppM (User.Model, UserMetadata.Model)
 requireAuth cookie =
-  getUserInfo cookie >>= \case
+  lift (getUserInfo cookie) >>= \case
     Nothing -> throwNotAuthenticated
     Just userInfo -> pure userInfo
 
@@ -65,12 +67,11 @@ requireAuth cookie =
 --   -- ... rest of handler with guaranteed host user
 -- @
 requireHostNotSuspended ::
-  (MonadThrow m) =>
   -- | Error message if not authorized
   Text ->
   -- | User metadata to check
   UserMetadata.Model ->
-  m ()
+  ExceptT HandlerError AppM ()
 requireHostNotSuspended msg userMetadata =
   unless (UserMetadata.isHostOrHigher userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
     throwNotAuthorized msg (Just userMetadata.mUserRole)
@@ -88,12 +89,11 @@ requireHostNotSuspended msg userMetadata =
 --   -- ... rest of handler with guaranteed staff user
 -- @
 requireStaffNotSuspended ::
-  (MonadThrow m) =>
   -- | Error message if not authorized
   Text ->
   -- | User metadata to check
   UserMetadata.Model ->
-  m ()
+  ExceptT HandlerError AppM ()
 requireStaffNotSuspended msg userMetadata =
   unless (UserMetadata.isStaffOrHigher userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
     throwNotAuthorized msg (Just userMetadata.mUserRole)
@@ -111,12 +111,11 @@ requireStaffNotSuspended msg userMetadata =
 --   -- ... rest of handler with guaranteed admin user
 -- @
 requireAdminNotSuspended ::
-  (MonadThrow m) =>
   -- | Error message if not authorized
   Text ->
   -- | User metadata to check
   UserMetadata.Model ->
-  m ()
+  ExceptT HandlerError AppM ()
 requireAdminNotSuspended msg userMetadata =
   unless (UserMetadata.isAdmin userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
     throwNotAuthorized msg (Just userMetadata.mUserRole)
@@ -143,7 +142,7 @@ requireShowHostOrStaff ::
   Slug ->
   -- | User metadata to check role and suspension
   UserMetadata.Model ->
-  AppM ()
+  ExceptT HandlerError AppM ()
 requireShowHostOrStaff userId showSlug userMetadata = do
   -- Suspended users can never proceed
   when (UserMetadata.isSuspended userMetadata) $
@@ -153,12 +152,11 @@ requireShowHostOrStaff userId showSlug userMetadata = do
   let isStaffOrHigher = UserMetadata.isStaffOrHigher userMetadata.mUserRole
   unless isStaffOrHigher $ do
     -- Not staff, check if they're a host of this show
-    isHostResult <- execQuery (ShowHost.isUserHostOfShowSlug userId showSlug)
-    case isHostResult of
-      Left err -> throwDatabaseError err
-      Right isHost ->
-        unless isHost $
-          throwNotAuthorized msg (Just userMetadata.mUserRole)
+    isHost <-
+      fromRightM throwDatabaseError $
+        execQuery (ShowHost.isUserHostOfShowSlug userId showSlug)
+    unless isHost $
+      throwNotAuthorized msg (Just userMetadata.mUserRole)
   where
     msg = "You don't have permission to access this show."
 
@@ -172,12 +170,11 @@ requireShowHostOrStaff userId showSlug userMetadata = do
 -- parsedStatus <- requireJust "Invalid status value." (parseStatus rawStatus)
 -- @
 requireJust ::
-  (MonadThrow m) =>
   -- | Error message if Nothing
   Text ->
   -- | Value to check
   Maybe a ->
-  m a
+  ExceptT HandlerError AppM a
 requireJust msg = \case
   Nothing -> throwValidationError msg
   Just a -> pure a
@@ -192,12 +189,11 @@ requireJust msg = \case
 -- validTitle <- requireRight displayError (validateContentLength 200 title)
 -- @
 requireRight ::
-  (MonadThrow m) =>
   -- | Function to convert Left error to message
   (e -> Text) ->
   -- | Value to check
   Either e a ->
-  m a
+  ExceptT HandlerError AppM a
 requireRight toMsg = \case
   Left err -> throwValidationError (toMsg err)
   Right a -> pure a

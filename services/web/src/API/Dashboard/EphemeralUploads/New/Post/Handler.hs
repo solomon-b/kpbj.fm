@@ -1,19 +1,19 @@
-{-# LANGUAGE QuasiQuotes #-}
-
-module API.Dashboard.EphemeralUploads.New.Post.Handler (handler) where
+module API.Dashboard.EphemeralUploads.New.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.EphemeralUploads.New.Post.Route (FormData (..))
-import API.Links (apiLinks, dashboardEphemeralUploadsLinks)
+import API.Links (dashboardEphemeralUploadsLinks, rootLink)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import Data.String.Interpolate (i)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
@@ -29,112 +29,84 @@ import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
 import Lucid qualified
 import Servant qualified
-import Servant.Links qualified as Links
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | Servant handler: thin glue running action.
 handler ::
   Maybe Cookie ->
   FormData ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler cookie form =
-  handleRedirectErrors "Ephemeral upload" apiLinks.rootGet $ do
-    -- 1. Require authentication and host role
+  handleRedirectErrors "Ephemeral upload" dashboardEphemeralUploadsLinks.newGet $ do
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to upload ephemeral clips." userMetadata
-
-    -- 2. Process the upload
-    processEphemeralUpload user form
+    action user form
+    let listUrl = rootLink $ dashboardEphemeralUploadsLinks.list Nothing
+        banner = BannerParams Success "Ephemeral Uploaded" "Your ephemeral clip has been uploaded successfully."
+        redirectUrl = buildRedirectUrl listUrl banner
+    pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
 
 --------------------------------------------------------------------------------
 
--- | Process ephemeral upload and return appropriate response
-processEphemeralUpload ::
+-- | Business logic: validate, upload, insert record.
+action ::
   User.Model ->
   FormData ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-processEphemeralUpload user form = do
-  let newUrl = Links.linkURI dashboardEphemeralUploadsLinks.newGet
-      newUrlText = [i|/#{newUrl}|] :: Text
-      listUrl = Links.linkURI $ dashboardEphemeralUploadsLinks.list Nothing
-      listUrlText = [i|/#{listUrl}|] :: Text
-
-  -- Validate and sanitize title
+  ExceptT HandlerError AppM ()
+action user form = do
+  -- 1. Validate and sanitize title
   let title = Sanitize.sanitizePlainText (fdTitle form)
-  if Text.null title
-    then do
-      let banner = BannerParams Error "Upload Failed" "Title is required."
-      pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-    else do
-      -- Validate and sanitize description
-      let description = Sanitize.sanitizePlainText (fdDescription form)
-      if Text.length description < 80
-        then do
-          let banner = BannerParams Error "Upload Failed" "Description must be at least 80 characters (approximately 2 sentences)."
-          pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-        else do
-          -- Validate audio token is provided
-          let audioToken = fdAudioToken form
-          if Text.null audioToken
-            then do
-              let banner = BannerParams Error "Upload Failed" "Audio file is required."
-              pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-            else do
-              -- First, get the staged upload to retrieve metadata
-              stagedUploadResult <- execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
-              case stagedUploadResult of
-                Left err -> do
-                  Log.logInfo "Failed to get staged upload" (Text.pack $ show err)
-                  throwDatabaseError err
-                Right Nothing -> do
-                  Log.logInfo_ "Staged upload not found"
-                  let banner = BannerParams Error "Upload Failed" "Uploaded file not found or expired."
-                  pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-                Right (Just stagedUpload) -> do
-                  -- Get current time for date hierarchy
-                  now <- liftIO getCurrentTime
+  when (Text.null title) $ throwValidationError "Title is required."
 
-                  -- Claim and relocate the staged upload to final location
-                  -- Use slugified title as filename prefix for easier identification
-                  let Slug titleSlug = mkSlug title
-                  claimResult <-
-                    claimAndRelocateUpload
-                      (User.mId user)
-                      audioToken
-                      StagedUploads.EphemeralAudio
-                      AudioBucket
-                      EphemeralAudio
-                      now
-                      titleSlug
+  -- 2. Validate and sanitize description
+  let description = Sanitize.sanitizePlainText (fdDescription form)
+  when (Text.length description < 80) $
+    throwValidationError "Description must be at least 80 characters (approximately 2 sentences)."
 
-                  case claimResult of
-                    Left err -> do
-                      Log.logInfo "Failed to claim staged upload" err
-                      let banner = BannerParams Error "Upload Failed" err
-                      pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-                    Right storagePath -> do
-                      -- Create the ephemeral upload record
-                      let insert =
-                            EphemeralUploads.Insert
-                              { EphemeralUploads.euiTitle = title,
-                                EphemeralUploads.euiDescription = description,
-                                EphemeralUploads.euiAudioFilePath = storagePath,
-                                EphemeralUploads.euiMimeType = StagedUploads.mimeType stagedUpload,
-                                EphemeralUploads.euiFileSize = StagedUploads.fileSize stagedUpload,
-                                EphemeralUploads.euiCreatorId = User.mId user
-                              }
+  -- 3. Validate audio token is provided
+  let audioToken = fdAudioToken form
+  when (Text.null audioToken) $ throwValidationError "Audio file is required."
 
-                      insertResult <- execQuery (EphemeralUploads.insertEphemeralUpload insert)
-                      case insertResult of
-                        Left err -> do
-                          Log.logInfo "Failed to insert ephemeral upload" (Text.pack $ show err)
-                          throwDatabaseError err
-                        Right Nothing -> do
-                          Log.logInfo_ "Ephemeral upload insert returned Nothing"
-                          let banner = BannerParams Error "Upload Failed" "Failed to create ephemeral upload record."
-                          pure $ Servant.addHeader (buildRedirectUrl newUrlText banner) (redirectWithBanner newUrlText banner)
-                        Right (Just _ephemeralUploadId) -> do
-                          Log.logInfo "Ephemeral upload completed successfully" title
-                          let banner = BannerParams Success "Ephemeral Uploaded" "Your ephemeral clip has been uploaded successfully."
-                              redirectUrl = buildRedirectUrl listUrlText banner
-                          pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrlText banner)
+  -- 4. Get the staged upload to retrieve metadata
+  stagedUpload <-
+    fromMaybeM (throwValidationError "Uploaded file not found or expired.") $
+      fromRightM throwDatabaseError $
+        execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
+
+  -- 5. Claim and relocate the staged upload to final location
+  now <- liftIO getCurrentTime
+  let Slug titleSlug = mkSlug title
+  claimResult <-
+    lift $
+      claimAndRelocateUpload
+        (User.mId user)
+        audioToken
+        StagedUploads.EphemeralAudio
+        AudioBucket
+        EphemeralAudio
+        now
+        titleSlug
+  storagePath <- case claimResult of
+    Left err -> do
+      Log.logInfo "Failed to claim staged upload" err
+      throwValidationError err
+    Right path -> pure path
+
+  -- 6. Create the ephemeral upload record
+  let insert =
+        EphemeralUploads.Insert
+          { EphemeralUploads.euiTitle = title,
+            EphemeralUploads.euiDescription = description,
+            EphemeralUploads.euiAudioFilePath = storagePath,
+            EphemeralUploads.euiMimeType = StagedUploads.mimeType stagedUpload,
+            EphemeralUploads.euiFileSize = StagedUploads.fileSize stagedUpload,
+            EphemeralUploads.euiCreatorId = User.mId user
+          }
+  _ <-
+    fromMaybeM (throwHandlerFailure "Failed to create ephemeral upload record.") $
+      fromRightM throwDatabaseError $
+        execQuery (EphemeralUploads.insertEphemeralUpload insert)
+
+  Log.logInfo "Ephemeral upload completed successfully" title

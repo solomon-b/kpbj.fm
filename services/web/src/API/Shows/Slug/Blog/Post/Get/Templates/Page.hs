@@ -8,9 +8,7 @@ import API.Links (showBlogLinks)
 import API.Types
 import Control.Monad (forM_, unless)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_, tablet)
 import Design.Tokens qualified as Tokens
@@ -85,31 +83,3 @@ template showModel post author tags renderedContent = do
           class_ $ base [Tokens.infoText, Tokens.fontBold, "hover:underline"]
         ]
         "← Back to blog"
-
---------------------------------------------------------------------------------
-
-notFoundTemplate :: Slug -> Slug -> Lucid.Html ()
-notFoundTemplate showSlug postSlug = do
-  Lucid.div_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [Lucid.class_ "text-center"] $ do
-      Lucid.h1_ [class_ $ base ["text-4xl", Tokens.fontBold, Tokens.mb4]] "Blog Post Not Found"
-      Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted, Tokens.mb8]] $ do
-        "We couldn't find the blog post at: "
-        Lucid.code_ [class_ $ base [Tokens.bgAlt, "px-2", "py-1"]] $ do
-          Lucid.toHtml $ display showSlug <> "/blog/" <> display postSlug
-
-      Lucid.a_
-        [ Lucid.href_ [i|/#{showBlogGetUrl showSlug}|],
-          hxGet_ [i|/#{showBlogGetUrl showSlug}|],
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base ["inline-block", Tokens.px6, "py-3", Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:opacity-80"]
-        ]
-        "← Back to blog"
-
-errorTemplate :: Text -> Lucid.Html ()
-errorTemplate errorMsg = do
-  Lucid.div_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.errorBg, Tokens.border2, Tokens.errorBorder, Tokens.p6]] $ do
-      Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2, Tokens.errorText]] "Error"
-      Lucid.p_ [Lucid.class_ Tokens.errorText] $ Lucid.toHtml errorMsg

@@ -11,9 +11,11 @@ import API.Links (apiLinks, dashboardBlogsLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Int (Int64)
 import Data.List (find)
@@ -35,9 +37,11 @@ import Hasql.Transaction qualified as Txn
 import Lucid qualified
 import Lucid.HTMX
 import Servant.Links qualified as Links
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Slug ->
   Maybe Int64 ->
@@ -46,39 +50,21 @@ handler ::
   AppM (Lucid.Html ())
 handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show blog list" apiLinks.rootGet $ do
-    -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
-
-    -- 2. Set up pagination
-    let page = fromMaybe 1 maybePage
-        limit = 20 :: Limit
-        offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
-        isAppendRequest = hxRequest == IsHxRequest && page > 1
-
-    -- 3. Fetch shows for sidebar (admins see all, hosts see their own)
-    allShows <- fetchShowsForUser user userMetadata
-
-    -- 4. Determine which show to display
-    case listToMaybe allShows of
-      Nothing -> do
-        -- No shows available
-        renderDashboardTemplate hxRequest userMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [] page False)
-      Just firstShow -> do
-        let showToFetch = findShow firstShow allShows (Just showSlug)
-        -- 5. Fetch blog posts for the show
-        allPosts <- fetchBlogPosts showToFetch limit offset
-
-        let posts = take (fromIntegral limit) allPosts
-            hasMore = length allPosts > fromIntegral limit
-
-        if isAppendRequest
-          then
-            -- Infinite scroll: return only new rows + sentinel
-            pure $ renderItemsFragment showToFetch posts page hasMore
-          else do
-            -- Full page: render with table, sentinel, and noscript pagination
-            renderDashboardTemplate hxRequest userMetadata allShows (Just showToFetch) NavBlog (statsContent posts) (actionButton showToFetch) (template (Just showToFetch) posts page hasMore)
+    vd <- action user userMetadata showSlug maybePage
+    let isAppendRequest = hxRequest == IsHxRequest && vd.blvPage > 1
+    if isAppendRequest
+      then case vd.blvCurrentShow of
+        Nothing -> throwNotFound "Show"
+        Just showModel ->
+          -- Infinite scroll: return only new rows + sentinel
+          pure $ renderItemsFragment showModel vd.blvPosts vd.blvPage vd.blvHasMore
+      else case vd.blvCurrentShow of
+        Nothing ->
+          lift $ renderDashboardTemplate hxRequest vd.blvUserMetadata [] Nothing NavBlog (statsContent []) Nothing (template Nothing [] vd.blvPage False)
+        Just showModel ->
+          lift $ renderDashboardTemplate hxRequest vd.blvUserMetadata vd.blvAllShows (Just showModel) NavBlog (statsContent vd.blvPosts) (actionButton showModel) (template (Just showModel) vd.blvPosts vd.blvPage vd.blvHasMore)
   where
     statsContent :: [ShowBlogPosts.Model] -> Maybe (Lucid.Html ())
     statsContent blogPosts =
@@ -100,6 +86,62 @@ handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
               ]
               "New Post"
 
+--------------------------------------------------------------------------------
+
+-- | All data needed to render the blog list page.
+data BlogListViewData = BlogListViewData
+  { blvUserMetadata :: UserMetadata.Model,
+    blvAllShows :: [Shows.Model],
+    blvCurrentShow :: Maybe Shows.Model,
+    blvPosts :: [ShowBlogPosts.Model],
+    blvPage :: Int64,
+    blvHasMore :: Bool
+  }
+
+-- | Business logic: pagination, show selection, blog post fetching.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  Slug ->
+  Maybe Int64 ->
+  ExceptT HandlerError AppM BlogListViewData
+action user userMetadata showSlug maybePage = do
+  -- 1. Set up pagination
+  let page = fromMaybe 1 maybePage
+      limit = 20 :: Limit
+      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+
+  -- 2. Fetch shows for sidebar (admins see all, hosts see their own)
+  allShows <- lift $ fetchShowsForUser user userMetadata
+
+  -- 3. Determine which show to display and fetch posts
+  case listToMaybe allShows of
+    Nothing ->
+      pure
+        BlogListViewData
+          { blvUserMetadata = userMetadata,
+            blvAllShows = [],
+            blvCurrentShow = Nothing,
+            blvPosts = [],
+            blvPage = page,
+            blvHasMore = False
+          }
+    Just firstShow -> do
+      let showToFetch = findShow firstShow allShows (Just showSlug)
+      -- 4. Fetch blog posts for the show
+      allPosts <- fetchBlogPosts showToFetch limit offset
+      let posts = take (fromIntegral limit) allPosts
+          hasMore = length allPosts > fromIntegral limit
+      pure
+        BlogListViewData
+          { blvUserMetadata = userMetadata,
+            blvAllShows = allShows,
+            blvCurrentShow = Just showToFetch,
+            blvPosts = posts,
+            blvPage = page,
+            blvHasMore = hasMore
+          }
+
 -- | Fetch shows based on user role (admins see all, hosts see their own)
 fetchShowsForUser ::
   User.Model ->
@@ -115,11 +157,10 @@ fetchBlogPosts ::
   Shows.Model ->
   Limit ->
   Offset ->
-  AppM [ShowBlogPosts.Model]
+  ExceptT HandlerError AppM [ShowBlogPosts.Model]
 fetchBlogPosts showModel limit offset =
-  execTransaction (fetchBlogData showModel limit offset) >>= \case
-    Left err -> throwDatabaseError err
-    Right posts -> pure posts
+  fromRightM throwDatabaseError $
+    execTransaction (fetchBlogData showModel limit offset)
 
 -- | Fetch blog data for dashboard with pagination
 fetchBlogData :: Shows.Model -> Limit -> Offset -> Txn.Transaction [ShowBlogPosts.Model]

@@ -3,17 +3,19 @@ module API.User.Register.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Links (userLinks)
-import API.Types
+import API.Types (UserRoutes (..))
 import API.User.Register.Post.Route (Register (..), RegisterParsed (..))
-import App.Errors (InternalServerError (..), throwErr)
+import App.Handler.Error (HandlerError, logHandlerError, throwHandlerFailure)
 import App.Monad (AppM)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow (..))
 import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor (first)
-import Data.Foldable (foldl')
+import Data.List (foldl')
 import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
@@ -55,6 +57,15 @@ instance Display ValidationError where
 
 --------------------------------------------------------------------------------
 
+-- | Result type for a registration attempt.
+data RegisterResult
+  = -- | Registration succeeded — redirect URL.
+    RegisterSuccess Text
+  | -- | Validation or uniqueness check failed — redirect URL.
+    RegisterFailure Text
+
+--------------------------------------------------------------------------------
+
 handler ::
   SockAddr ->
   Maybe Text ->
@@ -66,48 +77,69 @@ handler ::
          ]
         Servant.NoContent
     )
-handler sockAddr mUserAgent req@Register {..} = do
-  validateRequest req >>= \case
-    Failure errors ->
-      logValidationFailure "POST /user/register Request validation failure" req errors
-    Success parsedRequest -> do
-      execQueryThrow (User.getUserByEmail urEmail) >>= \case
-        Just _ ->
-          logValidationFailure "Email address is already registered." req [InvalidEmailAddress]
-        Nothing ->
-          registerUser sockAddr mUserAgent parsedRequest urNewsletter
+handler sockAddr mUserAgent req = do
+  result <- runExceptT $ action sockAddr mUserAgent req
+  case result of
+    Left err -> do
+      logHandlerError "Register" err
+      pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.registerGet Nothing Nothing Nothing)) Servant.NoContent
+    Right (RegisterSuccess redirectUrl) ->
+      pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
+    Right (RegisterFailure redirectUrl) ->
+      pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
 
-registerUser ::
+--------------------------------------------------------------------------------
+
+-- | Core registration business logic.
+--
+-- Validates the form, checks for existing users, creates the account,
+-- and sends a verification email. Returns a 'RegisterResult'.
+action ::
+  SockAddr ->
+  Maybe Text ->
+  Register ->
+  ExceptT HandlerError AppM RegisterResult
+action sockAddr mUserAgent req@Register {..} = do
+  let registerRedirectUrl = "/" <> Http.toUrlPiece (userLinks.registerGet (Just urEmail) (Just urDisplayName) (Just urFullName))
+  validationResult <- lift $ validateRequest req
+  case validationResult of
+    Failure errors -> do
+      Log.logInfo "POST /user/register Request validation failure" (Aeson.object ["request" .= req, "validationErrors" .= display errors])
+      pure $ RegisterFailure registerRedirectUrl
+    Success parsedRequest -> do
+      mExisting <- execQueryThrow (User.getUserByEmail urEmail)
+      case mExisting of
+        Just _ -> do
+          Log.logInfo "Email address is already registered." (Aeson.object ["request" .= req, "validationErrors" .= display [InvalidEmailAddress]])
+          pure $ RegisterFailure registerRedirectUrl
+        Nothing ->
+          registerNewUser sockAddr mUserAgent parsedRequest urNewsletter
+
+-- | Create the user account and send the verification email.
+registerNewUser ::
   SockAddr ->
   Maybe Text ->
   RegisterParsed ->
   Maybe Bool ->
-  AppM
-    ( Servant.Headers
-        '[ Servant.Header "Set-Cookie" Text,
-           Servant.Header "HX-Redirect" Text
-         ]
-        Servant.NoContent
-    )
-registerUser _sockAddr _mUserAgent RegisterParsed {..} newsletterSubscription = do
+  ExceptT HandlerError AppM RegisterResult
+registerNewUser _sockAddr _mUserAgent RegisterParsed {..} newsletterSubscription = do
   Log.logInfo "Registering New User" urpEmail
   OneRow uid <- execQueryThrow $ User.insertUser $ User.ModelInsert urpEmail urpPassword
   mMetadataId <- execQueryThrow $ UserMetadata.insertUserMetadata $ UserMetadata.Insert uid urpDisplayName urpFullName Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
   case mMetadataId of
-    Nothing -> throwErr $ InternalServerError "User metadata insert failed"
+    Nothing -> throwHandlerFailure "User metadata insert failed"
     Just _ -> pure ()
-  execQueryThrow (User.getUser uid) >>= \case
+  mUser <- execQueryThrow (User.getUser uid)
+  case mUser of
     Nothing ->
-      throwErr $ InternalServerError "User not found after registration"
+      throwHandlerFailure "User not found after registration"
     Just _user -> do
-      when (isJust newsletterSubscription) (subscribeToNewsletter urpEmail)
-
-      -- Send verification email instead of auto-login
-      _ <- EmailVerification.createAndSendVerification uid urpEmail
-
-      -- Redirect to the "check your email" page
+      lift $ when (isJust newsletterSubscription) (subscribeToNewsletter urpEmail)
+      _ <- lift $ EmailVerification.createAndSendVerification uid urpEmail
       let redirectUrl = "/" <> Http.toUrlPiece (userLinks.verifyEmailSentGet (Just urpEmail))
-      pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
+      pure $ RegisterSuccess redirectUrl
+
+--------------------------------------------------------------------------------
 
 parsePassword ::
   ( Monad m,
@@ -125,10 +157,6 @@ parsePassword password =
 validateRequest :: (MonadIO m) => Register -> m (Validation [ValidationError] RegisterParsed)
 validateRequest Register {..} = do
   let emailValidation = fromEither $ first (const [InvalidEmailAddress]) $ EmailAddress.validate urEmail
-  -- Sanitize user profile fields to prevent XSS attacks
-  -- Note: DisplayName and FullName are already validated types, so we just pass them through
-  -- The sanitization will occur when these values are displayed in templates
-
   passwordValidation <- parsePassword urPassword
   pure $ RegisterParsed <$> emailValidation <*> passwordValidation <*> pure urDisplayName <*> pure urFullName
 
@@ -144,18 +172,3 @@ subscribeToNewsletter email = do
   if statusCode >= 200 && statusCode < 300
     then Log.logInfo "Newsletter subscription successful" email
     else Log.logInfo "Newsletter subscription failed" (email, HTTP.statusCode status)
-
-logValidationFailure ::
-  Text ->
-  Register ->
-  [ValidationError] ->
-  AppM
-    ( Servant.Headers
-        '[ Servant.Header "Set-Cookie" Text,
-           Servant.Header "HX-Redirect" Text
-         ]
-        Servant.NoContent
-    )
-logValidationFailure message req@Register {..} validationErrors = do
-  Log.logInfo message (Aeson.object ["request" .= req, "validationErrors" .= display validationErrors])
-  pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.registerGet (Just urEmail) (Just urDisplayName) (Just urFullName))) Servant.NoContent

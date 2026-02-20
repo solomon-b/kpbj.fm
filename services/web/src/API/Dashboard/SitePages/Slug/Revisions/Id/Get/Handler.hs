@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.SitePages.Slug.Revisions.Id.Get.Handler (handler) where
+module API.Dashboard.SitePages.Slug.Revisions.Id.Get.Handler (handler, action, PageRevisionViewData (..)) where
 
 --------------------------------------------------------------------------------
 
@@ -10,9 +10,11 @@ import API.Links (apiLinks)
 import API.Types (Routes (..))
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Either (fromRight)
 import Data.Maybe (listToMaybe)
@@ -27,6 +29,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Lucid qualified
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -38,31 +41,64 @@ handler ::
   AppM (Lucid.Html ())
 handler pageSlug revisionId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "View revision" apiLinks.rootGet $ do
-    -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
+    vd <- action user userMetadata pageSlug revisionId
+    lift $
+      renderDashboardTemplate
+        hxRequest
+        vd.prvUserMetadata
+        vd.prvAllShows
+        vd.prvSelectedShow
+        NavSitePages
+        Nothing
+        Nothing
+        (template vd.prvPage vd.prvRevision)
 
-    -- 2. Fetch shows for sidebar
-    showsResult <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuery Shows.getAllActiveShows
-        else execQuery (Shows.getShowsForUser (User.mId user))
-    let allShows = fromRight [] showsResult
+--------------------------------------------------------------------------------
 
-    -- 3. Fetch page and revision in transaction
-    mResult <- execTransaction $ runMaybeT $ do
-      page <- MaybeT $ HT.statement () (SitePages.getPageBySlug pageSlug)
-      revision <- MaybeT $ HT.statement () (SitePageRevisions.getRevisionById revisionId)
-      -- Verify revision belongs to this page
-      if revision.sprPageId == page.spmId
-        then pure (page, revision)
-        else MaybeT $ pure Nothing
+-- | All data needed to render the site page revision detail page.
+data PageRevisionViewData = PageRevisionViewData
+  { prvUserMetadata :: UserMetadata.Model,
+    prvAllShows :: [Shows.Model],
+    prvSelectedShow :: Maybe Shows.Model,
+    prvPage :: SitePages.Model,
+    prvRevision :: SitePageRevisions.Model
+  }
 
-    (page, revision) <- case mResult of
-      Left err -> throwDatabaseError err
-      Right Nothing -> throwNotFound "Revision not found."
-      Right (Just result) -> pure result
+-- | Business logic: fetch shows, fetch page and revision in transaction.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  Text ->
+  SitePageRevisions.Id ->
+  ExceptT HandlerError AppM PageRevisionViewData
+action user userMetadata pageSlug revisionId = do
+  -- 1. Fetch shows for sidebar
+  showsResult <-
+    if UserMetadata.isAdmin userMetadata.mUserRole
+      then execQuery Shows.getAllActiveShows
+      else execQuery (Shows.getShowsForUser (User.mId user))
+  let allShows = fromRight [] showsResult
 
-    -- 4. Render response with diff between revision and current content
-    let selectedShow = listToMaybe allShows
-    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavSitePages Nothing Nothing (template page revision)
+  -- 2. Fetch page and revision in transaction
+  (page, revision) <-
+    fromMaybeM (throwNotFound "Revision not found.") $
+      fromRightM throwDatabaseError $
+        execTransaction $
+          runMaybeT $ do
+            p <- MaybeT $ HT.statement () (SitePages.getPageBySlug pageSlug)
+            rev <- MaybeT $ HT.statement () (SitePageRevisions.getRevisionById revisionId)
+            -- Verify revision belongs to this page
+            if rev.sprPageId == p.spmId
+              then pure (p, rev)
+              else MaybeT $ pure Nothing
+
+  pure
+    PageRevisionViewData
+      { prvUserMetadata = userMetadata,
+        prvAllShows = allShows,
+        prvSelectedShow = listToMaybe allShows,
+        prvPage = page,
+        prvRevision = revision
+      }

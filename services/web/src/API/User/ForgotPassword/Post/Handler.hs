@@ -5,16 +5,19 @@
 -- Processes password reset requests. Sends a reset email if the user exists.
 -- Always shows the same success message regardless of whether the email exists
 -- to prevent email enumeration attacks.
-module API.User.ForgotPassword.Post.Handler (handler) where
+module API.User.ForgotPassword.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
 import API.User.ForgotPassword.Get.Templates.Page qualified as Templates
 import API.User.ForgotPassword.Post.Route (ForgotPasswordForm (..))
 import App.Common (renderUnauthTemplate)
+import App.Handler.Error (HandlerError)
 import App.Monad (AppM)
 import App.Smtp (SmtpConfig)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -33,58 +36,57 @@ import Network.Socket (SockAddr)
 
 --------------------------------------------------------------------------------
 
+-- | Core business logic for password reset requests.
+--
+-- Validates the email, looks up the user, creates a reset token, and queues
+-- the email. Always succeeds — returns unit regardless of outcome (to prevent
+-- email enumeration). Logs any failures internally.
+action ::
+  SockAddr ->
+  Maybe Text ->
+  ForgotPasswordForm ->
+  ExceptT HandlerError AppM ()
+action sockAddr mUserAgent ForgotPasswordForm {..} = do
+  mSmtpConfig <- asks Has.getter
+  case EmailAddress.validate (mkEmailAddress fpfEmail) of
+    Left _ -> do
+      Log.logInfo "Password reset requested for invalid email format" fpfEmail
+    Right validEmail -> do
+      userResult <- execQuery (User.getUserByEmail validEmail)
+      case userResult of
+        Left err -> do
+          Log.logInfo "Password reset lookup failed" (Text.pack $ show err)
+        Right Nothing -> do
+          Log.logInfo "Password reset requested for non-existent email" (display validEmail)
+        Right (Just user) -> do
+          let ipAddress = Just $ Text.pack $ show sockAddr
+          tokenResult <-
+            lift $
+              PasswordReset.createPasswordResetToken
+                (User.mId user)
+                validEmail
+                ipAddress
+                mUserAgent
+          case tokenResult of
+            Left err -> do
+              Log.logInfo "Password reset token creation failed" (Text.pack $ show err)
+            Right token -> do
+              lift $ case mSmtpConfig of
+                Nothing ->
+                  Log.logInfo "Password reset token (SMTP not configured)" (ResetTokens.unToken token)
+                Just smtpConfig ->
+                  sendResetEmail smtpConfig validEmail token
+
 handler ::
   SockAddr ->
   Maybe Text ->
   Maybe HxRequest ->
   ForgotPasswordForm ->
   AppM (Lucid.Html ())
-handler sockAddr mUserAgent (foldHxReq -> hxRequest) ForgotPasswordForm {..} = do
-  mSmtpConfig <- asks Has.getter
-
-  -- Parse the email address to validate it
-  case EmailAddress.validate (mkEmailAddress fpfEmail) of
-    Left _ -> do
-      -- Invalid email format, but still show success to not reveal info
-      Log.logInfo "Password reset requested for invalid email format" fpfEmail
-      renderSuccess hxRequest
-    Right validEmail -> do
-      -- Look up the user
-      userResult <- execQuery (User.getUserByEmail validEmail)
-      case userResult of
-        Left err -> do
-          Log.logInfo "Password reset lookup failed" (Text.pack $ show err)
-          -- Show success anyway to not reveal database issues
-          renderSuccess hxRequest
-        Right Nothing -> do
-          -- User doesn't exist, but show success to prevent enumeration
-          Log.logInfo "Password reset requested for non-existent email" (display validEmail)
-          renderSuccess hxRequest
-        Right (Just user) -> do
-          -- User exists, create token and send email
-          let ipAddress = Just $ Text.pack $ show sockAddr
-          tokenResult <-
-            PasswordReset.createPasswordResetToken
-              (User.mId user)
-              validEmail
-              ipAddress
-              mUserAgent
-
-          case tokenResult of
-            Left err -> do
-              Log.logInfo "Password reset token creation failed" (Text.pack $ show err)
-              -- Show success anyway to not reveal the error
-              renderSuccess hxRequest
-            Right token -> do
-              -- Send the email
-              case mSmtpConfig of
-                Nothing -> do
-                  -- No SMTP configured, log the token for development
-                  Log.logInfo "Password reset token (SMTP not configured)" (ResetTokens.unToken token)
-                Just smtpConfig ->
-                  sendResetEmail smtpConfig validEmail token
-
-              renderSuccess hxRequest
+handler sockAddr mUserAgent (foldHxReq -> hxRequest) form = do
+  -- Always show success regardless of outcome (prevents email enumeration)
+  _ <- runExceptT $ action sockAddr mUserAgent form
+  renderSuccess hxRequest
 
 --------------------------------------------------------------------------------
 

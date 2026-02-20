@@ -12,13 +12,14 @@ import App.Common (renderDashboardTemplate)
 import App.Config (Environment)
 import App.Domains (audioUploadUrl)
 import App.Handler.Combinators (requireAuth)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Has (getter)
 import Data.Has qualified as Has
@@ -42,6 +43,7 @@ import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import Servant qualified
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -54,17 +56,20 @@ handler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
   handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
-    vd <- action showSlug episodeNumber cookie
+    (user, userMetadata) <- requireAuth cookie
+    vd <- action user userMetadata showSlug episodeNumber
+    let statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display vd.eevEditContext.eecEpisode.episodeNumber
     html <-
-      renderDashboardTemplate
-        hxRequest
-        vd.eevUserMetadata
-        vd.eevAllShows
-        (Just vd.eevShowModel)
-        NavEpisodes
-        (Just vd.eevStatsContent)
-        Nothing
-        (template vd.eevEditContext)
+      lift $
+        renderDashboardTemplate
+          hxRequest
+          vd.eevUserMetadata
+          vd.eevAllShows
+          (Just vd.eevShowModel)
+          NavEpisodes
+          (Just statsContent)
+          Nothing
+          (template vd.eevEditContext)
     pure $ Servant.noHeader html
 
 --------------------------------------------------------------------------------
@@ -74,45 +79,42 @@ data EpisodeEditViewData = EpisodeEditViewData
   { eevEditContext :: EpisodeEditContext,
     eevUserMetadata :: UserMetadata.Model,
     eevAllShows :: [Shows.Model],
-    eevShowModel :: Shows.Model,
-    eevStatsContent :: Lucid.Html ()
+    eevShowModel :: Shows.Model
   }
 
--- | Business logic: auth, fetch episode context, authorization, build edit context.
+-- | Business logic: fetch episode context, authorization, build edit context.
 action ::
+  User.Model ->
+  UserMetadata.Model ->
   Slug ->
   Episodes.EpisodeNumber ->
-  Maybe Cookie ->
-  AppM EpisodeEditViewData
-action showSlug episodeNumber cookie = do
-  -- 1. Require authentication
-  (user, userMetadata) <- requireAuth cookie
-
-  -- 2. Get storage backend
+  ExceptT HandlerError AppM EpisodeEditViewData
+action user userMetadata showSlug episodeNumber = do
+  -- 1. Get storage backend
   backend <- asks getter
 
-  -- 3. Fetch episode context (episode, show, tracks, isHost) in transaction
+  -- 2. Fetch episode context (episode, show, tracks, isHost) in transaction
   (episode, showModel, tracks, isHost) <- fetchEpisodeContext showSlug episodeNumber user userMetadata
 
-  -- 4. Check authorization
+  -- 3. Check authorization
   let isAuthorized = episode.createdBy == user.mId || isHost || UserMetadata.isStaffOrHigher userMetadata.mUserRole
   unless isAuthorized $
     throwNotAuthorized "You can only edit your own episodes." (Just userMetadata.mUserRole)
 
-  -- 5. Fetch additional data for the edit form
+  -- 4. Fetch additional data for the edit form
   Log.logInfo "Authorized user accessing episode edit form" episode.id
   currentTime <- liftIO getCurrentTime
 
-  episodeTags <- fetchEpisodeTags episode.id
-  mCurrentSlot <- fetchCurrentSlot episode
-  upcomingDates <- fetchUpcomingDates showModel.id
-  allShows <- fetchUserShows user userMetadata
+  episodeTags <- lift $ fetchEpisodeTags episode.id
+  mCurrentSlot <- lift $ fetchCurrentSlot episode
+  upcomingDates <- lift $ fetchUpcomingDates showModel.id
+  allShows <- lift $ fetchUserShows user userMetadata
 
-  -- 6. Get upload URL (bypasses Cloudflare in production)
+  -- 5. Get upload URL (bypasses Cloudflare in production)
   env <- asks (Has.getter @Environment)
   let uploadUrl = audioUploadUrl env
 
-  -- 7. Build view data
+  -- 6. Build view data
   let editContext =
         EpisodeEditContext
           { eecUploadUrl = uploadUrl,
@@ -126,15 +128,13 @@ action showSlug episodeNumber cookie = do
             eecUpcomingDates = upcomingDates,
             eecIsStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
           }
-      statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display episode.episodeNumber
 
   pure
     EpisodeEditViewData
       { eevEditContext = editContext,
         eevUserMetadata = userMetadata,
         eevAllShows = allShows,
-        eevShowModel = showModel,
-        eevStatsContent = statsContent
+        eevShowModel = showModel
       }
 
 --------------------------------------------------------------------------------
@@ -148,21 +148,23 @@ fetchEpisodeContext ::
   Episodes.EpisodeNumber ->
   User.Model ->
   UserMetadata.Model ->
-  AppM EpisodeContext
+  ExceptT HandlerError AppM EpisodeContext
 fetchEpisodeContext showSlug episodeNumber user userMetadata = do
-  mResult <- execTransaction $ runMaybeT $ do
-    episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
-    showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
-    tracks <- lift $ HT.statement () (EpisodeTrack.getTracksForEpisode episode.id)
-    isHost <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then pure True
-        else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
-    MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
+  mResult <-
+    fromRightM throwDatabaseError $
+      execTransaction $
+        runMaybeT $ do
+          episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
+          showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
+          tracks <- lift $ HT.statement () (EpisodeTrack.getTracksForEpisode episode.id)
+          isHost <-
+            if UserMetadata.isAdmin userMetadata.mUserRole
+              then pure True
+              else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
+          MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
   case mResult of
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Episode"
-    Right (Just ctx) -> pure ctx
+    Nothing -> throwNotFound "Episode"
+    Just ctx -> pure ctx
 
 fetchEpisodeTags ::
   Episodes.Id ->

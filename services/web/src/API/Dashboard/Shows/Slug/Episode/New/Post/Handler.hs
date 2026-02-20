@@ -5,15 +5,17 @@ module API.Dashboard.Shows.Slug.Episode.New.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), TrackInfo (..))
-import API.Links (apiLinks, dashboardEpisodesLinks, dashboardShowsLinks)
+import API.Links (dashboardEpisodesLinks, dashboardShowsLinks)
 import API.Types
 import Amazonka qualified as AWS
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotFound)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
 import Data.Int (Int64)
@@ -50,7 +52,7 @@ import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (FileData, Mem)
 import Text.Read (readMaybe)
-import Utils (partitionEithers)
+import Utils (fromMaybeM, fromRightM, partitionEithers)
 
 --------------------------------------------------------------------------------
 
@@ -60,68 +62,67 @@ handler ::
   EpisodeUploadForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler showSlug cookie form =
-  handleRedirectErrors "Episode upload" apiLinks.rootGet $ do
-    -- 1. Require authentication
+  handleRedirectErrors "Episode upload" (dashboardShowsLinks.episodeNewGet showSlug) $ do
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId showSlug userMetadata
+    episodeId <- action user userMetadata showSlug form
+    buildUploadRedirect showSlug episodeId
 
-    -- 2. Verify the show exists
-    showModel <- fetchShowOrNotFound showSlug
+--------------------------------------------------------------------------------
 
-    -- 3. Process the upload
-    processEpisodeUploadAndRespond userMetadata user showModel form
-
--- | Fetch show by slug or throw NotFound
-fetchShowOrNotFound ::
-  Slug ->
-  AppM Shows.Model
-fetchShowOrNotFound showSlug =
-  execQuery (Shows.getShowBySlug showSlug) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Show"
-    Right (Just showModel) -> pure showModel
-
--- | Process the episode upload and return appropriate response
-processEpisodeUploadAndRespond ::
-  UserMetadata.Model ->
+-- | Business logic: fetch show, process upload.
+--
+-- Returns the created episode ID on success.
+action ::
   User.Model ->
-  Shows.Model ->
+  UserMetadata.Model ->
+  Slug ->
   EpisodeUploadForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-processEpisodeUploadAndRespond userMetadata user showModel form = do
-  let newEpisodeUri = Links.linkURI $ dashboardShowsLinks.episodeNewGet showModel.slug
-      newEpisodeUrl = [i|/#{newEpisodeUri}|] :: Text
+  ExceptT HandlerError AppM Episodes.Id
+action user userMetadata showSlug form = do
+  -- 1. Verify the show exists
+  showModel <- fetchShowOrNotFound showSlug
 
-  processEpisodeUpload userMetadata user showModel form >>= \case
+  -- 2. Process the upload
+  uploadResult <- lift $ processEpisodeUpload userMetadata user showModel form
+  case uploadResult of
     Left err -> do
       Log.logInfo "Episode upload failed" err
-      let banner = BannerParams Error "Upload Failed" err
-      pure $ Servant.addHeader (buildRedirectUrl newEpisodeUrl banner) (redirectWithBanner newEpisodeUrl banner)
+      throwValidationError err
     Right episodeId -> do
       Log.logInfo ("Episode uploaded successfully: " <> display episodeId) ()
-      handleUploadSuccess showModel episodeId
+      pure episodeId
 
--- | Handle successful upload by redirecting to episode page with banner
-handleUploadSuccess ::
-  Shows.Model ->
+-- | Build redirect response after successful episode upload.
+buildUploadRedirect ::
+  Slug ->
   Episodes.Id ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handleUploadSuccess showModel episodeId = do
-  -- Fetch the created episode
-  execQuery (Episodes.getEpisodeById episodeId) >>= \case
+  ExceptT HandlerError AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+buildUploadRedirect showSlug episodeId = do
+  fetchResult <- execQuery (Episodes.getEpisodeById episodeId)
+  case fetchResult of
     Right (Just episode) -> do
-      let detailLinkUri = Links.linkURI $ dashboardEpisodesLinks.detail showModel.slug episode.episodeNumber
+      let detailLinkUri = Links.linkURI $ dashboardEpisodesLinks.detail showSlug episode.episodeNumber
           detailUrl = [i|/#{detailLinkUri}|] :: Text
           banner = BannerParams Success "Episode Uploaded" "Your episode has been uploaded successfully."
           redirectUrl = buildRedirectUrl detailUrl banner
       pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
     _ -> do
       Log.logInfo_ "Created episode but failed to retrieve it"
-      let showListUri = Links.linkURI $ dashboardEpisodesLinks.list showModel.slug Nothing
+      let showListUri = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
           showListUrl = [i|/#{showListUri}|] :: Text
           banner = BannerParams Warning "Episode Created" "Episode was created but there was an error loading details."
           redirectUrl = buildRedirectUrl showListUrl banner
       pure $ Servant.addHeader redirectUrl (redirectWithBanner showListUrl banner)
+
+-- | Fetch show by slug or throw NotFound
+fetchShowOrNotFound ::
+  Slug ->
+  ExceptT HandlerError AppM Shows.Model
+fetchShowOrNotFound showSlug =
+  fromMaybeM (throwNotFound "Show") $
+    fromRightM throwDatabaseError $
+      execQuery (Shows.getShowBySlug showSlug)
 
 -- | Process episode upload form
 processEpisodeUpload ::

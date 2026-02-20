@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Users.Get.Handler (handler) where
+module API.Dashboard.Users.Get.Handler (handler, action, UsersListViewData (..)) where
 
 --------------------------------------------------------------------------------
 
@@ -12,10 +12,12 @@ import API.Links (apiLinks, dashboardUsersLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isNothing, listToMaybe, maybeToList)
@@ -37,8 +39,76 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
 import Servant.Links qualified as Links
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
+
+-- | All data needed to render the users list page.
+data UsersListViewData = UsersListViewData
+  { ulvUserMetadata :: UserMetadata.Model,
+    ulvSidebarShows :: [Shows.Model],
+    ulvSelectedShow :: Maybe Shows.Model,
+    ulvViewerId :: User.Id,
+    ulvViewerRole :: UserMetadata.UserRole,
+    ulvUsers :: [UserMetadata.UserWithMetadata],
+    ulvPage :: Int64,
+    ulvHasMore :: Bool,
+    ulvQueryFilter :: Maybe Text,
+    ulvRoleFilter :: Maybe UserMetadata.UserRole,
+    ulvSortBy :: UserSortBy,
+    ulvIsAppendRequest :: Bool
+  }
+
+-- | Business logic: pagination setup, fetch users.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  Maybe Int64 ->
+  Maybe (Filter Text) ->
+  Maybe (Filter UserMetadata.UserRole) ->
+  Maybe (Filter UserSortBy) ->
+  HxRequest ->
+  ExceptT HandlerError AppM UsersListViewData
+action user userMetadata maybePage queryFilterParam roleFilterParam sortFilterParam hxRequest = do
+  -- 1. Set up pagination and filters
+  let page = fromMaybe 1 maybePage
+      limit = 20 :: Limit
+      offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
+      roleFilter = getFilter =<< roleFilterParam
+      queryFilter = getFilter =<< queryFilterParam
+      sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
+      isAppendRequest = hxRequest == IsHxRequest && page > 1
+
+  -- 2. Fetch shows for sidebar
+  sidebarShows <-
+    lift $
+      if UserMetadata.isAdmin userMetadata.mUserRole
+        then fromRight [] <$> execQuery Shows.getAllActiveShows
+        else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
+  let selectedShow = listToMaybe sidebarShows
+
+  -- 3. Fetch users
+  allUsers <- fetchUsers limit offset queryFilter roleFilter sortBy
+
+  -- 4. Compute pagination
+  let users = take (fromIntegral limit) allUsers
+      hasMore = length allUsers > fromIntegral limit
+
+  pure
+    UsersListViewData
+      { ulvUserMetadata = userMetadata,
+        ulvSidebarShows = sidebarShows,
+        ulvSelectedShow = selectedShow,
+        ulvViewerId = User.mId user,
+        ulvViewerRole = userMetadata.mUserRole,
+        ulvUsers = users,
+        ulvPage = page,
+        ulvHasMore = hasMore,
+        ulvQueryFilter = queryFilter,
+        ulvRoleFilter = roleFilter,
+        ulvSortBy = sortBy,
+        ulvIsAppendRequest = isAppendRequest
+      }
 
 handler ::
   Maybe Int64 ->
@@ -50,45 +120,17 @@ handler ::
   AppM (Lucid.Html ())
 handler maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Users list" apiLinks.rootGet $ do
-    -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-
-    -- 2. Set up pagination and filters
-    let page = fromMaybe 1 maybePage
-        limit = 20 :: Limit
-        offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
-        roleFilter = getFilter =<< roleFilterParam
-        queryFilter = getFilter =<< queryFilterParam
-        sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
-        isAppendRequest = hxRequest == IsHxRequest && page > 1
-
-    -- 3. Fetch shows for sidebar
-    showsResult <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuery Shows.getAllActiveShows
-        else execQuery (Shows.getShowsForUser (User.mId user))
-    let allShows = fromRight [] showsResult
-        selectedShow = listToMaybe allShows
-
-    -- 4. Fetch users
-    allUsers <- fetchUsers limit offset queryFilter roleFilter sortBy
-
-    -- 5. Render response
+    vd <- action user userMetadata maybePage queryFilterParam roleFilterParam sortFilterParam hxRequest
     now <- liftIO getCurrentTime
-    let users = take (fromIntegral limit) allUsers
-        hasMore = length allUsers > fromIntegral limit
-
-    let viewerId = User.mId user
-        viewerRole = userMetadata.mUserRole
-
-    if isAppendRequest
+    if vd.ulvIsAppendRequest
       then
-        pure $ renderItemsFragment viewerId viewerRole now users page hasMore queryFilter roleFilter sortBy
+        pure $ renderItemsFragment vd.ulvViewerId vd.ulvViewerRole now vd.ulvUsers vd.ulvPage vd.ulvHasMore vd.ulvQueryFilter vd.ulvRoleFilter vd.ulvSortBy
       else do
-        let usersTemplate = template viewerId viewerRole now users page hasMore queryFilter roleFilter sortBy
-            filtersContent = Just $ filtersUI queryFilter roleFilter sortBy
-        renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavUsers filtersContent Nothing usersTemplate
+        let usersTemplate = template vd.ulvViewerId vd.ulvViewerRole now vd.ulvUsers vd.ulvPage vd.ulvHasMore vd.ulvQueryFilter vd.ulvRoleFilter vd.ulvSortBy
+            filtersContent = Just $ filtersUI vd.ulvQueryFilter vd.ulvRoleFilter vd.ulvSortBy
+        lift $ renderDashboardTemplate hxRequest vd.ulvUserMetadata vd.ulvSidebarShows vd.ulvSelectedShow NavUsers filtersContent Nothing usersTemplate
 
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()
@@ -146,13 +188,11 @@ fetchUsers ::
   Maybe Text ->
   Maybe UserMetadata.UserRole ->
   UserSortBy ->
-  AppM [UserMetadata.UserWithMetadata]
-fetchUsers limit offset maybeQuery (maybeToList -> roles) sortBy = do
-  result <- case maybeQuery of
-    Just query ->
-      execQuery (UserMetadata.searchUsers query roles (limit + 1) offset sortBy)
-    Nothing ->
-      execQuery (UserMetadata.getUsersByRole roles (limit + 1) offset sortBy)
-  case result of
-    Left err -> throwDatabaseError err
-    Right users -> pure users
+  ExceptT HandlerError AppM [UserMetadata.UserWithMetadata]
+fetchUsers limit offset maybeQuery (maybeToList -> roles) sortBy =
+  fromRightM throwDatabaseError $
+    lift $ case maybeQuery of
+      Just query ->
+        execQuery (UserMetadata.searchUsers query roles (limit + 1) offset sortBy)
+      Nothing ->
+        execQuery (UserMetadata.getUsersByRole roles (limit + 1) offset sortBy)

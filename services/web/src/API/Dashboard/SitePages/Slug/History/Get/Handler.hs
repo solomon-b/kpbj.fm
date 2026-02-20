@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.SitePages.Slug.History.Get.Handler (handler) where
+module API.Dashboard.SitePages.Slug.History.Get.Handler (handler, action, PageHistoryViewData (..)) where
 
 --------------------------------------------------------------------------------
 
@@ -10,10 +10,11 @@ import API.Links (apiLinks)
 import API.Types (Routes (..))
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Either (fromRight)
 import Data.Maybe (listToMaybe)
@@ -28,6 +29,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Lucid qualified
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -38,28 +40,56 @@ handler ::
   AppM (Lucid.Html ())
 handler pageSlug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Site page history" apiLinks.rootGet $ do
-    -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
+    vd <- action user userMetadata pageSlug
+    lift $
+      renderDashboardTemplate
+        hxRequest
+        vd.phvUserMetadata
+        vd.phvAllShows
+        vd.phvSelectedShow
+        NavSitePages
+        Nothing
+        Nothing
+        (template vd.phvPage vd.phvRevisions)
 
-    -- 2. Fetch shows for sidebar
-    showsResult <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuery Shows.getAllActiveShows
-        else execQuery (Shows.getShowsForUser (User.mId user))
-    let allShows = fromRight [] showsResult
+--------------------------------------------------------------------------------
 
-    -- 3. Fetch page and revisions in transaction
-    mResult <- execTransaction $ runMaybeT $ do
-      page <- MaybeT $ HT.statement () (SitePages.getPageBySlug pageSlug)
-      revisions <- lift $ HT.statement () (SitePageRevisions.getRevisionsForPage page.spmId)
-      pure (page, revisions)
+-- | All data needed to render the site page history page.
+data PageHistoryViewData = PageHistoryViewData
+  { phvUserMetadata :: UserMetadata.Model,
+    phvAllShows :: [Shows.Model],
+    phvSelectedShow :: Maybe Shows.Model,
+    phvPage :: SitePages.Model,
+    phvRevisions :: [SitePageRevisions.RevisionWithEditor]
+  }
 
-    (page, revisions) <- case mResult of
-      Left err -> throwDatabaseError err
-      Right Nothing -> throwNotFound "Site page not found."
-      Right (Just result) -> pure result
+-- | Business logic: fetch shows, fetch page and revisions in transaction.
+action :: User.Model -> UserMetadata.Model -> Text -> ExceptT HandlerError AppM PageHistoryViewData
+action user userMetadata pageSlug = do
+  -- 1. Fetch shows for sidebar
+  showsResult <-
+    if UserMetadata.isAdmin userMetadata.mUserRole
+      then execQuery Shows.getAllActiveShows
+      else execQuery (Shows.getShowsForUser (User.mId user))
+  let allShows = fromRight [] showsResult
 
-    -- 4. Render response
-    let selectedShow = listToMaybe allShows
-    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavSitePages Nothing Nothing (template page revisions)
+  -- 2. Fetch page and revisions in transaction
+  (page, revisions) <-
+    fromMaybeM (throwNotFound "Site page not found.") $
+      fromRightM throwDatabaseError $
+        execTransaction $
+          runMaybeT $ do
+            p <- MaybeT $ HT.statement () (SitePages.getPageBySlug pageSlug)
+            revs <- lift $ HT.statement () (SitePageRevisions.getRevisionsForPage p.spmId)
+            pure (p, revs)
+
+  pure
+    PageHistoryViewData
+      { phvUserMetadata = userMetadata,
+        phvAllShows = allShows,
+        phvSelectedShow = listToMaybe allShows,
+        phvPage = page,
+        phvRevisions = revisions
+      }

@@ -1,14 +1,15 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module API.Dashboard.StationIds.Id.Delete.Handler (handler) where
+module API.Dashboard.StationIds.Id.Delete.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
-import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (unless)
+import Control.Monad.Trans.Except (ExceptT)
 import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StationIds qualified as StationIds
@@ -16,55 +17,65 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | Servant handler: thin glue composing action + OOB banner.
 handler ::
   StationIds.Id ->
   Maybe Cookie ->
   AppM (Lucid.Html ())
 handler stationIdId cookie =
   handleBannerErrors "Station ID delete" $ do
-    -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to delete station IDs." userMetadata
+    action user userMetadata stationIdId
+    pure $ do
+      mempty
+      renderBanner Success "Station ID Deleted" "The station ID has been deleted successfully."
 
-    -- 2. Fetch station ID
-    stationId <- fetchStationId stationIdId
+--------------------------------------------------------------------------------
 
-    -- 3. Check authorization: must be creator OR staff/admin
-    let isCreator = stationId.simCreatorId == user.mId
-        isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-        isAuthorized = isCreator || isStaffOrAdmin
+-- | Business logic: ownership check, delete.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  StationIds.Id ->
+  ExceptT HandlerError AppM ()
+action user userMetadata stationIdId = do
+  -- 1. Fetch station ID
+  stationId <- fetchStationId stationIdId
 
-    unless isAuthorized $
-      throwNotAuthorized "You can only delete station IDs you created." (Just userMetadata.mUserRole)
+  -- 2. Check authorization: must be creator OR staff/admin
+  let isCreator = stationId.simCreatorId == user.mId
+      isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
+      isAuthorized = isCreator || isStaffOrAdmin
 
-    -- 4. Delete the station ID
-    deleteStationId stationId
+  unless isAuthorized $
+    throwNotAuthorized "You can only delete station IDs you created." (Just userMetadata.mUserRole)
+
+  -- 3. Delete the station ID
+  deleteStationId stationId
 
 --------------------------------------------------------------------------------
 -- Helpers
 
 fetchStationId ::
   StationIds.Id ->
-  AppM StationIds.Model
+  ExceptT HandlerError AppM StationIds.Model
 fetchStationId stationIdId =
-  execQuery (StationIds.getStationIdById stationIdId) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Station ID"
-    Right (Just stationId) -> pure stationId
+  fromMaybeM (throwNotFound "Station ID") $
+    fromRightM throwDatabaseError $
+      execQuery (StationIds.getStationIdById stationIdId)
 
 deleteStationId ::
   StationIds.Model ->
-  AppM (Lucid.Html ())
-deleteStationId stationId =
-  execQuery (StationIds.deleteStationId stationId.simId) >>= \case
+  ExceptT HandlerError AppM ()
+deleteStationId stationId = do
+  result <- execQuery (StationIds.deleteStationId stationId.simId)
+  case result of
     Left err -> throwDatabaseError err
     Right Nothing -> throwNotFound "Station ID"
-    Right (Just _) -> do
+    Right (Just _) ->
       Log.logInfo "Station ID deleted successfully" stationId.simId
-      -- Return empty (removes row) + OOB banner (Pattern C)
-      pure $ do
-        mempty -- Empty response removes the target element
-        renderBanner Success "Station ID Deleted" "The station ID has been deleted successfully."

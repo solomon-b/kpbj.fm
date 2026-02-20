@@ -3,7 +3,10 @@ module API.User.VerifyEmailResend.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.User.VerifyEmailResend.Post.Route (ResendForm (..))
+import App.Handler.Error (HandlerError)
 import App.Monad (AppM)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Effects.Database.Execute (execQuery)
@@ -14,32 +17,48 @@ import Lucid qualified
 
 --------------------------------------------------------------------------------
 
-handler ::
+-- | Result of the resend verification action.
+data ResendResult
+  = ResendSuccess
+  | ResendError Text
+
+--------------------------------------------------------------------------------
+
+-- | Core business logic for resending a verification email.
+--
+-- Looks up the user by email and resends the verification email if found.
+-- Returns success regardless of whether the email exists (prevents enumeration).
+action ::
   ResendForm ->
-  AppM (Lucid.Html ())
-handler ResendForm {..} = do
-  -- Look up the user by email
+  ExceptT HandlerError AppM ResendResult
+action ResendForm {..} = do
   result <- execQuery (User.getUserByEmail rfEmail)
   case result of
     Left err -> do
       Log.logInfo "Failed to look up user for resend" (show err)
-      pure $ errorMessage "An error occurred. Please try again."
+      pure $ ResendError "An error occurred. Please try again."
     Right Nothing -> do
-      -- Don't reveal whether the email exists
       Log.logInfo "Resend requested for unknown email" (display rfEmail)
-      pure successMessage
+      pure ResendSuccess
     Right (Just user) -> do
-      -- Check if already verified
-      -- Note: This depends on the User model having an emailVerified field
-      -- For now, we'll just resend regardless
-      resendResult <- EmailVerification.resendVerification (User.mId user) rfEmail
+      resendResult <- lift $ EmailVerification.resendVerification (User.mId user) rfEmail
       case resendResult of
         Left err -> do
           Log.logInfo "Failed to resend verification" (EmailVerification.verificationErrorToText err)
-          pure $ errorMessage "Failed to send verification email. Please try again."
+          pure $ ResendError "Failed to send verification email. Please try again."
         Right () -> do
           Log.logInfo "Verification email resent" (display rfEmail)
-          pure successMessage
+          pure ResendSuccess
+
+handler ::
+  ResendForm ->
+  AppM (Lucid.Html ())
+handler form = do
+  result <- runExceptT $ action form
+  case result of
+    Left _ -> pure $ errorMessage "An unexpected error occurred. Please try again."
+    Right ResendSuccess -> pure successMessage
+    Right (ResendError msg) -> pure $ errorMessage msg
 
 --------------------------------------------------------------------------------
 

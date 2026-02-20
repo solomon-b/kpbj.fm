@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
-module API.Dashboard.Events.Slug.Edit.Post.Handler (handler) where
+module API.Dashboard.Events.Slug.Edit.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
@@ -8,13 +8,14 @@ import API.Dashboard.Events.Slug.Edit.Post.Route (EventEditForm (..), parseDateT
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
 import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad (void, when)
+import Control.Monad (unless, void, when)
 import Control.Monad.Reader (asks)
-import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Has (getter)
@@ -34,9 +35,38 @@ import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
 import Servant qualified
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | All data needed to build the post-update redirect.
+data EventEditRedirectData = EventEditRedirectData
+  { eerRedirectUrl :: Text,
+    eerBanner :: BannerParams
+  }
+
+-- | Business logic: fetch event, authorize, validate, update, build redirect data.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  Events.Id ->
+  Slug ->
+  EventEditForm ->
+  ExceptT HandlerError AppM EventEditRedirectData
+action user userMetadata eventId _slug editForm = do
+  -- 1. Fetch event
+  event <-
+    fromMaybeM (throwNotFound "Event") $
+      fromRightM throwDatabaseError $
+        execQuery (Events.getEventById eventId)
+
+  -- 2. Check authorization: must be staff/admin or the creator
+  unless (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole) $
+    throwNotAuthorized "You can only edit events you created or have staff permissions." (Just userMetadata.mUserRole)
+
+  updateEvent eventId event editForm
+
+-- | Servant handler: thin glue composing action + building redirect response.
 handler ::
   Events.Id ->
   Slug ->
@@ -45,35 +75,23 @@ handler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler eventId slug cookie editForm =
   handleRedirectErrors "Event update" (dashboardEventsLinks.editGet eventId slug) $ do
-    -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit events." userMetadata
-
-    -- 2. Fetch event
-    mResult <- execQuery $ Events.getEventById eventId
-
-    event <- case mResult of
-      Left err -> throwDatabaseError err
-      Right Nothing -> throwNotFound "Event"
-      Right (Just e) -> pure e
-
-    -- 3. Check authorization: must be staff/admin or the creator
-    if not (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole)
-      then throwNotAuthorized "You can only edit events you created or have staff permissions." (Just userMetadata.mUserRole)
-      else updateEvent eventId event editForm
+    vd <- action user userMetadata eventId slug editForm
+    pure $ Servant.addHeader vd.eerRedirectUrl (redirectWithBanner vd.eerRedirectUrl vd.eerBanner)
 
 updateEvent ::
   Events.Id ->
   Events.Model ->
   EventEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  ExceptT HandlerError AppM EventEditRedirectData
 updateEvent eventId event editForm = do
-  -- 4. Parse and validate form data
+  -- 3. Parse and validate form data
   parsedStatus <- requireJust "Invalid event status value." (parseStatus (eefStatus editForm))
   parsedStartsAt <- requireJust "Invalid start date/time format." (parseDateTime (eefStartsAt editForm))
   parsedEndsAt <- requireJust "Invalid end date/time format." (parseDateTime (eefEndsAt editForm))
 
-  -- 5. Sanitize and validate content
+  -- 4. Sanitize and validate content
   let sanitizedTitle = Sanitize.sanitizeTitle (eefTitle editForm)
       sanitizedDescription = Sanitize.sanitizeUserContent (eefDescription editForm)
       sanitizedLocationName = Sanitize.sanitizePlainText (eefLocationName editForm)
@@ -84,7 +102,7 @@ updateEvent eventId event editForm = do
   validLocationName <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 100 sanitizedLocationName)
   validLocationAddress <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 500 sanitizedLocationAddress)
 
-  -- 6. Upload poster image if provided, or clear if requested
+  -- 5. Upload poster image if provided, or clear if requested
   posterImagePath <- case eefPosterImage editForm of
     Nothing ->
       -- No new file: check if user wants to clear existing image
@@ -97,7 +115,7 @@ updateEvent eventId event editForm = do
       let newSlug = Slug.mkSlug validTitle
       storageBackend <- asks getter
       mAwsEnv <- asks getter
-      uploadResult <- uploadEventPosterImage storageBackend mAwsEnv newSlug posterImageFile
+      uploadResult <- lift $ uploadEventPosterImage storageBackend mAwsEnv newSlug posterImageFile
       case uploadResult of
         Left uploadError -> do
           Log.logInfo "Poster image upload failed" (Aeson.object ["error" Aeson..= Text.pack (show uploadError)])
@@ -113,7 +131,7 @@ updateEvent eventId event editForm = do
           Log.logInfo "Poster image uploaded successfully" (Aeson.object ["path" Aeson..= uploadResultStoragePath result])
           pure (Just $ Text.pack $ uploadResultStoragePath result)
 
-  -- 7. Build update data
+  -- 6. Build update data
   let featuredOnHomepage = eefFeaturedOnHomepage editForm == "true"
       newSlug = Slug.mkSlug validTitle
       updateData =
@@ -131,21 +149,23 @@ updateEvent eventId event editForm = do
             Events.eiFeaturedOnHomepage = featuredOnHomepage
           }
 
-  -- 8. Update the event in a transaction
-  mUpdateResult <- execTransaction $ runMaybeT $ do
-    when featuredOnHomepage $
-      lift $
-        void $
-          HT.statement () Events.clearFeaturedEvents
-    _ <- MaybeT $ HT.statement () (Events.updateEvent event.emId updateData)
-    pure ()
+  -- 7. Update the event in a transaction
+  mUpdateResult <-
+    fromRightM throwDatabaseError $
+      execTransaction $
+        runMaybeT $ do
+          when featuredOnHomepage $
+            lift $
+              void $
+                HT.statement () Events.clearFeaturedEvents
+          _ <- MaybeT $ HT.statement () (Events.updateEvent event.emId updateData)
+          pure ()
 
   case mUpdateResult of
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwDatabaseError (error "Event update returned Nothing")
-    Right (Just _) -> do
+    Nothing -> throwHandlerFailure "Event update returned Nothing"
+    Just _ -> do
       Log.logInfo "Successfully updated event" event.emId
       let detailUrl = rootLink $ dashboardEventsLinks.detail eventId newSlug
           banner = BannerParams Success "Event Updated" "Your event has been updated and saved."
           redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+      pure $ EventEditRedirectData redirectUrl banner

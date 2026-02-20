@@ -1,4 +1,4 @@
-module API.Dashboard.StationBlog.New.Post.Handler (handler) where
+module API.Dashboard.StationBlog.New.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
@@ -6,12 +6,14 @@ import API.Dashboard.StationBlog.New.Post.Route (NewBlogPostForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
 import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
-import App.Handler.Error (handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, void)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Foldable (traverse_)
@@ -33,28 +35,50 @@ import Effects.FileUpload (uploadBlogHeroImage)
 import Log qualified
 import Lucid qualified
 import Servant qualified
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | Data returned by action after successful blog post creation.
+data NewBlogPostResult = NewBlogPostResult
+  { nbprRedirectUrl :: Text,
+    nbprBanner :: BannerParams
+  }
+
+-- | Business logic: validate, create post, return redirect info.
+action ::
+  User.Model ->
+  NewBlogPostForm ->
+  ExceptT HandlerError AppM NewBlogPostResult
+action user form = do
+  -- 1. Process hero image upload if present
+  heroImagePath <- lift $ handleHeroImageUpload form
+
+  -- 2. Validate and create blog post
+  blogPostData <-
+    requireRight
+      Sanitize.displayContentValidationError
+      (validateNewBlogPost form (User.mId user) heroImagePath)
+
+  -- 3. Check slug uniqueness
+  existingPost <- fromRightM throwDatabaseError $ execQuery (BlogPosts.getBlogPostBySlug blogPostData.bpiSlug)
+  case existingPost of
+    Just _ -> throwValidationError "A blog post with this URL already exists. Try a different title."
+    Nothing -> pure ()
+
+  buildNewPostResult blogPostData form
+
+-- | Servant handler: thin glue composing action + return redirect response.
 handler ::
   Maybe Cookie ->
   NewBlogPostForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler cookie form =
   handleRedirectErrors "Blog post creation" dashboardStationBlogLinks.newGet $ do
-    -- 1. Require authentication and staff role
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to create blog posts." userMetadata
-
-    -- 2. Process hero image upload if present
-    heroImagePath <- handleHeroImageUpload form
-
-    -- 3. Validate and create blog post
-    blogPostData <-
-      requireRight
-        Sanitize.displayContentValidationError
-        (validateNewBlogPost form (User.mId user) heroImagePath)
-    handlePostCreation blogPostData form
+    (user, _userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "You do not have permission to create blog posts." _userMetadata
+    result <- action user form
+    pure $ Servant.addHeader result.nbprRedirectUrl (redirectWithBanner result.nbprRedirectUrl result.nbprBanner)
 
 -- | Handle hero image upload
 handleHeroImageUpload ::
@@ -133,14 +157,14 @@ createOrAssociateTag postId tagName =
         Left dbError -> do
           Log.logInfo "Database error creating tag" (Aeson.object ["error" .= Text.pack (show dbError)])
 
--- | Handle blog post creation after validation passes
-handlePostCreation ::
+-- | Build result after blog post creation.
+buildNewPostResult ::
   BlogPosts.Insert ->
   NewBlogPostForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handlePostCreation blogPostData form = do
+  ExceptT HandlerError AppM NewBlogPostResult
+buildNewPostResult blogPostData form = do
   postId <- insertBlogPost blogPostData
-  createPostTags postId form
+  lift $ createPostTags postId form
 
   -- Fetch created post to get the slug
   execQuery (BlogPosts.getBlogPostById postId) >>= \case
@@ -150,19 +174,18 @@ handlePostCreation blogPostData form = do
           detailUrl = rootLink $ dashboardStationBlogLinks.detail postId createdSlug
           banner = BannerParams Success "Blog Post Created" "Your blog post has been created successfully."
           redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+      pure $ NewBlogPostResult redirectUrl banner
     _ -> do
       Log.logInfo_ "Created blog post but failed to retrieve it"
       let listUrl = rootLink $ dashboardStationBlogLinks.list Nothing
           banner = BannerParams Success "Blog Post Created" "Your blog post has been created."
           redirectUrl = buildRedirectUrl listUrl banner
-      pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+      pure $ NewBlogPostResult redirectUrl banner
 
 insertBlogPost ::
   BlogPosts.Insert ->
-  AppM BlogPosts.Id
+  ExceptT HandlerError AppM BlogPosts.Id
 insertBlogPost blogPostData =
-  execQuery (BlogPosts.insertBlogPost blogPostData) >>= \case
-    Left err -> throwDatabaseError err
-    Right (Just postId) -> pure postId
-    Right Nothing -> throwHandlerFailure "Blog post insert returned Nothing"
+  fromMaybeM (throwHandlerFailure "Blog post insert returned Nothing") $
+    fromRightM throwDatabaseError $
+      execQuery (BlogPosts.insertBlogPost blogPostData)

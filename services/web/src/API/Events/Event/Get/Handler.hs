@@ -5,11 +5,16 @@ module API.Events.Event.Get.Handler where
 
 --------------------------------------------------------------------------------
 
-import API.Events.Event.Get.Templates.Page (notFoundTemplate, template)
+import API.Events.Event.Get.Templates.Page (template)
+import API.Links (apiLinks)
+import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
+import App.Handler.Error (HandlerError (..), errorContent, errorRedirectParams, logHandlerError, notFoundContent, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
-import Component.Redirect (redirectTemplate)
+import Component.Redirect (buildRedirectUrl, redirectTemplate, redirectWithBanner)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Functor ((<&>))
 import Data.Has (getter)
 import Data.String.Interpolate (i)
@@ -17,14 +22,20 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Domain.Types.Slug (Slug, matchSlug, mkSlug)
+import Domain.Types.Slug (Slug, matchSlug)
+import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Markdown (renderContentM)
-import Log qualified
 import Lucid qualified
 import Servant qualified
+import Utils (fromMaybeM, fromRightM)
+
+--------------------------------------------------------------------------------
+
+data EventViewData
+  = EventRedirect Text
+  | EventContent StorageBackend Events.Model
 
 --------------------------------------------------------------------------------
 
@@ -52,47 +63,59 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler eventId mUrlSlug cookie (foldHxReq -> hxRequest) = do
-  mUserInfo <- getUserInfo cookie <&> fmap snd
+handler eventId mUrlSlug cookie (foldHxReq -> hxRequest) =
+  runExceptT innerAction >>= \case
+    Right result -> pure result
+    Left err -> do
+      logHandlerError "Event" err
+      case err of
+        NotFound resource -> Servant.noHeader <$> renderInline (notFoundContent resource)
+        NotAuthenticated ->
+          let (url, banner) = errorRedirectParams apiLinks.rootGet err
+           in pure $ Servant.addHeader (buildRedirectUrl url banner) (redirectWithBanner url banner)
+        NotAuthorized _ _ ->
+          let (url, banner) = errorRedirectParams apiLinks.rootGet err
+           in pure $ Servant.addHeader (buildRedirectUrl url banner) (redirectWithBanner url banner)
+        DatabaseError _ -> Servant.noHeader <$> renderInline (errorContent "Something went wrong. Please try again.")
+        UserSuspended -> Servant.noHeader <$> renderInline (errorContent "Your account is suspended.")
+        ValidationError msg -> Servant.noHeader <$> renderInline (errorContent msg)
+        HandlerFailure msg -> Servant.noHeader <$> renderInline (errorContent msg)
+  where
+    innerAction = do
+      mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
+      vd <- action eventId mUrlSlug
+      case vd of
+        EventRedirect canonicalUrl -> do
+          html <- lift $ renderTemplate hxRequest mUserInfo (redirectTemplate canonicalUrl)
+          pure $ Servant.addHeader canonicalUrl html
+        EventContent backend event -> do
+          renderedDescription <- lift $ renderContentM (Events.emDescription event)
+          html <- lift $ renderTemplate hxRequest mUserInfo (template backend event renderedDescription)
+          pure $ Servant.noHeader html
+    renderInline content = do
+      mUserInfo <- getUserInfo cookie <&> fmap snd
+      renderTemplate hxRequest mUserInfo content
 
-  execQuery (Events.getEventById eventId) >>= \case
-    Left _err -> do
-      Log.logInfo "Failed to fetch event from database" eventId
-      html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (mkSlug "unknown"))
-      pure $ Servant.noHeader html
-    Right Nothing -> do
-      Log.logInfo "Event not found" eventId
-      html <- renderTemplate hxRequest mUserInfo (notFoundTemplate (mkSlug "unknown"))
-      pure $ Servant.noHeader html
-    Right (Just event) -> do
-      let canonicalSlug = Events.emSlug event
-          eventIdText = display eventId
-          slugText = display canonicalSlug
-          canonicalUrl = [i|/events/#{eventIdText}/#{slugText}|]
+--------------------------------------------------------------------------------
 
-      if matchSlug canonicalSlug mUrlSlug
-        then renderEvent hxRequest mUserInfo event
-        else renderRedirect hxRequest mUserInfo canonicalUrl
+-- | Business logic: fetch event, verify slug, render description.
+action ::
+  Events.Id ->
+  Maybe Slug ->
+  ExceptT HandlerError AppM EventViewData
+action eventId mUrlSlug = do
+  event <-
+    fromMaybeM (throwNotFound "Event") $
+      fromRightM throwDatabaseError $
+        execQuery (Events.getEventById eventId)
 
-renderEvent ::
-  HxRequest ->
-  Maybe UserMetadata.Model ->
-  Events.Model ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-renderEvent hxRequest mUserInfo event = do
-  storageBackend <- asks getter
-  renderedDescription <- renderContentM (Events.emDescription event)
+  let canonicalSlug = Events.emSlug event
+      eventIdText = display eventId
+      slugText = display canonicalSlug
+      canonicalUrl = [i|/events/#{eventIdText}/#{slugText}|]
 
-  let eventTemplate = template storageBackend event renderedDescription
-  html <- renderTemplate hxRequest mUserInfo eventTemplate
-
-  pure $ Servant.noHeader html
-
-renderRedirect ::
-  HxRequest ->
-  Maybe UserMetadata.Model ->
-  Text ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-renderRedirect hxRequest mUserInfo url = do
-  html <- renderTemplate hxRequest mUserInfo (redirectTemplate url)
-  pure $ Servant.addHeader url html
+  if matchSlug canonicalSlug mUrlSlug
+    then do
+      backend <- asks getter
+      pure $ EventContent backend event
+    else pure $ EventRedirect canonicalUrl

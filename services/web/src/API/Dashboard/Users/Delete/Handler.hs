@@ -5,10 +5,11 @@ module API.Dashboard.Users.Delete.Handler where
 --------------------------------------------------------------------------------
 
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
-import App.Handler.Error (handleBannerErrors)
+import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (void)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
@@ -18,7 +19,6 @@ import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Pool qualified as HSQL
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
@@ -31,12 +31,10 @@ handler ::
   AppM (Lucid.Html ())
 handler targetUserId cookie =
   handleBannerErrors "User delete" $ do
-    -- Require admin authentication
     (_user, userMetadata) <- requireAuth cookie
     requireAdminNotSuspended "Only admins can delete users." userMetadata
-
-    -- Execute deletion
-    executeUserDeletion targetUserId >>= renderDeleteResult
+    result <- action targetUserId
+    renderDeleteResult result
 
 --------------------------------------------------------------------------------
 
@@ -44,26 +42,25 @@ handler targetUserId cookie =
 data DeleteResult
   = DeleteSuccess User.Id EmailAddress
   | TargetUserNotFound User.Id
-  | DeleteFailed HSQL.UsageError
   deriving stock (Show, Eq)
 
--- | Execute user deletion with database operations
-executeUserDeletion ::
+-- | Business logic: fetch user, soft delete.
+action ::
   User.Id ->
-  AppM DeleteResult
-executeUserDeletion targetUserId = do
+  ExceptT HandlerError AppM DeleteResult
+action targetUserId = do
+  -- Execute deletion
   result <- runDBTransaction $ runMaybeT $ do
     userWithMeta <- MaybeT $ TRX.statement () (UserMetadata.getUserWithMetadataById targetUserId)
     void $ MaybeT $ TRX.statement () (UserMetadata.softDeleteUser targetUserId)
     pure userWithMeta.uwmEmail
 
-  pure $ case result of
-    Left err ->
-      DeleteFailed err
-    Right Nothing ->
-      TargetUserNotFound targetUserId
-    Right (Just email) ->
-      DeleteSuccess targetUserId email
+  case result of
+    Left err -> throwDatabaseError err
+    Right Nothing -> pure $ TargetUserNotFound targetUserId
+    Right (Just email) -> pure $ DeleteSuccess targetUserId email
+
+--------------------------------------------------------------------------------
 
 -- | Render the appropriate HTML response based on deletion result
 renderDeleteResult :: (Log.MonadLog m) => DeleteResult -> m (Lucid.Html ())
@@ -77,6 +74,3 @@ renderDeleteResult = \case
   TargetUserNotFound uid -> do
     Log.logInfo "User already deleted or not found during delete" (Aeson.object ["userId" .= display uid])
     pure $ renderBanner Error "Delete Failed" "User not found."
-  DeleteFailed err -> do
-    Log.logInfo "Database error" (Aeson.object ["error" .= show err])
-    pure $ renderBanner Error "Delete Failed" "Failed to delete user. Please try again."

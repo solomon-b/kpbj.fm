@@ -9,13 +9,14 @@ import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackI
 import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
 import App.Handler.Combinators (requireAuth)
-import App.Handler.Error
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (unless, when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Either (partitionEithers)
@@ -50,9 +51,11 @@ import Log qualified
 import Lucid qualified
 import Servant qualified
 import Text.Read (readMaybe)
+import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
 
+-- | Servant handler: thin glue composing action + redirect.
 handler ::
   Slug ->
   Episodes.EpisodeNumber ->
@@ -61,22 +64,40 @@ handler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 handler showSlug episodeNumber cookie editForm =
   handleRedirectErrors "Episode update" (dashboardEpisodesLinks.editGet showSlug episodeNumber) $ do
-    -- 1. Require authentication
     (user, userMetadata) <- requireAuth cookie
+    warnings <- action user userMetadata showSlug episodeNumber editForm
+    let listUrl = rootLink $ dashboardEpisodesLinks.list showSlug Nothing
+        banner = makeSuccessBanner warnings
+        redirectUrl = buildRedirectUrl listUrl banner
+    pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
 
-    -- 2. Fetch episode context (episode, show, isHost) in transaction
-    (episode, showModel, isHost) <- fetchEpisodeContext showSlug episodeNumber user userMetadata
+--------------------------------------------------------------------------------
 
-    -- 3. Check authorization
-    let isAuthorized =
-          episode.createdBy == user.mId
-            || isHost
-            || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-    unless isAuthorized $
-      throwNotAuthorized "You can only edit episodes you created, or episodes for shows you host." (Just userMetadata.mUserRole)
+-- | Business logic: fetch, authorize, update.
+--
+-- Returns a list of warning messages from optional updates (file uploads,
+-- schedule changes, track updates). An empty list means everything succeeded.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  Slug ->
+  Episodes.EpisodeNumber ->
+  EpisodeEditForm ->
+  ExceptT HandlerError AppM [Text]
+action user userMetadata showSlug episodeNumber editForm = do
+  -- 1. Fetch episode context (episode, show, isHost) in transaction
+  (episode, showModel, isHost) <- fetchEpisodeContext showSlug episodeNumber user userMetadata
 
-    -- 4. Perform the update
-    updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
+  -- 2. Check authorization
+  let isAuthorized =
+        episode.createdBy == user.mId
+          || isHost
+          || UserMetadata.isStaffOrHigher userMetadata.mUserRole
+  unless isAuthorized $
+    throwNotAuthorized "You can only edit episodes you created, or episodes for shows you host." (Just userMetadata.mUserRole)
+
+  -- 3. Perform the update
+  updateEpisode showSlug episodeNumber user userMetadata episode showModel editForm
 
 --------------------------------------------------------------------------------
 -- Context Fetching
@@ -89,20 +110,22 @@ fetchEpisodeContext ::
   Episodes.EpisodeNumber ->
   User.Model ->
   UserMetadata.Model ->
-  AppM EpisodeEditContext
+  ExceptT HandlerError AppM EpisodeEditContext
 fetchEpisodeContext showSlug episodeNumber user userMetadata = do
-  mResult <- execTransaction $ runMaybeT $ do
-    episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
-    showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
-    isHost <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then pure True
-        else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
-    MaybeT $ pure $ Just (episode, showResult, isHost)
+  mResult <-
+    fromRightM throwDatabaseError $
+      execTransaction $
+        runMaybeT $ do
+          episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
+          showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
+          isHost <-
+            if UserMetadata.isAdmin userMetadata.mUserRole
+              then pure True
+              else lift $ HT.statement () (ShowHost.isUserHostOfShow user.mId episode.showId)
+          MaybeT $ pure $ Just (episode, showResult, isHost)
   case mResult of
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwNotFound "Episode"
-    Right (Just ctx) -> pure ctx
+    Nothing -> throwNotFound "Episode"
+    Just ctx -> pure ctx
 
 --------------------------------------------------------------------------------
 -- Schedule Parsing
@@ -139,7 +162,7 @@ updateEpisode ::
   Episodes.Model ->
   Shows.Model ->
   EpisodeEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  ExceptT HandlerError AppM [Text]
 updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel editForm = do
   currentTime <- currentSystemTime
   let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
@@ -154,25 +177,21 @@ updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel edit
           { euId = episode.id,
             euDescription = Just validDescription
           }
-  execQuery (Episodes.updateEpisode updateData) >>= \case
-    Left err -> throwDatabaseError err
-    Right Nothing -> throwHandlerFailure "Failed to update episode"
-    Right (Just _) -> pure ()
+  fromRightM throwDatabaseError (execQuery (Episodes.updateEpisode updateData)) >>= \case
+    Nothing -> throwHandlerFailure "Failed to update episode"
+    Just _ -> pure ()
 
   -- 3. Optional updates (accumulate warnings, don't throw)
-  warnings <- execOptionalUpdates _user.mId currentTime isStaffOrAdmin isPast episode showModel editForm
+  warnings <- lift $ execOptionalUpdates _user.mId currentTime isStaffOrAdmin isPast episode showModel editForm
 
-  -- 4. Success redirect with any warnings
+  -- 4. Return warnings
   Log.logInfo "Successfully updated episode" episode.id
-  let listUrl = rootLink $ dashboardEpisodesLinks.list showModel.slug Nothing
-      banner = makeSuccessBanner warnings
-      redirectUrl = buildRedirectUrl listUrl banner
-  pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+  pure warnings
 
 --------------------------------------------------------------------------------
 -- Validation Helpers
 
-validateDescription :: Maybe Text -> AppM Text
+validateDescription :: Maybe Text -> ExceptT HandlerError AppM Text
 validateDescription mDescription = do
   let sanitized = maybe "" Sanitize.sanitizeUserContent mDescription
   case Sanitize.validateContentLength 10000 sanitized of

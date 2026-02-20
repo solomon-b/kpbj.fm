@@ -11,10 +11,12 @@ import API.Links (apiLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
-import App.Handler.Error (handleHtmlErrors, throwNotFound)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Has (getter)
 import Data.Int (Int64)
@@ -50,6 +52,43 @@ import Rel8 (Result)
 episodesPerPage :: Int64
 episodesPerPage = 10
 
+-- | All data needed to render the show detail page.
+data ShowDetailViewData = ShowDetailViewData
+  { sdvUserMetadata :: UserMetadata.Model,
+    sdvAllShows :: [Shows.Model],
+    sdvShowModel :: Shows.Model,
+    sdvBackend :: StorageBackend,
+    sdvPage :: Int
+  }
+
+-- | Business logic: fetch shows, find show.
+action ::
+  User.Model ->
+  UserMetadata.Model ->
+  Shows.Id ->
+  Slug ->
+  Maybe Int ->
+  ExceptT HandlerError AppM ShowDetailViewData
+action user userMetadata showId _showSlug mPage = do
+  -- 1. Get storage backend
+  backend <- asks getter
+
+  -- 2. Fetch shows for sidebar (admins see all, hosts see their own)
+  allShows <- lift $ fetchShowsForUser user userMetadata
+
+  -- 3. Find the selected show
+  case find (\s -> s.id == showId) allShows of
+    Nothing -> throwNotFound "Show"
+    Just showModel ->
+      pure
+        ShowDetailViewData
+          { sdvUserMetadata = userMetadata,
+            sdvAllShows = allShows,
+            sdvShowModel = showModel,
+            sdvBackend = backend,
+            sdvPage = fromMaybe 1 mPage
+          }
+
 handler ::
   Shows.Id ->
   Slug ->
@@ -62,20 +101,8 @@ handler showId showSlug mPage cookie (foldHxReq -> hxRequest) =
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId showSlug userMetadata
-
-    -- 2. Get storage backend
-    backend <- asks getter
-
-    -- 3. Fetch shows for sidebar (admins see all, hosts see their own)
-    allShows <- fetchShowsForUser user userMetadata
-
-    -- 4. Find the selected show
-    let selectedShow = find (\s -> s.id == showId) allShows
-    case selectedShow of
-      Nothing -> throwNotFound "Show"
-      Just showModel -> do
-        -- 5. Render show details
-        renderShowDetails backend hxRequest userMetadata allShows showModel mPage
+    vd <- action user userMetadata showId showSlug mPage
+    lift $ renderShowDetails vd.sdvBackend hxRequest vd.sdvUserMetadata vd.sdvAllShows vd.sdvShowModel (Just vd.sdvPage)
 
 -- | Fetch shows based on user role (admins see all, hosts see their own)
 fetchShowsForUser ::

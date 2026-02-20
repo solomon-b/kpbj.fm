@@ -12,12 +12,14 @@ import API.Types (Routes (..))
 import App.Common (renderDashboardTemplate)
 import App.CustomContext (StreamConfig (..))
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
-import App.Handler.Error (handleHtmlErrors)
+import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson (Value (..))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Key (fromText)
@@ -45,30 +47,59 @@ handler ::
   AppM (Lucid.Html ())
 handler cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Stream settings" apiLinks.rootGet $ do
-    -- 1. Require authentication and admin role
     (user, userMetadata) <- requireAuth cookie
     requireAdminNotSuspended "Only admins can access stream settings." userMetadata
+    vd <- action user userMetadata
+    lift $
+      renderDashboardTemplate
+        hxRequest
+        vd.ssvUserMetadata
+        vd.ssvAllShows
+        (listToMaybe vd.ssvAllShows)
+        NavStreamSettings
+        Nothing
+        Nothing
+        (template vd.ssvIcecastReachable vd.ssvIcecastStatus vd.ssvRecentHistory)
 
-    -- 2. Fetch shows for sidebar
-    showsResult <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuery Shows.getAllActiveShows
-        else execQuery (Shows.getShowsForUser (User.mId user))
-    let allShows = fromRight [] showsResult
+--------------------------------------------------------------------------------
 
-    -- 3. Read stream config from environment
-    streamCfg <- asks (getter @StreamConfig)
+-- | All data needed to render the stream settings page.
+data StreamSettingsViewData = StreamSettingsViewData
+  { ssvUserMetadata :: UserMetadata.Model,
+    ssvAllShows :: [Shows.Model],
+    ssvIcecastReachable :: Bool,
+    ssvIcecastStatus :: Maybe IcecastStatus,
+    ssvRecentHistory :: [PlaybackHistory.Model]
+  }
 
-    -- 4. Fetch icecast status
-    (icecastReachable, icecastStatus) <- fetchIcecastStatus streamCfg.scMetadataUrl
+-- | Business logic: fetch shows, icecast status, playback history.
+action :: User.Model -> UserMetadata.Model -> ExceptT HandlerError AppM StreamSettingsViewData
+action user userMetadata = do
+  -- 1. Fetch shows for sidebar
+  showsResult <-
+    if UserMetadata.isAdmin userMetadata.mUserRole
+      then execQuery Shows.getAllActiveShows
+      else execQuery (Shows.getShowsForUser (User.mId user))
+  let allShows = fromRight [] showsResult
 
-    -- 5. Fetch recent playback history
-    historyResult <- execQuery (PlaybackHistory.getRecentPlayback 50)
-    let recentHistory = fromRight [] historyResult
+  -- 2. Read stream config from environment
+  streamCfg <- asks (getter @StreamConfig)
 
-    -- 6. Render response
-    let selectedShow = listToMaybe allShows
-    renderDashboardTemplate hxRequest userMetadata allShows selectedShow NavStreamSettings Nothing Nothing (template icecastReachable icecastStatus recentHistory)
+  -- 3. Fetch icecast status
+  (icecastReachable, icecastStatus) <- lift $ fetchIcecastStatus streamCfg.scMetadataUrl
+
+  -- 4. Fetch recent playback history
+  historyResult <- execQuery (PlaybackHistory.getRecentPlayback 50)
+  let recentHistory = fromRight [] historyResult
+
+  pure
+    StreamSettingsViewData
+      { ssvUserMetadata = userMetadata,
+        ssvAllShows = allShows,
+        ssvIcecastReachable = icecastReachable,
+        ssvIcecastStatus = icecastStatus,
+        ssvRecentHistory = recentHistory
+      }
 
 -- | Fetch status from icecast metadata endpoint.
 --

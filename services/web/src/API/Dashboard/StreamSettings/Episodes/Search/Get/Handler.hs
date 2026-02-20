@@ -1,15 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.StreamSettings.Episodes.Search.Get.Handler (handler) where
+module API.Dashboard.StreamSettings.Episodes.Search.Get.Handler (handler, action, EpisodeSearchResult (..)) where
 
 --------------------------------------------------------------------------------
 
 import API.Links (dashboardStreamSettingsLinks)
 import API.Types (DashboardStreamSettingsRoutes (..))
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
-import App.Handler.Error (handleBannerErrors)
+import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
+import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Int (Int64)
@@ -36,6 +37,15 @@ forceEpisodeUrl = Links.linkURI dashboardStreamSettingsLinks.forceEpisodePost
 
 --------------------------------------------------------------------------------
 
+-- | Result of an episode search action.
+data EpisodeSearchResult
+  = -- | Query was empty or blank.
+    SearchEmpty
+  | -- | Search failed with a database error.
+    SearchError
+  | -- | Search succeeded with results (may be empty).
+    SearchResults [Episodes.SearchResult]
+
 -- | Handler for GET /dashboard/stream-settings/episodes/search?q=...
 --
 -- Returns an HTML fragment with matching episodes for the force-play search.
@@ -47,18 +57,28 @@ handler cookie mQuery =
   handleBannerErrors "Episode search" $ do
     (_user, userMetadata) <- requireAuth cookie
     requireAdminNotSuspended "Only admins can search episodes for force-play." userMetadata
+    result <- action mQuery
+    pure $ case result of
+      SearchEmpty -> mempty
+      SearchError -> Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] "Error searching episodes."
+      SearchResults [] -> Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] "No episodes found."
+      SearchResults episodes -> renderSearchResults episodes
 
-    let query = fromMaybe "" mQuery
-    if Text.null (Text.strip query)
-      then pure mempty
-      else do
-        result <- execQuery (Episodes.searchEpisodesWithAudio query)
-        case result of
-          Left err -> do
-            Log.logInfo "Episode search query failed" (Aeson.object ["error" .= show err, "query" .= query])
-            pure $ Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] "Error searching episodes."
-          Right [] -> pure $ Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] "No episodes found."
-          Right episodes -> pure $ renderSearchResults episodes
+--------------------------------------------------------------------------------
+
+-- | Business logic: validate query, search episodes.
+action :: Maybe Text -> ExceptT HandlerError AppM EpisodeSearchResult
+action mQuery = do
+  let query = fromMaybe "" mQuery
+  if Text.null (Text.strip query)
+    then pure SearchEmpty
+    else do
+      result <- execQuery (Episodes.searchEpisodesWithAudio query)
+      case result of
+        Left err -> do
+          Log.logInfo "Episode search query failed" (Aeson.object ["error" .= show err, "query" .= query])
+          pure SearchError
+        Right episodes -> pure $ SearchResults episodes
 
 --------------------------------------------------------------------------------
 

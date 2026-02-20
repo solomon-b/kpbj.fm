@@ -1,15 +1,36 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE QuasiQuotes #-}
 
-module Test.Database.Helpers (insertTestUser, insertTestShowWithSchedule, unwrapInsert) where
+module Test.Database.Helpers
+  ( insertTestUser,
+    insertTestShowWithSchedule,
+    insertTestBlogPost,
+    insertTestShowBlogPost,
+    insertTestEvent,
+    insertTestEpisode,
+    insertTestEphemeralUpload,
+    insertTestStationId,
+    addTestShowHost,
+    verifyTestUserEmail,
+    unwrapInsert,
+  )
+where
 
 --------------------------------------------------------------------------------
 
+import Effects.Database.Tables.BlogPosts qualified as BlogPosts
+import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
+import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.Stack (HasCallStack)
-import Hasql.Interpolate (OneRow (OneRow))
+import Hasql.Interpolate (OneRow (OneRow), interp, sql)
 import Hasql.Statement qualified as Hasql
 import Hasql.Transaction qualified as TRX
 
@@ -54,3 +75,44 @@ insertTestShowWithSchedule showInsert scheduleTemplate = do
   let scheduleWithShowId = scheduleTemplate {ShowSchedule.stiShowId = showId}
   templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleWithShowId)
   pure (showId, templateId)
+
+-- | Insert a blog post and return the blog post ID.
+insertTestBlogPost :: BlogPosts.Insert -> TRX.Transaction BlogPosts.Id
+insertTestBlogPost = unwrapInsert . BlogPosts.insertBlogPost
+
+-- | Insert a show blog post and return the show blog post ID.
+insertTestShowBlogPost :: ShowBlogPosts.Insert -> TRX.Transaction ShowBlogPosts.Id
+insertTestShowBlogPost = unwrapInsert . ShowBlogPosts.insertShowBlogPost
+
+-- | Insert an event and return the event ID.
+insertTestEvent :: Events.Insert -> TRX.Transaction Events.Id
+insertTestEvent = unwrapInsert . Events.insertEvent
+
+-- | Insert an episode and return the episode ID.
+insertTestEpisode :: Episodes.Insert -> TRX.Transaction Episodes.Id
+insertTestEpisode = unwrapInsert . Episodes.insertEpisode
+
+-- | Insert an ephemeral upload and return the upload ID.
+insertTestEphemeralUpload :: EphemeralUploads.Insert -> TRX.Transaction EphemeralUploads.Id
+insertTestEphemeralUpload = unwrapInsert . EphemeralUploads.insertEphemeralUpload
+
+-- | Insert a station ID and return the station ID.
+insertTestStationId :: StationIds.Insert -> TRX.Transaction StationIds.Id
+insertTestStationId = unwrapInsert . StationIds.insertStationId
+
+-- | Make a user a host of a show.
+addTestShowHost :: Shows.Id -> User.Id -> TRX.Transaction ()
+addTestShowHost showId userId =
+  TRX.statement () (ShowHost.addHostToShow showId userId)
+
+-- | Mark a user's email as verified (bypasses the token verification flow).
+verifyTestUserEmail :: User.Id -> TRX.Transaction ()
+verifyTestUserEmail userId =
+  TRX.statement () $
+    interp
+      False
+      [sql|
+        UPDATE users
+        SET email_verified = TRUE, email_verified_at = NOW()
+        WHERE id = #{userId}
+      |]
