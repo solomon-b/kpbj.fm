@@ -86,25 +86,25 @@ SELECT * FROM (VALUES
 ) AS blog_data;
 
 -- Assign tags to blog posts
+-- Uses a values list of (slug, tag_name) pairs to support multiple tags per post
 INSERT INTO blog_post_tags (post_id, tag_id)
 SELECT bp.id, bt.id
-FROM blog_posts bp
-JOIN blog_tags bt ON bt.name IN (
-  CASE bp.slug
-    WHEN 'kpbj-wins-2025-community-radio-excellence-award' THEN 'award'
-    WHEN 'kpbj-wins-2025-community-radio-excellence-award' THEN 'community'
-    WHEN 'behind-the-scenes-day-in-life-kpbj-host' THEN 'interviews'
-    WHEN 'new-shows-premiering-fall-2025' THEN 'new-shows'
-    WHEN 'new-shows-premiering-fall-2025' THEN 'community'
-    WHEN 'portland-underground-music-scene-venues-matter' THEN 'local-scene'
-    WHEN 'portland-underground-music-scene-venues-matter' THEN 'underground'
-    WHEN 'portland-underground-music-scene-venues-matter' THEN 'community'
-    WHEN 'fundraising-update-summer-2025-pledge-drive' THEN 'fundraising'
-    WHEN 'fundraising-update-summer-2025-pledge-drive' THEN 'community'
-    WHEN 'discovering-hidden-gems-vinyl-shopping-portland' THEN 'music-discovery'
-    WHEN 'discovering-hidden-gems-vinyl-shopping-portland' THEN 'local-scene'
-    WHEN 'community-voices-listeners-shape-programming' THEN 'community'
-    WHEN 'looking-ahead-kpbj-plans-2026' THEN 'community'
-    WHEN 'looking-ahead-kpbj-plans-2026' THEN 'new-shows'
-  END
-);
+FROM (VALUES
+  ('kpbj-wins-2025-community-radio-excellence-award', 'award'),
+  ('kpbj-wins-2025-community-radio-excellence-award', 'community'),
+  ('behind-the-scenes-day-in-life-kpbj-host', 'interviews'),
+  ('new-shows-premiering-fall-2025', 'new-shows'),
+  ('new-shows-premiering-fall-2025', 'community'),
+  ('portland-underground-music-scene-venues-matter', 'local-scene'),
+  ('portland-underground-music-scene-venues-matter', 'underground'),
+  ('portland-underground-music-scene-venues-matter', 'community'),
+  ('fundraising-update-summer-2025-pledge-drive', 'fundraising'),
+  ('fundraising-update-summer-2025-pledge-drive', 'community'),
+  ('discovering-hidden-gems-vinyl-shopping-portland', 'music-discovery'),
+  ('discovering-hidden-gems-vinyl-shopping-portland', 'local-scene'),
+  ('community-voices-listeners-shape-programming', 'community'),
+  ('looking-ahead-kpbj-plans-2026', 'community'),
+  ('looking-ahead-kpbj-plans-2026', 'new-shows')
+) AS pairs(post_slug, tag_name)
+JOIN blog_posts bp ON bp.slug = pairs.post_slug
+JOIN blog_tags bt ON bt.name = pairs.tag_name;
