@@ -8,7 +8,6 @@ WITH episode_data AS (
         s.slug as show_slug,
         st.id as schedule_template_id,
         'A great episode of ' || s.title || ' from ' || to_char(generate_series, 'FMMonth DD, YYYY') as description,
-        'published' as status,
         -- interpret date + time in show's timezone, then convert to UTC
         (generate_series::date::text || ' ' || st.start_time)::timestamp AT TIME ZONE st.timezone as scheduled_at,
         (generate_series::date::text || ' ' || st.start_time)::timestamp AT TIME ZONE st.timezone as published_at,
@@ -40,13 +39,12 @@ WITH episode_data AS (
     WHERE stv.effective_from <= CURRENT_DATE - INTERVAL '21 days'
       AND (stv.effective_until IS NULL OR stv.effective_until > CURRENT_DATE - INTERVAL '1 day')
 )
-INSERT INTO episodes (show_id, schedule_template_id, description, artwork_url, status, scheduled_at, published_at, created_by)
+INSERT INTO episodes (show_id, schedule_template_id, description, artwork_url, scheduled_at, published_at, created_by)
 SELECT
     show_id,
     schedule_template_id,
     description,
     'images/artwork/2025/01/01/' || show_slug || '-ep' || episode_num || '.jpg' as artwork_url,
-    status,
     scheduled_at,
     published_at,
     created_by
