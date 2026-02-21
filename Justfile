@@ -682,3 +682,26 @@ nixos-build-prod:
 # Build staging NixOS config locally (verify it evaluates)
 nixos-build-staging:
   nix build .#nixosConfigurations.kpbj-stream-staging.config.system.build.toplevel
+
+# =============================================================================
+# E2E Testing (Playwright)
+# =============================================================================
+# Browser-based end-to-end tests. Requires the web server running on port 4000.
+# Run `just dev-mock-data` before running E2E tests to load deterministic test data.
+# Prerequisites: playwright-test (provided via Nix flake)
+
+# Run E2E tests (headless).
+e2e:
+  cd e2e && playwright test
+
+# Run E2E tests with interactive UI mode.
+e2e-ui:
+  cd e2e && playwright test --ui
+
+# Run E2E tests in a visible browser.
+e2e-headed:
+  cd e2e && playwright test --headed
+
+# View the last E2E test report.
+e2e-report:
+  cd e2e && playwright show-report

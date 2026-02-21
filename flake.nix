@@ -133,6 +133,7 @@
               pkgs.age
               pkgs.ssh-to-age
               pkgs.nixos-rebuild
+              pkgs.playwright-test
               pkgs.sloc
               pkgs.pkg-config
             ];
