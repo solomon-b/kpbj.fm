@@ -9,6 +9,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Fixes
 - **Mock Data Schema Sync** - Fixed mock data SQL files that broke against the current schema: removed dropped `is_primary` column from `show_hosts` inserts, removed dropped `status` column from `episodes` inserts, added `featured_on_homepage` column to events with one featured upcoming event, updated events to include future 2026 dates so "upcoming events" queries return results, and fixed blog tag assignment query that could only assign one tag per post (CASE inside IN only returns one value) by rewriting as a VALUES join.
+- **Shows Filter Form Duplicate Listeners** - The shows page filter form (`renderFilters`) was rendered twice (mobile + desktop) with the same `id="show-filters"`. The inline `<script>` used `getElementById`, which always returns the first (mobile) form — so the mobile form got two submit listeners and the desktop form got none. Desktop filtering only worked by accident (falling back to default HTML form submission). Fixed by switching to `querySelectorAll` with a guard flag so each form gets exactly one listener, and replaced the non-functional `pushUrl` option in `htmx.ajax()` with explicit `history.pushState()`.
+
 
 ### Refactoring
 - **ExceptT Error Handling** - Migrated all ~90 handlers from exception-based error handling (`MonadThrow`/`MonadCatch`) to explicit `ExceptT HandlerError AppM`. Errors are now visible in types and can't be accidentally dropped. The `HandlerError` type is no longer an `Exception` instance — throw helpers use `throwE` instead of `throwM`, and handler wrappers use `runExceptT` instead of `catch`.
