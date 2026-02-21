@@ -7,12 +7,14 @@ export default defineConfig({
   // Fail the build on CI if you accidentally left test.only in the source code.
   forbidOnly: !!process.env.CI,
 
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
 
-  // Limit parallel workers in CI to avoid resource contention.
-  workers: process.env.CI ? 1 : undefined,
+  // GitHub Actions runners have 2 vCPUs — use both.
+  workers: process.env.CI ? 2 : undefined,
 
-  reporter: [["html", { outputFolder: "./playwright-report" }]],
+  reporter: process.env.CI
+    ? [["html", { outputFolder: "./playwright-report" }], ["list"]]
+    : [["html", { outputFolder: "./playwright-report" }]],
 
   use: {
     baseURL: "http://localhost:4000",
@@ -29,6 +31,23 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      // iPhone 13 viewport + touch. Uses Chromium instead of WebKit
+      // because WebKit crashes on NixOS (missing WPE EGL display).
+      name: "mobile",
+      use: {
+        ...devices["iPhone 13"],
+        defaultBrowserType: "chromium",
+      },
+    },
+    {
+      name: "mobile-android",
+      use: { ...devices["Pixel 5"] },
     },
   ],
 
