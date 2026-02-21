@@ -278,6 +278,9 @@ in
           extraConfig = ''
             proxy_buffering off;
             client_max_body_size 500M;
+            proxy_read_timeout 600;
+            proxy_send_timeout 600;
+            client_body_timeout 600;
           '';
         };
       };
