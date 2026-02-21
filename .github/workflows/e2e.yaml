@@ -1,0 +1,101 @@
+name: e2e:playwright
+on:
+  workflow_run:
+    workflows: ["nix:build"]
+    types: [completed]
+
+jobs:
+  e2e:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: dev_db
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Link Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: kpbj-fm
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          pushFilter: '(-kpbj-api|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
+
+      - name: Build web server
+        run: nix build
+
+      - name: Run migrations
+        run: |
+          nix develop --command sqlx migrate run --source services/web/migrations
+        env:
+          DATABASE_URL: postgres://postgres@localhost:5433/dev_db
+
+      - name: Load mock data
+        run: |
+          nix develop --command psql -h localhost -p 5433 -U postgres -d dev_db --set ON_ERROR_STOP=on -f load-all.sql
+        working-directory: services/web/mock-data
+
+      - name: Start web server
+        run: |
+          ./result/bin/kpbj-api > /tmp/kpbj-server.log 2>&1 &
+          echo $! > /tmp/kpbj-server.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4000 > /dev/null 2>&1; then
+              echo "Server is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Server failed to start within 60s"
+          cat /tmp/kpbj-server.log
+          exit 1
+        env:
+          APP_ENVIRONMENT: Development
+          APP_WARP_PORT: "4000"
+          APP_HOSTNAME: localhost:4000
+          APP_POSTGRES_HOST: localhost
+          APP_POSTGRES_PORT: "5433"
+          APP_POSTGRES_DB: dev_db
+          APP_POSTGRES_USER: postgres
+          APP_POSTGRES_PASSWORD: "postgres"
+          APP_LOCAL_STORAGE_ROOT: /tmp/kpbj
+          STREAM_URL: http://localhost:8000/stream
+          METADATA_URL: http://localhost:8000/status-json.xsl
+
+      - name: Run E2E tests
+        run: nix develop --command playwright test
+        working-directory: e2e
+        env:
+          CI: "true"
+
+      - name: Print server logs on failure
+        if: ${{ failure() }}
+        run: cat /tmp/kpbj-server.log
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14

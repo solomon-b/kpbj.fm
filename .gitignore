@@ -8,3 +8,6 @@
 /.image-cache/
 /services/web/dist-newstyle/
 /kpbj-stream-dev.qcow2
+/e2e/test-results/
+/e2e/playwright-report/
+/e2e/blob-report/

@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Tests
+- **Playwright E2E Test Suite** - Added ~280 end-to-end tests across 11 spec files using Playwright, covering all public-facing pages: homepage (featured event, newsletter signup, stream player), shows (filter panel, search, tag/status/sort filters, infinite scroll, empty state), show detail, episode detail, blog, events, schedule, navigation, 404 pages, and smoke tests. Tests run against mock data with a live dev server.
+
 ### Refactoring
 - **ExceptT Error Handling** - Migrated all ~90 handlers from exception-based error handling (`MonadThrow`/`MonadCatch`) to explicit `ExceptT HandlerError AppM`. Errors are now visible in types and can't be accidentally dropped. The `HandlerError` type is no longer an `Exception` instance — throw helpers use `throwE` instead of `throwM`, and handler wrappers use `runExceptT` instead of `catch`.
 - **Handler/Action Split** - Extracted business logic from every handler into a standalone `action` function that runs in `ExceptT HandlerError AppM` and returns a typed view-data record. Handlers are now thin glue that composes `action` with HTTP response formatting (redirects, banners, headers). This separation makes business logic independently testable without constructing HTTP requests.
