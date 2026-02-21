@@ -113,6 +113,7 @@ template vd = do
         Lucid.noscript_ $
           unless (null allShows) $
             renderPagination currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
+
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ showsLinks.list (Just (vd.svCurrentPage + 1)) (fmap (Filter . Just) vd.svTagFilter) (fmap (Filter . Just) vd.svStatusFilter) (fmap (Filter . Just) vd.svSearchFilter) (fmap (Filter . Just) vd.svSortByFilter)
@@ -196,20 +197,28 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
           ]
           "Clear"
 
-    -- JavaScript for form submission with HTMX
+    -- JavaScript for form submission with HTMX.
+    -- This script is rendered once per renderFilters call (mobile + desktop),
+    -- so it uses querySelectorAll + a guard flag to ensure each form gets
+    -- exactly one submit listener regardless of how many times the script runs.
     Lucid.script_ $
-      "document.getElementById('show-filters').addEventListener('submit', function(e) {\n"
-        <> "  e.preventDefault();\n"
-        <> "  const formData = new FormData(this);\n"
-        <> "  const params = new URLSearchParams();\n"
-        <> "  for (const [key, value] of formData.entries()) {\n"
-        <> "    if (value) params.append(key, value);\n"
-        <> "  }\n"
-        <> "  const url = '/shows' + (params.toString() ? '?' + params.toString() : '');\n"
-        <> "  htmx.ajax('GET', url, {target: '#main-content', swap: 'innerHTML', pushUrl: url});\n"
+      "document.querySelectorAll('#show-filters').forEach(function(form) {\n"
+        <> "  if (form._filterListenerAttached) return;\n"
+        <> "  form._filterListenerAttached = true;\n"
+        <> "  form.addEventListener('submit', function(e) {\n"
+        <> "    e.preventDefault();\n"
+        <> "    const formData = new FormData(this);\n"
+        <> "    const params = new URLSearchParams();\n"
+        <> "    for (const [key, value] of formData.entries()) {\n"
+        <> "      if (value) params.append(key, value);\n"
+        <> "    }\n"
+        <> "    const url = '/shows' + (params.toString() ? '?' + params.toString() : '');\n"
+        <> "    history.pushState({}, '', url);\n"
+        <> "    htmx.ajax('GET', url, {target: '#main-content', swap: 'innerHTML'});\n"
+        <> "  });\n"
         <> "});\n"
         <> "function clearFilters() {\n"
-        <> "  document.getElementById('show-filters').reset();\n"
+        <> "  document.querySelectorAll('#show-filters').forEach(function(form) { form.reset(); });\n"
         <> "  history.pushState({}, '', '/shows');\n"
         <> "  htmx.ajax('GET', '/shows', {target: '#main-content', swap: 'innerHTML'});\n"
         <> "}\n"
