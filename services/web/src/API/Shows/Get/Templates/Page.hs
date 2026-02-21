@@ -210,5 +210,6 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
         <> "});\n"
         <> "function clearFilters() {\n"
         <> "  document.getElementById('show-filters').reset();\n"
-        <> "  htmx.ajax('GET', '/shows', {target: '#main-content', swap: 'innerHTML', pushUrl: '/shows'});\n"
+        <> "  history.pushState({}, '', '/shows');\n"
+        <> "  htmx.ajax('GET', '/shows', {target: '#main-content', swap: 'innerHTML'});\n"
         <> "}\n"
