@@ -83,6 +83,10 @@
 \i 19_verify_users.sql
 
 \echo ''
+\echo '20. Creating site pages...'
+\i 20_site_pages.sql
+
+\echo ''
 \echo '=========================================='
 \echo 'Summary'
 \echo '=========================================='
