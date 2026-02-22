@@ -1,4 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "path";
+
+// Auth storage state file paths — imported by test files.
+export const ADMIN_AUTH = path.join(__dirname, ".auth", "admin.json");
+export const STAFF_AUTH = path.join(__dirname, ".auth", "staff.json");
+export const HOST_AUTH = path.join(__dirname, ".auth", "host.json");
+export const USER_AUTH = path.join(__dirname, ".auth", "user.json");
 
 export default defineConfig({
   testDir: "./tests",
@@ -28,13 +35,23 @@ export default defineConfig({
   },
 
   projects: [
+    // --- Auth setup (runs first, before authenticated tests) ---
+    {
+      name: "setup",
+      testDir: ".",
+      testMatch: "auth.setup.ts",
+    },
+
+    // --- Public site tests (skip dashboard specs) ---
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: /dashboard\//,
     },
     {
       name: "firefox",
       use: { ...devices["Desktop Firefox"] },
+      testIgnore: /dashboard\//,
     },
     {
       // iPhone 13 viewport + touch. Uses Chromium instead of WebKit
@@ -44,10 +61,20 @@ export default defineConfig({
         ...devices["iPhone 13"],
         defaultBrowserType: "chromium",
       },
+      testIgnore: /dashboard\//,
     },
     {
       name: "mobile-android",
       use: { ...devices["Pixel 5"] },
+      testIgnore: /dashboard\//,
+    },
+
+    // --- Dashboard tests (require auth setup) ---
+    {
+      name: "authenticated",
+      testMatch: /dashboard\/.+\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
     },
   ],
 
