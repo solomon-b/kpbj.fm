@@ -184,11 +184,11 @@
         "tmp-postgres-src": "tmp-postgres-src"
       },
       "locked": {
-        "lastModified": 1769791476,
-        "narHash": "sha256-6O1IXt06I/X3nPtGqiW0ID9N542M5Z8AVRgC6bh+Vwo=",
+        "lastModified": 1771798606,
+        "narHash": "sha256-dZkky+DvTIYG4WyoLncYCK7keMuehLddVrt/rg8QDwc=",
         "owner": "solomon-b",
         "repo": "web-server",
-        "rev": "3dae38af0dabb496a0b81ddca8002bcfb88c75bc",
+        "rev": "7ad8715a3af252b4ab597ab71f84708b6a77d0bf",
         "type": "github"
       },
       "original": {
