@@ -195,6 +195,7 @@ in
         APP_WARP_PORT = toString cfg.port;
         APP_WARP_SERVERNAME = cfg.serverName;
         APP_WARP_TIMEOUT = "100";
+        APP_WARP_REQUEST_TIMEOUT = "600";
         APP_OBSERVABILITY_EXPORTER = "StdOut";
         APP_OBSERVABILITY_VERBOSITY = "Brief";
 
