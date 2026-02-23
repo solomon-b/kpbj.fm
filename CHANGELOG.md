@@ -4,6 +4,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Infrastructure
+- **Dedicated SSH Deploy DNS Records** - Added `ssh.kpbj.fm` and `ssh.staging.kpbj.fm` DNS-only A records in Cloudflare for CI/CD SSH access, separating deploy targets from proxied web hostnames. Deploy workflows now use these instead of `stream.kpbj.fm` / `staging.kpbj.fm`.
+- **Pinned SSH Host Keys** - Replaced runtime `ssh-keyscan` in deploy workflows with pinned known host keys stored in GitHub Actions secrets. Eliminates MITM risk from trusting first-connect keys and removes the network call that was failing when Cloudflare-proxied hostnames couldn't be reached on port 22.
+- **GitHub Terraform Provider** - Added `integrations/github` provider to manage GitHub Actions secrets (`PRODUCTION_KNOWN_HOST`, `STAGING_KNOWN_HOST`) from SOPS-encrypted values, keeping host key management in the same Terraform workflow as DNS and infrastructure.
+
 ### Tests
 - **Playwright E2E Test Suite (Public Site)** - Added ~280 end-to-end tests across 11 spec files using Playwright, covering all public-facing pages: homepage (featured event, newsletter signup, stream player), shows (filter panel, search, tag/status/sort filters, infinite scroll, empty state), show detail, episode detail, blog, events, schedule, navigation, 404 pages, and smoke tests. Tests run against mock data with a live dev server.
 - **Playwright E2E Test Suite (Dashboard)** - Added 11 dashboard spec files covering authentication, role-based access control, and CRUD operations. Tests pre-authenticate as admin, staff, host, and user roles via a setup phase that saves session state. Role tests verify sidebar visibility, show selector rendering (multi-show `<select>` vs single-show `<span>`), and URL-based access denial (hosts redirected from admin routes, users blocked from all dashboard routes). CRUD specs cover events, station blog, show blog, users, profile settings, and site pages — including create/edit/delete flows with confirm dialogs, inline role changes, suspend/unsuspend, site page revision history, and revision restore.

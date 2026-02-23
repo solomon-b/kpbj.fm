@@ -32,6 +32,11 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+
+    github = {
+      source  = "integrations/github"
+      version = "~> 6.0"
+    }
   }
 
   # Remote state in DigitalOcean Spaces (S3-compatible). Credentials
@@ -73,4 +78,9 @@ provider "digitalocean" {
 
 provider "google" {
   project = data.sops_file.secrets.data["google_project_id"]
+}
+
+provider "github" {
+  token = data.sops_file.secrets.data["github_token"]
+  owner = "solomon-b"
 }

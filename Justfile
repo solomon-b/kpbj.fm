@@ -288,7 +288,7 @@ release-notes-preview:
 # The staging web service runs as a native NixOS systemd service.
 # Prerequisites: SSH access to staging VPS, sops (for DB password)
 
-STAGING_VPS_TARGET := "root@staging.kpbj.fm"
+STAGING_VPS_TARGET := "root@ssh.staging.kpbj.fm"
 STAGING_DB_NAME := "kpbj_fm"
 STAGING_DB_USER := "kpbj_fm"
 
@@ -384,7 +384,7 @@ staging-secrets: _require-sops
 # The production web service runs as a native NixOS systemd service.
 # Prerequisites: SSH access to production VPS, sops (for DB password)
 
-PROD_VPS_TARGET := "root@stream.kpbj.fm"
+PROD_VPS_TARGET := "root@ssh.kpbj.fm"
 PROD_DB_NAME := "kpbj_fm"
 PROD_DB_USER := "kpbj_fm"
 
@@ -650,8 +650,8 @@ stream-dev-stop:
 # and copies via SSH (1GB droplets can't build NixOS closures).
 # Prerequisites: NixOS flake builds, SSH access to target host
 
-PROD_STREAM_TARGET := "root@stream.kpbj.fm"
-STAGING_STREAM_TARGET := "root@stream.staging.kpbj.fm"
+PROD_STREAM_TARGET := "root@ssh.kpbj.fm"
+STAGING_STREAM_TARGET := "root@ssh.staging.kpbj.fm"
 
 # Complete NixOS setup on a freshly-provisioned droplet
 nixos-setup HOST ENV:

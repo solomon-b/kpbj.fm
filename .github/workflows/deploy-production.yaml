@@ -40,11 +40,11 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H stream.kpbj.fm >> ~/.ssh/known_hosts
+          echo "${{ secrets.PRODUCTION_KNOWN_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Pre-deploy database backup
         run: |
-          ssh root@stream.kpbj.fm \
+          ssh root@ssh.kpbj.fm \
             'sudo -u postgres pgbackrest backup --stanza=kpbj --type=full'
 
       - name: Deploy NixOS configuration
@@ -52,4 +52,4 @@ jobs:
           nix shell nixpkgs#nixos-rebuild -c \
             nixos-rebuild switch \
             --flake .#kpbj-stream-prod \
-            --target-host root@stream.kpbj.fm
+            --target-host root@ssh.kpbj.fm
