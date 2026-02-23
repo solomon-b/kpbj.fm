@@ -11,7 +11,7 @@ import Domain.Types.Origin (Origin)
 import GHC.Generics (Generic)
 import Servant ((:>))
 import Servant qualified
-import Servant.Multipart (Mem, MultipartForm)
+import Servant.Multipart (MultipartForm, Tmp)
 
 --------------------------------------------------------------------------------
 
@@ -29,7 +29,7 @@ type Route =
       :> "audio"
       :> Servant.Header "Cookie" Cookie
       :> Servant.Header "Origin" Origin
-      :> MultipartForm Mem AudioUploadForm
+      :> MultipartForm Tmp AudioUploadForm
       :> Servant.Post '[Servant.JSON] (Servant.Headers CorsHeaders UploadApiResponse)
 
 -- | OPTIONS preflight route for CORS.

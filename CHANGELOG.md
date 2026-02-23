@@ -46,6 +46,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Test Database Teardown Error Message** - Fixed misleading "Failed to create test database" error message during test teardown — now correctly says "Failed to drop test database".
 - **Audio Upload Timeout on Slow Connections** - The uploads nginx vhost was missing proxy and client body timeouts, defaulting to 60 seconds. Large audio files on slower connections would exceed this limit, causing nginx to kill the connection and trigger a "Network error during upload" in the browser. Added `proxy_read_timeout`, `proxy_send_timeout`, and `client_body_timeout` (600s each) to the uploads vhost.
 - **Warp Request Timeout for Large Uploads** - Extended the Warp application-level request timeout to 600 seconds (`APP_WARP_REQUEST_TIMEOUT`), matching the nginx proxy timeout. Without this, the Haskell web server would terminate long-running upload requests before nginx did, producing confusing partial-upload failures.
+- **File Upload Memory Exhaustion** - Switched the staged upload pipeline from reading entire files into memory (`Mem` backend) to streaming through temp files (`Tmp` backend). Large audio uploads (up to 500MB) could spike server memory and trigger OOM kills. The pipeline now reads the Servant temp file directly, validates MIME type and size on disk, and streams to storage without buffering the full file in memory. Added structured `StagedUploadError` type with `ExceptT`-based error handling for the upload pipeline.
 
 ---
 
