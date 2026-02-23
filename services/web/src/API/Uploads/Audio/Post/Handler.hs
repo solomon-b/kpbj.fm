@@ -12,7 +12,7 @@ where
 --------------------------------------------------------------------------------
 
 import API.Uploads.Audio.Post.Route (CorsHeaders, UploadApiResponse (..))
-import API.Uploads.Shared (ExtensionMapper, ProcessConfig (..), processStagedUpload)
+import API.Uploads.Shared (ExtensionMapper, ProcessConfig (..), displayStagedUploadError, processStagedUpload)
 import API.Uploads.Types (AudioUploadForm (..), UploadResponse (..))
 import Amazonka qualified as AWS
 import App.Config (Environment)
@@ -23,7 +23,6 @@ import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.ByteString.Lazy qualified as BSL
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -149,21 +148,20 @@ processAudioUpload user form = do
       uploadType = aufUploadType form
       originalName = fdFileName fileData
       browserMimeType = fdFileCType fileData
-      content = BSL.toStrict $ fdPayload fileData
+      tempFilePath = fdPayload fileData
 
   let config =
         ProcessConfig
           { pcValidator = MimeValidation.validateAudioFile,
             pcExtensionMapper = audioExtensionMapper,
             pcUploadType = uploadType,
-            pcTempFilePrefix = "staged-audio-",
             pcLogPrefix = "Audio"
           }
 
-  result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType content
+  result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType tempFilePath
 
   case result of
-    Left err -> pure $ UploadError err
+    Left err -> pure $ UploadError (displayStagedUploadError "Audio" err)
     Right (token, origName, mimeType, fileSize) ->
       pure $
         UploadSuccess
