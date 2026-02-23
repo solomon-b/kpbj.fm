@@ -33,6 +33,32 @@ resource "cloudflare_dns_record" "www_a" {
 }
 
 # ──────────────────────────────────────────────────────────────
+# SSH Deploy Targets (DNS-only for GitHub Actions CI/CD)
+# ──────────────────────────────────────────────────────────────
+
+# ssh.kpbj.fm → Production VPS (DNS-only for SSH deploys)
+resource "cloudflare_dns_record" "ssh_prod" {
+  zone_id = local.cloudflare_zone_id
+  name    = "ssh"
+  type    = "A"
+  content = digitalocean_droplet.stream_prod.ipv4_address
+  proxied = false
+  ttl     = 1
+  comment = "Production SSH deploy (DO VPS, DNS-only)"
+}
+
+# ssh.staging.kpbj.fm → Staging VPS (DNS-only for SSH deploys)
+resource "cloudflare_dns_record" "ssh_staging" {
+  zone_id = local.cloudflare_zone_id
+  name    = "ssh.staging"
+  type    = "A"
+  content = digitalocean_droplet.stream_staging.ipv4_address
+  proxied = false
+  ttl     = 1
+  comment = "Staging SSH deploy (DO VPS, DNS-only)"
+}
+
+# ──────────────────────────────────────────────────────────────
 # Staging — Web Service (DigitalOcean VPS)
 # ──────────────────────────────────────────────────────────────
 

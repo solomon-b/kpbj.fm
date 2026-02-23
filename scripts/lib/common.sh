@@ -49,13 +49,13 @@ export DEV_DB_PORT="5433"
 export LOCAL_STORAGE_ROOT="/tmp/kpbj"
 
 # Production database (VPS)
-export PROD_VPS_TARGET="root@stream.kpbj.fm"
+export PROD_VPS_TARGET="root@ssh.kpbj.fm"
 export PROD_DB_NAME="kpbj_fm"
 export PROD_DB_USER="kpbj_fm"
 export PROD_READONLY_USER="kpbj_readonly"
 
 # Staging database (VPS)
-export STAGING_VPS_TARGET="root@staging.kpbj.fm"
+export STAGING_VPS_TARGET="root@ssh.staging.kpbj.fm"
 export STAGING_DB_NAME="kpbj_fm"
 export STAGING_DB_USER="kpbj_fm"
 

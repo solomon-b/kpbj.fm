@@ -35,11 +35,11 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H staging.kpbj.fm >> ~/.ssh/known_hosts
+          echo "${{ secrets.STAGING_KNOWN_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy NixOS configuration
         run: |
           nix shell nixpkgs#nixos-rebuild -c \
             nixos-rebuild switch \
             --flake .#kpbj-stream-staging \
-            --target-host root@staging.kpbj.fm
+            --target-host root@ssh.staging.kpbj.fm

@@ -4,7 +4,7 @@
 # Connects to the production DigitalOcean VPS via SSH tunnel to run pg_dump.
 #
 # Required environment variables:
-#   PROD_SSH_TARGET    - SSH target for production VPS (e.g., root@stream.kpbj.fm)
+#   PROD_SSH_TARGET    - SSH target for production VPS (e.g., root@ssh.kpbj.fm)
 #   PROD_DB_PASSWORD   - Production database password
 #
 # Optional environment variables:
@@ -13,7 +13,7 @@
 #   LOCAL_PORT         - Local port for SSH tunnel (default: 15433)
 #
 # Usage:
-#   export PROD_SSH_TARGET="root@stream.kpbj.fm"
+#   export PROD_SSH_TARGET="root@ssh.kpbj.fm"
 #   export PROD_DB_PASSWORD="..."
 #   ./scripts/prod-backup-remote.sh
 #
@@ -31,7 +31,7 @@ LOCAL_PORT="${LOCAL_PORT:-15433}"
 
 # Validate required env vars
 if [[ -z "${PROD_SSH_TARGET:-}" ]]; then
-    echo "Error: PROD_SSH_TARGET environment variable is required (e.g., root@stream.kpbj.fm)" >&2
+    echo "Error: PROD_SSH_TARGET environment variable is required (e.g., root@ssh.kpbj.fm)" >&2
     exit 1
 fi
 
