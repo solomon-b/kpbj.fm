@@ -122,7 +122,7 @@ test.describe("Site Pages CRUD (Admin)", () => {
       .locator('input[name="edit_summary"]')
       .fill("E2E revision for restore test");
     await page.getByRole("button", { name: "SAVE CHANGES" }).click();
-    await page.waitForURL(/\/dashboard\/site-pages/);
+    await page.waitForURL(/\/dashboard\/site-pages(?!.*\/edit)/);
 
     // Navigate to history.
     await page.goto("/dashboard/site-pages/terms-of-service/history");

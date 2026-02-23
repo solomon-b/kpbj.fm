@@ -10,6 +10,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Mobile E2E Tests** - Added mobile-specific test suite (`mobile.spec.ts`) covering hamburger menu navigation, collapsible shows filter panel, and mobile player controls. Desktop-only tests (nav links, volume slider, filter panel) are automatically skipped on mobile projects.
 - **Multi-Browser Testing** - Playwright config updated with separate project groups: public site tests run across Chromium, Firefox, iPhone 13, and Pixel 5 viewports; dashboard tests run in a dedicated `authenticated` project that depends on the auth setup phase. WebKit disabled on NixOS due to WPE EGL display incompatibility.
 - **Site Pages Mock Data** - Added `20_site_pages.sql` seeding About KPBJ, Privacy Policy, and Terms of Service pages for dashboard e2e tests.
+- **Playwright Station ID Upload Tests** - Added `station-ids-crud.spec.ts` with e2e tests covering station ID audio upload, edit, and delete flows from the dashboard.
 
 ### Infrastructure
 - **Nix GC Retention Reduced** - Reduced automatic Nix garbage collection retention from 30 days to 7 days (`common.nix`). Staging VPS ran out of disk space due to stale store paths accumulating between weekly GC runs. Applies to both staging and production.
