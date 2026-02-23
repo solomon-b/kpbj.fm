@@ -14,7 +14,9 @@ export default defineConfig({
   // Fail the build on CI if you accidentally left test.only in the source code.
   forbidOnly: !!process.env.CI,
 
-  retries: process.env.CI ? 1 : 0,
+  // Retry once — handles transient navigation timeouts caused by many
+  // parallel workers contending for a single dev server.
+  retries: 1,
 
   // GitHub Actions runners have 2 vCPUs — use both.
   workers: process.env.CI ? 2 : undefined,
@@ -26,9 +28,11 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4000",
 
-    // Shorter timeouts — server-rendered HTML loads fast.
+    // Action timeout kept tight — clicks and fills should be fast.
+    // Navigation timeout is generous because 11 parallel workers
+    // contend for a single dev server.
     actionTimeout: 5_000,
-    navigationTimeout: 10_000,
+    navigationTimeout: 20_000,
 
     // Collect trace on first retry for debugging CI failures.
     trace: "on-first-retry",
