@@ -10,24 +10,24 @@ locals {
 # Production — Web Service (DigitalOcean VPS)
 # ──────────────────────────────────────────────────────────────
 
-# kpbj.fm → Production VPS (DNS-only for ACME HTTP-01)
+# kpbj.fm → Production VPS (proxied through Cloudflare)
 resource "cloudflare_dns_record" "root_a" {
   zone_id = local.cloudflare_zone_id
   name    = "kpbj.fm"
   type    = "A"
   content = digitalocean_droplet.stream_prod.ipv4_address
-  proxied = false
+  proxied = true
   ttl     = 1
   comment = "Production web (DO VPS)"
 }
 
-# www.kpbj.fm → Production VPS (DNS-only for ACME HTTP-01)
+# www.kpbj.fm → Production VPS (proxied through Cloudflare)
 resource "cloudflare_dns_record" "www_a" {
   zone_id = local.cloudflare_zone_id
   name    = "www"
   type    = "A"
   content = digitalocean_droplet.stream_prod.ipv4_address
-  proxied = false
+  proxied = true
   ttl     = 1
   comment = "Production web www (DO VPS)"
 }
@@ -36,13 +36,13 @@ resource "cloudflare_dns_record" "www_a" {
 # Staging — Web Service (DigitalOcean VPS)
 # ──────────────────────────────────────────────────────────────
 
-# staging.kpbj.fm → DigitalOcean staging droplet (DNS-only for ACME HTTP-01)
+# staging.kpbj.fm → DigitalOcean staging droplet (proxied through Cloudflare)
 resource "cloudflare_dns_record" "staging_a" {
   zone_id = local.cloudflare_zone_id
   name    = "staging"
   type    = "A"
   content = digitalocean_droplet.stream_staging.ipv4_address
-  proxied = false
+  proxied = true
   ttl     = 1
   comment = "Staging web (DO VPS)"
 }
@@ -108,7 +108,7 @@ resource "cloudflare_dns_record" "uploads" {
   content = digitalocean_droplet.stream_prod.ipv4_address
   proxied = false
   ttl     = 1
-  comment = "Production file uploads (DO VPS)"
+  comment = "Production file uploads (DO VPS, DNS-only for large uploads)"
 }
 
 resource "cloudflare_dns_record" "uploads_staging" {
@@ -118,7 +118,7 @@ resource "cloudflare_dns_record" "uploads_staging" {
   content = digitalocean_droplet.stream_staging.ipv4_address
   proxied = false
   ttl     = 1
-  comment = "Staging file uploads (DO VPS)"
+  comment = "Staging file uploads (DO VPS, DNS-only for large uploads)"
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -225,6 +225,28 @@ resource "cloudflare_dns_record" "dkim_k3" {
   proxied = false
   ttl     = 1
   comment = "DKIM (Mailchimp)"
+}
+
+# ──────────────────────────────────────────────────────────────
+# SSL Certificate Validation
+# ──────────────────────────────────────────────────────────────
+
+resource "cloudflare_dns_record" "acme_challenge_root" {
+  zone_id = local.cloudflare_zone_id
+  name    = "_acme-challenge"
+  type    = "TXT"
+  content = "\"XVlM9mUEMJWveiNgfKDc1yOxJwBMUfy370VkxuwIrqk\""
+  ttl     = 3600
+  comment = "SSL cert validation for kpbj.fm"
+}
+
+resource "cloudflare_dns_record" "acme_challenge_www" {
+  zone_id = local.cloudflare_zone_id
+  name    = "_acme-challenge.www"
+  type    = "TXT"
+  content = "\"1O-zPj55UzJkBjn7ywlN1bD-m31qtC4I3Ec9KGMS-zU\""
+  ttl     = 3600
+  comment = "SSL cert validation for www.kpbj.fm"
 }
 
 # ──────────────────────────────────────────────────────────────
