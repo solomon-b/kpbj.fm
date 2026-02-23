@@ -14,6 +14,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Infrastructure
 - **Nix GC Retention Reduced** - Reduced automatic Nix garbage collection retention from 30 days to 7 days (`common.nix`). Staging VPS ran out of disk space due to stale store paths accumulating between weekly GC runs. Applies to both staging and production.
+- **Cloudflare Proxy Enabled** - Switched production (root + www) and staging DNS records from DNS-only to proxied through Cloudflare for DDoS protection and edge caching. Upload subdomains remain DNS-only to avoid Cloudflare request size limits on large audio uploads. Added ACME challenge TXT records for DNS-01 SSL certificate validation, required now that proxied mode blocks HTTP-01 challenges.
 
 ### Fixes
 - **Mock Data Schema Sync** - Fixed mock data SQL files that broke against the current schema: removed dropped `is_primary` column from `show_hosts` inserts, removed dropped `status` column from `episodes` inserts, added `featured_on_homepage` column to events with one featured upcoming event, updated events to include future 2026 dates so "upcoming events" queries return results, and fixed blog tag assignment query that could only assign one tag per post (CASE inside IN only returns one value) by rewriting as a VALUES join.
