@@ -24,7 +24,6 @@ import Control.Monad.Catch (try)
 import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.ByteString.Lazy qualified as BSL
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -150,18 +149,17 @@ processAudioUpload user form = do
       uploadType = aufUploadType form
       originalName = fdFileName fileData
       browserMimeType = fdFileCType fileData
-      content = BSL.toStrict $ fdPayload fileData
+      tempFilePath = fdPayload fileData
 
   let config =
         ProcessConfig
           { pcValidator = MimeValidation.validateAudioFile,
             pcExtensionMapper = audioExtensionMapper,
             pcUploadType = uploadType,
-            pcTempFilePrefix = "staged-audio-",
             pcLogPrefix = "Audio"
           }
 
-  result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType content
+  result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType tempFilePath
 
   case result of
     Left err -> pure $ UploadError err

@@ -4,6 +4,7 @@ module Effects.Storage.Local
   ( -- * Local Storage Operations
     storeFileLocal,
     storeFileStagingLocal,
+    storeFileStagingLocalFromFile,
     moveFileLocal,
     buildLocalPath,
     buildLocalStagingPath,
@@ -19,7 +20,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.FileStorage (BucketType, DateHierarchy, ResourceType, buildStagingKey, buildStorageKey)
 import Domain.Types.StorageBackend (LocalStorageConfig (..))
-import System.Directory (createDirectoryIfMissing, renameFile)
+import System.Directory (copyFile, createDirectoryIfMissing, renameFile)
 import System.FilePath (takeDirectory, (</>))
 
 --------------------------------------------------------------------------------
@@ -94,6 +95,35 @@ storeFileStagingLocal config bucketType subdir filename content = liftIO $ do
 
   -- Write file
   BS.writeFile fullPath content
+
+  pure $ Right objectKey
+
+-- | Store a file to a flat staging area by copying from a source file path.
+--
+-- Unlike 'storeFileStagingLocal' which writes from a ByteString in memory,
+-- this copies directly from a file on disk, avoiding memory buffering.
+-- Used for large file uploads (audio) where the Servant Tmp backend
+-- has already written the upload to a temp file.
+storeFileStagingLocalFromFile ::
+  (MonadIO m) =>
+  LocalStorageConfig ->
+  BucketType ->
+  -- | Subdirectory within bucket (e.g., "staging")
+  Text ->
+  -- | Filename
+  Text ->
+  -- | Source file path
+  FilePath ->
+  m (Either Text Text)
+storeFileStagingLocalFromFile config bucketType subdir filename sourceFilePath = liftIO $ do
+  let fullPath = buildLocalStagingPath config bucketType subdir filename
+      objectKey = buildStagingKey bucketType subdir filename
+
+  -- Create directory structure
+  createDirectoryIfMissing True (takeDirectory fullPath)
+
+  -- Copy file from source (no memory buffering)
+  copyFile sourceFilePath fullPath
 
   pure $ Right objectKey
 
