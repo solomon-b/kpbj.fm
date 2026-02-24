@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Developer Experience
+- **E2E Tests Auto-Reload Mock Data** - `just e2e`, `just e2e-ui`, and `just e2e-headed` now run `dev-mock-data` as a dependency before launching Playwright, ensuring a clean database slate for every test run.
+
 ### Infrastructure
 - **Dedicated SSH Deploy DNS Records** - Added `ssh.kpbj.fm` and `ssh.staging.kpbj.fm` DNS-only A records in Cloudflare for CI/CD SSH access, separating deploy targets from proxied web hostnames. Deploy workflows now use these instead of `stream.kpbj.fm` / `staging.kpbj.fm`.
 - **Pinned SSH Host Keys** - Replaced runtime `ssh-keyscan` in deploy workflows with pinned known host keys stored in GitHub Actions secrets. Eliminates MITM risk from trusting first-connect keys and removes the network call that was failing when Cloudflare-proxied hostnames couldn't be reached on port 22.
@@ -16,6 +19,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Multi-Browser Testing** - Playwright config updated with separate project groups: public site tests run across Chromium, Firefox, iPhone 13, and Pixel 5 viewports; dashboard tests run in a dedicated `authenticated` project that depends on the auth setup phase. WebKit disabled on NixOS due to WPE EGL display incompatibility.
 - **Site Pages Mock Data** - Added `20_site_pages.sql` seeding About KPBJ, Privacy Policy, and Terms of Service pages for dashboard e2e tests.
 - **Playwright Station ID Upload Tests** - Added `station-ids-crud.spec.ts` with e2e tests covering station ID audio upload, edit, and delete flows from the dashboard.
+- **Playwright Ephemeral Upload Tests** - Added `ephemeral-uploads-crud.spec.ts` with e2e tests covering list empty state, upload form fields and editorial guidelines, client/server validation, and a serial create/verify/delete flow with staged audio upload.
+- **Playwright Episode Upload Tests** - Added `episodes-crud.spec.ts` with e2e tests covering episode list with mock data, upload form fields and scheduled date select, client/server validation, and a serial create/verify-detail/verify-list/archive flow. Uses HOST_AUTH for create (host is assigned to the show) and ADMIN_AUTH for archive (staff+ only).
 
 ### Infrastructure
 - **Nix GC Retention Reduced** - Reduced automatic Nix garbage collection retention from 30 days to 7 days (`common.nix`). Staging VPS ran out of disk space due to stale store paths accumulating between weekly GC runs. Applies to both staging and production.

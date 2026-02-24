@@ -690,16 +690,16 @@ nixos-build-staging:
 # Run `just dev-mock-data` before running E2E tests to load deterministic test data.
 # Prerequisites: playwright-test (provided via Nix flake)
 
-# Run E2E tests (headless).
-e2e:
+# Run E2E tests (headless). Reloads mock data first for a clean slate.
+e2e: dev-mock-data
   cd e2e && playwright test
 
-# Run E2E tests with interactive UI mode.
-e2e-ui:
+# Run E2E tests with interactive UI mode. Reloads mock data first for a clean slate.
+e2e-ui: dev-mock-data
   cd e2e && playwright test --ui
 
-# Run E2E tests in a visible browser.
-e2e-headed:
+# Run E2E tests in a visible browser. Reloads mock data first for a clean slate.
+e2e-headed: dev-mock-data
   cd e2e && playwright test --headed
 
 # View the last E2E test report.
