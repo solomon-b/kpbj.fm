@@ -109,6 +109,14 @@ spec =
         it "replaced slot orphans episode" transitionReplacedSlot
         it "removed slot correctly hides episode" transitionRemovedSlot
 
+      -- Multiple timeslots for the same show
+      describe "multiple timeslots" $ do
+        it "returns correct episode for first timeslot" multiSlotFirstSlot
+        it "returns correct episode for second timeslot" multiSlotSecondSlot
+        it "returns Nothing between timeslots" multiSlotBetween
+        it "returns Nothing before all timeslots" multiSlotBeforeAll
+        it "returns Nothing after all timeslots" multiSlotAfterAll
+
 --------------------------------------------------------------------------------
 -- Test Helpers
 
@@ -169,11 +177,11 @@ setupTestData passHash startTime endTime airsTwiceDaily scheduledAt mAudioPath e
           else truncate ((24 * 3600) - timeOfDayToTime startTime + timeOfDayToTime endTime)
    in setupTestDataWithDuration passHash startTime endTime airsTwiceDaily scheduledAt mAudioPath effectiveFrom effectiveUntil (Just slotDuration)
 
--- | Setup test data with custom duration.
+-- | Setup test data with custom duration, returning user ID as well.
 --
--- Like setupTestData but allows specifying the episode duration explicitly.
--- This is needed for testing duration-based airing behavior.
-setupTestDataWithDuration ::
+-- Like setupTestData but allows specifying the episode duration explicitly
+-- and returns the user ID for use in multi-timeslot tests.
+setupTestDataFull ::
   -- | Password hash (created in IO before transaction)
   PasswordHash Argon2 ->
   -- | Schedule start time
@@ -192,8 +200,8 @@ setupTestDataWithDuration ::
   Maybe Day ->
   -- | Episode duration in seconds (Nothing = NULL)
   Maybe Int ->
-  TRX.Transaction (Episodes.Id, Shows.Id)
-setupTestDataWithDuration passHash startTime endTime airsTwiceDaily scheduledAt mAudioPath effectiveFrom effectiveUntil mDuration = do
+  TRX.Transaction (Episodes.Id, Shows.Id, User.Id)
+setupTestDataFull passHash startTime endTime airsTwiceDaily scheduledAt mAudioPath effectiveFrom effectiveUntil mDuration = do
   -- Create user
   (OneRow userId) <-
     TRX.statement () $
@@ -265,7 +273,88 @@ setupTestDataWithDuration passHash startTime endTime airsTwiceDaily scheduledAt 
             eiCreatedBy = userId
           }
 
+  pure (episodeId, showId, userId)
+
+-- | Setup test data with custom duration (discards user ID).
+setupTestDataWithDuration ::
+  PasswordHash Argon2 ->
+  TimeOfDay ->
+  TimeOfDay ->
+  Bool ->
+  UTCTime ->
+  Maybe Text ->
+  Day ->
+  Maybe Day ->
+  Maybe Int ->
+  TRX.Transaction (Episodes.Id, Shows.Id)
+setupTestDataWithDuration passHash startTime endTime airsTwiceDaily scheduledAt mAudioPath effectiveFrom effectiveUntil mDuration = do
+  (episodeId, showId, _userId) <- setupTestDataFull passHash startTime endTime airsTwiceDaily scheduledAt mAudioPath effectiveFrom effectiveUntil mDuration
   pure (episodeId, showId)
+
+-- | Add a second timeslot (template + validity + episode) to an existing show.
+addTimeslot ::
+  -- | Existing show
+  Shows.Id ->
+  -- | Existing user (for episode creator)
+  User.Id ->
+  -- | Start time
+  TimeOfDay ->
+  -- | End time
+  TimeOfDay ->
+  -- | Airs twice daily?
+  Bool ->
+  -- | Episode scheduled_at (UTC)
+  UTCTime ->
+  -- | Audio file path
+  Maybe Text ->
+  -- | Validity effective_from
+  Day ->
+  -- | Validity effective_until
+  Maybe Day ->
+  TRX.Transaction Episodes.Id
+addTimeslot showId userId startTime endTime airsTwiceDaily scheduledAt mAudioPath effectiveFrom effectiveUntil = do
+  let slotDuration :: Integer
+      slotDuration =
+        if endTime > startTime
+          then truncate (timeOfDayToTime endTime - timeOfDayToTime startTime)
+          else truncate ((24 * 3600) - timeOfDayToTime startTime + timeOfDayToTime endTime)
+
+  templateId <-
+    TRX.statement () $
+      ShowSchedule.insertScheduleTemplate
+        ShowSchedule.ScheduleTemplateInsert
+          { stiShowId = showId,
+            stiDayOfWeek = Nothing,
+            stiWeeksOfMonth = Nothing,
+            stiStartTime = startTime,
+            stiEndTime = endTime,
+            stiTimezone = "America/Los_Angeles",
+            stiAirsTwiceDaily = airsTwiceDaily
+          }
+
+  _ <-
+    unwrapInsert $
+      ShowSchedule.insertValidity
+        ShowSchedule.ValidityInsert
+          { viTemplateId = templateId,
+            viEffectiveFrom = effectiveFrom,
+            viEffectiveUntil = effectiveUntil
+          }
+
+  unwrapInsert $
+    Episodes.insertEpisode
+      Episodes.Insert
+        { eiId = showId,
+          eiDescription = Just "Test Episode (second slot)",
+          eiAudioFilePath = mAudioPath,
+          eiAudioFileSize = if isJust mAudioPath then Just 1000000 else Nothing,
+          eiAudioMimeType = if isJust mAudioPath then Just "audio/mpeg" else Nothing,
+          eiDurationSeconds = Just (fromIntegral slotDuration),
+          eiArtworkUrl = Nothing,
+          eiScheduleTemplateId = templateId,
+          eiScheduledAt = scheduledAt,
+          eiCreatedBy = userId
+        }
 
 --------------------------------------------------------------------------------
 -- Basic Cases
@@ -1077,6 +1166,140 @@ transitionRemovedSlot cfg = bracketConn cfg $ do
     _ <- TRX.statement () $ ShowSchedule.endValidity validityId1 testDay
 
     -- No replacement template created — the slot was truly removed
+    TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+--------------------------------------------------------------------------------
+-- Multiple Timeslot Tests
+--
+-- These tests verify that when a show has multiple timeslots (e.g., 9-11 AM
+-- and 2-4 PM), the correct episode is returned for each time window.
+
+-- | Returns correct episode for first timeslot.
+--
+-- Show has slots 9-11 AM and 2-4 PM. Query at 10 AM should return
+-- the episode from the first slot.
+multiSlotFirstSlot :: TestDBConfig -> IO ()
+multiSlotFirstSlot cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let slot1Start = TimeOfDay 9 0 0 -- 9 AM
+      slot1End = TimeOfDay 11 0 0 -- 11 AM
+      slot2Start = TimeOfDay 14 0 0 -- 2 PM
+      slot2End = TimeOfDay 16 0 0 -- 4 PM
+      scheduledAt1 = mkTestTime slot1Start
+      scheduledAt2 = mkTestTime slot2Start
+      queryTime = mkTestTime (TimeOfDay 10 0 0) -- 10 AM (during first slot)
+
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    _ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    pure (ep1, mEpisode)
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (expectedId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      Episodes.id episode `shouldBe` expectedId
+      Episodes.audioFilePath episode `shouldBe` Just "audio/slot1.mp3"
+
+-- | Returns correct episode for second timeslot.
+--
+-- Show has slots 9-11 AM and 2-4 PM. Query at 3 PM should return
+-- the episode from the second slot.
+multiSlotSecondSlot :: TestDBConfig -> IO ()
+multiSlotSecondSlot cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let slot1Start = TimeOfDay 9 0 0
+      slot1End = TimeOfDay 11 0 0
+      slot2Start = TimeOfDay 14 0 0
+      slot2End = TimeOfDay 16 0 0
+      scheduledAt1 = mkTestTime slot1Start
+      scheduledAt2 = mkTestTime slot2Start
+      queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (during second slot)
+
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    pure (ep2, mEpisode)
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (expectedId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      Episodes.id episode `shouldBe` expectedId
+      Episodes.audioFilePath episode `shouldBe` Just "audio/slot2.mp3"
+
+-- | Returns Nothing between timeslots.
+--
+-- Show has slots 9-11 AM and 2-4 PM. Query at 12 PM (between slots)
+-- should return Nothing.
+multiSlotBetween :: TestDBConfig -> IO ()
+multiSlotBetween cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let slot1Start = TimeOfDay 9 0 0
+      slot1End = TimeOfDay 11 0 0
+      slot2Start = TimeOfDay 14 0 0
+      slot2End = TimeOfDay 16 0 0
+      scheduledAt1 = mkTestTime slot1Start
+      scheduledAt2 = mkTestTime slot2Start
+      queryTime = mkTestTime (TimeOfDay 12 0 0) -- Noon (between slots)
+
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    _ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | Returns Nothing before all timeslots.
+--
+-- Show has slots 9-11 AM and 2-4 PM. Query at 8 AM (before both)
+-- should return Nothing.
+multiSlotBeforeAll :: TestDBConfig -> IO ()
+multiSlotBeforeAll cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let slot1Start = TimeOfDay 9 0 0
+      slot1End = TimeOfDay 11 0 0
+      slot2Start = TimeOfDay 14 0 0
+      slot2End = TimeOfDay 16 0 0
+      scheduledAt1 = mkTestTime slot1Start
+      scheduledAt2 = mkTestTime slot2Start
+      queryTime = mkTestTime (TimeOfDay 8 0 0) -- 8 AM (before both)
+
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    _ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | Returns Nothing after all timeslots.
+--
+-- Show has slots 9-11 AM and 2-4 PM. Query at 5 PM (after both)
+-- should return Nothing.
+multiSlotAfterAll :: TestDBConfig -> IO ()
+multiSlotAfterAll cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let slot1Start = TimeOfDay 9 0 0
+      slot1End = TimeOfDay 11 0 0
+      slot2Start = TimeOfDay 14 0 0
+      slot2End = TimeOfDay 16 0 0
+      scheduledAt1 = mkTestTime slot1Start
+      scheduledAt2 = mkTestTime slot2Start
+      queryTime = mkTestTime (TimeOfDay 17 0 0) -- 5 PM (after both)
+
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    _ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
   case result of

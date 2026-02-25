@@ -50,7 +50,7 @@ def get_fallback()
       title = data.title ?? "KPBJ 95.9 FM"
       artist = data.artist ?? "Community Radio"
       url = rewrite_url(data.url)
-      annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"ephemeral\":#{url}"
+      annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"ephemeral\",source_url=\"#{url}\":#{url}"
       request.create(annotated)
     catch _ do
       log.info("[KPBJ] Failed to parse fallback response")
@@ -106,7 +106,7 @@ def poll()
           last_scheduled := url
           title = data.title ?? "KPBJ 95.9 FM"
           artist = data.artist ?? ""
-          annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\":#{url}"
+          annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\",source_url=\"#{url}\":#{url}"
           scheduled_queue.push(request.create(annotated))
         end
       catch _ do
@@ -126,7 +126,7 @@ server.register("force_play", fun(param) -> begin
     url = rewrite_url(data.url)
     title = data.title ?? "KPBJ 95.9 FM"
     artist = data.artist ?? "KPBJ 95.9 FM"
-    annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\":#{url}"
+    annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\",source_url=\"#{url}\":#{url}"
     log.important("[KPBJ] Force play: #{url}")
     last_scheduled := url
     scheduled_queue.push(request.create(annotated))
@@ -163,7 +163,7 @@ radio = source.on_track(radio, fun(m) -> begin
   title = m["title"] ?? "unknown"
   artist = m["artist"] ?? ""
   source_type = m["source_type"] ?? "unknown"
-  source_url = m["filename"] ?? ""
+  source_url = m["source_url"] ?? (m["filename"] ?? "")
 
   last_metadata := m
 
