@@ -4,6 +4,20 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Security
+- **Stop Logging Plaintext Passwords (C1)** — Registration handler log calls no longer serialize the full request body (which included the password). Logs now emit only email and display name. The upstream root cause (`Password` `ToJSON`/`Display` instances in `web-server-core`) is also fixed in the updated pin.
+- **MIME Validation Fail Closed (C2)** — When libmagic throws an exception during file upload validation, the upload is now rejected (`Left`) instead of silently accepted (`Right`). Previously, a libmagic failure would bypass content-type verification entirely.
+- **Session IDs Use CSPRNG (H2)** — New migration switches `server_sessions.id` default from `uuid_generate_v1mc()` (time-based, leaks server MAC and creation timestamp) to `gen_random_uuid()` (v4, CSPRNG-backed). All existing sessions are truncated to force re-login with secure IDs.
+- **Session Fixation Prevention (H3)** — Login now always expires the user's existing session before creating a new one. Previously, if a session already existed, the old session ID was reused, enabling session fixation attacks.
+- **Login Rate Limiting (H4)** — Added nginx `limit_req_zone` (5 requests/minute per IP, burst of 3) for `/user/login` and `/user/register` endpoints. Returns 429 Too Many Requests when exceeded.
+- **Private ACL for S3 Staging Uploads (H5)** — Staged file uploads now use `ObjectCannedACL_Private` instead of `ObjectCannedACL_Public_read`. Files are only made public when moved from staging to their final location via `claimAndRelocateUpload`.
+- **Stored XSS via Show Title (M2)** — Applied `escapeJsString` to show title and audio URL interpolations in Alpine `x-data` attributes on the dashboard episode templates. Applied `sanitizeTitle` to show title in the show edit handler to strip dangerous content at write time.
+- **Logout Clears Browser Cookie (L3)** — Logout handlers (GET and POST) now send a `Set-Cookie` header with `Max-Age=0` via `mkCookieSessionExpired` to clear the session cookie from the browser. Previously, only the server-side session was expired, leaving a stale cookie in the browser.
+- **Upstream web-server-core Security Fixes** — Updated `web-server-core` pin to include: `Password` type no longer has `ToJSON`/`Display` instances (prevents accidental password logging), session idle timeout tracking (`last_activity_at`), and multi-session cap (max 5 active sessions per user, replacing the single-session trigger).
+
+### Removed
+- **Old Session Cookie Backward-Compatibility Code** — Removed `mkExpireOldSessionCookie` and the second `Set-Cookie` header it powered in the login and verify-email handlers. This code expired pre-2026-01-28 cookies that lacked a `Domain` attribute. With all sessions long since rotated, the compat shim is no longer needed. Deletes `App.Cookie` module and its tests.
+
 ### Developer Experience
 - **E2E Tests Auto-Reload Mock Data** - `just e2e`, `just e2e-ui`, and `just e2e-headed` now run `dev-mock-data` as a dependency before launching Playwright, ensuring a clean database slate for every test run.
 
@@ -21,12 +35,14 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Playwright Station ID Upload Tests** - Added `station-ids-crud.spec.ts` with e2e tests covering station ID audio upload, edit, and delete flows from the dashboard.
 - **Playwright Ephemeral Upload Tests** - Added `ephemeral-uploads-crud.spec.ts` with e2e tests covering list empty state, upload form fields and editorial guidelines, client/server validation, and a serial create/verify/delete flow with staged audio upload.
 - **Playwright Episode Upload Tests** - Added `episodes-crud.spec.ts` with e2e tests covering episode list with mock data, upload form fields and scheduled date select, client/server validation, and a serial create/verify-detail/verify-list/archive flow. Uses HOST_AUTH for create (host is assigned to the show) and ADMIN_AUTH for archive (staff+ only).
+- **Logout Cookie Clearing E2E Test** - Strengthened the logout e2e test to assert that the `session-id-development` cookie is removed from the browser after logout, validating the new `Set-Cookie` clearing header.
 
 ### Infrastructure
 - **Nix GC Retention Reduced** - Reduced automatic Nix garbage collection retention from 30 days to 7 days (`common.nix`). Staging VPS ran out of disk space due to stale store paths accumulating between weekly GC runs. Applies to both staging and production.
 - **Cloudflare Proxy Enabled** - Switched production (root + www) and staging DNS records from DNS-only to proxied through Cloudflare for DDoS protection and edge caching. Upload subdomains remain DNS-only to avoid Cloudflare request size limits on large audio uploads. Added ACME challenge TXT records for DNS-01 SSL certificate validation, required now that proxied mode blocks HTTP-01 challenges.
 
 ### Fixes
+- **Test WarpConfig Missing Field** - Fixed `testWarpConfig` in test harness missing the `warpConfigRequestTimeout` field added upstream, which blocked the test suite from compiling.
 - **Mock Data Schema Sync** - Fixed mock data SQL files that broke against the current schema: removed dropped `is_primary` column from `show_hosts` inserts, removed dropped `status` column from `episodes` inserts, added `featured_on_homepage` column to events with one featured upcoming event, updated events to include future 2026 dates so "upcoming events" queries return results, and fixed blog tag assignment query that could only assign one tag per post (CASE inside IN only returns one value) by rewriting as a VALUES join.
 - **Shows Filter Form Duplicate Listeners** - The shows page filter form (`renderFilters`) was rendered twice (mobile + desktop) with the same `id="show-filters"`. The inline `<script>` used `getElementById`, which always returns the first (mobile) form — so the mobile form got two submit listeners and the desktop form got none. Desktop filtering only worked by accident (falling back to default HTML form submission). Fixed by switching to `querySelectorAll` with a guard flag so each form gets exactly one listener, and replaced the non-functional `pushUrl` option in `htmx.ajax()` with explicit `history.pushState()`.
 

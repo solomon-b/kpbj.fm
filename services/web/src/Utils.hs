@@ -31,7 +31,8 @@ partitionEithers = foldr (either left right) ([], [])
     right b (ls, rs) = (ls, b : rs)
 
 -- | Escape a Text value for use inside a JavaScript string literal.
--- Escapes backslashes, quotes, newlines, tabs, and template literal backticks.
+-- Escapes backslashes, quotes, newlines, tabs, template literal backticks,
+-- and Unicode line/paragraph separators (which are JS line terminators).
 escapeJsString :: Text -> Text
 escapeJsString = Text.concatMap escapeChar
   where
@@ -42,4 +43,6 @@ escapeJsString = Text.concatMap escapeChar
     escapeChar '\r' = "\\r"
     escapeChar '\t' = "\\t"
     escapeChar '`' = "\\`"
+    escapeChar '\x2028' = "\\u2028"
+    escapeChar '\x2029' = "\\u2029"
     escapeChar c = Text.singleton c

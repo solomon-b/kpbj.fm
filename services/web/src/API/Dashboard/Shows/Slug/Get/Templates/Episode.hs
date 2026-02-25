@@ -26,6 +26,7 @@ import Lucid qualified
 import Lucid.Alpine
 import Lucid.HTMX
 import Servant.Links qualified as Links
+import Utils (escapeJsString)
 
 --------------------------------------------------------------------------------
 
@@ -85,14 +86,14 @@ renderLatestEpisode backend showModel episode tracks = do
             playerId :: Text.Text
             playerId = [i|episode-#{episodeId}|]
             episodeMetadata :: Text.Text
-            episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
+            episodeMetadata = escapeJsString [i|#{showTitle} - Episode #{episodeNum}|]
         Lucid.div_
           [ class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, Tokens.p4, Tokens.mb4],
             xData_
               [i|{
               playerId: '#{playerId}',
               isPlaying: false,
-              audioUrl: '#{audioUrl}',
+              audioUrl: '#{escapeJsString audioUrl}',
               title: '#{episodeMetadata}',
               currentTime: 0,
               duration: 0,
@@ -231,14 +232,14 @@ renderEpisodeCard backend showModel episode = do
               playerId :: Text.Text
               playerId = [i|episode-#{episodeId}|]
               episodeMetadata :: Text.Text
-              episodeMetadata = [i|#{showTitle} - Episode #{episodeNum}|]
+              episodeMetadata = escapeJsString [i|#{showTitle} - Episode #{episodeNum}|]
           Lucid.div_
             [ class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, Tokens.p4, Tokens.mb4],
               xData_
                 [i|{
                 playerId: '#{playerId}',
                 isPlaying: false,
-                audioUrl: '#{audioUrl}',
+                audioUrl: '#{escapeJsString audioUrl}',
                 title: '#{episodeMetadata}',
                 currentTime: 0,
                 duration: 0,

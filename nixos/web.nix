@@ -255,11 +255,64 @@ in
       };
     };
 
+    # ── Nginx rate limiting ──────────────────────────────────────
+    # Use CF-Connecting-IP to get the real client IP behind Cloudflare.
+    # Without this, $binary_remote_addr is a Cloudflare edge IP and all
+    # users behind the same POP share a single rate-limit bucket.
+    services.nginx.appendHttpConfig = ''
+      set_real_ip_from 173.245.48.0/20;
+      set_real_ip_from 103.21.244.0/22;
+      set_real_ip_from 103.22.200.0/22;
+      set_real_ip_from 103.31.4.0/22;
+      set_real_ip_from 141.101.64.0/18;
+      set_real_ip_from 108.162.192.0/18;
+      set_real_ip_from 190.93.240.0/20;
+      set_real_ip_from 188.114.96.0/20;
+      set_real_ip_from 197.234.240.0/22;
+      set_real_ip_from 198.41.128.0/17;
+      set_real_ip_from 162.158.0.0/15;
+      set_real_ip_from 104.16.0.0/13;
+      set_real_ip_from 104.24.0.0/14;
+      set_real_ip_from 172.64.0.0/13;
+      set_real_ip_from 131.0.72.0/22;
+      set_real_ip_from 2400:cb00::/32;
+      set_real_ip_from 2606:4700::/32;
+      set_real_ip_from 2803:f800::/32;
+      set_real_ip_from 2405:b500::/32;
+      set_real_ip_from 2405:8100::/32;
+      set_real_ip_from 2a06:98c0::/29;
+      set_real_ip_from 2c0f:f248::/32;
+      real_ip_header CF-Connecting-IP;
+
+      limit_req_zone $binary_remote_addr zone=auth:10m rate=5r/m;
+    '';
+
     # ── Nginx vhosts ─────────────────────────────────────────────
     services.nginx.virtualHosts = {
       ${cfg.domain} = {
         forceSSL = cfg.enableSSL;
         enableACME = cfg.enableSSL;
+
+        # Rate-limited auth endpoints
+        locations."/user/login" = {
+          proxyPass = "http://127.0.0.1:${toString cfg.port}";
+          extraConfig = ''
+            proxy_buffering off;
+            client_max_body_size 64k;
+            limit_req zone=auth burst=3 nodelay;
+            limit_req_status 429;
+          '';
+        };
+
+        locations."/user/register" = {
+          proxyPass = "http://127.0.0.1:${toString cfg.port}";
+          extraConfig = ''
+            proxy_buffering off;
+            client_max_body_size 64k;
+            limit_req zone=auth burst=3 nodelay;
+            limit_req_status 429;
+          '';
+        };
 
         locations."/" = {
           proxyPass = "http://127.0.0.1:${toString cfg.port}";

@@ -104,13 +104,13 @@ action sockAddr mUserAgent req@Register {..} = do
   validationResult <- lift $ validateRequest req
   case validationResult of
     Failure errors -> do
-      Log.logInfo "POST /user/register Request validation failure" (Aeson.object ["request" .= req, "validationErrors" .= display errors])
+      Log.logInfo "POST /user/register Request validation failure" (Aeson.object ["email" .= urEmail, "displayName" .= urDisplayName, "validationErrors" .= display errors])
       pure $ RegisterFailure registerRedirectUrl
     Success parsedRequest -> do
       mExisting <- execQueryThrow (User.getUserByEmail urEmail)
       case mExisting of
         Just _ -> do
-          Log.logInfo "Email address is already registered." (Aeson.object ["request" .= req, "validationErrors" .= display [InvalidEmailAddress]])
+          Log.logInfo "Email address is already registered." (Aeson.object ["email" .= urEmail])
           pure $ RegisterFailure registerRedirectUrl
         Nothing ->
           registerNewUser sockAddr mUserAgent parsedRequest urNewsletter

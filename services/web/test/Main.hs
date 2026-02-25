@@ -80,7 +80,6 @@ import API.Shows.Slug.Get.HandlerSpec qualified as ShowDetailHandler
 import API.User.ForgotPassword.Post.HandlerSpec qualified as UserForgotPasswordHandler
 import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
 import API.User.Register.Post.HandlerSpec qualified as UserRegisterHandler
-import App.CookieSpec qualified as Cookie
 import App.DomainsSpec qualified as Domains
 import App.Handler.CombinatorsSpec qualified as Combinators
 import Data.Maybe (fromMaybe)
@@ -138,7 +137,6 @@ main = do
 
   -- Pure tests that don't need database
   hspecWith cfg $ parallel $ do
-    Cookie.spec
     Domains.spec
     ScheduleDiff.spec
     ContentSanitization.spec

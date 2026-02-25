@@ -73,6 +73,11 @@ test.describe("Logout", () => {
     await page.goto("/user/logout");
     await page.waitForURL("/");
 
+    // Session cookie should be cleared by the Set-Cookie header.
+    const cookies = await page.context().cookies();
+    const sessionCookie = cookies.find((c) => c.name === "session-id-development");
+    expect(sessionCookie).toBeUndefined();
+
     // After logout, accessing /dashboard should redirect to login.
     await page.goto("/dashboard");
     await page.waitForURL(/\/user\/login/);

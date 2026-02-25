@@ -87,16 +87,14 @@ sanitizeTitle title =
   -- First sanitize to remove dangerous content, then strip all remaining HTML
   Text.strip $ stripAllHTML $ sanitizeXSS title
   where
-    -- Remove HTML tags properly using regex-like replacement
-    stripAllHTML text =
-      let -- Simple state machine to remove everything between < and >
-          go [] acc _ = acc
-          go (c : cs) acc inTag
-            | c == '<' = go cs acc True
-            | c == '>' = go cs acc False
-            | inTag = go cs acc True
-            | otherwise = go cs (c : acc) False
-       in Text.pack $ reverse $ go (Text.unpack text) [] False
+    -- Strip everything between '<' and '>' using a strict left fold
+    stripAllHTML =
+      snd . Text.foldl' step (False, Text.empty)
+      where
+        step (_, acc) '<' = (True, acc)
+        step (True, acc) '>' = (False, acc)
+        step (True, acc) _ = (True, acc)
+        step (False, acc) c = (False, Text.snoc acc c)
 
 -- | Sanitize description fields
 --

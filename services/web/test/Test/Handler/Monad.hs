@@ -79,7 +79,8 @@ testWarpConfig =
   WarpConfig
     { warpConfigPort = 4000,
       warpConfigTimeout = 30,
-      warpConfigServerName = "test"
+      warpConfigServerName = "test",
+      warpConfigRequestTimeout = 600
     }
 
 testCustomContext :: CustomContext

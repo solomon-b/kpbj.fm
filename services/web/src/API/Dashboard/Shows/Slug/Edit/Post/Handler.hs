@@ -45,6 +45,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (LocalTime (..), utcToPacific)
 import Effects.Clock (currentSystemTime)
+import Effects.ContentSanitization (sanitizeTitle)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -169,7 +170,7 @@ action userMetadata slug editForm = do
 
       updateData =
         Shows.Insert
-          { siTitle = sefTitle editForm,
+          { siTitle = sanitizeTitle (sefTitle editForm),
             siSlug = generatedSlug,
             siDescription = mDescription,
             siLogoUrl = finalLogoUrl,

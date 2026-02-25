@@ -420,7 +420,6 @@ library
     API.User.ResetPassword.Post.Route
     App.Analytics
     App.Common
-    App.Cookie
     App.Domains
     App.CustomContext
     App.Handler.Combinators
@@ -651,7 +650,6 @@ test-suite kpbj-api-test
        API.User.ForgotPassword.Post.HandlerSpec
        API.User.Login.Post.HandlerSpec
        API.User.Register.Post.HandlerSpec
-       App.CookieSpec
        App.DomainsSpec
        Domain.Types.FileUploadSpec
        Domain.Types.SlugSpec
