@@ -179,7 +179,7 @@ storeFileStagingS3 awsEnv config bucketType subdir filename content mimeType = l
     let req =
           S3.newPutObject bucket key body
             & putObject_contentType ?~ mimeType
-            & putObject_acl ?~ ObjectCannedACL_Public_read
+            & putObject_acl ?~ ObjectCannedACL_Private
     AWS.send awsEnv req
 
   case result of

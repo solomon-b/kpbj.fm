@@ -7,7 +7,6 @@ import API.Types (Routes (..), UserRoutes (..))
 import API.User.Login.Post.Route (Login (..))
 import App.Auth qualified as Auth
 import App.Config (Environment)
-import App.Cookie qualified as Cookie
 import App.Domains qualified as Domains
 import App.Handler.Error (HandlerError, logHandlerError, throwHandlerFailure)
 import App.Monad (AppM)
@@ -24,7 +23,6 @@ import Data.Text qualified as Text
 import Domain.Types.EmailAddress ()
 import Effects.Database.Execute (execQuery, execQueryThrow)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
-import Effects.Database.Tables.ServerSessions qualified as Session
 import Effects.Database.Tables.User qualified as User
 import Log qualified
 import Network.Socket
@@ -35,8 +33,8 @@ import Web.HttpApiData qualified as Http
 
 -- | Result type for a login attempt.
 data LoginResult
-  = -- | Successful login: session cookie, expiry cookie, redirect URL.
-    LoginSuccess Text Text Text
+  = -- | Successful login: session cookie, redirect URL.
+    LoginSuccess Text Text
   | -- | Email not verified — redirect URL to verification-sent page.
     LoginEmailNotVerified Text
   | -- | Invalid credentials — redirect URL back to login page.
@@ -86,16 +84,13 @@ buildLoginSuccess ::
   ExceptT HandlerError AppM LoginResult
 buildLoginSuccess sockAddr mUserAgent redirectLink user = do
   env <- asks (Has.getter @Environment)
-  let expireOldCookie = fromMaybe "" $ Cookie.mkExpireOldSessionCookie env
-  mSession <- execQueryThrow (Session.getServerSessionByUser (User.mId user))
-  sessionId <- case mSession of
-    Nothing ->
-      lift (Auth.login (User.mId user) sockAddr mUserAgent) >>= \case
-        Left err -> throwHandlerFailure $ Text.pack $ show err
-        Right sid -> pure sid
-    Just session -> pure (Session.mSessionId session)
+  -- Always create a fresh session (upstream insertServerSession caps at 5 per user)
+  sessionId <-
+    lift (Auth.login (User.mId user) sockAddr mUserAgent) >>= \case
+      Left err -> throwHandlerFailure $ Text.pack $ show err
+      Right sid -> pure sid
   let cookieHeader = Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
-  pure $ LoginSuccess cookieHeader expireOldCookie redirectLink
+  pure $ LoginSuccess cookieHeader redirectLink
 
 handler ::
   SockAddr ->
@@ -105,7 +100,6 @@ handler ::
   AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
-           Servant.Header "Set-Cookie" Text,
            Servant.Header "HX-Redirect" Text
          ]
         Servant.NoContent
@@ -117,14 +111,12 @@ handler sockAddr mUserAgent loginForm redirectQueryParam = do
       logHandlerError "Login" err
       pure $
         Servant.noHeader $
-          Servant.noHeader $
-            Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing Nothing)) Servant.NoContent
-    Right (LoginSuccess cookieHeader expireOldCookie redirectLink) ->
+          Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing Nothing)) Servant.NoContent
+    Right (LoginSuccess cookieHeader redirectLink) ->
       pure $
         Servant.addHeader cookieHeader $
-          Servant.addHeader expireOldCookie $
-            Servant.addHeader redirectLink Servant.NoContent
+          Servant.addHeader redirectLink Servant.NoContent
     Right (LoginEmailNotVerified redirectUrl) ->
-      pure $ Servant.noHeader $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
+      pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
     Right (LoginInvalidCredentials redirectUrl) ->
-      pure $ Servant.noHeader $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
+      pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent

@@ -44,4 +44,4 @@ type Route =
     :> Servant.Header "User-Agent" Text
     :> Servant.ReqBody '[Servant.FormUrlEncoded] Login
     :> Servant.QueryParam "redirect" Text
-    :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)
+    :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] Servant.NoContent)

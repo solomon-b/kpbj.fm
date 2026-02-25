@@ -24,9 +24,8 @@ validateFileMimeType filePath expectedMimeType = do
 
   case result of
     Left (err :: SomeException) -> do
-      -- Log the magic failure for debugging
-      Log.logAttention "Magic MIME type detection failed, falling back to extension-based validation" (filePath, Text.pack $ show err)
-      pure $ Right expectedMimeType
+      Log.logAttention "Magic MIME type detection failed" (filePath, Text.pack $ show err)
+      pure $ Left "MIME type validation failed: unable to verify file content"
     Right actualMimeType -> do
       if mimeTypesMatch expectedMimeType actualMimeType
         then pure $ Right actualMimeType

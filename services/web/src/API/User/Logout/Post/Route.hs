@@ -15,4 +15,4 @@ type Route =
   Servant.AuthProtect "cookie-auth"
     :> "user"
     :> "logout"
-    :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.PostAccepted '[HTML] (Servant.Headers '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
