@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Styled 404 Page for Unmatched Routes** — Visiting a URL that doesn't match any route (e.g. `/nonexistent`) now renders a full HTML 404 page with the site frame (header, nav, footer, music player) instead of an empty response. Implemented as WAI middleware that intercepts non-HTML 404 responses from Servant's router and replaces them with a pre-rendered page. Handler-level 404s (e.g. `/shows/bad-slug`) are unchanged.
+
 ### Changed
 - **Remove Redundant Dashboard Page Title** — Removed the `h1` page title from the dashboard top bar since the sidebar already highlights the active page. Cleaned up the unused `navTitle` function.
 

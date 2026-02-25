@@ -105,7 +105,9 @@ library
                   , uuid
                   , validation
                   , vector
+                  , wai
                   , wai-extra
+                  , warp
                   , web-server-core
                   , witherable
                   , lucid-htmx-alpine
@@ -439,6 +441,7 @@ library
     Component.Card.Show
     Component.DashboardFrame
     Component.Frame
+    Component.NotFound
     Component.PageHeader
     Component.Redirect
     Component.Table
@@ -507,6 +510,7 @@ library
     Effects.Webhook
     Effects.Storage.S3
     Helpers.RelativeTime
+    Middleware.NotFound
     OrphanInstances.DayOfWeek
     OrphanInstances.Rel8
     OrphanInstances.TimeOfDay
