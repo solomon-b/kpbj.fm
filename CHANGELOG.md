@@ -4,7 +4,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **HTML Entities Rendered Literally in Audio Player** — Icecast metadata containing HTML entities (e.g. `&#8217;`) now gets decoded before display in the persistent music player. Previously, `x-text` bindings rendered entities as literal text instead of the intended characters.
+
 ### Security
+- **XSS in Redirect Banner** — The `bannerFromUrlScript` now HTML-escapes `_title` and `_msg` query parameters before injecting them via `innerHTML`. Previously, crafted URLs could execute arbitrary HTML/JS through these parameters.
 - **Stop Logging Plaintext Passwords (C1)** — Registration handler log calls no longer serialize the full request body (which included the password). Logs now emit only email and display name. The upstream root cause (`Password` `ToJSON`/`Display` instances in `web-server-core`) is also fixed in the updated pin.
 - **MIME Validation Fail Closed (C2)** — When libmagic throws an exception during file upload validation, the upload is now rejected (`Left`) instead of silently accepted (`Right`). Previously, a libmagic failure would bypass content-type verification entirely.
 - **Session IDs Use CSPRNG (H2)** — New migration switches `server_sessions.id` default from `uuid_generate_v1mc()` (time-based, leaks server MAC and creation timestamp) to `gen_random_uuid()` (v4, CSPRNG-backed). All existing sessions are truncated to force re-login with secure IDs.
