@@ -151,9 +151,16 @@ import API.User.VerifyEmail.Get.Handler qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Handler qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Handler qualified as User.VerifyEmailSent.Get
 import App qualified
+import App.Auth qualified as Auth
 import App.Context (AppContext (..))
 import App.CustomContext (buildCustomContext, loadCustomConfigs)
 import App.Monad (AppM)
+import Component.NotFound (notFoundPage)
+import Data.Has (getter)
+import Lucid qualified
+import Middleware.NotFound (notFoundMiddleware)
+import Network.Wai.Handler.Warp qualified as Warp
+import Servant (Context ((:.)))
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -163,6 +170,9 @@ import Servant qualified
 -- Uses two-phase initialization:
 -- 1. Load configs (pure env var reading) before withAppResources
 -- 2. Build resources with AppContext inside withAppResources callback
+--
+-- Wraps the Servant application with 404 middleware that replaces
+-- plain-text routing misses with a styled HTML page.
 runApi :: IO ()
 runApi = do
   configs <- loadCustomConfigs
@@ -170,7 +180,16 @@ runApi = do
   App.withAppResources () $ \baseAppCtx ->
     buildCustomContext baseAppCtx configs $ \customCtx -> do
       let appCtx = baseAppCtx {appCustom = customCtx}
-      App.runServer @API (const server) appCtx
+
+          -- Pre-render the 404 page at startup (no user context)
+          notFoundHtml = Lucid.renderBS $ notFoundPage (getter customCtx) (getter customCtx)
+
+          -- Build the WAI application with 404 middleware
+          servantCtx = Auth.authHandler (appDbPool appCtx) (appEnvironment appCtx) :. Servant.EmptyContext
+          warpSettings = App.mkWarpSettings (appLoggerEnv appCtx) (appWarpConfig appCtx)
+          app = notFoundMiddleware notFoundHtml $ App.mkApp @API (const server) servantCtx appCtx
+
+      Warp.runSettings warpSettings app
 
 --------------------------------------------------------------------------------
 
