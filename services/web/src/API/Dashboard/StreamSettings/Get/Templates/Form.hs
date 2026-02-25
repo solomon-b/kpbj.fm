@@ -263,7 +263,7 @@ playbackHistorySection history =
         Lucid.thead_ [class_ $ base ["sticky", "top-0", Tokens.bgAlt]] $ do
           Lucid.tr_ [class_ $ base ["border-b", Tokens.border2]] $ do
             Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Started"
-            Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Title"
+            Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Track"
             Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Artist"
             Lucid.th_ [class_ $ base ["text-left", Tokens.p2, Tokens.fgMuted]] "Type"
         Lucid.tbody_ $ do
@@ -272,8 +272,10 @@ playbackHistorySection history =
               Lucid.td_ [class_ $ base [Tokens.p2, "whitespace-nowrap"]] $
                 Lucid.toHtml $
                   formatUTCTime entry.phStartedAt
-              Lucid.td_ [class_ $ base [Tokens.p2]] $
-                Lucid.toHtml entry.phTitle
+              Lucid.td_ [class_ $ base [Tokens.p2]] $ do
+                Lucid.div_ $ Lucid.toHtml entry.phTitle
+                Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "truncate", "max-w-[400px]"]] $
+                  Lucid.toHtml $ stripSourceUrlPrefix entry.phSourceUrl
               Lucid.td_ [class_ $ base [Tokens.p2]] $
                 Lucid.toHtml (fromMaybe "" entry.phArtist)
               Lucid.td_ [class_ $ base [Tokens.p2]] $
@@ -282,6 +284,20 @@ playbackHistorySection history =
 -- | Format UTCTime for display in Pacific time
 formatUTCTime :: UTCTime -> Text
 formatUTCTime utc = Text.pack $ formatTime defaultTimeLocale "%Y-%m-%d %H:%M" (utcToPacific utc)
+
+-- | Strip the S3 domain prefix from a source URL, keeping just the object key path.
+--
+-- >>> stripSourceUrlPrefix "https://production-kpbj-storage.sfo3.digitaloceanspaces.com/audio/episodes/2026/test.mp3"
+-- "audio/episodes/2026/test.mp3"
+--
+-- >>> stripSourceUrlPrefix "/tmp/liq-process093338.mp3"
+-- "/tmp/liq-process093338.mp3"
+stripSourceUrlPrefix :: Text -> Text
+stripSourceUrlPrefix url =
+  case Text.stripPrefix "https://" url of
+    Just rest -> case Text.breakOn "/" rest of
+      (_, path) -> Text.drop 1 path -- drop the leading "/"
+    Nothing -> url
 
 -- | Badge for source type
 sourceTypeBadge :: Text -> Lucid.Html ()

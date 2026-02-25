@@ -6,6 +6,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Added
 - **Styled 404 Page for Unmatched Routes** — Visiting a URL that doesn't match any route (e.g. `/nonexistent`) now renders a full HTML 404 page with the site frame (header, nav, footer, music player) instead of an empty response. Implemented as WAI middleware that intercepts non-HTML 404 responses from Servant's router and replaces them with a pre-rendered page. Handler-level 404s (e.g. `/shows/bad-slug`) are unchanged.
+- **Source URL in Playback History** — Liquidsoap now records the original audio URL (instead of a temp file path) in playback history via a `source_url` annotation on all track types (episodes, fallbacks, force-play). The stream settings dashboard displays the source URL beneath each track title for easier debugging.
 
 ### Changed
 - **Remove Redundant Dashboard Page Title** — Removed the `h1` page title from the dashboard top bar since the sidebar already highlights the active page. Cleaned up the unused `navTitle` function.
@@ -37,6 +38,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **GitHub Terraform Provider** - Added `integrations/github` provider to manage GitHub Actions secrets (`PRODUCTION_KNOWN_HOST`, `STAGING_KNOWN_HOST`) from SOPS-encrypted values, keeping host key management in the same Terraform workflow as DNS and infrastructure.
 
 ### Tests
+- **Multi-Timeslot Currently Airing Tests** — Added 5 tests to `CurrentlyAiringSpec` verifying that `getCurrentlyAiringEpisode` returns the correct episode when a show has multiple timeslots (e.g., 9–11 AM and 2–4 PM). Tests assert the right episode and audio file are returned for each slot, and Nothing between/before/after all slots.
 - **Playwright E2E Test Suite (Public Site)** - Added ~280 end-to-end tests across 11 spec files using Playwright, covering all public-facing pages: homepage (featured event, newsletter signup, stream player), shows (filter panel, search, tag/status/sort filters, infinite scroll, empty state), show detail, episode detail, blog, events, schedule, navigation, 404 pages, and smoke tests. Tests run against mock data with a live dev server.
 - **Playwright E2E Test Suite (Dashboard)** - Added 11 dashboard spec files covering authentication, role-based access control, and CRUD operations. Tests pre-authenticate as admin, staff, host, and user roles via a setup phase that saves session state. Role tests verify sidebar visibility, show selector rendering (multi-show `<select>` vs single-show `<span>`), and URL-based access denial (hosts redirected from admin routes, users blocked from all dashboard routes). CRUD specs cover events, station blog, show blog, users, profile settings, and site pages — including create/edit/delete flows with confirm dialogs, inline role changes, suspend/unsuspend, site page revision history, and revision restore.
 - **Mobile E2E Tests** - Added mobile-specific test suite (`mobile.spec.ts`) covering hamburger menu navigation, collapsible shows filter panel, and mobile player controls. Desktop-only tests (nav links, volume slider, filter panel) are automatically skipped on mobile projects.
