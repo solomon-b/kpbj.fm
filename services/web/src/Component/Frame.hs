@@ -291,6 +291,13 @@ musicPlayerWrapper cfg content =
         }
       },
 
+      // Decode HTML entities from Icecast metadata into plain text
+      decodeEntities(str) {
+        const el = document.createElement('textarea');
+        el.innerHTML = str;
+        return el.value;
+      },
+
       async fetchMetadata() {
         try {
           const response = await fetch('/api/stream/metadata');
@@ -302,14 +309,17 @@ musicPlayerWrapper cfg content =
             // Icecast combines metadata as "artist - title" in the title field
             // Or we may have separate artist field
             if (source.artist && source.title) {
-              this.currentShow = source.artist + ' - ' + source.title;
-              this.currentArtist = source.artist;
-              this.currentTrack = source.title;
+              const artist = this.decodeEntities(source.artist);
+              const title = this.decodeEntities(source.title);
+              this.currentShow = artist + ' - ' + title;
+              this.currentArtist = artist;
+              this.currentTrack = title;
             } else if (source.title) {
-              this.currentShow = source.title;
-              this.currentTrack = source.title;
+              const title = this.decodeEntities(source.title);
+              this.currentShow = title;
+              this.currentTrack = title;
             } else {
-              this.currentShow = source.server_name || 'KPBJ 95.9 FM';
+              this.currentShow = source.server_name ? this.decodeEntities(source.server_name) : 'KPBJ 95.9 FM';
             }
           } else {
             this.currentShow = 'KPBJ 95.9 FM';
@@ -578,6 +588,7 @@ bannerFromUrlScript =
   \  const title = params.get('_title');\
   \  const message = params.get('_msg');\
   \  if (bannerType && title && message) {\
+  \    function esc(s) { const el = document.createElement('span'); el.textContent = s; return el.innerHTML; }\
   \    const styles = {\
   \      success: { bg: 'bg-[var(--theme-success)]/10', border: 'border-[var(--theme-success)]', title: 'text-[var(--theme-success)]', msg: 'text-[var(--theme-success)]', dismiss: 'text-[var(--theme-success)] hover:opacity-70', icon: '\\u2713' },\
   \      error: { bg: 'bg-[var(--theme-error)]/10', border: 'border-[var(--theme-error)]', title: 'text-[var(--theme-error)]', msg: 'text-[var(--theme-error)]', dismiss: 'text-[var(--theme-error)] hover:opacity-70', icon: '\\u2715' },\
@@ -592,8 +603,8 @@ bannerFromUrlScript =
   \          '<div class=\"flex items-center gap-3\">' +\
   \            '<span class=\"text-2xl\">' + style.icon + '</span>' +\
   \            '<div>' +\
-  \              '<h3 class=\"font-bold ' + style.title + '\">' + decodeURIComponent(title) + '</h3>' +\
-  \              '<p class=\"text-sm ' + style.msg + '\">' + decodeURIComponent(message) + '</p>' +\
+  \              '<h3 class=\"font-bold ' + style.title + '\">' + esc(decodeURIComponent(title)) + '</h3>' +\
+  \              '<p class=\"text-sm ' + style.msg + '\">' + esc(decodeURIComponent(message)) + '</p>' +\
   \            '</div>' +\
   \          '</div>' +\
   \          '<button onclick=\"this.closest(\\'#banner\\').remove()\" class=\"' + style.dismiss + ' font-bold text-xl\">\\u00D7</button>' +\
