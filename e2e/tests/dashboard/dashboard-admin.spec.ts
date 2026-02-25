@@ -154,10 +154,6 @@ test.describe("Admin dashboard", () => {
   // Top bar
   // -------------------------------------------------------------------------
 
-  test("top bar shows page title", async ({ page }) => {
-    await expect(page.locator("header h1")).toBeVisible();
-  });
-
   test("top bar has Back to Site link", async ({ page }) => {
     await expect(page.getByRole("link", { name: "Back to Site" })).toBeVisible();
   });
@@ -185,30 +181,25 @@ test.describe("Admin dashboard", () => {
   test("clicking USERS navigates to users page", async ({ page }) => {
     await page.locator("aside").getByRole("link", { name: "USERS" }).click();
     await page.waitForURL(/\/dashboard\/users/);
-    await expect(page.locator("header h1")).toHaveText("Users");
   });
 
   test("clicking SHOWS navigates to shows page", async ({ page }) => {
     await page.locator("aside").getByRole("link", { name: /^SHOWS$/ }).click();
     await page.waitForURL(/\/dashboard\/shows/);
-    await expect(page.locator("header h1")).toHaveText("Shows");
   });
 
   test("clicking EVENTS navigates to events page", async ({ page }) => {
     await page.locator("aside").getByRole("link", { name: "EVENTS" }).click();
     await page.waitForURL(/\/dashboard\/events/);
-    await expect(page.locator("header h1")).toHaveText("Events");
   });
 
   test("clicking STATION BLOG navigates to station blog page", async ({ page }) => {
     await page.locator("aside").getByRole("link", { name: "STATION BLOG" }).click();
     await page.waitForURL(/\/dashboard\/station-blog/);
-    await expect(page.locator("header h1")).toHaveText("Station Blog");
   });
 
   test("clicking STREAM navigates to stream settings page", async ({ page }) => {
     await page.locator("aside").getByRole("link", { name: "STREAM" }).click();
     await page.waitForURL(/\/dashboard\/stream-settings/);
-    await expect(page.locator("header h1")).toHaveText("Stream Settings");
   });
 });

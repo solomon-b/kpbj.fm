@@ -24,7 +24,6 @@ test.describe("Station IDs CRUD", () => {
 
   test("list page loads with empty state", async ({ page }) => {
     await page.goto("/dashboard/station-ids");
-    await expect(page.locator("header h1")).toHaveText("Station IDs");
     await expect(
       page.getByText("No station IDs uploaded yet.")
     ).toBeVisible();

@@ -28,7 +28,7 @@ test.describe("Show Blog CRUD", () => {
   test("list page loads", async ({ page }) => {
     await page.goto(`/dashboard/blog/${showSlug}`);
     // The page should load with the header visible, table may be empty.
-    await expect(page.locator("header h1")).toBeVisible();
+    await expect(page.locator("header")).toBeVisible();
   });
 
   // -------------------------------------------------------------------------

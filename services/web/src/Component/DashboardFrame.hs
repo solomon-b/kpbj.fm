@@ -117,23 +117,6 @@ data DashboardNav
   | NavMissingEpisodes
   deriving (Eq, Show)
 
--- | Get display title for navigation item
-navTitle :: DashboardNav -> Text
-navTitle = \case
-  NavEpisodes -> "Episodes"
-  NavBlog -> "Blog"
-  NavSchedule -> "Schedule"
-  NavSettings -> "Settings"
-  NavUsers -> "Users"
-  NavShows -> "Shows"
-  NavStationBlog -> "Station Blog"
-  NavEvents -> "Events"
-  NavStationIds -> "Station IDs"
-  NavEphemeralUploads -> "Ephemeral Uploads"
-  NavSitePages -> "Site Pages"
-  NavStreamSettings -> "Stream Settings"
-  NavMissingEpisodes -> "Missing Episodes"
-
 -- | Check if navigation requires show context
 isShowScoped :: DashboardNav -> Bool
 isShowScoped = \case
@@ -193,10 +176,10 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
           -- Top bar with page title, show selector, stats, and action button
           topBar activeNav allShows selectedShow statsContent actionButton
           -- Banner container
-          Lucid.div_ [class_ $ base [Tokens.px8, Tokens.mt8]] $
+          Lucid.div_ [class_ $ base ["px-6", Tokens.mt4]] $
             Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
           -- Main content (use same ID as main site for HTMX compatibility)
-          Lucid.main_ [class_ $ base ["flex-1", Tokens.p8], Lucid.id_ "main-content"] main
+          Lucid.main_ [class_ $ base ["flex-1", "px-6", "py-4"], Lucid.id_ "main-content"] main
       -- Script to display banner from URL params (runs after DOM is ready)
       Lucid.script_ [] bannerFromUrlScript
 
@@ -370,15 +353,13 @@ navUrl nav mShow =
         NavStreamSettings -> Just dashboardStreamSettingsGetUrl
         NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
 
--- | Top bar with page title, show selector, stats, action button, and back link
+-- | Top bar with show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
 topBar activeNav allShows selectedShow statsContent actionButton =
   Lucid.header_ [class_ $ base [Tokens.bgMain, Tokens.px8, "sticky", "top-0", "z-10", "border-b", Theme.borderMuted, "h-16", "flex", "items-center"]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", "w-full"]] $ do
-      -- Left side: page title and show selector
+      -- Left side: show selector and stats
       Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
-        Lucid.h1_ [class_ $ base [Tokens.textXl, Tokens.fontBold]] $
-          Lucid.toHtml (navTitle activeNav)
         -- Show selector (only for show-scoped pages)
         when (isShowScoped activeNav) $
           showSelector activeNav allShows selectedShow

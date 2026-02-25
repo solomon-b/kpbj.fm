@@ -63,7 +63,8 @@ psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d postgres \
   -c "CREATE DATABASE $LOCAL_DB_NAME;"
 
 echo "Copying production database to local..."
-pg_dump "postgres://$PROD_READONLY_USER:$PROD_READONLY_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
+pg_dump --no-owner --no-privileges \
+  "postgres://$PROD_READONLY_USER:$PROD_READONLY_PASSWORD@localhost:$PROD_PROXY_PORT/$PROD_DB_NAME" \
   | psql -h localhost -p "$DEV_DB_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME"
 
 echo "Sanitizing PII for User and Host accounts..."

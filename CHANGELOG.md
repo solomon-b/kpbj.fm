@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Remove Redundant Dashboard Page Title** — Removed the `h1` page title from the dashboard top bar since the sidebar already highlights the active page. Cleaned up the unused `navTitle` function.
+
 ### Fixed
 - **HTML Entities Rendered Literally in Audio Player** — Icecast metadata containing HTML entities (e.g. `&#8217;`) now gets decoded before display in the persistent music player. Previously, `x-text` bindings rendered entities as literal text instead of the intended characters.
 

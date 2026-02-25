@@ -26,7 +26,6 @@ test.describe("Users CRUD", () => {
 
   test("list page loads with users table", async ({ page }) => {
     await page.goto("/dashboard/users");
-    await expect(page.locator("header h1")).toHaveText("Users");
     await expect(page.locator("#users-table-body")).toBeVisible();
     const rows = page.locator("#users-table-body tr");
     await expect(rows.first()).toBeVisible();
