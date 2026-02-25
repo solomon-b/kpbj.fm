@@ -73,9 +73,6 @@ episodeSearchUrl = Links.linkURI $ dashboardStreamSettingsLinks.episodeSearch No
 -- Stream URLs are configured via environment variables, not editable here.
 template :: Bool -> Maybe IcecastStatus -> [PlaybackHistory.Model] -> Lucid.Html ()
 template icecastReachable mStatus playbackHistory = do
-  -- Page title
-  Lucid.h1_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb6]] "STREAM SETTINGS"
-
   -- Stream status section
   statusSection icecastReachable mStatus
 

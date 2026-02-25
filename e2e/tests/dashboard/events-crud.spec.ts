@@ -20,7 +20,6 @@ test.describe("Events CRUD", () => {
 
   test("list page loads with events table", async ({ page }) => {
     await page.goto("/dashboard/events");
-    await expect(page.locator("header h1")).toHaveText("Events");
     await expect(page.locator("#events-table-body")).toBeVisible();
     const rows = page.locator("#events-table-body tr");
     await expect(rows.first()).toBeVisible();

@@ -19,7 +19,6 @@ test.describe("Station Blog CRUD", () => {
 
   test("list page loads with blog table", async ({ page }) => {
     await page.goto("/dashboard/station-blog");
-    await expect(page.locator("header h1")).toHaveText("Station Blog");
     await expect(page.locator("#station-blog-table-body")).toBeVisible();
     const rows = page.locator("#station-blog-table-body tr");
     await expect(rows.first()).toBeVisible();
