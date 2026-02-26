@@ -63,7 +63,7 @@ handler ::
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handler slug maybePage maybeTag cookie (foldHxReq -> hxRequest) =
-  handlePublicErrors "Show blog" renderError $ do
+  handlePublicErrors "Show blog" hxRequest renderError $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action slug maybePage maybeTag
     lift $

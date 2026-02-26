@@ -53,10 +53,12 @@ import API.Types (DashboardRoutes (..), Routes (..), UserRoutes (..))
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.HxRequest (HxRequest (..))
 import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Hasql.Pool (UsageError)
 import Log qualified
@@ -161,12 +163,16 @@ handleHtmlErrors actionName defaultUrl action =
 -- so visitors see a contextual error page at the same URL. Auth errors
 -- (NotAuthenticated, NotAuthorized) still redirect to login or home.
 --
+-- For non-HTMX requests, returns the correct HTTP status code (e.g. 404 for
+-- NotFound) so search engines and browsers see proper error semantics.
+-- For HTMX requests, returns 200 so the content swap proceeds normally.
+--
 -- The caller provides a render function that wraps error content in the
 -- page layout (via renderTemplate).
 --
 -- @
 -- handler slug cookie (foldHxReq -> hxRequest) =
---   handlePublicErrors "Show detail" renderError $ do
+--   handlePublicErrors "Show detail" hxRequest renderError $ do
 --     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
 --     vd <- action slug
 --     lift $ renderTemplate hxRequest mUserInfo (template vd)
@@ -178,12 +184,14 @@ handleHtmlErrors actionName defaultUrl action =
 handlePublicErrors ::
   -- | Action name for logging
   Text ->
+  -- | Whether this is an HTMX request (HTMX gets 200 so swaps work)
+  HxRequest ->
   -- | Render inline error content wrapped in page layout
   (Lucid.Html () -> AppM (Lucid.Html ())) ->
   -- | The ExceptT action to run
   ExceptT HandlerError AppM (Lucid.Html ()) ->
   AppM (Lucid.Html ())
-handlePublicErrors actionName renderInline action =
+handlePublicErrors actionName hxRequest renderInline action =
   runExceptT action >>= \case
     Right html -> pure html
     Left err -> do
@@ -196,12 +204,14 @@ handlePublicErrors actionName renderInline action =
         NotAuthorized _ _ ->
           let (url, banner) = errorRedirectParams (apiLinks.rootGet) err
            in pure $ redirectWithBanner url banner
-        -- Content errors render inline
-        NotFound resource -> renderInline (notFoundContent resource)
-        DatabaseError _ -> renderInline (errorContent "Something went wrong. Please try again.")
-        UserSuspended -> renderInline (errorContent "Your account is suspended.")
-        ValidationError msg -> renderInline (errorContent msg)
-        HandlerFailure msg -> renderInline (errorContent msg)
+        -- Content errors render inline with correct status codes
+        _ -> do
+          html <- renderInline (inlineErrorContent err)
+          case hxRequest of
+            -- HTMX requests get 200 so the content swap proceeds
+            IsHxRequest -> pure html
+            -- Non-HTMX requests get the proper HTTP status code
+            IsNotHxRequest -> throwHtmlError (handlerErrorStatus err) html
 
 -- | Error handler for handlers that redirect on errors (POST handlers).
 --
@@ -326,6 +336,45 @@ errorBanner = \case
     renderBanner Error "Validation Error" msg
   HandlerFailure msg ->
     renderBanner Error "Error" msg
+
+--------------------------------------------------------------------------------
+-- Status Code Helpers
+
+-- | Map a content-level handler error to the appropriate Servant error status.
+--
+-- Only used for non-auth errors (NotFound, DatabaseError, etc.) since auth
+-- errors redirect instead of rendering inline.
+handlerErrorStatus :: HandlerError -> Servant.ServerError
+handlerErrorStatus = \case
+  NotFound _ -> Servant.err404
+  DatabaseError _ -> Servant.err500
+  UserSuspended -> Servant.err403
+  ValidationError _ -> Servant.err400
+  HandlerFailure _ -> Servant.err500
+  -- Auth errors are handled separately (redirects), but cover for exhaustiveness
+  NotAuthenticated -> Servant.err401
+  NotAuthorized _ _ -> Servant.err403
+
+-- | Map a content-level handler error to the inline HTML to render.
+inlineErrorContent :: HandlerError -> Lucid.Html ()
+inlineErrorContent = \case
+  NotFound resource -> notFoundContent resource
+  DatabaseError _ -> errorContent "Something went wrong. Please try again."
+  UserSuspended -> errorContent "Your account is suspended."
+  ValidationError msg -> errorContent msg
+  HandlerFailure msg -> errorContent msg
+  -- Auth errors are handled separately, but cover for exhaustiveness
+  NotAuthenticated -> errorContent "Authentication required."
+  NotAuthorized msg _ -> errorContent msg
+
+-- | Throw a Servant error with rendered HTML body and correct status code.
+throwHtmlError :: Servant.ServerError -> Lucid.Html () -> AppM a
+throwHtmlError baseErr html =
+  throwM $
+    baseErr
+      { Servant.errBody = Lucid.renderBS html,
+        Servant.errHeaders = [("Content-Type", "text/html; charset=utf-8")]
+      }
 
 --------------------------------------------------------------------------------
 -- Public Error Pages

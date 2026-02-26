@@ -12,6 +12,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Remove Redundant Dashboard Page Title** — Removed the `h1` page title from the dashboard top bar since the sidebar already highlights the active page. Cleaned up the unused `navTitle` function.
 
 ### Fixed
+- **Correct HTTP Status Codes for Public Error Pages** — `handlePublicErrors` now returns proper HTTP status codes (404 for not found, 500 for server errors, etc.) instead of always returning 200. HTMX requests still receive 200 so content swaps proceed normally. This ensures search engines and browsers see correct error semantics for public-facing pages like show detail, episode detail, and show blog.
 - **HTML Entities Rendered Literally in Audio Player** — Icecast metadata containing HTML entities (e.g. `&#8217;`) now gets decoded before display in the persistent music player. Previously, `x-text` bindings rendered entities as literal text instead of the intended characters.
 
 ### Security
