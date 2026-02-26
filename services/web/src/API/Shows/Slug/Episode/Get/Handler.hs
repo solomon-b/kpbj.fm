@@ -47,7 +47,7 @@ handler ::
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
-  handlePublicErrors "Episode detail" renderError $ do
+  handlePublicErrors "Episode detail" hxRequest renderError $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action showSlug episodeNumber
     lift $

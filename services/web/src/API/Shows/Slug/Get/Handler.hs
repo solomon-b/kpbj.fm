@@ -65,7 +65,7 @@ handler ::
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handler slug mPage cookie (foldHxReq -> hxRequest) =
-  handlePublicErrors "Show detail" renderError $ do
+  handlePublicErrors "Show detail" hxRequest renderError $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action slug mPage
     lift $
