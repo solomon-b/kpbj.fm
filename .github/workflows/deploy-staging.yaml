@@ -2,7 +2,7 @@ name: Deploy to Staging
 
 on:
   workflow_run:
-    workflows: ["e2e:playwright"]
+    workflows: ["ci"]
     branches: [main]
     types: [completed]
 
