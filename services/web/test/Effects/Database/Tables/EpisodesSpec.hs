@@ -414,7 +414,8 @@ prop_updateEpisodeFiles cfg = do
                   UUT.efuArtworkUrl = Just "/images/artwork.jpg",
                   UUT.efuDurationSeconds = Just 300,
                   UUT.efuClearAudio = False,
-                  UUT.efuClearArtwork = False
+                  UUT.efuClearArtwork = False,
+                  UUT.efuAudioProcessingStatus = Nothing
                 }
         updateResult <- TRX.statement () (UUT.updateEpisodeFiles fileUpdate)
 
@@ -428,7 +429,8 @@ prop_updateEpisodeFiles cfg = do
                   UUT.efuArtworkUrl = Nothing,
                   UUT.efuDurationSeconds = Nothing,
                   UUT.efuClearAudio = True,
-                  UUT.efuClearArtwork = False
+                  UUT.efuClearArtwork = False,
+                  UUT.efuAudioProcessingStatus = Nothing
                 }
         _ <- TRX.statement () (UUT.updateEpisodeFiles clearUpdate)
         afterClear <- TRX.statement () (UUT.getEpisodeById episodeId)

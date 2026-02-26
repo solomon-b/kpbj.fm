@@ -267,7 +267,8 @@ processFileUploadsWithWarning userId allowFileUpload showModel episode editForm 
                           efuArtworkUrl = mArtworkPath,
                           efuDurationSeconds = mDuration,
                           efuClearAudio = audioClear && isNothing mAudioPath,
-                          efuClearArtwork = artworkClear && isNothing mArtworkPath
+                          efuClearArtwork = artworkClear && isNothing mArtworkPath,
+                          efuAudioProcessingStatus = if isJust mAudioPath then Just "unprocessed" else Nothing
                         }
                 execQuery (Episodes.updateEpisodeFiles fileUpdate) >>= \case
                   Left err -> Log.logInfo "Failed to update file paths" (episode.id, show err)

@@ -134,7 +134,10 @@ data Episode f = Episode
     deletedAt :: Column f (Maybe UTCTime),
     createdBy :: Column f User.Id,
     createdAt :: Column f UTCTime,
-    updatedAt :: Column f UTCTime
+    updatedAt :: Column f UTCTime,
+    audioProcessingStatus :: Column f (Maybe Text),
+    audioProcessingAttempts :: Column f Int64,
+    originalAudioFilePath :: Column f (Maybe Text)
   }
   deriving stock (Generic)
   deriving anyclass (Rel8able)
@@ -182,7 +185,10 @@ episodeSchema =
             deletedAt = "deleted_at",
             createdBy = "created_by",
             createdAt = "created_at",
-            updatedAt = "updated_at"
+            updatedAt = "updated_at",
+            audioProcessingStatus = "audio_processing_status",
+            audioProcessingAttempts = "audio_processing_attempts",
+            originalAudioFilePath = "original_audio_file_path"
           }
     }
 
@@ -225,7 +231,8 @@ data Insert = Insert
     eiArtworkUrl :: Maybe Text,
     eiScheduleTemplateId :: ShowSchedule.TemplateId,
     eiScheduledAt :: UTCTime,
-    eiCreatedBy :: User.Id
+    eiCreatedBy :: User.Id,
+    eiAudioProcessingStatus :: Maybe Text
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance Insert)
@@ -252,7 +259,8 @@ data FileUpdate = FileUpdate
     efuArtworkUrl :: Maybe Text,
     efuDurationSeconds :: Maybe Int64, -- Duration when new audio is uploaded
     efuClearAudio :: Bool, -- If True, set audio_file_path to NULL
-    efuClearArtwork :: Bool -- If True, set artwork_url to NULL
+    efuClearArtwork :: Bool, -- If True, set artwork_url to NULL
+    efuAudioProcessingStatus :: Maybe Text -- Processing status for new audio uploads
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance FileUpdate)
@@ -289,6 +297,9 @@ data EpisodeWithShow = EpisodeWithShow
     ewsCreatedBy :: User.Id,
     ewsCreatedAt :: UTCTime,
     ewsUpdatedAt :: UTCTime,
+    ewsAudioProcessingStatus :: Maybe Text,
+    ewsAudioProcessingAttempts :: Int64,
+    ewsOriginalAudioFilePath :: Maybe Text,
     ewsShowTitle :: Text,
     ewsShowSlug :: Slug,
     ewsHostDisplayName :: Text
@@ -435,7 +446,8 @@ getCurrentlyAiringEpisode currentTime =
         e.id, e.show_id, e.description, e.episode_number,
         e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
         e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at,
-        e.deleted_at, e.created_by, e.created_at, e.updated_at
+        e.deleted_at, e.created_by, e.created_at, e.updated_at,
+        e.audio_processing_status, e.audio_processing_attempts, e.original_audio_file_path
       FROM episodes e
       JOIN schedule_templates st ON st.id = e.schedule_template_id
       JOIN schedule_template_validity stv ON stv.template_id = st.id
@@ -568,7 +580,10 @@ insertEpisode Insert {..} =
                       deletedAt = Rel8.null,
                       createdBy = lit eiCreatedBy,
                       createdAt = now,
-                      updatedAt = now
+                      updatedAt = now,
+                      audioProcessingStatus = lit eiAudioProcessingStatus,
+                      audioProcessingAttempts = lit (0 :: Int64),
+                      originalAudioFilePath = Rel8.null
                     }
                 ],
             onConflict = Abort,
@@ -615,6 +630,15 @@ updateEpisodeFiles FileUpdate {..} =
           ELSE COALESCE(#{efuArtworkUrl}, artwork_url)
         END,
         duration_seconds = COALESCE(#{efuDurationSeconds}, duration_seconds),
+        audio_processing_status = CASE
+          WHEN #{efuClearAudio} THEN NULL
+          ELSE COALESCE(#{efuAudioProcessingStatus}, audio_processing_status)
+        END,
+        audio_processing_attempts = CASE
+          WHEN #{efuClearAudio} THEN 0
+          WHEN #{efuAudioProcessingStatus} IS NOT NULL THEN 0
+          ELSE audio_processing_attempts
+        END,
         updated_at = NOW()
     WHERE id = #{efuId}
     RETURNING id

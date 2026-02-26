@@ -10,6 +10,7 @@
     ./streaming.nix
     ./sync-host-emails.nix
     ./token-cleanup.nix
+    ./audio-normalize.nix
     ./monitoring.nix
     ./nginx.nix
     ./sops.nix
@@ -34,6 +35,11 @@
   };
 
   kpbj.tokenCleanup = {
+    enable = true;
+    dryRun = false;
+  };
+
+  kpbj.audioNormalize = {
     enable = true;
     dryRun = false;
   };

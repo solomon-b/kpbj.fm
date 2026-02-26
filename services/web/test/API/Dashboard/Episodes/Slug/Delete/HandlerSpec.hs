@@ -103,7 +103,8 @@ test_archivesEpisode cfg = do
                 Episodes.eiArtworkUrl = Nothing,
                 Episodes.eiScheduleTemplateId = templateId,
                 Episodes.eiScheduledAt = read "2026-03-01 10:00:00 UTC",
-                Episodes.eiCreatedBy = userId
+                Episodes.eiCreatedBy = userId,
+                Episodes.eiAudioProcessingStatus = Nothing
               }
       episodeId <- insertTestEpisode episodeInsert
       TRX.statement () (Episodes.getEpisodeById episodeId)

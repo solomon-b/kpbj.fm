@@ -94,7 +94,8 @@ test_includesEpisodes cfg = do
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = templateId,
                   eiScheduledAt = read "2020-01-01 10:00:00 UTC",
-                  eiCreatedBy = userId
+                  eiCreatedBy = userId,
+                  eiAudioProcessingStatus = Nothing
                 }
         insertTestEpisode episodeInsert
 

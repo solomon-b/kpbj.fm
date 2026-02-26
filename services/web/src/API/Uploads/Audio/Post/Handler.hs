@@ -3,6 +3,10 @@
 -- This endpoint allows authenticated users to upload audio files in the background
 -- while filling out form metadata. The file is stored with a unique token that
 -- can be used to claim the upload when the form is submitted.
+--
+-- Audio files are staged as-is (no transcoding). Duration is extracted via
+-- ffprobe (~1-2s). Full loudness normalization happens in the nightly
+-- @audio-normalize@ batch job.
 module API.Uploads.Audio.Post.Handler
   ( handler,
     optionsHandler,
@@ -19,6 +23,7 @@ import App.Config (Environment)
 import App.Domains qualified as Domains
 import App.Handler.Combinators (requireAuth)
 import App.Monad (AppM)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson ((.=))
@@ -29,6 +34,7 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin (..))
 import Domain.Types.StorageBackend (StorageBackend)
+import Effects.AudioProcessing qualified as AudioProc
 import Effects.Database.Tables.User qualified as User
 import Effects.MimeTypeValidation qualified as MimeValidation
 import Log qualified
@@ -136,6 +142,9 @@ optionsHandler mOrigin = do
 --------------------------------------------------------------------------------
 
 -- | Process the audio file upload.
+--
+-- Extracts duration via ffprobe (~1-2s) and stages the raw file.
+-- Full loudness normalization happens in the nightly batch job.
 processAudioUpload ::
   User.Model ->
   AudioUploadForm ->
@@ -147,8 +156,22 @@ processAudioUpload user form = do
   let fileData = aufFile form
       uploadType = aufUploadType form
       originalName = fdFileName fileData
-      browserMimeType = fdFileCType fileData
       tempFilePath = fdPayload fileData
+      browserMimeType = fdFileCType fileData
+
+  -- Extract duration via ffprobe (fast, ~1-2s)
+  Log.logInfo "Extracting audio duration" originalName
+  durationResult <- liftIO $ AudioProc.extractDuration tempFilePath
+  let mDuration = case durationResult of
+        Left err -> do
+          -- Log warning but don't fail the upload — duration is optional
+          let _ = err -- evaluated lazily; logged below
+          Nothing
+        Right dur -> Just dur
+
+  case durationResult of
+    Left err -> Log.logAttention "Duration extraction failed (non-fatal)" (Aeson.object ["error" .= show err])
+    Right dur -> Log.logInfo "Duration extracted" (Aeson.object ["duration" .= dur])
 
   let config =
         ProcessConfig
@@ -158,6 +181,7 @@ processAudioUpload user form = do
             pcLogPrefix = "Audio"
           }
 
+  -- Stage the raw file (no transcoding)
   result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType tempFilePath
 
   case result of
@@ -169,7 +193,8 @@ processAudioUpload user form = do
             { urToken = token,
               urOriginalName = origName,
               urMimeType = mimeType,
-              urFileSize = fileSize
+              urFileSize = fileSize,
+              urDurationSeconds = mDuration
             }
 
 --------------------------------------------------------------------------------

@@ -1391,6 +1391,10 @@ renderStagedAudioField field uploadUrl uploadType = do
             console.log('[Upload] Success - token:', response.data.token);
             this.uploadToken = response.data.token;
             this.mimeType = response.data.mimeType;
+            if (response.data.durationSeconds) {
+              const durationField = document.querySelector('input[name="duration_seconds"]');
+              if (durationField) durationField.value = response.data.durationSeconds;
+            }
             this.currentCleared = false;
             this.uploadError = '';
           } else {
@@ -1527,7 +1531,7 @@ renderStagedAudioField field uploadUrl uploadType = do
     return this.uploadProgress >= 100 && this.isUploading && !this.uploadToken;
   },
   get uploadStatusText() {
-    if (this.isProcessing) return 'Processing...';
+    if (this.isProcessing) return 'Normalizing audio...';
     return this.uploadProgress + '%';
   }
 }|],
@@ -1738,7 +1742,7 @@ renderStagedImageField field uploadUrl uploadType = do
   },
 
   get uploadStatusText() {
-    if (this.isProcessing) return 'Processing...';
+    if (this.isProcessing) return 'Normalizing audio...';
     return this.uploadProgress + '%';
   },
 
@@ -1786,6 +1790,10 @@ renderStagedImageField field uploadUrl uploadType = do
           if (response.success) {
             this.uploadToken = response.data.token;
             this.mimeType = response.data.mimeType;
+            if (response.data.durationSeconds) {
+              const durationField = document.querySelector('input[name="duration_seconds"]');
+              if (durationField) durationField.value = response.data.durationSeconds;
+            }
             this.currentCleared = false;
             this.uploadError = '';
           } else {
