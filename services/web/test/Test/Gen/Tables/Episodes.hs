@@ -26,4 +26,5 @@ episodeInsertGen showId templateId userId = do
   eiArtworkUrl <- Gen.maybe genUrl
   eiScheduledAt <- genUTCTime
   let eiCreatedBy = userId
+  let eiAudioProcessingStatus = Nothing
   pure Episodes.Insert {..}

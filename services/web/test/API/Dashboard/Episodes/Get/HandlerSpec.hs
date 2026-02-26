@@ -97,7 +97,8 @@ test_insertedEpisodeAppears cfg = do
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = templateId,
                   eiScheduledAt = read "2020-01-01 10:00:00 UTC",
-                  eiCreatedBy = userModel.mId
+                  eiCreatedBy = userModel.mId,
+                  eiAudioProcessingStatus = Nothing
                 }
         episodeId <- insertTestEpisode episodeInsert
         episodeModel <- TRX.statement () (Episodes.getEpisodeById episodeId) >>= maybe (error "episode not found after insert") pure

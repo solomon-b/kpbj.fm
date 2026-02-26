@@ -66,7 +66,8 @@ setupFixture showInsert userInsert = do
             eiArtworkUrl = Nothing,
             eiScheduleTemplateId = templateId,
             eiScheduledAt = read "2020-01-01 10:00:00 UTC",
-            eiCreatedBy = userModel.mId
+            eiCreatedBy = userModel.mId,
+            eiAudioProcessingStatus = Nothing
           }
   episodeId <- insertTestEpisode episodeInsert
   showModel <- TRX.statement () (Shows.getShowById showId) >>= maybe (error "setupFixture: show not found") pure

@@ -19,6 +19,7 @@ import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
 import Data.Int (Int64)
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as T (null)
@@ -174,7 +175,8 @@ processEpisodeUpload _userMetadata user showModel form = do
                             Episodes.eiArtworkUrl = artworkPath,
                             Episodes.eiScheduleTemplateId = episodeData.scheduleTemplateId,
                             Episodes.eiScheduledAt = episodeData.scheduledAt,
-                            Episodes.eiCreatedBy = User.mId user
+                            Episodes.eiCreatedBy = User.mId user,
+                            Episodes.eiAudioProcessingStatus = if isJust audioPath then Just "unprocessed" else Nothing
                           }
 
                   -- Insert episode

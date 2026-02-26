@@ -107,7 +107,8 @@ prop_episodeWithAudioNotMissing cfg = do
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = templateId,
                   eiScheduledAt = read (show today ++ " 10:00:00 UTC"),
-                  eiCreatedBy = userId
+                  eiCreatedBy = userId,
+                  eiAudioProcessingStatus = Nothing
                 }
         _ <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
@@ -155,7 +156,8 @@ prop_episodeWithoutAudioIsMissing cfg = do
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = templateId,
                   eiScheduledAt = read (show today ++ " 10:00:00 UTC"),
-                  eiCreatedBy = userId
+                  eiCreatedBy = userId,
+                  eiAudioProcessingStatus = Nothing
                 }
         _ <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 

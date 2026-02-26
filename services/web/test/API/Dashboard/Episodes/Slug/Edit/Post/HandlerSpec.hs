@@ -110,7 +110,8 @@ test_updatesDescription cfg = do
                 Episodes.eiArtworkUrl = Nothing,
                 Episodes.eiScheduleTemplateId = templateId,
                 Episodes.eiScheduledAt = read "2026-03-01 10:00:00 UTC",
-                Episodes.eiCreatedBy = userModel.mId
+                Episodes.eiCreatedBy = userModel.mId,
+                Episodes.eiAudioProcessingStatus = Nothing
               }
       episodeId <- insertTestEpisode episodeInsert
       episodeModel <-
@@ -180,7 +181,8 @@ test_notAuthorizedForUnrelatedUser cfg = do
                 Episodes.eiArtworkUrl = Nothing,
                 Episodes.eiScheduleTemplateId = templateId,
                 Episodes.eiScheduledAt = read "2026-03-01 10:00:00 UTC",
-                Episodes.eiCreatedBy = creatorId
+                Episodes.eiCreatedBy = creatorId,
+                Episodes.eiAudioProcessingStatus = Nothing
               }
       episodeId <- insertTestEpisode episodeInsert
       episodeModel <-

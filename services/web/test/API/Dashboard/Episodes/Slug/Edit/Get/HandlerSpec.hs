@@ -68,7 +68,8 @@ setupFixture showInsert userInsert = do
             eiArtworkUrl = Nothing,
             eiScheduleTemplateId = templateId,
             eiScheduledAt = read "2026-03-01 10:00:00 UTC",
-            eiCreatedBy = userModel.mId
+            eiCreatedBy = userModel.mId,
+            eiAudioProcessingStatus = Nothing
           }
   -- Note: 'error' is used here because Transaction does not have MonadIO,
   -- so HUnit assertions are not available in this context.

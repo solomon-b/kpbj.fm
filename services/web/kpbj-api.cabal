@@ -97,6 +97,7 @@ library
                   , temporary
                   , text
                   , text-display
+                  , typed-process
                   , time
                   , tz
                   , transformers
@@ -430,7 +431,6 @@ library
     App.Storage
     App.Handler.Error
     Component.ActionsDropdown
-    Component.AudioDurationScript
     Component.AudioPlayer.Waveform
     Component.InfiniteScroll
     Component.TrackListingEditor
@@ -494,6 +494,7 @@ library
     Effects.Database.Tables.PlaybackHistory
     Effects.Database.Tables.UserMetadata
     Effects.Database.Tables.Util
+    Effects.AudioProcessing
     Effects.AWS
     Effects.ContentSanitization
     Effects.Diff
