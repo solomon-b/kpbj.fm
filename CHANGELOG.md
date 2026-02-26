@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.9.0] - 2026-02-26
+
 ### Added
 - **Styled 404 Page for Unmatched Routes** — Visiting a URL that doesn't match any route (e.g. `/nonexistent`) now renders a full HTML 404 page with the site frame (header, nav, footer, music player) instead of an empty response. Implemented as WAI middleware that intercepts non-HTML 404 responses from Servant's router and replaces them with a pre-rendered page. Handler-level 404s (e.g. `/shows/bad-slug`) are unchanged.
 - **Source URL in Playback History** — Liquidsoap now records the original audio URL (instead of a temp file path) in playback history via a `source_url` annotation on all track types (episodes, fallbacks, force-play). The stream settings dashboard displays the source URL beneath each track title for easier debugging.
