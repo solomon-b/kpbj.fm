@@ -144,14 +144,6 @@ parseScheduleValue txt =
       Right (tid, time)
     _ -> Left $ "Invalid schedule format: " <> txt
 
--- | Check if the episode's scheduled date is in the future (allowing file uploads)
-isScheduledInFuture :: UTCTime -> Episodes.Model -> Bool
-isScheduledInFuture now episode = episode.scheduledAt > now
-
--- | Check if the episode's scheduled date has passed
-isScheduledInPast :: UTCTime -> Episodes.Model -> Bool
-isScheduledInPast now episode = episode.scheduledAt <= now
-
 --------------------------------------------------------------------------------
 
 updateEpisode ::
@@ -166,7 +158,7 @@ updateEpisode ::
 updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel editForm = do
   currentTime <- currentSystemTime
   let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-      isPast = isScheduledInPast currentTime episode
+      isPast = Episodes.isAired currentTime episode
 
   -- 1. Validation phase (throws on error)
   validDescription <- validateDescription (eefDescription editForm)
@@ -211,7 +203,7 @@ execOptionalUpdates ::
   EpisodeEditForm ->
   AppM [Text] -- Returns list of warning messages
 execOptionalUpdates userId currentTime isStaffOrAdmin isPast episode showModel editForm = do
-  let allowFileUpload = isScheduledInFuture currentTime episode || isStaffOrAdmin
+  let allowFileUpload = Episodes.isUnaired currentTime episode || isStaffOrAdmin
 
   -- File uploads
   fileWarning <- processFileUploadsWithWarning userId allowFileUpload showModel episode editForm
@@ -284,14 +276,15 @@ processScheduleUpdate ::
   AppM [Text]
 processScheduleUpdate isPast isStaffOrAdmin episode editForm =
   case eefScheduledDate editForm of
-    Nothing -> pure []
+    Nothing -> pure [] -- Field absent, no change
+    Just "" -> pure [] -- "Unscheduled" selected, stay unscheduled
     Just scheduleDateValue -> do
       case parseScheduleValue scheduleDateValue of
         Left parseErr -> do
           Log.logInfo "Failed to parse schedule value" parseErr
           pure ["Schedule update failed: " <> parseErr]
         Right (newTemplateId, newScheduledAt) -> do
-          let scheduleChanged = newTemplateId /= episode.scheduleTemplateId || newScheduledAt /= episode.scheduledAt
+          let scheduleChanged = Just newTemplateId /= episode.scheduleTemplateId || Just newScheduledAt /= episode.scheduledAt
           if not scheduleChanged
             then pure []
             else
@@ -354,6 +347,12 @@ processFileUploads userId showModel episode editForm = do
   storageBackend <- asks getter
   mAwsEnv <- asks getter
 
+  -- Get the air date for file organization (use current time as fallback).
+  -- NOTE: File paths are set at upload time and never relocated on reschedule.
+  -- If downloads are added later, generate user-facing filenames from episode
+  -- metadata (scheduled_at, slug, etc.) rather than relying on storage paths.
+  airDate <- maybe currentSystemTime pure episode.scheduledAt
+
   -- Process audio: staged upload, then move to final location with air date
   audioResult <- case eefAudioToken editForm of
     Just token -> do
@@ -365,7 +364,7 @@ processFileUploads userId showModel episode editForm = do
           StagedUploads.EpisodeAudio
           AudioBucket
           EpisodeAudio
-          episode.scheduledAt
+          airDate
           (display showModel.slug)
       pure $ case result of
         Left err -> Left err
@@ -378,7 +377,7 @@ processFileUploads userId showModel episode editForm = do
     Just artworkFile
       | isEmptyUpload artworkFile -> pure $ Right Nothing
       | otherwise -> do
-          result <- FileUpload.uploadEpisodeArtwork storageBackend mAwsEnv showModel.slug (Just episode.scheduledAt) artworkFile
+          result <- FileUpload.uploadEpisodeArtwork storageBackend mAwsEnv showModel.slug (Just airDate) artworkFile
           case result of
             Left err -> do
               Log.logInfo "Failed to upload artwork file" (Text.pack $ show err)

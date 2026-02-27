@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
@@ -47,6 +48,7 @@ import Domain.Types.Timezone (LocalTime (..), utcToPacific)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization (sanitizeTitle)
 import Effects.Database.Execute (execQuery)
+import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
@@ -381,8 +383,8 @@ checkScheduleConflicts showId = go
       let weeks = map fromIntegral (pssWeeks slot)
       execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks (pssStart slot) (pssEnd slot)) >>= \case
         Left err -> do
-          Log.logInfo "Failed to check schedule conflict" (Text.pack $ show err)
-          pure (Right ()) -- Don't block on DB errors, let it through
+          Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
+          pure (Left "Unable to verify schedule availability. Please try again.")
         Right (Just conflictingShow) ->
           pure (Left $ "Schedule conflict: " <> Text.pack (show (pssDay slot)) <> " " <> formatTimeHHMM (pssStart slot) <> "-" <> formatTimeHHMM (pssEnd slot) <> " overlaps with \"" <> conflictingShow <> "\"")
         Right Nothing -> go rest
@@ -472,6 +474,11 @@ updateScheduleTemplates showId activeTemplates parsedSlots today = do
       forM_ activeValidities $ \validity -> do
         _ <- execQuery (ShowSchedule.endValidity validity.stvId today)
         Log.logInfo "Closed out schedule validity" (show template.stId, show validity.stvId)
+
+      -- Detach upcoming episodes from this expired template
+      execQuery (Episodes.clearTemplateForUpcomingEpisodes template.stId) >>= \case
+        Left err -> Log.logAttention "Failed to clear template from episodes" (show err)
+        Right ids -> Log.logInfo "Detached episodes from expired template" (show template.stId, length ids)
 
   -- For each added slot, create a fresh template and an open-ended validity
   -- period starting from today.

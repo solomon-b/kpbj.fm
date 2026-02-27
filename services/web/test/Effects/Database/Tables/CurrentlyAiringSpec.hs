@@ -268,8 +268,8 @@ setupTestDataFull passHash startTime endTime airsTwiceDaily scheduledAt mAudioPa
             eiAudioMimeType = if isJust mAudioPath then Just "audio/mpeg" else Nothing,
             eiDurationSeconds = fromIntegral <$> mDuration,
             eiArtworkUrl = Nothing,
-            eiScheduleTemplateId = templateId,
-            eiScheduledAt = scheduledAt,
+            eiScheduleTemplateId = Just templateId,
+            eiScheduledAt = Just scheduledAt,
             eiCreatedBy = userId
           }
 
@@ -351,8 +351,8 @@ addTimeslot showId userId startTime endTime airsTwiceDaily scheduledAt mAudioPat
           eiAudioMimeType = if isJust mAudioPath then Just "audio/mpeg" else Nothing,
           eiDurationSeconds = Just (fromIntegral slotDuration),
           eiArtworkUrl = Nothing,
-          eiScheduleTemplateId = templateId,
-          eiScheduledAt = scheduledAt,
+          eiScheduleTemplateId = Just templateId,
+          eiScheduledAt = Just scheduledAt,
           eiCreatedBy = userId
         }
 
@@ -1065,8 +1065,8 @@ transitionReplacedSlot cfg = bracketConn cfg $ do
               eiAudioMimeType = Just "audio/mpeg",
               eiDurationSeconds = Just slotDuration,
               eiArtworkUrl = Nothing,
-              eiScheduleTemplateId = templateId1,
-              eiScheduledAt = scheduledAt,
+              eiScheduleTemplateId = Just templateId1,
+              eiScheduledAt = Just scheduledAt,
               eiCreatedBy = userId
             }
 
@@ -1157,8 +1157,8 @@ transitionRemovedSlot cfg = bracketConn cfg $ do
               eiAudioMimeType = Just "audio/mpeg",
               eiDurationSeconds = Just slotDuration,
               eiArtworkUrl = Nothing,
-              eiScheduleTemplateId = templateId1,
-              eiScheduledAt = scheduledAt,
+              eiScheduleTemplateId = Just templateId1,
+              eiScheduledAt = Just scheduledAt,
               eiCreatedBy = userId
             }
 
@@ -1192,7 +1192,6 @@ multiSlotFirstSlot cfg = bracketConn cfg $ do
       scheduledAt1 = mkTestTime slot1Start
       scheduledAt2 = mkTestTime slot2Start
       queryTime = mkTestTime (TimeOfDay 10 0 0) -- 10 AM (during first slot)
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     _ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
@@ -1220,7 +1219,6 @@ multiSlotSecondSlot cfg = bracketConn cfg $ do
       scheduledAt1 = mkTestTime slot1Start
       scheduledAt2 = mkTestTime slot2Start
       queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (during second slot)
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
@@ -1248,7 +1246,6 @@ multiSlotBetween cfg = bracketConn cfg $ do
       scheduledAt1 = mkTestTime slot1Start
       scheduledAt2 = mkTestTime slot2Start
       queryTime = mkTestTime (TimeOfDay 12 0 0) -- Noon (between slots)
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     _ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
@@ -1272,7 +1269,6 @@ multiSlotBeforeAll cfg = bracketConn cfg $ do
       scheduledAt1 = mkTestTime slot1Start
       scheduledAt2 = mkTestTime slot2Start
       queryTime = mkTestTime (TimeOfDay 8 0 0) -- 8 AM (before both)
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     _ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
@@ -1296,7 +1292,6 @@ multiSlotAfterAll cfg = bracketConn cfg $ do
       scheduledAt1 = mkTestTime slot1Start
       scheduledAt2 = mkTestTime slot2Start
       queryTime = mkTestTime (TimeOfDay 17 0 0) -- 5 PM (after both)
-
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End False scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     _ep2 <- addTimeslot showId userId slot2Start slot2End False scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing

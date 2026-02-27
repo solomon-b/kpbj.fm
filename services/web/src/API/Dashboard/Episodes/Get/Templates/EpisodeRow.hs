@@ -10,7 +10,7 @@ where
 
 import API.Links (dashboardEpisodesLinks)
 import API.Types (DashboardEpisodesRoutes (..))
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Design (base, class_)
@@ -70,14 +70,18 @@ renderEpisodeTableRow userMeta showModel episode = do
 
     -- Scheduled date (converted to Pacific time)
     Lucid.td_ cellLinkAttrs $
-      Lucid.toHtml $
-        formatPacificDate episode.scheduledAt
+      case episode.scheduledAt of
+        Nothing -> mempty
+        Just sa -> Lucid.toHtml $ formatPacificDate sa
 
-    -- Status column - only show badge if archived
+    -- Status column
     Lucid.td_ cellLinkAttrs $
       if isArchived
         then Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "ARCHIVED"
-        else mempty
+        else
+          if isNothing episode.scheduleTemplateId
+            then Lucid.span_ [class_ $ base ["inline-block", Tokens.warningBg, Tokens.warningText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "UNSCHEDULED"
+            else mempty
 
     -- Actions dropdown
     Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $

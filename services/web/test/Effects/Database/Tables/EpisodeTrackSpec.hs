@@ -62,7 +62,7 @@ prop_insertSelect cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = templateId, Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         let trackInsert = trackTemplate {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}
@@ -100,7 +100,7 @@ prop_getTracksForEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = templateId, Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         -- Insert track 2 first, then track 1, to verify ordering
@@ -141,7 +141,7 @@ prop_deleteAllTracksForEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = templateId, Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         let track1 = track1Template {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}

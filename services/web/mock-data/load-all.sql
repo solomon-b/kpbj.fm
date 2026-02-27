@@ -51,6 +51,10 @@
 \i 10_episodes.sql
 
 \echo ''
+\echo '10a. Creating unscheduled episodes...'
+\i 10a_unscheduled_episodes.sql
+
+\echo ''
 \echo '11. Creating staff and regular users...'
 \i 11_staff_and_users.sql
 

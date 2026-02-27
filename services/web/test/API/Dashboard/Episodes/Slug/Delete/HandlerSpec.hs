@@ -101,8 +101,8 @@ test_archivesEpisode cfg = do
                 Episodes.eiAudioMimeType = Nothing,
                 Episodes.eiDurationSeconds = Nothing,
                 Episodes.eiArtworkUrl = Nothing,
-                Episodes.eiScheduleTemplateId = templateId,
-                Episodes.eiScheduledAt = read "2026-03-01 10:00:00 UTC",
+                Episodes.eiScheduleTemplateId = Just templateId,
+                Episodes.eiScheduledAt = Just (read "2026-03-01 10:00:00 UTC"),
                 Episodes.eiCreatedBy = userId
               }
       episodeId <- insertTestEpisode episodeInsert
