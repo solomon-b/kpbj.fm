@@ -6,6 +6,16 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Added
 - **Off-Site S3 Backups for PostgreSQL** — pgBackRest now supports an optional second repository (repo2) on S3-compatible storage (DigitalOcean Spaces) for off-site disaster recovery. Local repo1 remains for fast restores. Credentials are wired through SOPS and read from disk on the server. S3 failures are treated as warnings — local backups always complete. Daily backups and WAL archiving target both repos when enabled. Setting `s3 = null` reverts to local-only backups.
+- **Optional Episode Schedule** — Episodes can now exist without a schedule slot. This supports episodes created before a show has a schedule, or episodes detached when a schedule template is invalidated.
+  - `UNSCHEDULED` badge shown in the dashboard episode list
+  - "Scheduled: Unscheduled" displayed on the episode detail page
+  - Edit form allows assigning a schedule slot to unscheduled episodes
+  - Unscheduled episodes sort last in the dashboard list
+  - Unscheduled episodes are excluded from public published episodes
+  - E2E tests for schedule state transitions and property tests for unscheduled episode behavior
+
+### Changed
+- **Episode Schedule Columns Now Nullable** — `schedule_template_id` and `scheduled_at` columns on `episodes` are no longer `NOT NULL`. A `CHECK` constraint ensures both fields are either `NULL` or both `NOT NULL`.
 
 ---
 

@@ -67,9 +67,15 @@ template backend _userMeta showModel episode tracks tags = do
               else mempty
 
             -- Aired/Scheduled date (converted to Pacific time)
-            Lucid.div_ $ do
-              Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Scheduled: "
-              Lucid.toHtml (formatPacificDateLong episode.scheduledAt)
+            case episode.scheduledAt of
+              Nothing ->
+                Lucid.div_ $ do
+                  Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Scheduled: "
+                  "Unscheduled"
+              Just sa ->
+                Lucid.div_ $ do
+                  Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Scheduled: "
+                  Lucid.toHtml (formatPacificDateLong sa)
 
             -- Published date
             case episode.publishedAt of

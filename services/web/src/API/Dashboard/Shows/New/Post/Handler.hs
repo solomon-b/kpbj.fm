@@ -326,8 +326,8 @@ checkScheduleConflicts showId = go
           let weeks = map fromIntegral (weeksOfMonth slot)
           execQuery (ShowSchedule.checkTimeSlotConflict showId dow weeks start end) >>= \case
             Left err -> do
-              Log.logInfo "Failed to check schedule conflict" (Text.pack $ show err)
-              pure (Right ()) -- Don't block on DB errors, let it through
+              Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
+              pure (Left "Unable to verify schedule availability. Please try again.")
             Right (Just conflictingShow) ->
               pure (Left $ "Schedule conflict: " <> dayOfWeek slot <> " " <> startTime slot <> "-" <> endTime slot <> " overlaps with \"" <> conflictingShow <> "\"")
             Right Nothing -> go rest

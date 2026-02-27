@@ -67,6 +67,14 @@ spec =
         runs 10 . it "updateScheduledSlot: changes template and scheduled_at" $
           hedgehog . prop_updateScheduledSlot
 
+      describe "Unscheduled Episodes" $ do
+        runs 10 . it "clearTemplateForUpcomingEpisodes: nulls schedule fields for future episodes" $
+          hedgehog . prop_clearTemplateForUpcomingEpisodes
+        runs 10 . it "getEpisodesForShow: unscheduled episodes sort last" $
+          hedgehog . prop_unscheduledEpisodesSortLast
+        runs 10 . it "getPublishedEpisodesForShow: excludes unscheduled episodes" $
+          hedgehog . prop_publishedExcludesUnscheduled
+
       describe "Tag Operations" $ do
         runs 10 . it "getTagsForEpisode: returns tags for episode" $
           hedgehog . prop_getTagsForEpisode
@@ -107,7 +115,7 @@ prop_insertSelect cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
 
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
         selected <- TRX.statement () (UUT.getEpisodeById episodeId)
@@ -135,7 +143,7 @@ prop_updateSelect cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         let update = UUT.Update {UUT.euId = episodeId, UUT.euDescription = UUT.eiDescription updateEpisodeTemplate}
@@ -171,7 +179,7 @@ prop_updateUpdate cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         let updateA = UUT.Update {UUT.euId = episodeId, UUT.euDescription = UUT.eiDescription updateATemplate}
@@ -210,8 +218,8 @@ prop_getEpisodesForShow cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         -- Offset scheduledAt to avoid unique constraint on (show_id, scheduled_at)
-        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
-        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = addUTCTime (3600 :: NominalDiffTime) (UUT.eiScheduledAt ep2Template)}
+        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
+        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = fmap (addUTCTime (3600 :: NominalDiffTime)) (UUT.eiScheduledAt ep2Template)}
 
         id1 <- unwrapInsert (UUT.insertEpisode ep1)
         id2 <- unwrapInsert (UUT.insertEpisode ep2)
@@ -247,8 +255,8 @@ prop_getPublishedEpisodesForShow cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         -- Offset scheduledAt to avoid unique constraint on (show_id, scheduled_at)
-        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
-        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = addUTCTime (3600 :: NominalDiffTime) (UUT.eiScheduledAt ep2Template)}
+        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
+        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = fmap (addUTCTime (3600 :: NominalDiffTime)) (UUT.eiScheduledAt ep2Template)}
 
         id1 <- unwrapInsert (UUT.insertEpisode ep1)
         id2 <- unwrapInsert (UUT.insertEpisode ep2)
@@ -287,7 +295,7 @@ prop_getEpisodeByShowAndNumber cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Get the episode to find its number
@@ -327,7 +335,7 @@ prop_deleteEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         deleteResult <- TRX.statement () (UUT.deleteEpisode episodeId)
@@ -367,7 +375,7 @@ prop_deleteEpisode_idempotent cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         firstDelete <- TRX.statement () (UUT.deleteEpisode episodeId)
@@ -403,7 +411,7 @@ prop_updateEpisodeFiles cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         -- Insert with no audio/artwork
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId, UUT.eiAudioFilePath = Nothing, UUT.eiArtworkUrl = Nothing}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiAudioFilePath = Nothing, UUT.eiArtworkUrl = Nothing}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Update with audio file
@@ -470,8 +478,8 @@ prop_getEpisodesByUser cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
-        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = addUTCTime (3600 :: NominalDiffTime) (UUT.eiScheduledAt ep2Template)}
+        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
+        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = fmap (addUTCTime (3600 :: NominalDiffTime)) (UUT.eiScheduledAt ep2Template)}
 
         id1 <- unwrapInsert (UUT.insertEpisode ep1)
         id2 <- unwrapInsert (UUT.insertEpisode ep2)
@@ -519,7 +527,7 @@ prop_updateScheduledSlot cfg = do
         let template2WithShowId = scheduleTemplate2 {ShowSchedule.stiShowId = showId}
         templateId2 <- TRX.statement () (ShowSchedule.insertScheduleTemplate template2WithShowId)
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId1, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId1, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Use a clean timestamp without sub-microsecond precision (PostgreSQL truncates to microseconds)
@@ -538,8 +546,8 @@ prop_updateScheduledSlot cfg = do
         updatedId === episodeId
 
         afterUpdate <- assertJust mAfterUpdate
-        UUT.scheduleTemplateId afterUpdate === expectedTemplateId
-        UUT.scheduledAt afterUpdate === expectedScheduledAt
+        UUT.scheduleTemplateId afterUpdate === Just expectedTemplateId
+        UUT.scheduledAt afterUpdate === Just expectedScheduledAt
         pure ()
 
 --------------------------------------------------------------------------------
@@ -559,7 +567,7 @@ prop_getTagsForEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Add tags
@@ -592,7 +600,7 @@ prop_replaceEpisodeTags cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = templateId, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- First set of tags
@@ -624,4 +632,119 @@ prop_replaceEpisodeTags cfg = do
         elem "rock" secondNames === False
         -- Empty list removes all tags
         length tagsAfterEmpty === 0
+        pure ()
+
+--------------------------------------------------------------------------------
+-- Unscheduled Episode tests
+
+-- | clearTemplateForUpcomingEpisodes: nulls both schedule fields for future episodes.
+prop_clearTemplateForUpcomingEpisodes :: TestDBConfig -> PropertyT IO ()
+prop_clearTemplateForUpcomingEpisodes cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        -- Insert an episode scheduled in the future
+        let futureTime = addUTCTime (86400 :: NominalDiffTime) now
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        -- Clear template for upcoming episodes
+        clearedIds <- TRX.statement () (UUT.clearTemplateForUpcomingEpisodes templateId)
+
+        -- Re-fetch the episode
+        afterClear <- TRX.statement () (UUT.getEpisodeById episodeId)
+
+        TRX.condemn
+        pure (episodeId, clearedIds, afterClear)
+
+      assert $ do
+        (episodeId, clearedIds, mAfterClear) <- assertRight result
+        -- The episode should have been cleared
+        clearedIds === [episodeId]
+        afterClear <- assertJust mAfterClear
+        UUT.scheduleTemplateId afterClear === Nothing
+        UUT.scheduledAt afterClear === Nothing
+        pure ()
+
+-- | getEpisodesForShow: unscheduled episodes (NULL scheduledAt) sort after scheduled ones.
+prop_unscheduledEpisodesSortLast :: TestDBConfig -> PropertyT IO ()
+prop_unscheduledEpisodesSortLast cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    epTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        -- Insert a scheduled episode
+        let scheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just now, UUT.eiCreatedBy = userId}
+        scheduledId <- unwrapInsert (UUT.insertEpisode scheduledInsert)
+
+        -- Insert an unscheduled episode
+        let unscheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Nothing, UUT.eiScheduledAt = Nothing, UUT.eiCreatedBy = userId}
+        unscheduledId <- unwrapInsert (UUT.insertEpisode unscheduledInsert)
+
+        episodes <- TRX.statement () (UUT.getEpisodesForShow showId (Limit 10) (Offset 0))
+
+        TRX.condemn
+        pure (scheduledId, unscheduledId, episodes)
+
+      assert $ do
+        (scheduledId, unscheduledId, episodes) <- assertRight result
+        -- Both episodes returned, scheduled first (desc order, nulls last)
+        case episodes of
+          [first, second] -> do
+            UUT.id first === scheduledId
+            UUT.id second === unscheduledId
+          _ -> length episodes === 2
+        pure ()
+
+-- | getPublishedEpisodesForShow: excludes episodes with NULL scheduledAt.
+prop_publishedExcludesUnscheduled :: TestDBConfig -> PropertyT IO ()
+prop_publishedExcludesUnscheduled cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    epTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        -- Insert a scheduled episode in the past (should appear in published)
+        let pastTime = addUTCTime (-86400 :: NominalDiffTime) now
+        let scheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
+        scheduledId <- unwrapInsert (UUT.insertEpisode scheduledInsert)
+
+        -- Insert an unscheduled episode (should NOT appear in published)
+        let unscheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Nothing, UUT.eiScheduledAt = Nothing, UUT.eiCreatedBy = userId}
+        _unscheduledId <- unwrapInsert (UUT.insertEpisode unscheduledInsert)
+
+        published <- TRX.statement () (UUT.getPublishedEpisodesForShow now showId (Limit 10) (Offset 0))
+
+        TRX.condemn
+        pure (scheduledId, published)
+
+      assert $ do
+        (scheduledId, published) <- assertRight result
+        -- Only the scheduled past episode should appear
+        ep <- assertSingleton published
+        UUT.id ep === scheduledId
         pure ()

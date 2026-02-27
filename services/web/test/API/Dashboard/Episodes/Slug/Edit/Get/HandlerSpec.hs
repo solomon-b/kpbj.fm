@@ -66,8 +66,8 @@ setupFixture showInsert userInsert = do
             eiAudioMimeType = Nothing,
             eiDurationSeconds = Nothing,
             eiArtworkUrl = Nothing,
-            eiScheduleTemplateId = templateId,
-            eiScheduledAt = read "2026-03-01 10:00:00 UTC",
+            eiScheduleTemplateId = Just templateId,
+            eiScheduledAt = Just (read "2026-03-01 10:00:00 UTC"),
             eiCreatedBy = userModel.mId
           }
   -- Note: 'error' is used here because Transaction does not have MonadIO,

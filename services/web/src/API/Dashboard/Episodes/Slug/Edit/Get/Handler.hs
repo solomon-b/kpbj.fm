@@ -28,7 +28,6 @@ import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
@@ -179,20 +178,23 @@ fetchEpisodeTags episodeId =
 fetchCurrentSlot ::
   Episodes.Model ->
   AppM (Maybe ShowSchedule.UpcomingShowDate)
-fetchCurrentSlot episode =
-  execQuery (ShowSchedule.getScheduleTemplateById episode.scheduleTemplateId) >>= \case
-    Left err -> do
-      Log.logAttention "Failed to fetch schedule template" (show err)
-      pure Nothing
-    Right Nothing -> pure Nothing
-    Right (Just scheduleTemplate) ->
-      pure $ Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate episode.scheduledAt
+fetchCurrentSlot episode = case (episode.scheduleTemplateId, episode.scheduledAt) of
+  (Nothing, _) -> pure Nothing
+  (_, Nothing) -> pure Nothing
+  (Just templateId, Just sa) ->
+    execQuery (ShowSchedule.getScheduleTemplateById templateId) >>= \case
+      Left err -> do
+        Log.logAttention "Failed to fetch schedule template" (show err)
+        pure Nothing
+      Right Nothing -> pure Nothing
+      Right (Just scheduleTemplate) ->
+        pure $ Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate sa
 
 fetchUpcomingDates ::
   Shows.Id ->
   AppM [ShowSchedule.UpcomingShowDate]
 fetchUpcomingDates showId =
-  execQuery (ShowSchedule.getUpcomingUnscheduledShowDates showId (Limit 52)) >>= \case
+  execQuery (ShowSchedule.getUpcomingUnscheduledShowDates showId 4) >>= \case
     Left err -> do
       Log.logAttention "Failed to fetch upcoming dates" (show err)
       pure []
