@@ -97,7 +97,9 @@ renderResultRow sr = do
         Lucid.toHtml sr.srShowTitle
       Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textXs, "flex", "gap-3"]] $ do
         Lucid.span_ [] $ Lucid.toHtml ([i|Ep. #{epNum}|] :: Text)
-        Lucid.span_ [] $ Lucid.toHtml $ formatDate sr.srScheduledAt
+        case sr.srScheduledAt of
+          Just sa -> Lucid.span_ [] $ Lucid.toHtml $ formatDate sa
+          Nothing -> mempty
         case sr.srDurationSeconds of
           Just dur -> Lucid.span_ [] $ Lucid.toHtml $ formatDuration dur
           Nothing -> mempty

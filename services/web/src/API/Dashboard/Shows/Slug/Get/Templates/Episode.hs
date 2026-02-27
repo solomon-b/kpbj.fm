@@ -60,7 +60,9 @@ renderLatestEpisode backend showModel episode tracks = do
             ]
             $ Lucid.toHtml (show epNum)
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
-          "Aired: " <> Lucid.toHtml (formatPacificDateLong episode.scheduledAt)
+          case episode.scheduledAt of
+            Just sa -> "Aired: " <> Lucid.toHtml (formatPacificDateLong sa)
+            Nothing -> "Unscheduled"
 
           case episode.durationSeconds of
             Just duration ->
@@ -206,7 +208,9 @@ renderEpisodeCard backend showModel episode = do
           $ Lucid.toHtml (show epNum)
 
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
-        "Aired: " <> Lucid.toHtml (formatPacificDateLong episode.scheduledAt)
+        case episode.scheduledAt of
+          Just sa -> "Aired: " <> Lucid.toHtml (formatPacificDateLong sa)
+          Nothing -> "Unscheduled"
 
         case episode.durationSeconds of
           Just duration -> " • Duration: " <> Lucid.toHtml (show (duration `div` 60)) <> "min"

@@ -25,7 +25,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
-import Effects.Database.Tables.Episodes qualified as Episodes (Model, artworkUrl, audioFilePath, description, episodeNumber, scheduledAt)
+import Effects.Database.Tables.Episodes qualified as Episodes (Model, artworkUrl, audioFilePath, description, episodeNumber, isUnaired)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
@@ -67,9 +67,6 @@ episodeIndexUrl showSlug = rootLink $ dashboardEpisodesLinks.list showSlug Nothi
 
 --------------------------------------------------------------------------------
 
--- | Check if the episode's scheduled date is in the future (allowing file uploads)
-isScheduledInFuture :: UTCTime -> Episodes.Model -> Bool
-isScheduledInFuture now episode = episode.scheduledAt > now
 
 -- | Episode edit template.
 --
@@ -104,7 +101,7 @@ template ctx = do
     episodeBackUrl = episodeIndexUrl showModel.slug
     descriptionValue = fromMaybe "" episode.description
     -- File uploads allowed if scheduled date is in the future OR user is staff/admin
-    allowFileUpload = isScheduledInFuture currentTime episode || isStaff
+    allowFileUpload = Episodes.isUnaired currentTime episode || isStaff
     audioUrl = maybe "" (buildMediaUrl backend) episode.audioFilePath
     artworkUrl = maybe "" (buildMediaUrl backend) episode.artworkUrl
 
@@ -137,36 +134,32 @@ template ctx = do
         -- Schedule slot section (only shown if episode is in future or user is staff)
         when (allowFileUpload || isStaff) $ do
           section "SCHEDULE SLOT" $ do
-            case mCurrentSlot of
-              Nothing ->
-                -- No template found, show raw scheduled date
+            case (mCurrentSlot, upcomingDates) of
+              (Nothing, []) ->
+                -- Unscheduled with no available slots — read-only display
                 plain $
                   Lucid.div_ $ do
                     Lucid.label_ [class_ $ base ["block", Tokens.fontBold, Tokens.mb2]] "Scheduled Date"
                     Lucid.div_
                       [class_ $ base [Tokens.fullWidth, Tokens.p3, Tokens.border2, Tokens.borderDefault, Tokens.bgAlt, "font-mono", Tokens.textSm]]
-                      (Lucid.toHtml $ "Current: " <> display episode.scheduledAt)
+                      "Unscheduled"
                     Lucid.p_
                       [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-2", "italic"]]
-                      "Schedule template not found. To change, cancel and create a new episode."
-              Just currentSlot ->
-                if null upcomingDates
-                  then plain $
-                    Lucid.div_ $ do
-                      Lucid.label_ [class_ $ base ["block", Tokens.fontBold, Tokens.mb2]] "Scheduled Date"
-                      Lucid.div_
-                        [class_ $ base [Tokens.fullWidth, Tokens.p3, Tokens.border2, Tokens.borderDefault, Tokens.bgAlt, "font-mono", Tokens.textSm]]
-                        (Lucid.toHtml $ display currentSlot <> " (Current)")
-                      Lucid.p_
-                        [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-2", "italic"]]
-                        "No other available time slots. To change, cancel and create a new episode."
-                  else selectField "scheduled_date" $ do
-                    label "Scheduled Date"
-                    hint "Choose when this episode will air"
-                    -- Current slot as first option (preselected), rendered same as upcoming dates
-                    addOption (encodeScheduleValue currentSlot) (display currentSlot <> " (Current)")
-                    -- Other available slots
-                    mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
+                      "No available time slots."
+              (Nothing, _) ->
+                -- Unscheduled with available slots — allow assigning
+                selectField "scheduled_date" $ do
+                  label "Scheduled Date"
+                  hint "Choose when this episode will air"
+                  addOption "" "Unscheduled (Current)"
+                  mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
+              (Just currentSlot, _) ->
+                -- Scheduled — allow rescheduling
+                selectField "scheduled_date" $ do
+                  label "Scheduled Date"
+                  hint "Choose when this episode will air"
+                  addOption (encodeScheduleValue currentSlot) (display currentSlot <> " (Current)")
+                  mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
 
         textareaField "description" 6 $ do
           label "Description"

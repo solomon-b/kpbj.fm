@@ -65,7 +65,9 @@ renderEpisodeCard backend showModel episode = do
       renderArtworkWithPlayer backend epUrl mArtworkUrl
 
       -- Episode date
-      renderEpisodeDate episode.scheduledAt
+      case episode.scheduledAt of
+        Just sa -> renderEpisodeDate sa
+        Nothing -> mempty
 
 --------------------------------------------------------------------------------
 -- Component Functions

@@ -172,8 +172,8 @@ processEpisodeUpload _userMetadata user showModel form = do
                             Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
                             Episodes.eiDurationSeconds = episodeData.durationSeconds,
                             Episodes.eiArtworkUrl = artworkPath,
-                            Episodes.eiScheduleTemplateId = episodeData.scheduleTemplateId,
-                            Episodes.eiScheduledAt = episodeData.scheduledAt,
+                            Episodes.eiScheduleTemplateId = Just episodeData.scheduleTemplateId,
+                            Episodes.eiScheduledAt = Just episodeData.scheduledAt,
                             Episodes.eiCreatedBy = User.mId user
                           }
 
@@ -296,7 +296,10 @@ processFileUploads ::
   -- | (audioPath, artworkPath)
   AppM (Either Text (Maybe Text, Maybe Text))
 processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile mAudioToken = do
-  -- Get the air date for file organization (use current time as fallback)
+  -- Get the air date for file organization (use current time as fallback).
+  -- NOTE: File paths are set at upload time and never relocated on reschedule.
+  -- If downloads are added later, generate user-facing filenames from episode
+  -- metadata (scheduled_at, slug, etc.) rather than relying on storage paths.
   airDate <- maybe currentSystemTime pure mScheduledDate
 
   -- Process main audio file (always required)

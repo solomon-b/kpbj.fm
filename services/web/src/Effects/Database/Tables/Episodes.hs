@@ -21,6 +21,8 @@ module Effects.Database.Tables.Episodes
 
     -- * Model (Result alias)
     Model,
+    isUnaired,
+    isAired,
 
     -- * Insert Type
     Insert (..),
@@ -42,6 +44,7 @@ module Effects.Database.Tables.Episodes
     updateEpisodeFiles,
     updateScheduledSlot,
     deleteEpisode,
+    clearTemplateForUpcomingEpisodes,
 
     -- * Result Types
     EpisodeWithShow (..),
@@ -128,8 +131,8 @@ data Episode f = Episode
     audioMimeType :: Column f (Maybe Text),
     durationSeconds :: Column f (Maybe Int64),
     artworkUrl :: Column f (Maybe Text),
-    scheduleTemplateId :: Column f ShowSchedule.TemplateId,
-    scheduledAt :: Column f UTCTime,
+    scheduleTemplateId :: Column f (Maybe ShowSchedule.TemplateId),
+    scheduledAt :: Column f (Maybe UTCTime),
     publishedAt :: Column f (Maybe UTCTime),
     deletedAt :: Column f (Maybe UTCTime),
     createdBy :: Column f User.Id,
@@ -159,6 +162,16 @@ instance Display (Episode Result) where
 --
 -- @Model@ is the same as @Episode Result@.
 type Model = Episode Result
+
+-- | An episode is unaired if it has no scheduled date or its date is in the future.
+isUnaired :: UTCTime -> Model -> Bool
+isUnaired currentTime episode = case episode.scheduledAt of
+  Nothing -> True
+  Just sa -> sa > currentTime
+
+-- | An episode has aired if it has a scheduled date that has passed.
+isAired :: UTCTime -> Model -> Bool
+isAired currentTime = not . isUnaired currentTime
 
 -- | Table schema connecting the Haskell type to the database table.
 episodeSchema :: TableSchema (Episode Name)
@@ -223,8 +236,8 @@ data Insert = Insert
     eiAudioMimeType :: Maybe Text,
     eiDurationSeconds :: Maybe Int64,
     eiArtworkUrl :: Maybe Text,
-    eiScheduleTemplateId :: ShowSchedule.TemplateId,
-    eiScheduledAt :: UTCTime,
+    eiScheduleTemplateId :: Maybe ShowSchedule.TemplateId,
+    eiScheduledAt :: Maybe UTCTime,
     eiCreatedBy :: User.Id
   }
   deriving stock (Generic, Show, Eq)
@@ -282,8 +295,8 @@ data EpisodeWithShow = EpisodeWithShow
     ewsAudioMimeType :: Maybe Text,
     ewsDurationSeconds :: Maybe Int64,
     ewsArtworkUrl :: Maybe Text,
-    ewsScheduleTemplateId :: ShowSchedule.TemplateId,
-    ewsScheduledAt :: UTCTime,
+    ewsScheduleTemplateId :: Maybe ShowSchedule.TemplateId,
+    ewsScheduledAt :: Maybe UTCTime,
     ewsPublishedAt :: Maybe UTCTime,
     ewsDeletedAt :: Maybe UTCTime,
     ewsCreatedBy :: User.Id,
@@ -302,7 +315,7 @@ data SearchResult = SearchResult
   { srId :: Id,
     srShowTitle :: Text,
     srEpisodeNumber :: EpisodeNumber,
-    srScheduledAt :: UTCTime,
+    srScheduledAt :: Maybe UTCTime,
     srDurationSeconds :: Maybe Int64
   }
   deriving stock (Generic, Show, Eq)
@@ -323,7 +336,8 @@ getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
             ep <- each episodeSchema
             where_ $ ep.showId ==. lit showId'
             where_ $ isNull ep.deletedAt
-            where_ $ ep.scheduledAt <=. lit currentTime
+            where_ $ isNonNull ep.scheduledAt
+            where_ $ ep.scheduledAt <=. nullify (lit currentTime)
             pure ep
 
 -- | Get episodes for a show (for hosts viewing their own show).
@@ -335,7 +349,7 @@ getEpisodesForShow showId' (Limit lim) (Offset off) =
     select $
       Rel8.limit (fromIntegral lim) $
         Rel8.offset (fromIntegral off) $
-          orderBy ((.scheduledAt) >$< desc) do
+          orderBy ((.scheduledAt) >$< nullsLast desc) do
             ep <- each episodeSchema
             where_ $ ep.showId ==. lit showId'
             where_ $ isNull ep.deletedAt
@@ -633,8 +647,8 @@ updateScheduledSlot ScheduleSlotUpdate {..} =
             from = pure (),
             set = \_ ep ->
               ep
-                { scheduleTemplateId = lit essuScheduleTemplateId,
-                  scheduledAt = lit essuScheduledAt,
+                { scheduleTemplateId = nullify (lit essuScheduleTemplateId),
+                  scheduledAt = nullify (lit essuScheduledAt),
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit essuId,
@@ -659,6 +673,24 @@ deleteEpisode episodeId =
             returning = Returning (.id)
           }
 
+-- | Clear schedule_template_id for upcoming episodes tied to a given template.
+--
+-- Used when a schedule template is invalidated (e.g., timeslot changed) to
+-- explicitly detach future episodes rather than leaving them with a stale FK.
+-- Returns the IDs of affected episodes for logging.
+clearTemplateForUpcomingEpisodes :: ShowSchedule.TemplateId -> Hasql.Statement () [Id]
+clearTemplateForUpcomingEpisodes templateId =
+  interp
+    False
+    [sql|
+    UPDATE episodes
+    SET schedule_template_id = NULL, scheduled_at = NULL, updated_at = NOW()
+    WHERE schedule_template_id = #{templateId}
+      AND scheduled_at > NOW()
+      AND deleted_at IS NULL
+    RETURNING id
+  |]
+
 --------------------------------------------------------------------------------
 -- Search Queries
 
@@ -679,7 +711,7 @@ searchEpisodesWithAudio query =
       AND e.deleted_at IS NULL
       AND s.deleted_at IS NULL
       AND s.title ILIKE #{pattern}
-    ORDER BY e.scheduled_at DESC
+    ORDER BY e.scheduled_at DESC NULLS LAST
     LIMIT 20
   |]
 
