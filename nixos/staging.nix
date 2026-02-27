@@ -13,6 +13,7 @@
     ./monitoring.nix
     ./nginx.nix
     ./sops.nix
+    ./pgbackrest.nix
     ./postgresql.nix
     ./web.nix
   ];
@@ -46,6 +47,18 @@
 
   # ── Monitoring (Grafana + Loki + Promtail) ───────────────────
   kpbj.monitoring.enable = true;
+
+  # ── pgBackRest (PG backups + WAL archiving) ──────────────────
+  kpbj.pgbackrest = {
+    enable = true;
+    s3 = {
+      bucket = "kpbj-pgbackrest";
+      endpoint = "sfo3.digitaloceanspaces.com";
+      region = "sfo3";
+      path = "/staging";
+      secretsFile = ../secrets/staging-web.yaml;
+    };
+  };
 
   # ── PostgreSQL ───────────────────────────────────────────────
   kpbj.postgresql = {

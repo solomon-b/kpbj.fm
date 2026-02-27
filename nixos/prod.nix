@@ -48,7 +48,16 @@
   kpbj.monitoring.enable = true;
 
   # ── pgBackRest (PG backups + WAL archiving) ──────────────────
-  kpbj.pgbackrest.enable = true;
+  kpbj.pgbackrest = {
+    enable = true;
+    s3 = {
+      bucket = "kpbj-pgbackrest";
+      endpoint = "sfo3.digitaloceanspaces.com";
+      region = "sfo3";
+      path = "/prod";
+      secretsFile = ../secrets/prod-web.yaml;
+    };
+  };
 
   # ── PostgreSQL ───────────────────────────────────────────────
   kpbj.postgresql = {

@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **Off-Site S3 Backups for PostgreSQL** — pgBackRest now supports an optional second repository (repo2) on S3-compatible storage (DigitalOcean Spaces) for off-site disaster recovery. Local repo1 remains for fast restores. Credentials are wired through SOPS and read from disk on the server. S3 failures are treated as warnings — local backups always complete. Daily backups and WAL archiving target both repos when enabled. Setting `s3 = null` reverts to local-only backups.
 
 ---
 

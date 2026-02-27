@@ -684,6 +684,125 @@ nixos-build-staging:
   nix build .#nixosConfigurations.kpbj-stream-staging.config.system.build.toplevel
 
 # =============================================================================
+# pgBackRest (Database Backup & Recovery)
+# =============================================================================
+# Manage PostgreSQL backups via pgBackRest on staging and production.
+# Backups use two repositories: repo1 (local VPS disk) and repo2 (S3).
+# Prerequisites: SSH access to target VPS
+
+# Show staging pgBackRest backup status
+staging-backup-info:
+  ssh {{STAGING_VPS_TARGET}} 'sudo -u postgres bash -c "set -a; source /run/secrets/rendered/kpbj-pgbackrest-s3.env; pgbackrest info --stanza=kpbj"'
+
+# Show production pgBackRest backup status
+prod-backup-info:
+  ssh {{PROD_VPS_TARGET}} 'sudo -u postgres bash -c "set -a; source /run/secrets/rendered/kpbj-pgbackrest-s3.env; pgbackrest info --stanza=kpbj"'
+
+# Trigger a manual full backup on staging (both repos)
+staging-backup-run:
+  ssh {{STAGING_VPS_TARGET}} systemctl start kpbj-backup-full.service
+
+# Trigger a manual full backup on production (both repos)
+prod-backup-run:
+  ssh {{PROD_VPS_TARGET}} systemctl start kpbj-backup-full.service
+
+# Helper: run pgbackrest restore, complete WAL recovery, then start services.
+# pg_ctl is used for recovery to bypass NixOS postStart (which runs ALTER ROLE
+# and fails on a read-only recovering database). After recovery completes,
+# pg_ctl stops cleanly and systemd starts PostgreSQL normally.
+[private]
+_backup-restore TARGET RESTORE_CMD:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "Stopping services..."
+  ssh {{TARGET}} 'systemctl stop kpbj-web postgresql; sudo -u postgres pg_ctl stop -D /var/lib/postgresql/17 -m fast 2>/dev/null || true'
+  echo "Restoring..."
+  ssh {{TARGET}} 'sudo -u postgres bash -s' <<'RESTORE'
+  set -a
+  source /run/secrets/rendered/kpbj-pgbackrest-s3.env
+  {{RESTORE_CMD}}
+  RESTORE
+  echo "Running WAL recovery via pg_ctl (bypasses NixOS postStart)..."
+  ssh {{TARGET}} 'mkdir -p /run/postgresql && chown postgres:postgres /run/postgresql'
+  ssh {{TARGET}} 'sudo -u postgres bash -s' <<'RECOVERY'
+  set -a
+  source /run/secrets/rendered/kpbj-pgbackrest-s3.env
+  pg_ctl start -D /var/lib/postgresql/17 -w -t 120 -l /tmp/pg-recovery.log
+  RECOVERY
+  echo "Waiting for WAL recovery to complete..."
+  ssh {{TARGET}} 'until sudo -u postgres psql -tAc "SELECT NOT pg_is_in_recovery();" 2>/dev/null | grep -q t; do sleep 1; done'
+  echo "Recovery complete. Stopping pg_ctl instance..."
+  ssh {{TARGET}} 'sudo -u postgres pg_ctl stop -D /var/lib/postgresql/17 -m fast'
+  echo "Clearing restore_command from postgresql.auto.conf..."
+  ssh {{TARGET}} "sudo -u postgres sed -i '/^restore_command/d' /var/lib/postgresql/17/postgresql.auto.conf"
+  echo "Starting PostgreSQL via systemd..."
+  ssh {{TARGET}} 'systemctl start postgresql kpbj-web'
+
+# Restore staging database from local backup (repo1)
+staging-backup-restore-local:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "WARNING: This will stop the staging web service and restore the database from the latest local backup."
+  read -rp "Type 'yes' to confirm: " CONFIRM
+  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
+  just _backup-restore "{{STAGING_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=1 --delta"
+  echo "Restore complete."
+
+# Restore production database from local backup (repo1)
+prod-backup-restore-local:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "WARNING: This will stop the production web service and restore the database from the latest local backup."
+  read -rp "Type 'yes' to confirm: " CONFIRM
+  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
+  just _backup-restore "{{PROD_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=1 --delta"
+  echo "Restore complete."
+
+# Restore staging database from S3 backup (repo2, disaster recovery)
+staging-backup-restore-s3:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "WARNING: This will stop the staging web service and restore the database from the S3 backup."
+  read -rp "Type 'yes' to confirm: " CONFIRM
+  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
+  just _backup-restore "{{STAGING_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=2 --delta"
+  echo "Restore complete."
+
+# Restore production database from S3 backup (repo2, disaster recovery)
+prod-backup-restore-s3:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "WARNING: This will stop the production web service and restore the database from the S3 backup."
+  read -rp "Type 'yes' to confirm: " CONFIRM
+  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
+  just _backup-restore "{{PROD_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=2 --delta"
+  echo "Restore complete."
+
+# Point-in-time recovery on staging
+# Usage: just staging-backup-restore-pitr "2026-02-28 03:00:00+00"
+staging-backup-restore-pitr TARGET:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "WARNING: This will stop the staging web service and restore the database to: {{TARGET}}"
+  echo "Check available WAL range first with: just staging-backup-info"
+  read -rp "Type 'yes' to confirm: " CONFIRM
+  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
+  just _backup-restore "{{STAGING_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=1 --delta --type=time --target-action=promote --target='{{TARGET}}'"
+  echo "PITR complete."
+
+# Point-in-time recovery on production
+# Usage: just prod-backup-restore-pitr "2026-02-28 03:00:00+00"
+prod-backup-restore-pitr TARGET:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "WARNING: This will stop the production web service and restore the database to: {{TARGET}}"
+  echo "Check available WAL range first with: just prod-backup-info"
+  read -rp "Type 'yes' to confirm: " CONFIRM
+  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
+  just _backup-restore "{{PROD_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=1 --delta --type=time --target-action=promote --target='{{TARGET}}'"
+  echo "PITR complete."
+
+# =============================================================================
 # E2E Testing (Playwright)
 # =============================================================================
 # Browser-based end-to-end tests. Requires the web server running on port 4000.
