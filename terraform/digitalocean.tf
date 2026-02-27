@@ -83,6 +83,12 @@ resource "digitalocean_spaces_bucket" "staging_storage" {
   acl    = "public-read"
 }
 
+resource "digitalocean_spaces_bucket" "pgbackrest" {
+  name   = "kpbj-pgbackrest"
+  region = "sfo3"
+  acl    = "private"
+}
+
 # ──────────────────────────────────────────────────────────────
 # Firewalls
 # ──────────────────────────────────────────────────────────────

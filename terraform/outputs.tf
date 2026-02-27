@@ -38,6 +38,11 @@ output "staging_spaces_endpoint" {
   value       = "https://${digitalocean_spaces_bucket.staging_storage.name}.${digitalocean_spaces_bucket.staging_storage.region}.digitaloceanspaces.com"
 }
 
+output "pgbackrest_spaces_bucket" {
+  description = "pgBackRest S3 backup bucket name"
+  value       = digitalocean_spaces_bucket.pgbackrest.name
+}
+
 output "google_groups_sa_email" {
   description = "Google Groups service account email"
   value       = google_service_account.google_groups.email
