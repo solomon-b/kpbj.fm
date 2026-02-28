@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **LLM-Powered Log Watchdog** — A systemd timer runs every 15 minutes (configurable) on prod and staging, collecting journal logs, service statuses, and system stats. Sends them to the Gemini 2.0 Flash API for anomaly detection and emails the operator if anything looks wrong. Covers service outages, error spikes, resource pressure, security anomalies, and streaming issues. Observe-only — no corrective actions. Cost: ~$1/month.
 - **Off-Site S3 Backups for PostgreSQL** — pgBackRest now supports an optional second repository (repo2) on S3-compatible storage (DigitalOcean Spaces) for off-site disaster recovery. Local repo1 remains for fast restores. Credentials are wired through SOPS and read from disk on the server. S3 failures are treated as warnings — local backups always complete. Daily backups and WAL archiving target both repos when enabled. Setting `s3 = null` reverts to local-only backups.
 - **Optional Episode Schedule** — Episodes can now exist without a schedule slot. This supports episodes created before a show has a schedule, or episodes detached when a schedule template is invalidated.
   - `UNSCHEDULED` badge shown in the dashboard episode list
