@@ -18,7 +18,7 @@
     ./web.nix
   ];
 
-  networking.hostName = "kpbj-stream-staging";
+  networking.hostName = "kpbj-staging";
 
   kpbj.sops.secretsFile = ../secrets/staging-streaming.yaml;
 

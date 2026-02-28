@@ -174,7 +174,7 @@
               ./nixos/prod.nix
             ];
           };
-          kpbj-stream-staging = nixpkgs.lib.nixosSystem {
+          kpbj-staging = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
             specialArgs = { inherit sync-host-emails token-cleanup kpbj-api; };
             modules = [

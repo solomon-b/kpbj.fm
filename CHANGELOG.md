@@ -18,6 +18,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Episode Card Aspect Ratio Mismatch** — Episode artwork is cropped to 1:1 on upload but was rendered in a 4:3 container, cutting off the top and bottom. Now renders as square to match the crop.
 
 ### Changed
+- **Rename Staging Droplet** — Renamed the staging DigitalOcean droplet from `kpbj-stream-staging` to `kpbj-staging` to reflect that the VPS now hosts more than just the stream. Updated Terraform resources (with `moved` blocks), NixOS hostname and flake config, CI/CD workflows, Justfile, `.sops.yaml`, and docs.
 - **Episode Schedule Columns Now Nullable** — `schedule_template_id` and `scheduled_at` columns on `episodes` are no longer `NOT NULL`. A `CHECK` constraint ensures both fields are either `NULL` or both `NOT NULL`.
 
 ---
