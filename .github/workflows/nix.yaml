@@ -29,7 +29,7 @@ jobs:
 
     - name: Build NixOS closure for staging 🏗️
       if: github.ref == 'refs/heads/main'
-      run: nix build .#nixosConfigurations.kpbj-stream-staging.config.system.build.toplevel
+      run: nix build .#nixosConfigurations.kpbj-staging.config.system.build.toplevel
 
     # - name: Check for dead code 🧹
     #   run: |

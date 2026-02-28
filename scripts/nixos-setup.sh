@@ -121,7 +121,7 @@ echo "════════════════════════�
 echo ""
 echo "Next steps:"
 echo "  1. Review nixos/hardware-digitalocean.nix"
-echo "  2. Add host age key to .sops.yaml (vps_stream_${ENV})"
+echo "  2. Add host age key to .sops.yaml (check anchor name for ${ENV})"
 echo "  3. Create secrets: sops secrets/${ENV}-streaming.yaml"
 echo "  4. Update keys:    sops updatekeys secrets/${ENV}-streaming.yaml"
 echo "  5. Deploy:         just nixos-deploy-${ENV}"

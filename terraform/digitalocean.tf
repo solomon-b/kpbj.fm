@@ -46,8 +46,8 @@ resource "digitalocean_droplet" "stream_prod" {
 # Staging Droplet
 # ──────────────────────────────────────────────────────────────
 
-resource "digitalocean_droplet" "stream_staging" {
-  name     = "kpbj-stream-staging"
+resource "digitalocean_droplet" "staging" {
+  name     = "kpbj-staging"
   region   = var.droplet_region
   size     = var.droplet_size_staging
   image    = var.droplet_image
@@ -143,9 +143,9 @@ resource "digitalocean_firewall" "stream_prod" {
   }
 }
 
-resource "digitalocean_firewall" "stream_staging" {
-  name        = "kpbj-stream-staging-fw"
-  droplet_ids = [digitalocean_droplet.stream_staging.id]
+resource "digitalocean_firewall" "staging" {
+  name        = "kpbj-staging-fw"
+  droplet_ids = [digitalocean_droplet.staging.id]
 
   # SSH
   inbound_rule {

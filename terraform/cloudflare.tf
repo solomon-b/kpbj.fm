@@ -52,7 +52,7 @@ resource "cloudflare_dns_record" "ssh_staging" {
   zone_id = local.cloudflare_zone_id
   name    = "ssh.staging"
   type    = "A"
-  content = digitalocean_droplet.stream_staging.ipv4_address
+  content = digitalocean_droplet.staging.ipv4_address
   proxied = false
   ttl     = 1
   comment = "Staging SSH deploy (DO VPS, DNS-only)"
@@ -67,7 +67,7 @@ resource "cloudflare_dns_record" "staging_a" {
   zone_id = local.cloudflare_zone_id
   name    = "staging"
   type    = "A"
-  content = digitalocean_droplet.stream_staging.ipv4_address
+  content = digitalocean_droplet.staging.ipv4_address
   proxied = true
   ttl     = 1
   comment = "Staging web (DO VPS)"
@@ -93,7 +93,7 @@ resource "cloudflare_dns_record" "stream_staging" {
   zone_id = local.cloudflare_zone_id
   name    = "stream.staging"
   type    = "A"
-  content = digitalocean_droplet.stream_staging.ipv4_address
+  content = digitalocean_droplet.staging.ipv4_address
   proxied = false
   ttl     = 1
   comment = "Staging audio stream (DO)"
@@ -141,7 +141,7 @@ resource "cloudflare_dns_record" "uploads_staging" {
   zone_id = local.cloudflare_zone_id
   name    = "uploads.staging"
   type    = "A"
-  content = digitalocean_droplet.stream_staging.ipv4_address
+  content = digitalocean_droplet.staging.ipv4_address
   proxied = false
   ttl     = 1
   comment = "Staging file uploads (DO VPS, DNS-only for large uploads)"

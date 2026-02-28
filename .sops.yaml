@@ -3,7 +3,7 @@ keys:
   - &pc_lorean age1h9eclrfude5fkzvt0v7sjyhfsu5f839xw0wwh29lrptq70mfvgescqng6a
   - &pc_voice-of-evening age1esadyxrm9kjt25jlg9y0mmp8u75mh05pncxxd8csl7z6dsycy3pszhrh35
   - &vps_stream_prod age1smawm633jsv5qn2aye465j85rac2cu3h7fez3jpl2qu49fh56ejqdjusvg
-  - &vps_stream_staging age1kvwcm2txc4knu5wqm34g307u7gazv3svs4vnm7z2p92xvd9tv3eqhy9smg
+  - &vps_staging age1kvwcm2txc4knu5wqm34g307u7gazv3svs4vnm7z2p92xvd9tv3eqhy9smg
 
 creation_rules:
   - path_regex: secrets/terraform\.yaml$
@@ -35,7 +35,7 @@ creation_rules:
           - *pc_lorean
           - *pc_voice-of-evening
           - *vps_stream_prod
-          - *vps_stream_staging
+          - *vps_staging
 
   - path_regex: secrets/dev-streaming\.yaml$
     key_groups:
@@ -50,7 +50,7 @@ creation_rules:
           - *pc_nightshade
           - *pc_lorean
           - *pc_voice-of-evening
-          - *vps_stream_staging
+          - *vps_staging
 
   - path_regex: secrets/prod-web\.yaml$
     key_groups:
@@ -66,4 +66,4 @@ creation_rules:
           - *pc_nightshade
           - *pc_lorean
           - *pc_voice-of-evening
-          - *vps_stream_staging
+          - *vps_staging
