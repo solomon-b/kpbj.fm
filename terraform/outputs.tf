@@ -17,9 +17,9 @@ output "stream_prod_droplet_ip" {
   value       = digitalocean_droplet.stream_prod.ipv4_address
 }
 
-output "stream_staging_droplet_ip" {
-  description = "Public IPv4 address of the staging streaming VPS"
-  value       = digitalocean_droplet.stream_staging.ipv4_address
+output "staging_droplet_ip" {
+  description = "Public IPv4 address of the staging VPS"
+  value       = digitalocean_droplet.staging.ipv4_address
 }
 
 output "cloudflare_zone_id" {

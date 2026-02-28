@@ -57,7 +57,7 @@ Note the droplet IPs from the output:
 
 ```
 stream_prod_droplet_ip = "x.x.x.x"
-stream_staging_droplet_ip = "y.y.y.y"
+staging_droplet_ip = "y.y.y.y"
 ```
 
 Clean up the one-time import file:
@@ -92,7 +92,7 @@ Output will include:
 
 ```
    Host age key: age1abc123...
-   Add this key to .sops.yaml under &vps_stream_staging
+   Add this key to .sops.yaml under &vps_staging
 ```
 
 Save the key. Then do the same for prod:
@@ -117,7 +117,7 @@ Edit `.sops.yaml` and replace the placeholder keys with the real ones from Phase
 
 ```yaml
 - &vps_stream_prod age1<REPLACE_WITH_REAL_PROD_KEY>
-- &vps_stream_staging age1<REPLACE_WITH_REAL_STAGING_KEY>
+- &vps_staging age1<REPLACE_WITH_REAL_STAGING_KEY>
 ```
 
 ## Phase 5: Create Streaming Secrets

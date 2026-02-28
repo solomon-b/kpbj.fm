@@ -173,7 +173,7 @@ HEADER
 # }
 #
 # import {
-#   to = digitalocean_droplet.stream_staging
+#   to = digitalocean_droplet.staging
 #   id = "<droplet-id>"    # doctl compute droplet list
 # }
 #
@@ -183,7 +183,7 @@ HEADER
 # }
 #
 # import {
-#   to = digitalocean_firewall.stream_staging
+#   to = digitalocean_firewall.staging
 #   id = "<firewall-id>"   # doctl compute firewall list
 # }
 #

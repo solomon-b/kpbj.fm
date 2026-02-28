@@ -665,7 +665,7 @@ nixos-deploy-prod:
 
 # Deploy NixOS config to staging streaming VPS
 nixos-deploy-staging:
-  nixos-rebuild switch --flake .#kpbj-stream-staging --target-host {{STAGING_STREAM_TARGET}}
+  nixos-rebuild switch --flake .#kpbj-staging --target-host {{STAGING_STREAM_TARGET}}
 
 # Preview NixOS changes for production (dry-activate)
 nixos-deploy-prod-dry:
@@ -673,7 +673,7 @@ nixos-deploy-prod-dry:
 
 # Preview NixOS changes for staging (dry-activate)
 nixos-deploy-staging-dry:
-  nixos-rebuild dry-activate --flake .#kpbj-stream-staging --target-host {{STAGING_STREAM_TARGET}}
+  nixos-rebuild dry-activate --flake .#kpbj-staging --target-host {{STAGING_STREAM_TARGET}}
 
 # Build production NixOS config locally (verify it evaluates)
 nixos-build-prod:
@@ -681,7 +681,7 @@ nixos-build-prod:
 
 # Build staging NixOS config locally (verify it evaluates)
 nixos-build-staging:
-  nix build .#nixosConfigurations.kpbj-stream-staging.config.system.build.toplevel
+  nix build .#nixosConfigurations.kpbj-staging.config.system.build.toplevel
 
 # =============================================================================
 # pgBackRest (Database Backup & Recovery)
