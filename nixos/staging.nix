@@ -16,6 +16,7 @@
     ./pgbackrest.nix
     ./postgresql.nix
     ./web.nix
+    ./watchdog.nix
   ];
 
   networking.hostName = "kpbj-staging";
@@ -47,6 +48,21 @@
 
   # ── Monitoring (Grafana + Loki + Promtail) ───────────────────
   kpbj.monitoring.enable = true;
+
+  # ── Watchdog (LLM log anomaly detection) ────────────────────
+  kpbj.watchdog = {
+    enable = true;
+    secretsFile = ../secrets/staging-web.yaml;
+    recipientEmail = "ssbothwell@gmail.com";
+    environment = "staging";
+    timerInterval = "*:0/30";
+    lookbackMinutes = 30;
+    knownIssues = [
+      "androxgh0st and similar bots scanning for .env files — normal internet noise, ignore unless volume spikes dramatically"
+      "Node.js command injection probes (child_process.execSync, process.mainModule, etc.) — irrelevant to Haskell/Servant, ignore"
+      "sync-host-emails running in dry-run mode on staging with out-of-sync membership — intentional, staging uses dry-run by design"
+    ];
+  };
 
   # ── pgBackRest (PG backups + WAL archiving) ──────────────────
   kpbj.pgbackrest = {
