@@ -82,7 +82,7 @@ renderArtworkWithPlayer backend epUrl mArtworkUrl =
         hxGet_ [i|/#{epUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        class_ $ base [Tokens.fullWidth, "aspect-[4/3]", Tokens.bgAlt, "flex", "items-center", "justify-center", Tokens.textXs, "block", "border", Tokens.borderMuted]
+        class_ $ base [Tokens.fullWidth, "aspect-square", Tokens.bgAlt, "flex", "items-center", "justify-center", Tokens.textXs, "block", "border", Tokens.borderMuted]
       ]
       $ case mArtworkUrl of
         Just artworkPath ->
