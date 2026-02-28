@@ -14,6 +14,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - Unscheduled episodes are excluded from public published episodes
   - E2E tests for schedule state transitions and property tests for unscheduled episode behavior
 
+### Fixed
+- **Episode Card Aspect Ratio Mismatch** — Episode artwork is cropped to 1:1 on upload but was rendered in a 4:3 container, cutting off the top and bottom. Now renders as square to match the crop.
+
 ### Changed
 - **Episode Schedule Columns Now Nullable** — `schedule_template_id` and `scheduled_at` columns on `episodes` are no longer `NOT NULL`. A `CHECK` constraint ensures both fields are either `NULL` or both `NOT NULL`.
 
