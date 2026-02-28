@@ -11,7 +11,6 @@ where
 
 import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
-import Component.AudioDurationScript (renderAudioDurationScript)
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -83,7 +82,6 @@ isScheduledInFuture now episode = episode.scheduledAt > now
 template :: EpisodeEditContext -> Lucid.Html ()
 template ctx = do
   renderForm config form
-  renderAudioDurationScript "episode_audio-input"
   where
     -- Extract from context
     showModel = ctx.eecShow

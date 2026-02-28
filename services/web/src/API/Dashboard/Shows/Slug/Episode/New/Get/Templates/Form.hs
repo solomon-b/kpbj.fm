@@ -9,7 +9,6 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types
-import Component.AudioDurationScript (renderAudioDurationScript)
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -45,7 +44,6 @@ episodeUploadForm ::
   Lucid.Html ()
 episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
   renderForm config form
-  renderAudioDurationScript "audio_file-input"
   where
     postUrl = [i|/#{episodesNewPostUrl (Shows.slug showModel)}|]
     cancelUrl = [i|/#{dashboardShowDetailUrl (Shows.id showModel) (Shows.slug showModel)}|]

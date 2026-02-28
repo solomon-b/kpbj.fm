@@ -59,6 +59,8 @@
 
               token-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "token-cleanup" ./jobs/token-cleanup { });
 
+              audio-normalize = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "audio-normalize" ./jobs/audio-normalize { });
+
               lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./services/web/lib/lucid-form-builder { });
 
               lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./services/web/lib/lucid-htmx-alpine { });
@@ -112,13 +114,14 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: [ p.kpbj-api p.sync-host-emails p.token-cleanup ];
+            packages = p: [ p.kpbj-api p.sync-host-emails p.token-cleanup p.audio-normalize ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
               hsPkgs.haskell-language-server
               hsPkgs.hlint
               hsPkgs.weeder
+              pkgs.ffmpeg
               pkgs.file
               pkgs.just
               pkgs.nixpkgs-fmt
@@ -144,6 +147,7 @@
             kpbj-api = hsPkgs.kpbj-api;
             sync-host-emails = hsPkgs.sync-host-emails;
             token-cleanup = hsPkgs.token-cleanup;
+            audio-normalize = hsPkgs.audio-normalize;
           };
 
           defaultPackage = packages.kpbj-api;
@@ -163,12 +167,13 @@
         let
           sync-host-emails = self.packages.x86_64-linux.sync-host-emails;
           token-cleanup = self.packages.x86_64-linux.token-cleanup;
+          audio-normalize = self.packages.x86_64-linux.audio-normalize;
           kpbj-api = self.packages.x86_64-linux.kpbj-api;
         in
         {
           kpbj-stream-prod = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup audio-normalize kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               ./nixos/prod.nix
@@ -176,7 +181,7 @@
           };
           kpbj-stream-staging = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup audio-normalize kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               ./nixos/staging.nix

@@ -232,6 +232,8 @@ in
         TZDIR = "${pkgs.tzdata}/share/zoneinfo";
       };
 
+      path = [ pkgs.ffmpeg ];
+
       serviceConfig = {
         Type = "simple";
         DynamicUser = true;
