@@ -5,8 +5,10 @@
 -- These endpoints are used by Liquidsoap to fetch audio URLs for playback.
 module API.Playout.Types
   ( PlayoutResponse (..),
-    PlayoutMetadata (..),
+    PlayoutMetadata (title, artist),
+    mkPlayoutMetadata,
     PlayedRequest (..),
+    sanitizeAnnotateValue,
   )
 where
 
@@ -14,6 +16,7 @@ where
 
 import Data.Aeson (FromJSON, ToJSON (..), object, (.=))
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 
@@ -63,3 +66,26 @@ data PlayedRequest = PlayedRequest
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (FromJSON)
+
+--------------------------------------------------------------------------------
+
+-- | Smart constructor for 'PlayoutMetadata'.
+--
+-- Sanitizes title and artist for safe use in Liquidsoap @annotate:@ URIs.
+mkPlayoutMetadata ::
+  Text -> -- ^ Track title
+  Text -> -- ^ Artist name
+  PlayoutMetadata
+mkPlayoutMetadata t a =
+  PlayoutMetadata
+    { title = sanitizeAnnotateValue t,
+      artist = sanitizeAnnotateValue a
+    }
+
+-- | Sanitize a text value for use in a Liquidsoap @annotate:@ URI.
+--
+-- The annotate format uses double quotes as value delimiters and newlines
+-- as command separators in the telnet protocol. Characters that would break
+-- the format are stripped to prevent malformed commands.
+sanitizeAnnotateValue :: Text -> Text
+sanitizeAnnotateValue = Text.filter (`notElem` ['"', '\n', '\r', '\\'])
