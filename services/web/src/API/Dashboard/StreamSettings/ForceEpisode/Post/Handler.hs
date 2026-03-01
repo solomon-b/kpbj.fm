@@ -6,6 +6,7 @@ module API.Dashboard.StreamSettings.ForceEpisode.Post.Handler (handler, action, 
 --------------------------------------------------------------------------------
 
 import API.Dashboard.StreamSettings.ForceEpisode.Post.Route (ForceEpisodeForm (..))
+import API.Playout.Types (sanitizeAnnotateValue)
 import App.Config (Environment (..))
 import App.CustomContext (WebhookConfig)
 import App.Domains (siteBaseUrl)
@@ -22,7 +23,6 @@ import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -116,14 +116,6 @@ action ForceEpisodeForm {..} = do
     WebhookError errMsg -> do
       Log.logInfo "Force-play episode failed" (Aeson.object ["error" .= errMsg])
       pure ForcePlayFailed
-
--- | Sanitize a text value for use in a liquidsoap @annotate:@ URI.
---
--- The annotate format uses double quotes as value delimiters and newlines
--- as command separators in the telnet protocol. Characters that would break
--- the format are stripped to prevent malformed commands.
-sanitizeAnnotateValue :: Text -> Text
-sanitizeAnnotateValue = Text.filter (`notElem` ['"', '\n', '\r', '\\'])
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
 buildFullMediaUrl :: Environment -> StorageBackend -> Text -> Text
