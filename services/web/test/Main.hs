@@ -114,6 +114,7 @@ import Effects.DiffSpec qualified as Diff
 import Effects.MarkdownSpec qualified as Markdown
 import Effects.MimeTypeValidationSpec qualified as MimeTypeValidation
 import Effects.StagedUploadsSpec qualified as StagedUploadsEffects
+import Middleware.ValidateEncodingSpec qualified as ValidateEncoding
 import System.Environment (lookupEnv)
 import Test.Database.Setup (withTmpPG)
 import Test.Hspec
@@ -148,6 +149,7 @@ main = do
     MimeTypeValidation.spec
     UserRole.spec
     StagedUploadsEffects.spec
+    ValidateEncoding.spec
 
   -- Database-dependent tests
   withTmpPG $ hspecWith cfg $ parallel $ do
