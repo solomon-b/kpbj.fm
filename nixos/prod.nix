@@ -54,10 +54,8 @@
     secretsFile = ../secrets/prod-web.yaml;
     recipientEmail = "ssbothwell@gmail.com";
     environment = "prod";
-    knownIssues = [
-      "androxgh0st and similar bots scanning for .env files — normal internet noise, ignore unless volume spikes dramatically"
-      "Node.js command injection probes (child_process.execSync, process.mainModule, etc.) — irrelevant to Haskell/Servant, ignore"
-    ];
+    knownIssues = [];
+
   };
 
   # ── pgBackRest (PG backups + WAL archiving) ──────────────────
