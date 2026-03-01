@@ -511,6 +511,7 @@ library
     Effects.Storage.S3
     Helpers.RelativeTime
     Middleware.NotFound
+    Middleware.ValidateEncoding
     OrphanInstances.DayOfWeek
     OrphanInstances.Rel8
     OrphanInstances.TimeOfDay
@@ -574,6 +575,8 @@ test-suite kpbj-api-test
                     , unliftio-core
                     , uuid
                     , vector
+                    , wai
+                    , http-types
     other-modules:
        App.Handler.CombinatorsSpec
        API.Blog.Get.HandlerSpec
@@ -686,6 +689,7 @@ test-suite kpbj-api-test
        Effects.Database.Tables.UserRoleSpec
        Effects.MimeTypeValidationSpec
        Effects.StagedUploadsSpec
+       Middleware.ValidateEncodingSpec
        Test.Database.Expectation
        Test.Database.Helpers
        Test.Database.Monad
