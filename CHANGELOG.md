@@ -6,6 +6,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Fixed
 - **Liquidsoap Annotate Parse Failure on Quoted Titles** — Track titles containing double quotes (e.g. `"Usher II"`) caused Liquidsoap's `annotate:` URI parser to fail with a syntax error. The `sanitizeAnnotateValue` function existed but was only applied in the force-play webhook path — the `/api/playout/fallback` and `/api/playout/now` endpoints passed raw metadata through unsanitized. Moved sanitization into a smart constructor (`mkPlayoutMetadata`) so all `PlayoutMetadata` values are sanitized by construction.
+- **Watchdog False Positives on Liquidsoap Internals** — The LLM watchdog flagged several normal Liquidsoap/FFmpeg messages as anomalies. Added to the watchdog's "NORMAL" list: `Ffmpeg_decoder.End_of_file` (normal track completion), `Could not update timestamps for discarded samples` (VBR MP3 warning), ID3 tag parsing warnings (unsynchronized headers, BOM errors, comment frame errors — FFmpeg handles these as fallback), decoder negotiation messages ("Unsupported MIME type/extension"), and embedded album art reported as video streams.
 
 ---
 
