@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.9.2] - 2026-03-01
+
 ### Fixed
 - **Invalid UTF-8 Crashes from Exploit Scanners** — Requests with invalid UTF-8 byte sequences in paths or query strings (e.g. `%AD` → `\xad`) crashed the app with `Data.Text.Encoding: Invalid UTF-8 stream` — 11 occurrences in 2 days on staging. Added a WAI middleware that percent-decodes and validates UTF-8 before Servant routing, rejecting malformed requests with 400 Bad Request.
 - **Liquidsoap Annotate Parse Failure on Quoted Titles** — Track titles containing double quotes (e.g. `"Usher II"`) caused Liquidsoap's `annotate:` URI parser to fail with a syntax error. The `sanitizeAnnotateValue` function existed but was only applied in the force-play webhook path — the `/api/playout/fallback` and `/api/playout/now` endpoints passed raw metadata through unsanitized. Moved sanitization into a smart constructor (`mkPlayoutMetadata`) so all `PlayoutMetadata` values are sanitized by construction.
