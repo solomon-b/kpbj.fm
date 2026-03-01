@@ -8,23 +8,27 @@
 
 **If you encounter a contradiction or impossible situation, STOP and ask the user for guidance.** Do not make assumptions.
 
+**NEVER add `Co-Authored-By` lines to commits or credit yourself in PRs.** You are a tool, not a collaborator.
+
 ## Project Overview
 
-KPBJ 95.9FM community radio station. Three services:
+KPBJ 95.9FM community radio station. Four services on a DigitalOcean VPS running NixOS:
 
-- **Web Service** — Haskell/Servant app (Fly.io). Website, dashboard, playout API.
-- **Liquidsoap** — Audio automation (VPS). Polls web API, streams to Icecast.
-- **Icecast** — Streaming server (VPS). Serves listeners.
+- **Web Service** — Haskell/Servant app. Website, dashboard, playout API.
+- **Liquidsoap** — Audio automation. Polls web API, streams to Icecast.
+- **Icecast** — Streaming server. Serves listeners.
+- **Webhook** — HTTP webhook receiver (`services/webhook/`). Handles service restarts, force-play, skip-track commands from the dashboard.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for system topology and CI/CD. See [README.md](README.md) for setup and deployment.
 
-**Web Service Tech**: Haskell + Servant | Lucid2 + HTMX | PostgreSQL + Hasql | Tailwind CSS | Nix
+**Web Service Tech**: Haskell + Servant | Lucid2 + HTMX + Alpine.js | Rel8 + hasql-interpolate + PostgreSQL | Tailwind CSS | Nix
 
 ## Architecture
 
 ### HTML-Over-The-Wire
 - HTMX swaps HTML fragments (no JSON API + SPA)
 - `renderTemplate hxRequest mUserInfo content` returns full page or fragment based on `HX-Request` header
+- `renderDashboardTemplate` and `renderUnauthTemplate` for dashboard and unauthenticated pages
 - Persistent music player survives navigation
 
 ### HTMX Response Patterns
@@ -45,7 +49,7 @@ pure $ do
 **Pattern C - Row Delete with OOB Banner** (remove from list):
 ```haskell
 pure $ do
-  mempty  -- removes target element
+  Lucid.toHtmlRaw ("" :: Text)  -- removes target element
   renderBanner Success "Deleted" "Item deleted."
 ```
 
@@ -53,18 +57,31 @@ pure $ do
 
 ### Type-Safe Links (MANDATORY)
 
-**NEVER hardcode URLs.** All internal links use Servant compile-time verification.
+**NEVER hardcode URLs.** All internal links use Servant compile-time verification via `API.Links`.
 
-1. Define in `API.hs`: `blogGetLink :: Maybe Int64 -> Links.Link`
-2. Import with `{-# SOURCE #-}`: `import {-# SOURCE #-} API (blogGetLink)`
-3. Create top-level URI: `blogGetUrl = Links.linkURI $ blogGetLink Nothing`
-4. Use in templates: `Lucid.href_ [i|/#{blogGetUrl}|]`
+```haskell
+import API.Links (blogLinks)
+import Servant.Links qualified as Links
+
+-- Record dot syntax on link structures
+blogGetUrl :: Links.URI
+blogGetUrl = Links.linkURI $ blogLinks.list Nothing Nothing
+
+-- For href attributes
+Lucid.href_ [i|/#{blogGetUrl}|]
+
+-- rootLink helper for Text URLs
+import API.Links (rootLink, userLinks)
+Lucid.href_ (rootLink $ userLinks.loginGet Nothing Nothing)
+```
+
+Available link structures: `apiLinks`, `blogLinks`, `eventsLinks`, `showsLinks`, `showBlogLinks`, `showEpisodesLinks`, `userLinks`, `dashboardLinks`, `dashboardHostLinks`, `dashboardAdminLinks`, etc. See `API.Links` for the full list.
 
 ### Concrete AppM Monad
 
 All handlers use `AppM` directly (no MTL constraints):
 ```haskell
-handler :: Tracer -> Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
+handler :: Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
 ```
 
 Key operations: `execQuery`, `Log.logInfo`, `asks`, `liftIO`
@@ -75,7 +92,9 @@ Key operations: `execQuery`, `Log.logInfo`, `asks`, `liftIO`
 
 **Lucid - MUST qualify**: `import Lucid qualified` → `Lucid.div_`, `Lucid.class_`, etc.
 
-**Lucid.Extras - Unqualified**: `import Lucid.Extras` → `hxGet_`, `hxPost_`, `xData_`, `xModel_`
+**Lucid.HTMX - Unqualified**: `import Lucid.HTMX` → `hxGet_`, `hxPost_`, `hxTarget_`, etc.
+
+**Lucid.Alpine - Unqualified**: `import Lucid.Alpine` → `xData_`, `xModel_`, `xShow_`, etc.
 
 **External libraries - Qualify**: `import Servant.Links qualified as Links`
 
@@ -101,37 +120,56 @@ functionName ::
 
 ## Handler Pattern
 
-File: `API/<Feature>/<Action>/<Method>.hs`
+Each action lives in a directory with three files:
 
+```
+src/API/<Feature>/<Action>/<Method>/
+  Route.hs      -- Route type definition
+  Handler.hs    -- Handler function
+  Templates.hs  -- Lucid templates (or Templates/Page.hs for pages with components)
+```
+
+**Route.hs**:
 ```haskell
-type Route = Observability.WithSpan "GET /feature" ("feature" :> Servant.Header "Cookie" Cookie :> Servant.Header "HX-Request" HxRequest :> Servant.Get '[HTML] (Lucid.Html ()))
+type Route =
+  "feature"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Get '[HTML] (Lucid.Html ())
+```
 
-featureGetUrl :: Links.URI
-featureGetUrl = Links.linkURI featureGetLink
-
-handler :: Tracer -> Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
-handler _tracer cookie (foldHxReq -> hxRequest) = do
-  mUserInfo <- getUserInfo cookie <&> fmap snd
+**Handler.hs**:
+```haskell
+handler :: Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
+handler cookie (foldHxReq -> hxRequest) = do
+  mUserInfo <- fmap snd <$> getUserInfo cookie
   renderTemplate hxRequest mUserInfo pageTemplate
 ```
 
 ## Database
 
 ### Tables
-- **Users**: `users`, `server_sessions`, `user_metadata`, `host_details`
-- **Shows**: `shows`, `show_hosts`, `show_schedules`, `episodes`, `episode_tracks`
+- **Users**: `users`, `server_sessions`, `user_metadata`, `host_details`, `email_verification_tokens`, `password_reset_tokens`
+- **Shows**: `shows`, `show_hosts`, `show_tags`, `schedule_templates`, `schedule_template_validity`, `episodes`, `episode_tracks`, `episode_tags`
 - **Blog**: `blog_posts`, `blog_tags`, `show_blog_posts`, `show_blog_tags`
-- **Events**: `events`, `event_tags`
+- **Events**: `events`
+- **Uploads**: `staged_uploads`, `ephemeral_uploads`
+- **Content**: `site_pages`, `site_page_revisions`, `station_ids`
+- **Streaming**: `playback_history`
 
 ### Access Pattern
 
-Module: `Effects.Database.Tables.<TableName>` with `Id`, `Model`, `Insert` types and queries using `hasql-interpolate`:
+Module: `Effects.Database.Tables.<TableName>` with `Id`, `Model`, `Insert` types. Uses Rel8 for table definitions and simple queries, hasql-interpolate (`interp`/`[sql|...|]`) for complex joins:
 ```haskell
-getById :: Id -> Hasql.Statement () (Maybe Model)
-getById id = interp False [sql| SELECT ... FROM table WHERE id = #{id} |]
+-- Rel8 table definition + simple queries
+episodeSchema :: Rel8.TableSchema (Episode Rel8.Name)
+
+-- hasql-interpolate for complex queries
+getCurrentlyAiring :: Hasql.Statement () (Maybe Model)
+getCurrentlyAiring = interp False [sql| SELECT ... FROM episodes e JOIN ... |]
 ```
 
-    Execute: `result <- execQuery (Table.getById id)`
+Execute: `result <- execQuery (Table.getById id)`
 
 ## Role System
 
@@ -142,17 +180,19 @@ getById id = interp False [sql| SELECT ... FROM table WHERE id = #{id} |]
 - **Staff**: Station-wide blog posts, moderate content, manage multiple shows
 - **Admin**: User management, system configuration
 
-Enforcement: `user_metadata.role` enum, `requireRole` middleware, role in session cookie
+Enforcement: `user_metadata.role` enum, handler combinators in `App.Handler.Combinators` (`requireAuth`, `requireHostNotSuspended`, `requireStaffNotSuspended`, `requireAdminNotSuspended`, `requireShowHostOrStaff`), role in session cookie.
 
 ## File Storage
 
-**Backends**: Local filesystem (dev) or S3-compatible (prod via DigitalOcean Spaces)
+**Backends**: Local filesystem (dev) or S3-compatible (prod/staging via DigitalOcean Spaces)
 
 **Staged Uploads**: Two-phase commit pattern
 1. Upload to staging with UUID token → `/api/uploads/audio`
 2. Claim with `claimAndRelocateUpload` → moves to final location
 
-**Structure**: `media/{episodes,shows,events}/{slug}/{YYYY}/{MM}/{DD}/{type}/`
+**Structure**: `{audio,images,documents}/{resource-type}/{YYYY}/{MM}/{DD}/{slug}_{date}_{uuid}.{ext}`
+
+Example: `audio/episodes/2024/09/27/show-slug_2024-09-27_abc123.mp3`
 
 ## Development Commands
 
@@ -177,9 +217,9 @@ See [README.md](README.md) for full setup, deployment, and release process.
 ## Adding New Features
 
 ### New Route
-1. Create `src/API/Feature/Action/Get.hs` with `Route` type and `handler`
-2. Add to `API.hs`: route type, server handler, link function
-3. Add to cabal exposed-modules
+1. Create directory `src/API/Feature/Action/Get/` with `Route.hs`, `Handler.hs`, `Templates.hs`
+2. Add route type to `API/Types.hs`, server handler to `API.hs`, link to `API/Links.hs`
+3. Add all three modules to cabal exposed-modules
 
 ### New Table
 1. `just dev-migrations-add create_table_name`
@@ -190,10 +230,11 @@ See [README.md](README.md) for full setup, deployment, and release process.
 ## Environment
 
 - **Development**: Port 4000, PostgreSQL on port 5433, local file storage (`/tmp/kpbj`)
-- **Production**: DigitalOcean VPS, local PostgreSQL, DigitalOcean Spaces
+- **Staging**: DigitalOcean VPS, local PostgreSQL, DigitalOcean Spaces (`staging-kpbj-storage`)
+- **Production**: DigitalOcean VPS, local PostgreSQL, DigitalOcean Spaces (`kpbj-storage`)
 
 ```haskell
-data Environment = Development | Production
+data Environment = Development | Staging | Production
 ```
 
 In Development, the app always uses local storage regardless of S3 env vars.
