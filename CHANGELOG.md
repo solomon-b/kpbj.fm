@@ -16,6 +16,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Fixed
 - **Episode Card Aspect Ratio Mismatch** — Episode artwork is cropped to 1:1 on upload but was rendered in a 4:3 container, cutting off the top and bottom. Now renders as square to match the crop.
+- **S3 MIME Type Lost on Staged Upload Relocation** — When staged audio uploads were moved from the staging area to their final archive location via `claimAndRelocateUpload`, the S3 `CopyObject` operation did not set `Content-Type`, causing DigitalOcean Spaces to default to `binary/octet-stream`. Liquidsoap then failed to detect the file type and fell back to the FFmpeg decoder with errors. The MIME type stored in the database is now threaded through and set on the copy request.
 
 ### Changed
 - **Rename Staging Droplet** — Renamed the staging DigitalOcean droplet from `kpbj-stream-staging` to `kpbj-staging` to reflect that the VPS now hosts more than just the stream. Updated Terraform resources (with `moved` blocks), NixOS hostname and flake config, CI/CD workflows, Justfile, `.sops.yaml`, and docs.
