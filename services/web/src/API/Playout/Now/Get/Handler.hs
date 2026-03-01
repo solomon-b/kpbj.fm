@@ -6,7 +6,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Playout.Types (PlayoutMetadata (..), PlayoutResponse (..))
+import API.Playout.Types (PlayoutResponse (..), mkPlayoutMetadata)
 import App.Config (Environment (..))
 import App.Domains (siteBaseUrl)
 import App.Monad (AppM)
@@ -43,7 +43,7 @@ handler = do
         -- Fetch show info for metadata
         showResult <- execQuery $ Shows.getShowById episode.showId
         let showTitle = maybe "KPBJ 95.9 FM" (.title) (fromRight Nothing showResult)
-            metadata = PlayoutMetadata {title = showTitle, artist = "KPBJ 95.9 FM"}
+            metadata = mkPlayoutMetadata showTitle "KPBJ 95.9 FM"
 
         storageBackend <- asks (Has.getter @StorageBackend)
         env <- asks (Has.getter @Environment)
