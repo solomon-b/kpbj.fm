@@ -79,7 +79,8 @@ claimStagedUpload ::
   User.Id ->
   Text ->
   StagedUploads.UploadType ->
-  AppM (Either ClaimError Text)
+  -- | Returns (storagePath, mimeType) on success
+  AppM (Either ClaimError (Text, Text))
 claimStagedUpload userId tokenText expectedType = do
   let token = StagedUploads.Token tokenText
   result <- execQuery (StagedUploads.claimUpload token userId)
@@ -99,7 +100,7 @@ claimStagedUpload userId tokenText expectedType = do
           pure $ Left $ ClaimTypeMismatch actualType expectedType
         else do
           Log.logInfo "Claimed staged upload" (StagedUploads.storagePath stagedUpload)
-          pure $ Right $ StagedUploads.storagePath stagedUpload
+          pure $ Right (StagedUploads.storagePath stagedUpload, StagedUploads.mimeType stagedUpload)
 
 -- | Convert a ClaimError to user-friendly text.
 claimErrorToText :: ClaimError -> Text
@@ -139,7 +140,7 @@ claimAndRelocateUpload userId tokenText expectedType destBucket destResource air
   claimResult <- claimStagedUpload userId tokenText expectedType
   case claimResult of
     Left err -> pure $ Left $ claimErrorToText err
-    Right stagingPath -> do
+    Right (stagingPath, mimeType) -> do
       -- Move to final location
       backend <- asks (Has.getter @StorageBackend)
       mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
@@ -155,7 +156,7 @@ claimAndRelocateUpload userId tokenText expectedType destBucket destResource air
       let uuidText = Text.filter (/= '-') $ UUID.toText uuid
           destFilename = filenamePrefix <> "_" <> dateStr <> "_" <> uuidText <> "." <> extension
 
-      moveResult <- moveFile backend mAwsEnv stagingPath destBucket destResource dateHier destFilename
+      moveResult <- moveFile backend mAwsEnv stagingPath destBucket destResource dateHier destFilename mimeType
 
       case moveResult of
         Left err -> do
@@ -184,12 +185,14 @@ moveFile ::
   DateHierarchy ->
   -- | Destination filename
   Text ->
+  -- | MIME type (used for S3 Content-Type on the destination object)
+  Text ->
   m (Either Text Text)
-moveFile backend mAwsEnv sourcePath destBucket destResource destDateHier destFilename =
+moveFile backend mAwsEnv sourcePath destBucket destResource destDateHier destFilename mimeType =
   case backend of
     LocalStorage config ->
       Local.moveFileLocal config sourcePath destBucket destResource destDateHier destFilename
     S3Storage config -> case mAwsEnv of
       Nothing -> pure $ Left "S3 storage requires AWS environment"
       Just awsEnv ->
-        S3.moveFileS3 awsEnv config sourcePath destBucket destResource destDateHier destFilename
+        S3.moveFileS3 awsEnv config sourcePath destBucket destResource destDateHier destFilename mimeType

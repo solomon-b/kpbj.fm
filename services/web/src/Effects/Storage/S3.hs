@@ -16,7 +16,7 @@ where
 
 import Amazonka qualified as AWS
 import Amazonka.S3 qualified as S3
-import Amazonka.S3.CopyObject (copyObject_acl)
+import Amazonka.S3.CopyObject (copyObject_acl, copyObject_contentType)
 import Amazonka.S3.PutObject (putObject_acl, putObject_contentType)
 import Amazonka.S3.Types (ObjectCannedACL (..))
 import Control.Exception (IOException, SomeException)
@@ -204,8 +204,10 @@ moveFileS3 ::
   DateHierarchy ->
   -- | Destination filename
   Text ->
+  -- | MIME type to set on the destination object
+  Text ->
   m (Either Text Text)
-moveFileS3 awsEnv config sourceKey destBucketType destResourceType destDateHier destFilename = liftIO $ do
+moveFileS3 awsEnv config sourceKey destBucketType destResourceType destDateHier destFilename mimeType = liftIO $ do
   let destKey = buildStorageKey destBucketType destResourceType destDateHier destFilename
       bucket = S3.BucketName (s3BucketName config)
       srcKeyObj = S3.ObjectKey sourceKey
@@ -218,6 +220,7 @@ moveFileS3 awsEnv config sourceKey destBucketType destResourceType destDateHier 
     let req =
           S3.newCopyObject bucket copySource destKeyObj
             & copyObject_acl ?~ ObjectCannedACL_Public_read
+            & copyObject_contentType ?~ mimeType
     AWS.send awsEnv req
 
   case copyResult of
