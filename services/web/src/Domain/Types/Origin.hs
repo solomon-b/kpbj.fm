@@ -32,4 +32,6 @@ newtype Origin = Origin {unOrigin :: Text}
 
 instance FromHttpApiData Origin where
   parseUrlPiece = Right . Origin
-  parseHeader = Right . Origin . Text.decodeUtf8
+  parseHeader bs = case Text.decodeUtf8' bs of
+    Right t -> Right (Origin t)
+    Left _ -> Left "Invalid UTF-8 in Origin header"
