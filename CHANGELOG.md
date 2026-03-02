@@ -4,6 +4,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Watchdog Self-Referential False Alarms** — The watchdog collected its own service logs via the `kpbj-*` journal filter, so any previous watchdog failure would be flagged as an anomaly on the next successful run — always a false alarm by definition. Excluded `kpbj-watchdog` from log collection.
+- **Watchdog "Argument list too long" Crash** — Large journal logs passed via `jq --arg` could exceed Linux's `ARG_MAX` limit, crashing the script. Moved large data (logs, service status, system prompt) to temp files loaded via `jq --rawfile`.
+
 ### Changed
 - **PostgreSQL Graceful Shutdown on Deploy** — Switched PostgreSQL's systemd stop signal from SIGINT (fast shutdown, aborts transactions) to SIGTERM (smart shutdown, waits for clients to disconnect). Prevents non-graceful shutdown warnings from the watchdog during routine `nixos-rebuild switch` deployments.
 

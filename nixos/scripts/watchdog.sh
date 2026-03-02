@@ -43,7 +43,7 @@ journal_logs=$(journalctl \
   -u postgresql \
   --no-pager \
   --no-hostname \
-  -n 500 2>&1) || true
+  -n 500 2>&1 | grep -v 'kpbj-watchdog') || true
 
 # Service statuses. systemctl status returns non-zero for
 # failed/inactive services, which is expected.
@@ -139,23 +139,38 @@ ${known_issues}"
 fi
 
 # ── 4. Build JSON payload with jq (safe escaping) ───────────
+#
+# Large data is written to temp files and loaded via jq --rawfile
+# to avoid hitting the kernel ARG_MAX limit on command-line args.
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "${tmpdir}"' EXIT
+
+printf '%s' "${journal_logs}" > "${tmpdir}/journal"
+printf '%s' "${service_status}" > "${tmpdir}/services"
+printf '%s' "${disk_usage}" > "${tmpdir}/disk"
+printf '%s' "${memory_usage}" > "${tmpdir}/memory"
+printf '%s' "${system_uptime}" > "${tmpdir}/uptime"
+printf '%s' "${SYSTEM_PROMPT}" > "${tmpdir}/system_prompt"
 
 user_message=$(jq -n \
   --arg env "${WATCHDOG_ENV}" \
   --arg interval "${WATCHDOG_INTERVAL}" \
   --arg timestamp "${TIMESTAMP}" \
-  --arg journal "${journal_logs}" \
-  --arg services "${service_status}" \
-  --arg disk "${disk_usage}" \
-  --arg memory "${memory_usage}" \
-  --arg uptime_info "${system_uptime}" \
+  --rawfile journal "${tmpdir}/journal" \
+  --rawfile services "${tmpdir}/services" \
+  --rawfile disk "${tmpdir}/disk" \
+  --rawfile memory "${tmpdir}/memory" \
+  --rawfile uptime_info "${tmpdir}/uptime" \
   '{
     text: ("Analyze these logs and metrics from the KPBJ " + $env + " server.\nCollection time: " + $timestamp + "\nLookback window: " + $interval + " minutes\n\n--- JOURNAL LOGS (last " + $interval + " minutes) ---\n" + $journal + "\n\n--- SERVICE STATUSES ---\n" + $services + "\n\n--- DISK USAGE ---\n" + $disk + "\n\n--- MEMORY ---\n" + $memory + "\n\n--- UPTIME ---\n" + $uptime_info)
   }' | jq -r '.text')
 
+printf '%s' "${user_message}" > "${tmpdir}/user_message"
+
 payload=$(jq -n \
-  --arg system_prompt "${SYSTEM_PROMPT}" \
-  --arg user_message "${user_message}" \
+  --rawfile system_prompt "${tmpdir}/system_prompt" \
+  --rawfile user_message "${tmpdir}/user_message" \
   '{
     system_instruction: {
       parts: [{ text: $system_prompt }]
