@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Invalid UTF-8 in Headers Crashing Servant** — Exploit scanners sending invalid UTF-8 bytes (e.g. `\xAD`) in HTTP headers bypassed the path/query `ValidateEncoding` middleware and crashed Servant via strict `decodeUtf8` in `Origin`'s `parseHeader`. Fixed `Origin` to use safe `decodeUtf8'` and simplified the middleware to a `catch`-all for `UnicodeException` that covers path, query, headers, and body.
 - **Watchdog Self-Referential False Alarms** — The watchdog collected its own service logs via the `kpbj-*` journal filter, so any previous watchdog failure would be flagged as an anomaly on the next successful run — always a false alarm by definition. Excluded `kpbj-watchdog` from log collection.
 - **Watchdog "Argument list too long" Crash** — Large journal logs passed via `jq --arg` could exceed Linux's `ARG_MAX` limit, crashing the script. Moved large data (logs, service status, system prompt) to temp files loaded via `jq --rawfile`.
 
