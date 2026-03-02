@@ -41,9 +41,7 @@ data SmtpConfig = SmtpConfig
     -- | "From" email address for outgoing emails
     smtpFromEmail :: Text,
     -- | "From" display name for outgoing emails
-    smtpFromName :: Text,
-    -- | Base URL for the application (used in email links)
-    smtpBaseUrl :: Text
+    smtpFromName :: Text
   }
   deriving stock (Show, Eq)
 
@@ -58,7 +56,6 @@ data SmtpConfig = SmtpConfig
 --   - APP_SMTP_PASSWORD: SMTP authentication password
 --   - APP_SMTP_FROM_EMAIL: "From" email address
 --   - APP_SMTP_FROM_NAME: "From" display name
---   - APP_BASE_URL: Base URL for email links (e.g., "https://kpbj.fm")
 --
 -- Returns Nothing if any required environment variables are missing.
 -- When SMTP is not configured, emails will be logged to console instead.
@@ -70,10 +67,9 @@ loadSmtpConfig = liftIO $ do
   mPassword <- lookupEnvText "APP_SMTP_PASSWORD"
   mFromEmail <- lookupEnvText "APP_SMTP_FROM_EMAIL"
   mFromName <- lookupEnvText "APP_SMTP_FROM_NAME"
-  mBaseUrl <- lookupEnvText "APP_BASE_URL"
 
-  case (mServer, mPort, mUsername, mPassword, mFromEmail, mFromName, mBaseUrl) of
-    (Just server, Just port, Just username, Just password, Just fromEmail, Just fromName, Just baseUrl) ->
+  case (mServer, mPort, mUsername, mPassword, mFromEmail, mFromName) of
+    (Just server, Just port, Just username, Just password, Just fromEmail, Just fromName) ->
       pure $
         Just
           SmtpConfig
@@ -82,8 +78,7 @@ loadSmtpConfig = liftIO $ do
               smtpUsername = username,
               smtpPassword = password,
               smtpFromEmail = fromEmail,
-              smtpFromName = fromName,
-              smtpBaseUrl = baseUrl
+              smtpFromName = fromName
             }
     _ ->
       pure Nothing

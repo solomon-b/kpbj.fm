@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | Handler for POST /user/forgot-password
@@ -14,21 +15,20 @@ import API.User.ForgotPassword.Post.Route (ForgotPasswordForm (..))
 import App.Common (renderUnauthTemplate)
 import App.Handler.Error (HandlerError)
 import App.Monad (AppM)
-import App.Smtp (SmtpConfig)
-import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
-import Data.Has qualified as Has
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Data.Text.Lazy qualified as LT
 import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.EmailAddress qualified as EmailAddress
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PasswordResetTokens qualified as ResetTokens
 import Effects.Database.Tables.User qualified as User
-import Effects.MailSender qualified as MailSender
+import Effects.Email.Send qualified as Email
 import Effects.PasswordReset qualified as PasswordReset
 import Log qualified
 import Lucid qualified
@@ -47,7 +47,6 @@ action ::
   ForgotPasswordForm ->
   ExceptT HandlerError AppM ()
 action sockAddr mUserAgent ForgotPasswordForm {..} = do
-  mSmtpConfig <- asks Has.getter
   case EmailAddress.validate (mkEmailAddress fpfEmail) of
     Left _ -> do
       Log.logInfo "Password reset requested for invalid email format" fpfEmail
@@ -71,11 +70,7 @@ action sockAddr mUserAgent ForgotPasswordForm {..} = do
             Left err -> do
               Log.logInfo "Password reset token creation failed" (Text.pack $ show err)
             Right token -> do
-              lift $ case mSmtpConfig of
-                Nothing ->
-                  Log.logInfo "Password reset token (SMTP not configured)" (ResetTokens.unToken token)
-                Just smtpConfig ->
-                  sendResetEmail smtpConfig validEmail token
+              lift $ sendResetEmail validEmail token
 
 handler ::
   SockAddr ->
@@ -104,12 +99,66 @@ renderSuccess hxRequest = do
 
 -- | Send the password reset email asynchronously.
 sendResetEmail ::
-  SmtpConfig ->
   EmailAddress.EmailAddress ->
   ResetTokens.Token ->
   AppM ()
-sendResetEmail smtpConfig email token = do
+sendResetEmail email token = do
   let emailText = display email
       tokenText = ResetTokens.unToken token
-  MailSender.sendPasswordResetEmailAsync smtpConfig emailText tokenText
+  url <- Email.baseUrl
+  Email.sendAsync (buildPasswordResetEmail url emailText tokenText)
   Log.logInfo "Password reset email queued" emailText
+
+--------------------------------------------------------------------------------
+
+-- | Build a password reset email.
+buildPasswordResetEmail ::
+  -- | Application base URL
+  Text ->
+  -- | Recipient email address
+  Text ->
+  -- | Reset token
+  Text ->
+  Email.Email
+buildPasswordResetEmail appBaseUrl toEmail token =
+  let resetUrl = appBaseUrl <> "/user/reset-password?token=" <> token
+   in Email.Email
+        { Email.emailTo = toEmail,
+          Email.emailSubject = "Reset your password - KPBJ 95.9FM",
+          Email.emailBody =
+            LT.fromStrict
+              [i|
+================================================================
+                  KPBJ 95.9FM COMMUNITY RADIO
+================================================================
+
+Password Reset Request
+
+We received a request to reset your password for your
+KPBJ 95.9FM account.
+
+RESET YOUR PASSWORD
+-------------------
+Click or copy this link into your browser:
+
+#{resetUrl}
+
+This link will expire in 1 hour.
+
+DIDN'T REQUEST THIS?
+--------------------
+If you didn't request a password reset, you can safely
+ignore this email. Your password will not be changed
+unless you click the link above.
+
+*** SECURITY NOTICE ***
+Do not share this link with anyone.
+
+--
+The KPBJ Team
+https://kpbj.fm
+
+================================================================
+|],
+          Email.emailLabel = "password-reset"
+        }

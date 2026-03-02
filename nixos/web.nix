@@ -107,11 +107,6 @@ in
       description = "From display name for outgoing mail.";
     };
 
-    baseUrl = lib.mkOption {
-      type = lib.types.str;
-      description = "Base URL for email links (e.g. https://staging.kpbj.fm).";
-    };
-
     webhookUrl = lib.mkOption {
       type = lib.types.str;
       description = "URL of the webhook listener for service restarts.";
@@ -211,7 +206,6 @@ in
         APP_SMTP_USERNAME = cfg.smtpUsername;
         APP_SMTP_FROM_EMAIL = cfg.smtpFromEmail;
         APP_SMTP_FROM_NAME = cfg.smtpFromName;
-        APP_BASE_URL = cfg.baseUrl;
 
         # S3 (credentials come via EnvironmentFile)
         AWS_ENDPOINT_URL_S3 = cfg.awsEndpointUrl;

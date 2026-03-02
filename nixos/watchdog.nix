@@ -55,7 +55,7 @@ in
 
     knownIssues = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "Known issues the watchdog should ignore unless the pattern changes significantly.";
     };
   };

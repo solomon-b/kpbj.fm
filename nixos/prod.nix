@@ -54,7 +54,7 @@
     secretsFile = ../secrets/prod-web.yaml;
     recipientEmail = "ssbothwell@gmail.com";
     environment = "prod";
-    knownIssues = [];
+    knownIssues = [ ];
 
   };
 
@@ -107,7 +107,6 @@
     smtpUsername = "noreply@kpbj.fm";
     smtpFromEmail = "noreply@kpbj.fm";
     smtpFromName = "KPBJ 95.9FM";
-    baseUrl = "https://www.kpbj.fm";
 
     # Webhook (co-located on same VPS)
     webhookUrl = "http://127.0.0.1:9000";

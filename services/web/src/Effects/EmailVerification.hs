@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 -- | Email verification service.
 --
 -- Provides operations for:
@@ -23,21 +25,23 @@ where
 --------------------------------------------------------------------------------
 
 import App.Monad (AppM)
-import App.Smtp (SmtpConfig)
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (asks)
-import Data.Has qualified as Has
+import Data.Aeson ((.=))
+import Data.Aeson qualified as Aeson
 import Data.Int (Int64)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Data.Text.Lazy qualified as LT
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID.V4
 import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
 import Effects.Database.Tables.User qualified as User
-import Effects.MailSender qualified as MailSender
+import Effects.Email.Send qualified as Email
 import Log qualified
 
 --------------------------------------------------------------------------------
@@ -108,70 +112,33 @@ createAndSendVerification ::
   -- | User email address
   EmailAddress ->
   AppM (Either VerificationError VerificationTokens.Token)
-createAndSendVerification userId email = do
-  mSmtpConfig <- asks Has.getter
-  case mSmtpConfig of
-    Nothing -> do
-      -- SMTP not configured - log and return success for development
-      Log.logInfo "Email verification skipped (SMTP not configured)" (display email)
-      token <- generateVerificationToken
-      -- Still create the token in the database for consistency
-      let tokenInsert =
-            VerificationTokens.Insert
-              { VerificationTokens.iUserId = userId,
-                VerificationTokens.iToken = token,
-                VerificationTokens.iEmail = display email
-              }
-      -- Invalidate existing tokens first
-      _ <- execQuery (VerificationTokens.invalidateForUser userId)
-      insertResult <- execQuery (VerificationTokens.insert tokenInsert)
-      case insertResult of
-        Left err -> do
-          Log.logInfo "Failed to create verification token" (Text.pack $ show err)
-          pure $ Left $ VerificationDbError "Failed to create verification token"
-        Right Nothing -> do
-          Log.logInfo "Failed to create verification token (no ID returned)" (display email)
-          pure $ Left $ VerificationDbError "Failed to create verification token"
-        Right (Just _) -> do
-          Log.logInfo "Verification token created (email not sent - SMTP not configured)" (display email)
-          pure $ Right token
-    Just smtpConfig ->
-      createAndSendVerificationWithConfig smtpConfig userId email
-
--- | Internal helper that creates and sends verification with SMTP config.
-createAndSendVerificationWithConfig ::
-  SmtpConfig ->
-  User.Id ->
-  EmailAddress ->
-  AppM (Either VerificationError VerificationTokens.Token)
-createAndSendVerificationWithConfig smtpConfig userId email = do
+createAndSendVerification userId emailAddress = do
   -- Generate token
   token <- generateVerificationToken
 
   -- Invalidate any existing pending tokens for this user
-  _ <- execQuery (VerificationTokens.invalidateForUser userId)
+  void $ execQuery (VerificationTokens.invalidateForUser userId)
 
   -- Create the token in the database
   let tokenInsert =
         VerificationTokens.Insert
           { VerificationTokens.iUserId = userId,
             VerificationTokens.iToken = token,
-            VerificationTokens.iEmail = display email
+            VerificationTokens.iEmail = display emailAddress
           }
 
-  insertResult <- execQuery (VerificationTokens.insert tokenInsert)
-  case insertResult of
+  execQuery (VerificationTokens.insert tokenInsert) >>= \case
     Left err -> do
       Log.logInfo "Failed to create verification token" (Text.pack $ show err)
       pure $ Left $ VerificationDbError "Failed to create verification token"
     Right Nothing -> do
-      Log.logInfo "Failed to create verification token (no ID returned)" (display email)
+      Log.logInfo "Failed to create verification token (no ID returned)" (display emailAddress)
       pure $ Left $ VerificationDbError "Failed to create verification token"
-    Right (Just _) -> do
+    Right (Just tokenId) -> do
       -- Send the verification email asynchronously (fire-and-forget)
-      let tokenText = VerificationTokens.unToken token
-      MailSender.sendVerificationEmailAsync smtpConfig (display email) tokenText
-      Log.logInfo "Verification email queued" (display email)
+      url <- Email.baseUrl
+      Email.sendAsync (buildVerificationEmail url (display emailAddress) (VerificationTokens.unToken token))
+      Log.logInfo "Verification email queued" (Aeson.object ["email" .= display emailAddress, "tokenId" .= tokenId])
       pure $ Right token
 
 -- | Verify an email address using a token.
@@ -255,3 +222,52 @@ checkResendRateLimit userId = do
       -- Recent token exists, rate limit
       Log.logInfo "Resend rate limited" (display userId)
       pure $ Left $ RateLimited (fromIntegral resendCooldownSeconds)
+
+--------------------------------------------------------------------------------
+
+-- | Build a verification email.
+buildVerificationEmail ::
+  -- | Application base URL
+  Text ->
+  -- | Recipient email address
+  Text ->
+  -- | Verification token
+  Text ->
+  Email.Email
+buildVerificationEmail appBaseUrl toEmail token =
+  let verificationUrl = appBaseUrl <> "/user/verify-email?token=" <> token
+   in Email.Email
+        { Email.emailTo = toEmail,
+          Email.emailSubject = "Verify your email address - KPBJ 95.9FM",
+          Email.emailBody =
+            LT.fromStrict
+              [i|
+================================================================
+                  KPBJ 95.9FM COMMUNITY RADIO
+================================================================
+
+Welcome to KPBJ Radio!
+
+Please verify your email address to complete your registration.
+
+VERIFY YOUR EMAIL
+-----------------
+Click or copy this link into your browser:
+
+#{verificationUrl}
+
+This link will expire in 24 hours.
+
+DIDN'T SIGN UP?
+---------------
+If you didn't create an account with us, you can safely
+ignore this email.
+
+--
+The KPBJ Team
+https://kpbj.fm
+
+================================================================
+|],
+          Email.emailLabel = "verification"
+        }

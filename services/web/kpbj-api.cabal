@@ -497,10 +497,10 @@ library
     Effects.AWS
     Effects.ContentSanitization
     Effects.Diff
+    Effects.Email.Send
     Effects.EmailVerification
     Effects.FileUpload
     Effects.HostNotifications
-    Effects.MailSender
     Effects.PasswordReset
     Effects.Markdown
     Effects.MimeTypeValidation
