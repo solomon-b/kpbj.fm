@@ -53,6 +53,14 @@ in
 
   config = lib.mkIf cfg.enable {
     # ── PostgreSQL service ───────────────────────────────────────
+    # Use smart shutdown (SIGTERM) so PostgreSQL waits for clients to
+    # disconnect gracefully during nixos-rebuild switch, instead of the
+    # default fast shutdown (SIGINT) which aborts active transactions.
+    systemd.services.postgresql.serviceConfig = {
+      KillSignal = lib.mkForce "SIGTERM";
+      TimeoutStopSec = 120;
+    };
+
     services.postgresql = {
       enable = true;
       package = cfg.pgPackage;
