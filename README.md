@@ -42,7 +42,6 @@ export APP_SMTP_USERNAME="your-email@gmail.com"
 export APP_SMTP_PASSWORD="your-app-password"
 export APP_SMTP_FROM_EMAIL="noreply@kpbj.fm"
 export APP_SMTP_FROM_NAME="KPBJ 95.9FM"
-export APP_BASE_URL="http://localhost:4000"
 
 # Optional - for streaming integration
 export PLAYOUT_SECRET="your-secret"
