@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+- **PostgreSQL Graceful Shutdown on Deploy** — Switched PostgreSQL's systemd stop signal from SIGINT (fast shutdown, aborts transactions) to SIGTERM (smart shutdown, waits for clients to disconnect). Prevents non-graceful shutdown warnings from the watchdog during routine `nixos-rebuild switch` deployments.
 
 ---
 
