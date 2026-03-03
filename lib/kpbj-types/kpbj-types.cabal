@@ -1,0 +1,69 @@
+cabal-version:      3.0
+name:               kpbj-types
+version:            0.1.0
+license:            Apache-2.0
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+library
+  default-extensions:
+      DataKinds
+      DerivingStrategies
+      DeriveAnyClass
+      DerivingVia
+      DeriveGeneric
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      InstanceSigs
+      LambdaCase
+      MultiParamTypeClasses
+      OverloadedRecordDot
+      OverloadedStrings
+      RankNTypes
+      RecordWildCards
+      StrictData
+      TypeApplications
+      TypeOperators
+      TypeSynonymInstances
+  build-depends:
+      aeson
+    , base
+    , hasql
+    , hasql-interpolate
+    , random
+    , rel8
+    , servant-server
+    , text
+    , text-display
+    , time
+    , tz
+  exposed-modules:
+    Domain.Types.Cookie
+    Domain.Types.FileStorage
+    Domain.Types.FileUpload
+    Domain.Types.Filter
+    Domain.Types.GoogleAnalyticsId
+    Domain.Types.HxRedirect
+    Domain.Types.HxRequest
+    Domain.Types.Limit
+    Domain.Types.Offset
+    Domain.Types.Origin
+    Domain.Types.PageNumber
+    Domain.Types.PostStatus
+    Domain.Types.Search
+    Domain.Types.SetCookie
+    Domain.Types.ShowSortBy
+    Domain.Types.Slug
+    Domain.Types.StorageBackend
+    Domain.Types.Timezone
+    Domain.Types.UserSortBy
+    Domain.Types.WeekOffset
+    OrphanInstances.DayOfWeek
+    OrphanInstances.TimeOfDay
+  hs-source-dirs: src
+  default-language: Haskell2010
+  ghc-options: -Wall

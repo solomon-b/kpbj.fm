@@ -14,7 +14,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_, tablet)
 import Design.FormStyles (formBuilderCSS)
-import Design.Theme (defaultTheme, themeCSS)
+import Design.Theme (defaultTheme, getTheme, themeCSS)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId (..))
@@ -813,7 +813,7 @@ template mGoogleAnalyticsId streamSettings mUser main =
       Lucid.title_ "KPBJ 95.9FM"
       -- Theme CSS (must be before Tailwind for CSS variable availability)
       -- Use user's theme preference if available, otherwise default theme
-      let theme = maybe defaultTheme (UserMetadata.getTheme . UserMetadata.mTheme) mUser
+      let theme = maybe defaultTheme (getTheme . UserMetadata.mTheme) mUser
       Lucid.style_ [] (themeCSS theme)
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"]

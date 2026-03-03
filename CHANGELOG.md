@@ -12,6 +12,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Changed
 - **PostgreSQL Graceful Shutdown on Deploy** — Switched PostgreSQL's systemd stop signal from SIGINT (fast shutdown, aborts transactions) to SIGTERM (smart shutdown, waits for clients to disconnect). Prevents non-graceful shutdown warnings from the watchdog during routine `nixos-rebuild switch` deployments.
 - **Email Subsystem Refactor** — Replaced monolithic `Effects.MailSender` with `Effects.Email.Send` (unified send/log dispatch) and inlined email templates into their call sites (`EmailVerification`, `ForgotPassword`, `HostNotifications`). Eliminated the `APP_BASE_URL` env var — base URL is now derived from `Hostname` and `Environment` already in the app context.
+- **Library Extraction** — Extracted `kpbj-types` and `kpbj-database` from the `kpbj-api` monolith into standalone libraries under `lib/`. `kpbj-types` contains domain types (`Slug`, `FileUpload`, `StorageBackend`, `Filter`, etc.) and orphan instances. `kpbj-database` contains all Rel8 table definitions, queries, and database test infrastructure. Updated `cabal.project` and `flake.nix` to build the new packages.
 
 ---
 

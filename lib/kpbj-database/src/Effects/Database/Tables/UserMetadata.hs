@@ -29,8 +29,6 @@ module Effects.Database.Tables.UserMetadata
     pattern GruvboxTheme,
     pattern DraculaTheme,
     pattern NordTheme,
-    getTheme,
-
     -- * Id Type
     Id (..),
 
@@ -79,7 +77,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display, RecordInstance (..), display, displayBuilder)
 import Data.Time (UTCTime)
-import Design.Theme qualified
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
@@ -279,18 +276,6 @@ pattern DraculaTheme = ThemeName "Dracula"
 
 pattern NordTheme :: ThemeName
 pattern NordTheme = ThemeName "Nord"
-
--- | Get the Theme corresponding to a ThemeName.
---
--- Falls back to defaultTheme for unknown theme names.
-getTheme :: ThemeName -> Design.Theme.Theme
-getTheme (ThemeName name) = case name of
-  "Default" -> Design.Theme.defaultTheme
-  "Solarized" -> Design.Theme.solarizedTheme
-  "Gruvbox" -> Design.Theme.gruvboxTheme
-  "Dracula" -> Design.Theme.draculaTheme
-  "Nord" -> Design.Theme.nordTheme
-  _ -> Design.Theme.defaultTheme
 
 --------------------------------------------------------------------------------
 -- Id Type

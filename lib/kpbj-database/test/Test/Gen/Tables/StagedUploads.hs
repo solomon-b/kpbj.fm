@@ -2,9 +2,12 @@ module Test.Gen.Tables.StagedUploads where
 
 --------------------------------------------------------------------------------
 
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID.V4
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Hedgehog (MonadGen (..))
@@ -84,3 +87,10 @@ genFileSize = Gen.int64 (Range.linear 1024 (100 * 1024 * 1024))
 -- | Generate an upload type
 genUploadType :: (MonadGen m) => m StagedUploads.UploadType
 genUploadType = Gen.element [StagedUploads.EpisodeAudio]
+
+-- | Generate a cryptographically secure token for staged uploads.
+generateSecureToken :: (MonadIO m) => m StagedUploads.Token
+generateSecureToken = liftIO $ do
+  uuid <- UUID.V4.nextRandom
+  let tokenText = Text.filter (/= '-') $ UUID.toText uuid
+  pure $ StagedUploads.Token tokenText

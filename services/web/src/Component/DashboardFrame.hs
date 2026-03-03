@@ -38,7 +38,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Design (base, class_, class_')
 import Design.FormStyles (formBuilderCSS)
-import Design.Theme (themeCSS)
+import Design.Theme (getTheme, themeCSS)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
@@ -151,7 +151,7 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
       googleAnalyticsScript mGoogleAnalyticsId
       Lucid.title_ "Dashboard | KPBJ 95.9FM"
       -- Theme CSS (must be before Tailwind for CSS variable availability)
-      let theme = UserMetadata.getTheme userMeta.mTheme
+      let theme = getTheme userMeta.mTheme
       Lucid.style_ [] (themeCSS theme)
       -- HTMX indicator CSS (hides loading indicators until request in flight)
       Lucid.style_ [] htmxIndicatorStyles

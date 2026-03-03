@@ -11,7 +11,7 @@ import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.EmailVerificationTokens qualified as UUT
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.EmailVerification (generateVerificationToken)
+import Test.Gen.Tables.EmailVerificationTokens (generateVerificationToken)
 import Hasql.Interpolate (interp, sql)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX

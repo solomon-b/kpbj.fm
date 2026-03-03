@@ -9,7 +9,7 @@ import Data.Text.Display (display)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.PasswordResetTokens qualified as UUT
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.PasswordReset (generateResetToken)
+import Test.Gen.Tables.PasswordResetTokens (generateResetToken)
 import Hasql.Interpolate (interp, sql)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
