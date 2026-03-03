@@ -77,6 +77,9 @@ module Design.Theme
 
     -- * Hover State Token
     hoverBg,
+
+    -- * Theme Lookup
+    getTheme,
   )
 where
 
@@ -84,6 +87,7 @@ where
 
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Effects.Database.Tables.UserMetadata (ThemeName (..))
 import Prelude hiding (error)
 
 --------------------------------------------------------------------------------
@@ -522,3 +526,18 @@ info = "text-[var(--theme-info)]"
 -- | Hover background color
 hoverBg :: Text
 hoverBg = "hover:bg-[var(--theme-hover)]"
+
+--------------------------------------------------------------------------------
+-- Theme Lookup
+
+-- | Get the Theme corresponding to a ThemeName.
+--
+-- Falls back to defaultTheme for unknown theme names.
+getTheme :: ThemeName -> Theme
+getTheme (ThemeName name) = case name of
+  "Default" -> defaultTheme
+  "Solarized" -> solarizedTheme
+  "Gruvbox" -> gruvboxTheme
+  "Dracula" -> draculaTheme
+  "Nord" -> nordTheme
+  _ -> defaultTheme

@@ -7,6 +7,7 @@ import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO)
 import Data.ByteString (toStrict)
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Monoid (Last (..))
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID (toString)
@@ -21,6 +22,7 @@ import Database.Postgres.Temp as PGTmp
     toConnectionOptions,
     withConfig,
   )
+import System.Environment (lookupEnv)
 import System.Process.Typed as PT (ExitCode (..), ProcessConfig, proc, readProcess, setEnv)
 import Test.Database.Monad
 
@@ -86,7 +88,10 @@ withTmpPG action = do
           "-c",
           "CREATE DATABASE \"" <> dbname <> "\" WITH IS_TEMPLATE TRUE"
         ]
-    let migration = setEnv [("DATABASE_URL", connString)] $ proc "sqlx" ["migrate", "run"]
+    -- MIGRATIONS_DIR env var allows running from any package directory.
+    -- Falls back to "migrations/" for backwards compat (works from services/web/).
+    migrationsDir <- fromMaybe "migrations" <$> lookupEnv "MIGRATIONS_DIR"
+    let migration = setEnv [("DATABASE_URL", connString)] $ proc "sqlx" ["migrate", "run", "--source", migrationsDir]
     readProcessHandleErr migration
 
     void $

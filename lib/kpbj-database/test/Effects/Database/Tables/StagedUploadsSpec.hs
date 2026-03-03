@@ -7,7 +7,7 @@ module Effects.Database.Tables.StagedUploadsSpec where
 import Control.Monad.IO.Class (liftIO)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.StagedUploads qualified as UUT
-import Effects.StagedUploads (generateSecureToken)
+import Test.Gen.Tables.StagedUploads (generateSecureToken)
 import Hasql.Interpolate (interp, sql)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX

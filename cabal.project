@@ -6,6 +6,8 @@ packages:
   services/web/lib/lucid-form-builder/lucid-form-builder.cabal
   services/web/lib/lucid-htmx-alpine/lucid-htmx-alpine.cabal
   services/web/lib/lucid-tailwind/lucid-tailwind.cabal
+  lib/kpbj-types/kpbj-types.cabal
+  lib/kpbj-database/kpbj-database.cabal
   jobs/sync-host-emails/sync-host-emails.cabal
   jobs/token-cleanup/token-cleanup.cabal
 

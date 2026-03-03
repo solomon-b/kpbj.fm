@@ -53,6 +53,10 @@
 
               hasql-transaction = pkgs.haskell.lib.dontCheck hfinal.hasql-transaction_1_2_0_1;
 
+              kpbj-types = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-types" ./lib/kpbj-types { });
+
+              kpbj-database = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-database" ./lib/kpbj-database { });
+
               kpbj-api = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-api" ./services/web { });
 
               sync-host-emails = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "sync-host-emails" ./jobs/sync-host-emails { });
@@ -112,7 +116,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: [ p.kpbj-api p.sync-host-emails p.token-cleanup ];
+            packages = p: [ p.kpbj-types p.kpbj-database p.kpbj-api p.sync-host-emails p.token-cleanup ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install

@@ -1,10 +1,13 @@
-module Test.Gen.Tables.PasswordResetTokens (mkInsert, passwordResetInsertGen) where
+module Test.Gen.Tables.PasswordResetTokens (mkInsert, passwordResetInsertGen, generateResetToken) where
 
 --------------------------------------------------------------------------------
 
 import Control.Monad (replicateM)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID.V4
 import Effects.Database.Tables.PasswordResetTokens qualified as PRT
 import Effects.Database.Tables.User qualified as User
 import Hedgehog (MonadGen)
@@ -36,3 +39,10 @@ passwordResetInsertGen = do
   ipAddress <- Gen.maybe genIPv4
   userAgent <- Gen.maybe $ Gen.text (Range.linear 10 50) Gen.alphaNum
   pure (ipAddress, userAgent)
+
+-- | Generate a cryptographically secure reset token for tests.
+generateResetToken :: (MonadIO m) => m PRT.Token
+generateResetToken = liftIO $ do
+  uuid <- UUID.V4.nextRandom
+  let tokenText = Text.filter (/= '-') $ UUID.toText uuid
+  pure $ PRT.Token tokenText
