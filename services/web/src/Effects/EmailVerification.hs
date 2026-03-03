@@ -41,6 +41,7 @@ import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
 import Effects.Database.Tables.User qualified as User
+import App.BaseUrl (baseUrl)
 import Effects.Email.Send qualified as Email
 import Log qualified
 
@@ -136,7 +137,7 @@ createAndSendVerification userId emailAddress = do
       pure $ Left $ VerificationDbError "Failed to create verification token"
     Right (Just tokenId) -> do
       -- Send the verification email asynchronously (fire-and-forget)
-      url <- Email.baseUrl
+      url <- baseUrl
       Email.sendAsync (buildVerificationEmail url (display emailAddress) (VerificationTokens.unToken token))
       Log.logInfo "Verification email queued" (Aeson.object ["email" .= display emailAddress, "tokenId" .= tokenId])
       pure $ Right token
