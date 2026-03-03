@@ -73,6 +73,7 @@ library
                   , hasql-transaction
                   , kpbj-types
                   , kpbj-database
+                  , kpbj-email
                   , rel8
                   , hs-opentelemetry-sdk
                   , http-api-data
@@ -90,11 +91,9 @@ library
                   , password
                   , random
                   , resourcet
-                  , mime-mail
                   , servant
                   , servant-multipart
                   , servant-server
-                  , smtp-mail
                   , string-interpolate
                   , temporary
                   , text
@@ -423,6 +422,7 @@ library
     API.User.ResetPassword.Post.Handler
     API.User.ResetPassword.Post.Route
     App.Analytics
+    App.BaseUrl
     App.Common
     App.Domains
     App.CustomContext
@@ -457,7 +457,6 @@ library
     Effects.AWS
     Effects.ContentSanitization
     Effects.Diff
-    Effects.Email.Send
     Effects.EmailVerification
     Effects.FileUpload
     Effects.HostNotifications

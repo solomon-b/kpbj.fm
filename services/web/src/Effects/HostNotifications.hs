@@ -29,6 +29,7 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import App.BaseUrl (baseUrl)
 import Effects.Email.Send qualified as Email
 import Log qualified
 import Servant.Links qualified as Links
@@ -64,7 +65,7 @@ sendHostAssignmentEmail showModel mTimeslot userId = do
     Right Nothing -> do
       Log.logInfo "User not found for host assignment email" (display userId)
     Right (Just userWithMeta) -> do
-      url <- Email.baseUrl
+      url <- baseUrl
       let showUrl = url <> "/" <> Text.pack (show $ Links.linkURI $ showsLinks.detail (Shows.slug showModel) Nothing)
           dashboardUrl = url <> "/" <> Text.pack (show $ Links.linkURI dashboardLinks.home)
           hostInfo =

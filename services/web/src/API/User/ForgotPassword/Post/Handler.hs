@@ -28,6 +28,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PasswordResetTokens qualified as ResetTokens
 import Effects.Database.Tables.User qualified as User
+import App.BaseUrl (baseUrl)
 import Effects.Email.Send qualified as Email
 import Effects.PasswordReset qualified as PasswordReset
 import Log qualified
@@ -105,7 +106,7 @@ sendResetEmail ::
 sendResetEmail email token = do
   let emailText = display email
       tokenText = ResetTokens.unToken token
-  url <- Email.baseUrl
+  url <- baseUrl
   Email.sendAsync (buildPasswordResetEmail url emailText tokenText)
   Log.logInfo "Password reset email queued" emailText
 
