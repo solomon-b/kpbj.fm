@@ -11,6 +11,7 @@ packages:
   lib/kpbj-email/kpbj-email.cabal
   jobs/sync-host-emails/sync-host-emails.cabal
   jobs/token-cleanup/token-cleanup.cabal
+  jobs/episode-check/episode-check.cabal
 
 source-repository-package
   type: git

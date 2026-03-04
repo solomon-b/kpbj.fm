@@ -1,0 +1,33 @@
+cabal-version:      3.0
+name:               episode-check
+version:            0.1.0
+license:            Apache-2.0
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+executable episode-check
+  main-is:          Main.hs
+  build-depends:    base
+                  , aeson
+                  , hasql
+                  , kpbj-database
+                  , kpbj-email
+                  , kpbj-types
+                  , log-base
+                  , optparse-applicative
+                  , string-interpolate
+                  , text
+                  , text-display
+                  , time
+  hs-source-dirs:   .
+  default-language: Haskell2010
+  default-extensions:
+      ImportQualifiedPost
+      LambdaCase
+      OverloadedStrings
+      QuasiQuotes
+      RecordWildCards
+      ScopedTypeVariables
+      StrictData
+  ghc-options:      -Wall -threaded

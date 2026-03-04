@@ -4,6 +4,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Episode Check Job** — New `episode-check` CLI and daily systemd timer. By default, sends individual email reminders to each host exactly 5 days before their show's air date when no episode audio is uploaded. Use `--dry-run` to log what would be sent without emailing. Runs as a hardened oneshot service reusing the existing `DATABASE_URL` and SMTP env vars from `kpbj-web.env`. Deployed to both production and staging.
+- **Parameterized Missing Episodes Query** — `getShowsMissingEpisodesInDays` accepts an `Int32` days parameter instead of the hardcoded 7-day window. The existing `getShowsMissingEpisodes` is preserved as a convenience wrapper.
+- **Per-Host Missing Episode Query** — `getHostsMissingEpisodesOnDay` returns one row per host (with email) for shows missing episodes on exactly N days from now, used by the notification system.
+
 ### Fixed
 - **Invalid UTF-8 in Headers Crashing Servant** — Exploit scanners sending invalid UTF-8 bytes (e.g. `\xAD`) in HTTP headers bypassed the path/query `ValidateEncoding` middleware and crashed Servant via strict `decodeUtf8` in `Origin`'s `parseHeader`. Fixed `Origin` to use safe `decodeUtf8'` and simplified the middleware to a `catch`-all for `UnicodeException` that covers path, query, headers, and body.
 - **Watchdog Self-Referential False Alarms** — The watchdog collected its own service logs via the `kpbj-*` journal filter, so any previous watchdog failure would be flagged as an anomaly on the next successful run — always a false alarm by definition. Excluded `kpbj-watchdog` from log collection.
