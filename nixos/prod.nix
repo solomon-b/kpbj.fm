@@ -10,6 +10,7 @@
     ./streaming.nix
     ./sync-host-emails.nix
     ./token-cleanup.nix
+    ./episode-check.nix
     ./monitoring.nix
     ./nginx.nix
     ./sops.nix
@@ -37,6 +38,10 @@
   kpbj.tokenCleanup = {
     enable = true;
     dryRun = false;
+  };
+
+  kpbj.episodeCheck = {
+    enable = true;
   };
 
   kpbj.nginx = {

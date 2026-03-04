@@ -30,15 +30,16 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (MonadReader, asks)
 import Data.Has qualified as Has
+import Data.Aeson qualified as Aeson
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
+import Data.Time (getCurrentTime)
 import Effects.Email.Config (SmtpConfig (..))
 import Log qualified
 import Network.Mail.Mime qualified as Mime
 import Network.Mail.SMTP qualified as SMTP
-import System.IO (hPutStrLn, stderr)
 
 --------------------------------------------------------------------------------
 
@@ -73,16 +74,17 @@ sendAsync email = do
       Log.logInfo [i|Email skipped (SMTP not configured): #{emailLabel email}|] (emailTo email)
     Just config -> do
       let mail = buildMail config email
+      logEnv <- Log.getLoggerEnv
       Log.logInfo [i|Queuing #{emailLabel email} email|] (emailTo email)
       liftIO $ void $ Async.async $ do
         result <- Async.race (threadDelay (30 * 1000000)) (try $ sendMail config mail)
         case result of
           Left () ->
-            hPutStrLn stderr [i|[Email] ERROR: Timeout sending #{emailLabel email} to #{emailTo email}|]
+            logIO logEnv Log.LogAttention [i|Timeout sending #{emailLabel email} email|] (emailTo email)
           Right (Left (e :: SomeException)) ->
-            hPutStrLn stderr [i|[Email] ERROR: Failed #{emailLabel email} to #{emailTo email}: #{show e}|]
+            logIO logEnv Log.LogAttention [i|Failed sending #{emailLabel email} email: #{show e}|] (emailTo email)
           Right (Right ()) ->
-            putStrLn [i|[Email] Sent #{emailLabel email} to #{emailTo email}|]
+            logIO logEnv Log.LogInfo [i|Sent #{emailLabel email} email|] (emailTo email)
 
 -- | Send an email synchronously.
 --
@@ -122,3 +124,13 @@ sendMail SmtpConfig {..}
         (fromIntegral smtpPort)
         (Text.unpack smtpUsername)
         (Text.unpack smtpPassword)
+
+--------------------------------------------------------------------------------
+
+-- | Log a message from plain IO using a captured 'LoggerEnv'.
+--
+-- Used in async threads that have escaped the 'MonadLog' context.
+logIO :: (Aeson.ToJSON a) => Log.LoggerEnv -> Log.LogLevel -> Text -> a -> IO ()
+logIO logEnv level msg payload = do
+  now <- getCurrentTime
+  Log.logMessageIO logEnv now level msg (Aeson.toJSON payload)

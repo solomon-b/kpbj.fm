@@ -25,7 +25,8 @@ common common-extensions
 library
   import: common-extensions
   build-depends:
-      async
+      aeson
+    , async
     , base
     , data-has
     , log-base
@@ -34,6 +35,7 @@ library
     , smtp-mail
     , string-interpolate
     , text
+    , time
   exposed-modules:
     Effects.Email.Config
     Effects.Email.Send

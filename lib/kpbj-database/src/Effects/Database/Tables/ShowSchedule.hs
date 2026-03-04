@@ -46,6 +46,8 @@ module Effects.Database.Tables.ShowSchedule
     ShowMissingEpisode (..),
     getShowsMissingEpisodes,
     getShowsMissingEpisodesInDays,
+    HostMissingEpisode (..),
+    getHostsMissingEpisodesOnDay,
   )
 where
 
@@ -781,6 +783,27 @@ data ShowMissingEpisode = ShowMissingEpisode
 instance Display ShowMissingEpisode where
   displayBuilder _ = "ShowMissingEpisode"
 
+
+-- | A single host of a show scheduled on a specific day that is missing an episode upload.
+--
+-- Unlike 'ShowMissingEpisode' which aggregates host names, this returns one row per host
+-- with their email address, suitable for sending individual notification emails.
+data HostMissingEpisode = HostMissingEpisode
+  { hmeHostEmail :: Text,
+    hmeHostDisplayName :: Text,
+    hmeShowTitle :: Text,
+    hmeShowSlug :: Slug,
+    hmeShowDate :: Day,
+    hmeDayOfWeek :: DayOfWeek,
+    hmeStartTime :: TimeOfDay,
+    hmeEndTime :: TimeOfDay
+  }
+  deriving stock (Show, Generic, Eq)
+  deriving anyclass (DecodeRow)
+
+instance Display HostMissingEpisode where
+  displayBuilder _ = "HostMissingEpisode"
+
 -- | Get all shows scheduled in the next 7 days that are missing episode uploads.
 --
 -- A show is "missing" if either:
@@ -790,7 +813,6 @@ instance Display ShowMissingEpisode where
 -- Excludes soft-deleted shows. Results are sorted by scheduled date ascending.
 getShowsMissingEpisodes :: Hasql.Statement () [ShowMissingEpisode]
 getShowsMissingEpisodes = getShowsMissingEpisodesInDays 7
-
 
 -- | Get all shows scheduled in the next N days that are missing episode uploads.
 --
@@ -867,4 +889,72 @@ getShowsMissingEpisodesInDays days =
     WHERE (e.id IS NULL OR e.audio_file_path IS NULL)
     GROUP BY si.show_id, si.show_title, si.show_slug, si.show_date, si.day_of_week, si.start_time, si.end_time
     ORDER BY si.show_date ASC, si.start_time ASC
+  |]
+
+
+-- | Get hosts of shows missing episodes on exactly N days from now.
+--
+-- Returns one row per host per missing show. Used by the episode-check job
+-- to send individual reminder emails. Only includes shows with at least one
+-- active host assigned.
+getHostsMissingEpisodesOnDay :: Int32 -> Hasql.Statement () [HostMissingEpisode]
+getHostsMissingEpisodesOnDay days =
+  interp
+    False
+    [sql|
+    WITH target_date AS (
+      SELECT CURRENT_DATE + #{days} AS date
+    ),
+    schedule_instances AS (
+      SELECT DISTINCT
+        st.show_id,
+        s.title as show_title,
+        s.slug as show_slug,
+        td.date as show_date,
+        st.day_of_week,
+        st.start_time,
+        st.end_time,
+        st.timezone
+      FROM schedule_templates st
+      JOIN schedule_template_validity stv ON stv.template_id = st.id
+      JOIN shows s ON s.id = st.show_id
+      CROSS JOIN target_date td
+      WHERE s.status = 'active'
+        AND s.deleted_at IS NULL
+        AND st.day_of_week IS NOT NULL
+        AND stv.effective_from <= td.date
+        AND (stv.effective_until IS NULL OR stv.effective_until > td.date)
+        AND EXTRACT(DOW FROM td.date)::INTEGER =
+            CASE st.day_of_week::TEXT
+              WHEN 'sunday' THEN 0
+              WHEN 'monday' THEN 1
+              WHEN 'tuesday' THEN 2
+              WHEN 'wednesday' THEN 3
+              WHEN 'thursday' THEN 4
+              WHEN 'friday' THEN 5
+              WHEN 'saturday' THEN 6
+            END
+        AND (
+          st.weeks_of_month IS NULL OR
+          CEIL(EXTRACT(DAY FROM td.date) / 7.0)::INTEGER = ANY(st.weeks_of_month)
+        )
+    )
+    SELECT
+      u.email,
+      COALESCE(um.display_name, um.full_name, u.email) as host_display_name,
+      si.show_title,
+      si.show_slug,
+      si.show_date,
+      si.day_of_week,
+      si.start_time,
+      si.end_time
+    FROM schedule_instances si
+    LEFT JOIN episodes e ON e.show_id = si.show_id
+      AND e.scheduled_at = (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone
+      AND e.deleted_at IS NULL
+    JOIN show_hosts sh ON sh.show_id = si.show_id AND sh.left_at IS NULL
+    JOIN users u ON u.id = sh.user_id AND u.deleted_at IS NULL
+    JOIN user_metadata um ON um.user_id = u.id
+    WHERE (e.id IS NULL OR e.audio_file_path IS NULL)
+    ORDER BY si.show_date ASC, si.start_time ASC, u.email ASC
   |]
