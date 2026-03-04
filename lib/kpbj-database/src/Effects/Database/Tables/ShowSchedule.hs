@@ -45,6 +45,7 @@ module Effects.Database.Tables.ShowSchedule
     -- * Missing Episodes
     ShowMissingEpisode (..),
     getShowsMissingEpisodes,
+    getShowsMissingEpisodesInDays,
   )
 where
 
@@ -52,7 +53,7 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Functor.Contravariant ((>$<))
-import Data.Int (Int64)
+import Data.Int (Int32, Int64)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -788,7 +789,18 @@ instance Display ShowMissingEpisode where
 --
 -- Excludes soft-deleted shows. Results are sorted by scheduled date ascending.
 getShowsMissingEpisodes :: Hasql.Statement () [ShowMissingEpisode]
-getShowsMissingEpisodes =
+getShowsMissingEpisodes = getShowsMissingEpisodesInDays 7
+
+
+-- | Get all shows scheduled in the next N days that are missing episode uploads.
+--
+-- A show is "missing" if either:
+-- - No episode exists for that scheduled time slot
+-- - An episode exists but has no audio file uploaded
+--
+-- Excludes soft-deleted shows. Results are sorted by scheduled date ascending.
+getShowsMissingEpisodesInDays :: Int32 -> Hasql.Statement () [ShowMissingEpisode]
+getShowsMissingEpisodesInDays days =
   interp
     False
     [sql|
@@ -797,7 +809,7 @@ getShowsMissingEpisodes =
       UNION ALL
       SELECT date + 1, n + 1
       FROM date_series
-      WHERE n < 7
+      WHERE n < #{days}
     ),
     schedule_instances AS (
       SELECT DISTINCT
