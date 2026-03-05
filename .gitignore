@@ -12,3 +12,8 @@
 /e2e/playwright-report/
 /e2e/blob-report/
 /e2e/.auth/
+/backups/
+/claude-vm.qcow2
+/codebase-explorer/
+/docs/
+/.claude/
