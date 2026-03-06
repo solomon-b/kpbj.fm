@@ -21,6 +21,7 @@ executable sync-host-emails
                   , http-conduit
                   , http-types
                   , jose               >= 0.11 && < 0.12
+                  , log-base
                   , optparse-applicative
                   , rel8
                   , string-interpolate

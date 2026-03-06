@@ -9,7 +9,9 @@ build-type:         Simple
 executable token-cleanup
   main-is:          Main.hs
   build-depends:    base
+                  , aeson
                   , hasql
+                  , log-base
                   , optparse-applicative
                   , text
   hs-source-dirs:   .

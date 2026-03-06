@@ -3,6 +3,9 @@ module Main (main) where
 --------------------------------------------------------------------------------
 
 import Control.Exception (SomeException, bracket, try)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Aeson ((.=))
+import Data.Aeson qualified as Aeson
 import Data.Int (Int64)
 import Data.Text qualified as Text
 import Hasql.Connection qualified as Connection
@@ -12,6 +15,8 @@ import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
 import Hasql.Session qualified as Session
 import Hasql.Statement qualified as Statement
+import Log qualified
+import Log.Backend.StandardOutput qualified as Log
 import Options.Applicative
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
@@ -25,7 +30,7 @@ tokenRetentionDays = 90
 
 --------------------------------------------------------------------------------
 
-newtype Options = Options { optDryRun :: Bool }
+newtype Options = Options {optDryRun :: Bool}
 
 optionsParser :: Parser Options
 optionsParser =
@@ -48,22 +53,24 @@ main = do
           exitFailure
         Right conn ->
           bracket (pure conn) Connection.release $ \c ->
-            if optDryRun opts
-              then runDryRun c
-              else runCleanup c
+            Log.withStdOutLogger $ \logger ->
+              Log.runLogT "token-cleanup" logger Log.LogInfo $
+                if optDryRun opts
+                  then runDryRun c
+                  else runCleanup c
 
 --------------------------------------------------------------------------------
 
-runCleanup :: Connection.Connection -> IO ()
+runCleanup :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> m ()
 runCleanup conn = do
-  runQuery conn "expired email verification tokens" deleteExpiredVerificationTokens
-  runQuery conn "expired password reset tokens" deleteExpiredPasswordResetTokens
-  runQuery conn ("email verification tokens older than " <> show tokenRetentionDays <> " days") (deleteOldVerificationTokens tokenRetentionDays)
-  runQuery conn ("password reset tokens older than " <> show tokenRetentionDays <> " days") (deleteOldPasswordResetTokens tokenRetentionDays)
+  runDelete conn "expired email verification tokens" deleteExpiredVerificationTokens
+  runDelete conn "expired password reset tokens" deleteExpiredPasswordResetTokens
+  runDelete conn ("email verification tokens older than " <> show tokenRetentionDays <> " days") (deleteOldVerificationTokens tokenRetentionDays)
+  runDelete conn ("password reset tokens older than " <> show tokenRetentionDays <> " days") (deleteOldPasswordResetTokens tokenRetentionDays)
 
-runDryRun :: Connection.Connection -> IO ()
+runDryRun :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> m ()
 runDryRun conn = do
-  hPutStrLn stderr "[DRY RUN] Running in dry-run mode"
+  Log.logInfo "Running in dry-run mode" ()
   countQuery conn "expired email verification tokens" countExpiredVerificationTokens
   countQuery conn "expired password reset tokens" countExpiredPasswordResetTokens
   countQuery conn ("email verification tokens older than " <> show tokenRetentionDays <> " days") (countOldVerificationTokens tokenRetentionDays)
@@ -71,27 +78,27 @@ runDryRun conn = do
 
 --------------------------------------------------------------------------------
 
-runQuery :: Connection.Connection -> String -> Session.Session () -> IO ()
-runQuery conn name session = do
-  result <- try $ Session.run session conn
+runDelete :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> String -> Session.Session () -> m ()
+runDelete conn name session = do
+  result <- liftIO $ try $ Session.run session conn
   case result of
     Left (e :: SomeException) ->
-      hPutStrLn stderr $ "[token-cleanup] " <> name <> " cleanup failed: " <> show e
+      Log.logAttention "Cleanup failed" $ Aeson.object ["category" .= name, "error" .= show e]
     Right (Left sessionErr) ->
-      hPutStrLn stderr $ "[token-cleanup] " <> name <> " cleanup error: " <> show sessionErr
+      Log.logAttention "Cleanup error" $ Aeson.object ["category" .= name, "error" .= show sessionErr]
     Right (Right ()) ->
-      hPutStrLn stderr $ "[token-cleanup] Cleaned up " <> name
+      Log.logInfo "Cleaned up" $ Aeson.object ["category" .= name]
 
-countQuery :: Connection.Connection -> String -> Session.Session Int64 -> IO ()
+countQuery :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> String -> Session.Session Int64 -> m ()
 countQuery conn name session = do
-  result <- try $ Session.run session conn
+  result <- liftIO $ try $ Session.run session conn
   case result of
     Left (e :: SomeException) ->
-      hPutStrLn stderr $ "[token-cleanup] " <> name <> " count failed: " <> show e
+      Log.logAttention "Count failed" $ Aeson.object ["category" .= name, "error" .= show e]
     Right (Left sessionErr) ->
-      hPutStrLn stderr $ "[token-cleanup] " <> name <> " count error: " <> show sessionErr
+      Log.logAttention "Count error" $ Aeson.object ["category" .= name, "error" .= show sessionErr]
     Right (Right count) ->
-      hPutStrLn stderr $ "[token-cleanup] Would delete " <> show count <> " " <> name
+      Log.logInfo "Would delete" $ Aeson.object ["category" .= name, "count" .= count]
 
 --------------------------------------------------------------------------------
 -- Delete queries
