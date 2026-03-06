@@ -7,9 +7,8 @@ module API.Dashboard.StreamSettings.ForceEpisode.Post.Handler (handler, action, 
 
 import API.Dashboard.StreamSettings.ForceEpisode.Post.Route (ForceEpisodeForm (..))
 import API.Playout.Types (sanitizeAnnotateValue)
-import App.Config (Environment (..))
+import App.BaseUrl (baseUrl)
 import App.CustomContext (WebhookConfig)
-import App.Domains (siteBaseUrl)
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwNotFound)
 import App.Monad (AppM)
@@ -93,8 +92,8 @@ action ForceEpisodeForm {..} = do
 
   -- 4. Build full audio URL
   storageBackend <- asks (Has.getter @StorageBackend)
-  env <- asks (Has.getter @Environment)
-  let fullUrl = buildFullMediaUrl env storageBackend audioPath
+  appBaseUrl <- lift baseUrl
+  let fullUrl = buildFullMediaUrl appBaseUrl storageBackend audioPath
 
   -- 5. Call webhook (sanitize metadata to avoid breaking liquidsoap annotate URI)
   webhookConfig <- asks (Has.getter @WebhookConfig)
@@ -118,7 +117,7 @@ action ForceEpisodeForm {..} = do
       pure ForcePlayFailed
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
-buildFullMediaUrl :: Environment -> StorageBackend -> Text -> Text
-buildFullMediaUrl env backend objectKey = case backend of
+buildFullMediaUrl :: Text -> StorageBackend -> Text -> Text
+buildFullMediaUrl appBaseUrl backend objectKey = case backend of
   S3Storage _ -> buildMediaUrl backend objectKey
-  LocalStorage _ -> siteBaseUrl env <> buildMediaUrl backend objectKey
+  LocalStorage _ -> appBaseUrl <> buildMediaUrl backend objectKey

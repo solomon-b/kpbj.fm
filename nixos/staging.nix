@@ -93,7 +93,7 @@
   kpbj.web = {
     enable = true;
     secretsFile = ../secrets/staging-web.yaml;
-    hostname = "https://staging.kpbj.fm";
+    hostname = "staging.kpbj.fm";
     environment = "Staging";
     serverName = "staging.kpbj.fm";
     domain = "staging.kpbj.fm";

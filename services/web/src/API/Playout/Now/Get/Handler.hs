@@ -7,8 +7,7 @@ where
 --------------------------------------------------------------------------------
 
 import API.Playout.Types (PlayoutResponse (..), mkPlayoutMetadata)
-import App.Config (Environment (..))
-import App.Domains (siteBaseUrl)
+import App.BaseUrl (baseUrl)
 import App.Monad (AppM)
 import App.Storage (StorageBackend (..), buildMediaUrl)
 import Control.Monad.IO.Class (liftIO)
@@ -46,15 +45,15 @@ handler = do
             metadata = mkPlayoutMetadata showTitle "KPBJ 95.9 FM"
 
         storageBackend <- asks (Has.getter @StorageBackend)
-        env <- asks (Has.getter @Environment)
-        let fullUrl = buildFullMediaUrl env storageBackend audioPath
+        appBaseUrl <- baseUrl
+        let fullUrl = buildFullMediaUrl appBaseUrl storageBackend audioPath
         pure $ PlayoutAvailable fullUrl metadata
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
 --
 -- For S3 storage, buildMediaUrl already returns a full URL.
 -- For local storage, we prepend the site base URL.
-buildFullMediaUrl :: Environment -> StorageBackend -> Text -> Text
-buildFullMediaUrl env backend objectKey = case backend of
+buildFullMediaUrl :: Text -> StorageBackend -> Text -> Text
+buildFullMediaUrl appBaseUrl backend objectKey = case backend of
   S3Storage _ -> buildMediaUrl backend objectKey
-  LocalStorage _ -> siteBaseUrl env <> buildMediaUrl backend objectKey
+  LocalStorage _ -> appBaseUrl <> buildMediaUrl backend objectKey
