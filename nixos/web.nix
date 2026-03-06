@@ -38,7 +38,7 @@ in
 
     hostname = lib.mkOption {
       type = lib.types.str;
-      description = "Full URL hostname (e.g. https://staging.kpbj.fm).";
+      description = "Bare hostname without scheme (e.g. staging.kpbj.fm).";
     };
 
     environment = lib.mkOption {

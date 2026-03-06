@@ -94,7 +94,7 @@
   kpbj.web = {
     enable = true;
     secretsFile = ../secrets/prod-web.yaml;
-    hostname = "https://www.kpbj.fm";
+    hostname = "www.kpbj.fm";
     environment = "Production";
     serverName = "www.kpbj.fm";
     domain = "www.kpbj.fm";
