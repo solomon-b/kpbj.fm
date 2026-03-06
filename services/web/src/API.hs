@@ -159,6 +159,7 @@ import Component.NotFound (notFoundPage)
 import Data.Has (getter)
 import Lucid qualified
 import Middleware.NotFound (notFoundMiddleware)
+import Middleware.SecurityHeaders (securityHeadersMiddleware)
 import Middleware.ValidateEncoding (validateEncodingMiddleware)
 import Network.Wai.Handler.Warp qualified as Warp
 import Servant (Context ((:.)))
@@ -190,6 +191,7 @@ runApi = do
           warpSettings = App.mkWarpSettings (appLoggerEnv appCtx) (appWarpConfig appCtx)
           app =
             validateEncodingMiddleware
+              . securityHeadersMiddleware
               . notFoundMiddleware notFoundHtml
               $ App.mkApp @API (const server) servantCtx appCtx
 

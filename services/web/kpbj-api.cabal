@@ -470,6 +470,7 @@ library
     Effects.Storage.S3
     Helpers.RelativeTime
     Middleware.NotFound
+    Middleware.SecurityHeaders
     Middleware.ValidateEncoding
     Utils
   autogen-modules:

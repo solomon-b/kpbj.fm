@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Security Headers Middleware** — WAI middleware that adds `Strict-Transport-Security`, `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy` headers to all responses. CSP is locked down with `default-src 'none'` and explicit allows for CDN scripts, styles, media sources, and third-party integrations (Google Analytics, PayPal, Google Forms).
 - **Episode Check Job** — New `episode-check` CLI and daily systemd timer. By default, sends individual email reminders to each host exactly 5 days before their show's air date when no episode audio is uploaded. Use `--dry-run` to log what would be sent without emailing. Runs as a hardened oneshot service reusing the existing `DATABASE_URL` and SMTP env vars from `kpbj-web.env`. Deployed to both production and staging.
 - **Parameterized Missing Episodes Query** — `getShowsMissingEpisodesInDays` accepts an `Int32` days parameter instead of the hardcoded 7-day window. The existing `getShowsMissingEpisodes` is preserved as a convenience wrapper.
 - **Per-Host Missing Episode Query** — `getHostsMissingEpisodesOnDay` returns one row per host (with email) for shows missing episodes on exactly N days from now, used by the notification system.
