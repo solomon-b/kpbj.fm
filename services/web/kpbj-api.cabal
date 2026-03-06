@@ -95,6 +95,7 @@ library
                   , servant-multipart
                   , servant-server
                   , string-interpolate
+                  , tagged
                   , temporary
                   , text
                   , text-display
@@ -369,9 +370,8 @@ library
     API.Shows.Slug.Blog.Post.Get.Handler
     API.Shows.Slug.Blog.Post.Get.Route
     API.Shows.Slug.Blog.Post.Get.Templates.Page
-    API.Static.RangePng.Get.Handler
-    API.Static.RangePng.Get.Route
-    Assets.Embedded
+    API.Static.Get.Handler
+    API.Static.Get.Route
     API.TermsOfService.Get.Handler
     API.TermsOfService.Get.Route
     API.TermsOfService.Get.Templates

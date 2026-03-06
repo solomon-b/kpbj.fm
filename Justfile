@@ -79,6 +79,56 @@ haddock:
   cabal haddock
 
 # =============================================================================
+# Vendored Assets
+# =============================================================================
+# Fetch third-party JS libraries embedded at compile time in static/.
+
+ALPINE_JS_DEST := "services/web/static/alpine.min.js"
+HTMX_JS_DEST := "services/web/static/htmx.min.js"
+CROPPER_JS_DEST := "services/web/static/cropper.min.js"
+CROPPER_CSS_DEST := "services/web/static/cropper.min.css"
+
+# Fetch the latest Alpine.js release from GitHub.
+update-alpinejs:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  LATEST=$(curl -sL "https://api.github.com/repos/alpinejs/alpine/releases/latest" | jq -r '.tag_name' | sed 's/^v//')
+  echo "Latest Alpine.js: v${LATEST}"
+  curl -sL "https://cdn.jsdelivr.net/npm/alpinejs@${LATEST}/dist/cdn.min.js" -o "{{ALPINE_JS_DEST}}"
+  echo "Updated {{ALPINE_JS_DEST}} to v${LATEST} ($(wc -c < "{{ALPINE_JS_DEST}}" | tr -d ' ') bytes)"
+
+# Fetch the latest HTMX release from GitHub, or a specific version.
+# Usage: just update-htmx         (latest)
+#        just update-htmx 2.0.0   (specific version)
+update-htmx *VERSION:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ -z "{{VERSION}}" ]; then
+    LATEST=$(curl -sL "https://api.github.com/repos/bigskysoftware/htmx/releases/latest" | jq -r '.tag_name' | sed 's/^v//')
+  else
+    LATEST="{{VERSION}}"
+  fi
+  echo "Fetching HTMX v${LATEST}..."
+  curl -sL "https://cdn.jsdelivr.net/npm/htmx.org@${LATEST}/dist/htmx.min.js" -o "{{HTMX_JS_DEST}}"
+  echo "Updated {{HTMX_JS_DEST}} to v${LATEST} ($(wc -c < "{{HTMX_JS_DEST}}" | tr -d ' ') bytes)"
+
+# Fetch the latest Cropper.js release from GitHub, or a specific version.
+# Usage: just update-cropperjs         (latest)
+#        just update-cropperjs 1.6.2   (specific version)
+update-cropperjs *VERSION:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ -z "{{VERSION}}" ]; then
+    LATEST=$(curl -sL "https://api.github.com/repos/fengyuanchen/cropperjs/releases/latest" | jq -r '.tag_name' | sed 's/^v//')
+  else
+    LATEST="{{VERSION}}"
+  fi
+  echo "Fetching Cropper.js v${LATEST}..."
+  curl -sL "https://cdn.jsdelivr.net/npm/cropperjs@${LATEST}/dist/cropper.min.js" -o "{{CROPPER_JS_DEST}}"
+  curl -sL "https://cdn.jsdelivr.net/npm/cropperjs@${LATEST}/dist/cropper.min.css" -o "{{CROPPER_CSS_DEST}}"
+  echo "Updated cropper.min.{js,css} to v${LATEST} ($(wc -c < "{{CROPPER_JS_DEST}}" | tr -d ' ') + $(wc -c < "{{CROPPER_CSS_DEST}}" | tr -d ' ') bytes)"
+
+# =============================================================================
 # Formatting & Linting
 # =============================================================================
 # Code quality tools for Haskell, Nix, and shell scripts.
