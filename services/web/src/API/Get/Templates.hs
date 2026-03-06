@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (eventsLinks)
+import API.Links (eventsLinks, rootLink, staticAssetLink)
 import API.Types (EventsRoutes (..))
 import Data.String.Interpolate (i)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
@@ -32,7 +32,7 @@ template backend mFeaturedEvent = do
                   Lucid.img_ [Lucid.src_ (buildMediaUrl backend posterUrl), Lucid.alt_ (event.emTitle <> " event flyer"), Lucid.class_ "w-full"]
       _ ->
         Lucid.a_ [Lucid.href_ "https://fccdata.org/?call=kpbj&facid=&city=&state=&ccode=1&country=US"] $ do
-          Lucid.img_ [Lucid.src_ "/static/range.png", Lucid.class_ "w-full"]
+          Lucid.img_ [Lucid.src_ (rootLink $ staticAssetLink "range.png"), Lucid.class_ "w-full"]
 
   Lucid.section_ [Lucid.class_ "mt-auto mb-4 text-center"] $ do
     Lucid.h3_ [Lucid.class_ "text-2xl font-bold mb-4"] "Stay in the Loop"

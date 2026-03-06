@@ -28,6 +28,7 @@ module Lucid.Alpine
     xHtml_,
     xModel_,
     xRef_,
+    xCloak_,
 
     -- * Event Handlers
     xOn_,
@@ -62,11 +63,6 @@ module Lucid.Alpine
 
     -- * HTMX Events (Alpine listeners)
     xOnHtmxPushedIntoHistory_,
-
-    -- * Data Attributes (for Flowbite etc.)
-    dataDropdownToggle_,
-    dataDropdownOffsetDistance_,
-    dataDropdownTrigger_,
 
     -- * Vanilla JS
     onchange_,
@@ -140,6 +136,13 @@ xModel_ = Lucid.makeAttributes "x-model"
 -- > xRef_ "inputField"
 xRef_ :: Text -> Lucid.Attributes
 xRef_ = Lucid.makeAttributes "x-ref"
+
+-- | Alpine.js x-cloak directive.
+--
+-- Hides the element until Alpine initializes it. Pair with
+-- @[x-cloak] { display: none !important; }@ in your CSS.
+xCloak_ :: Lucid.Attributes
+xCloak_ = Lucid.makeAttributesRaw "x-cloak" ""
 
 --------------------------------------------------------------------------------
 -- Event Handlers
@@ -308,27 +311,6 @@ xTransitionLeaveEnd_ = Lucid.makeAttributes "x-transition:leave-end"
 -- > xOnHtmxPushedIntoHistory_ "handleNavigation()"
 xOnHtmxPushedIntoHistory_ :: Text -> Lucid.Attributes
 xOnHtmxPushedIntoHistory_ = Lucid.makeAttributes "x-on:htmx:pushed-into-history.window"
-
---------------------------------------------------------------------------------
--- Data Attributes
-
--- | Flowbite data-dropdown-toggle attribute.
---
--- > dataDropdownToggle_ "dropdownMenu"
-dataDropdownToggle_ :: Text -> Lucid.Attributes
-dataDropdownToggle_ = Lucid.makeAttributes "data-dropdown-toggle"
-
--- | Flowbite data-dropdown-offset-distance attribute.
---
--- > dataDropdownOffsetDistance_ "10"
-dataDropdownOffsetDistance_ :: Text -> Lucid.Attributes
-dataDropdownOffsetDistance_ = Lucid.makeAttributes "data-dropdown-offset-distance"
-
--- | Flowbite data-dropdown-trigger attribute.
---
--- > dataDropdownTrigger_ "hover"
-dataDropdownTrigger_ :: Text -> Lucid.Attributes
-dataDropdownTrigger_ = Lucid.makeAttributes "data-dropdown-trigger"
 
 --------------------------------------------------------------------------------
 -- Vanilla JS

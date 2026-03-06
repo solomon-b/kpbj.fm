@@ -24,6 +24,8 @@ import API.Links
     dashboardStationIdsLinks,
     dashboardStreamSettingsLinks,
     dashboardUsersLinks,
+    rootLink,
+    staticAssetLink,
     userLinks,
   )
 import API.Types
@@ -158,12 +160,11 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
       -- Form builder semantic classes
       Lucid.style_ [] formBuilderCSS
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
-      Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"]
+      Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ (rootLink $ staticAssetLink "cropper.min.css")]
       Lucid.script_ [Lucid.src_ "https://cdn.tailwindcss.com"] (mempty @Text)
-      Lucid.script_ [Lucid.src_ "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"] (mempty @Text)
-      Lucid.script_ [Lucid.src_ "https://unpkg.com/htmx.org@2.0.0"] (mempty @Text)
-      Lucid.script_ [Lucid.src_ "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"] (mempty @Text)
-      Lucid.script_ [Lucid.src_ "//unpkg.com/alpinejs", Lucid.defer_ "true"] (mempty @Text)
+      Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "cropper.min.js")] (mempty @Text)
+      Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "htmx.min.js")] (mempty @Text)
+      Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "alpine.min.js"), Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { darkMode: 'class', theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] (darkModeScript (Just userMeta.mColorScheme))
     Lucid.body_ [class_ $ base ["font-mono", Tokens.fgPrimary, Tokens.bgAlt]] $ do

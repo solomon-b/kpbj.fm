@@ -43,6 +43,7 @@ module API.Links
     dashboardSitePagesLinks,
     dashboardStreamSettingsLinks,
     dashboardMissingEpisodesLink,
+    staticAssetLink,
   )
 where
 
@@ -159,3 +160,7 @@ dashboardStreamSettingsLinks = dashboardAdminLinks.streamSettings
 -- | Dashboard missing episodes link
 dashboardMissingEpisodesLink :: Link
 dashboardMissingEpisodesLink = dashboardAdminLinks.missingEpisodes
+
+-- | Static asset link by filename.
+staticAssetLink :: Text -> Link
+staticAssetLink = apiLinks.staticGet
