@@ -21,14 +21,12 @@ import Data.Time
   ( Day,
     LocalTime (..),
     TimeOfDay (..),
-    TimeZone,
     UTCTime (..),
     addDays,
     fromGregorian,
-    localTimeToUTC,
     timeOfDayToTime,
   )
-import Data.Time.LocalTime (hoursToTimeZone)
+import Domain.Types.Timezone (pacificToUtc)
 import Domain.Types.DisplayName (mkDisplayNameUnsafe)
 import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
@@ -120,25 +118,17 @@ spec =
 --------------------------------------------------------------------------------
 -- Test Helpers
 
--- | Pacific timezone (UTC-8, ignoring DST for simplicity in tests)
-pacificTZ :: TimeZone
-pacificTZ = hoursToTimeZone (-8)
-
--- | Convert Pacific local time to UTC
-pacificToUTC :: LocalTime -> UTCTime
-pacificToUTC = localTimeToUTC pacificTZ
-
 -- | A test date: Monday, January 6, 2025
 testDay :: Day
 testDay = fromGregorian 2025 1 6
 
 -- | Create a UTC time from a Pacific time on the test day
 mkTestTime :: TimeOfDay -> UTCTime
-mkTestTime tod = pacificToUTC (LocalTime testDay tod)
+mkTestTime tod = pacificToUtc (LocalTime testDay tod)
 
 -- | Create a UTC time from a Pacific time on the day after test day (for overnight shows)
 mkTestTimeNextDay :: TimeOfDay -> UTCTime
-mkTestTimeNextDay tod = pacificToUTC (LocalTime (addDays 1 testDay) tod)
+mkTestTimeNextDay tod = pacificToUtc (LocalTime (addDays 1 testDay) tod)
 
 -- | Helper to unwrap Maybe in IO, failing the test if Nothing
 assertJustIO :: Maybe a -> IO a
