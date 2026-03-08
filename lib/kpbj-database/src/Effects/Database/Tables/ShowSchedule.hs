@@ -24,13 +24,16 @@ module Effects.Database.Tables.ShowSchedule
     getScheduleTemplateById,
     getScheduleTemplatesForShow,
     getActiveScheduleTemplatesForShow,
+    getPendingScheduleTemplatesForShow,
     checkTimeSlotConflict,
     insertScheduleTemplate,
 
     -- * Schedule Template Validity Queries
     getActiveValidityPeriodsForTemplate,
+    getValidityPeriodsForTemplate,
     insertValidity,
     endValidity,
+    restoreValidity,
 
     -- * Scheduled Show With Details
     ScheduledShowWithDetails (..),
@@ -242,6 +245,25 @@ getActiveScheduleTemplatesForShow showId =
     ORDER BY st.day_of_week, st.start_time
   |]
 
+-- | Get schedule templates with future (pending) validity periods for a show.
+--
+-- Returns templates whose validity period has not yet begun (effective_from > CURRENT_DATE)
+-- and has not been cancelled (effective_until is open-ended or strictly after effective_from).
+-- Used to populate the edit form when a future schedule change has been configured.
+getPendingScheduleTemplatesForShow :: Shows.Id -> Hasql.Statement () [ScheduleTemplate Result]
+getPendingScheduleTemplatesForShow showId =
+  interp
+    False
+    [sql|
+    SELECT DISTINCT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at, st.airs_twice_daily
+    FROM schedule_templates st
+    JOIN schedule_template_validity stv ON stv.template_id = st.id
+    WHERE st.show_id = #{showId}
+      AND stv.effective_from > CURRENT_DATE
+      AND (stv.effective_until IS NULL OR stv.effective_until > stv.effective_from)
+    ORDER BY st.day_of_week, st.start_time
+  |]
+
 -- | Wrapper for single Text result from conflict check.
 newtype ConflictingShowTitle = ConflictingShowTitle {getConflictingShowTitle :: Text}
   deriving stock (Generic, Show, Eq)
@@ -330,6 +352,20 @@ getActiveValidityPeriodsForTemplate templateId =
     ORDER BY effective_from DESC
   |]
 
+-- | Get all validity periods for a template (no date filtering).
+--
+-- Used to find the effective_from date for pending (future) templates.
+getValidityPeriodsForTemplate :: TemplateId -> Hasql.Statement () [ScheduleTemplateValidity Result]
+getValidityPeriodsForTemplate templateId =
+  interp
+    False
+    [sql|
+    SELECT id, template_id, effective_from, effective_until
+    FROM schedule_template_validity
+    WHERE template_id = #{templateId}
+    ORDER BY effective_from DESC
+  |]
+
 -- | Insert a new validity period.
 --
 -- Returns the generated ID.
@@ -367,6 +403,26 @@ endValidity validityId endDate =
             set = \_ validity ->
               validity
                 { stvEffectiveUntil = lit (Just endDate)
+                },
+            updateWhere = \_ validity -> stvId validity ==. lit validityId,
+            returning = Returning stvId
+          }
+
+-- | Restore a validity period to open-ended by clearing effective_until.
+--
+-- Used when cancelling a pending schedule to undo the end-dating of the
+-- currently-active validity period.
+restoreValidity :: ValidityId -> Hasql.Statement () (Maybe ValidityId)
+restoreValidity validityId =
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = scheduleTemplateValiditySchema,
+            from = pure (),
+            set = \_ validity ->
+              validity
+                { stvEffectiveUntil = lit Nothing
                 },
             updateWhere = \_ validity -> stvId validity ==. lit validityId,
             returning = Returning stvId

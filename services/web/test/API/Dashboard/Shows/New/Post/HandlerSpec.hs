@@ -45,7 +45,8 @@ minimalForm title status =
       nsfLogoFile = Nothing,
       nsfStatus = status,
       nsfHosts = [],
-      nsfSchedulesJson = Nothing
+      nsfSchedulesJson = Nothing,
+      nsfScheduleStartDate = Nothing
     }
 
 --------------------------------------------------------------------------------

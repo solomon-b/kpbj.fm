@@ -11,6 +11,11 @@ module Domain.Types.Timezone
     formatPacificForDateTimeInput,
     parsePacificFromDateTimeInput,
 
+    -- * Time Utilities
+    addMinutesToTimeOfDay,
+    parseTimeHHMM,
+    parseDateYMD,
+
     -- * Re-exports
     LocalTime (..),
   )
@@ -20,7 +25,7 @@ where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (LocalTime (..), UTCTime)
+import Data.Time (Day, LocalTime (..), TimeOfDay (..), UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Data.Time.Zones (TZ, loadSystemTZ, localTimeToUTCTZ, utcToLocalTimeTZ)
 import System.IO.Unsafe (unsafePerformIO)
@@ -74,3 +79,24 @@ formatPacificForDateTimeInput utc =
 parsePacificFromDateTimeInput :: Text -> Maybe UTCTime
 parsePacificFromDateTimeInput txt =
   pacificToUtc <$> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" (Text.unpack txt)
+
+--------------------------------------------------------------------------------
+-- Time Utilities
+
+-- | Add minutes to a 'TimeOfDay', wrapping past midnight.
+--
+-- Seconds are preserved from the input.
+addMinutesToTimeOfDay :: TimeOfDay -> Int -> TimeOfDay
+addMinutesToTimeOfDay (TimeOfDay h m s) mins =
+  let totalMinutes = h * 60 + m + mins
+      newH = (totalMinutes `div` 60) `mod` 24
+      newM = totalMinutes `mod` 60
+   in TimeOfDay newH newM s
+
+-- | Parse a time of day from @\"HH:MM\"@ format.
+parseTimeHHMM :: Text -> Maybe TimeOfDay
+parseTimeHHMM t = parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack t)
+
+-- | Parse a date from @\"YYYY-MM-DD\"@ format.
+parseDateYMD :: Text -> Maybe Day
+parseDateYMD t = parseTimeM True defaultTimeLocale "%Y-%m-%d" (Text.unpack t)

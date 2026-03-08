@@ -47,7 +47,8 @@ editForm title status =
       sefLogoClear = False,
       sefStatus = status,
       sefHosts = [],
-      sefSchedulesJson = Nothing
+      sefSchedulesJson = Nothing,
+      sefScheduleStartDate = Nothing
     }
 
 --------------------------------------------------------------------------------

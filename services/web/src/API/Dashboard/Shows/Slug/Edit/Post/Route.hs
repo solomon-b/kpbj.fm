@@ -41,7 +41,8 @@ data ShowEditForm = ShowEditForm
     sefLogoClear :: Bool, -- True if user explicitly removed the logo
     sefStatus :: Text,
     sefHosts :: [User.Id],
-    sefSchedulesJson :: Maybe Text
+    sefSchedulesJson :: Maybe Text,
+    sefScheduleStartDate :: Maybe Text -- "YYYY-MM-DD" or Nothing
   }
   deriving (Show)
 
@@ -50,7 +51,7 @@ data ScheduleSlotInfo = ScheduleSlotInfo
   { dayOfWeek :: Text,
     weeksOfMonth :: [Int64],
     startTime :: Text,
-    endTime :: Text
+    duration :: Int
   }
   deriving stock (Show, Generic, Eq)
   deriving anyclass (FromJSON, ToJSON)
@@ -66,6 +67,7 @@ instance FromMultipart Mem ShowEditForm where
       <*> lookupInput "status" multipartData
       <*> pure (parseHosts $ fromRight [] (lookupInputs "hosts" multipartData))
       <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedules_json" multipartData))
+      <*> pure (either (const Nothing) (emptyToNothing . Just) (lookupInput "schedule_start_date" multipartData))
     where
       emptyToNothing :: Maybe Text -> Maybe Text
       emptyToNothing (Just "") = Nothing

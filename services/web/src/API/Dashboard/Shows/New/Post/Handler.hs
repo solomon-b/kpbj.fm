@@ -5,7 +5,8 @@ module API.Dashboard.Shows.New.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.New.Post.Route (NewShowForm (..), ScheduleSlotInfo (..))
+import API.Dashboard.Shows.New.Post.Route (NewShowForm (..))
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), parseScheduleSlot)
 import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
@@ -14,23 +15,24 @@ import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
 import Control.Monad (forM_, void)
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (getter)
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time (DayOfWeek (..), TimeOfDay, getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Time.LocalTime (LocalTime (..), hoursToTimeZone, utcToLocalTime)
+import Data.Time (Day, TimeOfDay)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug qualified as Slug
+import Domain.Types.Timezone (LocalTime (..), parseDateYMD, utcToPacific)
+import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -130,13 +132,22 @@ action form = do
       throwHandlerFailure "Failed to create show."
     Right (Just sid) -> pure sid
 
-  -- 7. Post-creation side effects (fire and forget)
+  -- 7. Parse optional schedule start date
+  mStartDate <- case nsfScheduleStartDate form of
+    Nothing -> pure Nothing
+    Just dateText -> case parseDateYMD dateText of
+      Nothing -> do
+        Log.logInfo "Invalid schedule start date" dateText
+        throwValidationError "Invalid schedule start date."
+      Just d -> pure (Just d)
+
+  -- 8. Post-creation side effects (fire and forget)
   lift $ do
     assignHostsToShow showId (nsfHosts form)
     processShowTags showId (nsfTags form)
-    createSchedulesForShow showId schedules
+    createSchedulesForShow showId schedules mStartDate
 
-  -- 8. Fetch created show
+  -- 9. Fetch created show
   fetchResult <- execQuery (Shows.getShowById showId)
   createdShow <- case fetchResult of
     Right (Just s) -> pure s
@@ -144,7 +155,7 @@ action form = do
       Log.logInfo_ "Created show but failed to retrieve it"
       throwHandlerFailure "Show was created but there was an error loading it."
 
-  -- 9. Send host notification emails
+  -- 10. Send host notification emails
   let mTimeslot = buildTimeslotDescription schedules
   lift $ HostNotifications.sendHostAssignmentNotifications createdShow mTimeslot (nsfHosts form)
 
@@ -285,106 +296,82 @@ processShowTags showId (Just tagsText) = do
 --------------------------------------------------------------------------------
 -- Schedule Creation Helpers
 
--- | Parse schedules JSON from form data
-parseSchedules :: Maybe Text -> Either Text [ScheduleSlotInfo]
+-- | Parse schedules JSON from form data, validate all fields.
+parseSchedules :: Maybe Text -> Either Text [ParsedScheduleSlot]
 parseSchedules Nothing = Right []
 parseSchedules (Just schedulesJson)
   | Text.null (Text.strip schedulesJson) = Right []
   | schedulesJson == "[]" = Right []
   | otherwise = case Aeson.eitherDecodeStrict (Text.encodeUtf8 schedulesJson) of
       Left err -> Left $ "Invalid schedules JSON: " <> Text.pack err
-      Right slots -> Right slots
+      Right slots -> traverse parseScheduleSlot slots
 
--- | Parse day of week from text
-parseDayOfWeek :: Text -> Maybe DayOfWeek
-parseDayOfWeek "sunday" = Just Sunday
-parseDayOfWeek "monday" = Just Monday
-parseDayOfWeek "tuesday" = Just Tuesday
-parseDayOfWeek "wednesday" = Just Wednesday
-parseDayOfWeek "thursday" = Just Thursday
-parseDayOfWeek "friday" = Just Friday
-parseDayOfWeek "saturday" = Just Saturday
-parseDayOfWeek _ = Nothing
-
--- | Parse time of day from "HH:MM" format
-parseTimeOfDay :: Text -> Maybe TimeOfDay
-parseTimeOfDay t = parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack t)
-
--- | Check for schedule conflicts with other shows
+-- | Check for schedule conflicts with other shows.
 --
 -- For new show creation, pass Shows.Id 0 to check against ALL active shows.
 checkScheduleConflicts ::
   Shows.Id ->
-  [ScheduleSlotInfo] ->
+  [ParsedScheduleSlot] ->
   AppM (Either Text ())
 checkScheduleConflicts showId = go
   where
     go [] = pure (Right ())
-    go (slot : rest) =
-      case (parseDayOfWeek (dayOfWeek slot), parseTimeOfDay (startTime slot), parseTimeOfDay (endTime slot)) of
-        (Just dow, Just start, Just end) -> do
-          let weeks = map fromIntegral (weeksOfMonth slot)
-          execQuery (ShowSchedule.checkTimeSlotConflict showId dow weeks start end) >>= \case
-            Left err -> do
-              Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
-              pure (Left "Unable to verify schedule availability. Please try again.")
-            Right (Just conflictingShow) ->
-              pure (Left $ "Schedule conflict: " <> dayOfWeek slot <> " " <> startTime slot <> "-" <> endTime slot <> " overlaps with \"" <> conflictingShow <> "\"")
-            Right Nothing -> go rest
-        _ -> go rest -- Skip invalid slots, they'll fail later anyway
+    go (slot : rest) = do
+      let weeks = map fromIntegral (pssWeeks slot)
+      execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks (pssStart slot) (pssEnd slot)) >>= \case
+        Left err -> do
+          Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
+          pure (Left "Unable to verify schedule availability. Please try again.")
+        Right (Just conflictingShow) ->
+          pure (Left $ "Schedule conflict: " <> Text.pack (show (pssDay slot)) <> " " <> formatTimeHHMM (pssStart slot) <> "-" <> formatTimeHHMM (pssEnd slot) <> " overlaps with \"" <> conflictingShow <> "\"")
+        Right Nothing -> go rest
 
--- | Create schedules for a newly created show
+-- | Create schedules for a newly created show.
+--
+-- When @mStartDate@ is provided it is used as the @effective_from@ date for
+-- validity records. When absent the current Pacific date is used.
 createSchedulesForShow ::
   Shows.Id ->
-  [ScheduleSlotInfo] ->
+  [ParsedScheduleSlot] ->
+  Maybe Day ->
   AppM ()
-createSchedulesForShow showId slots = do
+createSchedulesForShow showId slots mStartDate = do
   -- Use Pacific time for "today" to match the schedule display
-  nowUtc <- liftIO getCurrentTime
-  let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
-      nowPacific = utcToLocalTime pacificTz nowUtc
-      today = localDay nowPacific
+  nowUtc <- currentSystemTime
+  let today = localDay (utcToPacific nowUtc)
+      startDate = fromMaybe today mStartDate
 
   forM_ slots $ \slot -> do
-    case ( parseDayOfWeek (dayOfWeek slot),
-           parseTimeOfDay (startTime slot),
-           parseTimeOfDay (endTime slot)
-         ) of
-      (Just dow, Just start, Just end) -> do
-        -- Create schedule template
-        let templateInsert =
-              ShowSchedule.ScheduleTemplateInsert
-                { ShowSchedule.stiShowId = showId,
-                  ShowSchedule.stiDayOfWeek = Just dow,
-                  ShowSchedule.stiWeeksOfMonth = Just (map fromIntegral (weeksOfMonth slot)),
-                  ShowSchedule.stiStartTime = start,
-                  ShowSchedule.stiEndTime = end,
-                  ShowSchedule.stiTimezone = "America/Los_Angeles",
-                  ShowSchedule.stiAirsTwiceDaily = True
-                }
+    let templateInsert =
+          ShowSchedule.ScheduleTemplateInsert
+            { ShowSchedule.stiShowId = showId,
+              ShowSchedule.stiDayOfWeek = Just (pssDay slot),
+              ShowSchedule.stiWeeksOfMonth = Just (pssWeeks slot),
+              ShowSchedule.stiStartTime = pssStart slot,
+              ShowSchedule.stiEndTime = pssEnd slot,
+              ShowSchedule.stiTimezone = "America/Los_Angeles",
+              ShowSchedule.stiAirsTwiceDaily = True
+            }
 
-        templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
-        case templateResult of
+    templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
+    case templateResult of
+      Left err ->
+        Log.logInfo "Failed to insert schedule template" (Aeson.object ["error" .= Text.pack (show err)])
+      Right templateId -> do
+        let validityInsert =
+              ShowSchedule.ValidityInsert
+                { ShowSchedule.viTemplateId = templateId,
+                  ShowSchedule.viEffectiveFrom = startDate,
+                  ShowSchedule.viEffectiveUntil = Nothing
+                }
+        validityResult <- execQuery (ShowSchedule.insertValidity validityInsert)
+        case validityResult of
           Left err ->
-            Log.logInfo "Failed to insert schedule template" (Aeson.object ["error" .= Text.pack (show err)])
-          Right templateId -> do
-            -- Create validity record (effective immediately, no end date)
-            let validityInsert =
-                  ShowSchedule.ValidityInsert
-                    { ShowSchedule.viTemplateId = templateId,
-                      ShowSchedule.viEffectiveFrom = today,
-                      ShowSchedule.viEffectiveUntil = Nothing
-                    }
-            validityResult <- execQuery (ShowSchedule.insertValidity validityInsert)
-            case validityResult of
-              Left err ->
-                Log.logInfo "Failed to insert validity" (Aeson.object ["error" .= Text.pack (show err)])
-              Right (Just _) ->
-                Log.logInfo "Created schedule for show" (Aeson.object ["showId" .= show showId, "day" .= show dow])
-              Right Nothing ->
-                Log.logInfo "insertValidity returned Nothing" (Aeson.object ["showId" .= show showId, "day" .= show dow])
-      _ ->
-        Log.logInfo "Invalid schedule slot data - skipping" (Aeson.object ["slot" .= Aeson.toJSON slot])
+            Log.logInfo "Failed to insert validity" (Aeson.object ["error" .= Text.pack (show err)])
+          Right (Just _) ->
+            Log.logInfo "Created schedule for show" (Aeson.object ["showId" .= show showId, "day" .= show (pssDay slot)])
+          Right Nothing ->
+            Log.logInfo "insertValidity returned Nothing" (Aeson.object ["showId" .= show showId, "day" .= show (pssDay slot)])
 
 --------------------------------------------------------------------------------
 -- Helper Functions
@@ -393,14 +380,11 @@ createSchedulesForShow showId slots = do
 --
 -- Returns Nothing if no valid schedules, otherwise returns a formatted string
 -- like "Fridays 8:00 PM - 10:00 PM PT"
-buildTimeslotDescription :: [ScheduleSlotInfo] -> Maybe Text
+buildTimeslotDescription :: [ParsedScheduleSlot] -> Maybe Text
 buildTimeslotDescription [] = Nothing
 buildTimeslotDescription (slot : _) =
-  -- Just use the first schedule slot for the email
-  case ( parseDayOfWeek (dayOfWeek slot),
-         parseTimeOfDay (startTime slot),
-         parseTimeOfDay (endTime slot)
-       ) of
-    (Just dow, Just start, Just end) ->
-      Just $ HostNotifications.formatTimeslotDescription dow start end
-    _ -> Nothing
+  Just $ HostNotifications.formatTimeslotDescription (pssDay slot) (pssStart slot) (pssEnd slot)
+
+-- | Format a TimeOfDay as "HH:MM" for error messages.
+formatTimeHHMM :: TimeOfDay -> Text
+formatTimeHHMM = Text.pack . formatTime defaultTimeLocale "%H:%M"

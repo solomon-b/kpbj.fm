@@ -22,7 +22,7 @@ import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
-import Control.Monad (forM_, when)
+import Control.Monad (forM_, unless, when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -39,12 +39,12 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time (Day, DayOfWeek (..), TimeOfDay)
-import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.Timezone (LocalTime (..), utcToPacific)
+import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, parseDateYMD, parseTimeHHMM, utcToPacific)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization (sanitizeTitle)
 import Effects.Database.Execute (execQuery)
@@ -59,6 +59,7 @@ import Effects.FileUpload qualified as FileUpload
 import Effects.HostNotifications qualified as HostNotifications
 import Log qualified
 import Lucid qualified
+import OrphanInstances.DayOfWeek (dayOfWeekFromText)
 import Rel8 (Result)
 import Servant qualified
 import Servant.Links qualified as Links
@@ -209,8 +210,16 @@ action userMetadata slug editForm = do
         throwValidationError conflictErr
       Right () -> pure ()
 
+    mStartDate <- case sefScheduleStartDate editForm of
+      Nothing -> pure Nothing
+      Just dateText -> case parseDateYMD dateText of
+        Nothing -> do
+          Log.logInfo "Invalid schedule start date" dateText
+          throwValidationError "Invalid schedule start date."
+        Just d -> pure (Just d)
+
     lift $ do
-      updateSchedulesForShow showModel.id schedules
+      updateSchedulesForShow showModel.id schedules mStartDate
       newlyAddedHosts <- updateHostsForShow showModel.id (sefHosts editForm)
       let mTimeslot = buildTimeslotDescription schedules
       HostNotifications.sendHostAssignmentNotifications showModel mTimeslot newlyAddedHosts
@@ -247,16 +256,19 @@ parseSchedules (Just schedulesJson)
 -- | Parse and validate a single schedule slot from form data.
 parseScheduleSlot :: ScheduleSlotInfo -> Either Text ParsedScheduleSlot
 parseScheduleSlot slot = do
-  dow <- maybe (Left $ "Invalid day of week: " <> dayOfWeek slot) Right (parseDayOfWeek (dayOfWeek slot))
-  start <- maybe (Left $ "Invalid start time: " <> startTime slot) Right (parseTimeOfDay (startTime slot))
-  end <- maybe (Left $ "Invalid end time: " <> endTime slot) Right (parseTimeOfDay (endTime slot))
-  Right $
-    ParsedScheduleSlot
-      { pssDay = dow,
-        pssWeeks = sort (weeksOfMonth slot),
-        pssStart = start,
-        pssEnd = end
-      }
+  dow <- maybe (Left $ "Invalid day of week: " <> dayOfWeek slot) Right (dayOfWeekFromText (dayOfWeek slot))
+  start <- maybe (Left $ "Invalid start time: " <> startTime slot) Right (parseTimeHHMM (startTime slot))
+  let dur = duration slot
+  if dur `notElem` [30, 60, 120]
+    then Left $ "Invalid duration: " <> Text.pack (show dur) <> " (must be 30, 60, or 120)"
+    else
+      Right $
+        ParsedScheduleSlot
+          { pssDay = dow,
+            pssWeeks = sort (weeksOfMonth slot),
+            pssStart = start,
+            pssEnd = addMinutesToTimeOfDay start dur
+          }
 
 -- | Validate that schedule slots don't overlap on the same day.
 --
@@ -321,21 +333,6 @@ timesOverlap slot1 slot2 =
         (True, True) ->
           True
 
--- | Parse day of week from text.
-parseDayOfWeek :: Text -> Maybe DayOfWeek
-parseDayOfWeek "sunday" = Just Sunday
-parseDayOfWeek "monday" = Just Monday
-parseDayOfWeek "tuesday" = Just Tuesday
-parseDayOfWeek "wednesday" = Just Wednesday
-parseDayOfWeek "thursday" = Just Thursday
-parseDayOfWeek "friday" = Just Friday
-parseDayOfWeek "saturday" = Just Saturday
-parseDayOfWeek _ = Nothing
-
--- | Parse time of day from "HH:MM" format.
-parseTimeOfDay :: Text -> Maybe TimeOfDay
-parseTimeOfDay t = parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack t)
-
 -- | Format a TimeOfDay as "HH:MM" for error messages.
 formatTimeHHMM :: TimeOfDay -> Text
 formatTimeHHMM = Text.pack . formatTime defaultTimeLocale "%H:%M"
@@ -353,7 +350,7 @@ normalizeTemplate t = case t.stDayOfWeek of
     Just $
       ParsedScheduleSlot
         { pssDay = dow,
-          pssWeeks = sort (fromMaybe [] t.stWeeksOfMonth),
+          pssWeeks = sort (fromMaybe [1, 2, 3, 4, 5] t.stWeeksOfMonth),
           pssStart = t.stStartTime,
           pssEnd = t.stEndTime
         }
@@ -394,16 +391,23 @@ checkScheduleConflicts showId = go
 -- Compares the incoming form schedule against the current DB schedule. If they
 -- match, skips the terminate-and-recreate cycle. This prevents orphaning episodes
 -- that are linked to the existing schedule templates.
+--
+-- When pending (future) templates exist, they are cancelled first (their validity
+-- periods terminated, and active templates restored to open-ended). The diff is
+-- then always applied against the active templates, ensuring a clean state.
+--
+-- When @mStartDate@ is provided it is used as the @effective_from@ date for any
+-- newly inserted validity records. When absent the current Pacific date is used.
 updateSchedulesForShow ::
   Shows.Id ->
   [ParsedScheduleSlot] ->
+  Maybe Day ->
   AppM ()
-updateSchedulesForShow showId newSchedules = do
-  -- Use Pacific time for "today" to match the schedule display
+updateSchedulesForShow showId newSchedules mStartDate = do
+  -- Use Pacific time as default start date when none provided
   nowUtc <- currentSystemTime
-  let today = localDay (utcToPacific nowUtc)
+  let startDate = fromMaybe (localDay (utcToPacific nowUtc)) mStartDate
 
-  -- Fetch currently active schedule templates for this show
   activeTemplates <-
     execQuery (ShowSchedule.getActiveScheduleTemplatesForShow showId) >>= \case
       Left err -> do
@@ -411,12 +415,60 @@ updateSchedulesForShow showId newSchedules = do
         pure []
       Right templates -> pure templates
 
-  -- Skip the terminate-and-recreate cycle if the schedule hasn't changed
+  pendingTemplates <-
+    execQuery (ShowSchedule.getPendingScheduleTemplatesForShow showId) >>= \case
+      Left err -> do
+        Log.logInfo "Failed to fetch pending schedules" (Text.pack $ show err)
+        pure []
+      Right templates -> pure templates
+
+  -- If pending templates exist, cancel them and restore active to open-ended.
+  -- This ensures we always diff against a clean active state.
+  unless (null pendingTemplates) $
+    cancelPendingSchedule pendingTemplates activeTemplates
+
+  -- Always diff against active templates
   if schedulesMatch activeTemplates newSchedules
     then Log.logInfo "Schedule unchanged, skipping update" (show showId)
     else do
       Log.logInfo "Schedule changed, updating" (show showId)
-      updateScheduleTemplates showId activeTemplates newSchedules today
+      updateScheduleTemplates showId activeTemplates newSchedules startDate
+
+-- | Cancel a pending schedule, restoring active templates to open-ended.
+--
+-- 1. Terminates each pending template's validity by setting effective_until = effective_from
+-- 2. Restores active templates' validity to open-ended (clears effective_until)
+cancelPendingSchedule ::
+  [ShowSchedule.ScheduleTemplate Result] ->
+  [ShowSchedule.ScheduleTemplate Result] ->
+  AppM ()
+cancelPendingSchedule pendingTemplates activeTemplates = do
+  -- Cancel pending validity periods
+  forM_ pendingTemplates $ \template -> do
+    validities <-
+      execQuery (ShowSchedule.getValidityPeriodsForTemplate template.stId) >>= \case
+        Left err -> do
+          Log.logInfo "Failed to fetch pending validity periods" (Text.pack $ show err)
+          pure []
+        Right vs -> pure vs
+    forM_ validities $ \validity -> do
+      _ <- execQuery (ShowSchedule.endValidity validity.stvId validity.stvEffectiveFrom)
+      Log.logInfo "Cancelled pending schedule validity" (show template.stId, show validity.stvId)
+
+  -- Restore active validity periods to open-ended
+  forM_ activeTemplates $ \template -> do
+    activeValidities <-
+      execQuery (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId) >>= \case
+        Left err -> do
+          Log.logInfo "Failed to fetch active validity periods" (Text.pack $ show err)
+          pure []
+        Right vs -> pure vs
+    forM_ activeValidities $ \validity ->
+      case validity.stvEffectiveUntil of
+        Just _ -> do
+          _ <- execQuery (ShowSchedule.restoreValidity validity.stvId)
+          Log.logInfo "Restored active validity to open-ended" (show template.stId, show validity.stvId)
+        Nothing -> pure ()
 
 -- | Apply slot-level diff: terminate removed slots, create added slots, leave unchanged alone.
 --
@@ -437,7 +489,7 @@ updateScheduleTemplates ::
   [ParsedScheduleSlot] ->
   Day ->
   AppM ()
-updateScheduleTemplates showId activeTemplates parsedSlots today = do
+updateScheduleTemplates showId activeTemplates parsedSlots startDate = do
   let -- Normalize each DB template into a ParsedScheduleSlot for comparison, and
       -- build a reverse lookup so we can find the original template(s) to terminate.
       -- Templates with no day of week (shouldn't happen in practice) are dropped.
@@ -461,7 +513,7 @@ updateScheduleTemplates showId activeTemplates parsedSlots today = do
       added = Set.difference formSet dbSet
 
   -- For each removed slot, look up the original DB template(s) and end their
-  -- active validity periods by setting effective_until to today.
+  -- active validity periods by setting effective_until to startDate.
   forM_ (Set.toList removed) $ \slot ->
     forM_ (Map.findWithDefault [] slot templateMap) $ \template -> do
       activeValidities <-
@@ -472,7 +524,7 @@ updateScheduleTemplates showId activeTemplates parsedSlots today = do
           Right validities -> pure validities
 
       forM_ activeValidities $ \validity -> do
-        _ <- execQuery (ShowSchedule.endValidity validity.stvId today)
+        _ <- execQuery (ShowSchedule.endValidity validity.stvId startDate)
         Log.logInfo "Closed out schedule validity" (show template.stId, show validity.stvId)
 
       -- Detach upcoming episodes from this expired template
@@ -499,11 +551,11 @@ updateScheduleTemplates showId activeTemplates parsedSlots today = do
       Left err ->
         Log.logInfo "Failed to insert schedule template" (Text.pack $ show err)
       Right templateId -> do
-        -- Open-ended validity: effective from today, no end date
+        -- Open-ended validity: effective from startDate, no end date
         let validityInsert =
               ShowSchedule.ValidityInsert
                 { ShowSchedule.viTemplateId = templateId,
-                  ShowSchedule.viEffectiveFrom = today,
+                  ShowSchedule.viEffectiveFrom = startDate,
                   ShowSchedule.viEffectiveUntil = Nothing
                 }
         validityResult <- execQuery (ShowSchedule.insertValidity validityInsert)

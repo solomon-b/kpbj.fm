@@ -36,10 +36,10 @@ spec =
         normalizeTemplate template
           `shouldBe` Just (ParsedScheduleSlot Friday [1, 2, 3] (TimeOfDay 8 0 0) (TimeOfDay 10 0 0))
 
-      it "handles Nothing weeks as empty list" $ do
+      it "handles Nothing weeks as all weeks (weekly)" $ do
         let template = mkTemplate (Just Monday) Nothing (TimeOfDay 14 0 0) (TimeOfDay 16 0 0)
         normalizeTemplate template
-          `shouldBe` Just (ParsedScheduleSlot Monday [] (TimeOfDay 14 0 0) (TimeOfDay 16 0 0))
+          `shouldBe` Just (ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 14 0 0) (TimeOfDay 16 0 0))
 
       it "returns Nothing for template with no day of week" $ do
         let template = mkTemplate Nothing (Just [1, 2]) (TimeOfDay 8 0 0) (TimeOfDay 10 0 0)
@@ -47,20 +47,20 @@ spec =
 
     describe "parseScheduleSlot" $ do
       it "parses and normalizes a valid form slot" $ do
-        let slot = mkSlot "friday" [3, 1, 2] "08:00" "10:00"
+        let slot = mkSlot "friday" [3, 1, 2] "08:00" 120
         parseScheduleSlot slot
           `shouldBe` Right (ParsedScheduleSlot Friday [1, 2, 3] (TimeOfDay 8 0 0) (TimeOfDay 10 0 0))
 
       it "rejects invalid start time" $ do
-        let slot = mkSlot "friday" [1, 2] "invalid" "10:00"
+        let slot = mkSlot "friday" [1, 2] "invalid" 60
         parseScheduleSlot slot `shouldBe` Left "Invalid start time: invalid"
 
-      it "rejects invalid end time" $ do
-        let slot = mkSlot "friday" [1, 2] "08:00" "invalid"
-        parseScheduleSlot slot `shouldBe` Left "Invalid end time: invalid"
+      it "rejects invalid duration" $ do
+        let slot = mkSlot "friday" [1, 2] "08:00" 45
+        parseScheduleSlot slot `shouldBe` Left "Invalid duration: 45 (must be 30, 60, or 120)"
 
       it "rejects unknown day of week" $ do
-        let slot = mkSlot "funday" [1] "08:00" "10:00"
+        let slot = mkSlot "funday" [1] "08:00" 60
         parseScheduleSlot slot `shouldBe` Left "Invalid day of week: funday"
 
     describe "schedulesMatch" $ do
@@ -121,6 +121,11 @@ spec =
             slots = [ParsedScheduleSlot Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0)]
         schedulesMatch templates slots `shouldBe` False
 
+      it "returns True when DB has NULL weeks (weekly) and form sends [1..5]" $ do
+        let templates = [mkTemplate (Just Friday) Nothing (TimeOfDay 19 0 0) (TimeOfDay 21 0 0)]
+            slots = [ParsedScheduleSlot Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0)]
+        schedulesMatch templates slots `shouldBe` True
+
       it "returns True for empty schedules" $ do
         schedulesMatch [] [] `shouldBe` True
 
@@ -179,13 +184,13 @@ mkTemplate dow weeks start end =
     }
 
 -- | Create a ScheduleSlotInfo for testing.
-mkSlot :: Text -> [Int64] -> Text -> Text -> ScheduleSlotInfo
-mkSlot dow weeks start end =
+mkSlot :: Text -> [Int64] -> Text -> Int -> ScheduleSlotInfo
+mkSlot dow weeks start dur =
   ScheduleSlotInfo
     { dayOfWeek = dow,
       weeksOfMonth = weeks,
       startTime = start,
-      endTime = end
+      duration = dur
     }
 
 --------------------------------------------------------------------------------

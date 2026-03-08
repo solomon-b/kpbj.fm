@@ -82,6 +82,7 @@ import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
 import API.User.Register.Post.HandlerSpec qualified as UserRegisterHandler
 import App.DomainsSpec qualified as Domains
 import App.Handler.CombinatorsSpec qualified as Combinators
+import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
 import Effects.DiffSpec qualified as Diff
@@ -114,6 +115,7 @@ main = do
   hspecWith cfg $ parallel $ do
     Domains.spec
     ScheduleDiff.spec
+    ScheduleEditor.spec
     ContentSanitization.spec
     Diff.spec
     Markdown.spec

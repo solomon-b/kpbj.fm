@@ -3,7 +3,6 @@
 
 module API.Dashboard.Shows.Slug.Edit.Get.Templates.Form
   ( template,
-    schedulesToJson,
   )
 where
 
@@ -11,15 +10,15 @@ where
 
 import API.Links (apiLinks)
 import API.Types
-import Data.Aeson qualified as Aeson
-import Data.ByteString.Lazy qualified as BSL
+import Component.ScheduleEditor (ScheduleEditorData (..), renderScheduleEditor)
+import Data.Int (Int64)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Data.Text.Encoding qualified as Text
+import Data.Time (TimeOfDay (..))
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
@@ -32,7 +31,6 @@ import Lucid qualified
 import Lucid.Alpine
 import Lucid.Form.Builder
 import Lucid.HTMX
-import OrphanInstances.DayOfWeek (dayOfWeekToPostgres)
 import Rel8 (Result)
 import Servant.Links qualified as Links
 
@@ -47,11 +45,10 @@ showGetUrl slug = Links.linkURI $ apiLinks.shows.detail slug Nothing
 --------------------------------------------------------------------------------
 
 -- | Show edit template using V2 FormBuilder
-template :: StorageBackend -> Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> Lucid.Html ()
-template backend showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds existingTags = do
+template :: StorageBackend -> Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> Text -> [ShowSchedule.ScheduleTemplate Result] -> [ShowSchedule.ScheduleTemplate Result] -> Lucid.Html ()
+template backend showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds existingTags startDate currentScheduleTemplates pendingScheduleTemplates = do
   renderFormHeader userMeta showModel
   renderForm config form
-  when isStaff $ renderScheduleManagementScript schedulesJson
   where
     showSlug = showModel.slug
     postUrl = [i|/dashboard/shows/#{display showSlug}/edit|]
@@ -128,7 +125,13 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
       -- Schedule Section (staff only)
       when isStaff $ do
         section "SCHEDULE" $ do
-          plain renderScheduleSection
+          plain $ do
+            Lucid.p_
+              [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
+              "Set the recurring schedule for this show."
+            unless (null currentScheduleTemplates && null pendingScheduleTemplates) $
+              renderSchedulePreview currentScheduleTemplates pendingScheduleTemplates startDate
+            renderScheduleEditor (ScheduleEditorData schedulesJson startDate)
 
       cancelButton [i|/#{dashboardShowsGetUrl}|] "CANCEL"
       submitButton "UPDATE SHOW"
@@ -166,6 +169,70 @@ renderFormHeader userMeta showModel = do
             class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
           ]
           "ALL SHOWS"
+
+--------------------------------------------------------------------------------
+-- Schedule Preview Banner
+
+-- | Read-only preview of the active and pending schedules, shown when a pending
+-- future schedule exists. Gives staff a clear picture of what's airing now and
+-- what's coming up while they edit the upcoming schedule.
+renderSchedulePreview :: [ShowSchedule.ScheduleTemplate Result] -> [ShowSchedule.ScheduleTemplate Result] -> Text -> Lucid.Html ()
+renderSchedulePreview activeTemplates pendingTemplates pendingStartDate =
+  Lucid.div_ [class_ $ base [Tokens.border2, Tokens.borderMuted, Tokens.bgAlt, Tokens.p4, Tokens.mb4]] $ do
+    -- Active schedule
+    unless (null activeTemplates) $ do
+      Lucid.p_ [class_ $ base [Tokens.fontBold, Tokens.textSm, Tokens.mb2]] "CURRENT SCHEDULE"
+      mapM_ renderSlot activeTemplates
+
+    -- Pending schedule with start date
+    unless (null pendingTemplates) $ do
+      when (not (null activeTemplates)) $
+        Lucid.hr_ [class_ $ base [Tokens.borderMuted, "my-3"]]
+      let header =
+            if Text.null pendingStartDate
+              then "UPCOMING SCHEDULE"
+              else "UPCOMING SCHEDULE (starts " <> pendingStartDate <> ")"
+      Lucid.p_ [class_ $ base [Tokens.fontBold, Tokens.textSm, Tokens.mb2]] (Lucid.toHtml header)
+      mapM_ renderSlot pendingTemplates
+  where
+    renderSlot :: ShowSchedule.ScheduleTemplate Result -> Lucid.Html ()
+    renderSlot t =
+      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
+        let dayName = maybe "—" (Text.pack . show) t.stDayOfWeek
+            timeStr = formatTimeRange t.stStartTime t.stEndTime
+            weeksStr = formatWeeks t.stWeeksOfMonth
+        Lucid.toHtml $ dayName <> " " <> timeStr <> weeksStr
+
+    formatTimeRange :: TimeOfDay -> TimeOfDay -> Text
+    formatTimeRange start end =
+      let fmt tod =
+            let h = todHour tod
+                m = todMin tod
+                period = if h < 12 then "AM" else "PM" :: Text
+                h12 = if h `mod` 12 == 0 then 12 else h `mod` 12
+             in if m == 0
+                  then Text.pack (show h12) <> period
+                  else Text.pack (show h12) <> ":" <> Text.pack (padZero m) <> period
+       in fmt start <> "–" <> fmt end
+
+    padZero :: Int -> String
+    padZero n = if n < 10 then "0" <> show n else show n
+
+    formatWeeks :: Maybe [Int64] -> Text
+    formatWeeks Nothing = ""
+    formatWeeks (Just ws) = case ws of
+      [1, 2, 3, 4, 5] -> ""
+      [1, 3] -> " (1st & 3rd weeks)"
+      [2, 4] -> " (2nd & 4th weeks)"
+      [n] -> " (" <> ordinal n <> " week)"
+      _ -> " (weeks " <> Text.intercalate ", " (map (Text.pack . show) ws) <> ")"
+
+    ordinal :: Int64 -> Text
+    ordinal 1 = "1st"
+    ordinal 2 = "2nd"
+    ordinal 3 = "3rd"
+    ordinal 4 = "4th"
+    ordinal n = Text.pack (show n) <> "th"
 
 --------------------------------------------------------------------------------
 -- Searchable Multi-Select for Hosts
@@ -236,201 +303,3 @@ renderHostOption currentHostIds user =
               Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
                 Lucid.toHtml $
                   email <> " • " <> roleText <> if isCurrentHost then " • CURRENT HOST" else ""
-
---------------------------------------------------------------------------------
--- Schedule Section (staff/admin only)
-
-renderScheduleSection :: Lucid.Html ()
-renderScheduleSection = do
-  Lucid.p_
-    [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
-    "Manage recurring time slots when this show will air. Changes will take effect immediately."
-
-  Lucid.div_ [Lucid.id_ "schedule-container"] $ do
-    Lucid.div_ [class_ $ base [Tokens.border2, "border-dashed", Tokens.borderMuted, Tokens.p8, "text-center", Tokens.fgMuted], Lucid.id_ "schedule-add-btn-container"] $ do
-      Lucid.button_
-        [ Lucid.type_ "button",
-          Lucid.id_ "add-schedule-btn",
-          class_ $ base [Tokens.successBg, Tokens.successText, Tokens.border2, Tokens.successBorder, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
-        ]
-        "+ ADD TIME SLOT"
-      Lucid.div_ [class_ $ base ["mt-2", Tokens.textSm]] "Click to add a recurring schedule"
-
-  -- Hidden field for JSON data
-  Lucid.input_
-    [ Lucid.type_ "hidden",
-      Lucid.name_ "schedules_json",
-      Lucid.id_ "schedules-json",
-      Lucid.value_ "[]"
-    ]
-
---------------------------------------------------------------------------------
--- Schedule Management JavaScript
-
--- | Convert schedule templates from database to JSON for the form
-schedulesToJson :: [ShowSchedule.ScheduleTemplate Result] -> Text
-schedulesToJson schedules =
-  let scheduleData =
-        [ Aeson.object
-            [ "dayOfWeek" Aeson..= maybe ("" :: Text) dayOfWeekToPostgres sched.stDayOfWeek,
-              "weeksOfMonth" Aeson..= maybe ([] :: [Int]) (map fromIntegral) sched.stWeeksOfMonth,
-              "startTime" Aeson..= Text.take 5 (Text.pack $ show sched.stStartTime),
-              "endTime" Aeson..= Text.take 5 (Text.pack $ show sched.stEndTime)
-            ]
-          | sched <- schedules
-        ]
-   in Text.decodeUtf8 $ BSL.toStrict $ Aeson.encode scheduleData
-
-renderScheduleManagementScript :: Text -> Lucid.Html ()
-renderScheduleManagementScript schedulesJson =
-  Lucid.script_
-    [i|
-// Schedule management module (IIFE to avoid global pollution)
-(function() {
-  // Existing schedules from database
-  const existingSchedules = #{schedulesJson};
-
-  // Schedule slot HTML template
-  const createScheduleElement = (data = null) => {
-    const div = document.createElement('div');
-    div.className = 'border-2 border-[var(--theme-border-muted)] p-4 bg-[var(--theme-bg-alt)] mb-4 schedule-slot';
-    div.innerHTML = `
-      <div class='flex justify-between items-center mb-4'>
-        <span class='font-bold text-sm'>TIME SLOT</span>
-        <button type='button' class='bg-[var(--theme-error)] text-[var(--theme-bg)] px-3 py-1 text-xs font-bold hover:opacity-80'
-                data-action='remove-schedule'>REMOVE</button>
-      </div>
-
-      <div class='grid grid-cols-1 md:grid-cols-2 gap-4 mb-4'>
-        <div>
-          <label class='block font-bold text-sm mb-1'>Day of Week *</label>
-          <select class='w-full p-2 border-2 border-[var(--theme-border-muted)] bg-[var(--theme-bg)] text-[var(--theme-fg)] font-mono schedule-day' required>
-            <option value=''>-- Select Day --</option>
-            <option value='sunday'>Sunday</option>
-            <option value='monday'>Monday</option>
-            <option value='tuesday'>Tuesday</option>
-            <option value='wednesday'>Wednesday</option>
-            <option value='thursday'>Thursday</option>
-            <option value='friday'>Friday</option>
-            <option value='saturday'>Saturday</option>
-          </select>
-        </div>
-
-        <div>
-          <label class='block font-bold text-sm mb-1'>Weeks of Month *</label>
-          <div class='flex gap-3 flex-wrap'>
-            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='1' checked> 1st</label>
-            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='2' checked> 2nd</label>
-            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='3' checked> 3rd</label>
-            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='4' checked> 4th</label>
-            <label class='flex items-center'><input type='checkbox' class='mr-1 schedule-week' value='5' checked> 5th</label>
-          </div>
-          <p class='text-xs text-[var(--theme-fg-muted)] mt-1'>Select which weeks of each month (all = every week)</p>
-        </div>
-      </div>
-
-      <div class='grid grid-cols-2 gap-4'>
-        <div>
-          <label class='block font-bold text-sm mb-1'>Start Time *</label>
-          <input type='time' class='w-full p-2 border-2 border-[var(--theme-border-muted)] bg-[var(--theme-bg)] text-[var(--theme-fg)] font-mono schedule-start' required>
-        </div>
-        <div>
-          <label class='block font-bold text-sm mb-1'>End Time *</label>
-          <input type='time' class='w-full p-2 border-2 border-[var(--theme-border-muted)] bg-[var(--theme-bg)] text-[var(--theme-fg)] font-mono schedule-end' required>
-        </div>
-      </div>
-    `;
-
-    // Pre-populate with data if provided
-    if (data) {
-      const daySelect = div.querySelector('.schedule-day');
-      if (daySelect && data.dayOfWeek) {
-        daySelect.value = data.dayOfWeek;
-      }
-
-      // Set weeks of month
-      const weekCheckboxes = div.querySelectorAll('.schedule-week');
-      weekCheckboxes.forEach(cb => {
-        const weekNum = parseInt(cb.value, 10);
-        if (data.weeksOfMonth && data.weeksOfMonth.length > 0) {
-          cb.checked = data.weeksOfMonth.includes(weekNum);
-        }
-      });
-
-      const startInput = div.querySelector('.schedule-start');
-      if (startInput && data.startTime) {
-        startInput.value = data.startTime;
-      }
-
-      const endInput = div.querySelector('.schedule-end');
-      if (endInput && data.endTime) {
-        endInput.value = data.endTime;
-      }
-    }
-
-    return div;
-  };
-
-  // Extract schedule data from DOM element
-  const extractScheduleData = (div) => {
-    const weekCheckboxes = div.querySelectorAll('.schedule-week:checked');
-    const weeksOfMonth = Array.from(weekCheckboxes).map(cb => parseInt(cb.value, 10));
-
-    return {
-      dayOfWeek: div.querySelector('.schedule-day')?.value || '',
-      weeksOfMonth: weeksOfMonth,
-      startTime: div.querySelector('.schedule-start')?.value || '',
-      endTime: div.querySelector('.schedule-end')?.value || ''
-    };
-  };
-
-  // Update hidden JSON field with current schedules
-  const updateSchedulesJson = () => {
-    const scheduleDivs = document.querySelectorAll('\#schedule-container .schedule-slot');
-    const schedules = Array.from(scheduleDivs)
-      .map(extractScheduleData)
-      .filter(s => s.dayOfWeek && s.weeksOfMonth.length > 0 && s.startTime && s.endTime);
-
-    const jsonField = document.getElementById('schedules-json');
-    if (jsonField) {
-      jsonField.value = JSON.stringify(schedules);
-    }
-  };
-
-  // Add new schedule slot
-  const addSchedule = (data = null) => {
-    const container = document.getElementById('schedule-container');
-    const addButton = document.getElementById('schedule-add-btn-container');
-    if (container && addButton) {
-      container.insertBefore(createScheduleElement(data), addButton);
-      updateSchedulesJson();
-    }
-  };
-
-  // Remove schedule slot
-  const removeSchedule = (button) => {
-    button.closest('.schedule-slot')?.remove();
-    updateSchedulesJson();
-  };
-
-  // Initialize with existing schedules
-  existingSchedules.forEach(schedule => addSchedule(schedule));
-
-  // Event listeners
-  document.getElementById('add-schedule-btn')?.addEventListener('click', () => addSchedule());
-
-  const container = document.getElementById('schedule-container');
-  if (container) {
-    container.addEventListener('input', updateSchedulesJson);
-    container.addEventListener('change', updateSchedulesJson);
-    container.addEventListener('click', (e) => {
-      if (e.target.dataset.action === 'remove-schedule') {
-        removeSchedule(e.target);
-      }
-    });
-  }
-
-  // Initialize JSON field with existing data
-  updateSchedulesJson();
-})();
-|]
