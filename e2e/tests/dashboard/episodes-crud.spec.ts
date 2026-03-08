@@ -115,10 +115,13 @@ test.describe("Episodes CRUD", () => {
     test("create episode via upload form", async ({ page }) => {
       await page.goto(NEW_URL);
 
-      // Select the first available scheduled date.
+      // Select the last available scheduled date to avoid collision with
+      // episode-schedule.spec.ts which picks the first date concurrently.
       const select = page.locator('select[name="scheduled_date"]');
-      const firstOption = select.locator("option:not([value=''])").first();
-      const value = await firstOption.getAttribute("value");
+      const options = select.locator("option:not([value=''])");
+      const count = await options.count();
+      expect(count).toBeGreaterThanOrEqual(1);
+      const value = await options.nth(count - 1).getAttribute("value");
       await select.selectOption(value!);
 
       // Fill description.
