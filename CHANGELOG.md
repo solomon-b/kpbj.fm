@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.10.0] - 2026-03-08
+
 ### Added
 - **Schedule Editor Component** — Extracted the schedule editor UI into a reusable `Component.ScheduleEditor` shared by the New Show and Edit Show forms. Supports weekly, twice-a-month, and once-a-month frequencies with week selection and interactive time slot management.
 - **Pending Schedule Preview** — The show edit page now displays a read-only "CURRENT SCHEDULE" and "UPCOMING SCHEDULE (starts YYYY-MM-DD)" preview when a future schedule change is configured. Re-editing replaces the pending schedule rather than stacking duplicates.
