@@ -5,7 +5,7 @@ module API.Dashboard.Shows.Slug.Edit.Get.Handler (handler, action, ShowEditViewD
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form (schedulesToJson, template)
+import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
@@ -13,6 +13,7 @@ import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.ScheduleEditor (schedulesToEditorJson)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -38,6 +39,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
 import Lucid qualified
+import Rel8 (Result)
 import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
@@ -52,7 +54,13 @@ data ShowEditViewData = ShowEditViewData
     sevSchedulesJson :: Text,
     sevEligibleHosts :: [UserMetadata.UserWithMetadata],
     sevCurrentHostIds :: Set User.Id,
-    sevExistingTags :: Text
+    sevExistingTags :: Text,
+    sevScheduleStartDate :: Text, -- "YYYY-MM-DD" or ""
+
+    -- | Currently-active templates shown as read-only when a pending schedule exists.
+    sevCurrentScheduleTemplates :: [ShowSchedule.ScheduleTemplate Result],
+    -- | Pending (future) templates shown as read-only preview alongside current.
+    sevPendingScheduleTemplates :: [ShowSchedule.ScheduleTemplate Result]
   }
 
 -- | Business logic: fetch show and staff data.
@@ -81,10 +89,10 @@ action user userMetadata slug = do
         Right tags -> Text.intercalate ", " $ map ShowTags.stName tags
 
   -- 6. Fetch staff-only data (schedules, hosts) if user is staff
-  (schedulesJson, eligibleHosts, currentHostIds) <-
+  (schedulesJson, eligibleHosts, currentHostIds, scheduleStartDate, currentTemplates, pendingTemplates') <-
     fromRightM throwDatabaseError $
       lift $
-        bool (pure (Right ("[]", [], Set.empty))) (fetchStaffData showModel.id) isStaff
+        bool (pure (Right ("[]", [], Set.empty, "", [], []))) (fetchStaffData showModel.id) isStaff
 
   pure
     ShowEditViewData
@@ -96,7 +104,10 @@ action user userMetadata slug = do
         sevSchedulesJson = schedulesJson,
         sevEligibleHosts = eligibleHosts,
         sevCurrentHostIds = currentHostIds,
-        sevExistingTags = existingTags
+        sevExistingTags = existingTags,
+        sevScheduleStartDate = scheduleStartDate,
+        sevCurrentScheduleTemplates = currentTemplates,
+        sevPendingScheduleTemplates = pendingTemplates'
       }
 
 handler ::
@@ -110,7 +121,7 @@ handler slug cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId slug userMetadata
     vd <- action user userMetadata slug
-    let editTemplate = template vd.sevBackend vd.sevShowModel vd.sevUserMetadata vd.sevIsStaff vd.sevSchedulesJson vd.sevEligibleHosts vd.sevCurrentHostIds vd.sevExistingTags
+    let editTemplate = template vd.sevBackend vd.sevShowModel vd.sevUserMetadata vd.sevIsStaff vd.sevSchedulesJson vd.sevEligibleHosts vd.sevCurrentHostIds vd.sevExistingTags vd.sevScheduleStartDate vd.sevCurrentScheduleTemplates vd.sevPendingScheduleTemplates
     lift $ renderDashboardTemplate hxRequest vd.sevUserMetadata vd.sevSidebarShows (Just vd.sevShowModel) NavSettings Nothing Nothing editTemplate
 
 -- | Fetch show by slug, throwing NotFound if not found
@@ -132,13 +143,39 @@ fetchShowsForUser user userMetadata =
     then fromRight [] <$> execQuery Shows.getAllActiveShows
     else fromRight [] <$> execQuery (Shows.getShowsForUser user.mId)
 
--- | Fetch staff-only data for the edit form (schedules and hosts)
+-- | Fetch staff-only data for the edit form (schedules and hosts).
+--
+-- When a pending (future) schedule exists, the form is populated with the pending
+-- schedule and the current active schedule is returned separately for read-only display.
+-- When no pending schedule exists, the form shows the current active schedule.
 fetchStaffData ::
   Shows.Id ->
-  AppM (Either HSQL.Pool.UsageError (Text, [UserMetadata.UserWithMetadata], Set User.Id))
+  AppM (Either HSQL.Pool.UsageError (Text, [UserMetadata.UserWithMetadata], Set User.Id, Text, [ShowSchedule.ScheduleTemplate Result], [ShowSchedule.ScheduleTemplate Result]))
 fetchStaffData showId = runDBTransaction $ do
-  schedulesJson <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showId
+  activeTemplates <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showId
+  pendingTemplates <- TRX.statement () $ ShowSchedule.getPendingScheduleTemplatesForShow showId
   eligibleHosts <- TRX.statement () $ UserMetadata.getAllUsersWithPagination 1000 0
   currentHostIds <- TRX.statement () $ ShowHost.getShowHosts showId
 
-  pure (schedulesToJson schedulesJson, eligibleHosts, Set.fromList $ fmap (.shmUserId) currentHostIds)
+  -- If pending templates exist, populate form with them and show active as read-only.
+  -- Otherwise, populate form with the active templates.
+  let (formTemplates, currentForDisplay) = case pendingTemplates of
+        [] -> (activeTemplates, [])
+        _ -> (pendingTemplates, activeTemplates)
+
+  let hasPending = not (null pendingTemplates)
+  startDate <- case formTemplates of
+    [] -> pure ""
+    (t : _) -> do
+      -- For pending templates, use unfiltered query since their validity hasn't started yet.
+      -- For active templates, use the active-only query.
+      validities <-
+        TRX.statement () $
+          if hasPending
+            then ShowSchedule.getValidityPeriodsForTemplate t.stId
+            else ShowSchedule.getActiveValidityPeriodsForTemplate t.stId
+      pure $ case validities of
+        [] -> ""
+        vs -> Text.pack $ show $ minimum $ map (.stvEffectiveFrom) vs
+
+  pure (schedulesToEditorJson formTemplates, eligibleHosts, Set.fromList $ fmap (.shmUserId) currentHostIds, startDate, currentForDisplay, pendingTemplates)

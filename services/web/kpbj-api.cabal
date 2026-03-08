@@ -436,6 +436,7 @@ library
     Component.AudioPlayer.Waveform
     Component.InfiniteScroll
     Component.TrackListingEditor
+    Component.ScheduleEditor
     Component.Banner
     Component.Card.BlogPost
     Component.Card.Episode
@@ -491,6 +492,7 @@ test-suite kpbj-api-test
     main-is:          Main.hs
     ghc-options:      -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -O0 -fwrite-ide-info
     build-depends:    base >=4.19.2.0
+                    , aeson
                     , kpbj-api
                     , kpbj-types
                     , kpbj-database
@@ -605,6 +607,7 @@ test-suite kpbj-api-test
        API.Dashboard.Shows.Slug.Edit.Get.HandlerSpec
        API.Dashboard.Shows.Slug.Episode.New.Post.HandlerSpec
        API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec
+       Component.ScheduleEditorSpec
        API.Events.Event.Get.HandlerSpec
        API.Events.Get.HandlerSpec
        API.Get.HandlerSpec
