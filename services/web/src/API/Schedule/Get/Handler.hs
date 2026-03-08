@@ -23,12 +23,13 @@ import Data.Functor ((<&>))
 import Data.Has (getter)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Data.Time (Day, DayOfWeek, addDays, getCurrentTime, utcToLocalTime)
+import Data.Time (Day, DayOfWeek, addDays, getCurrentTime)
 import Data.Time.Calendar.WeekDate (toWeekDate)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay, hoursToTimeZone)
+import Data.Time.LocalTime (LocalTime (..), TimeOfDay)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..))
 import Domain.Types.StorageBackend (StorageBackend)
+import Domain.Types.Timezone (utcToPacific)
 import Domain.Types.WeekOffset (WeekOffset (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -81,8 +82,7 @@ action (fromMaybe 0 -> WeekOffset weekOffset) = do
   storageBackend <- asks getter
 
   nowUtc <- liftIO getCurrentTime
-  let pacificTz = hoursToTimeZone (-8) -- PST is UTC-8
-      nowPacific = utcToLocalTime pacificTz nowUtc
+  let nowPacific = utcToPacific nowUtc
       today = localDay nowPacific
       currentTime = localTimeOfDay nowPacific
       (_, _, todayDayOfWeek) = toDayOfWeek <$> toWeekDate today
