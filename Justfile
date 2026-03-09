@@ -740,13 +740,44 @@ nixos-build-staging:
 # Backups use two repositories: repo1 (local VPS disk) and repo2 (S3).
 # Prerequisites: SSH access to target VPS
 
-# Show staging pgBackRest backup status
+# Show staging pgBackRest backup summary
 staging-backup-info:
+  @just _backup-info "{{STAGING_VPS_TARGET}}"
+
+# Show production pgBackRest backup summary
+prod-backup-info:
+  @just _backup-info "{{PROD_VPS_TARGET}}"
+
+# Show raw pgBackRest info (full detail) for staging
+staging-backup-info-full:
   ssh {{STAGING_VPS_TARGET}} 'sudo -u postgres bash -c "set -a; source /run/secrets/rendered/kpbj-pgbackrest-s3.env; pgbackrest info --stanza=kpbj"'
 
-# Show production pgBackRest backup status
-prod-backup-info:
+# Show raw pgBackRest info (full detail) for production
+prod-backup-info-full:
   ssh {{PROD_VPS_TARGET}} 'sudo -u postgres bash -c "set -a; source /run/secrets/rendered/kpbj-pgbackrest-s3.env; pgbackrest info --stanza=kpbj"'
+
+[private]
+_backup-info target:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  json=$(ssh {{target}} 'sudo -u postgres bash -c "set -a; source /run/secrets/rendered/kpbj-pgbackrest-s3.env; pgbackrest info --stanza=kpbj --output=json"')
+  echo "$json" | jq -r '
+    .[0] |
+    "Status:   \(.status.message)" ,
+    "Backups:  \(.backup | length) total (\(.backup | first.timestamp.stop | strftime("%b %d")) → \(.backup | last.timestamp.stop | strftime("%b %d")))" ,
+    "" ,
+    "Latest:" ,
+    (.backup | last |
+      "  \(.type | ascii_upcase)  \(.timestamp.stop | strftime("%Y-%m-%d %H:%M:%S UTC"))" ,
+      "  Size  \(.info.size / 1048576 | round)MB (repo: \(.info.repository.size / 1048576 | round)MB)"
+    ) ,
+    "" ,
+    "WAL Archive:" ,
+    ([.archive[] | {repo: (.id | split("-") | last), min, max}] | group_by(.repo) | map(max_by(.max))[] |
+      (if .repo == "1" then "local" else "s3" end) as $label |
+      (if .repo == "1" then " " else "    " end) as $pad |
+      "  repo\(.repo) (\($label)):\($pad)\(.min // "none") → \(.max // "none")"
+    )'
 
 # Trigger a manual full backup on staging (both repos)
 staging-backup-run:

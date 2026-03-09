@@ -6,6 +6,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Changed
 - **Dynamic Donate Page** — The donate page content is now editable from the dashboard via Site Pages, matching the About, Privacy Policy, and Terms of Service pages. Markdown content is rendered above the PayPal widget. Added seed migration for initial donate page content.
+- **Backup Info Summary** — `just prod-backup-info` and `just staging-backup-info` now show a concise summary (status, backup count, latest backup, WAL archive per repo) instead of raw pgBackRest output. Full detail available via `just prod-backup-info-full` / `just staging-backup-info-full`.
 
 ### Fixed
 - **File Uploads Blocked by CSP** — The uploads subdomain (`uploads.kpbj.fm` / `uploads.staging.kpbj.fm`) was missing from the CSP `connect-src` directive, causing browsers to block XHR upload requests introduced in 0.10.0.
