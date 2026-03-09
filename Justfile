@@ -52,6 +52,21 @@ _require-sops:
   @command -v sops >/dev/null 2>&1 || { echo "ERROR: 'sops' is required but not installed. Run 'nix develop' to enter the dev shell."; exit 1; }
   @command -v age >/dev/null 2>&1 || { echo "ERROR: 'age' is required but not installed. Run 'nix develop' to enter the dev shell."; exit 1; }
 
+[private]
+_remote-logs host units since until:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  unit_flags=""
+  for u in {{units}}; do unit_flags="$unit_flags -u $u"; done
+  if [ -z "{{since}}" ] && [ -z "{{until}}" ]; then
+    ssh {{host}} journalctl $unit_flags -f
+  else
+    args="--no-pager"
+    if [ -n "{{since}}" ]; then args="$args --since '{{since}}'"; fi
+    if [ -n "{{until}}" ]; then args="$args --until '{{until}}'"; fi
+    ssh {{host}} "journalctl $unit_flags $args"
+  fi
+
 # =============================================================================
 # Build & Run
 # =============================================================================
@@ -342,9 +357,21 @@ STAGING_VPS_TARGET := "root@ssh.staging.kpbj.fm"
 STAGING_DB_NAME := "kpbj_fm"
 STAGING_DB_USER := "kpbj_fm"
 
-# View staging web service logs
-staging-logs:
-  ssh {{STAGING_VPS_TARGET}} journalctl -u kpbj-web -f
+# View staging web service logs (follows by default, or query a time range)
+# Usage: just staging-logs-web "2026-03-09 15:00" "2026-03-09 16:00"
+staging-logs-web since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-web" since until)
+
+# View all staging service logs (follows by default, or query a time range)
+staging-logs since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-web kpbj-liquidsoap kpbj-icecast kpbj-webhook" since until)
+
+# View staging Liquidsoap logs
+staging-logs-liquidsoap since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-liquidsoap" since until)
+
+# View staging Icecast logs
+staging-logs-icecast since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-icecast" since until)
+
+# View staging webhook logs
+staging-logs-webhook since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-webhook" since until)
 
 # View staging service status
 staging-status:
@@ -438,9 +465,21 @@ PROD_VPS_TARGET := "root@ssh.kpbj.fm"
 PROD_DB_NAME := "kpbj_fm"
 PROD_DB_USER := "kpbj_fm"
 
-# View production web service logs
-prod-logs:
-  ssh {{PROD_VPS_TARGET}} journalctl -u kpbj-web -f
+# View production web service logs (follows by default, or query a time range)
+# Usage: just prod-logs-web "2026-03-09 15:00" "2026-03-09 16:00"
+prod-logs-web since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-web" since until)
+
+# View all production service logs (follows by default, or query a time range)
+prod-logs since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-web kpbj-liquidsoap kpbj-icecast kpbj-webhook" since until)
+
+# View production Liquidsoap logs
+prod-logs-liquidsoap since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-liquidsoap" since until)
+
+# View production Icecast logs
+prod-logs-icecast since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-icecast" since until)
+
+# View production webhook logs
+prod-logs-webhook since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-webhook" since until)
 
 # View production service status
 prod-status:
