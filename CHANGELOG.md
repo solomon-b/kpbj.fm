@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.10.2] - 2026-03-08
+
 ### Changed
 - **Dynamic Donate Page** — The donate page content is now editable from the dashboard via Site Pages, matching the About, Privacy Policy, and Terms of Service pages. Markdown content is rendered above the PayPal widget. Added seed migration for initial donate page content.
 - **Backup Info Summary** — `just prod-backup-info` and `just staging-backup-info` now show a concise summary (status, backup count, latest backup, WAL archive per repo) instead of raw pgBackRest output. Full detail available via `just prod-backup-info-full` / `just staging-backup-info-full`.
