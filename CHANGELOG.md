@@ -8,6 +8,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Dynamic Donate Page** — The donate page content is now editable from the dashboard via Site Pages, matching the About, Privacy Policy, and Terms of Service pages. Markdown content is rendered above the PayPal widget. Added seed migration for initial donate page content.
 
 ### Fixed
+- **File Uploads Blocked by CSP** — The uploads subdomain (`uploads.kpbj.fm` / `uploads.staging.kpbj.fm`) was missing from the CSP `connect-src` directive, causing browsers to block XHR upload requests introduced in 0.10.0.
 - **PayPal Card Icons Blocked by CSP** — The PayPal hosted button's card icons (`Debit_Credit_APM.svg`) were blocked by Content-Security-Policy. Added `https://www.paypalobjects.com` to the `img-src` directive.
 - **VPS Timezone** — Set `time.timeZone = "America/Los_Angeles"` in NixOS common config. Previously defaulted to UTC, causing the episode check job's `CURRENT_DATE` to evaluate ~8 hours ahead of Pacific time.
 
