@@ -45,7 +45,7 @@ jobs:
       - name: Pre-deploy database backup
         run: |
           ssh root@ssh.kpbj.fm \
-            'sudo -u postgres pgbackrest backup --stanza=kpbj --type=full --repo=1'
+            'sudo -u postgres bash -c "set -a; . /run/secrets-rendered/kpbj-pgbackrest-s3.env; pgbackrest backup --stanza=kpbj --type=full --repo=1"'
           ssh root@ssh.kpbj.fm \
             'sudo -u postgres bash -c "set -a; . /run/secrets-rendered/kpbj-pgbackrest-s3.env; pgbackrest backup --stanza=kpbj --type=full --repo=2"' \
             || echo '::warning::S3 backup (repo2) failed — continuing with deploy'
