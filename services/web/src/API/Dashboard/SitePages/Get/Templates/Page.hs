@@ -88,6 +88,7 @@ renderPageRow page =
 publicPageUrl :: Text -> Links.URI
 publicPageUrl slug = case slug of
   "about" -> Links.linkURI apiLinks.aboutGet
+  "donate" -> Links.linkURI apiLinks.donateGet
   "privacy-policy" -> Links.linkURI apiLinks.privacyPolicyGet
   "terms-of-service" -> Links.linkURI apiLinks.termsOfServiceGet
   _ -> Links.linkURI apiLinks.rootGet

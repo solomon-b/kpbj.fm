@@ -42,7 +42,7 @@ prop_getAllPages cfg = do
 
       assert $ do
         pages <- assertRight result
-        -- Pre-seeded pages should exist (about, privacy-policy, terms-of-service)
+        -- Pre-seeded pages should exist (about, donate, privacy-policy, terms-of-service)
         length pages <== (> 0)
         pure ()
 
