@@ -214,6 +214,28 @@ just dev-mock-data
 
 See [README.md](README.md) for full setup, deployment, and release process.
 
+## Server Logs
+
+**ALWAYS use these `just` commands to view server logs. NEVER use raw `ssh` + `journalctl` directly.**
+
+```bash
+# Follow live (no args)
+just prod-logs                  # All services interleaved
+just prod-logs-web              # Web service only
+just prod-logs-liquidsoap       # Liquidsoap only
+just prod-logs-icecast          # Icecast only
+just prod-logs-webhook          # Webhook only
+
+# Query a time range (positional: since, until)
+just prod-logs-web "2026-03-09 15:00" "2026-03-09 16:00"
+just prod-logs-liquidsoap "2026-03-09 15:00"  # since only
+
+# Staging: same pattern
+just staging-logs / staging-logs-web / staging-logs-liquidsoap / etc.
+```
+
+**Note**: Production VPS timestamps are in the system timezone (check with `timedatectl`). Pass timestamps accordingly.
+
 ## Adding New Features
 
 ### New Route
