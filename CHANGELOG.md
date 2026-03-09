@@ -4,7 +4,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+- **Dynamic Donate Page** — The donate page content is now editable from the dashboard via Site Pages, matching the About, Privacy Policy, and Terms of Service pages. Markdown content is rendered above the PayPal widget. Added seed migration for initial donate page content.
+
+### Fixed
+- **VPS Timezone** — Set `time.timeZone = "America/Los_Angeles"` in NixOS common config. Previously defaulted to UTC, causing the episode check job's `CURRENT_DATE` to evaluate ~8 hours ahead of Pacific time.
 
 ---
 
