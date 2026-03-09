@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.10.1] - 2026-03-08
+
 ### Fixed
 - **Production Deploy Failing on Pre-Deploy Backup** — The `--repo=1` (local) pgbackrest backup command ran without sourcing S3 credentials, but pgbackrest validates all configured repos at startup. Since `pgbackrest.conf` declares `repo2-type=s3`, the missing `repo2-s3-key` env var caused the local backup to fail with exit code 37. Fixed by sourcing `/run/secrets-rendered/kpbj-pgbackrest-s3.env` for both repo1 and repo2 backup commands.
 
