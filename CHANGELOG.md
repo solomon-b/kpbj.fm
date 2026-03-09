@@ -8,6 +8,13 @@ _No changes yet._
 
 ---
 
+## [0.10.1] - 2026-03-08
+
+### Fixed
+- **Production Deploy Failing on Pre-Deploy Backup** — The pre-deploy pgbackrest backup used the wrong path for the SOPS-rendered S3 credentials (`/run/secrets-rendered/` instead of `/run/secrets/rendered/`). Both repo1 and repo2 backups now source the correct env file.
+
+---
+
 ## [0.10.0] - 2026-03-08
 
 ### Added
