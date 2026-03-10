@@ -750,7 +750,7 @@ nixos-setup HOST ENV:
 # Uses 'boot' instead of 'switch' to avoid hangs on first deploy,
 # then reboots. Safe for ongoing deploys too (activates on next boot).
 nixos-deploy-prod:
-  nixos-rebuild switch --flake .#kpbj-stream-prod --target-host {{PROD_STREAM_TARGET}}
+  nixos-rebuild switch --flake .#kpbj-prod --target-host {{PROD_STREAM_TARGET}}
 
 # Deploy NixOS config to staging streaming VPS
 nixos-deploy-staging:
@@ -758,7 +758,7 @@ nixos-deploy-staging:
 
 # Preview NixOS changes for production (dry-activate)
 nixos-deploy-prod-dry:
-  nixos-rebuild dry-activate --flake .#kpbj-stream-prod --target-host {{PROD_STREAM_TARGET}}
+  nixos-rebuild dry-activate --flake .#kpbj-prod --target-host {{PROD_STREAM_TARGET}}
 
 # Preview NixOS changes for staging (dry-activate)
 nixos-deploy-staging-dry:
@@ -766,7 +766,7 @@ nixos-deploy-staging-dry:
 
 # Build production NixOS config locally (verify it evaluates)
 nixos-build-prod:
-  nix build .#nixosConfigurations.kpbj-stream-prod.config.system.build.toplevel
+  nix build .#nixosConfigurations.kpbj-prod.config.system.build.toplevel
 
 # Build staging NixOS config locally (verify it evaluates)
 nixos-build-staging:

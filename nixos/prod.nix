@@ -20,7 +20,7 @@
     ./watchdog.nix
   ];
 
-  networking.hostName = "kpbj-stream-prod";
+  networking.hostName = "kpbj-prod";
 
   kpbj.sops.secretsFile = ../secrets/prod-streaming.yaml;
 
