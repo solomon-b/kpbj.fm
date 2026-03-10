@@ -21,7 +21,7 @@ resource "digitalocean_ssh_key" "stream" {
 # ──────────────────────────────────────────────────────────────
 
 resource "digitalocean_droplet" "stream_prod" {
-  name       = "kpbj-stream-prod"
+  name       = "kpbj-prod"
   region     = var.droplet_region
   size       = var.droplet_size
   image      = var.droplet_image
@@ -94,7 +94,7 @@ resource "digitalocean_spaces_bucket" "pgbackrest" {
 # ──────────────────────────────────────────────────────────────
 
 resource "digitalocean_firewall" "stream_prod" {
-  name        = "kpbj-stream-prod-fw"
+  name        = "kpbj-prod-fw"
   droplet_ids = [digitalocean_droplet.stream_prod.id]
 
   # SSH

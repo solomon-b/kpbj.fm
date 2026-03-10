@@ -176,7 +176,7 @@
           kpbj-api = self.packages.x86_64-linux.kpbj-api;
         in
         {
-          kpbj-stream-prod = nixpkgs.lib.nixosSystem {
+          kpbj-prod = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
             specialArgs = { inherit sync-host-emails token-cleanup episode-check kpbj-api; };
             modules = [
