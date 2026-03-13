@@ -543,15 +543,16 @@ prod-secrets: _require-sops
 prod-backup-pg: _require-sops
   ./scripts/prod-backup-pg.sh
 
-# Backup production database from remote server (e.g., TrueNAS)
+# Backup production database from remote server via SSH tunnel
+# Credentials loaded from SOPS-encrypted secrets/backup.yaml
 # Optional: BACKUP_DIR (default: ./backups/postgres), RETENTION_DAYS (default: 14)
-prod-backup-remote:
+prod-backup-remote: _require-sops
   ./scripts/prod-backup-remote.sh
 
 # Backup production S3 bucket using rclone with date-based snapshots
 # Credentials loaded from SOPS-encrypted secrets/backup.yaml
 # Optional: BACKUP_DIR (default: ./backups/s3), RETENTION_DAYS (default: 14)
-prod-backup-s3: _require-sops _require-aws
+prod-backup-s3: _require-sops
   ./scripts/prod-backup-s3.sh
 
 # =============================================================================
