@@ -171,7 +171,9 @@ radio = source.on_track(radio, fun(m) -> begin
 
   # POST to web service if playout_secret is configured
   if playout_secret != "" then
-    started_at = time.string("%Y-%m-%dT%H:%M:%SZ")
+    t = time.utc()
+    p = fun(n) -> string.of_int(digits=2, n)
+    started_at = "#{t.year}-#{p(t.month)}-#{p(t.day)}T#{p(t.hour)}:#{p(t.min)}:#{p(t.sec)}Z"
 
     body = json.stringify({
       prTitle = title,
