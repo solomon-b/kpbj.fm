@@ -31,6 +31,11 @@
     allowedTCPPorts = [ 22 80 443 ];
   };
 
+  # ── Journal ─────────────────────────────────────────────────
+  services.journald.extraConfig = ''
+    SystemMaxUse=500M
+  '';
+
   # ── Nix ─────────────────────────────────────────────────────
   nix = {
     settings.experimental-features = [ "nix-command" "flakes" ];
