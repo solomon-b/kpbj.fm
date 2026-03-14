@@ -373,6 +373,9 @@ staging-logs-icecast since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-i
 # View staging webhook logs
 staging-logs-webhook since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-webhook" since until)
 
+# View staging listener-snapshots logs
+staging-logs-listener-snapshots since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-listener-snapshots" since until)
+
 # View staging service status
 staging-status:
   ssh {{STAGING_VPS_TARGET}} systemctl status kpbj-web kpbj-postgres-setup postgresql
@@ -480,6 +483,9 @@ prod-logs-icecast since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-icecast
 
 # View production webhook logs
 prod-logs-webhook since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-webhook" since until)
+
+# View production listener-snapshots logs
+prod-logs-listener-snapshots since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-listener-snapshots" since until)
 
 # View production service status
 prod-status:
