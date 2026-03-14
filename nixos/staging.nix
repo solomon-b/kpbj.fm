@@ -11,6 +11,7 @@
     ./sync-host-emails.nix
     ./token-cleanup.nix
     ./episode-check.nix
+    ./listener-snapshots.nix
     ./monitoring.nix
     ./nginx.nix
     ./sops.nix
@@ -44,6 +45,10 @@
   kpbj.episodeCheck = {
     enable = true;
     dryRun = true;
+  };
+
+  kpbj.listenerSnapshots = {
+    enable = true;
   };
 
   kpbj.nginx = {
