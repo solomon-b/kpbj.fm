@@ -27,6 +27,7 @@ module API
     DashboardUsersRoutes (..),
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
+    DashboardAnalyticsRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
     AnalyticsRoutes (..),
@@ -42,6 +43,8 @@ import API.About.Get.Handler qualified as About.Get
 import API.Analytics.EpisodePlay.Post.Handler qualified as Analytics.EpisodePlay.Post
 import API.Blog.Get.Handler qualified as Blog.Get
 import API.Blog.Post.Get.Handler qualified as Blog.Post.Get
+import API.Dashboard.Analytics.Data.Get.Handler qualified as Dashboard.Analytics.Data.Get
+import API.Dashboard.Analytics.Get.Handler qualified as Dashboard.Analytics.Get
 import API.Dashboard.Blogs.Get.Handler qualified as Dashboard.Blogs.Get
 import API.Dashboard.Blogs.New.Get.Handler qualified as Dashboard.Blogs.New.Get
 import API.Dashboard.Blogs.New.Post.Handler qualified as Dashboard.Blogs.New.Post
@@ -321,7 +324,14 @@ server =
           users = dashboardUsersRoutes,
           sitePages = dashboardSitePagesRoutes,
           streamSettings = dashboardStreamSettingsRoutes,
-          missingEpisodes = Dashboard.MissingEpisodes.Get.handler
+          missingEpisodes = Dashboard.MissingEpisodes.Get.handler,
+          analytics = dashboardAnalyticsRoutes
+        }
+
+    dashboardAnalyticsRoutes =
+      DashboardAnalyticsRoutes
+        { get = Dashboard.Analytics.Get.handler,
+          dataGet = Dashboard.Analytics.Data.Get.handler
         }
 
     dashboardStreamSettingsRoutes =

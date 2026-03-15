@@ -32,6 +32,7 @@ library
   build-depends:
       aeson
     , base
+    , bytestring
     , hasql
     , hasql-interpolate
     , random
@@ -42,6 +43,7 @@ library
     , time
     , tz
   exposed-modules:
+    Domain.Icecast.Status
     Domain.Types.Cookie
     Domain.Types.FileStorage
     Domain.Types.FileUpload

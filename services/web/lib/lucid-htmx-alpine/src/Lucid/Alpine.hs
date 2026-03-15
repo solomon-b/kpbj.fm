@@ -49,6 +49,7 @@ module Lucid.Alpine
     xBindStyle_,
     xBindDisabled_,
     xBindHidden_,
+    xBindHref_,
     xBindSrc_,
     xBindValue_,
 
@@ -245,6 +246,12 @@ xBindDisabled_ = Lucid.makeAttributes "x-bind:disabled"
 -- > xBindHidden_ "!isVisible"
 xBindHidden_ :: Text -> Lucid.Attributes
 xBindHidden_ = Lucid.makeAttributes "x-bind:hidden"
+
+-- | Alpine.js x-bind:href directive.
+--
+-- > xBindHref_ "linkUrl"
+xBindHref_ :: Text -> Lucid.Attributes
+xBindHref_ = Lucid.makeAttributes "x-bind:href"
 
 -- | Alpine.js x-bind:src directive.
 --
