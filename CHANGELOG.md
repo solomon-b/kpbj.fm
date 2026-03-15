@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Analytics Dashboard** — Admin-only dashboard page at `/dashboard/analytics` with live listener count from Icecast, listener trend charts (line), archive play counts by day (bar), and top episodes by plays. Time range selector (24h/7d/30d/90d) with refresh. Uses Chart.js for visualization and Alpine.js for client-side state. Chart data served via JSON endpoint at `/dashboard/analytics/data`.
 - **Cloudflare WAF Custom Rules** — Added 3 WAF rules (of 5 free-tier max) to `cloudflare.tf` that block malicious traffic at the Cloudflare edge before it reaches the origin server: path traversal/LFI/SSRF attempts, known scanner/bot probe paths (wp-admin, .env, phpMyAdmin, etc.), and non-ASCII percent-encoded bytes in URI paths. Complements fail2ban, which cannot ban Cloudflare-proxied traffic via nftables.
 
 ---

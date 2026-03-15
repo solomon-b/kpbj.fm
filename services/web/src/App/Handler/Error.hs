@@ -35,6 +35,7 @@ module App.Handler.Error
     handlePublicErrors,
     handleRedirectErrors,
     handleBannerErrors,
+    handleJsonErrors,
 
     -- * Logging
     logHandlerError,
@@ -263,6 +264,31 @@ handleBannerErrors actionName action =
     Left err -> do
       logHandlerError actionName err
       pure $ errorBanner err
+
+-- | Error handler for JSON endpoints.
+--
+-- Runs the ExceptT action, logging and re-throwing as Servant errors with
+-- the appropriate HTTP status code.
+--
+-- @
+-- handler cookie mRange =
+--   handleJsonErrors "Analytics data" $ do
+--     (_user, meta) <- requireAuth cookie
+--     requireAdminNotSuspended "Only admins can access analytics." meta
+--     lift $ fetchData ...
+-- @
+handleJsonErrors ::
+  -- | Action name for logging
+  Text ->
+  -- | The ExceptT action to run
+  ExceptT HandlerError AppM a ->
+  AppM a
+handleJsonErrors actionName action =
+  runExceptT action >>= \case
+    Right result -> pure result
+    Left err -> do
+      logHandlerError actionName err
+      throwM $ handlerErrorStatus err
 
 --------------------------------------------------------------------------------
 -- Logging

@@ -4,6 +4,8 @@ module Main where
 
 import API.Blog.Get.HandlerSpec qualified as BlogGetHandler
 import API.Blog.Post.Get.HandlerSpec qualified as BlogPostGetHandler
+import API.Dashboard.Analytics.Data.Get.HandlerSpec qualified as AnalyticsDataHandler
+import Domain.Icecast.StatusSpec qualified as IcecastStatus
 import API.Dashboard.Blogs.Get.HandlerSpec qualified as DashboardBlogsGetHandler
 import API.Dashboard.Blogs.New.Get.HandlerSpec qualified as DashboardBlogsNewGetHandler
 import API.Dashboard.Blogs.New.Post.HandlerSpec qualified as DashboardBlogsNewPostHandler
@@ -114,6 +116,8 @@ main = do
 
   -- Pure tests that don't need database
   hspecWith cfg $ parallel $ do
+    AnalyticsDataHandler.spec
+    IcecastStatus.spec
     Domains.spec
     ScheduleDiff.spec
     ScheduleEditor.spec
