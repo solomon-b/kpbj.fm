@@ -46,6 +46,7 @@ data PlaybackEntry f = PlaybackEntry
     phArtist :: Column f (Maybe Text),
     phSourceType :: Column f Text,
     phSourceUrl :: Column f Text,
+    phEpisodeId :: Column f (Maybe Int64),
     phStartedAt :: Column f UTCTime
   }
   deriving stock (Generic)
@@ -80,6 +81,7 @@ playbackHistorySchema =
             phArtist = "artist",
             phSourceType = "source_type",
             phSourceUrl = "source_url",
+            phEpisodeId = "episode_id",
             phStartedAt = "started_at"
           }
     }
@@ -93,6 +95,7 @@ data Insert = Insert
     piArtist :: Maybe Text,
     piSourceType :: Text,
     piSourceUrl :: Text,
+    piEpisodeId :: Maybe Int64,
     piStartedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
@@ -115,6 +118,7 @@ insertPlayback Insert {..} =
                     phArtist = lit piArtist,
                     phSourceType = lit piSourceType,
                     phSourceUrl = lit piSourceUrl,
+                    phEpisodeId = lit piEpisodeId,
                     phStartedAt = lit piStartedAt
                   }
               ],

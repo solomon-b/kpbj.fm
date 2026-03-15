@@ -16,5 +16,6 @@ playbackInsertGen = do
   piArtist <- Gen.maybe genText
   piSourceType <- Gen.element ["episode", "ephemeral"] -- Free-form Text in schema; these are the known valid values
   piSourceUrl <- genUrl
+  let piEpisodeId = Nothing
   piStartedAt <- genUTCTime
   pure PlaybackHistory.Insert {..}

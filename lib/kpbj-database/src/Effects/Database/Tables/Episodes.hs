@@ -37,6 +37,7 @@ module Effects.Database.Tables.Episodes
     getEpisodesForShow,
     getEpisodeByShowAndNumber,
     getEpisodeById,
+    getEpisodeByAudioPath,
     getEpisodesByUser,
     getCurrentlyAiringEpisode,
     insertEpisode,
@@ -374,6 +375,18 @@ getEpisodeById episodeId = fmap listToMaybe $ run $ select do
   where_ $ ep.id ==. lit episodeId
   where_ $ isNull (ep.deletedAt)
   pure ep
+
+-- | Find a non-deleted episode by its audio file path (object key).
+--
+-- Used to resolve a media URL back to its episode record by matching
+-- the stored @audio_file_path@ column.
+getEpisodeByAudioPath :: Text -> Hasql.Statement () (Maybe Model)
+getEpisodeByAudioPath audioPath = fmap listToMaybe $ run $ select do
+  ep <- each episodeSchema
+  where_ $ ep.audioFilePath ==. nullify (lit audioPath)
+  where_ $ isNull ep.deletedAt
+  pure ep
+
 
 -- | Get non-deleted episodes by user (episodes they created).
 getEpisodesByUser :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]
