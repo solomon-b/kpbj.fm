@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.10.3] - 2026-03-15
+
 ### Changed
 - **Rename Production Droplet** — Renamed production DigitalOcean droplet, firewall, and NixOS hostname from `kpbj-stream-prod` to `kpbj-prod` to match the staging naming convention (`kpbj-staging`). Updated Terraform, NixOS config, flake, and Justfile deploy commands.
 
