@@ -7,6 +7,7 @@
     ./hardware-digitalocean.nix
     ./networking-staging.nix
     ./common.nix
+    ./fail2ban.nix
     ./streaming.nix
     ./sync-host-emails.nix
     ./token-cleanup.nix
@@ -22,6 +23,9 @@
   ];
 
   networking.hostName = "kpbj-staging";
+
+  # ── Intrusion prevention ───────────────────────────────────────
+  kpbj.fail2ban.enable = true;
 
   kpbj.sops.secretsFile = ../secrets/staging-streaming.yaml;
 
