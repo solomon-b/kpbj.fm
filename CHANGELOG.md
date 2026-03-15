@@ -10,8 +10,19 @@ _No changes yet._
 
 ## [0.10.3] - 2026-03-15
 
+### Added
+- **Listener Snapshot Poller** — Haskell batch job that polls Icecast's JSON stats endpoint every 60 seconds and records the current listener count to a new `listener_snapshots` table. Runs as a systemd oneshot timer on prod and staging.
+- **Archive Play Tracking** — New `episode_play_events` table and `/api/analytics/episode-play` POST endpoint to track when users play archived episodes from the website. Episode cards fire a play event on playback start.
+- **Episode ID in Playback History** — Added `episode_id` foreign key to the `playback_history` table, linking Liquidsoap's played-track records to specific episodes when available.
+- **Fail2ban** — Enabled fail2ban on prod and staging with jails for SSH and Icecast brute-force protection.
+
 ### Changed
 - **Rename Production Droplet** — Renamed production DigitalOcean droplet, firewall, and NixOS hostname from `kpbj-stream-prod` to `kpbj-prod` to match the staging naming convention (`kpbj-staging`). Updated Terraform, NixOS config, flake, and Justfile deploy commands.
+- **S3 Backup Scripts** — Rewrote `prod-backup-s3.sh` and `prod-backup-remote.sh` to source S3 credentials directly from SOPS instead of requiring manual env var setup.
+
+### Fixed
+- **Systemd Journal Size** — Capped journal storage at 500M in NixOS common config to prevent disk bloat from unbounded log growth.
+- **UTC Playback Timestamps** — Liquidsoap's `time.string()` was formatting server-local time with a `Z` (UTC) suffix. After the timezone change from UTC to `America/Los_Angeles` in 0.10.2, playback timestamps were recorded 7 hours behind actual UTC.
 
 ---
 
