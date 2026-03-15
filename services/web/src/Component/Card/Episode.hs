@@ -10,6 +10,7 @@ where
 
 import API.Links (showEpisodesLinks)
 import API.Types
+import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -46,6 +47,7 @@ renderEpisodeCard backend showModel episode = do
       showTitle = showModel.title
       episodeNum = episode.episodeNumber
       episodeId = episode.id
+      episodeIdNum = episode.id.unId
       mAudioPath = episode.audioFilePath
       mArtworkUrl = episode.artworkUrl
       playerId = [i|episode-#{episodeId}|] :: Text
@@ -58,7 +60,7 @@ renderEpisodeCard backend showModel episode = do
   -- so no local audio element is needed here.
   Lucid.div_
     [ class_ $ base [Tokens.bgMain],
-      xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata
+      xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata episodeIdNum
     ]
     $ do
       -- Artwork with play button overlay
@@ -148,13 +150,14 @@ renderEpisodeDate scheduledAt =
 --
 -- Instead of playing audio locally, delegates playback to the persistent
 -- navbar player. This allows audio to continue playing across page navigation.
-audioPlayerScript :: Text -> Text -> Text -> Text -> Text
-audioPlayerScript playerId hasAudio audioUrl episodeMetadata =
+audioPlayerScript :: Text -> Text -> Text -> Text -> Int64 -> Text
+audioPlayerScript playerId hasAudio audioUrl episodeMetadata episodeIdNum =
   [i|{
   playerId: '#{playerId}',
   hasAudio: #{hasAudio},
   audioUrl: '#{escapeJsString audioUrl}',
   title: '#{escapeJsString episodeMetadata}',
+  episodeId: #{episodeIdNum},
 
   // Scrub bar state
   currentTime: 0,
@@ -218,7 +221,7 @@ audioPlayerScript playerId hasAudio audioUrl episodeMetadata =
 
     if (!this.isPlaying) {
       // Start playback then seek after audio loads
-      toggleEpisodeInNavbar(this.audioUrl, this.title);
+      toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId);
       setTimeout(() => {
         const state = getNavbarEpisodeState(this.audioUrl);
         if (state.duration > 0) {
@@ -252,7 +255,7 @@ audioPlayerScript playerId hasAudio audioUrl episodeMetadata =
       this.scrubbing = false;
 
       if (!this.isPlaying) {
-        toggleEpisodeInNavbar(this.audioUrl, this.title);
+        toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId);
         setTimeout(() => {
           const state = getNavbarEpisodeState(this.audioUrl);
           if (state.duration > 0) {
@@ -278,7 +281,7 @@ audioPlayerScript playerId hasAudio audioUrl episodeMetadata =
   toggle() {
     if (!this.hasAudio) return;
     // Delegate playback to the navbar player
-    toggleEpisodeInNavbar(this.audioUrl, this.title);
+    toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId);
   },
 
   // Keep pause() method for global coordination (pauseOtherPlayers may call this)

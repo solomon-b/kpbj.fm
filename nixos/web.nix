@@ -279,6 +279,7 @@ in
       real_ip_header CF-Connecting-IP;
 
       limit_req_zone $binary_remote_addr zone=auth:10m rate=5r/m;
+      limit_req_zone $binary_remote_addr zone=analytics:10m rate=10r/m;
     '';
 
     # ── Nginx vhosts ─────────────────────────────────────────────
@@ -286,6 +287,26 @@ in
       ${cfg.domain} = {
         forceSSL = cfg.enableSSL;
         enableACME = cfg.enableSSL;
+
+        # Rate-limited analytics endpoints
+        # Prevents automated inflation of play counts on the unauthenticated
+        # POST /api/analytics/episode-play endpoint (10 req/min per IP).
+        #
+        # If this proves insufficient, further options:
+        #   1. DB deduplication: add client_hash column (hash of IP + UA + episode_id),
+        #      unique constraint with a time window to ignore duplicate plays.
+        #   2. Server-side nonce: embed a one-time token in the page HTML, require it
+        #      in the POST body, validate and consume server-side. Blocks requests
+        #      that didn't load the page.
+        locations."/api/analytics/" = {
+          proxyPass = "http://127.0.0.1:${toString cfg.port}";
+          extraConfig = ''
+            proxy_buffering off;
+            client_max_body_size 64k;
+            limit_req zone=analytics burst=5 nodelay;
+            limit_req_status 429;
+          '';
+        };
 
         # Rate-limited auth endpoints
         locations."/user/login" = {

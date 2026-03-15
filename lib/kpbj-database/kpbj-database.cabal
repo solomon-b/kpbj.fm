@@ -62,6 +62,7 @@ library
     Effects.Database.Tables.EmailVerificationTokens
     Effects.Database.Tables.EphemeralUploads
     Effects.Database.Tables.Episodes
+    Effects.Database.Tables.EpisodePlayEvents
     Effects.Database.Tables.EpisodeTags
     Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
