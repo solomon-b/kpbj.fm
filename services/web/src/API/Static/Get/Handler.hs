@@ -51,5 +51,6 @@ staticAssets =
       ("alpine.min.js", ($(embedFile "static/alpine.min.js"), "application/javascript")),
       ("htmx.min.js", ($(embedFile "static/htmx.min.js"), "application/javascript")),
       ("cropper.min.js", ($(embedFile "static/cropper.min.js"), "application/javascript")),
+      ("chart.min.js", ($(embedFile "static/chart.min.js"), "application/javascript")),
       ("cropper.min.css", ($(embedFile "static/cropper.min.css"), "text/css"))
     ]

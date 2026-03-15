@@ -26,6 +26,7 @@ module API.Types
     DashboardUsersRoutes (..),
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
+    DashboardAnalyticsRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
     AnalyticsRoutes (..),
@@ -38,6 +39,8 @@ import API.About.Get.Route qualified as About.Get
 import API.Analytics.EpisodePlay.Post.Route qualified as Analytics.EpisodePlay.Post
 import API.Blog.Get.Route qualified as Blog.Get
 import API.Blog.Post.Get.Route qualified as Blog.Post.Get
+import API.Dashboard.Analytics.Data.Get.Route qualified as Dashboard.Analytics.Data.Get
+import API.Dashboard.Analytics.Get.Route qualified as Dashboard.Analytics.Get
 import API.Dashboard.Blogs.Get.Route qualified as Dashboard.Blogs.Get
 import API.Dashboard.Blogs.New.Get.Route qualified as Dashboard.Blogs.New.Get
 import API.Dashboard.Blogs.New.Post.Route qualified as Dashboard.Blogs.New.Post
@@ -348,7 +351,9 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @/dashboard/stream-settings/...@ - Stream settings routes
     streamSettings :: mode :- NamedRoutes DashboardStreamSettingsRoutes,
     -- | @GET /dashboard/missing-episodes@ - Shows missing episode uploads
-    missingEpisodes :: mode :- Dashboard.MissingEpisodes.Get.Route
+    missingEpisodes :: mode :- Dashboard.MissingEpisodes.Get.Route,
+    -- | @/dashboard/analytics/...@ - Analytics dashboard routes
+    analytics :: mode :- NamedRoutes DashboardAnalyticsRoutes
   }
   deriving stock (Generic)
 
@@ -557,6 +562,15 @@ data DashboardStreamSettingsRoutes mode = DashboardStreamSettingsRoutes
     stopStreamPost :: mode :- Dashboard.StreamSettings.StopStream.Post.Route,
     -- | @POST /dashboard/stream-settings/start-stream@ - Start entire stream (Icecast then Liquidsoap)
     startStreamPost :: mode :- Dashboard.StreamSettings.StartStream.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Analytics dashboard routes under @/dashboard/analytics@.
+data DashboardAnalyticsRoutes mode = DashboardAnalyticsRoutes
+  { -- | @GET /dashboard/analytics@ — Analytics overview page
+    get :: mode :- Dashboard.Analytics.Get.Route,
+    -- | @GET /dashboard/analytics/data@ — JSON data for charts
+    dataGet :: mode :- Dashboard.Analytics.Data.Get.Route
   }
   deriving stock (Generic)
 

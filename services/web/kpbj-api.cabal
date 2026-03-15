@@ -173,6 +173,12 @@ library
     API.Dashboard.MissingEpisodes.Get.Handler
     API.Dashboard.MissingEpisodes.Get.Route
     API.Dashboard.MissingEpisodes.Get.Templates.Page
+    API.Dashboard.Analytics.Data.Get.Handler
+    API.Dashboard.Analytics.Data.Get.Route
+    API.Dashboard.Analytics.Data.Get.Types
+    API.Dashboard.Analytics.Get.Handler
+    API.Dashboard.Analytics.Get.Route
+    API.Dashboard.Analytics.Get.Templates.Page
     API.Dashboard.Events.New.Get.Handler
     API.Dashboard.Events.New.Get.Route
     API.Dashboard.Events.New.Get.Templates.Form

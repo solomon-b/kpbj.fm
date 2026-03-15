@@ -12,6 +12,7 @@ where
 
 import API.Links
   ( apiLinks,
+    dashboardAnalyticsLinks,
     dashboardBlogsLinks,
     dashboardEphemeralUploadsLinks,
     dashboardEpisodesLinks,
@@ -100,6 +101,9 @@ dashboardStreamSettingsGetUrl = Links.linkURI dashboardStreamSettingsLinks.get
 dashboardMissingEpisodesGetUrl :: Links.URI
 dashboardMissingEpisodesGetUrl = Links.linkURI dashboardMissingEpisodesLink
 
+dashboardAnalyticsGetUrl :: Links.URI
+dashboardAnalyticsGetUrl = Links.linkURI dashboardAnalyticsLinks.get
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -117,6 +121,7 @@ data DashboardNav
   | NavSitePages
   | NavStreamSettings
   | NavMissingEpisodes
+  | NavAnalytics
   deriving (Eq, Show)
 
 -- | Check if navigation requires show context
@@ -135,6 +140,7 @@ isShowScoped = \case
   NavSitePages -> False
   NavStreamSettings -> False
   NavMissingEpisodes -> False
+  NavAnalytics -> False
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
@@ -226,6 +232,7 @@ sidebar userMeta activeNav selectedShow =
             -- Admin-only items
             when (UserMetadata.isAdmin userMeta.mUserRole) $ do
               staffNavItem "STREAM" NavStreamSettings activeNav
+              staffNavItem "ANALYTICS" NavAnalytics activeNav
 
     -- User info at bottom (always visible)
     Lucid.div_ [class_ $ base [Tokens.p4, "border-t", Theme.borderMuted, "shrink-0", "mt-auto"]] $ do
@@ -331,6 +338,7 @@ staffNavUrl = \case
   NavSitePages -> Just dashboardSitePagesGetUrl
   NavStreamSettings -> Just dashboardStreamSettingsGetUrl
   NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
+  NavAnalytics -> Just dashboardAnalyticsGetUrl
   other -> navUrl other Nothing
 
 -- | Get URL for navigation item
@@ -353,6 +361,7 @@ navUrl nav mShow =
         NavSitePages -> Just dashboardSitePagesGetUrl
         NavStreamSettings -> Just dashboardStreamSettingsGetUrl
         NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
+        NavAnalytics -> Just dashboardAnalyticsGetUrl
 
 -- | Top bar with show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
