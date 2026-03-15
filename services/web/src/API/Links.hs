@@ -43,6 +43,7 @@ module API.Links
     dashboardSitePagesLinks,
     dashboardStreamSettingsLinks,
     dashboardMissingEpisodesLink,
+    dashboardAnalyticsLinks,
     staticAssetLink,
   )
 where
@@ -160,6 +161,10 @@ dashboardStreamSettingsLinks = dashboardAdminLinks.streamSettings
 -- | Dashboard missing episodes link
 dashboardMissingEpisodesLink :: Link
 dashboardMissingEpisodesLink = dashboardAdminLinks.missingEpisodes
+
+-- | Dashboard analytics route links.
+dashboardAnalyticsLinks :: DashboardAnalyticsRoutes (AsLink Link)
+dashboardAnalyticsLinks = dashboardAdminLinks.analytics
 
 -- | Static asset link by filename.
 staticAssetLink :: Text -> Link
