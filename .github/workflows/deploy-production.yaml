@@ -54,5 +54,5 @@ jobs:
         run: |
           nix shell nixpkgs#nixos-rebuild -c \
             nixos-rebuild switch \
-            --flake .#kpbj-stream-prod \
+            --flake .#kpbj-prod \
             --target-host root@ssh.kpbj.fm
