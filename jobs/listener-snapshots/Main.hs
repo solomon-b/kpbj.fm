@@ -4,14 +4,10 @@ module Main (main) where
 
 import Control.Exception (SomeException, bracket, try)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Aeson (Value (..))
 import Data.Aeson qualified as Aeson
-import Data.Aeson.Key (fromText)
-import Data.Aeson.KeyMap qualified as KeyMap
-import Data.ByteString.Lazy qualified as LBS
-import Data.Foldable (toList)
 import Data.Int (Int32)
 import Data.Text qualified as Text
+import Domain.Icecast.Status (parseListenerCount)
 import Hasql.Connection qualified as Connection
 import Hasql.Connection.Setting qualified as Setting
 import Hasql.Connection.Setting.Connection qualified as Setting.Connection
@@ -91,27 +87,6 @@ fetchListenerCount url = do
     Left _err -> pure Nothing
     Right body -> pure (parseListenerCount body)
 
-
--- | Parse listener count from Icecast JSON.
---
--- Icecast returns @icestats.source@ as either:
---   - A JSON object (single mountpoint)
---   - A JSON array (multiple mountpoints) — we take the first source
-parseListenerCount :: LBS.ByteString -> Maybe Int32
-parseListenerCount body = do
-  json <- Aeson.decode body
-  case json of
-    Object root -> do
-      Object icestats <- KeyMap.lookup "icestats" root
-      source <- case KeyMap.lookup "source" icestats of
-        Just (Object src) -> Just src
-        Just (Array arr) -> case toList arr of
-          (Object src : _) -> Just src
-          _ -> Nothing
-        _ -> Nothing
-      Number n <- KeyMap.lookup (fromText "listeners") source
-      pure (round n)
-    _ -> Nothing
 
 --------------------------------------------------------------------------------
 -- Database
