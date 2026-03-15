@@ -29,6 +29,7 @@ module API
     DashboardStreamSettingsRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
+    AnalyticsRoutes (..),
 
     -- * Re-exports from API.Links (for backward compatibility)
     module API.Links,
@@ -38,6 +39,7 @@ where
 --------------------------------------------------------------------------------
 
 import API.About.Get.Handler qualified as About.Get
+import API.Analytics.EpisodePlay.Post.Handler qualified as Analytics.EpisodePlay.Post
 import API.Blog.Get.Handler qualified as Blog.Get
 import API.Blog.Post.Get.Handler qualified as Blog.Post.Get
 import API.Dashboard.Blogs.Get.Handler qualified as Dashboard.Blogs.Get
@@ -217,6 +219,7 @@ server =
       dashboard = dashboardRoutes,
       uploads = uploadRoutes,
       playout = playoutRoutes,
+      analytics = analyticsRoutes,
       streamMetadata = Stream.Metadata.Get.handler,
       debugVersion = Debug.Version.Get.handler
     }
@@ -422,4 +425,9 @@ server =
         { now = Playout.Now.Get.handler,
           fallback = Playout.Fallback.Get.handler,
           played = Playout.Played.Post.handler
+        }
+
+    analyticsRoutes =
+      AnalyticsRoutes
+        { episodePlay = Analytics.EpisodePlay.Post.handler
         }

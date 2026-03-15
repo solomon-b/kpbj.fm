@@ -241,7 +241,7 @@ musicPlayerWrapper cfg content =
       },
 
       // Play an episode (called from episode cards via playInNavbar global function)
-      playEpisode(url, title) {
+      playEpisode(url, title, episodeId) {
         console.log('Navbar player: Switching to episode mode', title);
 
         // Stop current playback
@@ -256,6 +256,15 @@ musicPlayerWrapper cfg content =
         // Clear and reload audio source
         const audio = this.$refs.audio;
         audio.src = url;
+
+        // Fire analytics event (fire-and-forget)
+        if (episodeId) {
+          fetch('/api/analytics/episode-play', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ episodeId: episodeId })
+          }).catch(() => {});
+        }
 
         // Start playing
         this.play();
@@ -378,13 +387,13 @@ playerScript =
     }
 
     // Play an episode in the navbar player (called by episode cards)
-    function playInNavbar(episodeAudioUrl, episodeTitle) {
+    function playInNavbar(episodeAudioUrl, episodeTitle, episodeId) {
       // Find navbar player component
       const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
       if (navbarPlayerEl) {
         const navbarPlayer = Alpine.$data(navbarPlayerEl);
         if (navbarPlayer && typeof navbarPlayer.playEpisode === 'function') {
-          navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle);
+          navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle, episodeId);
         }
       }
     }
@@ -403,7 +412,7 @@ playerScript =
     }
 
     // Toggle episode playback in navbar (pause if playing this episode, play if not)
-    function toggleEpisodeInNavbar(episodeAudioUrl, episodeTitle) {
+    function toggleEpisodeInNavbar(episodeAudioUrl, episodeTitle, episodeId) {
       const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
       if (navbarPlayerEl) {
         const navbarPlayer = Alpine.$data(navbarPlayerEl);
@@ -416,7 +425,7 @@ playerScript =
             navbarPlayer.play();
           } else {
             // Different episode or stream mode — load and play
-            navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle);
+            navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle, episodeId);
           }
         }
       }

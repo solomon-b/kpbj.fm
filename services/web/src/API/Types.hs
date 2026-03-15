@@ -28,12 +28,14 @@ module API.Types
     DashboardStreamSettingsRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
+    AnalyticsRoutes (..),
   )
 where
 
 --------------------------------------------------------------------------------
 
 import API.About.Get.Route qualified as About.Get
+import API.Analytics.EpisodePlay.Post.Route qualified as Analytics.EpisodePlay.Post
 import API.Blog.Get.Route qualified as Blog.Get
 import API.Blog.Post.Get.Route qualified as Blog.Post.Get
 import API.Dashboard.Blogs.Get.Route qualified as Dashboard.Blogs.Get
@@ -186,6 +188,8 @@ data Routes mode = Routes
     uploads :: mode :- NamedRoutes UploadRoutes,
     -- | @/api/playout/...@ - Playout API routes for Liquidsoap
     playout :: mode :- NamedRoutes PlayoutRoutes,
+    -- | @/api/analytics/...@ - Analytics API routes
+    analytics :: mode :- NamedRoutes AnalyticsRoutes,
     -- | @GET /api/stream/metadata@ - Stream metadata proxy (avoids CORS)
     streamMetadata :: mode :- Stream.Metadata.Get.Route,
     -- | @GET /debug/version@ - Version info for debugging
@@ -583,5 +587,15 @@ data PlayoutRoutes mode = PlayoutRoutes
     fallback :: mode :- Playout.Fallback.Get.Route,
     -- | @POST /api/playout/played@ - Log a track that started playing
     played :: mode :- Playout.Played.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Analytics API routes under @/api/analytics@.
+--
+-- Internal analytics endpoints for tracking user engagement.
+-- Public (no authentication required).
+newtype AnalyticsRoutes mode = AnalyticsRoutes
+  { -- | @POST /api/analytics/episode-play@ - Record an archived episode play
+    episodePlay :: mode :- Analytics.EpisodePlay.Post.Route
   }
   deriving stock (Generic)
