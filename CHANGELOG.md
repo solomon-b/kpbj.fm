@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **Cloudflare WAF Custom Rules** — Added 3 WAF rules (of 5 free-tier max) to `cloudflare.tf` that block malicious traffic at the Cloudflare edge before it reaches the origin server: path traversal/LFI/SSRF attempts, known scanner/bot probe paths (wp-admin, .env, phpMyAdmin, etc.), and non-ASCII percent-encoded bytes in URI paths. Complements fail2ban, which cannot ban Cloudflare-proxied traffic via nftables.
 
 ---
 

@@ -296,3 +296,85 @@ resource "cloudflare_dns_record" "nms_verification" {
   ttl     = 3600
   comment = "NMS domain verification"
 }
+
+# ──────────────────────────────────────────────────────────────
+# WAF — Custom Rules (Free plan: 5 rule max)
+# ──────────────────────────────────────────────────────────────
+#
+# Blocks common attack patterns at the Cloudflare edge before
+# they reach the origin server. These complement fail2ban, which
+# cannot ban Cloudflare-proxied traffic via nftables.
+#
+# Currently using 3 of 5 available rules.
+# ──────────────────────────────────────────────────────────────
+
+resource "cloudflare_ruleset" "waf_custom" {
+  zone_id = local.cloudflare_zone_id
+  name    = "KPBJ WAF custom rules"
+  kind    = "zone"
+  phase   = "http_request_firewall_custom"
+
+  rules = [
+    # ── Rule 1: Path traversal, LFI, and SSRF ──────────────────
+    # Blocks directory traversal (../), local file inclusion
+    # (/proc/, /etc/passwd), and cloud metadata SSRF attempts.
+    {
+      action      = "block"
+      description = "Block path traversal, LFI, and SSRF"
+      enabled     = true
+      expression = join(" or ", [
+        "(http.request.uri.path contains \"..\")",
+        "(http.request.uri.path contains \"/proc/\")",
+        "(http.request.uri.path contains \"/etc/passwd\")",
+        "(http.request.uri.path contains \"/etc/shadow\")",
+        "(http.request.uri contains \"169.254.169.254\")",
+      ])
+    },
+
+    # ── Rule 2: Scanner/bot probe paths ─────────────────────────
+    # Known-bad paths that only scanners and bots request.
+    # Mirrors the fail2ban nginx-bad-paths filter, but blocks
+    # at the edge. Uses lower() for case-insensitive matching.
+    {
+      action      = "block"
+      description = "Block scanner and bot probe paths"
+      enabled     = true
+      expression = join(" or ", [
+        "(lower(http.request.uri.path) contains \"/.env\")",
+        "(lower(http.request.uri.path) contains \"/.git\")",
+        "(lower(http.request.uri.path) contains \"/.htaccess\")",
+        "(lower(http.request.uri.path) contains \"/.aws\")",
+        "(lower(http.request.uri.path) contains \"/wp-login\")",
+        "(lower(http.request.uri.path) contains \"/wp-admin\")",
+        "(lower(http.request.uri.path) contains \"/wp-content\")",
+        "(lower(http.request.uri.path) contains \"/wp-includes\")",
+        "(lower(http.request.uri.path) contains \"/xmlrpc.php\")",
+        "(lower(http.request.uri.path) contains \"/phpmy\")",
+        "(lower(http.request.uri.path) contains \"/pma\")",
+        "(lower(http.request.uri.path) contains \"/cgi-bin\")",
+        "(lower(http.request.uri.path) contains \"/setup.php\")",
+        "(lower(http.request.uri.path) contains \"/administrator\")",
+        "(lower(http.request.uri.path) contains \"/config.php\")",
+        "(lower(http.request.uri.path) contains \"/actuator\")",
+        "(lower(http.request.uri.path) contains \"/api/v1/pods\")",
+        "(lower(http.request.uri.path) contains \"/solr\")",
+        "(lower(http.request.uri.path) contains \"/telescope\")",
+        "(lower(http.request.uri.path) contains \"/_profiler\")",
+        "(lower(http.request.uri.path) contains \"/eval-stdin\")",
+      ])
+    },
+
+    # ── Rule 3: Malformed URI encoding ──────────────────────────
+    # Blocks percent-encoded high bytes (0x80-0xFF) in the URI
+    # path. All KPBJ paths are ASCII — high bytes in the path
+    # are malicious probes (e.g. the \xAD invalid UTF-8 attacks).
+    # Scoped to path only; request bodies are untouched so file
+    # uploads work normally.
+    {
+      action      = "block"
+      description = "Block non-ASCII percent-encoded bytes in URI path"
+      enabled     = true
+      expression  = "(http.request.uri.path matches \"%[89a-fA-F][0-9a-fA-F]\")"
+    },
+  ]
+}
