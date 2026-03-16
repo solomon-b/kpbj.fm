@@ -6,7 +6,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Playout.Types (PlayoutResponse (..), mkPlayoutMetadata)
+import API.Playout.Types (NowPlayingResponse (..), mkPlayoutMetadata)
 import App.BaseUrl (baseUrl)
 import App.Monad (AppM)
 import App.Storage (StorageBackend (..), buildMediaUrl)
@@ -25,19 +25,19 @@ import Effects.Database.Tables.Shows qualified as Shows
 -- | Handler for GET /api/playout/now.
 --
 -- Returns the audio URL for the currently airing episode based on the schedule.
--- Returns null (PlayoutUnavailable) if no episode is currently scheduled,
+-- Returns null (NothingPlaying) if no episode is currently scheduled,
 -- if the scheduled episode has no audio uploaded, or on any database error.
 -- Graceful degradation: any error returns null rather than failing.
-handler :: AppM PlayoutResponse
+handler :: AppM NowPlayingResponse
 handler = do
   currentTime <- liftIO getCurrentTime
   result <- execQuery $ Episodes.getCurrentlyAiringEpisode currentTime
 
   case result of
-    Left _err -> pure PlayoutUnavailable -- Graceful degradation on DB error
-    Right Nothing -> pure PlayoutUnavailable
+    Left _err -> pure NothingPlaying -- Graceful degradation on DB error
+    Right Nothing -> pure NothingPlaying
     Right (Just episode) -> case episode.audioFilePath of
-      Nothing -> pure PlayoutUnavailable
+      Nothing -> pure NothingPlaying
       Just audioPath -> do
         -- Fetch show info for metadata
         showResult <- execQuery $ Shows.getShowById episode.showId
@@ -47,7 +47,7 @@ handler = do
         storageBackend <- asks (Has.getter @StorageBackend)
         appBaseUrl <- baseUrl
         let fullUrl = buildFullMediaUrl appBaseUrl storageBackend audioPath
-        pure $ PlayoutAvailable fullUrl metadata
+        pure $ NowPlaying fullUrl metadata
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
 --
