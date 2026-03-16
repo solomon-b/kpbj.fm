@@ -11,6 +11,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Station ID Before Fallback Tracks** — The fallback playout endpoint now returns a station identification clip before each ephemeral track instead of a single track. Liquidsoap uses `request.dynamic.list` to queue both in order, ensuring listeners always hear a station ID before fallback content. Added `getRandomStationId` query, split `PlayoutResponse` into `FallbackResponse`/`NowPlayingResponse`, updated Liquidsoap to parse the new array format, and added `station_id` to the `playback_history` source type.
 - **Configurable Replay Times** — Replaced the `airs_twice_daily` boolean on schedule templates with a `replay_start_time` column that accepts an absolute time of day. Each schedule slot can now specify when (or if) its replay airs, instead of being locked to a +12 hour offset. The schedule editor UI includes an optional replay time picker per slot. Conflict detection covers replay time ranges. Migration swaps existing PM primaries to AM so replays always follow the primary airing.
 
+### Fixed
+- **Episode Check SMTP Config** — The `kpbj-episode-check` systemd service was missing non-secret SMTP environment variables (`APP_SMTP_SERVER`, `APP_SMTP_PORT`, `APP_SMTP_USERNAME`, `APP_SMTP_FROM_EMAIL`, `APP_SMTP_FROM_NAME`), causing it to fail with "SMTP not configured" on every run. The env file only contained the password. Added an `environment` block sourcing these from the web module config.
+
 ---
 
 ## [0.10.3] - 2026-03-15

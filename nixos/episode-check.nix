@@ -11,6 +11,7 @@
 
 let
   cfg = config.kpbj.episodeCheck;
+  webCfg = config.kpbj.web;
 in
 {
   options.kpbj.episodeCheck = {
@@ -44,11 +45,21 @@ in
       after = [ "postgresql.service" ];
       requires = [ "postgresql.service" ];
 
+      # SMTP config (non-secret vars from web module; password via EnvironmentFile)
+      environment = {
+        APP_SMTP_SERVER = webCfg.smtpServer;
+        APP_SMTP_PORT = toString webCfg.smtpPort;
+        APP_SMTP_USERNAME = webCfg.smtpUsername;
+        APP_SMTP_FROM_EMAIL = webCfg.smtpFromEmail;
+        APP_SMTP_FROM_NAME = webCfg.smtpFromName;
+      };
+
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
 
         # Reuse the existing kpbj-web.env which already contains DATABASE_URL
+        # and APP_SMTP_PASSWORD
         EnvironmentFile = [ config.sops.templates."kpbj-web.env".path ];
 
         ExecStart =
