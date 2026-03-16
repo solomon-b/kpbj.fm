@@ -71,6 +71,7 @@ import API.Dashboard.Users.Unsuspend.Post.HandlerSpec qualified as DashboardUser
 import API.Events.Event.Get.HandlerSpec qualified as EventHandler
 import API.Events.Get.HandlerSpec qualified as EventsHandler
 import API.Get.HandlerSpec qualified as HomeHandler
+import API.Playout.Fallback.Get.HandlerSpec qualified as PlayoutFallbackGetHandler
 import API.Schedule.Get.HandlerSpec qualified as ScheduleHandler
 import API.Shows.Get.HandlerSpec qualified as ShowsHandler
 import API.Shows.Slug.Blog.Get.HandlerSpec qualified as ShowBlogHandler
@@ -127,6 +128,7 @@ main = do
   withTmpPG $ hspecWith cfg $ parallel $ do
     Combinators.spec
     HomeHandler.spec
+    PlayoutFallbackGetHandler.spec
     EventsHandler.spec
     EventHandler.spec
     ShowsHandler.spec

@@ -4,11 +4,13 @@
 --
 -- These endpoints are used by Liquidsoap to fetch audio URLs for playback.
 module API.Playout.Types
-  ( PlayoutResponse (..),
-    PlayoutMetadata (title, artist),
+  ( PlayoutMetadata (title, artist),
     mkPlayoutMetadata,
     PlayedRequest (..),
     sanitizeAnnotateValue,
+    PlayoutTrack (..),
+    FallbackResponse,
+    NowPlayingResponse (..),
   )
 where
 
@@ -31,21 +33,47 @@ data PlayoutMetadata = PlayoutMetadata
 
 --------------------------------------------------------------------------------
 
--- | Response type for playout endpoints.
+-- | A single track in a playout response with its source type.
+--
+-- Used by the fallback endpoint to return multiple tracks (station ID + ephemeral).
+-- Serializes to flat JSON: @{"url": "...", "title": "...", "artist": "...", "source_type": "..."}@
+data PlayoutTrack = PlayoutTrack
+  { ptUrl :: Text,
+    ptTitle :: Text,
+    ptArtist :: Text,
+    ptSourceType :: Text
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON PlayoutTrack where
+  toJSON track =
+    object
+      [ "url" .= track.ptUrl,
+        "title" .= track.ptTitle,
+        "artist" .= track.ptArtist,
+        "source_type" .= track.ptSourceType
+      ]
+
+-- | Fallback response is a list of tracks (station ID + ephemeral).
+--
+-- Serializes to a JSON array. Empty array means no content available.
+type FallbackResponse = [PlayoutTrack]
+
+--------------------------------------------------------------------------------
+
+-- | Response type for the "now playing" endpoint.
 --
 -- Serializes to either:
 -- - @{"url": "https://...", "title": "...", "artist": "..."}@ when audio is available
 -- - @null@ when no audio is available
-data PlayoutResponse
-  = -- | Audio URL is available for playback with metadata
-    PlayoutAvailable Text PlayoutMetadata
-  | -- | No audio currently available
-    PlayoutUnavailable
+data NowPlayingResponse
+  = NowPlaying Text PlayoutMetadata
+  | NothingPlaying
   deriving stock (Generic, Show, Eq)
 
-instance ToJSON PlayoutResponse where
-  toJSON PlayoutUnavailable = toJSON (Nothing :: Maybe Text)
-  toJSON (PlayoutAvailable url meta) =
+instance ToJSON NowPlayingResponse where
+  toJSON NothingPlaying = toJSON (Nothing :: Maybe Text)
+  toJSON (NowPlaying url meta) =
     object
       [ "url" .= url,
         "title" .= meta.title,
@@ -73,8 +101,10 @@ data PlayedRequest = PlayedRequest
 --
 -- Sanitizes title and artist for safe use in Liquidsoap @annotate:@ URIs.
 mkPlayoutMetadata ::
-  Text -> -- ^ Track title
-  Text -> -- ^ Artist name
+  -- | Track title
+  Text ->
+  -- | Artist name
+  Text ->
   PlayoutMetadata
 mkPlayoutMetadata t a =
   PlayoutMetadata

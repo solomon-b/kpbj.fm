@@ -6,7 +6,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Playout.Types (PlayoutResponse)
+import API.Playout.Types (NowPlayingResponse)
 import Servant ((:>))
 import Servant qualified
 
@@ -20,4 +20,4 @@ type Route =
   "api"
     :> "playout"
     :> "now"
-    :> Servant.Get '[Servant.JSON] PlayoutResponse
+    :> Servant.Get '[Servant.JSON] NowPlayingResponse
