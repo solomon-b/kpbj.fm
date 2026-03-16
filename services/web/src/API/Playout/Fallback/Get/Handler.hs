@@ -6,7 +6,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Playout.Types (PlayoutResponse (..), mkPlayoutMetadata)
+import API.Playout.Types (FallbackResponse, PlayoutTrack (..), sanitizeAnnotateValue)
 import App.BaseUrl (baseUrl)
 import App.Monad (AppM)
 import App.Storage (StorageBackend (..), buildMediaUrl)
@@ -15,28 +15,51 @@ import Data.Has qualified as Has
 import Data.Text (Text)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
+import Effects.Database.Tables.StationIds qualified as StationIds
 
 --------------------------------------------------------------------------------
 
 -- | Handler for GET /api/playout/fallback.
 --
--- Returns the audio URL for a randomly selected ephemeral upload.
--- Returns null (PlayoutUnavailable) if no ephemeral uploads exist or on any database error.
--- Used by Liquidsoap for fallback audio when no show is scheduled.
--- Graceful degradation: any error returns null rather than failing.
-handler :: AppM PlayoutResponse
+-- Returns a JSON array of tracks for fallback playback:
+-- 1. A randomly selected station ID (if any exist)
+-- 2. A randomly selected ephemeral upload
+--
+-- Returns an empty array if no ephemeral uploads exist or on ephemeral DB error.
+-- Station ID DB errors are silently skipped (only the ephemeral track is returned).
+handler :: AppM FallbackResponse
 handler = do
-  result <- execQuery EphemeralUploads.getRandomEphemeralUpload
+  ephemeralResult <- execQuery EphemeralUploads.getRandomEphemeralUpload
 
-  case result of
-    Left _err -> pure PlayoutUnavailable -- Graceful degradation on DB error
-    Right Nothing -> pure PlayoutUnavailable
+  case ephemeralResult of
+    Left _err -> pure [] -- Graceful degradation on DB error
+    Right Nothing -> pure []
     Right (Just upload) -> do
-      let metadata = mkPlayoutMetadata upload.eumTitle "KPBJ 95.9 FM"
       storageBackend <- asks (Has.getter @StorageBackend)
       appBaseUrl <- baseUrl
-      let fullUrl = buildFullMediaUrl appBaseUrl storageBackend upload.eumAudioFilePath
-      pure $ PlayoutAvailable fullUrl metadata
+
+      let ephemeralTrack =
+            PlayoutTrack
+              { ptUrl = buildFullMediaUrl appBaseUrl storageBackend upload.eumAudioFilePath,
+                ptTitle = sanitizeAnnotateValue upload.eumTitle,
+                ptArtist = sanitizeAnnotateValue "KPBJ 95.9 FM",
+                ptSourceType = "ephemeral"
+              }
+
+      -- Try to get a station ID; skip on error or if none exist
+      stationIdResult <- execQuery StationIds.getRandomStationId
+      let mStationIdTrack = case stationIdResult of
+            Right (Just sid) ->
+              Just
+                PlayoutTrack
+                  { ptUrl = buildFullMediaUrl appBaseUrl storageBackend sid.simAudioFilePath,
+                    ptTitle = sanitizeAnnotateValue sid.simTitle,
+                    ptArtist = sanitizeAnnotateValue "KPBJ 95.9 FM",
+                    ptSourceType = "station_id"
+                  }
+            _ -> Nothing
+
+      pure $ maybe [ephemeralTrack] (\sidTrack -> [sidTrack, ephemeralTrack]) mStationIdTrack
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
 --

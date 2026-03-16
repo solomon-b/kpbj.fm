@@ -305,5 +305,7 @@ sourceTypeBadge "episode" =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.successBg, Tokens.successText]] "episode"
 sourceTypeBadge "ephemeral" =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.infoBg, Tokens.infoText]] "ephemeral"
+sourceTypeBadge "station_id" =
+  Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.warningBg, Tokens.warningText]] "station_id"
 sourceTypeBadge other =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.bgInverse, Tokens.fgInverse]] $ Lucid.toHtml other

@@ -6,7 +6,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Playout.Types (PlayoutResponse)
+import API.Playout.Types (FallbackResponse)
 import Servant ((:>))
 import Servant qualified
 
@@ -14,10 +14,14 @@ import Servant qualified
 
 -- | "GET /api/playout/fallback"
 --
--- Returns a random ephemeral track URL for fallback playback, or null if none exist.
+-- Returns a JSON array of tracks for fallback playback:
+-- 1. A randomly selected station ID (if any exist)
+-- 2. A randomly selected ephemeral upload
+--
+-- Returns an empty array if no ephemeral uploads exist or on any database error.
 -- Used by Liquidsoap when no show is scheduled.
 type Route =
   "api"
     :> "playout"
     :> "fallback"
-    :> Servant.Get '[Servant.JSON] PlayoutResponse
+    :> Servant.Get '[Servant.JSON] FallbackResponse

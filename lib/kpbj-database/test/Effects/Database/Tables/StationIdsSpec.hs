@@ -33,6 +33,10 @@ spec =
       describe "Queries" $ do
         runs 10 . it "getAllStationIds: returns paginated results" $
           hedgehog . prop_getAllStationIds_paginated
+        runs 10 . it "getRandomStationId: returns a station ID when entries exist" $
+          hedgehog . prop_getRandomStationId
+        runs 10 . it "getRandomStationId: returns Nothing when table is empty" $
+          hedgehog . prop_getRandomStationId_empty
 
       describe "Mutations" $ do
         runs 10 . it "deleteStationId: removes station ID" $ hedgehog . prop_deleteStationId
@@ -107,6 +111,46 @@ prop_getAllStationIds_paginated cfg = do
         length limited === 2
         length offset === 1
         pure ()
+
+-- | getRandomStationId: returns a station ID when entries exist.
+prop_getRandomStationId :: TestDBConfig -> PropertyT IO ()
+prop_getRandomStationId cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template <- forAllT $ stationIdInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let stationIdInsert = template {UUT.siiCreatorId = userId}
+        _ <- unwrapInsert (UUT.insertStationId stationIdInsert)
+
+        randomStationId <- TRX.statement () UUT.getRandomStationId
+        TRX.condemn
+        pure randomStationId
+
+      assert $ do
+        mRandom <- assertRight result
+        _ <- assertJust mRandom
+        pure ()
+
+
+-- | getRandomStationId: returns Nothing when no station IDs exist.
+prop_getRandomStationId_empty :: TestDBConfig -> PropertyT IO ()
+prop_getRandomStationId_empty cfg = do
+  arrange (bracketConn cfg) $ do
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        randomStationId <- TRX.statement () UUT.getRandomStationId
+        TRX.condemn
+        pure randomStationId
+
+      assert $ do
+        mRandom <- assertRight result
+        assertNothing mRandom
+        pure ()
+
 
 --------------------------------------------------------------------------------
 -- Mutation tests

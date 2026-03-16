@@ -7,6 +7,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Added
 - **Cloudflare WAF Custom Rules** — Added 3 WAF rules (of 5 free-tier max) to `cloudflare.tf` that block malicious traffic at the Cloudflare edge before it reaches the origin server: path traversal/LFI/SSRF attempts, known scanner/bot probe paths (wp-admin, .env, phpMyAdmin, etc.), and non-ASCII percent-encoded bytes in URI paths. Complements fail2ban, which cannot ban Cloudflare-proxied traffic via nftables.
 
+### Changed
+- **Station ID Before Fallback Tracks** — The fallback playout endpoint now returns a station identification clip before each ephemeral track instead of a single track. Liquidsoap uses `request.dynamic.list` to queue both in order, ensuring listeners always hear a station ID before fallback content. Added `getRandomStationId` query, split `PlayoutResponse` into `FallbackResponse`/`NowPlayingResponse`, updated Liquidsoap to parse the new array format, and added `station_id` to the `playback_history` source type.
+- **Configurable Replay Times** — Replaced the `airs_twice_daily` boolean on schedule templates with a `replay_start_time` column that accepts an absolute time of day. Each schedule slot can now specify when (or if) its replay airs, instead of being locked to a +12 hour offset. The schedule editor UI includes an optional replay time picker per slot. Conflict detection covers replay time ranges. Migration swaps existing PM primaries to AM so replays always follow the primary airing.
+
 ---
 
 ## [0.10.3] - 2026-03-15

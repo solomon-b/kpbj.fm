@@ -41,30 +41,33 @@ null_poll_count = ref(0)
 # survives connection drops (e.g. Icecast container restart).
 last_metadata = ref([])
 
-# Fetch a fallback track from the API
+# Fetch fallback tracks from the API (station ID + ephemeral)
 def get_fallback()
   response = http.get(timeout=5., "#{api_base}/fallback")
   if response.status_code == 200 then
     try
-      let json.parse (data : {url: string, title: string?, artist: string?}) = response
-      title = data.title ?? "KPBJ 95.9 FM"
-      artist = data.artist ?? "Community Radio"
-      url = rewrite_url(data.url)
-      annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"ephemeral\",source_url=\"#{url}\":#{url}"
-      request.create(annotated)
+      let json.parse (tracks : [{url: string, title: string?, artist: string?, source_type: string?}]) = response
+      list.map(fun(track) -> begin
+        title = track.title ?? "KPBJ 95.9 FM"
+        artist = track.artist ?? "Community Radio"
+        source_type = track.source_type ?? "unknown"
+        url = rewrite_url(track.url)
+        annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"#{source_type}\",source_url=\"#{url}\":#{url}"
+        request.create(annotated)
+      end, tracks)
     catch _ do
       log.info("[KPBJ] Failed to parse fallback response")
-      null()
+      []
     end
   else
     log.info("[KPBJ] Fallback API returned status #{response.status_code}")
-    null()
+    []
   end
 end
 
 # Fallback source - always has something to play
 # prefetch=1 for accurate metadata timing (higher values queue tracks ahead)
-fallback_queue = request.dynamic(prefetch=1, get_fallback)
+fallback_queue = request.dynamic.list(prefetch=1, get_fallback)
 
 # Add buffer to absorb latency from HTTP downloads (5s buffer, 10s max)
 fallback_source = buffer(buffer=5., max=10., fallback_queue)

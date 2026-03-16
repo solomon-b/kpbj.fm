@@ -613,6 +613,7 @@ test-suite kpbj-api-test
        API.Events.Event.Get.HandlerSpec
        API.Events.Get.HandlerSpec
        API.Get.HandlerSpec
+       API.Playout.Fallback.Get.HandlerSpec
        API.Schedule.Get.HandlerSpec
        API.Shows.Get.HandlerSpec
        API.Shows.Slug.Blog.Get.HandlerSpec
