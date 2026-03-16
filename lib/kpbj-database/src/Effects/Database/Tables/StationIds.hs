@@ -29,6 +29,7 @@ module Effects.Database.Tables.StationIds
     -- * Queries
     getAllStationIds,
     getStationIdById,
+    getRandomStationId,
     insertStationId,
     deleteStationId,
   )
@@ -181,6 +182,23 @@ getStationIdById stationIdId = fmap listToMaybe $ run $ select do
   row <- each stationIdSchema
   where_ $ simId row ==. lit stationIdId
   pure row
+
+-- | Get a random station ID for playout.
+--
+-- Returns a randomly selected station ID, or Nothing if none exist.
+-- Used by the fallback playout handler to prepend station identification
+-- before ephemeral tracks.
+getRandomStationId :: Hasql.Statement () (Maybe Model)
+getRandomStationId =
+  interp
+    False
+    [sql|
+    SELECT id, title, audio_file_path, mime_type, file_size, creator_id, created_at
+    FROM station_ids
+    ORDER BY RANDOM()
+    LIMIT 1
+  |]
+
 
 -- | Insert a new station ID and return its ID.
 insertStationId :: Insert -> Hasql.Statement () (Maybe Id)
