@@ -76,6 +76,9 @@ schedulesToEditorJson templates =
           durationMins = computeDuration sched.stStartTime sched.stEndTime
           freq = weeksToFrequency sched.stWeeksOfMonth
           weeksVal = sched.stWeeksOfMonth
+          replayTimeText = case sched.stReplayStartTime of
+            Just rt -> Text.take 5 (Text.pack $ show rt)
+            Nothing -> "" :: Text
        in Aeson.object
             [ "frequency" Aeson..= freq,
               "weeks" Aeson..= weeksVal,
@@ -83,7 +86,8 @@ schedulesToEditorJson templates =
                 Aeson..= [ Aeson.object
                              [ "day" Aeson..= dayText,
                                "time" Aeson..= timeText,
-                               "duration" Aeson..= durationMins
+                               "duration" Aeson..= durationMins,
+                               "replayTime" Aeson..= replayTimeText
                              ]
                          ]
             ]
@@ -143,7 +147,9 @@ alpineState existingJson startDateText =
   startDate: '#{startDateText}',
   slots: [],
   activeTimePicker: null,
+  activeReplayPicker: null,
   timeFilter: '',
+  replayFilter: '',
   allTimes: (function() {
     var times = [];
     for (var h = 0; h < 24; h++) {
@@ -174,7 +180,8 @@ alpineState existingJson startDateText =
             this.slots.push({
               day: item.slots[j].day || '',
               time: item.slots[j].time || '',
-              duration: item.slots[j].duration || null
+              duration: item.slots[j].duration || null,
+              replayTime: item.slots[j].replayTime || ''
             });
           }
         }
@@ -192,7 +199,7 @@ alpineState existingJson startDateText =
       this.weeks = [1];
     }
     if (this.slots.length === 0) {
-      this.slots.push({ day: '', time: '', duration: null });
+      this.slots.push({ day: '', time: '', duration: null, replayTime: '' });
     }
   },
 
@@ -201,7 +208,7 @@ alpineState existingJson startDateText =
   },
 
   addSlot() {
-    this.slots.push({ day: '', time: '', duration: null });
+    this.slots.push({ day: '', time: '', duration: null, replayTime: '' });
   },
 
   removeSlot(index) {
@@ -214,17 +221,95 @@ alpineState existingJson startDateText =
 
   openTimePicker(index) {
     this.activeTimePicker = index;
-    this.timeFilter = this.slots[index].time || '';
+    this.timeFilter = this.formatTime(this.slots[index].time);
   },
 
-  closeTimePicker() {
+  closeTimePicker(resolve) {
+    if (resolve !== false && this.activeTimePicker !== null) {
+      var text = (this.timeFilter || '').trim();
+      if (text) {
+        var match = this.resolveFilter(text, this.filteredTimes());
+        if (match) this.slots[this.activeTimePicker].time = match;
+      }
+    }
     this.activeTimePicker = null;
     this.timeFilter = '';
   },
 
   selectTime(index, time) {
     this.slots[index].time = time;
-    this.closeTimePicker();
+    this.closeTimePicker(false);
+  },
+
+  openReplayPicker(index) {
+    this.activeReplayPicker = index;
+    this.replayFilter = this.formatTime(this.slots[index].replayTime);
+  },
+
+  closeReplayPicker(resolve) {
+    if (resolve !== false && this.activeReplayPicker !== null) {
+      var text = (this.replayFilter || '').trim();
+      if (text) {
+        var match = this.resolveFilter(text, this.filteredReplayTimes(this.activeReplayPicker));
+        if (match) this.slots[this.activeReplayPicker].replayTime = match;
+      }
+    }
+    this.activeReplayPicker = null;
+    this.replayFilter = '';
+  },
+
+  selectReplayTime(index, time) {
+    this.slots[index].replayTime = time;
+    this.closeReplayPicker(false);
+  },
+
+  resolveFilter(text, filtered) {
+    if (!text) return null;
+    if (filtered.length === 1) return filtered[0].value;
+    var lower = text.toLowerCase();
+    var exact = this.allTimes.find(function(t) {
+      return t.label.toLowerCase() === lower || t.value === text;
+    });
+    if (exact) return exact.value;
+    var shorthand = this.allTimes.find(function(t) {
+      return this.matchShorthand(lower, t);
+    }.bind(this));
+    if (shorthand) return shorthand.value;
+    return null;
+  },
+
+  clearReplayTime(index) {
+    this.slots[index].replayTime = '';
+  },
+
+  slotEndTime(slot) {
+    if (!slot.time || !slot.duration) return null;
+    var parts = slot.time.split(':');
+    var h = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    var totalMins = h * 60 + m + slot.duration;
+    return totalMins % (24 * 60);
+  },
+
+  filteredReplayTimes(index) {
+    var filter = this.replayFilter.trim().toLowerCase();
+    var slot = this.slots[index];
+    var endMins = this.slotEndTime(slot);
+    var available = this.allTimes;
+    if (endMins !== null) {
+      available = available.filter(function(t) {
+        var parts = t.value.split(':');
+        var tMins = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+        return tMins >= endMins;
+      });
+    }
+    if (!filter) return available;
+    var self = this;
+    return available.filter(function(t) {
+      return t.label.toLowerCase().includes(filter) ||
+        t.value.toLowerCase().includes(filter) ||
+        self.matchShorthand(filter, t);
+    });
   },
 
   filteredTimes() {
@@ -287,12 +372,14 @@ alpineState existingJson startDateText =
     var valid = this.slots
       .filter(function(s) { return s.day && s.time && s.duration; })
       .map(function(s) {
-        return {
+        var obj = {
           dayOfWeek: s.day,
           weeksOfMonth: weeks,
           startTime: s.time,
           duration: s.duration
         };
+        if (s.replayTime) { obj.replayTime = s.replayTime; }
+        return obj;
       });
     return JSON.stringify(valid);
   }
@@ -409,6 +496,9 @@ renderSlotRow =
         -- Duration buttons
         renderDurationButtons
 
+      -- Replay time picker (shown when time and duration are set)
+      renderReplayTimePicker
+
 --------------------------------------------------------------------------------
 -- Day Dropdown
 
@@ -439,33 +529,44 @@ renderDayDropdown =
 
 renderTimePicker :: Lucid.Html ()
 renderTimePicker =
-  Lucid.div_ [class_ $ base ["relative"]] $ do
-    Lucid.label_ [class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.mb2, "block"]] "TIME"
+  Lucid.div_
+    [ class_ $ base ["relative"],
+      xOnClickOutside_ "if (activeTimePicker === index) closeTimePicker()"
+    ]
+    $ do
+      Lucid.label_ [class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.mb2, "block"]] "TIME"
 
-    -- Display input (opens picker)
-    Lucid.input_
-      [ Lucid.type_ "text",
-        Lucid.placeholder_ "e.g. 8:00 PM",
-        xOnClick_ "openTimePicker(index)",
-        xOnInput_ "timeFilter = $event.target.value",
-        xBindValue_ "activeTimePicker === index ? timeFilter : formatTime(slot.time)",
-        xOnClickOutside_ "if (activeTimePicker === index) closeTimePicker()",
-        class_ $ base ["w-full", Tokens.p3, Tokens.border2, Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "font-mono", Tokens.textSm]
-      ]
-
-    -- Dropdown list
-    Lucid.div_
-      [ class_ $ base ["absolute", "z-10", "w-full", "max-h-48", "overflow-y-auto", Tokens.border2, Tokens.borderMuted, Tokens.bgMain],
-        xShow_ "activeTimePicker === index"
-      ]
-      $ Lucid.template_
-        [xFor_ "t in filteredTimes()", xKey_ "t.value"]
-      $ Lucid.div_
-        [ xOnClick_ "selectTime(index, t.value)",
-          class_ $ base [Tokens.p3, Tokens.textSm, "cursor-pointer", Tokens.hoverBg, "font-mono"],
-          xText_ "t.label"
+      -- Display input (opens picker)
+      Lucid.input_
+        [ Lucid.type_ "text",
+          Lucid.placeholder_ "e.g. 8:00 PM",
+          xOnClick_ "openTimePicker(index)",
+          xOnInput_ "timeFilter = $event.target.value",
+          xBindValue_ "activeTimePicker === index ? timeFilter : formatTime(slot.time)",
+          xOn_ "keydown.enter.prevent" "closeTimePicker()",
+          xOn_ "keydown.escape" "closeTimePicker(false)",
+          class_ $ base ["w-full", Tokens.p3, Tokens.border2, Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "font-mono", Tokens.textSm]
         ]
-        mempty
+
+      -- Dropdown list
+      Lucid.div_
+        [ class_ $ base ["absolute", "z-10", "w-full", "max-h-48", "overflow-y-auto", Tokens.border2, Tokens.borderMuted, Tokens.bgMain],
+          xShow_ "activeTimePicker === index"
+        ]
+        $ do
+          Lucid.template_
+            [xFor_ "t in filteredTimes()", xKey_ "t.value"]
+            $ Lucid.div_
+              [ xOnClick_ "selectTime(index, t.value)",
+                class_ $ base [Tokens.p3, Tokens.textSm, "cursor-pointer", Tokens.hoverBg, "font-mono"],
+                xText_ "t.label"
+              ]
+              mempty
+          Lucid.div_
+            [ class_ $ base [Tokens.p3, Tokens.textSm, Tokens.errorText, "font-mono"],
+              xShow_ "timeFilter.trim() && filteredTimes().length === 0"
+            ]
+            "No matching times \x2014 try \"8:00 PM\" or \"8p\""
 
 --------------------------------------------------------------------------------
 -- Duration Buttons
@@ -491,6 +592,64 @@ durationButton dur label =
           : '#{Tokens.bgAlt} #{Tokens.fgPrimary} #{Tokens.borderMuted}'|]
     ]
     (Lucid.toHtml label)
+
+--------------------------------------------------------------------------------
+-- Replay Time Picker
+
+renderReplayTimePicker :: Lucid.Html ()
+renderReplayTimePicker =
+  Lucid.div_
+    [ class_ $ base [Tokens.mt4],
+      xShow_ "slot.time && slot.duration"
+    ]
+    $ do
+      Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2, Tokens.mb2]] $ do
+        Lucid.label_ [class_ $ base [Tokens.textSm, Tokens.fontBold]] "REPLAY TIME"
+        Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] "(optional)"
+      Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
+        -- Replay time input with typeahead
+        Lucid.div_
+          [ class_ $ base ["relative", "flex-1"],
+            xOnClickOutside_ "if (activeReplayPicker === index) closeReplayPicker()"
+          ]
+          $ do
+            Lucid.input_
+              [ Lucid.type_ "text",
+                Lucid.placeholder_ "e.g. 8:00 PM",
+                xOnClick_ "openReplayPicker(index)",
+                xOnInput_ "replayFilter = $event.target.value",
+                xBindValue_ "activeReplayPicker === index ? replayFilter : formatTime(slot.replayTime)",
+                xOn_ "keydown.enter.prevent" "closeReplayPicker()",
+                xOn_ "keydown.escape" "closeReplayPicker(false)",
+                class_ $ base ["w-full", Tokens.p3, Tokens.border2, Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "font-mono", Tokens.textSm]
+              ]
+            -- Dropdown list
+            Lucid.div_
+              [ class_ $ base ["absolute", "z-10", "w-full", "max-h-48", "overflow-y-auto", Tokens.border2, Tokens.borderMuted, Tokens.bgMain],
+                xShow_ "activeReplayPicker === index"
+              ]
+              $ do
+                Lucid.template_
+                  [xFor_ "t in filteredReplayTimes(index)", xKey_ "t.value"]
+                  $ Lucid.div_
+                    [ xOnClick_ "selectReplayTime(index, t.value)",
+                      class_ $ base [Tokens.p3, Tokens.textSm, "cursor-pointer", Tokens.hoverBg, "font-mono"],
+                      xText_ "t.label"
+                    ]
+                    mempty
+                Lucid.div_
+                  [ class_ $ base [Tokens.p3, Tokens.textSm, Tokens.errorText, "font-mono"],
+                    xShow_ "replayFilter.trim() && filteredReplayTimes(index).length === 0"
+                  ]
+                  "No matching times \x2014 try \"8:00 PM\" or \"8p\""
+        -- Clear button
+        Lucid.template_ [xIf_ "slot.replayTime"] $
+          Lucid.button_
+            [ Lucid.type_ "button",
+              xOnClick_ "clearReplayTime(index)",
+              class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.errorText, "hover:opacity-80", Tokens.px4, Tokens.py2]
+            ]
+            "CLEAR"
 
 --------------------------------------------------------------------------------
 -- Start Date Picker

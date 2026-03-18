@@ -6,7 +6,7 @@ module API.Dashboard.Shows.New.Post.Handler (handler, action) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..))
-import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), parseScheduleSlot)
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, parseScheduleSlot)
 import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
@@ -26,8 +26,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time (Day, TimeOfDay)
-import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time (Day)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug qualified as Slug
@@ -306,26 +305,6 @@ parseSchedules (Just schedulesJson)
       Left err -> Left $ "Invalid schedules JSON: " <> Text.pack err
       Right slots -> traverse parseScheduleSlot slots
 
--- | Check for schedule conflicts with other shows.
---
--- For new show creation, pass Shows.Id 0 to check against ALL active shows.
-checkScheduleConflicts ::
-  Shows.Id ->
-  [ParsedScheduleSlot] ->
-  AppM (Either Text ())
-checkScheduleConflicts showId = go
-  where
-    go [] = pure (Right ())
-    go (slot : rest) = do
-      let weeks = map fromIntegral (pssWeeks slot)
-      execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks (pssStart slot) (pssEnd slot)) >>= \case
-        Left err -> do
-          Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
-          pure (Left "Unable to verify schedule availability. Please try again.")
-        Right (Just conflictingShow) ->
-          pure (Left $ "Schedule conflict: " <> Text.pack (show (pssDay slot)) <> " " <> formatTimeHHMM (pssStart slot) <> "-" <> formatTimeHHMM (pssEnd slot) <> " overlaps with \"" <> conflictingShow <> "\"")
-        Right Nothing -> go rest
-
 -- | Create schedules for a newly created show.
 --
 -- When @mStartDate@ is provided it is used as the @effective_from@ date for
@@ -350,7 +329,7 @@ createSchedulesForShow showId slots mStartDate = do
               ShowSchedule.stiStartTime = pssStart slot,
               ShowSchedule.stiEndTime = pssEnd slot,
               ShowSchedule.stiTimezone = "America/Los_Angeles",
-              ShowSchedule.stiAirsTwiceDaily = True
+              ShowSchedule.stiReplayStartTime = pssReplayStartTime slot
             }
 
     templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
@@ -385,6 +364,3 @@ buildTimeslotDescription [] = Nothing
 buildTimeslotDescription (slot : _) =
   Just $ HostNotifications.formatTimeslotDescription (pssDay slot) (pssStart slot) (pssEnd slot)
 
--- | Format a TimeOfDay as "HH:MM" for error messages.
-formatTimeHHMM :: TimeOfDay -> Text
-formatTimeHHMM = Text.pack . formatTime defaultTimeLocale "%H:%M"

@@ -106,7 +106,7 @@ data ScheduleTemplate f = ScheduleTemplate
     stEndTime :: Column f TimeOfDay,
     stTimezone :: Column f Text,
     stCreatedAt :: Column f UTCTime,
-    stAirsTwiceDaily :: Column f Bool
+    stReplayStartTime :: Column f (Maybe TimeOfDay)
   }
   deriving stock (Generic)
   deriving anyclass (Rel8able)
@@ -135,7 +135,7 @@ scheduleTemplateSchema =
             stEndTime = "end_time",
             stTimezone = "timezone",
             stCreatedAt = "created_at",
-            stAirsTwiceDaily = "airs_twice_daily"
+            stReplayStartTime = "replay_start_time"
           }
     }
 
@@ -147,7 +147,7 @@ data ScheduleTemplateInsert = ScheduleTemplateInsert
     stiStartTime :: TimeOfDay,
     stiEndTime :: TimeOfDay,
     stiTimezone :: Text,
-    stiAirsTwiceDaily :: Bool
+    stiReplayStartTime :: Maybe TimeOfDay
   }
   deriving stock (Generic, Show, Eq)
 
@@ -236,7 +236,7 @@ getActiveScheduleTemplatesForShow showId =
   interp
     False
     [sql|
-    SELECT DISTINCT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at, st.airs_twice_daily
+    SELECT DISTINCT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at, st.replay_start_time
     FROM schedule_templates st
     JOIN schedule_template_validity stv ON stv.template_id = st.id
     WHERE st.show_id = #{showId}
@@ -255,7 +255,7 @@ getPendingScheduleTemplatesForShow showId =
   interp
     False
     [sql|
-    SELECT DISTINCT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at, st.airs_twice_daily
+    SELECT DISTINCT st.id, st.show_id, st.day_of_week, st.weeks_of_month, st.start_time, st.end_time, st.timezone, st.created_at, st.replay_start_time
     FROM schedule_templates st
     JOIN schedule_template_validity stv ON stv.template_id = st.id
     WHERE st.show_id = #{showId}
@@ -287,33 +287,60 @@ checkTimeSlotConflict excludeShowId dow weeks start end =
     <$> interp
       False
       [sql|
-    SELECT s.title
-    FROM schedule_templates st
-    JOIN schedule_template_validity stv ON stv.template_id = st.id
-    JOIN shows s ON s.id = st.show_id
-    WHERE s.status = 'active'
-      AND s.deleted_at IS NULL
-      AND st.show_id != #{excludeShowId}
-      AND st.day_of_week = #{dow}::day_of_week
-      AND stv.effective_from <= CURRENT_DATE
-      AND (stv.effective_until IS NULL OR stv.effective_until > CURRENT_DATE)
-      -- Check weeks overlap
-      AND (st.weeks_of_month IS NULL OR st.weeks_of_month && #{weeks})
-      -- Check time overlap (handles overnight shows)
-      AND (
+    WITH slots AS (
+      SELECT
+        s.title,
+        st.start_time,
+        st.end_time,
+        st.replay_start_time,
+        -- Precompute replay end time once
+        (st.replay_start_time + (
+          CASE WHEN st.end_time > st.start_time
+            THEN st.end_time - st.start_time
+            ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
+          END
+        ))::TIME as replay_end_time
+      FROM schedule_templates st
+      JOIN schedule_template_validity stv ON stv.template_id = st.id
+      JOIN shows s ON s.id = st.show_id
+      WHERE s.status = 'active'
+        AND s.deleted_at IS NULL
+        AND st.show_id != #{excludeShowId}
+        AND st.day_of_week = #{dow}::day_of_week
+        AND stv.effective_from <= CURRENT_DATE
+        AND (stv.effective_until IS NULL OR stv.effective_until > CURRENT_DATE)
+        AND (st.weeks_of_month IS NULL OR st.weeks_of_month && #{weeks})
+    )
+    SELECT sl.title
+    FROM slots sl
+    WHERE
+      -- Proposed slot overlaps existing PRIMARY slot
+      (
         CASE
-          -- Neither overnight: simple overlap check
-          WHEN st.end_time > st.start_time AND #{end} > #{start} THEN
-            st.start_time < #{end} AND #{start} < st.end_time
-          -- Existing is overnight, new is not
-          WHEN st.end_time <= st.start_time AND #{end} > #{start} THEN
-            #{start} < st.end_time OR #{end} > st.start_time
-          -- New is overnight, existing is not
-          WHEN #{end} <= #{start} AND st.end_time > st.start_time THEN
-            st.start_time < #{end} OR st.end_time > #{start}
-          -- Both overnight: always overlap
+          WHEN sl.end_time > sl.start_time AND #{end} > #{start} THEN
+            sl.start_time < #{end} AND #{start} < sl.end_time
+          WHEN sl.end_time <= sl.start_time AND #{end} > #{start} THEN
+            #{start} < sl.end_time OR #{end} > sl.start_time
+          WHEN #{end} <= #{start} AND sl.end_time > sl.start_time THEN
+            sl.start_time < #{end} OR sl.end_time > #{start}
           ELSE TRUE
         END
+      )
+      OR
+      -- Proposed slot overlaps existing REPLAY slot
+      (
+        sl.replay_start_time IS NOT NULL
+        AND (
+          CASE
+            WHEN sl.replay_end_time > sl.replay_start_time AND #{end} > #{start} THEN
+              sl.replay_start_time < #{end} AND #{start} < sl.replay_end_time
+            WHEN sl.replay_end_time <= sl.replay_start_time AND #{end} > #{start} THEN
+              #{start} < sl.replay_end_time OR #{end} > sl.replay_start_time
+            WHEN #{end} <= #{start} AND sl.replay_end_time > sl.replay_start_time THEN
+              sl.replay_start_time < #{end} OR sl.replay_end_time > #{start}
+            ELSE TRUE
+          END
+        )
       )
     LIMIT 1
   |]
@@ -328,8 +355,8 @@ insertScheduleTemplate ScheduleTemplateInsert {..} =
     <$> interp
       False
       [sql|
-    INSERT INTO schedule_templates(show_id, day_of_week, weeks_of_month, start_time, end_time, timezone, created_at, airs_twice_daily)
-    VALUES (#{stiShowId}, #{stiDayOfWeek}::day_of_week, #{stiWeeksOfMonth}, #{stiStartTime}, #{stiEndTime}, #{stiTimezone}, NOW(), #{stiAirsTwiceDaily})
+    INSERT INTO schedule_templates(show_id, day_of_week, weeks_of_month, start_time, end_time, timezone, created_at, replay_start_time)
+    VALUES (#{stiShowId}, #{stiDayOfWeek}::day_of_week, #{stiWeeksOfMonth}, #{stiStartTime}, #{stiEndTime}, #{stiTimezone}, NOW(), #{stiReplayStartTime})
     RETURNING id
   |]
 
@@ -453,7 +480,7 @@ instance Display ScheduledShowWithDetails where
 -- | Get all scheduled shows for a specific date with show and host details.
 --
 -- Returns both recurring and one-time shows scheduled for the given date.
--- For shows with airs_twice_daily = TRUE, returns two rows (primary and +12 hours).
+-- For shows with replay_start_time set, returns two rows (primary and replay).
 -- Used for rendering actual weekly schedules (not just templates).
 -- Uses raw SQL because of complex date arithmetic and CASE expressions.
 -- Excludes soft-deleted shows.
@@ -522,7 +549,7 @@ getScheduledShowsForDate targetDate =
 
     UNION ALL
 
-    -- Replay airings (+12 hours) for dual-airing shows
+    -- Replay airings for shows with replay_start_time set
     SELECT
       #{targetDate}::date as show_date,
       COALESCE(
@@ -537,8 +564,13 @@ getScheduledShowsForDate targetDate =
           WHEN 6 THEN 'saturday'::day_of_week
         END
       ) as day_of_week,
-      ((st.start_time + INTERVAL '12 hours')::time) as start_time,
-      ((st.end_time + INTERVAL '12 hours')::time) as end_time,
+      st.replay_start_time as start_time,
+      (st.replay_start_time + (
+        CASE WHEN st.end_time > st.start_time
+          THEN st.end_time - st.start_time
+          ELSE (INTERVAL '24 hours' - (st.start_time - st.end_time))
+        END
+      ))::TIME as end_time,
       s.slug,
       s.title,
       COALESCE(
@@ -555,7 +587,7 @@ getScheduledShowsForDate targetDate =
     WHERE s.status = 'active'
       AND s.deleted_at IS NULL
       AND EXISTS (SELECT 1 FROM show_hosts sh2 WHERE sh2.show_id = s.id AND sh2.left_at IS NULL)
-      AND st.airs_twice_daily = TRUE
+      AND st.replay_start_time IS NOT NULL
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
       AND (
@@ -579,7 +611,7 @@ getScheduledShowsForDate targetDate =
         (st.day_of_week IS NULL
          AND stv.effective_from = #{targetDate}::date)
       )
-    GROUP BY st.id, st.day_of_week, st.start_time, st.end_time, s.slug, s.title, s.logo_url
+    GROUP BY st.id, st.day_of_week, st.start_time, st.end_time, st.replay_start_time, s.slug, s.title, s.logo_url
 
     ORDER BY start_time
   |]

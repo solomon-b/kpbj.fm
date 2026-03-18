@@ -69,7 +69,7 @@ prop_missingEpisodeAppears cfg = do
         let show1 = showInsert {Shows.siStatus = Shows.Active}
         showId <- unwrapInsert (Shows.insertShow show1)
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -102,7 +102,7 @@ prop_episodeWithAudioNotMissing cfg = do
         let show1 = showInsert {Shows.siStatus = Shows.Active}
         showId <- unwrapInsert (Shows.insertShow show1)
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -150,7 +150,7 @@ prop_episodeWithoutAudioIsMissing cfg = do
         let show1 = showInsert {Shows.siStatus = Shows.Active}
         showId <- unwrapInsert (Shows.insertShow show1)
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -196,7 +196,7 @@ prop_beyondWindowNotShown cfg = do
         let show1 = showInsert {Shows.siStatus = Shows.Active}
         showId <- unwrapInsert (Shows.insertShow show1)
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just futureDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just futureDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         -- Validity starts from 8 days from now (outside 7-day window)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays 8 today) Nothing))
@@ -224,7 +224,7 @@ prop_deletedShowNotShown cfg = do
         let show1 = showInsert {Shows.siStatus = Shows.Active}
         showId <- unwrapInsert (Shows.insertShow show1)
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -255,13 +255,13 @@ prop_sortedByDate cfg = do
         -- Create two shows on the same day but different times
         let show1 = showInsert1 {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug showInsert1 <> "sort1"}
         showId1 <- unwrapInsert (Shows.insertShow show1)
-        let sched1 = ShowSchedule.ScheduleTemplateInsert showId1 (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) timezone False
+        let sched1 = ShowSchedule.ScheduleTemplateInsert showId1 (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) timezone Nothing
         tid1 <- TRX.statement () (ShowSchedule.insertScheduleTemplate sched1)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert tid1 (addDays (-7) today) Nothing))
 
         let show2 = showInsert2 {Shows.siStatus = Shows.Active, Shows.siSlug = Shows.siSlug showInsert2 <> "sort2"}
         showId2 <- unwrapInsert (Shows.insertShow show2)
-        let sched2 = ShowSchedule.ScheduleTemplateInsert showId2 (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 8 0 0) (TimeOfDay 10 0 0) timezone False
+        let sched2 = ShowSchedule.ScheduleTemplateInsert showId2 (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 8 0 0) (TimeOfDay 10 0 0) timezone Nothing
         tid2 <- TRX.statement () (ShowSchedule.insertScheduleTemplate sched2)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert tid2 (addDays (-7) today) Nothing))
 
@@ -296,7 +296,7 @@ prop_hostMissingEpisodeOnDay cfg = do
         showId <- unwrapInsert (Shows.insertShow show1)
         addTestShowHost showId userId
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -330,7 +330,7 @@ prop_hostNotReturnedWithAudio cfg = do
         showId <- unwrapInsert (Shows.insertShow show1)
         addTestShowHost showId userId
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -373,7 +373,7 @@ prop_noHostNoRow cfg = do
         let show1 = showInsert {Shows.siStatus = Shows.Active}
         showId <- unwrapInsert (Shows.insertShow show1)
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -409,7 +409,7 @@ prop_wrongDayNotReturned cfg = do
         showId <- unwrapInsert (Shows.insertShow show1)
         addTestShowHost showId userId
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just nearbyDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just nearbyDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -441,7 +441,7 @@ prop_hostDeletedShowNotReturned cfg = do
         showId <- unwrapInsert (Shows.insertShow show1)
         addTestShowHost showId userId
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -475,7 +475,7 @@ prop_hostReturnedWithoutAudio cfg = do
         showId <- unwrapInsert (Shows.insertShow show1)
         addTestShowHost showId userId
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) timezone Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -524,7 +524,7 @@ prop_multipleHostsMultipleRows cfg = do
         addTestShowHost showId userId1
         addTestShowHost showId userId2
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
@@ -558,7 +558,7 @@ prop_hostExpiredValidityNotReturned cfg = do
         showId <- unwrapInsert (Shows.insertShow show1)
         addTestShowHost showId userId
 
-        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" False
+        let scheduleInsert = ShowSchedule.ScheduleTemplateInsert showId (Just targetDow) (Just allWeeksOfMonth) (TimeOfDay 10 0 0) (TimeOfDay 12 0 0) "UTC" Nothing
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         -- Validity expired yesterday
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) (Just (addDays (-1) today))))

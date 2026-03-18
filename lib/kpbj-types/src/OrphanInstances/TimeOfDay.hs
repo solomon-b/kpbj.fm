@@ -2,7 +2,6 @@
 
 module OrphanInstances.TimeOfDay
   ( formatTimeOfDay,
-    add12Hours,
     formatScheduleDual,
     formatWeeksOfMonth,
   )
@@ -16,6 +15,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (TimeOfDay (..))
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.Timezone (addMinutesToTimeOfDay, slotDurationMins)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
 import Hasql.Interpolate (DecodeValue (..), EncodeValue (..))
@@ -34,33 +34,26 @@ instance DecodeValue TimeOfDay where
 formatTimeOfDay :: TimeOfDay -> Text
 formatTimeOfDay = Text.pack . formatTime defaultTimeLocale "%l:%M %p"
 
--- | Add 12 hours to a TimeOfDay (wraps around midnight).
-add12Hours :: TimeOfDay -> TimeOfDay
-add12Hours (TimeOfDay h m s) = TimeOfDay ((h + 12) `mod` 24) m s
-
--- | Format schedule with optional dual-airing display.
+-- | Format schedule with optional replay display.
 --
--- For dual-airing shows, displays both time ranges:
+-- When a replay start time is provided, displays both time ranges:
 -- e.g., "09:00 - 11:00 & 21:00 - 23:00"
 formatScheduleDual ::
   -- | Start time
   TimeOfDay ->
   -- | End time
   TimeOfDay ->
-  -- | Airs twice daily
-  Bool ->
+  -- | Replay start time (Nothing = no replay)
+  Maybe TimeOfDay ->
   Text
-formatScheduleDual start end airsTwice
-  | airsTwice =
-      formatTimeOfDay start
-        <> " - "
-        <> formatTimeOfDay end
-        <> " & "
-        <> formatTimeOfDay (add12Hours start)
-        <> " - "
-        <> formatTimeOfDay (add12Hours end)
-  | otherwise =
-      formatTimeOfDay start <> " - " <> formatTimeOfDay end
+formatScheduleDual start end mReplayStart =
+  let primary = formatTimeOfDay start <> " - " <> formatTimeOfDay end
+   in case mReplayStart of
+        Just replayStart ->
+          let durMins = slotDurationMins start end
+              replayEnd = addMinutesToTimeOfDay replayStart durMins
+           in primary <> " & " <> formatTimeOfDay replayStart <> " - " <> formatTimeOfDay replayEnd
+        Nothing -> primary
 
 -- | Format weeks of month as ordinal prefix.
 --
