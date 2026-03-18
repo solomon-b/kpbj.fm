@@ -11,6 +11,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Fixed
 - **Episode Check SMTP Config** — The `kpbj-episode-check` systemd service was missing non-secret SMTP environment variables (`APP_SMTP_SERVER`, `APP_SMTP_PORT`, `APP_SMTP_USERNAME`, `APP_SMTP_FROM_EMAIL`, `APP_SMTP_FROM_NAME`), causing it to fail with "SMTP not configured" on every run. The env file only contained the password. Added an `environment` block sourcing these from the web module config.
 
+### Improved
+- **Upload Auth Error Message** — Staged upload fields (audio and image) now show a helpful message when authentication fails during upload, guiding the user to refresh/re-login or check browser cookie settings. Previously showed the opaque "Authentication required".
+
 ---
 
 ## [0.10.3] - 2026-03-15
