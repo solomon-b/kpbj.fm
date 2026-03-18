@@ -13,6 +13,7 @@ module Domain.Types.Timezone
 
     -- * Time Utilities
     addMinutesToTimeOfDay,
+    slotDurationMins,
     parseTimeHHMM,
     parseDateYMD,
 
@@ -92,6 +93,16 @@ addMinutesToTimeOfDay (TimeOfDay h m s) mins =
       newH = (totalMinutes `div` 60) `mod` 24
       newM = totalMinutes `mod` 60
    in TimeOfDay newH newM s
+
+-- | Compute the duration in minutes between two 'TimeOfDay' values.
+--
+-- Handles overnight shows (end < start) by wrapping around midnight.
+slotDurationMins :: TimeOfDay -> TimeOfDay -> Int
+slotDurationMins start end =
+  let startMins = todHour start * 60 + todMin start
+      endMins = todHour end * 60 + todMin end
+      rawMins = endMins - startMins
+   in if rawMins <= 0 then rawMins + (24 * 60) else rawMins
 
 -- | Parse a time of day from @\"HH:MM\"@ format.
 parseTimeHHMM :: Text -> Maybe TimeOfDay

@@ -58,7 +58,7 @@ mkScheduleTemplate =
       stiStartTime = read "10:00:00",
       stiEndTime = read "12:00:00",
       stiTimezone = "America/Los_Angeles",
-      stiAirsTwiceDaily = False
+      stiReplayStartTime = Nothing
     }
 
 -- | Construct a show blog post insert with a fixed canonical slug.

@@ -431,7 +431,7 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- Standard shows (end > start):
 --
 -- * __Case 1__: Primary airing, scheduled today, within duration or slot
--- * __Case 4__: Replay (+12h), scheduled today, within duration or slot
+-- * __Case 4__: Replay (replay_start_time), scheduled today, within duration or slot
 --
 -- Overnight shows (end <= start, e.g., 11 PM - 2 AM):
 --
@@ -457,106 +457,136 @@ getCurrentlyAiringEpisode currentTime =
         ((#{currentTime} AT TIME ZONE 'America/Los_Angeles')::DATE - INTERVAL '1 day')::DATE as yesterday_pacific,
         (#{currentTime} AT TIME ZONE 'America/Los_Angeles')::TIME as time_now
     ),
-    matching_episodes AS (
+    -- Precompute show duration and replay end time to avoid repeating the
+    -- overnight-aware duration CASE expression across every replay case.
+    schedule_slots AS (
       SELECT
-        e.id, e.show_id, e.description, e.episode_number,
-        e.audio_file_path, e.audio_file_size, e.audio_mime_type, e.duration_seconds,
-        e.artwork_url, e.schedule_template_id, e.scheduled_at, e.published_at,
-        e.deleted_at, e.created_by, e.created_at, e.updated_at
+        st.*,
+        e.id AS ep_id,
+        e.show_id AS ep_show_id,
+        e.description AS ep_description,
+        e.episode_number AS ep_episode_number,
+        e.audio_file_path AS ep_audio_file_path,
+        e.audio_file_size AS ep_audio_file_size,
+        e.audio_mime_type AS ep_audio_mime_type,
+        e.duration_seconds AS ep_duration_seconds,
+        e.artwork_url AS ep_artwork_url,
+        e.schedule_template_id AS ep_schedule_template_id,
+        e.scheduled_at AS ep_scheduled_at,
+        e.published_at AS ep_published_at,
+        e.deleted_at AS ep_deleted_at,
+        e.created_by AS ep_created_by,
+        e.created_at AS ep_created_at,
+        e.updated_at AS ep_updated_at,
+        -- Show duration as interval (handles overnight wraparound)
+        CASE WHEN st.end_time > st.start_time
+          THEN st.end_time - st.start_time
+          ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
+        END AS show_duration,
+        -- Replay end time (NULL when no replay)
+        (st.replay_start_time + (
+          CASE WHEN st.end_time > st.start_time
+            THEN st.end_time - st.start_time
+            ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
+          END
+        ))::TIME AS replay_end_time
       FROM episodes e
       JOIN schedule_templates st ON st.id = e.schedule_template_id
       JOIN schedule_template_validity stv ON stv.template_id = st.id
-      CROSS JOIN current_pacific cp
       WHERE
-        -- Episode must have audio and not be deleted
         e.audio_file_path IS NOT NULL
         AND e.deleted_at IS NULL
-        -- Schedule validity must be active for the episode's scheduled date
-        -- effective_from is inclusive, effective_until is exclusive
         AND stv.effective_from <= (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE
         AND (stv.effective_until IS NULL OR stv.effective_until > (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE)
-        AND (
+    ),
+    matching_episodes AS (
+      SELECT
+        ss.ep_id AS id, ss.ep_show_id AS show_id, ss.ep_description AS description,
+        ss.ep_episode_number AS episode_number, ss.ep_audio_file_path AS audio_file_path,
+        ss.ep_audio_file_size AS audio_file_size, ss.ep_audio_mime_type AS audio_mime_type,
+        ss.ep_duration_seconds AS duration_seconds, ss.ep_artwork_url AS artwork_url,
+        ss.ep_schedule_template_id AS schedule_template_id, ss.ep_scheduled_at AS scheduled_at,
+        ss.ep_published_at AS published_at, ss.ep_deleted_at AS deleted_at,
+        ss.ep_created_by AS created_by, ss.ep_created_at AS created_at, ss.ep_updated_at AS updated_at
+      FROM schedule_slots ss
+      CROSS JOIN current_pacific cp
+      WHERE
+        (
           -- Case 1: Standard show (end > start) scheduled for today
-          -- Use episode duration as effective end time (fall back to slot end if NULL)
           (
-            st.end_time > st.start_time
-            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
-            AND cp.time_now >= st.start_time
+            ss.end_time > ss.start_time
+            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
+            AND cp.time_now >= ss.start_time
             AND cp.time_now < LEAST(
-              st.end_time,
-              (st.start_time + COALESCE(e.duration_seconds * INTERVAL '1 second', st.end_time - st.start_time))::TIME
+              ss.end_time,
+              (ss.start_time + COALESCE(ss.ep_duration_seconds * INTERVAL '1 second', ss.show_duration))::TIME
             )
           )
           OR
           -- Case 2: Overnight show (end <= start) - before midnight portion (scheduled today)
-          -- Check if we're past start AND either duration extends past midnight OR we're within duration
           (
-            st.end_time <= st.start_time
-            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
-            AND cp.time_now >= st.start_time
+            ss.end_time <= ss.start_time
+            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
+            AND cp.time_now >= ss.start_time
             AND (
-              -- If duration is NULL, allow full before-midnight portion
-              e.duration_seconds IS NULL
-              -- If duration extends past midnight, allow the entire before-midnight portion
-              OR e.duration_seconds >= EXTRACT(EPOCH FROM (TIME '24:00:00' - st.start_time))
-              -- If duration ends before midnight, check if we're still within it
-              OR cp.time_now < (st.start_time + e.duration_seconds * INTERVAL '1 second')::TIME
+              ss.ep_duration_seconds IS NULL
+              OR ss.ep_duration_seconds >= EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.start_time))
+              OR cp.time_now < (ss.start_time + ss.ep_duration_seconds * INTERVAL '1 second')::TIME
             )
           )
           OR
           -- Case 3: Overnight show (end <= start) - after midnight portion (scheduled yesterday)
-          -- Check if duration extends past midnight
           (
-            st.end_time <= st.start_time
-            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
+            ss.end_time <= ss.start_time
+            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
             AND cp.time_now < LEAST(
-              st.end_time,
-              -- Duration from start, wrapping past midnight: total duration minus time before midnight
+              ss.end_time,
               CASE
-                WHEN e.duration_seconds IS NULL THEN st.end_time
-                WHEN e.duration_seconds > EXTRACT(EPOCH FROM (TIME '24:00:00' - st.start_time))
-                THEN ((e.duration_seconds - EXTRACT(EPOCH FROM (TIME '24:00:00' - st.start_time))) * INTERVAL '1 second')::TIME
-                ELSE TIME '00:00:00'  -- Duration ended before midnight; 00:00 < any time, so this case won't match
+                WHEN ss.ep_duration_seconds IS NULL THEN ss.end_time
+                WHEN ss.ep_duration_seconds > EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.start_time))
+                THEN ((ss.ep_duration_seconds - EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.start_time))) * INTERVAL '1 second')::TIME
+                ELSE TIME '00:00:00'
               END
             )
           )
           OR
-          -- Case 4: Replay airing (+12 hours) for standard shows scheduled today
+          -- Case 4: Replay airing for standard replay shows scheduled today
           (
-            st.airs_twice_daily = TRUE
-            AND (st.end_time + INTERVAL '12 hours')::TIME > (st.start_time + INTERVAL '12 hours')::TIME
-            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
-            AND cp.time_now >= (st.start_time + INTERVAL '12 hours')::TIME
+            ss.replay_start_time IS NOT NULL
+            AND ss.replay_end_time > ss.replay_start_time
+            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
+            AND cp.time_now >= ss.replay_start_time
             AND cp.time_now < LEAST(
-              (st.end_time + INTERVAL '12 hours')::TIME,
-              ((st.start_time + INTERVAL '12 hours') + COALESCE(e.duration_seconds * INTERVAL '1 second', st.end_time - st.start_time))::TIME
+              ss.replay_end_time,
+              (ss.replay_start_time + COALESCE(ss.ep_duration_seconds * INTERVAL '1 second', ss.show_duration))::TIME
             )
           )
           OR
-          -- Case 5: Replay airing for overnight shows - before midnight portion (scheduled today)
+          -- Case 5: Replay airing for overnight replay shows - before midnight portion (scheduled today)
           (
-            st.airs_twice_daily = TRUE
-            AND (st.end_time + INTERVAL '12 hours')::TIME <= (st.start_time + INTERVAL '12 hours')::TIME
-            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
-            AND cp.time_now >= (st.start_time + INTERVAL '12 hours')::TIME
+            ss.replay_start_time IS NOT NULL
+            AND ss.replay_end_time <= ss.replay_start_time
+            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
+            AND cp.time_now >= ss.replay_start_time
             AND (
-              e.duration_seconds IS NULL
-              OR cp.time_now < ((st.start_time + INTERVAL '12 hours') + e.duration_seconds * INTERVAL '1 second')::TIME
+              ss.ep_duration_seconds IS NULL
+              OR ss.ep_duration_seconds >= EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.replay_start_time))
+              OR cp.time_now < (ss.replay_start_time + ss.ep_duration_seconds * INTERVAL '1 second')::TIME
             )
           )
           OR
-          -- Case 6: Replay airing for overnight shows - after midnight portion (scheduled yesterday)
+          -- Case 6: Replay airing for overnight replay shows - after midnight portion (scheduled yesterday)
           (
-            st.airs_twice_daily = TRUE
-            AND (st.end_time + INTERVAL '12 hours')::TIME <= (st.start_time + INTERVAL '12 hours')::TIME
-            AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
+            ss.replay_start_time IS NOT NULL
+            AND ss.replay_end_time <= ss.replay_start_time
+            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
             AND cp.time_now < LEAST(
-              (st.end_time + INTERVAL '12 hours')::TIME,
+              ss.replay_end_time,
               CASE
-                WHEN e.duration_seconds IS NULL THEN (st.end_time + INTERVAL '12 hours')::TIME
-                WHEN e.duration_seconds > EXTRACT(EPOCH FROM (TIME '24:00:00' - (st.start_time + INTERVAL '12 hours')::TIME))
-                THEN ((e.duration_seconds - EXTRACT(EPOCH FROM (TIME '24:00:00' - (st.start_time + INTERVAL '12 hours')::TIME))) * INTERVAL '1 second')::TIME
-                ELSE TIME '00:00:00'  -- Duration ended before midnight; 00:00 < any time, so this case won't match
+                WHEN ss.ep_duration_seconds IS NULL THEN ss.replay_end_time
+                WHEN ss.ep_duration_seconds > EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.replay_start_time))
+                THEN ((ss.ep_duration_seconds - EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.replay_start_time))) * INTERVAL '1 second')::TIME
+                ELSE TIME '00:00:00'
               END
             )
           )

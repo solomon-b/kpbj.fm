@@ -65,7 +65,7 @@ defaultScheduleInsert =
       stiStartTime = TimeOfDay 10 0 0,
       stiEndTime = TimeOfDay 11 0 0,
       stiTimezone = "America/Los_Angeles",
-      stiAirsTwiceDaily = False
+      stiReplayStartTime = Nothing
     }
 
 -- | Set up a user from a pre-built insert and return User.Model + UserMetadata.Model.
