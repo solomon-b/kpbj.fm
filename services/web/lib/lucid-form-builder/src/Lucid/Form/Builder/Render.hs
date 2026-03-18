@@ -1395,7 +1395,12 @@ renderStagedAudioField field uploadUrl uploadType = do
             this.uploadError = '';
           } else {
             console.log('[Upload] Server returned error:', response.error);
-            this.uploadError = response.error || 'Upload failed';
+            const err = response.error || 'Upload failed';
+            if (err.toLowerCase().includes('authentication')) {
+              this.uploadError = 'Your session could not be verified. Please refresh the page and log in again. If the issue persists, check that your browser is not blocking cookies for this site.';
+            } else {
+              this.uploadError = err;
+            }
             this.clearUpload();
           }
         } catch (e) {
@@ -1789,7 +1794,12 @@ renderStagedImageField field uploadUrl uploadType = do
             this.currentCleared = false;
             this.uploadError = '';
           } else {
-            this.uploadError = response.error || 'Upload failed';
+            const err = response.error || 'Upload failed';
+            if (err.toLowerCase().includes('authentication')) {
+              this.uploadError = 'Your session could not be verified. Please refresh the page and log in again. If the issue persists, check that your browser is not blocking cookies for this site.';
+            } else {
+              this.uploadError = err;
+            }
             this.clearUpload();
           }
         } catch (e) {
