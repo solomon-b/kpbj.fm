@@ -97,17 +97,20 @@ sync_s3_buckets() {
     echo "Copying new/changed files..."
     while IFS= read -r key; do
       echo "  -> $key"
+      ext="${key##*.}"
+      tmpfile="$tmpdir/transfer.$ext"
+
       AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID" \
       AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY" \
-      aws s3 cp "s3://$PROD_BUCKET/$key" "$tmpdir/transfer" \
+      aws s3 cp "s3://$PROD_BUCKET/$key" "$tmpfile" \
         --endpoint-url "$PROD_ENDPOINT" --quiet
 
       AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID" \
       AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY" \
-      aws s3 cp "$tmpdir/transfer" "s3://$STAGING_BUCKET/$key" \
+      aws s3 cp "$tmpfile" "s3://$STAGING_BUCKET/$key" \
         --endpoint-url "$STAGING_ENDPOINT" --acl public-read --quiet
 
-      rm -f "$tmpdir/transfer"
+      rm -f "$tmpfile"
     done < "$tmpdir/to_copy.txt"
   fi
 

@@ -9,6 +9,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Cloudflare WAF Custom Rules** — Added 3 WAF rules (of 5 free-tier max) to `cloudflare.tf` that block malicious traffic at the Cloudflare edge before it reaches the origin server: path traversal/LFI/SSRF attempts, known scanner/bot probe paths (wp-admin, .env, phpMyAdmin, etc.), and non-ASCII percent-encoded bytes in URI paths. Complements fail2ban, which cannot ban Cloudflare-proxied traffic via nftables.
 
 ### Fixed
+- **S3 Sync File Extension Preservation** — The prod-to-staging S3 sync script was downloading files to a generic temp path (`transfer`) with no extension, then re-uploading. This could cause incorrect content-type inference on the staging bucket. Now preserves the original file extension during transfer (`transfer.$ext`).
 - **Episode Check SMTP Config** — The `kpbj-episode-check` systemd service was missing non-secret SMTP environment variables (`APP_SMTP_SERVER`, `APP_SMTP_PORT`, `APP_SMTP_USERNAME`, `APP_SMTP_FROM_EMAIL`, `APP_SMTP_FROM_NAME`), causing it to fail with "SMTP not configured" on every run. The env file only contained the password. Added an `environment` block sourcing these from the web module config.
 
 ### Improved
