@@ -13,6 +13,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Configurable Replay Times** — Replaced the `airs_twice_daily` boolean on schedule templates with a `replay_start_time` column that accepts an absolute time of day. Each schedule slot can now specify when (or if) its replay airs, instead of being locked to a +12 hour offset. The schedule editor UI includes an optional replay time picker per slot. Conflict detection covers replay time ranges. Migration swaps existing PM primaries to AM so replays always follow the primary airing.
 
 ### Fixed
+- **S3 Sync File Extension Preservation** — The prod-to-staging S3 sync script was downloading files to a generic temp path (`transfer`) with no extension, then re-uploading. This could cause incorrect content-type inference on the staging bucket. Now preserves the original file extension during transfer (`transfer.$ext`).
 - **Episode Check SMTP Config** — The `kpbj-episode-check` systemd service was missing non-secret SMTP environment variables (`APP_SMTP_SERVER`, `APP_SMTP_PORT`, `APP_SMTP_USERNAME`, `APP_SMTP_FROM_EMAIL`, `APP_SMTP_FROM_NAME`), causing it to fail with "SMTP not configured" on every run. The env file only contained the password. Added an `environment` block sourcing these from the web module config.
 
 ### Improved
