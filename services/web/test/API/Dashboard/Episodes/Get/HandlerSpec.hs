@@ -48,7 +48,7 @@ test_emptyDbReturnsNoEpisodes cfg = do
             stiStartTime = read "10:00:00",
             stiEndTime = read "11:00:00",
             stiTimezone = "America/Los_Angeles",
-            stiAirsTwiceDaily = False
+            stiReplayStartTime = Nothing
           }
 
   bracketAppM cfg $ do
@@ -78,7 +78,7 @@ test_insertedEpisodeAppears cfg = do
             stiStartTime = read "10:00:00",
             stiEndTime = read "11:00:00",
             stiTimezone = "America/Los_Angeles",
-            stiAirsTwiceDaily = False
+            stiReplayStartTime = Nothing
           }
 
   bracketAppM cfg $ do

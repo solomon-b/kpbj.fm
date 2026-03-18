@@ -80,7 +80,7 @@ renderShowHeader backend showModel hosts schedules tags = do
           Tags.renderTags (map showTagToLink tags)
   where
     renderSchedule :: ShowSchedule.ScheduleTemplate Result -> Text
-    renderSchedule ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stWeeksOfMonth = weeksOfMonth, stStartTime = st, stEndTime = et, stAirsTwiceDaily = airsTwice} =
+    renderSchedule ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stWeeksOfMonth = weeksOfMonth, stStartTime = st, stEndTime = et, stReplayStartTime = mReplay} =
       case mDow of
         Nothing -> "One-time show"
         Just dow ->
@@ -93,7 +93,7 @@ renderShowHeader backend showModel hosts schedules tags = do
                 Thursday -> "Thursday"
                 Friday -> "Friday"
                 Saturday -> "Saturday"
-           in formatWeeksOfMonth weeksOfMonth <> dayName <> "s " <> formatScheduleDual st et airsTwice
+           in formatWeeksOfMonth weeksOfMonth <> dayName <> "s " <> formatScheduleDual st et mReplay
 
     showTagToLink :: ShowTags.Model -> Tags.TagLink
     showTagToLink tag =

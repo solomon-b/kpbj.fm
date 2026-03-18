@@ -51,7 +51,8 @@ data ScheduleSlotInfo = ScheduleSlotInfo
   { dayOfWeek :: Text,
     weeksOfMonth :: [Int64],
     startTime :: Text,
-    duration :: Int
+    duration :: Int,
+    replayTime :: Maybe Text
   }
   deriving stock (Show, Generic, Eq)
   deriving anyclass (FromJSON, ToJSON)

@@ -9,6 +9,8 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler
     normalizeTemplate,
     parseScheduleSlot,
     schedulesMatch,
+    validateNoOverlaps,
+    checkScheduleConflicts,
   )
 where
 
@@ -44,7 +46,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, parseDateYMD, parseTimeHHMM, utcToPacific)
+import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization (sanitizeTitle)
 import Effects.Database.Execute (execQuery)
@@ -76,7 +78,8 @@ data ParsedScheduleSlot = ParsedScheduleSlot
   { pssDay :: DayOfWeek,
     pssWeeks :: [Int64],
     pssStart :: TimeOfDay,
-    pssEnd :: TimeOfDay
+    pssEnd :: TimeOfDay,
+    pssReplayStartTime :: Maybe TimeOfDay
   }
   deriving stock (Eq, Ord, Show)
 
@@ -261,37 +264,62 @@ parseScheduleSlot slot = do
   let dur = duration slot
   if dur `notElem` [30, 60, 120]
     then Left $ "Invalid duration: " <> Text.pack (show dur) <> " (must be 30, 60, or 120)"
-    else
+    else do
+      let end = addMinutesToTimeOfDay start dur
+      mReplay <- case replayTime slot of
+        Nothing -> Right Nothing
+        Just rt
+          | Text.null (Text.strip rt) -> Right Nothing
+          | otherwise -> case parseTimeHHMM rt of
+              Nothing -> Left $ "Invalid replay time: " <> rt
+              Just replayTod -> Right (Just replayTod)
       Right $
         ParsedScheduleSlot
           { pssDay = dow,
             pssWeeks = sort (weeksOfMonth slot),
             pssStart = start,
-            pssEnd = addMinutesToTimeOfDay start dur
+            pssEnd = end,
+            pssReplayStartTime = mReplay
           }
 
 -- | Validate that schedule slots don't overlap on the same day.
 --
 -- Two slots overlap if they're on the same day, share at least one week of the month,
--- and their time ranges intersect.
+-- and their time ranges intersect. Also checks replay time ranges against all other
+-- primary and replay ranges.
 validateNoOverlaps :: [ParsedScheduleSlot] -> Either Text [ParsedScheduleSlot]
 validateNoOverlaps slots =
-  case findOverlap slots of
-    Just (slot1, slot2) ->
-      Left $
-        "Schedule conflict: "
-          <> Text.pack (show (pssDay slot1))
-          <> " "
-          <> formatTimeHHMM (pssStart slot1)
-          <> "-"
-          <> formatTimeHHMM (pssEnd slot1)
-          <> " overlaps with "
-          <> Text.pack (show (pssDay slot2))
-          <> " "
-          <> formatTimeHHMM (pssStart slot2)
-          <> "-"
-          <> formatTimeHHMM (pssEnd slot2)
-    Nothing -> Right slots
+  let -- Expand each slot into primary + optional replay virtual slot
+      expandSlot s =
+        let primary = s {pssReplayStartTime = Nothing}
+            replay = case pssReplayStartTime s of
+              Nothing -> []
+              Just rt ->
+                let dur = slotDurationMins (pssStart s) (pssEnd s)
+                 in [ s
+                        { pssStart = rt,
+                          pssEnd = addMinutesToTimeOfDay rt dur,
+                          pssReplayStartTime = Nothing
+                        }
+                    ]
+         in primary : replay
+      allVirtual = concatMap expandSlot slots
+   in case findOverlap allVirtual of
+        Just (slot1, slot2) ->
+          Left $
+            "Schedule conflict: "
+              <> Text.pack (show (pssDay slot1))
+              <> " "
+              <> formatTimeHHMM (pssStart slot1)
+              <> "-"
+              <> formatTimeHHMM (pssEnd slot1)
+              <> " overlaps with "
+              <> Text.pack (show (pssDay slot2))
+              <> " "
+              <> formatTimeHHMM (pssStart slot2)
+              <> "-"
+              <> formatTimeHHMM (pssEnd slot2)
+        Nothing -> Right slots
 
 -- | Find the first pair of overlapping slots, if any.
 findOverlap :: [ParsedScheduleSlot] -> Maybe (ParsedScheduleSlot, ParsedScheduleSlot)
@@ -352,7 +380,8 @@ normalizeTemplate t = case t.stDayOfWeek of
         { pssDay = dow,
           pssWeeks = sort (fromMaybe [1, 2, 3, 4, 5] t.stWeeksOfMonth),
           pssStart = t.stStartTime,
-          pssEnd = t.stEndTime
+          pssEnd = t.stEndTime,
+          pssReplayStartTime = t.stReplayStartTime
         }
   Nothing -> Nothing
 
@@ -369,6 +398,8 @@ schedulesMatch dbTemplates parsedSlots =
 --------------------------------------------------------------------------------
 
 -- | Check for schedule conflicts with other shows.
+--
+-- Checks both primary and replay time ranges against the database.
 checkScheduleConflicts ::
   Shows.Id ->
   [ParsedScheduleSlot] ->
@@ -378,13 +409,27 @@ checkScheduleConflicts showId = go
     go [] = pure (Right ())
     go (slot : rest) = do
       let weeks = map fromIntegral (pssWeeks slot)
+      -- Check primary slot
       execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks (pssStart slot) (pssEnd slot)) >>= \case
         Left err -> do
           Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
           pure (Left "Unable to verify schedule availability. Please try again.")
         Right (Just conflictingShow) ->
           pure (Left $ "Schedule conflict: " <> Text.pack (show (pssDay slot)) <> " " <> formatTimeHHMM (pssStart slot) <> "-" <> formatTimeHHMM (pssEnd slot) <> " overlaps with \"" <> conflictingShow <> "\"")
-        Right Nothing -> go rest
+        Right Nothing ->
+          -- Check replay slot if set
+          case pssReplayStartTime slot of
+            Nothing -> go rest
+            Just replayStart -> do
+              let dur = slotDurationMins (pssStart slot) (pssEnd slot)
+                  replayEnd = addMinutesToTimeOfDay replayStart dur
+              execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks replayStart replayEnd) >>= \case
+                Left err -> do
+                  Log.logAttention "Failed to check replay conflict" (Text.pack $ show err)
+                  pure (Left "Unable to verify schedule availability. Please try again.")
+                Right (Just conflictingShow) ->
+                  pure (Left $ "Replay conflict: " <> Text.pack (show (pssDay slot)) <> " " <> formatTimeHHMM replayStart <> "-" <> formatTimeHHMM replayEnd <> " overlaps with \"" <> conflictingShow <> "\"")
+                Right Nothing -> go rest
 
 -- | Update schedules for a show.
 --
@@ -543,7 +588,7 @@ updateScheduleTemplates showId activeTemplates parsedSlots startDate = do
               ShowSchedule.stiStartTime = pssStart slot,
               ShowSchedule.stiEndTime = pssEnd slot,
               ShowSchedule.stiTimezone = "America/Los_Angeles",
-              ShowSchedule.stiAirsTwiceDaily = True
+              ShowSchedule.stiReplayStartTime = pssReplayStartTime slot
             }
 
     templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)

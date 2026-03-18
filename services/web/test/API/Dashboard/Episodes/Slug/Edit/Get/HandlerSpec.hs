@@ -53,7 +53,7 @@ setupFixture showInsert userInsert = do
             stiStartTime = read "10:00:00",
             stiEndTime = read "11:00:00",
             stiTimezone = "America/Los_Angeles",
-            stiAirsTwiceDaily = False
+            stiReplayStartTime = Nothing
           }
   (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleInsert
 

@@ -164,7 +164,7 @@ mkTemplate dow weeks start end =
       stEndTime = end,
       stTimezone = "America/Los_Angeles",
       stCreatedAt = UTCTime (fromGregorian 2025 1 1) 0,
-      stAirsTwiceDaily = False
+      stReplayStartTime = Nothing
     }
 
 -- | Decode the editor JSON into a list of Aeson objects for inspection.

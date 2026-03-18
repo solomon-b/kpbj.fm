@@ -66,15 +66,37 @@ genTimezone =
       "UTC"
     ]
 
--- | Generate a recurring schedule template insert
--- For recurring shows, both day_of_week and weeks_of_month must be NOT NULL
+-- | Generate a valid replay start time that is >= end time.
+--
+-- Converts end time to total minutes to ensure replay is never before end,
+-- even when end has non-zero minutes (e.g., end = 22:30 won't generate 22:00).
+genReplayStartTime :: (MonadGen m) => TimeOfDay -> m (Maybe TimeOfDay)
+genReplayStartTime endTime = do
+  hasReplay <- Gen.bool
+  if hasReplay
+    then do
+      let endMins = todHour endTime * 60 + todMin endTime
+          -- Round up to next 30-minute boundary if not already aligned
+          minReplayMins = if endMins `mod` 30 == 0 then endMins else endMins + (30 - endMins `mod` 30)
+          maxMins = 23 * 60 + 30 -- 23:30
+      if minReplayMins > maxMins
+        then pure Nothing -- Not enough room for a replay
+        else do
+          -- Generate in 30-minute increments from minReplayMins to maxMins
+          let slots = [minReplayMins, minReplayMins + 30 .. maxMins]
+          replayMins <- Gen.element slots
+          pure $ Just (TimeOfDay (replayMins `div` 60) (replayMins `mod` 60) 0)
+    else pure Nothing
+
+-- | Generate a recurring schedule template insert.
+-- For recurring shows, both day_of_week and weeks_of_month must be NOT NULL.
 genRecurringScheduleInsert :: (MonadGen m) => Shows.Id -> m ShowSchedule.ScheduleTemplateInsert
 genRecurringScheduleInsert showId = do
   (startTime, endTime) <- genTimeRange
   dayOfWeek <- Just <$> genDayOfWeek
   weeksOfMonth <- Just <$> genWeeksOfMonth -- Must be Just for recurring shows
   timezone <- genTimezone
-  airsTwiceDaily <- Gen.bool
+  replayStartTime <- genReplayStartTime endTime
   pure
     ShowSchedule.ScheduleTemplateInsert
       { stiShowId = showId,
@@ -83,7 +105,7 @@ genRecurringScheduleInsert showId = do
         stiStartTime = startTime,
         stiEndTime = endTime,
         stiTimezone = timezone,
-        stiAirsTwiceDaily = airsTwiceDaily
+        stiReplayStartTime = replayStartTime
       }
 
 -- | Generate a one-time schedule template insert
@@ -91,7 +113,7 @@ genOneTimeScheduleInsert :: (MonadGen m) => Shows.Id -> m ShowSchedule.ScheduleT
 genOneTimeScheduleInsert showId = do
   (startTime, endTime) <- genTimeRange
   timezone <- genTimezone
-  airsTwiceDaily <- Gen.bool
+  replayStartTime <- genReplayStartTime endTime
   pure
     ShowSchedule.ScheduleTemplateInsert
       { stiShowId = showId,
@@ -100,7 +122,7 @@ genOneTimeScheduleInsert showId = do
         stiStartTime = startTime,
         stiEndTime = endTime,
         stiTimezone = timezone,
-        stiAirsTwiceDaily = airsTwiceDaily
+        stiReplayStartTime = replayStartTime
       }
 
 -- | Generate any schedule template insert (recurring or one-time)
