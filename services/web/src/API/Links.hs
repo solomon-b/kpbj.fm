@@ -44,6 +44,8 @@ module API.Links
     dashboardStreamSettingsLinks,
     dashboardMissingEpisodesLink,
     dashboardAnalyticsLinks,
+    dashboardInvitationsLinks,
+    inviteLinks,
     staticAssetLink,
   )
 where
@@ -165,6 +167,14 @@ dashboardMissingEpisodesLink = dashboardAdminLinks.missingEpisodes
 -- | Dashboard analytics route links.
 dashboardAnalyticsLinks :: DashboardAnalyticsRoutes (AsLink Link)
 dashboardAnalyticsLinks = dashboardAdminLinks.analytics
+
+-- | Dashboard invitations route links.
+dashboardInvitationsLinks :: DashboardInvitationsRoutes (AsLink Link)
+dashboardInvitationsLinks = dashboardAdminLinks.invitations
+
+-- | Invite onboarding route links.
+inviteLinks :: InviteRoutes (AsLink Link)
+inviteLinks = apiLinks.invite
 
 -- | Static asset link by filename.
 staticAssetLink :: Text -> Link
