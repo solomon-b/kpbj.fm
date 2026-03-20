@@ -1,15 +1,17 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- | Orphan rel8 instances for external types.
+-- | Orphan instances for external types used in database modules.
 --
 -- This module provides 'DBType' and 'DBEq' instances for types from
 -- external packages (like web-server-core) that need to be used in
--- rel8 queries.
+-- rel8 queries, and 'DecodeValue' / 'EncodeValue' instances for types
+-- used with hasql-interpolate raw SQL queries.
 module OrphanInstances.Rel8 () where
 
 --------------------------------------------------------------------------------
 
+import Data.Aeson (Value)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.Types.DisplayName (DisplayName)
@@ -17,6 +19,9 @@ import Domain.Types.DisplayName qualified as DisplayName
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
 import Effects.Database.Tables.User qualified as User
+import Hasql.Decoders qualified as Decoders
+import Hasql.Encoders qualified as Encoders
+import Hasql.Interpolate (DecodeValue (..), EncodeValue (..))
 import Rel8 (DBEq, DBType (..), parseTypeInformation)
 
 --------------------------------------------------------------------------------
@@ -62,3 +67,19 @@ instance DBType FullName where
 
 -- | DBEq instance for FullName from web-server-core.
 instance DBEq FullName
+
+--------------------------------------------------------------------------------
+
+-- | DecodeValue instance for Aeson Value (JSONB columns).
+--
+-- Allows raw SQL queries via hasql-interpolate to decode JSONB columns
+-- directly into Aeson Values.
+instance DecodeValue Value where
+  decodeValue = Decoders.jsonb
+
+-- | EncodeValue instance for Aeson Value (JSONB columns).
+--
+-- Allows raw SQL queries via hasql-interpolate to encode Aeson Values
+-- as JSONB parameters.
+instance EncodeValue Value where
+  encodeValue = Encoders.jsonb

@@ -17,6 +17,7 @@ import API.Links
     dashboardEphemeralUploadsLinks,
     dashboardEpisodesLinks,
     dashboardEventsLinks,
+    dashboardInvitationsLinks,
     dashboardLinks,
     dashboardMissingEpisodesLink,
     dashboardShowsLinks,
@@ -104,6 +105,9 @@ dashboardMissingEpisodesGetUrl = Links.linkURI dashboardMissingEpisodesLink
 dashboardAnalyticsGetUrl :: Links.URI
 dashboardAnalyticsGetUrl = Links.linkURI dashboardAnalyticsLinks.get
 
+dashboardInvitationsGetUrl :: Links.URI
+dashboardInvitationsGetUrl = Links.linkURI dashboardInvitationsLinks.list
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -122,6 +126,7 @@ data DashboardNav
   | NavStreamSettings
   | NavMissingEpisodes
   | NavAnalytics
+  | NavInvitations
   deriving (Eq, Show)
 
 -- | Check if navigation requires show context
@@ -141,6 +146,7 @@ isShowScoped = \case
   NavStreamSettings -> False
   NavMissingEpisodes -> False
   NavAnalytics -> False
+  NavInvitations -> False
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
@@ -224,6 +230,7 @@ sidebar userMeta activeNav selectedShow =
           Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "ADMIN"
           Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
             staffNavItem "USERS" NavUsers activeNav
+            staffNavItem "INVITATIONS" NavInvitations activeNav
             staffNavItem "SHOWS" NavShows activeNav
             staffNavItem "STATION BLOG" NavStationBlog activeNav
             staffNavItem "EVENTS" NavEvents activeNav
@@ -339,6 +346,7 @@ staffNavUrl = \case
   NavStreamSettings -> Just dashboardStreamSettingsGetUrl
   NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
   NavAnalytics -> Just dashboardAnalyticsGetUrl
+  NavInvitations -> Just dashboardInvitationsGetUrl
   other -> navUrl other Nothing
 
 -- | Get URL for navigation item
@@ -362,6 +370,7 @@ navUrl nav mShow =
         NavStreamSettings -> Just dashboardStreamSettingsGetUrl
         NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
         NavAnalytics -> Just dashboardAnalyticsGetUrl
+        NavInvitations -> Just dashboardInvitationsGetUrl
 
 -- | Top bar with show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()

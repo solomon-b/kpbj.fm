@@ -125,7 +125,7 @@ registerNewUser ::
 registerNewUser _sockAddr _mUserAgent RegisterParsed {..} newsletterSubscription = do
   Log.logInfo "Registering New User" urpEmail
   OneRow uid <- execQueryThrow $ User.insertUser $ User.ModelInsert urpEmail urpPassword
-  mMetadataId <- execQueryThrow $ UserMetadata.insertUserMetadata $ UserMetadata.Insert uid urpDisplayName urpFullName Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
+  mMetadataId <- execQueryThrow $ UserMetadata.insertUserMetadata $ UserMetadata.Insert uid urpDisplayName urpFullName Nothing UserMetadata.User UserMetadata.Automatic UserMetadata.DefaultTheme
   case mMetadataId of
     Nothing -> throwHandlerFailure "User metadata insert failed"
     Just _ -> pure ()

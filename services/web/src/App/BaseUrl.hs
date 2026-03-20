@@ -5,7 +5,7 @@ module App.BaseUrl (baseUrl) where
 
 --------------------------------------------------------------------------------
 
-import App.Config (Environment (..), Hostname (..), WarpConfig (..))
+import App.Config (Environment (..), Hostname (..))
 import App.Monad (AppM)
 import Control.Monad.Reader (asks)
 import Data.Has qualified as Has
@@ -24,8 +24,7 @@ baseUrl :: AppM Text
 baseUrl = do
   Hostname hostname <- asks Has.getter
   env <- asks (Has.getter @Environment)
-  WarpConfig {warpConfigPort = port} <- asks Has.getter
   pure $ case env of
-    Development -> [i|http://#{hostname}:#{port}|]
+    Development -> [i|http://#{hostname}|]
     Staging -> [i|https://#{hostname}|]
     Production -> [i|https://#{hostname}|]

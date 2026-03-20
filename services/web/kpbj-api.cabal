@@ -166,6 +166,18 @@ library
     API.Dashboard.Blogs.Slug.Edit.Get.Templates.Page
     API.Dashboard.Blogs.Slug.Edit.Post.Handler
     API.Dashboard.Blogs.Slug.Edit.Post.Route
+    API.Dashboard.Invitations.Get.Route
+    API.Dashboard.Invitations.Get.Handler
+    API.Dashboard.Invitations.Get.Templates.Page
+    API.Dashboard.Invitations.New.Get.Route
+    API.Dashboard.Invitations.New.Get.Handler
+    API.Dashboard.Invitations.New.Get.Templates.Page
+    API.Dashboard.Invitations.New.Post.Route
+    API.Dashboard.Invitations.New.Post.Handler
+    API.Dashboard.Invitations.Delete.Route
+    API.Dashboard.Invitations.Delete.Handler
+    API.Dashboard.Invitations.Regenerate.Route
+    API.Dashboard.Invitations.Regenerate.Handler
     API.Dashboard.Events.Get.Handler
     API.Dashboard.Events.Get.Route
     API.Dashboard.Events.Get.Templates.ItemsFragment
@@ -376,6 +388,12 @@ library
     API.Shows.Slug.Blog.Post.Get.Handler
     API.Shows.Slug.Blog.Post.Get.Route
     API.Shows.Slug.Blog.Post.Get.Templates.Page
+    API.Invite.Token.Get.Route
+    API.Invite.Token.Get.Handler
+    API.Invite.Token.Get.Templates.Page
+    API.Invite.Token.Get.Templates.ErrorPage
+    API.Invite.Token.Post.Route
+    API.Invite.Token.Post.Handler
     API.Static.Get.Handler
     API.Static.Get.Route
     API.TermsOfService.Get.Handler

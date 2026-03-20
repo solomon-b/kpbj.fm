@@ -13,6 +13,7 @@ module API.Types
     ShowBlogRoutes (..),
     ShowEpisodesRoutes (..),
     UserRoutes (..),
+    InviteRoutes (..),
     DashboardRoutes (..),
     DashboardHostRoutes (..),
     DashboardAdminRoutes (..),
@@ -24,6 +25,7 @@ module API.Types
     DashboardEphemeralUploadsRoutes (..),
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
+    DashboardInvitationsRoutes (..),
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     DashboardAnalyticsRoutes (..),
@@ -71,6 +73,11 @@ import API.Dashboard.Events.Slug.Edit.Post.Route qualified as Dashboard.Events.S
 import API.Dashboard.Events.Slug.Feature.Post.Route qualified as Dashboard.Events.Slug.Feature.Post
 import API.Dashboard.Events.Slug.Get.Route qualified as Dashboard.Events.Slug.Get
 import API.Dashboard.Get.Route qualified as Dashboard.Get
+import API.Dashboard.Invitations.Delete.Route qualified as Dashboard.Invitations.Delete
+import API.Dashboard.Invitations.Get.Route qualified as Dashboard.Invitations.Get
+import API.Dashboard.Invitations.New.Get.Route qualified as Dashboard.Invitations.New.Get
+import API.Dashboard.Invitations.New.Post.Route qualified as Dashboard.Invitations.New.Post
+import API.Dashboard.Invitations.Regenerate.Route qualified as Dashboard.Invitations.Regenerate
 import API.Dashboard.MissingEpisodes.Get.Route qualified as Dashboard.MissingEpisodes.Get
 import API.Dashboard.Profile.Edit.Get.Route qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Route qualified as Dashboard.Profile.Edit.Post
@@ -121,6 +128,8 @@ import API.Donate.Get.Route qualified as Donate.Get
 import API.Events.Event.Get.Route qualified as Events.Event.Get
 import API.Events.Get.Route qualified as Events.Get
 import API.Get.Route qualified as Root.Get
+import API.Invite.Token.Get.Route qualified as Invite.Token.Get
+import API.Invite.Token.Post.Route qualified as Invite.Token.Post
 import API.Media.Get.Route qualified as Media.Get
 import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Route qualified as Playout.Now.Get
@@ -185,6 +194,8 @@ data Routes mode = Routes
     shows :: mode :- NamedRoutes ShowsRoutes,
     -- | @/user/...@ - User authentication routes
     user :: mode :- NamedRoutes UserRoutes,
+    -- | @/invite/...@ - Host invitation onboarding routes
+    invite :: mode :- NamedRoutes InviteRoutes,
     -- | @/dashboard/...@ - Admin dashboard routes
     dashboard :: mode :- NamedRoutes DashboardRoutes,
     -- | @/api/uploads/...@ - Staged file upload API routes
@@ -299,6 +310,17 @@ data UserRoutes mode = UserRoutes
   }
   deriving stock (Generic)
 
+-- | Host invitation onboarding routes under @/invite@.
+--
+-- Public routes for new hosts to accept invitations and create their accounts.
+data InviteRoutes mode = InviteRoutes
+  { -- | @GET /invite/:token@ - Onboarding form for a host invitation
+    onboardGet :: mode :- Invite.Token.Get.Route,
+    -- | @POST /invite/:token@ - Process onboarding form submission
+    onboardPost :: mode :- Invite.Token.Post.Route
+  }
+  deriving stock (Generic)
+
 -- | Dashboard routes under @/dashboard@.
 --
 -- Provides management interfaces for episodes, blogs, events, shows, and users.
@@ -338,7 +360,9 @@ data DashboardHostRoutes mode = DashboardHostRoutes
 --
 -- Routes for admins to manage station blog, shows, events, users, and site pages.
 data DashboardAdminRoutes mode = DashboardAdminRoutes
-  { -- | @/dashboard/station-blog/...@ - Station blog management routes
+  { -- | @/dashboard/invitations/...@ - Host invitation management routes
+    invitations :: mode :- NamedRoutes DashboardInvitationsRoutes,
+    -- | @/dashboard/station-blog/...@ - Station blog management routes
     stationBlog :: mode :- NamedRoutes DashboardStationBlogRoutes,
     -- | @/dashboard/shows/...@ - Show management routes
     shows :: mode :- NamedRoutes DashboardShowsRoutes,
@@ -571,6 +595,23 @@ data DashboardAnalyticsRoutes mode = DashboardAnalyticsRoutes
     get :: mode :- Dashboard.Analytics.Get.Route,
     -- | @GET /dashboard/analytics/data@ — JSON data for charts
     dataGet :: mode :- Dashboard.Analytics.Data.Get.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard host invitation management routes under @/dashboard/invitations@.
+--
+-- For staff and admins to create, view, and manage host invitations.
+data DashboardInvitationsRoutes mode = DashboardInvitationsRoutes
+  { -- | @GET /dashboard/invitations@ - Invitation list
+    list :: mode :- Dashboard.Invitations.Get.Route,
+    -- | @GET /dashboard/invitations/new@ - New invitation form
+    newGet :: mode :- Dashboard.Invitations.New.Get.Route,
+    -- | @POST /dashboard/invitations/new@ - Create invitation
+    newPost :: mode :- Dashboard.Invitations.New.Post.Route,
+    -- | @POST /dashboard/invitations/:invitationId/regenerate@ - Regenerate expired invitation
+    regenerate :: mode :- Dashboard.Invitations.Regenerate.Route,
+    -- | @DELETE /dashboard/invitations/:invitationId@ - Revoke invitation
+    delete :: mode :- Dashboard.Invitations.Delete.Route
   }
   deriving stock (Generic)
 

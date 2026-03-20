@@ -17,6 +17,7 @@ module API
     DashboardRoutes (..),
     DashboardHostRoutes (..),
     DashboardAdminRoutes (..),
+    DashboardInvitationsRoutes (..),
     DashboardEpisodesRoutes (..),
     DashboardBlogsRoutes (..),
     DashboardEventsRoutes (..),
@@ -28,6 +29,7 @@ module API
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     DashboardAnalyticsRoutes (..),
+    InviteRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
     AnalyticsRoutes (..),
@@ -75,6 +77,11 @@ import API.Dashboard.Events.Slug.Edit.Post.Handler qualified as Dashboard.Events
 import API.Dashboard.Events.Slug.Feature.Post.Handler qualified as Dashboard.Events.Slug.Feature.Post
 import API.Dashboard.Events.Slug.Get.Handler qualified as Dashboard.Events.Slug.Get
 import API.Dashboard.Get.Handler qualified as Dashboard.Get
+import API.Dashboard.Invitations.Delete.Handler qualified as Dashboard.Invitations.Delete
+import API.Dashboard.Invitations.Get.Handler qualified as Dashboard.Invitations.Get
+import API.Dashboard.Invitations.New.Get.Handler qualified as Dashboard.Invitations.New.Get
+import API.Dashboard.Invitations.New.Post.Handler qualified as Dashboard.Invitations.New.Post
+import API.Dashboard.Invitations.Regenerate.Handler qualified as Dashboard.Invitations.Regenerate
 import API.Dashboard.MissingEpisodes.Get.Handler qualified as Dashboard.MissingEpisodes.Get
 import API.Dashboard.Profile.Edit.Get.Handler qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Handler qualified as Dashboard.Profile.Edit.Post
@@ -125,6 +132,8 @@ import API.Donate.Get.Handler qualified as Donate.Get
 import API.Events.Event.Get.Handler qualified as Events.Event.Get
 import API.Events.Get.Handler qualified as Events.Get
 import API.Get.Handler qualified as Root.Get
+import API.Invite.Token.Get.Handler qualified as Invite.Token.Get
+import API.Invite.Token.Post.Handler qualified as Invite.Token.Post
 import API.Links
 import API.Media.Get.Handler qualified as Media.Get
 import API.Playout.Fallback.Get.Handler qualified as Playout.Fallback.Get
@@ -219,6 +228,7 @@ server =
       schedule = Schedule.Get.handler,
       shows = showsRoutes,
       user = userRoutes,
+      invite = inviteRoutes,
       dashboard = dashboardRoutes,
       uploads = uploadRoutes,
       playout = playoutRoutes,
@@ -278,6 +288,12 @@ server =
           resetPasswordPost = User.ResetPassword.Post.handler
         }
 
+    inviteRoutes =
+      InviteRoutes
+        { onboardGet = Invite.Token.Get.handler,
+          onboardPost = Invite.Token.Post.handler
+        }
+
     dashboardRoutes =
       DashboardRoutes
         { home = Dashboard.Get.handler,
@@ -318,7 +334,8 @@ server =
 
     dashboardAdminRoutes =
       DashboardAdminRoutes
-        { stationBlog = dashboardStationBlogRoutes,
+        { invitations = dashboardInvitationsRoutes,
+          stationBlog = dashboardStationBlogRoutes,
           shows = dashboardShowsRoutes,
           events = dashboardEventsRoutes,
           users = dashboardUsersRoutes,
@@ -326,6 +343,15 @@ server =
           streamSettings = dashboardStreamSettingsRoutes,
           missingEpisodes = Dashboard.MissingEpisodes.Get.handler,
           analytics = dashboardAnalyticsRoutes
+        }
+
+    dashboardInvitationsRoutes =
+      DashboardInvitationsRoutes
+        { list = Dashboard.Invitations.Get.handler,
+          newGet = Dashboard.Invitations.New.Get.handler,
+          newPost = Dashboard.Invitations.New.Post.handler,
+          regenerate = Dashboard.Invitations.Regenerate.handler,
+          delete = Dashboard.Invitations.Delete.handler
         }
 
     dashboardAnalyticsRoutes =

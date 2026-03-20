@@ -67,6 +67,7 @@ library
     Effects.Database.Tables.EpisodeTags
     Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
+    Effects.Database.Tables.HostInvitation
     Effects.Database.Tables.PasswordResetTokens
     Effects.Database.Tables.PlaybackHistory
     Effects.Database.Tables.ShowBlogPosts
