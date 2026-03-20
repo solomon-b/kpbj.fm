@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module API.User.Logout.Post.Handler where
 
 --------------------------------------------------------------------------------
@@ -5,21 +7,21 @@ module API.User.Logout.Post.Handler where
 import App.Auth qualified as Auth
 import App.Config (Environment)
 import App.Domains qualified as Domains
-import App.Errors (InternalServerError (..), throwErr)
 import App.Monad (AppM)
 import Component.Redirect (redirectTemplate)
+import Control.Monad (void)
 import Control.Monad.Reader (asks)
+import Data.Coerce (coerce)
 import Data.Has qualified as Has
 import Data.Text (Text)
-import Data.Text qualified as Text
-import Effects.Database.Tables.ServerSessions qualified as Session
+import Domain.Types.Cookie (Cookie (..))
 import Lucid qualified
 import Servant qualified
 
 --------------------------------------------------------------------------------
 
 handler ::
-  Auth.Authz ->
+  Maybe Cookie ->
   AppM
     ( Servant.Headers
         '[ Servant.Header "Set-Cookie" Text,
@@ -27,11 +29,11 @@ handler ::
          ]
         (Lucid.Html ())
     )
-handler Auth.Authz {..} = do
+handler (coerce -> cookie) = do
   env <- asks (Has.getter @Environment)
-  Auth.expireServerSession (Session.dSessionId $ Session.toDomain authzSession) >>= \case
-    Left err -> do
-      throwErr $ InternalServerError $ Text.pack $ show err
-    Right _ -> do
-      let expireCookie = Auth.mkCookieSessionExpired env (Domains.cookieDomainMaybe env)
-      pure $ Servant.addHeader expireCookie $ Servant.addHeader "/" (redirectTemplate "/")
+  -- Try to expire the session if we have a valid cookie
+  case cookie >>= Auth.lookupSessionId env of
+    Nothing -> pure ()
+    Just sessionId -> void $ Auth.expireServerSession sessionId
+  let expireCookie = Auth.mkCookieSessionExpired env (Domains.cookieDomainMaybe env)
+  pure $ Servant.addHeader expireCookie $ Servant.addHeader "/" (redirectTemplate "/")
