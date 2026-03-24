@@ -8,7 +8,6 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Text.HTML (HTML)
@@ -26,7 +25,7 @@ type Route =
     :> "edit"
     :> Servant.Header "Cookie" Cookie
     :> Servant.ReqBody '[Servant.FormUrlEncoded] ShowBlogEditForm
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 
 --------------------------------------------------------------------------------
 

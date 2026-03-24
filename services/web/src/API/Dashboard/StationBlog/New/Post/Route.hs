@@ -7,7 +7,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug ()
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Servant.Multipart
@@ -87,4 +86,4 @@ type Route =
     :> "new"
     :> Servant.Header "Cookie" Cookie
     :> MultipartForm Mem NewBlogPostForm
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

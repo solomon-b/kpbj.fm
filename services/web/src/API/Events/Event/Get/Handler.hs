@@ -11,7 +11,7 @@ import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError (..), errorContent, errorRedirectParams, logHandlerError, notFoundContent, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
-import Component.Redirect (buildRedirectUrl, redirectTemplate, redirectWithBanner)
+import Component.Flash (throwHxRedirect)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
@@ -28,7 +28,6 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Markdown (renderContentM)
 import Lucid qualified
-import Servant qualified
 import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
@@ -45,7 +44,7 @@ handlerWithSlug ::
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Lucid.Html ())
 handlerWithSlug eventId slug = handler eventId (Just slug)
 
 -- | Handler for event with ID only (always redirects)
@@ -53,7 +52,7 @@ handlerWithoutSlug ::
   Events.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Lucid.Html ())
 handlerWithoutSlug eventId = handler eventId Nothing
 
 -- | Shared handler for both routes
@@ -62,36 +61,34 @@ handler ::
   Maybe Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Lucid.Html ())
 handler eventId mUrlSlug cookie (foldHxReq -> hxRequest) =
   runExceptT innerAction >>= \case
     Right result -> pure result
     Left err -> do
       logHandlerError "Event" err
       case err of
-        NotFound resource -> Servant.noHeader <$> renderInline (notFoundContent resource)
+        NotFound resource -> renderInline (notFoundContent resource)
         NotAuthenticated ->
-          let (url, banner) = errorRedirectParams apiLinks.rootGet err
-           in pure $ Servant.addHeader (buildRedirectUrl url banner) (redirectWithBanner url banner)
+          let (url, flash) = errorRedirectParams apiLinks.rootGet err
+           in throwHxRedirect url (Just flash)
         NotAuthorized _ _ ->
-          let (url, banner) = errorRedirectParams apiLinks.rootGet err
-           in pure $ Servant.addHeader (buildRedirectUrl url banner) (redirectWithBanner url banner)
-        DatabaseError _ -> Servant.noHeader <$> renderInline (errorContent "Something went wrong. Please try again.")
-        UserSuspended -> Servant.noHeader <$> renderInline (errorContent "Your account is suspended.")
-        ValidationError msg -> Servant.noHeader <$> renderInline (errorContent msg)
-        HandlerFailure msg -> Servant.noHeader <$> renderInline (errorContent msg)
+          let (url, flash) = errorRedirectParams apiLinks.rootGet err
+           in throwHxRedirect url (Just flash)
+        DatabaseError _ -> renderInline (errorContent "Something went wrong. Please try again.")
+        UserSuspended -> renderInline (errorContent "Your account is suspended.")
+        ValidationError msg -> renderInline (errorContent msg)
+        HandlerFailure msg -> renderInline (errorContent msg)
   where
     innerAction = do
       mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
       vd <- action eventId mUrlSlug
       case vd of
-        EventRedirect canonicalUrl -> do
-          html <- lift $ renderTemplate hxRequest mUserInfo (redirectTemplate canonicalUrl)
-          pure $ Servant.addHeader canonicalUrl html
+        EventRedirect canonicalUrl ->
+          lift $ throwHxRedirect canonicalUrl Nothing
         EventContent backend event -> do
           renderedDescription <- lift $ renderContentM (Events.emDescription event)
-          html <- lift $ renderTemplate hxRequest mUserInfo (template backend event renderedDescription)
-          pure $ Servant.noHeader html
+          lift $ renderTemplate hxRequest mUserInfo (template backend event renderedDescription)
     renderInline content = do
       mUserInfo <- getUserInfo cookie <&> fmap snd
       renderTemplate hxRequest mUserInfo content

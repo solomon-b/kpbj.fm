@@ -12,7 +12,7 @@ import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
@@ -36,7 +36,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.StagedUploadCleanup (deleteFile)
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromMaybeM, fromRightM)
 
@@ -47,16 +46,15 @@ handler ::
   EphemeralUploads.Id ->
   Maybe Cookie ->
   FormData ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler ephemeralUploadId cookie form =
   handleRedirectErrors "Ephemeral upload edit" (dashboardEphemeralUploadsLinks.list Nothing) $ do
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "Only staff and admins can edit ephemeral uploads." userMetadata
     action user userMetadata ephemeralUploadId form
     let listUrl = rootLink $ dashboardEphemeralUploadsLinks.list Nothing
-        banner = BannerParams Success "Ephemeral Updated" "The ephemeral upload has been updated successfully."
-        redirectUrl = buildRedirectUrl listUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+        flash = FlashMessage Success "Ephemeral Updated" "The ephemeral upload has been updated successfully."
+    pure $ Servant.addHeader listUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

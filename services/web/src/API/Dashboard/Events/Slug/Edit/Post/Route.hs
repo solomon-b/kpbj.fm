@@ -9,7 +9,6 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Effects.Database.Tables.Events qualified as Events
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
@@ -26,7 +25,7 @@ type Route =
     :> "edit"
     :> Servant.Header "Cookie" Cookie
     :> MultipartForm Mem EventEditForm
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 
 --------------------------------------------------------------------------------
 

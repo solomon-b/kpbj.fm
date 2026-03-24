@@ -91,15 +91,15 @@ async function postScheduleChange(
     { title, description, status, tags, schedulesJson, startDate, hostIds, postUrl: POST_URL },
   );
 
-  // The server always returns 200 (even for validation errors), so check
-  // the HX-Redirect header to distinguish success from error.
+  // Success: server returns HX-Redirect with clean URL + flash cookie.
+  // Error: server returns OOB banner HTML with no HX-Redirect.
   const redirect = result.hxRedirect ?? "";
   const bodyPreview = result.body.slice(0, 300);
 
   expect(
     redirect,
-    `Expected HX-Redirect with success banner but got: HX-Redirect="${redirect}", body="${bodyPreview}"`,
-  ).toContain("_banner=success");
+    `Expected HX-Redirect but got: HX-Redirect="${redirect}", body="${bodyPreview}"`,
+  ).toBeTruthy();
 }
 
 // ---------------------------------------------------------------------------

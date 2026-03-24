@@ -9,7 +9,7 @@ import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspen
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -32,7 +32,6 @@ import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload (uploadEventPosterImage)
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromRightM)
 
@@ -87,7 +86,7 @@ validateStatus status = case status of
 -- | All data needed to build the post-creation redirect.
 data NewEventRedirectData = NewEventRedirectData
   { nerRedirectUrl :: Text,
-    nerBanner :: BannerParams
+    nerFlash :: FlashMessage
   }
 
 -- | Business logic: validate, create event, build redirect data.
@@ -146,27 +145,25 @@ action user form = do
     Right (Just event) -> do
       let eventSlug = Events.emSlug event
           detailUrl = rootLink $ dashboardEventsLinks.detail eventId eventSlug
-          banner = BannerParams Success "Event Created" "Your event has been created successfully."
-          redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ NewEventRedirectData redirectUrl banner
+          flash = FlashMessage Success "Event Created" "Your event has been created successfully."
+      pure $ NewEventRedirectData detailUrl flash
     _ -> do
       Log.logInfo "Failed to fetch event" (Aeson.object ["eventId" .= eventId])
       let listUrl = rootLink $ dashboardEventsLinks.list Nothing
-          banner = BannerParams Success "Event Created" "Your event has been created."
-          redirectUrl = buildRedirectUrl listUrl banner
-      pure $ NewEventRedirectData redirectUrl banner
+          flash = FlashMessage Success "Event Created" "Your event has been created."
+      pure $ NewEventRedirectData listUrl flash
 
 -- | Servant handler: thin glue composing action + building redirect response.
 handler ::
   Maybe Cookie ->
   NewEventForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler cookie form =
   handleRedirectErrors "Event creation" dashboardEventsLinks.newGet $ do
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to create events." userMetadata
     vd <- action user form
-    pure $ Servant.addHeader vd.nerRedirectUrl (redirectWithBanner vd.nerRedirectUrl vd.nerBanner)
+    pure $ Servant.addHeader vd.nerRedirectUrl $ Servant.addHeader (flashCookie (Just vd.nerFlash)) Servant.NoContent
 
 -- | Handle poster image upload
 handlePosterUpload ::

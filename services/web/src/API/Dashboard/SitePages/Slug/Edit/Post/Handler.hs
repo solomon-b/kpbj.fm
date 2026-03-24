@@ -11,7 +11,7 @@ import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspen
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
@@ -26,7 +26,6 @@ import Effects.Database.Tables.SitePages qualified as SitePages
 import Effects.Database.Tables.User qualified as User
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromMaybeM, fromRightM)
 
@@ -37,19 +36,18 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   EditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler pageSlug cookie _hxRequest editForm =
   handleRedirectErrors "Site page update" dashboardSitePagesLinks.list $ do
     (user, _userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit site pages." _userMetadata
     wasUpdated <- action user pageSlug editForm
     let listUrl = rootLink dashboardSitePagesLinks.list
-        banner =
+        flash =
           if wasUpdated
-            then BannerParams Success "Page Updated" "The site page has been updated successfully."
-            else BannerParams Info "No Changes" "No changes were detected. The page was not updated."
-        redirectUrl = buildRedirectUrl listUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+            then FlashMessage Success "Page Updated" "The site page has been updated successfully."
+            else FlashMessage Info "No Changes" "No changes were detected. The page was not updated."
+    pure $ Servant.addHeader listUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

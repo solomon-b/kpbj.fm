@@ -13,7 +13,7 @@ import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (forM_, void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -43,7 +43,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Effects.HostNotifications qualified as HostNotifications
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (FileData, Mem)
@@ -59,7 +58,7 @@ dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail 
 handler ::
   Maybe Cookie ->
   NewShowForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler cookie form =
   handleRedirectErrors "Show creation" dashboardShowsLinks.newGet $ do
     (_user, userMetadata) <- requireAuth cookie
@@ -69,9 +68,8 @@ handler cookie form =
         showSlug = createdShow.slug
         showTitle = createdShow.title
         detailUrl = [i|/#{dashboardShowDetailUrl showId showSlug}|] :: Text
-        banner = BannerParams Success "Show Created" [i|"#{showTitle}" has been created successfully.|]
-        redirectUrl = buildRedirectUrl detailUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+        flash = FlashMessage Success "Show Created" [i|"#{showTitle}" has been created successfully.|]
+    pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 
@@ -363,4 +361,3 @@ buildTimeslotDescription :: [ParsedScheduleSlot] -> Maybe Text
 buildTimeslotDescription [] = Nothing
 buildTimeslotDescription (slot : _) =
   Just $ HostNotifications.formatTimeslotDescription (pssDay slot) (pssStart slot) (pssEnd slot)
-

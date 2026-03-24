@@ -6,7 +6,6 @@ import Data.Either (fromRight)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Servant.Multipart (FromMultipart, Mem, MultipartForm, fromMultipart, lookupInput)
@@ -22,7 +21,7 @@ type Route =
     :> "edit"
     :> Servant.Header "Cookie" Cookie
     :> MultipartForm Mem FormData
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 
 --------------------------------------------------------------------------------
 

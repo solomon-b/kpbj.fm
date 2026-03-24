@@ -4,15 +4,13 @@ module API.Dashboard.Events.Slug.Delete.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardEventsLinks, rootLink)
-import API.Types (DashboardEventsRoutes (..))
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
-import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
+import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (unless)
 import Control.Monad.Trans.Except (ExceptT)
+import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
@@ -54,9 +52,9 @@ handler eventId _eventSlug cookie =
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to delete events." userMetadata
     action user userMetadata eventId
-    let banner = BannerParams Success "Event Deleted" "The event has been deleted successfully."
-        eventsUrl = rootLink $ dashboardEventsLinks.list Nothing
-    pure $ redirectWithBanner eventsUrl banner
+    pure $ do
+      Lucid.toHtmlRaw ("" :: Text)
+      renderBanner Success "Event Deleted" "The event has been deleted successfully."
 
 --------------------------------------------------------------------------------
 -- Helpers

@@ -10,7 +10,7 @@ import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
@@ -23,7 +23,6 @@ import Effects.Database.Tables.SitePages qualified as SitePages
 import Effects.Database.Tables.User qualified as User
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromMaybeM, fromRightM)
 
@@ -34,16 +33,15 @@ handler ::
   SitePageRevisions.Id ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler pageSlug revisionId cookie _hxRequest =
   handleRedirectErrors "Restore revision" (dashboardSitePagesLinks.historyGet pageSlug) $ do
     (user, _userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to restore revisions." _userMetadata
     action user pageSlug revisionId
     let historyUrl = rootLink $ dashboardSitePagesLinks.historyGet pageSlug
-        banner = BannerParams Success "Revision Restored" "The page has been restored to the selected revision."
-        redirectUrl = buildRedirectUrl historyUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner historyUrl banner)
+        flash = FlashMessage Success "Revision Restored" "The page has been restored to the selected revision."
+    pure $ Servant.addHeader historyUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

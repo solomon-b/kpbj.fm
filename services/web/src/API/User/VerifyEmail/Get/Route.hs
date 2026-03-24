@@ -3,8 +3,6 @@ module API.User.VerifyEmail.Get.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.HxRedirect (HxRedirect)
-import Domain.Types.SetCookie (SetCookie)
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
@@ -25,11 +23,4 @@ type Route =
     :> Servant.Header "User-Agent" Text
     :> Servant.Header "HX-Request" Text
     :> Servant.QueryParam "token" Text
-    :> Servant.Get
-         '[HTML]
-         ( Servant.Headers
-             '[ Servant.Header "Set-Cookie" SetCookie,
-                Servant.Header "HX-Redirect" HxRedirect
-              ]
-             (Lucid.Html ())
-         )
+    :> Servant.Get '[HTML] (Lucid.Html ())

@@ -11,7 +11,7 @@ import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -32,7 +32,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, lookupInput)
@@ -51,16 +50,15 @@ handler ::
   User.Id ->
   Maybe Cookie ->
   MultipartData Mem ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler targetUserId cookie multipartData =
   handleRedirectErrors "User edit" (dashboardUsersLinks.detail targetUserId) $ do
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit users." userMetadata
     action targetUserId multipartData
     let detailUrl = userDetailUrl targetUserId
-        banner = BannerParams Success "User Updated" "The user's information has been updated."
-        redirectUrl = buildRedirectUrl detailUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+        flash = FlashMessage Success "User Updated" "The user's information has been updated."
+    pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

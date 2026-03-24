@@ -9,7 +9,6 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Episodes qualified as Episodes (EpisodeNumber)
 import GHC.Generics (Generic)
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Servant.Multipart
@@ -116,4 +115,4 @@ type Route =
     :> "edit"
     :> Servant.Header "Cookie" Cookie
     :> MultipartForm Mem EpisodeEditForm
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

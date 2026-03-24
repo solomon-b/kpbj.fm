@@ -11,7 +11,7 @@ import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireJus
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (void)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -31,7 +31,6 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromRightM)
 
@@ -52,15 +51,15 @@ handler ::
   ShowBlogPosts.Id ->
   Maybe Cookie ->
   ShowBlogEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler showSlug postId cookie editForm =
   handleRedirectErrors "Blog post update" (dashboardBlogsLinks.editGet showSlug postId) $ do
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to edit blog posts." userMetadata
     (showModel, updatedPostId) <- action user userMetadata showSlug postId editForm
     let detailUrl = rootLink $ dashboardBlogsLinks.detail (Shows.slug showModel) updatedPostId
-        banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated successfully."
-    pure $ Servant.addHeader (buildRedirectUrl detailUrl banner) (redirectWithBanner detailUrl banner)
+        flash = FlashMessage Success "Blog Post Updated" "Your blog post has been updated successfully."
+    pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

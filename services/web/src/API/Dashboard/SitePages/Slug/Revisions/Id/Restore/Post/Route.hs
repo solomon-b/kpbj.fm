@@ -6,7 +6,6 @@ import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Text.HTML (HTML)
@@ -23,4 +22,4 @@ type Route =
     :> "restore"
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

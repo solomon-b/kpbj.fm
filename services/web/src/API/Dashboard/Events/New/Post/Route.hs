@@ -5,7 +5,6 @@ module API.Dashboard.Events.New.Post.Route where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
@@ -20,7 +19,7 @@ type Route =
     :> "new"
     :> Servant.Header "Cookie" Cookie
     :> MultipartForm Mem NewEventForm
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 
 --------------------------------------------------------------------------------
 

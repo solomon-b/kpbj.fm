@@ -5,7 +5,6 @@ module API.Dashboard.Users.Edit.Post.Route where
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.User qualified as User
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Servant.Multipart (Mem, MultipartData, MultipartForm)
@@ -21,4 +20,4 @@ type Route =
     :> "edit"
     :> Servant.Header "Cookie" Cookie
     :> MultipartForm Mem (MultipartData Mem)
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

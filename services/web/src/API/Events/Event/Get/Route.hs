@@ -2,7 +2,6 @@ module API.Events.Event.Get.Route where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
@@ -22,8 +21,7 @@ type RouteWithSlug =
     :> Servant.Capture "slug" Slug
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-
+    :> Servant.Get '[HTML] (Lucid.Html ())
 
 -- | Route for event with ID only (redirects to canonical)
 -- "GET /events/:id"
@@ -32,4 +30,4 @@ type RouteWithoutSlug =
     :> Servant.Capture "id" Events.Id
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Get '[HTML] (Lucid.Html ())
