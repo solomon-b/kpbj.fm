@@ -11,7 +11,7 @@ import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwUserSuspended, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -33,7 +33,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, lookupInput)
 
@@ -44,16 +43,15 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   MultipartData Mem ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler cookie (foldHxReq -> _hxRequest) multipartData =
   handleRedirectErrors "Profile update" dashboardLinks.profileEditGet $ do
     (user, userMetadata) <- requireAuth cookie
     when (UserMetadata.isSuspended userMetadata) throwUserSuspended
     action user multipartData
     let detailUrl = rootLink dashboardLinks.profileEditGet
-        banner = BannerParams Success "Profile Updated" "Your profile has been updated successfully."
-        redirectUrl = buildRedirectUrl detailUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+        flash = FlashMessage Success "Profile Updated" "Your profile has been updated successfully."
+    pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

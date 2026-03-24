@@ -11,7 +11,7 @@ import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireS
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (unless, void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -34,7 +34,6 @@ import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.FileUpload (uploadBlogHeroImage)
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromRightM)
 
@@ -43,7 +42,7 @@ import Utils (fromRightM)
 -- | Data returned by action after successful blog post update.
 data EditBlogPostResult = EditBlogPostResult
   { ebprRedirectUrl :: Text,
-    ebprBanner :: BannerParams
+    ebprFlash :: FlashMessage
   }
 
 -- | Business logic: fetch, validate, update post, return redirect info.
@@ -75,13 +74,13 @@ handler ::
   Slug ->
   Maybe Cookie ->
   BlogEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler blogPostId slug cookie editForm =
   handleRedirectErrors "Station blog update" (dashboardStationBlogLinks.editGet blogPostId slug) $ do
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit station blog posts." userMetadata
     result <- action blogPostId slug editForm
-    pure $ Servant.addHeader result.ebprRedirectUrl (redirectWithBanner result.ebprRedirectUrl result.ebprBanner)
+    pure $ Servant.addHeader result.ebprRedirectUrl $ Servant.addHeader (flashCookie (Just result.ebprFlash)) Servant.NoContent
 
 updateBlogPost ::
   BlogPosts.Model ->
@@ -157,9 +156,8 @@ updateBlogPost blogPost oldTags editForm = do
     Just _ -> do
       Log.logInfo "Successfully updated blog post" blogPost.bpmId
       let detailUrl = rootLink $ dashboardStationBlogLinks.detail blogPost.bpmId newSlug
-          banner = BannerParams Success "Blog Post Updated" "Your blog post has been updated and saved."
-          redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ EditBlogPostResult redirectUrl banner
+          flash = FlashMessage Success "Blog Post Updated" "Your blog post has been updated and saved."
+      pure $ EditBlogPostResult detailUrl flash
 
 -- | Update tags for a blog post (add new ones)
 updatePostTags ::

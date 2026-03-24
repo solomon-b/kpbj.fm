@@ -14,7 +14,7 @@ import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (redirectTemplate)
+import Component.Flash (throwHxRedirect)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -38,7 +38,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
-import Servant qualified
 import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
@@ -107,7 +106,7 @@ handler ::
   Slug ->
   Maybe Cookie ->
   Maybe HxRequest ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Lucid.Html ())
 handler blogPostId urlSlug cookie (foldHxReq -> hxRequest) =
   handleRedirectErrors "Station blog edit form" (dashboardStationBlogLinks.list Nothing) $ do
     (user, userMetadata) <- requireAuth cookie
@@ -117,29 +116,16 @@ handler blogPostId urlSlug cookie (foldHxReq -> hxRequest) =
       then do
         Log.logInfo "Authorized user accessing blog edit form" vd.sbevBlogPost.bpmId
         let editTemplate = template vd.sbevStorageBackend vd.sbevBlogPost vd.sbevTags vd.sbevUserMetadata
-        html <-
-          lift $
-            renderDashboardTemplate
-              hxRequest
-              vd.sbevUserMetadata
-              vd.sbevAllShows
-              vd.sbevSelectedShow
-              NavStationBlog
-              Nothing
-              Nothing
-              editTemplate
-        pure $ Servant.noHeader html
+        lift $
+          renderDashboardTemplate
+            hxRequest
+            vd.sbevUserMetadata
+            vd.sbevAllShows
+            vd.sbevSelectedShow
+            NavStationBlog
+            Nothing
+            Nothing
+            editTemplate
       else do
         Log.logInfo "Redirecting to canonical blog edit URL" vd.sbevCanonicalUrl
-        html <-
-          lift $
-            renderDashboardTemplate
-              hxRequest
-              vd.sbevUserMetadata
-              vd.sbevAllShows
-              vd.sbevSelectedShow
-              NavStationBlog
-              Nothing
-              Nothing
-              (redirectTemplate vd.sbevCanonicalUrl)
-        pure $ Servant.addHeader vd.sbevCanonicalUrl html
+        lift $ throwHxRedirect vd.sbevCanonicalUrl Nothing

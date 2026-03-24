@@ -12,7 +12,6 @@ import Data.Text.Read qualified as Text.Read
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Servant.Multipart
@@ -98,4 +97,4 @@ type Route =
     :> "new"
     :> Servant.Header "Cookie" Cookie
     :> MultipartForm Mem NewShowForm
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

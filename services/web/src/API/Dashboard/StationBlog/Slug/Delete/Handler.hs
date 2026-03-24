@@ -4,14 +4,12 @@ module API.Dashboard.StationBlog.Slug.Delete.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardStationBlogLinks, rootLink)
-import API.Types (DashboardStationBlogRoutes (..))
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
-import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
+import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Trans.Except (ExceptT)
+import Data.Text (Text)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
@@ -47,9 +45,9 @@ handler postId _postSlug cookie =
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You don't have permission to delete blog posts." userMetadata
     action postId
-    let banner = BannerParams Success "Blog Post Deleted" "The blog post has been deleted."
-        listUrl = rootLink $ dashboardStationBlogLinks.list Nothing
-    pure $ redirectWithBanner listUrl banner
+    pure $ do
+      Lucid.toHtmlRaw ("" :: Text)
+      renderBanner Success "Blog Post Deleted" "The blog post has been deleted."
 
 --------------------------------------------------------------------------------
 -- Inline Helpers

@@ -9,7 +9,7 @@ import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireRig
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (guard, unless, void)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -32,7 +32,6 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromRightM)
 
@@ -43,16 +42,15 @@ handler ::
   Slug ->
   Maybe Cookie ->
   NewShowBlogPostForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler showSlug cookie form =
   handleRedirectErrors "Show blog post creation" (dashboardBlogsLinks.newGet showSlug) $ do
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to create blog posts." userMetadata
     (postId, showModel) <- action user userMetadata showSlug form
     let detailUrl = rootLink $ dashboardBlogsLinks.detail (Shows.slug showModel) postId
-        banner = BannerParams Success "Blog Post Created" "Your blog post has been created successfully."
-        redirectUrl = buildRedirectUrl detailUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+        flash = FlashMessage Success "Blog Post Created" "Your blog post has been created successfully."
+    pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

@@ -8,7 +8,6 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.ContentSanitization qualified as Sanitize
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Text.HTML (HTML)
@@ -24,7 +23,7 @@ type Route =
     :> "new"
     :> Servant.Header "Cookie" Cookie
     :> Servant.ReqBody '[Servant.FormUrlEncoded] NewShowBlogPostForm
-    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 
 --------------------------------------------------------------------------------
 

@@ -11,7 +11,7 @@ import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireS
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (unless, void, when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -33,7 +33,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (uploadEventPosterImage)
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromMaybeM, fromRightM)
 
@@ -42,7 +41,7 @@ import Utils (fromMaybeM, fromRightM)
 -- | All data needed to build the post-update redirect.
 data EventEditRedirectData = EventEditRedirectData
   { eerRedirectUrl :: Text,
-    eerBanner :: BannerParams
+    eerFlash :: FlashMessage
   }
 
 -- | Business logic: fetch event, authorize, validate, update, build redirect data.
@@ -72,13 +71,13 @@ handler ::
   Slug ->
   Maybe Cookie ->
   EventEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler eventId slug cookie editForm =
   handleRedirectErrors "Event update" (dashboardEventsLinks.editGet eventId slug) $ do
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit events." userMetadata
     vd <- action user userMetadata eventId slug editForm
-    pure $ Servant.addHeader vd.eerRedirectUrl (redirectWithBanner vd.eerRedirectUrl vd.eerBanner)
+    pure $ Servant.addHeader vd.eerRedirectUrl $ Servant.addHeader (flashCookie (Just vd.eerFlash)) Servant.NoContent
 
 updateEvent ::
   Events.Id ->
@@ -166,6 +165,5 @@ updateEvent eventId event editForm = do
     Just _ -> do
       Log.logInfo "Successfully updated event" event.emId
       let detailUrl = rootLink $ dashboardEventsLinks.detail eventId newSlug
-          banner = BannerParams Success "Event Updated" "Your event has been updated and saved."
-          redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ EventEditRedirectData redirectUrl banner
+          flash = FlashMessage Success "Event Updated" "Your event has been updated and saved."
+      pure $ EventEditRedirectData detailUrl flash

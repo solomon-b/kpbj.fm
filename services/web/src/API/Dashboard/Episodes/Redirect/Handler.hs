@@ -7,12 +7,12 @@ module API.Dashboard.Episodes.Redirect.Handler (handler, action, EpisodeRedirect
 
 import API.Links (apiLinks, dashboardEpisodesLinks)
 import API.Types
-import App.Common (renderDashboardTemplate, renderTemplate)
+import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Redirect (redirectTemplate)
+import Component.Flash (throwHxRedirect)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
@@ -75,7 +75,7 @@ handler cookie (foldHxReq -> hxRequest) =
         lift $ renderDashboardTemplate hxRequest vd.ervUserMetadata [] Nothing NavEpisodes Nothing Nothing renderNoShowsEmptyState
       Just (firstShow, _) -> do
         Log.logInfo "Redirecting to first show's episodes" firstShow.slug
-        lift $ renderTemplate hxRequest (Just vd.ervUserMetadata) (redirectTemplate [i|/#{dashboardEpisodesGetUrl firstShow}|])
+        lift $ throwHxRedirect [i|/#{dashboardEpisodesGetUrl firstShow}|] Nothing
 
 -- | Empty state when user has no shows assigned
 renderNoShowsEmptyState :: Lucid.Html ()

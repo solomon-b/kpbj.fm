@@ -9,7 +9,7 @@ import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
@@ -26,7 +26,6 @@ import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.User qualified as User
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromMaybeM, fromRightM)
 
@@ -36,16 +35,15 @@ import Utils (fromMaybeM, fromRightM)
 handler ::
   Maybe Cookie ->
   FormData ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler cookie form =
   handleRedirectErrors "Station ID upload" dashboardStationIdsLinks.newGet $ do
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to upload station IDs." userMetadata
     action user form
     let listUrl = rootLink $ dashboardStationIdsLinks.list Nothing
-        banner = BannerParams Success "Station ID Uploaded" "Your station ID has been uploaded successfully."
-        redirectUrl = buildRedirectUrl listUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+        flash = FlashMessage Success "Station ID Uploaded" "Your station ID has been uploaded successfully."
+    pure $ Servant.addHeader listUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

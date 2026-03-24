@@ -584,19 +584,17 @@ activeNavScript =
     });
   |]
 
--- | JavaScript to display banner from URL query parameters on page load
+-- | JavaScript to display banner from flash cookie on page load
 --
--- Reads _banner, _title, and _msg query params, displays the banner,
--- then cleans up the URL using history.replaceState.
+-- Reads _flash cookie, displays the banner, then clears the cookie.
 bannerFromUrlScript :: Text
 bannerFromUrlScript =
   "\
   \(function() {\
-  \  const params = new URLSearchParams(window.location.search);\
-  \  const bannerType = params.get('_banner');\
-  \  const title = params.get('_title');\
-  \  const message = params.get('_msg');\
-  \  if (bannerType && title && message) {\
+  \  const match = document.cookie.match(/_flash=([^;]+)/);\
+  \  if (!match) return;\
+  \  try {\
+  \    const flash = JSON.parse(decodeURIComponent(match[1]));\
   \    function esc(s) { const el = document.createElement('span'); el.textContent = s; return el.innerHTML; }\
   \    const styles = {\
   \      success: { bg: 'bg-[var(--theme-success)]/10', border: 'border-[var(--theme-success)]', title: 'text-[var(--theme-success)]', msg: 'text-[var(--theme-success)]', dismiss: 'text-[var(--theme-success)] hover:opacity-70', icon: '\\u2713' },\
@@ -604,7 +602,7 @@ bannerFromUrlScript =
   \      warning: { bg: 'bg-[var(--theme-warning)]/10', border: 'border-[var(--theme-warning)]', title: 'text-[var(--theme-warning)]', msg: 'text-[var(--theme-warning)]', dismiss: 'text-[var(--theme-warning)] hover:opacity-70', icon: '\\u26A0' },\
   \      info: { bg: 'bg-[var(--theme-info)]/10', border: 'border-[var(--theme-info)]', title: 'text-[var(--theme-info)]', msg: 'text-[var(--theme-info)]', dismiss: 'text-[var(--theme-info)] hover:opacity-70', icon: '\\u2139' }\
   \    };\
-  \    const style = styles[bannerType] || styles.info;\
+  \    const style = styles[flash.type] || styles.info;\
   \    const container = document.getElementById('banner-container');\
   \    if (container) {\
   \      container.innerHTML = '<div id=\"banner\" class=\"' + style.bg + ' border-2 ' + style.border + ' p-4 mb-6 w-full\">' +\
@@ -612,19 +610,17 @@ bannerFromUrlScript =
   \          '<div class=\"flex items-center gap-3\">' +\
   \            '<span class=\"text-2xl\">' + style.icon + '</span>' +\
   \            '<div>' +\
-  \              '<h3 class=\"font-bold ' + style.title + '\">' + esc(decodeURIComponent(title)) + '</h3>' +\
-  \              '<p class=\"text-sm ' + style.msg + '\">' + esc(decodeURIComponent(message)) + '</p>' +\
+  \              '<h3 class=\"font-bold ' + style.title + '\">' + esc(flash.title) + '</h3>' +\
+  \              '<p class=\"text-sm ' + style.msg + '\">' + esc(flash.msg) + '</p>' +\
   \            '</div>' +\
   \          '</div>' +\
   \          '<button onclick=\"this.closest(\\'#banner\\').remove()\" class=\"' + style.dismiss + ' font-bold text-xl\">\\u00D7</button>' +\
   \        '</div>' +\
   \      '</div>';\
   \    }\
-  \    params.delete('_banner');\
-  \    params.delete('_title');\
-  \    params.delete('_msg');\
-  \    const newUrl = params.toString() ? window.location.pathname + '?' + params.toString() : window.location.pathname;\
-  \    window.history.replaceState({}, '', newUrl);\
+  \    document.cookie = '_flash=; Max-Age=0; Path=/; SameSite=Strict';\
+  \  } catch(e) {\
+  \    document.cookie = '_flash=; Max-Age=0; Path=/; SameSite=Strict';\
   \  }\
   \})();"
 

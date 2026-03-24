@@ -2,7 +2,6 @@ module API.Shows.Slug.Blog.Post.Get.Route where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
@@ -24,7 +23,7 @@ type RouteWithSlug =
     :> Servant.Capture "slug" Slug
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Get '[HTML] (Lucid.Html ())
 
 -- | "GET /shows/:show_id/blog/:post_id" - Route for show blog post with show ID and post ID only (redirects to canonical)
 type RouteWithoutSlug =
@@ -34,4 +33,4 @@ type RouteWithoutSlug =
     :> Servant.Capture "post_id" ShowBlogPosts.Id
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Get '[HTML] (Lucid.Html ())

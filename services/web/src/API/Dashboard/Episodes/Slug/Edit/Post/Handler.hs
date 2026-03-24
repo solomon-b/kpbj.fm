@@ -12,7 +12,7 @@ import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (unless, when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -48,7 +48,6 @@ import Effects.FileUpload qualified as FileUpload
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Hasql.Transaction qualified as HT
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Text.Read (readMaybe)
 import Utils (fromRightM)
@@ -61,15 +60,14 @@ handler ::
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
   EpisodeEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler showSlug episodeNumber cookie editForm =
   handleRedirectErrors "Episode update" (dashboardEpisodesLinks.editGet showSlug episodeNumber) $ do
     (user, userMetadata) <- requireAuth cookie
     warnings <- action user userMetadata showSlug episodeNumber editForm
     let listUrl = rootLink $ dashboardEpisodesLinks.list showSlug Nothing
-        banner = makeSuccessBanner warnings
-        redirectUrl = buildRedirectUrl listUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner listUrl banner)
+        flash = makeSuccessFlash warnings
+    pure $ Servant.addHeader listUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 
@@ -323,12 +321,12 @@ processTrackUpdates episodeId mTracksJson = do
       pure ["Track update failed: " <> trackErr]
     Right _ -> pure []
 
--- | Build success banner, incorporating any warnings
-makeSuccessBanner :: [Text] -> BannerParams
-makeSuccessBanner [] = BannerParams Success "Episode Updated" "Your episode has been updated successfully."
-makeSuccessBanner warnings =
+-- | Build success flash message, incorporating any warnings
+makeSuccessFlash :: [Text] -> FlashMessage
+makeSuccessFlash [] = FlashMessage Success "Episode Updated" "Your episode has been updated successfully."
+makeSuccessFlash warnings =
   let warningText = Text.intercalate "; " warnings
-   in BannerParams Warning "Episode Updated with Issues" ("Episode saved, but: " <> warningText)
+   in FlashMessage Warning "Episode Updated with Issues" ("Episode saved, but: " <> warningText)
 
 -- | Process file uploads for episode editing
 --

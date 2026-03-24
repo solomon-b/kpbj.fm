@@ -14,7 +14,7 @@ import API.Types
 import API.User.ForgotPassword.Get.Templates.Page qualified as Templates
 import App.Common (getUserInfo, renderUnauthTemplate)
 import App.Monad (AppM)
-import Component.Redirect (redirectTemplate)
+import Component.Flash (throwHxRedirect)
 import Data.String.Interpolate (i)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Lucid qualified
@@ -34,7 +34,7 @@ handler (foldHxReq -> hxRequest) = do
   getUserInfo Nothing >>= \case
     Just _ ->
       -- Logged in users should change their password in settings
-      pure $ redirectTemplate [i|/#{dashboardGetUrl}|]
+      throwHxRedirect [i|/#{dashboardGetUrl}|] Nothing
     Nothing -> do
       let content = Templates.template
       renderUnauthTemplate hxRequest content

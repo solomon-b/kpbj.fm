@@ -9,18 +9,19 @@ import App.Config (Environment)
 import App.Domains qualified as Domains
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie, jsRedirectBody)
+import Control.Monad.Catch (throwM)
 import Control.Monad.Reader (asks)
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text.Encoding
 import Domain.Types.EmailAddress (EmailAddress)
-import Domain.Types.HxRedirect (HxRedirect (..))
-import Domain.Types.SetCookie (SetCookie (..))
 import Effects.Database.Tables.User qualified as User
 import Effects.EmailVerification qualified as EmailVerification
 import Log qualified
 import Lucid qualified
+import Network.HTTP.Types qualified
 import Network.Socket (SockAddr)
 import Servant qualified
 import Web.HttpApiData qualified as Http
@@ -49,30 +50,18 @@ handler ::
   Maybe Text ->
   Maybe Text ->
   Maybe Text ->
-  AppM
-    ( Servant.Headers
-        '[ Servant.Header "Set-Cookie" SetCookie,
-           Servant.Header "HX-Redirect" HxRedirect
-         ]
-        (Lucid.Html ())
-    )
+  AppM (Lucid.Html ())
 handler sockAddr mUserAgent _hxRequest mToken = do
   case mToken of
     Nothing ->
-      pure $
-        Servant.noHeader $
-          Servant.addHeader (HxRedirect verifyEmailSentUrl) $
-            redirectWithBanner verifyEmailSentUrl $
-              BannerParams Error "Verification Failed" "No verification token provided."
+      redirectWithFlash verifyEmailSentUrl [] $
+        FlashMessage Error "Verification Failed" "No verification token provided."
     Just token -> do
       result <- EmailVerification.verifyEmail token
       case result of
         Left err ->
-          pure $
-            Servant.noHeader $
-              Servant.addHeader (HxRedirect verifyEmailSentUrl) $
-                redirectWithBanner verifyEmailSentUrl $
-                  BannerParams Error "Verification Failed" (EmailVerification.verificationErrorToText err)
+          redirectWithFlash verifyEmailSentUrl [] $
+            FlashMessage Error "Verification Failed" (EmailVerification.verificationErrorToText err)
         Right (userId, email) -> do
           -- Auto-login: Create session for the verified user
           Log.logInfo "Email verified, creating session for auto-login" email
@@ -83,18 +72,27 @@ handler sockAddr mUserAgent _hxRequest mToken = do
               -- Redirect to login page so user can log in manually
               Log.logInfo "Auto-login failed after email verification" errMsg
               let loginUrl = "/" <> Http.toUrlPiece (userLinks.loginGet (Nothing :: Maybe Text) (Nothing :: Maybe EmailAddress))
-              pure $
-                Servant.noHeader $
-                  Servant.addHeader (HxRedirect loginUrl) $
-                    redirectWithBanner loginUrl $
-                      BannerParams Success "Email Verified" "Your email has been verified. Please log in."
+              redirectWithFlash loginUrl [] $
+                FlashMessage Success "Email Verified" "Your email has been verified. Please log in."
             Right sessionCookie ->
-              -- Success: Set cookie and redirect to home
-              pure $
-                Servant.addHeader sessionCookie $
-                  Servant.addHeader (HxRedirect rootUrl) $
-                    redirectWithBanner rootUrl $
-                      BannerParams Success "Welcome!" "Your email has been verified and you are now logged in."
+              redirectWithFlash rootUrl [("Set-Cookie", Text.Encoding.encodeUtf8 sessionCookie)] $
+                FlashMessage Success "Welcome!" "Your email has been verified and you are now logged in."
+
+-- | Redirect with flash message and optional extra headers (e.g. session cookie).
+redirectWithFlash :: Text -> [Network.HTTP.Types.Header] -> FlashMessage -> AppM a
+redirectWithFlash url extraHeaders flash =
+  throwM $
+    Servant.ServerError
+      { errHTTPCode = 200,
+        errReasonPhrase = "OK",
+        errBody = Lucid.renderBS $ jsRedirectBody url,
+        errHeaders =
+          [ ("Content-Type", "text/html; charset=utf-8"),
+            ("HX-Redirect", Text.Encoding.encodeUtf8 url),
+            ("Set-Cookie", Text.Encoding.encodeUtf8 $ flashCookie (Just flash))
+          ]
+            <> extraHeaders
+      }
 
 --------------------------------------------------------------------------------
 
@@ -103,7 +101,7 @@ attemptAutoLogin ::
   User.Id ->
   SockAddr ->
   Maybe Text ->
-  AppM (Either Text SetCookie)
+  AppM (Either Text Text)
 attemptAutoLogin userId sockAddr mUserAgent = do
   env <- asks (Has.getter @Environment)
   -- Always create a fresh session (upstream insertServerSession caps at 5 per user)
@@ -111,5 +109,5 @@ attemptAutoLogin userId sockAddr mUserAgent = do
     Left err -> do
       pure $ Left $ Text.pack $ show err
     Right sessionId -> do
-      let newCookie = SetCookie $ Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
+      let newCookie = Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
       pure $ Right newCookie

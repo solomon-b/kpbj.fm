@@ -53,7 +53,7 @@ import API.Links (apiLinks, dashboardLinks, rootLink, userLinks)
 import API.Types (DashboardRoutes (..), Routes (..), UserRoutes (..))
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), throwHxRedirect)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Data.Text (Text)
@@ -134,7 +134,8 @@ throwHandlerFailure = throwE . HandlerFailure
 
 -- | Error handler for GET handlers that return plain @Html ()@.
 --
--- Runs the ExceptT action, logging and rendering errors as client-side redirects.
+-- Runs the ExceptT action, logging and redirecting errors via HX-Redirect
+-- with a flash cookie.
 --
 -- @
 -- handler cookie hxRequest =
@@ -148,15 +149,15 @@ handleHtmlErrors ::
   -- | Default redirect URL (for non-auth errors)
   Link ->
   -- | The ExceptT action to run
-  ExceptT HandlerError AppM (Lucid.Html ()) ->
-  AppM (Lucid.Html ())
+  ExceptT HandlerError AppM a ->
+  AppM a
 handleHtmlErrors actionName defaultUrl action =
   runExceptT action >>= \case
-    Right html -> pure html
+    Right result -> pure result
     Left err -> do
       logHandlerError actionName err
-      let (url, banner) = errorRedirectParams defaultUrl err
-      pure $ redirectWithBanner url banner
+      let (url, flash) = errorRedirectParams defaultUrl err
+      throwHxRedirect url (Just flash)
 
 -- | Error handler for public-facing GET handlers.
 --
@@ -200,11 +201,11 @@ handlePublicErrors actionName hxRequest renderInline action =
       case err of
         -- Auth errors still redirect
         NotAuthenticated ->
-          let (url, banner) = errorRedirectParams (apiLinks.rootGet) err
-           in pure $ redirectWithBanner url banner
+          let (url, flash) = errorRedirectParams (apiLinks.rootGet) err
+           in throwHxRedirect url (Just flash)
         NotAuthorized _ _ ->
-          let (url, banner) = errorRedirectParams (apiLinks.rootGet) err
-           in pure $ redirectWithBanner url banner
+          let (url, flash) = errorRedirectParams (apiLinks.rootGet) err
+           in throwHxRedirect url (Just flash)
         -- Content errors render inline with correct status codes
         _ -> do
           html <- renderInline (inlineErrorContent err)
@@ -214,34 +215,55 @@ handlePublicErrors actionName hxRequest renderInline action =
             -- Non-HTMX requests get the proper HTTP status code
             IsNotHxRequest -> throwHtmlError (handlerErrorStatus err) html
 
--- | Error handler for handlers that redirect on errors (POST handlers).
+-- | Error handler for handlers where auth errors redirect and validation errors
+-- return an OOB banner inline.
 --
--- Runs the ExceptT action, logging and rendering errors as HX-Redirect responses.
+-- Auth and access errors (NotAuthenticated, NotAuthorized, UserSuspended) use
+-- 'throwHxRedirect' so the user is sent away with a flash cookie. Validation
+-- and content errors return a 200 response with the OOB error banner so the
+-- user stays on the form and sees the message in-place.
 --
 -- @
 -- handler cookie editForm =
 --   handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
---     vd <- action ...
---     html <- lift $ renderDashboardTemplate ...
---     pure $ Servant.noHeader html
+--     (user, userMetadata) <- requireAuth cookie
+--     action user userMetadata editForm
+--     let flash = FlashMessage Success "Updated" "..."
+--     pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 -- @
 handleRedirectErrors ::
   -- | Action name for logging
   Text ->
-  -- | Default redirect URL (for non-auth errors)
+  -- | Default redirect URL (for auth errors)
   Link ->
   -- | The ExceptT action to run
-  ExceptT HandlerError AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ())) ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  ExceptT HandlerError AppM a ->
+  AppM a
 handleRedirectErrors actionName defaultUrl action =
   runExceptT action >>= \case
     Right result -> pure result
     Left err -> do
       logHandlerError actionName err
-      let (url, banner) = errorRedirectParams defaultUrl err
-      pure $
-        Servant.addHeader (buildRedirectUrl url banner) $
-          redirectWithBanner url banner
+      case err of
+        -- Auth/access errors: redirect with flash cookie
+        NotAuthenticated ->
+          let (url, flash) = errorRedirectParams defaultUrl err
+           in throwHxRedirect url (Just flash)
+        NotAuthorized _ _ ->
+          let (url, flash) = errorRedirectParams defaultUrl err
+           in throwHxRedirect url (Just flash)
+        UserSuspended ->
+          let (url, flash) = errorRedirectParams defaultUrl err
+           in throwHxRedirect url (Just flash)
+        -- Validation/content errors: OOB banner inline (user stays on form)
+        _ ->
+          throwM $
+            Servant.ServerError
+              { errHTTPCode = 200,
+                errReasonPhrase = "OK",
+                errBody = Lucid.renderBS (errorBanner err),
+                errHeaders = [("Content-Type", "text/html; charset=utf-8")]
+              }
 
 -- | Error handler for handlers that return OOB banners on errors.
 --
@@ -323,27 +345,26 @@ notAuthorizedRedirect = \case
   Just User -> apiLinks.rootGet
   Nothing -> apiLinks.rootGet
 
--- | Map a handler error to a redirect URL and banner params.
+-- | Map a handler error to a redirect URL and flash message.
 --
--- Single source of truth for error-to-redirect mapping, used by both
--- 'handleHtmlErrors' (client-side redirect HTML) and 'handleRedirectErrors'
--- (HX-Redirect header).
-errorRedirectParams :: Link -> HandlerError -> (Text, BannerParams)
+-- Single source of truth for error-to-redirect mapping, used by
+-- 'handleHtmlErrors', 'handleRedirectErrors', and 'handlePublicErrors'.
+errorRedirectParams :: Link -> HandlerError -> (Text, FlashMessage)
 errorRedirectParams defaultLink = \case
   NotAuthenticated ->
-    (rootLink loginLink, BannerParams Error "Login Required" "Please log in to continue.")
+    (rootLink loginLink, FlashMessage Error "Login Required" "Please log in to continue.")
   NotAuthorized msg mRole ->
-    (rootLink (notAuthorizedRedirect mRole), BannerParams Error "Access Denied" msg)
+    (rootLink (notAuthorizedRedirect mRole), FlashMessage Error "Access Denied" msg)
   NotFound resource ->
-    (rootLink defaultLink, BannerParams Error "Not Found" (resource <> " not found."))
+    (rootLink defaultLink, FlashMessage Error "Not Found" (resource <> " not found."))
   DatabaseError _ ->
-    (rootLink defaultLink, BannerParams Error "Error" "A database error occurred. Please try again.")
+    (rootLink defaultLink, FlashMessage Error "Error" "A database error occurred. Please try again.")
   UserSuspended ->
-    (rootLink defaultLink, BannerParams Error "Account Suspended" "Your account is suspended.")
+    (rootLink defaultLink, FlashMessage Error "Account Suspended" "Your account is suspended.")
   ValidationError msg ->
-    (rootLink defaultLink, BannerParams Error "Validation Error" msg)
+    (rootLink defaultLink, FlashMessage Error "Validation Error" msg)
   HandlerFailure msg ->
-    (rootLink defaultLink, BannerParams Error "Error" msg)
+    (rootLink defaultLink, FlashMessage Error "Error" msg)
 
 -- | Map a handler error to an OOB error banner.
 errorBanner :: HandlerError -> Lucid.Html ()

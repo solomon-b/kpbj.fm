@@ -12,7 +12,7 @@ import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -46,7 +46,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
-import Lucid qualified
 import OrphanInstances.OneRow ()
 import Servant qualified
 import Servant.Links qualified as Links
@@ -60,7 +59,7 @@ handler ::
   Slug ->
   Maybe Cookie ->
   EpisodeUploadForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler showSlug cookie form =
   handleRedirectErrors "Episode upload" (dashboardShowsLinks.episodeNewGet showSlug) $ do
     (user, userMetadata) <- requireAuth cookie
@@ -97,23 +96,21 @@ action user userMetadata showSlug form = do
 buildUploadRedirect ::
   Slug ->
   Episodes.Id ->
-  ExceptT HandlerError AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  ExceptT HandlerError AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 buildUploadRedirect showSlug episodeId = do
   fetchResult <- execQuery (Episodes.getEpisodeById episodeId)
   case fetchResult of
     Right (Just episode) -> do
       let detailLinkUri = Links.linkURI $ dashboardEpisodesLinks.detail showSlug episode.episodeNumber
           detailUrl = [i|/#{detailLinkUri}|] :: Text
-          banner = BannerParams Success "Episode Uploaded" "Your episode has been uploaded successfully."
-          redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ Servant.addHeader redirectUrl (redirectWithBanner detailUrl banner)
+          flash = FlashMessage Success "Episode Uploaded" "Your episode has been uploaded successfully."
+      pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
     _ -> do
       Log.logInfo_ "Created episode but failed to retrieve it"
       let showListUri = Links.linkURI $ dashboardEpisodesLinks.list showSlug Nothing
           showListUrl = [i|/#{showListUri}|] :: Text
-          banner = BannerParams Warning "Episode Created" "Episode was created but there was an error loading details."
-          redirectUrl = buildRedirectUrl showListUrl banner
-      pure $ Servant.addHeader redirectUrl (redirectWithBanner showListUrl banner)
+          flash = FlashMessage Warning "Episode Created" "Episode was created but there was an error loading details."
+      pure $ Servant.addHeader showListUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::

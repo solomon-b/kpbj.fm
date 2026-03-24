@@ -49,7 +49,6 @@ library
     Domain.Types.FileUpload
     Domain.Types.Filter
     Domain.Types.GoogleAnalyticsId
-    Domain.Types.HxRedirect
     Domain.Types.HxRequest
     Domain.Types.Limit
     Domain.Types.Offset
@@ -57,7 +56,6 @@ library
     Domain.Types.PageNumber
     Domain.Types.PostStatus
     Domain.Types.Search
-    Domain.Types.SetCookie
     Domain.Types.ShowSortBy
     Domain.Types.Slug
     Domain.Types.StorageBackend

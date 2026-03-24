@@ -23,7 +23,7 @@ import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (forM_, unless, when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -60,7 +60,6 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Effects.HostNotifications qualified as HostNotifications
 import Log qualified
-import Lucid qualified
 import OrphanInstances.DayOfWeek (dayOfWeekFromText)
 import Rel8 (Result)
 import Servant qualified
@@ -118,16 +117,15 @@ handler ::
   Slug ->
   Maybe Cookie ->
   ShowEditForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler slug cookie editForm =
   handleRedirectErrors "Show edit" (dashboardShowsLinks.editGet slug) $ do
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId slug userMetadata
     (showId, newSlug) <- action userMetadata slug editForm
     let showUrl = [i|/#{dashboardShowDetailUrl showId newSlug}|] :: Text
-        banner = BannerParams Success "Show Updated" "Your show has been updated successfully."
-        redirectUrl = buildRedirectUrl showUrl banner
-    pure $ Servant.addHeader redirectUrl (redirectWithBanner showUrl banner)
+        flash = FlashMessage Success "Show Updated" "Your show has been updated successfully."
+    pure $ Servant.addHeader showUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 

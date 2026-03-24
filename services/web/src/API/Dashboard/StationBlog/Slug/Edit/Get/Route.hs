@@ -2,7 +2,6 @@ module API.Dashboard.StationBlog.Slug.Edit.Get.Route where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
@@ -23,4 +22,4 @@ type Route =
     :> "edit"
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Get '[HTML] (Lucid.Html ())

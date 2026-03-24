@@ -9,7 +9,7 @@ import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspen
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
-import Component.Redirect (BannerParams (..), buildRedirectUrl, redirectWithBanner)
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (unless, void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -33,7 +33,6 @@ import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
 import Effects.FileUpload (uploadBlogHeroImage)
 import Log qualified
-import Lucid qualified
 import Servant qualified
 import Utils (fromMaybeM, fromRightM)
 
@@ -42,7 +41,7 @@ import Utils (fromMaybeM, fromRightM)
 -- | Data returned by action after successful blog post creation.
 data NewBlogPostResult = NewBlogPostResult
   { nbprRedirectUrl :: Text,
-    nbprBanner :: BannerParams
+    nbprFlash :: FlashMessage
   }
 
 -- | Business logic: validate, create post, return redirect info.
@@ -72,13 +71,13 @@ action user form = do
 handler ::
   Maybe Cookie ->
   NewBlogPostForm ->
-  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+  AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 handler cookie form =
   handleRedirectErrors "Blog post creation" dashboardStationBlogLinks.newGet $ do
     (user, _userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to create blog posts." _userMetadata
     result <- action user form
-    pure $ Servant.addHeader result.nbprRedirectUrl (redirectWithBanner result.nbprRedirectUrl result.nbprBanner)
+    pure $ Servant.addHeader result.nbprRedirectUrl $ Servant.addHeader (flashCookie (Just result.nbprFlash)) Servant.NoContent
 
 -- | Handle hero image upload
 handleHeroImageUpload ::
@@ -172,15 +171,13 @@ buildNewPostResult blogPostData form = do
       Log.logInfo "Successfully created blog post" (Aeson.object ["title" .= BlogPosts.bpmTitle createdPost])
       let createdSlug = BlogPosts.bpmSlug createdPost
           detailUrl = rootLink $ dashboardStationBlogLinks.detail postId createdSlug
-          banner = BannerParams Success "Blog Post Created" "Your blog post has been created successfully."
-          redirectUrl = buildRedirectUrl detailUrl banner
-      pure $ NewBlogPostResult redirectUrl banner
+          flash = FlashMessage Success "Blog Post Created" "Your blog post has been created successfully."
+      pure $ NewBlogPostResult detailUrl flash
     _ -> do
       Log.logInfo_ "Created blog post but failed to retrieve it"
       let listUrl = rootLink $ dashboardStationBlogLinks.list Nothing
-          banner = BannerParams Success "Blog Post Created" "Your blog post has been created."
-          redirectUrl = buildRedirectUrl listUrl banner
-      pure $ NewBlogPostResult redirectUrl banner
+          flash = FlashMessage Success "Blog Post Created" "Your blog post has been created."
+      pure $ NewBlogPostResult listUrl flash
 
 insertBlogPost ::
   BlogPosts.Insert ->

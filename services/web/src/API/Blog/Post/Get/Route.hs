@@ -2,7 +2,6 @@ module API.Blog.Post.Get.Route where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
@@ -21,7 +20,7 @@ type RouteWithSlug =
     :> Servant.Capture "slug" Slug
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Get '[HTML] (Lucid.Html ())
 
 -- | "GET /blog/:id" - Route for blog post with ID only (redirects to canonical)
 type RouteWithoutSlug =
@@ -29,4 +28,4 @@ type RouteWithoutSlug =
     :> Servant.Capture "id" BlogPosts.Id
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
+    :> Servant.Get '[HTML] (Lucid.Html ())
