@@ -14,6 +14,17 @@ SET
 WHERE airs_twice_daily = TRUE
   AND start_time >= TIME '12:00:00';
 
+-- 2a-fix. Align existing episodes with the swapped primary time.
+--         At this point only PM-swapped templates have replay_start_time set,
+--         so this safely targets only their episodes. Shift -12h to match the
+--         new AM primary (e.g., scheduled_at 20:00 → 08:00 same calendar day).
+UPDATE episodes e
+SET scheduled_at = e.scheduled_at - INTERVAL '12 hours'
+FROM schedule_templates st
+WHERE e.show_id = st.show_id
+  AND st.replay_start_time IS NOT NULL
+  AND e.deleted_at IS NULL;
+
 -- 2b. AM primaries (start_time < 12:00): keep primary as-is, replay is +12h (already PM)
 --     e.g., 08:00-10:00 primary → replay at 20:00
 UPDATE schedule_templates
