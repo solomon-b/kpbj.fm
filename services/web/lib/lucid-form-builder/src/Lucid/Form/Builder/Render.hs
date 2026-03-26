@@ -697,9 +697,12 @@ renderImageField field = do
       aspectRatioStyle :: Text
       aspectRatioStyle = [i|aspect-ratio: #{ratioW} / #{ratioH}|]
       cropperJs :: Text
-      cropperJs = cropperAlpineJs maxSizeMB ratioDecimal
-        [i|this.isValid = false; this.error = 'File exceeds #{maxSizeMB}MB limit';|]
-        [i|const input = document.getElementById('#{inputIdJs}');
+      cropperJs =
+        cropperAlpineJs
+          maxSizeMB
+          ratioDecimal
+          [i|this.isValid = false; this.error = 'File exceeds #{maxSizeMB}MB limit';|]
+          [i|const input = document.getElementById('#{inputIdJs}');
     const dt = new DataTransfer();
     dt.items.add(croppedFile);
     input.files = dt.files;
@@ -710,7 +713,7 @@ renderImageField field = do
     this.currentCleared = false;
     this.isValid = true;
     this.error = '';|]
-        [i|const input = document.getElementById('#{inputIdJs}'); if (input) input.value = '';|]
+          [i|const input = document.getElementById('#{inputIdJs}'); if (input) input.value = '';|]
       ratioText :: Text
       ratioText = [i|#{ratioW}:#{ratioH}|]
       ratioDecimal :: Text
@@ -942,22 +945,25 @@ renderImagesField field = do
       ratioText = [i|#{ratioW}:#{ratioH}|]
       hintText = fcHint cfg
       cropperJs :: Text
-      cropperJs = cropperAlpineJs maxSizeMB ratioDecimal
-        [i|this.error = 'File exceeds #{maxSizeMB}MB limit';|]
-        [i|this.images.push({
+      cropperJs =
+        cropperAlpineJs
+          maxSizeMB
+          ratioDecimal
+          [i|this.error = 'File exceeds #{maxSizeMB}MB limit';|]
+          [i|this.images.push({
       id: null, url: '', alt_text: '', isNew: true,
       file: croppedFile, previewUrl: URL.createObjectURL(croppedFile),
       _key: 'new-' + (this._nextKey++),
     });
     this.syncFiles();
     this.validate();|]
-        ""
+          ""
 
   -- Alpine.js state for the multi-image manager
   Lucid.div_
     [ xData_
         [i|{
-  images: #{existingImagesJson}.map(img => ({...img, isNew: false, file: null, previewUrl: img.url, _key: 'existing-' + img.id})),
+  images: #{existingImagesJson}.map((img, idx) => ({...img, isNew: false, file: null, previewUrl: img.url, _key: 'existing-' + (img.id ?? idx)})),
   _nextKey: 0,
   deletedIds: [],
   error: '',

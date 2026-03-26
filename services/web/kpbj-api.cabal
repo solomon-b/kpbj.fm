@@ -93,6 +93,7 @@ library
                   , resourcet
                   , servant
                   , servant-multipart
+                  , scientific
                   , servant-server
                   , string-interpolate
                   , tagged
@@ -104,6 +105,7 @@ library
                   , transformers
                   , unliftio
                   , unliftio-core
+                  , unordered-containers
                   , uuid
                   , validation
                   , vector
@@ -208,6 +210,29 @@ library
     API.Dashboard.Events.Slug.Get.Handler
     API.Dashboard.Events.Slug.Get.Route
     API.Dashboard.Events.Slug.Get.Templates.Page
+    API.Dashboard.Store.Orders.Get.Handler
+    API.Dashboard.Store.Orders.Get.Route
+    API.Dashboard.Store.Orders.Get.Templates
+    API.Dashboard.Store.Products.Get.Handler
+    API.Dashboard.Store.Products.Get.Route
+    API.Dashboard.Store.Products.Get.Templates
+    API.Dashboard.Store.Products.Id.Deactivate.Post.Handler
+    API.Dashboard.Store.Products.Id.Deactivate.Post.Route
+    API.Dashboard.Store.Products.Id.Edit.Get.Handler
+    API.Dashboard.Store.Products.Id.Edit.Get.Route
+    API.Dashboard.Store.Products.Id.Edit.Get.Templates.Form
+    API.Dashboard.Store.Products.Id.Edit.Post.Handler
+    API.Dashboard.Store.Products.Id.Edit.Post.Route
+    API.Dashboard.Store.Products.Id.Get.Handler
+    API.Dashboard.Store.Products.Id.Get.Route
+
+    API.Dashboard.Store.Products.Create.Post.Handler
+    API.Dashboard.Store.Products.Create.Post.Route
+    API.Dashboard.Store.Settings.Get.Handler
+    API.Dashboard.Store.Settings.Get.Route
+    API.Dashboard.Store.Settings.Get.Templates
+    API.Dashboard.Store.Settings.Post.Handler
+    API.Dashboard.Store.Settings.Post.Route
     API.Dashboard.StationBlog.Get.Handler
     API.Dashboard.StationBlog.Get.Route
     API.Dashboard.StationBlog.Get.Templates.ItemsFragment
@@ -481,6 +506,7 @@ library
     Design.Theme
     Design.Tokens
     Design.FormStyles
+    Domain.Types.VariantsPayload
     Effects.AWS
     Effects.ContentSanitization
     Effects.Diff

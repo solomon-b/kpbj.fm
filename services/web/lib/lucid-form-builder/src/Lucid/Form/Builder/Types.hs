@@ -157,8 +157,6 @@ data FieldType
       }
   | -- | Multi-image upload with ordering, cropping, and alt text
     ImagesField
-      { ifsAccept :: Maybe Text
-      }
   | -- | Date and time picker
     DateTimeField
   | -- | Numeric input

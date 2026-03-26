@@ -48,6 +48,7 @@ library
     , kpbj-types
     , password
     , rel8
+    , scientific
     , servant-server
     , string-interpolate
     , text
@@ -68,8 +69,16 @@ library
     Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
     Effects.Database.Tables.HostInvitation
+    Effects.Database.Tables.OrderItems
+    Effects.Database.Tables.Orders
     Effects.Database.Tables.PasswordResetTokens
     Effects.Database.Tables.PlaybackHistory
+    Effects.Database.Tables.ProductImages
+    Effects.Database.Tables.ProductOptionTypes
+    Effects.Database.Tables.ProductOptionValues
+    Effects.Database.Tables.Products
+    Effects.Database.Tables.ProductVariantOptions
+    Effects.Database.Tables.ProductVariants
     Effects.Database.Tables.ShowBlogPosts
     Effects.Database.Tables.ShowBlogTags
     Effects.Database.Tables.ShowHost
@@ -80,6 +89,7 @@ library
     Effects.Database.Tables.SitePages
     Effects.Database.Tables.StagedUploads
     Effects.Database.Tables.StationIds
+    Effects.Database.Tables.StoreSettings
     Effects.Database.Tables.UserMetadata
     Effects.Database.Tables.Util
     OrphanInstances.Rel8
@@ -119,6 +129,7 @@ library kpbj-database-test-lib
     , mtl
     , password
     , postgres-options
+    , scientific
     , text
     , time
     , tmp-postgres
@@ -154,6 +165,12 @@ library kpbj-database-test-lib
     Test.Gen.Tables.StagedUploads
     Test.Gen.Tables.StationIds
     Test.Gen.Tables.UserMetadata
+    Test.Gen.Tables.Products
+    Test.Gen.Tables.ProductImages
+    Test.Gen.Tables.ProductOptionTypes
+    Test.Gen.Tables.ProductOptionValues
+    Test.Gen.Tables.ProductVariants
+    Test.Gen.Tables.StoreSettings
 
 --------------------------------------------------------------------------------
 
@@ -192,6 +209,7 @@ test-suite kpbj-database-test
     , mtl
     , password
     , postgres-options
+    , scientific
     , text
     , text-display
     , time
@@ -223,6 +241,13 @@ test-suite kpbj-database-test
     Effects.Database.Tables.StationIdsSpec
     Effects.Database.Tables.UserMetadataSpec
     Effects.Database.Tables.UserRoleSpec
+    Effects.Database.Tables.ProductsSpec
+    Effects.Database.Tables.ProductImagesSpec
+    Effects.Database.Tables.ProductVariantsSpec
+    Effects.Database.Tables.ProductVariantOptionsSpec
+    Effects.Database.Tables.ProductOptionTypesSpec
+    Effects.Database.Tables.StoreSettingsSpec
+    Domain.Types.CentsSpec
     Domain.Types.FileUploadSpec
     Domain.Types.SlugSpec
     Domain.Types.StorageBackendSpec
@@ -252,5 +277,11 @@ test-suite kpbj-database-test
     Test.Gen.Tables.StagedUploads
     Test.Gen.Tables.StationIds
     Test.Gen.Tables.UserMetadata
+    Test.Gen.Tables.Products
+    Test.Gen.Tables.ProductImages
+    Test.Gen.Tables.ProductOptionTypes
+    Test.Gen.Tables.ProductOptionValues
+    Test.Gen.Tables.ProductVariants
+    Test.Gen.Tables.StoreSettings
     Test.Gen.Text
     Test.Gen.Time

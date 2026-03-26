@@ -5,6 +5,20 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Webstore — Product Management Dashboard** — Staff can manage store products from `/dashboard/store/products`. Inline product creation on the list page (+ NEW button reveals input row). Full edit page with basic info, pricing, inventory, images, and options/variants. Products default to inactive on creation, slug auto-generated from name.
+- **Webstore — Combined Options & Variants** — Shopify-style options/variants UI on the product edit page. Add option types (Size, Color) with tag-style value inputs, variants auto-generated as cartesian product. Inline editable variant table (price override, inventory, SKU, weight). All managed client-side with Alpine.js, serialized as JSON, persisted in a single database transaction.
+- **Webstore — Multi-Image Upload (`imagesField`)** — New form builder field for managing ordered sets of images with Cropper.js cropping, drag-and-drop reorder, per-image alt text, and inline preview. First image is hero/thumbnail. Integrated into the product edit form.
+- **Webstore — Database Schema** — Migration for all store tables: `products`, `product_images`, `product_option_types`, `product_option_values`, `product_variants`, `product_variant_options`, `orders`, `order_items`, `store_settings`. Variants use soft-delete (`deleted_at`) for order history FK integrity.
+- **Webstore — Store Settings** — Admin page at `/dashboard/store/settings` for tax rate, ship-from address, and order notification email.
+- **Webstore — Orders Placeholder** — Dashboard order list page at `/dashboard/store/orders` (placeholder for Phase 3 checkout integration).
+- **`Cents` Newtype** — Type-safe price representation (`newtype Cents = Cents Int64`) in `Domain.Types.Cents` with `fromDollars`, `toDollars`, `formatDisplay` helpers. Replaces raw `Int64` for all price columns. Property tests for round-trip, formatting, and invariants.
+- **`ImageData` Type** — Form builder owns its own `ImageData` type for the `imagesField` contract, decoupling the Alpine.js component from domain model types.
+- **Dashboard Navigation** — Store section in the dashboard sidebar with Products, Orders, and Settings links. Products and Orders visible to Staff+, Settings visible to Admin only.
+
+### Changed
+- **`getStdGen` → `newStdGen`** — All file upload functions now use `newStdGen` instead of `getStdGen` to avoid duplicate filenames when uploading multiple files in a single request.
+- **Form Builder Library** — Added `imagesField`, `currentImages`, `previewSize` field builders. Added `ImagesField` variant, `ImageData` type, and `fcPreviewSize`/`fcCurrentImages` config fields. Added `aeson`, `bytestring`, `DeriveGeneric` dependencies.
+
 - **Analytics Dashboard** — Admin-only dashboard page at `/dashboard/analytics` with live listener count from Icecast, listener trend charts (line), archive play counts by day (bar), and top episodes by plays. Time range selector (24h/7d/30d/90d) with refresh. Uses Chart.js for visualization and Alpine.js for client-side state. Chart data served via JSON endpoint at `/dashboard/analytics/data`.
 - **Cloudflare WAF Custom Rules** — Added 3 WAF rules (of 5 free-tier max) to `cloudflare.tf` that block malicious traffic at the Cloudflare edge before it reaches the origin server: path traversal/LFI/SSRF attempts, known scanner/bot probe paths (wp-admin, .env, phpMyAdmin, etc.), and non-ASCII percent-encoded bytes in URI paths. Complements fail2ban, which cannot ban Cloudflare-proxied traffic via nftables.
 - **Host Invitation System** — Staff can generate invitation links from `/dashboard/invitations` with pre-configured show schedules. New hosts use the link to create their account and show in a single guided flow. Tokens are single-use and expire after 7 days. Includes invitation management (list, regenerate, delete) and a public signup form at `/invite/:token` that creates the user, show, and schedule template in one transaction.

@@ -19,14 +19,20 @@ module Effects.ContentSanitization
     validateContentLength,
     ContentValidationError (..),
     displayContentValidationError,
+
+    -- * Numeric Parsing
+    parseIntDefault0,
+    parseNonNegativeInt,
   )
 where
 
 --------------------------------------------------------------------------------
 
+import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Text.HTML.SanitizeXSS (sanitizeXSS)
+import Text.Read (readMaybe)
 
 --------------------------------------------------------------------------------
 -- Content Validation
@@ -106,6 +112,33 @@ sanitizeTitle title =
 sanitizeDescription :: Text -> Text
 sanitizeDescription desc =
   Text.strip $ sanitizeXSS $ Text.take 1000 desc
+
+--------------------------------------------------------------------------------
+-- Numeric Parsing
+
+-- | Parse a non-negative integer from text, defaulting to 0 on failure.
+--
+-- Use for fields where 0 is a safe default (weight, sort order).
+-- For fields where silent zeroing is dangerous (inventory), use 'parseNonNegativeInt'.
+parseIntDefault0 :: Text -> Int64
+parseIntDefault0 txt =
+  case readMaybe (Text.unpack txt) :: Maybe Int64 of
+    Just n | n >= 0 -> n
+    _ -> 0
+
+-- | Parse a non-negative integer from text, returning an error on failure.
+--
+-- Use for fields where the value matters and silent defaulting would be data loss
+-- (e.g., inventory count).
+parseNonNegativeInt :: Text -> Either Text Int64
+parseNonNegativeInt txt =
+  case readMaybe (Text.unpack txt) :: Maybe Int64 of
+    Just n | n >= 0 -> Right n
+    Just _ -> Left "Value must be non-negative"
+    Nothing -> Left "Invalid number"
+
+--------------------------------------------------------------------------------
+-- Content Sanitization
 
 -- | Sanitize plain text fields
 --

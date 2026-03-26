@@ -37,6 +37,7 @@ library
     , hasql-interpolate
     , random
     , rel8
+    , scientific
     , servant-server
     , text
     , text-display
@@ -44,6 +45,7 @@ library
     , tz
   exposed-modules:
     Domain.Icecast.Status
+    Domain.Types.Cents
     Domain.Types.Cookie
     Domain.Types.FileStorage
     Domain.Types.FileUpload

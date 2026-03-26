@@ -623,6 +623,80 @@
 }
 
 /* ==========================================================================
+   Multi-Image Picker (imagesField)
+   ========================================================================== */
+
+.fb-images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--fb-images-thumb-size, 150px), 1fr));
+  gap: 12px;
+}
+
+.fb-images-card {
+  border: 2px solid var(--theme-border-muted);
+  position: relative;
+}
+
+.fb-images-card--drag-over {
+  border-color: var(--theme-accent, var(--theme-border));
+}
+
+.fb-images-card-img {
+  width: 100%;
+  aspect-ratio: var(--fb-images-aspect-ratio, 1 / 1);
+  object-fit: cover;
+  display: block;
+}
+
+.fb-images-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  cursor: pointer;
+  background: var(--theme-bg);
+  border: 1px solid var(--theme-border-muted);
+  line-height: 1;
+  padding: 2px 6px;
+  color: var(--theme-fg);
+  font-family: inherit;
+}
+
+.fb-images-remove:hover {
+  background: var(--theme-hover);
+}
+
+.fb-images-alt-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.75rem;
+  padding: 4px;
+  border: none;
+  border-top: 1px solid var(--theme-border-muted);
+  background: var(--theme-bg);
+  color: var(--theme-fg);
+  font-family: inherit;
+}
+
+.fb-images-add-zone {
+  border: 2px dashed var(--theme-border-muted);
+  aspect-ratio: var(--fb-images-aspect-ratio, 1 / 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  min-height: var(--fb-images-thumb-size, 150px);
+}
+
+.fb-images-add-zone:hover {
+  border-color: var(--theme-border);
+}
+
+.fb-images-add-label {
+  color: var(--theme-fg-muted);
+  font-size: 0.875rem;
+}
+
+/* ==========================================================================
    Audio Picker
    ========================================================================== */
 

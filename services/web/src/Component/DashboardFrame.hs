@@ -24,6 +24,9 @@ import API.Links
     dashboardSitePagesLinks,
     dashboardStationBlogLinks,
     dashboardStationIdsLinks,
+    dashboardStoreOrdersLinks,
+    dashboardStoreProductsLinks,
+    dashboardStoreSettingsLinks,
     dashboardStreamSettingsLinks,
     dashboardUsersLinks,
     rootLink,
@@ -108,6 +111,15 @@ dashboardAnalyticsGetUrl = Links.linkURI dashboardAnalyticsLinks.get
 dashboardInvitationsGetUrl :: Links.URI
 dashboardInvitationsGetUrl = Links.linkURI dashboardInvitationsLinks.list
 
+dashboardStoreProductsGetUrl :: Links.URI
+dashboardStoreProductsGetUrl = Links.linkURI dashboardStoreProductsLinks.list
+
+dashboardStoreOrdersGetUrl :: Links.URI
+dashboardStoreOrdersGetUrl = Links.linkURI dashboardStoreOrdersLinks.list
+
+dashboardStoreSettingsGetUrl :: Links.URI
+dashboardStoreSettingsGetUrl = Links.linkURI dashboardStoreSettingsLinks.get
+
 --------------------------------------------------------------------------------
 
 -- | Which navigation item is currently active
@@ -127,6 +139,9 @@ data DashboardNav
   | NavMissingEpisodes
   | NavAnalytics
   | NavInvitations
+  | NavStoreProducts
+  | NavStoreOrders
+  | NavStoreSettings
   deriving (Eq, Show)
 
 -- | Check if navigation requires show context
@@ -147,6 +162,9 @@ isShowScoped = \case
   NavMissingEpisodes -> False
   NavAnalytics -> False
   NavInvitations -> False
+  NavStoreProducts -> False
+  NavStoreOrders -> False
+  NavStoreSettings -> False
 
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
@@ -240,6 +258,13 @@ sidebar userMeta activeNav selectedShow =
             when (UserMetadata.isAdmin userMeta.mUserRole) $ do
               staffNavItem "STREAM" NavStreamSettings activeNav
               staffNavItem "ANALYTICS" NavAnalytics activeNav
+        Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
+          Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "STORE"
+          Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+            staffNavItem "PRODUCTS" NavStoreProducts activeNav
+            staffNavItem "ORDERS" NavStoreOrders activeNav
+            when (UserMetadata.isAdmin userMeta.mUserRole) $
+              staffNavItem "SETTINGS" NavStoreSettings activeNav
 
     -- User info at bottom (always visible)
     Lucid.div_ [class_ $ base [Tokens.p4, "border-t", Theme.borderMuted, "shrink-0", "mt-auto"]] $ do
@@ -347,6 +372,9 @@ staffNavUrl = \case
   NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
   NavAnalytics -> Just dashboardAnalyticsGetUrl
   NavInvitations -> Just dashboardInvitationsGetUrl
+  NavStoreProducts -> Just dashboardStoreProductsGetUrl
+  NavStoreOrders -> Just dashboardStoreOrdersGetUrl
+  NavStoreSettings -> Just dashboardStoreSettingsGetUrl
   other -> navUrl other Nothing
 
 -- | Get URL for navigation item
@@ -371,6 +399,9 @@ navUrl nav mShow =
         NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
         NavAnalytics -> Just dashboardAnalyticsGetUrl
         NavInvitations -> Just dashboardInvitationsGetUrl
+        NavStoreProducts -> Just dashboardStoreProductsGetUrl
+        NavStoreOrders -> Just dashboardStoreOrdersGetUrl
+        NavStoreSettings -> Just dashboardStoreSettingsGetUrl
 
 -- | Top bar with show selector, stats, action button, and back link
 topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
