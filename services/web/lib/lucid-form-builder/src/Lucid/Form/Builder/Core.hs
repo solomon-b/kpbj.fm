@@ -43,6 +43,7 @@ module Lucid.Form.Builder.Core
     radioField,
     fileField,
     imageField,
+    imagesField,
     audioField,
     stagedAudioField,
     stagedImageField,
@@ -215,6 +216,17 @@ fileField name accept builder =
 imageField :: Text -> FieldBuilder -> FormBuilder
 imageField name builder =
   tellField $ buildField name (ImageField (Just "image/*")) builder
+
+-- | Add a multi-image upload field with ordering, cropping, and alt text.
+--
+-- > imagesField "product_images" do
+-- >   label "Product Images"
+-- >   maxSize 5
+-- >   previewSize 150
+-- >   currentImages existingImagesJson
+imagesField :: Text -> FieldBuilder -> FormBuilder
+imagesField name builder =
+  tellField $ buildField name (ImagesField Nothing) builder
 
 -- | Add an audio upload field with player preview.
 --

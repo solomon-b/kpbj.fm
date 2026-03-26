@@ -61,6 +61,8 @@ needsValidation field = case fType field of
   -- Staged upload fields handle their own validation via inline Alpine.js
   StagedAudioField {} -> False
   StagedImageField {} -> False
+  -- Multi-image field handles its own validation via inline Alpine.js
+  ImagesField {} -> False
   DateTimeField -> hasValidationRules field
   NumberField {} -> hasValidationRules field
   CheckboxField -> hasValidationRules field

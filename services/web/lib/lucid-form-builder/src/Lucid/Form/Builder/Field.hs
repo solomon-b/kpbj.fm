@@ -32,6 +32,8 @@ module Lucid.Form.Builder.Field
     buttonText,
     currentFile,
     aspectRatio,
+    currentImages,
+    previewSize,
 
     -- * Toggle Field Configuration
     onLabel,
@@ -116,7 +118,9 @@ mergeConfigs c1 c2 =
       fcOnValue = fcOnValue c2 <|> fcOnValue c1,
       fcOffValue = fcOffValue c2 <|> fcOffValue c1,
       fcChecked = fcChecked c1 || fcChecked c2,
-      fcDescriptionHtml = fcDescriptionHtml c2 <|> fcDescriptionHtml c1
+      fcDescriptionHtml = fcDescriptionHtml c2 <|> fcDescriptionHtml c1,
+      fcPreviewSize = fcPreviewSize c2 <|> fcPreviewSize c1,
+      fcCurrentImages = case fcCurrentImages c2 of [] -> fcCurrentImages c1; imgs -> imgs
     }
 
 -- | Merge two validation configs.
@@ -223,6 +227,18 @@ currentFile url = tellConfig $ \c -> c {fcCurrentValue = Just url}
 -- >   aspectRatio (1, 1)  -- Square
 aspectRatio :: (Int, Int) -> FieldBuilder
 aspectRatio ratio = tellConfig $ \c -> c {fcAspectRatio = Just ratio}
+
+-- | Set the existing images for an imagesField.
+--
+-- The form builder handles JSON serialization internally.
+currentImages :: [ImageData] -> FieldBuilder
+currentImages imgs = tellConfig $ \c -> c {fcCurrentImages = imgs}
+
+-- | Set the preview thumbnail size in pixels for an imagesField.
+--
+-- Controls the width of image thumbnails in the grid. Default is 150.
+previewSize :: Int -> FieldBuilder
+previewSize px = tellConfig $ \c -> c {fcPreviewSize = Just px}
 
 --------------------------------------------------------------------------------
 -- Toggle Field Configuration

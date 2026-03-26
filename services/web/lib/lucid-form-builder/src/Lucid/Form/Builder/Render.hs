@@ -29,10 +29,13 @@ where
 --------------------------------------------------------------------------------
 
 import Control.Monad (forM_, unless, when)
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy qualified as BSL
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Lucid qualified
 import Lucid.Alpine
 import Lucid.Base (makeAttributes)
@@ -302,6 +305,7 @@ renderField field = case fType field of
   RadioField -> renderRadioField field
   FileField accept -> renderFileField field accept
   ImageField {} -> renderImageField field
+  ImagesField {} -> renderImagesField field
   AudioField {} -> renderAudioField field
   StagedAudioField url uploadType -> renderStagedAudioField field url uploadType
   StagedImageField url uploadType -> renderStagedImageField field url uploadType
@@ -692,6 +696,21 @@ renderImageField field = do
       (ratioW, ratioH) = fromMaybe (1, 1) (fcAspectRatio cfg)
       aspectRatioStyle :: Text
       aspectRatioStyle = [i|aspect-ratio: #{ratioW} / #{ratioH}|]
+      cropperJs :: Text
+      cropperJs = cropperAlpineJs maxSizeMB ratioDecimal
+        [i|this.isValid = false; this.error = 'File exceeds #{maxSizeMB}MB limit';|]
+        [i|const input = document.getElementById('#{inputIdJs}');
+    const dt = new DataTransfer();
+    dt.items.add(croppedFile);
+    input.files = dt.files;
+    if (this.previewUrl) { URL.revokeObjectURL(this.previewUrl); }
+    this.previewUrl = URL.createObjectURL(croppedFile);
+    this.fileName = croppedFile.name;
+    this.fileSize = croppedFile.size;
+    this.currentCleared = false;
+    this.isValid = true;
+    this.error = '';|]
+        [i|const input = document.getElementById('#{inputIdJs}'); if (input) input.value = '';|]
       ratioText :: Text
       ratioText = [i|#{ratioW}:#{ratioH}|]
       ratioDecimal :: Text
@@ -711,10 +730,6 @@ renderImageField field = do
   isValid: true,
   error: '',
   isDragging: false,
-  showCropper: false,
-  cropper: null,
-  originalFile: null,
-  cropImageUrl: '',
 
   handleFileChange(event) {
     const file = event.target.files?.[0];
@@ -731,84 +746,7 @@ renderImageField field = do
     }
   },
 
-  openCropper(file) {
-    if (file.size > #{maxSizeMB * 1024 * 1024}) {
-      this.isValid = false;
-      this.error = 'File exceeds #{maxSizeMB}MB limit';
-      return;
-    }
-    this.originalFile = file;
-    this.cropImageUrl = URL.createObjectURL(file);
-    this.showCropper = true;
-    this.$nextTick(() => {
-      const img = this.$refs.cropperImage;
-      if (img && typeof Cropper !== 'undefined') {
-        this.cropper = new Cropper(img, {
-          aspectRatio: #{ratioDecimal},
-          viewMode: 1,
-          dragMode: 'move',
-          autoCropArea: 1,
-          restore: false,
-          guides: true,
-          center: true,
-          highlight: false,
-          cropBoxMovable: true,
-          cropBoxResizable: true,
-          toggleDragModeOnDblclick: false,
-        });
-      }
-    });
-  },
-
-  async confirmCrop() {
-    if (!this.cropper) return;
-    const canvas = this.cropper.getCroppedCanvas({
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageSmoothingEnabled: true,
-      imageSmoothingQuality: 'high',
-    });
-    const blob = await new Promise(resolve => {
-      canvas.toBlob(resolve, 'image/jpeg', 0.92);
-    });
-    const croppedFile = new File([blob], this.originalFile.name, {
-      type: 'image/jpeg',
-      lastModified: Date.now(),
-    });
-    const input = document.getElementById('#{inputIdJs}');
-    const dt = new DataTransfer();
-    dt.items.add(croppedFile);
-    input.files = dt.files;
-    if (this.previewUrl) {
-      URL.revokeObjectURL(this.previewUrl);
-    }
-    this.previewUrl = URL.createObjectURL(croppedFile);
-    this.fileName = croppedFile.name;
-    this.fileSize = croppedFile.size;
-    this.currentCleared = false;
-    this.isValid = true;
-    this.error = '';
-    this.closeCropper();
-  },
-
-  cancelCrop() {
-    const input = document.getElementById('#{inputIdJs}');
-    if (input) input.value = '';
-    this.closeCropper();
-  },
-
-  closeCropper() {
-    if (this.cropper) {
-      this.cropper.destroy();
-      this.cropper = null;
-    }
-    if (this.cropImageUrl) {
-      URL.revokeObjectURL(this.cropImageUrl);
-      this.cropImageUrl = '';
-    }
-    this.showCropper = false;
-    this.originalFile = null;
-  },
+  #{cropperJs}
 
   clearFile() {
     const input = document.getElementById('#{inputIdJs}');
@@ -981,75 +919,230 @@ renderImageField field = do
           "Leave unchanged to keep the current image"
 
       -- Cropper Modal
+      renderCropperModal ratioText
+
+--------------------------------------------------------------------------------
+-- Multi-Image Field
+
+-- | Render a multi-image manager with drag-and-drop reordering, cropping, and alt text.
+renderImagesField :: Field -> Lucid.Html ()
+renderImagesField field = do
+  let name = fName field
+      cfg = fConfig field
+      val = fValidation field
+      isReq = vcRequired val
+      labelText = fromMaybe name (fcLabel cfg) <> if isReq then " *" else ""
+      existingImagesJson = Text.decodeUtf8 $ BSL.toStrict $ Aeson.encode (fcCurrentImages cfg)
+      maxSizeMB = fromMaybe 10 (fcMaxSizeMB cfg)
+      thumbSize = fromMaybe 150 (fcPreviewSize cfg)
+      (ratioW, ratioH) = fromMaybe (1, 1) (fcAspectRatio cfg)
+      ratioDecimal :: Text
+      ratioDecimal = [i|#{(fromIntegral ratioW :: Double) / (fromIntegral ratioH :: Double)}|]
+      ratioText :: Text
+      ratioText = [i|#{ratioW}:#{ratioH}|]
+      hintText = fcHint cfg
+      cropperJs :: Text
+      cropperJs = cropperAlpineJs maxSizeMB ratioDecimal
+        [i|this.error = 'File exceeds #{maxSizeMB}MB limit';|]
+        [i|this.images.push({
+      id: null, url: '', alt_text: '', isNew: true,
+      file: croppedFile, previewUrl: URL.createObjectURL(croppedFile),
+      _key: 'new-' + (this._nextKey++),
+    });
+    this.syncFiles();
+    this.validate();|]
+        ""
+
+  -- Alpine.js state for the multi-image manager
+  Lucid.div_
+    [ xData_
+        [i|{
+  images: #{existingImagesJson}.map(img => ({...img, isNew: false, file: null, previewUrl: img.url, _key: 'existing-' + img.id})),
+  _nextKey: 0,
+  deletedIds: [],
+  error: '',
+  dragIdx: null,
+  dropIdx: null,
+  isDragging: false,
+
+  handleFileChange(event) {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      this.openCropper(file);
+    }
+    event.target.value = '';
+  },
+
+  handleFileDrop(event) {
+    this.isDragging = false;
+    const files = event.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    if (files.length > 1) {
+      this.error = 'Please drop one image at a time';
+      return;
+    }
+    const file = files[0];
+    if (file && file.type.startsWith('image/')) {
+      this.openCropper(file);
+    }
+  },
+
+  #{cropperJs}
+
+  removeImage(idx) {
+    const img = this.images[idx];
+    if (!img.isNew && img.id) { this.deletedIds.push(img.id); }
+    if (img.previewUrl && img.isNew) { URL.revokeObjectURL(img.previewUrl); }
+    this.images.splice(idx, 1);
+    this.syncFiles();
+    this.validate();
+  },
+
+  validate() {
+    if (#{if isReq then "true" else "false" :: Text} && this.images.length === 0) {
+      this.error = 'At least one image is required';
+      return false;
+    }
+    this.error = '';
+    return true;
+  },
+
+  handleDragStart(e, idx) { this.dragIdx = idx; e.dataTransfer.effectAllowed = 'move'; },
+  handleDragOver(e, idx) { e.preventDefault(); this.dropIdx = idx; },
+  handleDragDrop(e, idx) {
+    e.preventDefault();
+    if (this.dragIdx === null || this.dragIdx === idx) return;
+    const item = this.images.splice(this.dragIdx, 1)[0];
+    this.images.splice(idx, 0, item);
+    this.dragIdx = null;
+    this.dropIdx = null;
+    this.syncFiles();
+  },
+  handleDragEnd(e) { this.dragIdx = null; this.dropIdx = null; },
+
+  syncFiles() {
+    const input = this.$refs.filesInput;
+    if (!input) return;
+    const dt = new DataTransfer();
+    this.images.filter(img => img.isNew && img.file).forEach(img => {
+      dt.items.add(img.file);
+    });
+    input.files = dt.files;
+  },
+
+  serializeData() {
+    return JSON.stringify(this.images.map((img, idx) => ({
+      id: img.id, sort_order: idx, alt_text: img.alt_text || '',
+    })));
+  },
+
+  serializeDeleted() {
+    return JSON.stringify(this.deletedIds);
+  },
+}|],
+      Lucid.class_ "fb-field"
+    ]
+    $ do
+      -- Label
+      Lucid.label_ [Lucid.class_ "fb-label"] (Lucid.toHtml labelText)
+
+      -- Error display
       Lucid.div_
-        [ xShow_ "showCropper",
-          Lucid.style_ "display: none;",
-          Lucid.class_ "fb-image-crop-modal"
+        [ xShow_ "error",
+          Lucid.class_ "fb-error",
+          Lucid.style_ "display: none;"
+        ]
+        $ Lucid.span_ [xText_ "error"] ""
+
+      -- Image grid
+      Lucid.div_
+        [ Lucid.class_ "fb-images-grid",
+          Lucid.style_ [i|--fb-images-thumb-size: #{thumbSize}px; --fb-images-aspect-ratio: #{ratioW} / #{ratioH};|]
         ]
         $ do
-          -- Backdrop
-          Lucid.div_
-            [ xOnClick_ "cancelCrop()",
-              Lucid.class_ "fb-image-crop-backdrop"
-            ]
-            mempty
+          -- Existing and new image cards
+          Lucid.template_ [xFor_ "(img, idx) in images", xKey_ "img._key"]
+            $ Lucid.div_
+              [ makeAttributes "draggable" "true",
+                xOn_ "dragstart" "handleDragStart($event, idx)",
+                xOn_ "dragover.prevent" "handleDragOver($event, idx)",
+                xOn_ "drop.prevent" "handleDragDrop($event, idx)",
+                xOn_ "dragend" "handleDragEnd($event)",
+                xBindClass_ "{ 'fb-images-card--drag-over': dropIdx === idx }",
+                Lucid.class_ "fb-images-card"
+              ]
+            $ do
+              -- Image preview
+              Lucid.img_
+                [ xBindSrc_ "img.previewUrl || img.url",
+                  Lucid.class_ "fb-images-card-img",
+                  Lucid.alt_ "Image preview"
+                ]
 
-          -- Modal content
-          Lucid.div_ [Lucid.class_ "fb-image-crop-dialog"] $ do
-            -- Header
-            Lucid.div_ [Lucid.class_ "fb-image-crop-header"] $ do
-              Lucid.h3_ [Lucid.class_ "fb-image-crop-title"] $ do
-                "Crop Image"
-                Lucid.span_ [Lucid.class_ "fb-image-crop-ratio"] $
-                  Lucid.toHtml ([i|(#{ratioText} ratio)|] :: Text)
+              -- Remove button
               Lucid.button_
                 [ Lucid.type_ "button",
-                  xOnClick_ "cancelCrop()",
-                  Lucid.class_ "fb-image-crop-close"
+                  xOnClick_ "removeImage(idx)",
+                  Lucid.class_ "fb-images-remove"
                 ]
-                "×"
+                "\215"
 
-            -- Cropper container
-            Lucid.div_ [Lucid.class_ "fb-image-crop-container"] $
-              Lucid.img_
-                [ xRef_ "cropperImage",
-                  xBindSrc_ "cropImageUrl",
-                  Lucid.class_ "fb-image-crop-img",
-                  Lucid.alt_ "Image to crop"
+              -- Alt text input
+              Lucid.input_
+                [ Lucid.type_ "text",
+                  xModel_ "img.alt_text",
+                  Lucid.placeholder_ "Alt text",
+                  Lucid.class_ "fb-images-alt-input"
                 ]
 
-            -- Footer with actions
-            Lucid.div_ [Lucid.class_ "fb-image-crop-footer"] $ do
-              -- Zoom controls
-              Lucid.div_ [Lucid.class_ "fb-image-crop-zoom"] $ do
-                Lucid.button_
-                  [ Lucid.type_ "button",
-                    xOnClick_ "cropper?.zoom(-0.1)",
-                    Lucid.class_ "fb-image-crop-zoom-btn"
-                  ]
-                  "−"
-                Lucid.span_ [Lucid.class_ "fb-image-crop-zoom-label"] "Zoom"
-                Lucid.button_
-                  [ Lucid.type_ "button",
-                    xOnClick_ "cropper?.zoom(0.1)",
-                    Lucid.class_ "fb-image-crop-zoom-btn"
-                  ]
-                  "+"
+          -- Add zone
+          Lucid.div_
+            [ xOnClick_ "$refs.addInput.click()",
+              xOnDragover_ "isDragging = true",
+              xOnDragleave_ "isDragging = false",
+              xOnDrop_ "handleFileDrop($event)",
+              Lucid.class_ "fb-images-add-zone"
+            ]
+            $ Lucid.span_ [Lucid.class_ "fb-images-add-label"] "+ Add Image"
 
-              -- Action buttons
-              Lucid.div_ [Lucid.class_ "fb-image-crop-actions"] $ do
-                Lucid.button_
-                  [ Lucid.type_ "button",
-                    xOnClick_ "cancelCrop()",
-                    Lucid.class_ "fb-image-crop-cancel"
-                  ]
-                  "Cancel"
-                Lucid.button_
-                  [ Lucid.type_ "button",
-                    xOnClick_ "confirmCrop()",
-                    Lucid.class_ "fb-image-crop-confirm"
-                  ]
-                  "Apply Crop"
+      -- Hidden file input for adding images (triggers cropper)
+      Lucid.input_
+        [ Lucid.type_ "file",
+          Lucid.accept_ "image/jpeg,image/jpg,image/png,image/webp,image/gif",
+          xRef_ "addInput",
+          xOnChange_ "handleFileChange($event)",
+          Lucid.style_ "display: none;"
+        ]
+
+      -- Hidden file input that holds all new image files for form submission
+      Lucid.input_
+        [ Lucid.type_ "file",
+          Lucid.name_ (name <> "_files"),
+          makeAttributes "multiple" "multiple",
+          xRef_ "filesInput",
+          Lucid.style_ "display: none;"
+        ]
+
+      -- Hidden metadata (image data JSON)
+      Lucid.input_
+        [ Lucid.type_ "hidden",
+          Lucid.name_ (name <> "_data"),
+          xBindValue_ "serializeData()"
+        ]
+
+      -- Hidden deleted IDs
+      Lucid.input_
+        [ Lucid.type_ "hidden",
+          Lucid.name_ (name <> "_deleted"),
+          xBindValue_ "serializeDeleted()"
+        ]
+
+      -- Cropper Modal
+      renderCropperModal ratioText
+
+      -- Hint text
+      forM_ hintText $ \h ->
+        Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Audio Field
@@ -2218,3 +2311,156 @@ renderToggleField field = do
     -- Hint
     forM_ (fcHint cfg) $ \h ->
       Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+
+--------------------------------------------------------------------------------
+-- Shared Cropper Helpers
+
+-- | Alpine.js state and methods for Cropper.js integration.
+--
+-- Returns a JS fragment to splice into an @x-data@ object. Includes:
+-- @showCropper@, @cropper@, @pendingFile@, @cropImageUrl@ state, and
+-- @openCropper@, @confirmCrop@, @cancelCrop@, @closeCropper@ methods.
+cropperAlpineJs ::
+  -- | Max file size in MB.
+  Int ->
+  -- | Aspect ratio as a decimal (e.g., "1.333").
+  Text ->
+  -- | JS to run when file exceeds size limit.
+  Text ->
+  -- | JS to run after crop with @croppedFile@ in scope.
+  Text ->
+  -- | JS to run on cancel.
+  Text ->
+  Text
+cropperAlpineJs maxSizeMB ratioDecimal onSizeError onConfirmCrop onCancel =
+  [i|
+  showCropper: false,
+  cropper: null,
+  pendingFile: null,
+  cropImageUrl: '',
+
+  openCropper(file) {
+    if (file.size > #{maxSizeMB * 1024 * 1024}) {
+      #{onSizeError}
+      return;
+    }
+    this.pendingFile = file;
+    this.cropImageUrl = URL.createObjectURL(file);
+    this.showCropper = true;
+    this.$nextTick(() => {
+      const img = this.$refs.cropperImage;
+      if (img && typeof Cropper !== 'undefined') {
+        this.cropper = new Cropper(img, {
+          aspectRatio: #{ratioDecimal},
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 1,
+          restore: false,
+          guides: true,
+          center: true,
+          highlight: false,
+          cropBoxMovable: true,
+          cropBoxResizable: true,
+          toggleDragModeOnDblclick: false,
+        });
+      }
+    });
+  },
+
+  async confirmCrop() {
+    if (!this.cropper) return;
+    const canvas = this.cropper.getCroppedCanvas({
+      maxWidth: 2048, maxHeight: 2048,
+      imageSmoothingEnabled: true, imageSmoothingQuality: 'high',
+    });
+    const blob = await new Promise(resolve => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.92);
+    });
+    const croppedFile = new File([blob], this.pendingFile.name, {
+      type: 'image/jpeg', lastModified: Date.now(),
+    });
+    #{onConfirmCrop}
+    this.closeCropper();
+  },
+
+  cancelCrop() {
+    #{onCancel}
+    this.closeCropper();
+  },
+
+  closeCropper() {
+    if (this.cropper) { this.cropper.destroy(); this.cropper = null; }
+    if (this.cropImageUrl) { URL.revokeObjectURL(this.cropImageUrl); this.cropImageUrl = ''; }
+    this.showCropper = false;
+    this.pendingFile = null;
+  },
+|]
+
+-- | Render the shared cropper modal HTML.
+renderCropperModal ::
+  -- | Aspect ratio text for display (e.g., "16:9").
+  Text ->
+  Lucid.Html ()
+renderCropperModal ratioText = do
+  Lucid.div_
+    [ xShow_ "showCropper",
+      Lucid.style_ "display: none;",
+      Lucid.class_ "fb-image-crop-modal"
+    ]
+    $ do
+      Lucid.div_
+        [ xOnClick_ "cancelCrop()",
+          Lucid.class_ "fb-image-crop-backdrop"
+        ]
+        mempty
+
+      Lucid.div_ [Lucid.class_ "fb-image-crop-dialog"] $ do
+        Lucid.div_ [Lucid.class_ "fb-image-crop-header"] $ do
+          Lucid.h3_ [Lucid.class_ "fb-image-crop-title"] $ do
+            "Crop Image"
+            Lucid.span_ [Lucid.class_ "fb-image-crop-ratio"] $
+              Lucid.toHtml ([i|(#{ratioText} ratio)|] :: Text)
+          Lucid.button_
+            [ Lucid.type_ "button",
+              xOnClick_ "cancelCrop()",
+              Lucid.class_ "fb-image-crop-close"
+            ]
+            "\215"
+
+        Lucid.div_ [Lucid.class_ "fb-image-crop-container"] $
+          Lucid.img_
+            [ xRef_ "cropperImage",
+              xBindSrc_ "cropImageUrl",
+              Lucid.class_ "fb-image-crop-img",
+              Lucid.alt_ "Image to crop"
+            ]
+
+        Lucid.div_ [Lucid.class_ "fb-image-crop-footer"] $ do
+          Lucid.div_ [Lucid.class_ "fb-image-crop-zoom"] $ do
+            Lucid.button_
+              [ Lucid.type_ "button",
+                xOnClick_ "cropper?.zoom(-0.1)",
+                Lucid.class_ "fb-image-crop-zoom-btn"
+              ]
+              "\8722"
+            Lucid.span_ [Lucid.class_ "fb-image-crop-zoom-label"] "Zoom"
+            Lucid.button_
+              [ Lucid.type_ "button",
+                xOnClick_ "cropper?.zoom(0.1)",
+                Lucid.class_ "fb-image-crop-zoom-btn"
+              ]
+              "+"
+
+          Lucid.div_ [Lucid.class_ "fb-image-crop-actions"] $ do
+            Lucid.button_
+              [ Lucid.type_ "button",
+                xOnClick_ "cancelCrop()",
+                Lucid.class_ "fb-image-crop-cancel"
+              ]
+              "Cancel"
+            Lucid.button_
+              [ Lucid.type_ "button",
+                xOnClick_ "confirmCrop()",
+                Lucid.class_ "fb-image-crop-confirm"
+              ]
+              "Apply Crop"

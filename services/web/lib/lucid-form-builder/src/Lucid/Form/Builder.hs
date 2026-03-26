@@ -67,6 +67,7 @@ module Lucid.Form.Builder
     radioField,
     fileField,
     imageField,
+    imagesField,
     audioField,
     stagedImageField,
     stagedAudioField,
@@ -108,6 +109,8 @@ module Lucid.Form.Builder
     buttonText,
     currentFile,
     aspectRatio,
+    currentImages,
+    previewSize,
 
     -- * Toggle Field Configuration
     onLabel,
@@ -136,6 +139,7 @@ module Lucid.Form.Builder
     -- * Types (re-exports from Types)
     SelectOption (..),
     FormFooterItem (..),
+    ImageData (..),
 
     -- * JS Expressions (for advanced custom validation)
     JSExpr,
@@ -183,6 +187,7 @@ import Lucid.Form.Builder.Core
     formTitle,
     hidden,
     imageField,
+    imagesField,
     numberField,
     passwordField,
     plain,
@@ -207,6 +212,7 @@ import Lucid.Form.Builder.Field
     checked,
     classes,
     currentFile,
+    currentImages,
     customValidation,
     description,
     disabled,
@@ -221,6 +227,7 @@ import Lucid.Form.Builder.Field
     onValue,
     pattern',
     placeholder,
+    previewSize,
     required,
     value,
   )
@@ -231,4 +238,4 @@ import Lucid.Form.Builder.Render
     defaultFormConfig,
     renderForm,
   )
-import Lucid.Form.Builder.Types (FormFooterItem (..), SelectOption (..))
+import Lucid.Form.Builder.Types (FormFooterItem (..), ImageData (..), SelectOption (..))
