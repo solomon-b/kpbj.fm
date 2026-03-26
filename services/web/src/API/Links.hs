@@ -45,6 +45,10 @@ module API.Links
     dashboardMissingEpisodesLink,
     dashboardAnalyticsLinks,
     dashboardInvitationsLinks,
+    dashboardStoreLinks,
+    dashboardStoreProductsLinks,
+    dashboardStoreSettingsLinks,
+    dashboardStoreOrdersLinks,
     inviteLinks,
     staticAssetLink,
   )
@@ -179,3 +183,19 @@ inviteLinks = apiLinks.invite
 -- | Static asset link by filename.
 staticAssetLink :: Text -> Link
 staticAssetLink = apiLinks.staticGet
+
+-- | Dashboard store route links.
+dashboardStoreLinks :: DashboardStoreRoutes (AsLink Link)
+dashboardStoreLinks = dashboardAdminLinks.store
+
+-- | Dashboard store products route links.
+dashboardStoreProductsLinks :: DashboardStoreProductsRoutes (AsLink Link)
+dashboardStoreProductsLinks = dashboardStoreLinks.products
+
+-- | Dashboard store settings route links.
+dashboardStoreSettingsLinks :: DashboardStoreSettingsRoutes (AsLink Link)
+dashboardStoreSettingsLinks = dashboardStoreLinks.settings
+
+-- | Dashboard store orders route links.
+dashboardStoreOrdersLinks :: DashboardStoreOrdersRoutes (AsLink Link)
+dashboardStoreOrdersLinks = dashboardStoreLinks.orders

@@ -29,6 +29,10 @@ module API.Types
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     DashboardAnalyticsRoutes (..),
+    DashboardStoreRoutes (..),
+    DashboardStoreProductsRoutes (..),
+    DashboardStoreSettingsRoutes (..),
+    DashboardStoreOrdersRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
     AnalyticsRoutes (..),
@@ -107,6 +111,15 @@ import API.Dashboard.StationIds.Get.Route qualified as Dashboard.StationIds.Get
 import API.Dashboard.StationIds.Id.Delete.Route qualified as Dashboard.StationIds.Id.Delete
 import API.Dashboard.StationIds.New.Get.Route qualified as Dashboard.StationIds.New.Get
 import API.Dashboard.StationIds.New.Post.Route qualified as Dashboard.StationIds.New.Post
+import API.Dashboard.Store.Orders.Get.Route qualified as Dashboard.Store.Orders.Get
+import API.Dashboard.Store.Products.Create.Post.Route qualified as Dashboard.Store.Products.Create.Post
+import API.Dashboard.Store.Products.Get.Route qualified as Dashboard.Store.Products.Get
+import API.Dashboard.Store.Products.Id.Deactivate.Post.Route qualified as Dashboard.Store.Products.Id.Deactivate.Post
+import API.Dashboard.Store.Products.Id.Edit.Get.Route qualified as Dashboard.Store.Products.Id.Edit.Get
+import API.Dashboard.Store.Products.Id.Edit.Post.Route qualified as Dashboard.Store.Products.Id.Edit.Post
+import API.Dashboard.Store.Products.Id.Get.Route qualified as Dashboard.Store.Products.Id.Get
+import API.Dashboard.Store.Settings.Get.Route qualified as Dashboard.Store.Settings.Get
+import API.Dashboard.Store.Settings.Post.Route qualified as Dashboard.Store.Settings.Post
 import API.Dashboard.StreamSettings.Episodes.Search.Get.Route qualified as Dashboard.StreamSettings.Episodes.Search.Get
 import API.Dashboard.StreamSettings.ForceEpisode.Post.Route qualified as Dashboard.StreamSettings.ForceEpisode.Post
 import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSettings.Get
@@ -377,7 +390,9 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @GET /dashboard/missing-episodes@ - Shows missing episode uploads
     missingEpisodes :: mode :- Dashboard.MissingEpisodes.Get.Route,
     -- | @/dashboard/analytics/...@ - Analytics dashboard routes
-    analytics :: mode :- NamedRoutes DashboardAnalyticsRoutes
+    analytics :: mode :- NamedRoutes DashboardAnalyticsRoutes,
+    -- | @/dashboard/store/...@ - Store management routes
+    store :: mode :- NamedRoutes DashboardStoreRoutes
   }
   deriving stock (Generic)
 
@@ -612,6 +627,52 @@ data DashboardInvitationsRoutes mode = DashboardInvitationsRoutes
     regenerate :: mode :- Dashboard.Invitations.Regenerate.Route,
     -- | @DELETE /dashboard/invitations/:invitationId@ - Revoke invitation
     delete :: mode :- Dashboard.Invitations.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard store management routes under @/dashboard/store@.
+--
+-- For staff and admins to manage the online store: products, orders, and settings.
+data DashboardStoreRoutes mode = DashboardStoreRoutes
+  { -- | @/dashboard/store/products/...@ - Product management routes
+    products :: mode :- NamedRoutes DashboardStoreProductsRoutes,
+    -- | @/dashboard/store/orders/...@ - Order management routes
+    orders :: mode :- NamedRoutes DashboardStoreOrdersRoutes,
+    -- | @/dashboard/store/settings/...@ - Store settings routes
+    settings :: mode :- NamedRoutes DashboardStoreSettingsRoutes
+  }
+  deriving stock (Generic)
+
+-- | Dashboard store product management routes under @/dashboard/store/products@.
+data DashboardStoreProductsRoutes mode = DashboardStoreProductsRoutes
+  { -- | @GET /dashboard/store/products@ - Product list
+    list :: mode :- Dashboard.Store.Products.Get.Route,
+    -- | @POST /dashboard/store/products/create@ - Inline create product
+    inlineCreate :: mode :- Dashboard.Store.Products.Create.Post.Route,
+    -- | @GET /dashboard/store/products/:id@ - Product detail
+    detail :: mode :- Dashboard.Store.Products.Id.Get.Route,
+    -- | @GET /dashboard/store/products/:id/edit@ - Edit product form
+    editGet :: mode :- Dashboard.Store.Products.Id.Edit.Get.Route,
+    -- | @POST /dashboard/store/products/:id/edit@ - Update product
+    editPost :: mode :- Dashboard.Store.Products.Id.Edit.Post.Route,
+    -- | @POST /dashboard/store/products/:id/deactivate@ - Deactivate product
+    deactivate :: mode :- Dashboard.Store.Products.Id.Deactivate.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard store settings routes under @/dashboard/store/settings@.
+data DashboardStoreSettingsRoutes mode = DashboardStoreSettingsRoutes
+  { -- | @GET /dashboard/store/settings@ - Store settings page
+    get :: mode :- Dashboard.Store.Settings.Get.Route,
+    -- | @POST /dashboard/store/settings@ - Update store settings
+    post :: mode :- Dashboard.Store.Settings.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard store orders routes under @/dashboard/store/orders@.
+newtype DashboardStoreOrdersRoutes mode = DashboardStoreOrdersRoutes
+  { -- | @GET /dashboard/store/orders@ - Order list
+    list :: mode :- Dashboard.Store.Orders.Get.Route
   }
   deriving stock (Generic)
 

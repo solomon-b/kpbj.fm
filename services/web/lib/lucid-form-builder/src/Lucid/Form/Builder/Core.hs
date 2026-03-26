@@ -226,7 +226,7 @@ imageField name builder =
 -- >   currentImages existingImagesJson
 imagesField :: Text -> FieldBuilder -> FormBuilder
 imagesField name builder =
-  tellField $ buildField name (ImagesField Nothing) builder
+  tellField $ buildField name ImagesField builder
 
 -- | Add an audio upload field with player preview.
 --

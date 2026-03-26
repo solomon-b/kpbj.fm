@@ -3,6 +3,7 @@ module Main where
 --------------------------------------------------------------------------------
 
 import Data.Maybe (fromMaybe)
+import Domain.Types.CentsSpec qualified as Cents
 import Domain.Types.FileUploadSpec qualified as FileUpload
 import Domain.Types.SlugSpec qualified as Slug
 import Domain.Types.StorageBackendSpec qualified as StorageBackend
@@ -15,6 +16,12 @@ import Effects.Database.Tables.EpisodeTrackSpec qualified as EpisodeTrack
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
 import Effects.Database.Tables.EventsSpec qualified as Events
 import Effects.Database.Tables.PasswordResetTokensSpec qualified as PasswordResetTokens
+import Effects.Database.Tables.ProductImagesSpec qualified as ProductImages
+import Effects.Database.Tables.ProductOptionTypesSpec qualified as ProductOptionTypes
+import Effects.Database.Tables.ProductVariantOptionsSpec qualified as ProductVariantOptions
+import Effects.Database.Tables.ProductVariantsSpec qualified as ProductVariants
+import Effects.Database.Tables.ProductsSpec qualified as Products
+import Effects.Database.Tables.StoreSettingsSpec qualified as StoreSettings
 import Effects.Database.Tables.PlaybackHistorySpec qualified as PlaybackHistory
 import Effects.Database.Tables.ShowBlogPostsSpec qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTagsSpec qualified as ShowBlogTags
@@ -65,6 +72,7 @@ main = do
 
   -- Pure tests that don't need database
   hspecWith cfg $ parallel $ do
+    Cents.spec
     Slug.spec
     StorageBackend.spec
     FileUpload.spec
@@ -105,3 +113,11 @@ main = do
     -- DB Models - Auth Tokens
     EmailVerificationTokens.spec
     PasswordResetTokens.spec
+
+    -- DB Models - Store Tables
+    Products.spec
+    ProductImages.spec
+    ProductVariants.spec
+    ProductOptionTypes.spec
+    ProductVariantOptions.spec
+    StoreSettings.spec

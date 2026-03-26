@@ -10,6 +10,7 @@ module Test.Database.Helpers
     insertTestEpisode,
     insertTestEphemeralUpload,
     insertTestStationId,
+    insertTestProduct,
     addTestShowHost,
     verifyTestUserEmail,
     unwrapInsert,
@@ -22,6 +23,7 @@ import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.Products qualified as Products
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -99,6 +101,10 @@ insertTestEphemeralUpload = unwrapInsert . EphemeralUploads.insertEphemeralUploa
 -- | Insert a station ID and return the station ID.
 insertTestStationId :: StationIds.Insert -> TRX.Transaction StationIds.Id
 insertTestStationId = unwrapInsert . StationIds.insertStationId
+
+-- | Insert a product and return the product ID.
+insertTestProduct :: Products.Insert -> TRX.Transaction Products.Id
+insertTestProduct = unwrapInsert . Products.insertProduct
 
 -- | Make a user a host of a show.
 addTestShowHost :: Shows.Id -> User.Id -> TRX.Transaction ()

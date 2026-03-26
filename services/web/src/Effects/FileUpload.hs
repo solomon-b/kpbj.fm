@@ -6,6 +6,7 @@ module Effects.FileUpload
     uploadShowLogo,
     uploadBlogHeroImage,
     uploadEventPosterImage,
+    uploadProductImage,
     uploadUserAvatar,
 
     -- * Helper functions
@@ -73,7 +74,7 @@ uploadEpisodeArtwork backend mAwsEnv showSlug mScheduledDate fileData
 
         -- Get time and random seed
         time <- liftIO $ maybe getCurrentTime pure mScheduledDate
-        seed <- liftIO Random.getStdGen
+        seed <- liftIO Random.newStdGen
 
         -- Validate with browser-provided MIME type and file size
         liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
@@ -128,7 +129,7 @@ uploadShowLogo backend mAwsEnv showSlug fileData
 
         -- Get time and random seed
         time <- liftIO getCurrentTime
-        seed <- liftIO Random.getStdGen
+        seed <- liftIO Random.newStdGen
 
         -- Validate with browser-provided MIME type and file size
         liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
@@ -182,7 +183,7 @@ uploadBlogHeroImage backend mAwsEnv postSlug fileData
 
         -- Get time and random seed
         time <- liftIO getCurrentTime
-        seed <- liftIO Random.getStdGen
+        seed <- liftIO Random.newStdGen
 
         -- Validate with browser-provided MIME type and file size
         liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
@@ -236,7 +237,7 @@ uploadEventPosterImage backend mAwsEnv eventSlug fileData
 
         -- Get time and random seed
         time <- liftIO getCurrentTime
-        seed <- liftIO Random.getStdGen
+        seed <- liftIO Random.newStdGen
 
         -- Validate with browser-provided MIME type and file size
         liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
@@ -252,6 +253,62 @@ uploadEventPosterImage backend mAwsEnv eventSlug fileData
 
         -- Store file using appropriate backend
         objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket EventPosterImage dateHier filename content actualMimeType
+
+        pure $
+          Just
+            UploadResult
+              { uploadResultOriginalName = originalName,
+                uploadResultStoragePath = Text.unpack objectKey,
+                uploadResultMimeType = actualMimeType,
+                uploadResultFileSize = fileSize
+              }
+
+-- | Upload an image for a store product.
+--
+-- Validates the image file using both browser-provided MIME type and magic byte detection,
+-- then stores it using the configured storage backend.
+--
+-- Returns 'Nothing' if no file was provided (empty upload).
+-- Product images are optional but when provided must pass validation.
+--
+-- Storage path format: images\/store\/{YYYY}\/{MM}\/{DD}\/{product-slug}_{hash}.{ext}
+uploadProductImage ::
+  (MonadIO m, MonadMask m, Log.MonadLog m) =>
+  -- | Storage backend configuration
+  StorageBackend ->
+  -- | AWS environment (required for S3, Nothing for local)
+  Maybe AWS.Env ->
+  -- | Product slug for filename prefix
+  Text ->
+  -- | Uploaded product image file data
+  FileData Mem ->
+  m (Either UploadError (Maybe UploadResult))
+uploadProductImage backend mAwsEnv productSlug fileData
+  | isEmptyUpload fileData = pure (Right Nothing)
+  | otherwise =
+      withTempUpload fileData $ \tempPath content -> runExceptT $ do
+        let originalName = fdFileName fileData
+            browserMimeType = fdFileCType fileData
+            fileSize = fromIntegral $ BS.length content
+
+        -- Get time and random seed
+        time <- liftIO getCurrentTime
+        seed <- liftIO Random.newStdGen
+
+        -- Validate with browser-provided MIME type and file size
+        liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+
+        -- Validate actual file content against magic bytes
+        actualMimeType <- ExceptT $ do
+          either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+
+        -- Generate filename and date hierarchy
+        let dateHier = dateHierarchyFromTime time
+            extension = getExtensionFromMimeType actualMimeType
+            filename = generateUniqueFilename productSlug extension seed
+
+        -- Store file using appropriate backend
+        objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket ProductImage dateHier filename content actualMimeType
 
         pure $
           Just
@@ -290,7 +347,7 @@ uploadUserAvatar backend mAwsEnv userId fileData
 
         -- Get time and random seed
         time <- liftIO getCurrentTime
-        seed <- liftIO Random.getStdGen
+        seed <- liftIO Random.newStdGen
 
         -- Validate with browser-provided MIME type and file size
         liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
