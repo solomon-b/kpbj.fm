@@ -122,7 +122,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: [ p.kpbj-types p.kpbj-database p.kpbj-email p.kpbj-api p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots ];
+            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-database p.kpbj-email p.kpbj-api p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
