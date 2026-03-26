@@ -19,6 +19,9 @@ module Lucid.Form.Builder.Types
     FieldConfig (..),
     defaultFieldConfig,
 
+    -- * Images Field Data
+    ImageData (..),
+
     -- * Sections
     Section (..),
 
@@ -35,7 +38,11 @@ where
 --------------------------------------------------------------------------------
 
 import Control.Applicative ((<|>))
+import Data.Aeson (FromJSON (..), ToJSON (..), withObject, (.:), (.:?))
+import Data.Aeson qualified as Aeson
+import Data.Int (Int64)
 import Data.Text (Text)
+import GHC.Generics (Generic)
 import Lucid qualified
 
 --------------------------------------------------------------------------------
@@ -148,6 +155,10 @@ data FieldType
       { sifUploadUrl :: Text,
         sifUploadType :: Text
       }
+  | -- | Multi-image upload with ordering, cropping, and alt text
+    ImagesField
+      { ifsAccept :: Maybe Text
+      }
   | -- | Date and time picker
     DateTimeField
   | -- | Numeric input
@@ -203,7 +214,11 @@ data FieldConfig = FieldConfig
     -- | Initial checked/on state for toggles
     fcChecked :: Bool,
     -- | Rich description (HTML) for checkboxes
-    fcDescriptionHtml :: Maybe (Lucid.Html ())
+    fcDescriptionHtml :: Maybe (Lucid.Html ()),
+    -- | Preview thumbnail width in pixels (imagesField only, default 150)
+    fcPreviewSize :: Maybe Int,
+    -- | Existing images for imagesField
+    fcCurrentImages :: [ImageData]
   }
   deriving stock (Show)
 
@@ -227,7 +242,9 @@ defaultFieldConfig =
       fcOnValue = Nothing,
       fcOffValue = Nothing,
       fcChecked = False,
-      fcDescriptionHtml = Nothing
+      fcDescriptionHtml = Nothing,
+      fcPreviewSize = Nothing,
+      fcCurrentImages = []
     }
 
 --------------------------------------------------------------------------------
@@ -259,6 +276,39 @@ data SelectOption = SelectOption
     soDescription :: Maybe Text
   }
   deriving stock (Show, Eq)
+
+--------------------------------------------------------------------------------
+-- Images Field Data
+
+-- | Data for a single image in an 'imagesField'.
+--
+-- This type is owned by the form builder — it defines the contract between
+-- the handler (which constructs values from domain data) and the Alpine.js
+-- component (which consumes the JSON).
+data ImageData = ImageData
+  { -- | Database ID (Nothing for newly uploaded images)
+    imgId :: Maybe Int64,
+    -- | URL path for display (e.g. "/images/store/2026/03/25/product.jpg")
+    imgUrl :: Text,
+    -- | Accessibility text
+    imgAltText :: Text
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON ImageData where
+  toJSON img =
+    Aeson.object
+      [ "id" Aeson..= imgId img,
+        "url" Aeson..= imgUrl img,
+        "alt_text" Aeson..= imgAltText img
+      ]
+
+instance FromJSON ImageData where
+  parseJSON = withObject "ImageData" $ \o ->
+    ImageData
+      <$> o .:? "id"
+      <*> o .: "url"
+      <*> o .: "alt_text"
 
 --------------------------------------------------------------------------------
 -- Validation
