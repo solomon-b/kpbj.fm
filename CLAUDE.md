@@ -75,7 +75,7 @@ import API.Links (rootLink, userLinks)
 Lucid.href_ (rootLink $ userLinks.loginGet Nothing Nothing)
 ```
 
-Available link structures: `apiLinks`, `blogLinks`, `eventsLinks`, `showsLinks`, `showBlogLinks`, `showEpisodesLinks`, `userLinks`, `dashboardLinks`, `dashboardHostLinks`, `dashboardAdminLinks`, etc. See `API.Links` for the full list.
+Available link structures: `apiLinks`, `blogLinks`, `eventsLinks`, `showsLinks`, `showBlogLinks`, `showEpisodesLinks`, `userLinks`, `dashboardLinks`, `dashboardHostLinks`, `dashboardAdminLinks`, `dashboardStoreLinks`, `dashboardStoreProductsLinks`, `dashboardStoreSettingsLinks`, `dashboardStoreOrdersLinks`, etc. See `API.Links` for the full list.
 
 ### Concrete AppM Monad
 
@@ -156,6 +156,9 @@ handler cookie (foldHxReq -> hxRequest) = do
 - **Uploads**: `staged_uploads`, `ephemeral_uploads`
 - **Content**: `site_pages`, `site_page_revisions`, `station_ids`
 - **Streaming**: `playback_history`
+- **Store**: `products`, `product_images`, `product_option_types`, `product_option_values`, `product_variants`, `product_variant_options`, `orders`, `order_items`, `store_settings`
+
+The `products_with_inventory` view replaces product-level inventory with the sum of active variant inventories when variants exist. All product read queries use this view.
 
 ### Access Pattern
 
@@ -177,8 +180,8 @@ Execute: `result <- execQuery (Table.getById id)`
 
 - **User**: View content, newsletter, account management
 - **Host**: Upload episodes for assigned shows, create show blogs, submit events
-- **Staff**: Station-wide blog posts, moderate content, manage multiple shows
-- **Admin**: User management, system configuration
+- **Staff**: Station-wide blog posts, moderate content, manage multiple shows, manage store products and orders
+- **Admin**: User management, system configuration, store settings
 
 Enforcement: `user_metadata.role` enum, handler combinators in `App.Handler.Combinators` (`requireAuth`, `requireHostNotSuspended`, `requireStaffNotSuspended`, `requireAdminNotSuspended`, `requireShowHostOrStaff`), role in session cookie.
 
@@ -193,6 +196,8 @@ Enforcement: `user_metadata.role` enum, handler combinators in `App.Handler.Comb
 **Structure**: `{audio,images,documents}/{resource-type}/{YYYY}/{MM}/{DD}/{slug}_{date}_{uuid}.{ext}`
 
 Example: `audio/episodes/2024/09/27/show-slug_2024-09-27_abc123.mp3`
+
+**Product Images**: Uploaded directly via `uploadProductImage` (no staged upload). Stored at `images/product-images/{YYYY}/{MM}/{DD}/{product-slug}_{uuid}.{ext}`. Uses Cropper.js for client-side cropping before upload.
 
 ## Development Commands
 

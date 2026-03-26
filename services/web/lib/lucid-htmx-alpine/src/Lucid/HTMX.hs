@@ -167,11 +167,15 @@ hxDisabledElt_ = Lucid.makeAttributes "hx-disabled-elt"
 hxOn_ :: Text -> Lucid.Attributes
 hxOn_ = Lucid.makeAttributesRaw "hx-on"
 
--- | HTMX hx-on:afterRequest attribute (raw attribute syntax).
+-- | HTMX hx-on::after-request attribute.
+--
+-- The double-colon prefix is shorthand for the @htmx:@ event namespace,
+-- so @hx-on::after-request@ listens for @htmx:afterRequest@.
+-- Note: @hx-on::@ attributes require kebab-case event names.
 --
 -- > hxOnAfterRequest_ "handleResponse()"
 hxOnAfterRequest_ :: Text -> Lucid.Attributes
-hxOnAfterRequest_ = Lucid.makeAttributesRaw "hx-on:afterRequest"
+hxOnAfterRequest_ = Lucid.makeAttributesRaw "hx-on::after-request"
 
 --------------------------------------------------------------------------------
 -- Indicators

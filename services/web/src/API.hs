@@ -29,6 +29,10 @@ module API
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     DashboardAnalyticsRoutes (..),
+    DashboardStoreRoutes (..),
+    DashboardStoreProductsRoutes (..),
+    DashboardStoreSettingsRoutes (..),
+    DashboardStoreOrdersRoutes (..),
     InviteRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
@@ -111,6 +115,15 @@ import API.Dashboard.StationIds.Get.Handler qualified as Dashboard.StationIds.Ge
 import API.Dashboard.StationIds.Id.Delete.Handler qualified as Dashboard.StationIds.Id.Delete
 import API.Dashboard.StationIds.New.Get.Handler qualified as Dashboard.StationIds.New.Get
 import API.Dashboard.StationIds.New.Post.Handler qualified as Dashboard.StationIds.New.Post
+import API.Dashboard.Store.Orders.Get.Handler qualified as Dashboard.Store.Orders.Get
+import API.Dashboard.Store.Products.Create.Post.Handler qualified as Dashboard.Store.Products.Create.Post
+import API.Dashboard.Store.Products.Get.Handler qualified as Dashboard.Store.Products.Get
+import API.Dashboard.Store.Products.Id.Deactivate.Post.Handler qualified as Dashboard.Store.Products.Id.Deactivate.Post
+import API.Dashboard.Store.Products.Id.Edit.Get.Handler qualified as Dashboard.Store.Products.Id.Edit.Get
+import API.Dashboard.Store.Products.Id.Edit.Post.Handler qualified as Dashboard.Store.Products.Id.Edit.Post
+import API.Dashboard.Store.Products.Id.Get.Handler qualified as Dashboard.Store.Products.Id.Get
+import API.Dashboard.Store.Settings.Get.Handler qualified as Dashboard.Store.Settings.Get
+import API.Dashboard.Store.Settings.Post.Handler qualified as Dashboard.Store.Settings.Post
 import API.Dashboard.StreamSettings.Episodes.Search.Get.Handler qualified as Dashboard.StreamSettings.Episodes.Search.Get
 import API.Dashboard.StreamSettings.ForceEpisode.Post.Handler qualified as Dashboard.StreamSettings.ForceEpisode.Post
 import API.Dashboard.StreamSettings.Get.Handler qualified as Dashboard.StreamSettings.Get
@@ -342,7 +355,36 @@ server =
           sitePages = dashboardSitePagesRoutes,
           streamSettings = dashboardStreamSettingsRoutes,
           missingEpisodes = Dashboard.MissingEpisodes.Get.handler,
-          analytics = dashboardAnalyticsRoutes
+          analytics = dashboardAnalyticsRoutes,
+          store = dashboardStoreRoutes
+        }
+
+    dashboardStoreRoutes =
+      DashboardStoreRoutes
+        { products = dashboardStoreProductsRoutes,
+          orders = dashboardStoreOrdersRoutes,
+          settings = dashboardStoreSettingsRoutes
+        }
+
+    dashboardStoreProductsRoutes =
+      DashboardStoreProductsRoutes
+        { list = Dashboard.Store.Products.Get.handler,
+          inlineCreate = Dashboard.Store.Products.Create.Post.handler,
+          detail = Dashboard.Store.Products.Id.Get.handler,
+          editGet = Dashboard.Store.Products.Id.Edit.Get.handler,
+          editPost = Dashboard.Store.Products.Id.Edit.Post.handler,
+          deactivate = Dashboard.Store.Products.Id.Deactivate.Post.handler
+        }
+
+    dashboardStoreSettingsRoutes =
+      DashboardStoreSettingsRoutes
+        { get = Dashboard.Store.Settings.Get.handler,
+          post = Dashboard.Store.Settings.Post.handler
+        }
+
+    dashboardStoreOrdersRoutes =
+      DashboardStoreOrdersRoutes
+        { list = Dashboard.Store.Orders.Get.handler
         }
 
     dashboardInvitationsRoutes =
