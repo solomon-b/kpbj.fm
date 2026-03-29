@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardLinks, eventsLinks, rootLink, scheduleLink, showsLinks, staticAssetLink, userLinks)
+import API.Links (apiLinks, dashboardLinks, eventsLinks, rootLink, scheduleLink, showsLinks, staticAssetLink, storeLinks, userLinks)
 import API.Types
 import App.CustomContext (StreamConfig (..))
 import Component.Banner (bannerContainerId)
@@ -54,6 +54,12 @@ showsGetUrl = Link.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Not
 
 eventsGetUrl :: Link.URI
 eventsGetUrl = Link.linkURI eventsLinks.list
+
+storeGetUrl :: Link.URI
+storeGetUrl = Link.linkURI storeLinks.list
+
+storeCartGetUrl :: Link.URI
+storeCartGetUrl = Link.linkURI storeLinks.cart
 
 --------------------------------------------------------------------------------
 
@@ -640,6 +646,65 @@ clearBannerOnNavScript =
     });
   |]
 
+-- | Alpine global cart store.
+--
+-- Registered via @alpine:init@ event so it's available before Alpine initializes.
+-- Persists cart items to localStorage under @kpbj-cart@. Accessible from any
+-- Alpine component via @$store.cart@.
+cartStoreScript :: Text
+cartStoreScript =
+  [i|
+    document.addEventListener('alpine:init', () => {
+      Alpine.store('cart', {
+        items: [],
+
+        init() {
+          const saved = localStorage.getItem('kpbj-cart');
+          if (saved) {
+            try { this.items = JSON.parse(saved); } catch(e) { this.items = []; }
+          }
+          Alpine.effect(() => {
+            localStorage.setItem('kpbj-cart', JSON.stringify(this.items));
+          });
+        },
+
+        addItem(productId, variantId, quantity) {
+          const existing = this.items.find(i =>
+            i.productId === productId && i.variantId === variantId
+          );
+          if (existing) {
+            existing.quantity += quantity;
+          } else {
+            this.items.push({ productId, variantId, quantity });
+          }
+        },
+
+        removeItem(productId, variantId) {
+          this.items = this.items.filter(i =>
+            !(i.productId === productId && i.variantId === variantId)
+          );
+        },
+
+        updateQuantity(productId, variantId, qty) {
+          const item = this.items.find(i =>
+            i.productId === productId && i.variantId === variantId
+          );
+          if (item) {
+            item.quantity = Math.max(1, qty);
+          }
+        },
+
+        itemCount() {
+          return this.items.reduce((sum, i) => sum + i.quantity, 0);
+        },
+
+        clear() {
+          this.items = [];
+        }
+      });
+    });
+  |]
+
 authWidget :: Maybe UserMetadata.Model -> Lucid.Html ()
 authWidget mUser =
   Lucid.div_ [class_ $ base ["flex", Tokens.gap4, "items-center", Tokens.textSm, Tokens.fgMuted]] $ do
@@ -655,6 +720,19 @@ authWidget mUser =
         when (UserMetadata.isHostOrHigher user.mUserRole) $
           Lucid.a_ [Lucid.href_ [i|/#{dashboardGetUrl}|], class_ $ base [Tokens.linkText, Tokens.fontBold]] "Dashboard"
         Lucid.a_ [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.fgMuted, "hover:opacity-70"], hxGet_ [i|/#{userLogoutGetUrl}|]] "Logout"
+    -- Cart counter (hidden when empty, appears after auth links)
+    Lucid.a_
+      [ Lucid.href_ [i|/#{storeCartGetUrl}|],
+        hxGet_ [i|/#{storeCartGetUrl}|],
+        hxTarget_ "#main-content",
+        hxPushUrl_ "true",
+        xShow_ "$store.cart.itemCount() > 0",
+        class_ $ base [Tokens.fgMuted, "hover:opacity-70"]
+      ]
+      $ do
+        "Cart ("
+        Lucid.span_ [xText_ "$store.cart.itemCount()"] mempty
+        ")"
 
 logo :: Lucid.Html ()
 logo =
@@ -706,8 +784,27 @@ mobileHeader _mUser =
         "☰"
       -- Centered logo (flex-1 pushes it to center)
       Lucid.div_ [class_ $ base ["flex-1", "flex", "justify-center"]] miniLogo
-      -- Invisible spacer to balance hamburger button (same size)
-      Lucid.div_ [class_ $ base [Tokens.p2, Tokens.textLg, "invisible"]] $ Lucid.toHtml @Text "☰"
+      -- Cart icon (visible when items in cart) / invisible spacer (when empty)
+      Lucid.a_
+        [ Lucid.href_ [i|/#{storeCartGetUrl}|],
+          hxGet_ [i|/#{storeCartGetUrl}|],
+          hxTarget_ "#main-content",
+          hxPushUrl_ "true",
+          xShow_ "$store.cart.itemCount() > 0",
+          class_ $ base [Tokens.p2, Tokens.textLg, Tokens.fgPrimary, "hover:opacity-70"]
+        ]
+        $ do
+          Lucid.span_ [class_ $ base [Tokens.fontBold]] "Cart"
+          Lucid.span_ [class_ $ base [Tokens.textSm]] $ do
+            " ("
+            Lucid.span_ [xText_ "$store.cart.itemCount()"] mempty
+            ")"
+      -- Invisible spacer when cart is empty (preserves centering)
+      Lucid.div_
+        [ xShow_ "$store.cart.itemCount() <= 0",
+          class_ $ base [Tokens.p2, Tokens.textLg, "invisible"]
+        ]
+        $ Lucid.toHtml @Text "☰"
 
 -- | Full-screen mobile menu overlay
 -- Appears when hamburger is tapped, smooth fade/slide transition
@@ -740,6 +837,7 @@ mobileNavLinks mUser =
     mobileNavLink "Schedule" scheduleGetUrl
     mobileNavLink "Donate" donateGetUrl
     mobileNavLink "Events" eventsGetUrl
+    mobileNavLink "Store" storeGetUrl
     -- mobileNavLink "Blog" blogGetUrl
     mobileNavLink "About" aboutGetUrl
     Lucid.a_
@@ -795,6 +893,7 @@ navigation =
     Lucid.a_ [Lucid.id_ "nav-schedule", Lucid.href_ [i|/#{scheduleGetUrl}|], hxGet_ [i|/#{scheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Schedule"
     Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Donate"
     Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Events"
+    Lucid.a_ [Lucid.id_ "nav-store", Lucid.href_ [i|/#{storeGetUrl}|], hxGet_ [i|/#{storeGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Store"
     -- Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Blog"
     Lucid.a_ [Lucid.id_ "nav-about", Lucid.href_ [i|/#{aboutGetUrl}|], hxGet_ [i|/#{aboutGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "About"
     Lucid.a_ [Lucid.id_ "nav-contact", Lucid.href_ "mailto:contact@kpbj.fm", Lucid.class_ navLinkDark] "Contact"
@@ -829,6 +928,7 @@ template mGoogleAnalyticsId streamSettings mUser main =
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "alpine.min.js"), Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { darkMode: 'class', theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] playerScript
+      Lucid.script_ [] cartStoreScript
       Lucid.script_ [] (darkModeScript (UserMetadata.mColorScheme <$> mUser))
       Lucid.script_ [] activeNavScript
       Lucid.script_ [] bannerFromUrlScript

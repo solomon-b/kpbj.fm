@@ -33,6 +33,8 @@ module API.Types
     DashboardStoreProductsRoutes (..),
     DashboardStoreSettingsRoutes (..),
     DashboardStoreOrdersRoutes (..),
+    StoreRoutes (..),
+    StoreApiRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
     AnalyticsRoutes (..),
@@ -155,6 +157,10 @@ import API.Shows.Slug.Blog.Post.Get.Route qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Get.Route qualified as Episodes.Get
 import API.Shows.Slug.Get.Route qualified as Show.Get
 import API.Static.Get.Route qualified as Static.Get
+import API.Store.Cart.Get.Route qualified as Store.Cart.Get
+import API.Store.Cart.Validate.Post.Route qualified as Store.Cart.Validate.Post
+import API.Store.List.Get.Route qualified as Store.List.Get
+import API.Store.Products.Slug.Get.Route qualified as Store.Products.Slug.Get
 import API.Stream.Metadata.Get.Route qualified as Stream.Metadata.Get
 import API.TermsOfService.Get.Route qualified as TermsOfService.Get
 import API.Uploads.Audio.Post.Route qualified as Uploads.Audio.Post
@@ -217,6 +223,10 @@ data Routes mode = Routes
     playout :: mode :- NamedRoutes PlayoutRoutes,
     -- | @/api/analytics/...@ - Analytics API routes
     analytics :: mode :- NamedRoutes AnalyticsRoutes,
+    -- | @/store/...@ - Public storefront routes
+    store :: mode :- NamedRoutes StoreRoutes,
+    -- | @/api/store/...@ - Store API routes
+    storeApi :: mode :- NamedRoutes StoreApiRoutes,
     -- | @GET /api/stream/metadata@ - Stream metadata proxy (avoids CORS)
     streamMetadata :: mode :- Stream.Metadata.Get.Route,
     -- | @GET /debug/version@ - Version info for debugging
@@ -713,5 +723,27 @@ data PlayoutRoutes mode = PlayoutRoutes
 newtype AnalyticsRoutes mode = AnalyticsRoutes
   { -- | @POST /api/analytics/episode-play@ - Record an archived episode play
     episodePlay :: mode :- Analytics.EpisodePlay.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Public storefront routes under @/store@.
+--
+-- Customer-facing pages for browsing products and managing cart.
+data StoreRoutes mode = StoreRoutes
+  { -- | @GET /store@ - Product listing page
+    list :: mode :- Store.List.Get.Route,
+    -- | @GET /store/products/:slug@ - Product detail page
+    product :: mode :- Store.Products.Slug.Get.Route,
+    -- | @GET /store/cart@ - Cart page
+    cart :: mode :- Store.Cart.Get.Route
+  }
+  deriving stock (Generic)
+
+-- | Store API routes under @/api/store@.
+--
+-- Backend endpoints for store operations (cart validation, etc.).
+newtype StoreApiRoutes mode = StoreApiRoutes
+  { -- | @POST /api/store/cart/validate@ - Validate cart contents
+    cartValidate :: mode :- Store.Cart.Validate.Post.Route
   }
   deriving stock (Generic)

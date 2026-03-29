@@ -27,6 +27,13 @@ module Effects.Database.Tables.Products
     insertProduct,
     updateProduct,
     deactivateProduct,
+
+    -- * Listing Types
+    ProductWithHeroImage (..),
+    pwhToProduct,
+
+    -- * Listing Queries
+    getActiveWithHeroImage,
   )
 where
 
@@ -264,3 +271,85 @@ deactivateProduct productId =
             updateWhere = \_ p -> pId p ==. lit productId,
             returning = Returning pId
           }
+
+
+--------------------------------------------------------------------------------
+-- Listing Types
+
+-- | A product with its hero (first) image for listing pages.
+--
+-- This is a flat record rather than nesting 'Model' because the generic
+-- 'DecodeRow' derivation requires every field to be a single-column
+-- 'DecodeValue'. Use 'pwhToProduct' to extract the 'Model'.
+data ProductWithHeroImage = ProductWithHeroImage
+  { pwhId :: Id,
+    pwhName :: Text,
+    pwhSlug :: Text,
+    pwhDescription :: Text,
+    pwhBasePriceCents :: Cents,
+    pwhWeightOz :: Int64,
+    pwhCategory :: Maybe Text,
+    pwhInventoryCount :: Int64,
+    pwhIsActive :: Bool,
+    pwhSortOrder :: Int64,
+    pwhCreatedAt :: UTCTime,
+    pwhUpdatedAt :: UTCTime,
+    pwhHeroImagePath :: Maybe Text,
+    pwhHeroAltText :: Maybe Text
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (DecodeRow)
+
+
+-- | Display instance for ProductWithHeroImage.
+instance Display ProductWithHeroImage where
+  displayBuilder pwh =
+    "ProductWithHeroImage { id = "
+      <> displayBuilder pwh.pwhId
+      <> " }"
+
+
+-- | Extract the 'Model' from a 'ProductWithHeroImage'.
+pwhToProduct :: ProductWithHeroImage -> Model
+pwhToProduct ProductWithHeroImage {..} =
+  Product
+    { pId = pwhId,
+      pName = pwhName,
+      pSlug = pwhSlug,
+      pDescription = pwhDescription,
+      pBasePriceCents = pwhBasePriceCents,
+      pWeightOz = pwhWeightOz,
+      pCategory = pwhCategory,
+      pInventoryCount = pwhInventoryCount,
+      pIsActive = pwhIsActive,
+      pSortOrder = pwhSortOrder,
+      pCreatedAt = pwhCreatedAt,
+      pUpdatedAt = pwhUpdatedAt
+    }
+
+
+--------------------------------------------------------------------------------
+-- Listing Queries
+
+-- | Get all active products with their hero image (first by sort_order).
+--
+-- Uses the @products_with_inventory@ view for effective inventory.
+-- Returns all active products, including out-of-stock ones.
+getActiveWithHeroImage :: Hasql.Statement () [ProductWithHeroImage]
+getActiveWithHeroImage = interp False
+  [sql|
+    SELECT p.id, p.name, p.slug, p.description, p.base_price_cents,
+           p.weight_oz, p.category, p.inventory_count,
+           p.is_active, p.sort_order, p.created_at, p.updated_at,
+           pi.image_path, pi.alt_text
+    FROM products_with_inventory p
+    LEFT JOIN LATERAL (
+      SELECT image_path, alt_text
+      FROM product_images
+      WHERE product_id = p.id
+      ORDER BY sort_order, id
+      LIMIT 1
+    ) pi ON true
+    WHERE p.is_active = true
+    ORDER BY p.sort_order, p.id
+  |]
