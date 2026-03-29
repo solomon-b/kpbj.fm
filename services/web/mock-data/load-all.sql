@@ -91,6 +91,10 @@
 \i 20_site_pages.sql
 
 \echo ''
+\echo '21. Creating store products...'
+\i 21_store_products.sql
+
+\echo ''
 \echo '=========================================='
 \echo 'Summary'
 \echo '=========================================='

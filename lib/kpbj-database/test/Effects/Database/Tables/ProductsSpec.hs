@@ -4,6 +4,7 @@ module Effects.Database.Tables.ProductsSpec where
 
 import Data.Either (isLeft)
 import Effects.Database.Class (MonadDB (..))
+import Effects.Database.Tables.ProductImages qualified as ProductImages
 import Effects.Database.Tables.Products qualified as UUT
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import Hasql.Transaction qualified as TRX
@@ -14,6 +15,7 @@ import Test.Database.Helpers (insertTestProduct, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, (<==))
+import Test.Gen.Tables.ProductImages (productImageInsertGen)
 import Test.Gen.Tables.Products (productInsertGen)
 import Test.Gen.Tables.ProductVariants (productVariantInsertGen)
 import Test.Hspec (Spec, describe, it)
@@ -54,6 +56,18 @@ spec =
           hedgehog . prop_effectiveInventoryWithoutVariants
         runs 10 . it "ignores soft-deleted variants in inventory sum" $
           hedgehog . prop_effectiveInventoryIgnoresDeleted
+
+      describe "getActiveWithHeroImage" $ do
+        runs 1 . it "empty database returns empty list" $
+          hedgehog . prop_getActiveWithHeroImage_empty
+        runs 10 . it "active product without images returns Nothing for hero image" $
+          hedgehog . prop_getActiveWithHeroImage_noImages
+        runs 10 . it "active product with images returns first image by sort_order as hero" $
+          hedgehog . prop_getActiveWithHeroImage_withImages
+        runs 10 . it "inactive product is excluded" $
+          hedgehog . prop_getActiveWithHeroImage_inactiveExcluded
+        runs 10 . it "only active products returned from mixed active/inactive" $
+          hedgehog . prop_getActiveWithHeroImage_onlyActive
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -304,3 +318,114 @@ prop_effectiveInventoryIgnoresDeleted cfg = do
         selected <- assertJust mSelected
         -- Only active variant counts: 10 (variant 2 is deleted)
         UUT.pInventoryCount selected === 10
+
+--------------------------------------------------------------------------------
+-- getActiveWithHeroImage tests
+
+-- | Dummy product ID used during generation; overridden with real ID in the transaction.
+dummyProductId :: UUT.Id
+dummyProductId = UUT.Id 0
+
+prop_getActiveWithHeroImage_empty :: TestDBConfig -> PropertyT IO ()
+prop_getActiveWithHeroImage_empty cfg = do
+  arrange (bracketConn cfg) $ do
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        items <- TRX.statement () UUT.getActiveWithHeroImage
+        TRX.condemn
+        pure items
+
+      assert $ do
+        items <- assertRight result
+        items === []
+
+prop_getActiveWithHeroImage_noImages :: TestDBConfig -> PropertyT IO ()
+prop_getActiveWithHeroImage_noImages cfg = do
+  arrange (bracketConn cfg) $ do
+    template <- forAllT productInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let active = template {UUT.piIsActive = True}
+        productId <- unwrapInsert (UUT.insertProduct active)
+        items <- TRX.statement () UUT.getActiveWithHeroImage
+        TRX.condemn
+        pure (productId, items)
+
+      assert $ do
+        (productId, items) <- assertRight result
+        length items === 1
+        let item = head items
+        UUT.pwhId item === productId
+        UUT.pwhName item === UUT.piName template
+        UUT.pwhHeroImagePath item === Nothing
+        UUT.pwhHeroAltText item === Nothing
+
+prop_getActiveWithHeroImage_withImages :: TestDBConfig -> PropertyT IO ()
+prop_getActiveWithHeroImage_withImages cfg = do
+  arrange (bracketConn cfg) $ do
+    prodTemplate <- forAllT productInsertGen
+    imgTemplate1 <- forAllT (productImageInsertGen dummyProductId)
+    imgTemplate2 <- forAllT (productImageInsertGen dummyProductId)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let active = prodTemplate {UUT.piIsActive = True}
+        productId <- unwrapInsert (UUT.insertProduct active)
+
+        -- Insert two images with explicit sort_order: imgA at 2, imgB at 1
+        let imgA = imgTemplate1 {ProductImages.iiProductId = productId, ProductImages.iiSortOrder = 2}
+        let imgB = imgTemplate2 {ProductImages.iiProductId = productId, ProductImages.iiSortOrder = 1}
+        _ <- unwrapInsert (ProductImages.insertImage imgA)
+        _ <- unwrapInsert (ProductImages.insertImage imgB)
+
+        items <- TRX.statement () UUT.getActiveWithHeroImage
+        TRX.condemn
+        pure (productId, imgB, items)
+
+      assert $ do
+        (productId, heroInsert, items) <- assertRight result
+        length items === 1
+        let item = head items
+        UUT.pwhId item === productId
+        -- Hero should be imgB (sort_order=1), not imgA (sort_order=2)
+        UUT.pwhHeroImagePath item === Just (ProductImages.iiImagePath heroInsert)
+        UUT.pwhHeroAltText item === Just (ProductImages.iiAltText heroInsert)
+
+prop_getActiveWithHeroImage_inactiveExcluded :: TestDBConfig -> PropertyT IO ()
+prop_getActiveWithHeroImage_inactiveExcluded cfg = do
+  arrange (bracketConn cfg) $ do
+    template <- forAllT productInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let inactive = template {UUT.piIsActive = False}
+        _ <- unwrapInsert (UUT.insertProduct inactive)
+        items <- TRX.statement () UUT.getActiveWithHeroImage
+        TRX.condemn
+        pure items
+
+      assert $ do
+        items <- assertRight result
+        items === []
+
+prop_getActiveWithHeroImage_onlyActive :: TestDBConfig -> PropertyT IO ()
+prop_getActiveWithHeroImage_onlyActive cfg = do
+  arrange (bracketConn cfg) $ do
+    activeTemplate <- forAllT productInsertGen
+    inactiveTemplate <- forAllT productInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let active = activeTemplate {UUT.piIsActive = True, UUT.piSlug = UUT.piSlug activeTemplate <> "a"}
+        let inactive = inactiveTemplate {UUT.piIsActive = False, UUT.piSlug = UUT.piSlug inactiveTemplate <> "i"}
+        activeId <- unwrapInsert (UUT.insertProduct active)
+        _ <- unwrapInsert (UUT.insertProduct inactive)
+        items <- TRX.statement () UUT.getActiveWithHeroImage
+        TRX.condemn
+        pure (activeId, items)
+
+      assert $ do
+        (activeId, items) <- assertRight result
+        length items === 1
+        UUT.pwhId (head items) === activeId

@@ -421,6 +421,19 @@ library
     API.Invite.Token.Post.Handler
     API.Static.Get.Handler
     API.Static.Get.Route
+    API.Store.Cart.Get.Handler
+    API.Store.Cart.Get.Route
+    API.Store.Cart.Get.Templates
+    API.Store.Cart.Validate.Post.Handler
+    API.Store.Cart.Validate.Post.Route
+    API.Store.Cart.Validate.Post.Templates
+    API.Store.List.Get.Handler
+    API.Store.List.Get.Route
+    API.Store.List.Get.Templates
+    API.Store.Products.Slug.Get.Handler
+    API.Store.Products.Slug.Get.Route
+    API.Store.Products.Slug.Get.Templates
+    API.Store.Types
     API.TermsOfService.Get.Handler
     API.TermsOfService.Get.Route
     API.TermsOfService.Get.Templates
@@ -493,6 +506,7 @@ library
     Component.Card.BlogPost
     Component.Card.Episode
     Component.Card.Event
+    Component.Card.Product
     Component.Card.Show
     Component.DashboardFrame
     Component.Frame
@@ -672,6 +686,9 @@ test-suite kpbj-api-test
        API.Shows.Slug.Blog.Post.Get.HandlerSpec
        API.Shows.Slug.Episode.Get.HandlerSpec
        API.Shows.Slug.Get.HandlerSpec
+       API.Store.Cart.Validate.Post.HandlerSpec
+       API.Store.List.Get.HandlerSpec
+       API.Store.Products.Slug.Get.HandlerSpec
        API.User.ForgotPassword.Post.HandlerSpec
        API.User.Login.Post.HandlerSpec
        API.User.Register.Post.HandlerSpec

@@ -49,6 +49,8 @@ module API.Links
     dashboardStoreProductsLinks,
     dashboardStoreSettingsLinks,
     dashboardStoreOrdersLinks,
+    storeLinks,
+    storeApiLinks,
     inviteLinks,
     staticAssetLink,
   )
@@ -199,3 +201,11 @@ dashboardStoreSettingsLinks = dashboardStoreLinks.settings
 -- | Dashboard store orders route links.
 dashboardStoreOrdersLinks :: DashboardStoreOrdersRoutes (AsLink Link)
 dashboardStoreOrdersLinks = dashboardStoreLinks.orders
+
+-- | Public storefront route links.
+storeLinks :: StoreRoutes (AsLink Link)
+storeLinks = apiLinks.store
+
+-- | Store API route links.
+storeApiLinks :: StoreApiRoutes (AsLink Link)
+storeApiLinks = apiLinks.storeApi

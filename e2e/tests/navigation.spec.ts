@@ -49,6 +49,12 @@ test.describe("Main navigation", () => {
     await page.waitForURL(/\/events/);
   });
 
+  test("navigate to Store from homepage", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Store" }).first().click();
+    await page.waitForURL(/\/store/);
+  });
+
   test("navigate to About from homepage", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "About" }).first().click();
