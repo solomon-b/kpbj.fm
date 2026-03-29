@@ -140,7 +140,7 @@ getByProductId :: Products.Id -> Hasql.Statement () [Model]
 getByProductId productId =
   run $
     select $
-      orderBy (piSortOrder >$< asc) do
+      orderBy ((piSortOrder >$< asc) <> (piId >$< asc)) do
         image <- each productImageSchema
         where_ $ piProductId image ==. lit productId
         pure image

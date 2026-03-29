@@ -33,6 +33,8 @@ module API
     DashboardStoreProductsRoutes (..),
     DashboardStoreSettingsRoutes (..),
     DashboardStoreOrdersRoutes (..),
+    StoreRoutes (..),
+    StoreApiRoutes (..),
     InviteRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
@@ -160,6 +162,10 @@ import API.Shows.Slug.Blog.Post.Get.Handler qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Get.Handler qualified as Episodes.Get
 import API.Shows.Slug.Get.Handler qualified as Show.Get
 import API.Static.Get.Handler qualified as Static.Get
+import API.Store.Cart.Get.Handler qualified as Store.Cart.Get
+import API.Store.Cart.Validate.Post.Handler qualified as Store.Cart.Validate.Post
+import API.Store.List.Get.Handler qualified as Store.List.Get
+import API.Store.Products.Slug.Get.Handler qualified as Store.Products.Slug.Get
 import API.Stream.Metadata.Get.Handler qualified as Stream.Metadata.Get
 import API.TermsOfService.Get.Handler qualified as TermsOfService.Get
 import API.Types
@@ -246,6 +252,8 @@ server =
       uploads = uploadRoutes,
       playout = playoutRoutes,
       analytics = analyticsRoutes,
+      store = storeRoutes,
+      storeApi = storeApiRoutes,
       streamMetadata = Stream.Metadata.Get.handler,
       debugVersion = Debug.Version.Get.handler
     }
@@ -508,4 +516,16 @@ server =
     analyticsRoutes =
       AnalyticsRoutes
         { episodePlay = Analytics.EpisodePlay.Post.handler
+        }
+
+    storeRoutes =
+      StoreRoutes
+        { list = Store.List.Get.handler,
+          product = Store.Products.Slug.Get.handler,
+          cart = Store.Cart.Get.handler
+        }
+
+    storeApiRoutes =
+      StoreApiRoutes
+        { cartValidate = Store.Cart.Validate.Post.handler
         }

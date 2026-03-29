@@ -31,5 +31,14 @@ TRUNCATE TABLE
     blog_posts,
     site_page_revisions,
     site_pages,
+    order_items,
+    orders,
+    product_variant_options,
+    product_variants,
+    product_option_values,
+    product_option_types,
+    product_images,
+    products,
+    store_settings,
     users
 RESTART IDENTITY CASCADE;

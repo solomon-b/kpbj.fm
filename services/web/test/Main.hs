@@ -5,7 +5,6 @@ module Main where
 import API.Blog.Get.HandlerSpec qualified as BlogGetHandler
 import API.Blog.Post.Get.HandlerSpec qualified as BlogPostGetHandler
 import API.Dashboard.Analytics.Data.Get.HandlerSpec qualified as AnalyticsDataHandler
-import Domain.Icecast.StatusSpec qualified as IcecastStatus
 import API.Dashboard.Blogs.Get.HandlerSpec qualified as DashboardBlogsGetHandler
 import API.Dashboard.Blogs.New.Get.HandlerSpec qualified as DashboardBlogsNewGetHandler
 import API.Dashboard.Blogs.New.Post.HandlerSpec qualified as DashboardBlogsNewPostHandler
@@ -80,6 +79,9 @@ import API.Shows.Slug.Blog.Get.HandlerSpec qualified as ShowBlogHandler
 import API.Shows.Slug.Blog.Post.Get.HandlerSpec qualified as ShowBlogPostHandler
 import API.Shows.Slug.Episode.Get.HandlerSpec qualified as ShowEpisodeHandler
 import API.Shows.Slug.Get.HandlerSpec qualified as ShowDetailHandler
+import API.Store.Cart.Validate.Post.HandlerSpec qualified as StoreCartValidateHandler
+import API.Store.List.Get.HandlerSpec qualified as StoreListHandler
+import API.Store.Products.Slug.Get.HandlerSpec qualified as StoreProductHandler
 import API.User.ForgotPassword.Post.HandlerSpec qualified as UserForgotPasswordHandler
 import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
 import API.User.Register.Post.HandlerSpec qualified as UserRegisterHandler
@@ -87,6 +89,7 @@ import App.DomainsSpec qualified as Domains
 import App.Handler.CombinatorsSpec qualified as Combinators
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
+import Domain.Icecast.StatusSpec qualified as IcecastStatus
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
 import Effects.DiffSpec qualified as Diff
 import Effects.MarkdownSpec qualified as Markdown
@@ -206,6 +209,9 @@ main = do
     DashboardStationIdsDeleteHandler.spec
     DashboardStreamSettingsEpisodeSearchHandler.spec
     DashboardMissingEpisodesGetHandler.spec
+    StoreListHandler.spec
+    StoreProductHandler.spec
+    StoreCartValidateHandler.spec
     UserLoginHandler.spec
     UserRegisterHandler.spec
     UserForgotPasswordHandler.spec

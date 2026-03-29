@@ -75,7 +75,7 @@ import API.Links (rootLink, userLinks)
 Lucid.href_ (rootLink $ userLinks.loginGet Nothing Nothing)
 ```
 
-Available link structures: `apiLinks`, `blogLinks`, `eventsLinks`, `showsLinks`, `showBlogLinks`, `showEpisodesLinks`, `userLinks`, `dashboardLinks`, `dashboardHostLinks`, `dashboardAdminLinks`, `dashboardStoreLinks`, `dashboardStoreProductsLinks`, `dashboardStoreSettingsLinks`, `dashboardStoreOrdersLinks`, etc. See `API.Links` for the full list.
+Available link structures: `apiLinks`, `blogLinks`, `eventsLinks`, `showsLinks`, `showBlogLinks`, `showEpisodesLinks`, `userLinks`, `dashboardLinks`, `dashboardHostLinks`, `dashboardAdminLinks`, `dashboardStoreLinks`, `dashboardStoreProductsLinks`, `dashboardStoreSettingsLinks`, `dashboardStoreOrdersLinks`, `storeLinks`, `storeApiLinks`, etc. See `API.Links` for the full list.
 
 ### Concrete AppM Monad
 
