@@ -32,13 +32,13 @@ securityHeaders =
     ("Permissions-Policy", "camera=(), microphone=(), geolocation=()"),
     ( "Content-Security-Policy",
       "default-src 'none'; \
-      \script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://www.paypal.com; \
+      \script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://www.paypal.com https://js.stripe.com; \
       \style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; \
       \img-src 'self' https://*.digitaloceanspaces.com https://www.paypalobjects.com data: blob:; \
       \font-src 'self' https://cdnjs.cloudflare.com; \
-      \connect-src 'self' blob: https://uploads.kpbj.fm https://uploads.staging.kpbj.fm https://www.google-analytics.com https://www.googletagmanager.com https://www.paypal.com; \
+      \connect-src 'self' blob: https://uploads.kpbj.fm https://uploads.staging.kpbj.fm https://www.google-analytics.com https://www.googletagmanager.com https://www.paypal.com https://api.stripe.com; \
       \media-src 'self' blob: https://stream.kpbj.fm https://stream.staging.kpbj.fm https://*.digitaloceanspaces.com; \
-      \frame-src 'self' https://www.paypal.com; \
+      \frame-src 'self' https://www.paypal.com https://js.stripe.com; \
       \form-action 'self' https://docs.google.com; \
       \base-uri 'self'; \
       \upgrade-insecure-requests"
