@@ -59,6 +59,10 @@
 
               kpbj-email = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-email" ./lib/kpbj-email { });
 
+              stripe-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "stripe-http" ./lib/stripe-http { });
+
+              easypost-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "easypost-http" ./lib/easypost-http { });
+
               kpbj-api = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-api" ./services/web { });
 
               sync-host-emails = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "sync-host-emails" ./jobs/sync-host-emails { });

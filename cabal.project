@@ -9,6 +9,8 @@ packages:
   lib/kpbj-types/kpbj-types.cabal
   lib/kpbj-database/kpbj-database.cabal
   lib/kpbj-email/kpbj-email.cabal
+  lib/stripe-http/stripe-http.cabal
+  lib/easypost-http/easypost-http.cabal
   jobs/sync-host-emails/sync-host-emails.cabal
   jobs/token-cleanup/token-cleanup.cabal
   jobs/episode-check/episode-check.cabal
