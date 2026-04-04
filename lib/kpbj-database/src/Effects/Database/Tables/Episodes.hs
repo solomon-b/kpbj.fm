@@ -746,9 +746,14 @@ getTagsForEpisode episodeId =
 -- | Replace all tags for an episode with a new set of tags.
 --
 -- This is an atomic operation that:
--- 1. Deletes all existing tag assignments for the episode
--- 2. Inserts any new tag names that don't exist yet
--- 3. Creates assignments for all provided tags
+-- 1. Upserts tag names into @episode_tags@, returning their IDs
+-- 2. Removes assignments for tags no longer in the new set
+-- 3. Inserts assignments for tags in the new set (skipping existing ones)
+--
+-- The DELETE and INSERT target non-overlapping subsets of
+-- @episode_tag_assignments@, avoiding the PostgreSQL CTE snapshot issue
+-- where a DELETE and INSERT on the same rows within a single statement
+-- cannot see each other's effects.
 --
 -- Pass an empty list to remove all tags.
 replaceEpisodeTags :: Id -> [Text] -> Hasql.Statement () ()
@@ -757,19 +762,20 @@ replaceEpisodeTags episodeId tagNames =
     False
     [sql|
     WITH
-      -- Delete existing assignments
-      deleted AS (
-        DELETE FROM episode_tag_assignments
-        WHERE episode_id = #{episodeId}
-      ),
-      -- Insert new tags, using DO UPDATE to return existing ones too
+      -- Upsert tags, using DO UPDATE to return existing ones too
       all_tags AS (
         INSERT INTO episode_tags (name)
-        SELECT unnest(#{tagNames}::text[])
+        SELECT DISTINCT unnest(#{tagNames}::text[])
         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
         RETURNING id
+      ),
+      -- Remove assignments for tags NOT in the new set
+      removed AS (
+        DELETE FROM episode_tag_assignments
+        WHERE episode_id = #{episodeId}
+        AND tag_id NOT IN (SELECT id FROM all_tags)
       )
-    -- Create assignments using the returned IDs
+    -- Create assignments for new tags (existing ones kept via DO NOTHING)
     INSERT INTO episode_tag_assignments (episode_id, tag_id)
     SELECT #{episodeId}, id
     FROM all_tags
