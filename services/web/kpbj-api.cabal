@@ -61,6 +61,7 @@ library
                   , cookie
                   , data-has
                   , deriving-aeson
+                  , easypost-http
                   , Diff
                   , directory
                   , exceptions
@@ -78,6 +79,7 @@ library
                   , hs-opentelemetry-sdk
                   , http-api-data
                   , http-client
+                  , http-client-tls
                   , http-conduit
                   , http-types
                   , lens
@@ -96,6 +98,7 @@ library
                   , scientific
                   , servant-server
                   , string-interpolate
+                  , stripe-http
                   , tagged
                   , temporary
                   , text
@@ -575,6 +578,7 @@ test-suite kpbj-api-test
                     , hedgehog
                     , hs-opentelemetry-api
                     , hs-opentelemetry-sdk
+                    , http-client
                     , hspec
                     , hspec-api
                     , hspec-core
