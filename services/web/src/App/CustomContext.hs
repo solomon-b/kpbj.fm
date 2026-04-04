@@ -35,8 +35,13 @@ import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TE
 import Data.Time (getCurrentTime)
+import EasyPost.Types (EasyPostApiKey (..))
 import Log qualified
+import Network.HTTP.Client (Manager)
+import Network.HTTP.Client.TLS qualified as TLS
+import Stripe.Types (StripePublishableKey (..), StripeSecretKey (..), StripeWebhookSecret (..))
 import System.Environment (lookupEnv)
 
 --------------------------------------------------------------------------------
@@ -85,7 +90,12 @@ data CustomContext = CustomContext
     smtpConfig :: Maybe SmtpConfig,
     playoutSecret :: PlayoutSecret,
     webhookConfig :: WebhookConfig,
-    streamConfig :: StreamConfig
+    streamConfig :: StreamConfig,
+    stripeSecretKey :: Maybe StripeSecretKey,
+    stripePublishableKey :: Maybe StripePublishableKey,
+    stripeWebhookSecret :: Maybe StripeWebhookSecret,
+    easypostApiKey :: Maybe EasyPostApiKey,
+    httpManager :: Manager
   }
 
 --------------------------------------------------------------------------------
@@ -114,6 +124,26 @@ instance Has.Has WebhookConfig CustomContext where
 instance Has.Has StreamConfig CustomContext where
   getter = streamConfig
   modifier f ctx = ctx {streamConfig = f (streamConfig ctx)}
+
+instance Has.Has (Maybe StripeSecretKey) CustomContext where
+  getter = stripeSecretKey
+  modifier f ctx = ctx {stripeSecretKey = f (stripeSecretKey ctx)}
+
+instance Has.Has (Maybe StripePublishableKey) CustomContext where
+  getter = stripePublishableKey
+  modifier f ctx = ctx {stripePublishableKey = f (stripePublishableKey ctx)}
+
+instance Has.Has (Maybe StripeWebhookSecret) CustomContext where
+  getter = stripeWebhookSecret
+  modifier f ctx = ctx {stripeWebhookSecret = f (stripeWebhookSecret ctx)}
+
+instance Has.Has (Maybe EasyPostApiKey) CustomContext where
+  getter = easypostApiKey
+  modifier f ctx = ctx {easypostApiKey = f (easypostApiKey ctx)}
+
+instance Has.Has Manager CustomContext where
+  getter = httpManager
+  modifier f ctx = ctx {httpManager = f (httpManager ctx)}
 
 instance Has.Has StorageBackend CustomContext where
   getter = storageBackend . storageContext
@@ -184,6 +214,26 @@ instance Has.Has StreamConfig (AppContext CustomContext) where
   getter = Has.getter @StreamConfig . appCustom
   modifier f ctx = ctx {appCustom = Has.modifier @StreamConfig f (appCustom ctx)}
 
+instance Has.Has (Maybe StripeSecretKey) (AppContext CustomContext) where
+  getter = Has.getter @(Maybe StripeSecretKey) . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @(Maybe StripeSecretKey) f (appCustom ctx)}
+
+instance Has.Has (Maybe StripePublishableKey) (AppContext CustomContext) where
+  getter = Has.getter @(Maybe StripePublishableKey) . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @(Maybe StripePublishableKey) f (appCustom ctx)}
+
+instance Has.Has (Maybe StripeWebhookSecret) (AppContext CustomContext) where
+  getter = Has.getter @(Maybe StripeWebhookSecret) . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @(Maybe StripeWebhookSecret) f (appCustom ctx)}
+
+instance Has.Has (Maybe EasyPostApiKey) (AppContext CustomContext) where
+  getter = Has.getter @(Maybe EasyPostApiKey) . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @(Maybe EasyPostApiKey) f (appCustom ctx)}
+
+instance Has.Has Manager (AppContext CustomContext) where
+  getter = Has.getter @Manager . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @Manager f (appCustom ctx)}
+
 --------------------------------------------------------------------------------
 
 -- | All custom configurations loaded from environment (Phase 1).
@@ -193,7 +243,11 @@ data CustomConfigs = CustomConfigs
     ccSmtp :: Maybe SmtpConfig,
     ccPlayout :: PlayoutSecret,
     ccWebhook :: WebhookConfig,
-    ccStream :: StreamConfig
+    ccStream :: StreamConfig,
+    ccStripeSecretKey :: Maybe StripeSecretKey,
+    ccStripePublishableKey :: Maybe StripePublishableKey,
+    ccStripeWebhookSecret :: Maybe StripeWebhookSecret,
+    ccEasypostApiKey :: Maybe EasyPostApiKey
   }
 
 -- | Load all custom configurations from environment (Phase 1).
@@ -208,6 +262,10 @@ loadCustomConfigs = do
   playout <- loadPlayoutSecret
   webhook <- loadWebhookConfig
   stream <- loadStreamConfig
+  mStripeSecret <- liftIO $ fmap (StripeSecretKey . TE.encodeUtf8 . Text.pack) <$> lookupEnv "STRIPE_SECRET_KEY"
+  mStripePubKey <- liftIO $ fmap (StripePublishableKey . Text.pack) <$> lookupEnv "STRIPE_PUBLISHABLE_KEY"
+  mStripeWebhookSecret <- liftIO $ fmap (StripeWebhookSecret . TE.encodeUtf8 . Text.pack) <$> lookupEnv "STRIPE_WEBHOOK_SECRET"
+  mEasypostKey <- liftIO $ fmap (EasyPostApiKey . TE.encodeUtf8 . Text.pack) <$> lookupEnv "EASYPOST_API_KEY"
   pure
     CustomConfigs
       { ccStorageConfig = storageConfig,
@@ -215,7 +273,11 @@ loadCustomConfigs = do
         ccSmtp = smtp,
         ccPlayout = playout,
         ccWebhook = webhook,
-        ccStream = stream
+        ccStream = stream,
+        ccStripeSecretKey = mStripeSecret,
+        ccStripePublishableKey = mStripePubKey,
+        ccStripeWebhookSecret = mStripeWebhookSecret,
+        ccEasypostApiKey = mEasypostKey
       }
 
 -- | Build CustomContext inside withAppResources callback (Phase 2).
@@ -231,6 +293,9 @@ buildCustomContext appCtx CustomConfigs {..} action = do
   -- Log analytics, SMTP, webhook, and stream configuration state
   logConfigState (appLoggerEnv appCtx) ccAnalytics ccSmtp ccPlayout ccWebhook ccStream
 
+  -- Create TLS-capable HTTP manager for external API calls
+  mgr <- TLS.newTlsManager
+
   -- Build storage context (which may log and/or fail)
   withStorageContext appCtx ccStorageConfig $ \storage -> do
     let customCtx =
@@ -240,11 +305,16 @@ buildCustomContext appCtx CustomConfigs {..} action = do
               smtpConfig = ccSmtp,
               playoutSecret = ccPlayout,
               webhookConfig = ccWebhook,
-              streamConfig = ccStream
+              streamConfig = ccStream,
+              stripeSecretKey = ccStripeSecretKey,
+              stripePublishableKey = ccStripePublishableKey,
+              stripeWebhookSecret = ccStripeWebhookSecret,
+              easypostApiKey = ccEasypostApiKey,
+              httpManager = mgr
             }
     action customCtx
 
--- | Log the configuration state for analytics, SMTP, playout, webhook, and stream.
+-- | Log the configuration state for analytics, SMTP, playout, webhook, stream, Stripe, and EasyPost.
 logConfigState :: Log.LoggerEnv -> AnalyticsConfig -> Maybe SmtpConfig -> PlayoutSecret -> WebhookConfig -> StreamConfig -> IO ()
 logConfigState logEnv analytics smtp playout webhook stream = do
   time <- getCurrentTime

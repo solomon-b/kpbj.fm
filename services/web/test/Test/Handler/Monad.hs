@@ -23,6 +23,7 @@ import Hasql.Connection.Setting.Connection qualified as HSQL.Connection
 import Hasql.Connection.Setting.Connection.Param qualified as HSQL.Params
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Pool.Config qualified as HSQL.Pool.Config
+import Network.HTTP.Client qualified as HTTP
 import Test.Database.Monad (TestDBConfig (..), noOpLoggerEnv)
 import "kpbj-api" App.Monad (AppM)
 import "web-server-core" App.Monad qualified as Core (AppM (..))
@@ -42,7 +43,8 @@ import "web-server-core" App.Monad qualified as Core (AppM (..))
 bracketAppM :: TestDBConfig -> AppM a -> IO a
 bracketAppM cfg action =
   bracket (acquireTestPool cfg) HSQL.Pool.release $ \pool -> do
-    let appCtx = mkTestAppContext pool
+    mgr <- HTTP.newManager HTTP.defaultManagerSettings
+    let appCtx = mkTestAppContext pool mgr
     Core.runAppM action appCtx
 
 --------------------------------------------------------------------------------
@@ -62,8 +64,8 @@ acquireTestPool TestDBConfig {..} =
       poolSettings = HSQL.Pool.Config.settings $ pure $ HSQL.Pool.Config.staticConnectionSettings hsqlSettings
    in HSQL.Pool.acquire poolSettings
 
-mkTestAppContext :: HSQL.Pool.Pool -> AppContext CustomContext
-mkTestAppContext pool =
+mkTestAppContext :: HSQL.Pool.Pool -> HTTP.Manager -> AppContext CustomContext
+mkTestAppContext pool mgr =
   AppContext
     { appDbPool = pool,
       appHostname = Hostname "localhost",
@@ -71,7 +73,7 @@ mkTestAppContext pool =
       appVerbosity = Quiet,
       appLoggerEnv = noOpLoggerEnv,
       appWarpConfig = testWarpConfig,
-      appCustom = testCustomContext
+      appCustom = testCustomContext mgr
     }
 
 testWarpConfig :: WarpConfig
@@ -83,8 +85,8 @@ testWarpConfig =
       warpConfigRequestTimeout = 600
     }
 
-testCustomContext :: CustomContext
-testCustomContext =
+testCustomContext :: HTTP.Manager -> CustomContext
+testCustomContext mgr =
   CustomContext
     { storageContext =
         StorageContext
@@ -99,5 +101,10 @@ testCustomContext =
         StreamConfig
           { scStreamUrl = "http://localhost:8000/stream",
             scMetadataUrl = "http://localhost:8000/status-json.xsl"
-          }
+          },
+      stripeSecretKey = Nothing,
+      stripePublishableKey = Nothing,
+      stripeWebhookSecret = Nothing,
+      easypostApiKey = Nothing,
+      httpManager = mgr
     }
