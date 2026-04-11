@@ -1,10 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
--- | Database table definition for @orders@.
---
--- Schema-only module — queries are implemented in Phase 3.
+-- | Database table definition and queries for @orders@.
 module Effects.Database.Tables.Orders
   ( -- * Id Type
     Id (..),
@@ -19,6 +18,23 @@ module Effects.Database.Tables.Orders
 
     -- * Model (Result alias)
     Model,
+
+    -- * Insert Type
+    Insert (..),
+
+    -- * Queries
+    insertOrder,
+    getById,
+    getByOrderNumber,
+    getByStripeCheckoutSessionId,
+    getByStripePaymentIntentId,
+    updateStatus,
+    updateStripeCheckoutSessionId,
+    updateStripePaymentIntentId,
+    updateTracking,
+    updateNotes,
+    listOrders,
+    cancelStalePendingOrders,
   )
 where
 
@@ -34,9 +50,10 @@ import Domain.Types.Cents (Cents)
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
-import Rel8 hiding (Enum, Order)
+import Rel8 hiding (Enum, Insert, Order)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -113,6 +130,16 @@ instance Display OrderStatus where
     Cancelled -> "Cancelled"
     Refunded -> "Refunded"
 
+instance Servant.FromHttpApiData OrderStatus where
+  parseQueryParam = \case
+    "pending" -> Right Pending
+    "paid" -> Right Paid
+    "shipped" -> Right Shipped
+    "completed" -> Right Completed
+    "cancelled" -> Right Cancelled
+    "refunded" -> Right Refunded
+    other -> Left $ "Unknown order status: " <> other
+
 -- | Payment provider used for the order.
 data PaymentMethod = Stripe | Paypal
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded)
@@ -179,6 +206,7 @@ data Order f = Order
     oTaxCents :: Column f Cents,
     oTotalCents :: Column f Cents,
     oStripePaymentIntentId :: Column f (Maybe Text),
+    oStripeCheckoutSessionId :: Column f (Maybe Text),
     oPaypalOrderId :: Column f (Maybe Text),
     oPaymentMethod :: Column f PaymentMethod,
     oEasypostShipmentId :: Column f (Maybe Text),
@@ -237,6 +265,7 @@ orderSchema =
             oTaxCents = "tax_cents",
             oTotalCents = "total_cents",
             oStripePaymentIntentId = "stripe_payment_intent_id",
+            oStripeCheckoutSessionId = "stripe_checkout_session_id",
             oPaypalOrderId = "paypal_order_id",
             oPaymentMethod = "payment_method",
             oEasypostShipmentId = "easypost_shipment_id",
@@ -247,3 +276,256 @@ orderSchema =
             oUpdatedAt = "updated_at"
           }
     }
+
+--------------------------------------------------------------------------------
+-- Insert Type
+
+-- | Insert type for creating new orders.
+data Insert = Insert
+  { oiOrderNumber :: Text,
+    oiEmail :: Text,
+    oiShippingFirstName :: Text,
+    oiShippingLastName :: Text,
+    oiShippingAddressLine1 :: Text,
+    oiShippingAddressLine2 :: Text,
+    oiShippingCity :: Text,
+    oiShippingState :: Text,
+    oiShippingZip :: Text,
+    oiShippingCountry :: Text,
+    oiShippingMethod :: Text,
+    oiSubtotalCents :: Cents,
+    oiShippingCents :: Cents,
+    oiTaxCents :: Cents,
+    oiTotalCents :: Cents,
+    oiPaymentMethod :: PaymentMethod,
+    oiStripeCheckoutSessionId :: Maybe Text
+  }
+  deriving stock (Generic, Show, Eq)
+
+--------------------------------------------------------------------------------
+-- Queries
+
+-- | Insert a new order. Status defaults to 'pending'.
+insertOrder :: Insert -> Hasql.Statement () (Maybe Id)
+insertOrder Insert {..} = interp True
+  [sql|
+    INSERT INTO orders
+      (order_number, email,
+       shipping_first_name, shipping_last_name,
+       shipping_address_line1, shipping_address_line2,
+       shipping_city, shipping_state, shipping_zip, shipping_country,
+       shipping_method,
+       subtotal_cents, shipping_cents, tax_cents, total_cents,
+       payment_method, stripe_checkout_session_id)
+    VALUES
+      (#{oiOrderNumber}, #{oiEmail},
+       #{oiShippingFirstName}, #{oiShippingLastName},
+       #{oiShippingAddressLine1}, #{oiShippingAddressLine2},
+       #{oiShippingCity}, #{oiShippingState}, #{oiShippingZip}, #{oiShippingCountry},
+       #{oiShippingMethod},
+       #{oiSubtotalCents}, #{oiShippingCents}, #{oiTaxCents}, #{oiTotalCents},
+       #{oiPaymentMethod}, #{oiStripeCheckoutSessionId})
+    RETURNING id
+  |]
+
+
+-- | Get an order by ID.
+getById :: Id -> Hasql.Statement () (Maybe Model)
+getById orderId = interp False
+  [sql|
+    SELECT id, order_number, email, status,
+           shipping_first_name, shipping_last_name,
+           shipping_address_line1, shipping_address_line2,
+           shipping_city, shipping_state, shipping_zip, shipping_country,
+           shipping_method,
+           subtotal_cents, shipping_cents, tax_cents, total_cents,
+           stripe_payment_intent_id, stripe_checkout_session_id,
+           paypal_order_id, payment_method,
+           easypost_shipment_id, tracking_number, label_url,
+           notes, created_at, updated_at
+    FROM orders
+    WHERE id = #{orderId}
+  |]
+
+
+-- | Get an order by order number.
+getByOrderNumber :: Text -> Hasql.Statement () (Maybe Model)
+getByOrderNumber orderNumber = interp False
+  [sql|
+    SELECT id, order_number, email, status,
+           shipping_first_name, shipping_last_name,
+           shipping_address_line1, shipping_address_line2,
+           shipping_city, shipping_state, shipping_zip, shipping_country,
+           shipping_method,
+           subtotal_cents, shipping_cents, tax_cents, total_cents,
+           stripe_payment_intent_id, stripe_checkout_session_id,
+           paypal_order_id, payment_method,
+           easypost_shipment_id, tracking_number, label_url,
+           notes, created_at, updated_at
+    FROM orders
+    WHERE order_number = #{orderNumber}
+  |]
+
+
+-- | Get an order by Stripe Checkout Session ID.
+getByStripeCheckoutSessionId :: Text -> Hasql.Statement () (Maybe Model)
+getByStripeCheckoutSessionId sessionId = interp False
+  [sql|
+    SELECT id, order_number, email, status,
+           shipping_first_name, shipping_last_name,
+           shipping_address_line1, shipping_address_line2,
+           shipping_city, shipping_state, shipping_zip, shipping_country,
+           shipping_method,
+           subtotal_cents, shipping_cents, tax_cents, total_cents,
+           stripe_payment_intent_id, stripe_checkout_session_id,
+           paypal_order_id, payment_method,
+           easypost_shipment_id, tracking_number, label_url,
+           notes, created_at, updated_at
+    FROM orders
+    WHERE stripe_checkout_session_id = #{sessionId}
+  |]
+
+
+-- | Get an order by Stripe Payment Intent ID.
+getByStripePaymentIntentId :: Text -> Hasql.Statement () (Maybe Model)
+getByStripePaymentIntentId paymentIntentId = interp False
+  [sql|
+    SELECT id, order_number, email, status,
+           shipping_first_name, shipping_last_name,
+           shipping_address_line1, shipping_address_line2,
+           shipping_city, shipping_state, shipping_zip, shipping_country,
+           shipping_method,
+           subtotal_cents, shipping_cents, tax_cents, total_cents,
+           stripe_payment_intent_id, stripe_checkout_session_id,
+           paypal_order_id, payment_method,
+           easypost_shipment_id, tracking_number, label_url,
+           notes, created_at, updated_at
+    FROM orders
+    WHERE stripe_payment_intent_id = #{paymentIntentId}
+  |]
+
+
+-- | Update the status of an order. Returns the updated order.
+updateStatus :: Id -> OrderStatus -> Hasql.Statement () (Maybe Model)
+updateStatus orderId status = interp False
+  [sql|
+    UPDATE orders
+    SET status = #{status}, updated_at = NOW()
+    WHERE id = #{orderId}
+    RETURNING id, order_number, email, status,
+              shipping_first_name, shipping_last_name,
+              shipping_address_line1, shipping_address_line2,
+              shipping_city, shipping_state, shipping_zip, shipping_country,
+              shipping_method,
+              subtotal_cents, shipping_cents, tax_cents, total_cents,
+              stripe_payment_intent_id, stripe_checkout_session_id,
+              paypal_order_id, payment_method,
+              easypost_shipment_id, tracking_number, label_url,
+              notes, created_at, updated_at
+  |]
+
+
+-- | Update the Stripe Checkout Session ID for an order.
+updateStripeCheckoutSessionId :: Id -> Text -> Hasql.Statement () ()
+updateStripeCheckoutSessionId orderId sessionId = interp True
+  [sql|
+    UPDATE orders
+    SET stripe_checkout_session_id = #{sessionId}, updated_at = NOW()
+    WHERE id = #{orderId}
+  |]
+
+
+-- | Update the Stripe Payment Intent ID for an order.
+updateStripePaymentIntentId :: Id -> Text -> Hasql.Statement () ()
+updateStripePaymentIntentId orderId paymentIntentId = interp True
+  [sql|
+    UPDATE orders
+    SET stripe_payment_intent_id = #{paymentIntentId}, updated_at = NOW()
+    WHERE id = #{orderId}
+  |]
+
+
+-- | Update tracking information for an order.
+updateTracking ::
+  Id ->           -- ^ Order ID
+  Text ->         -- ^ Tracking number
+  Maybe Text ->   -- ^ EasyPost shipment ID
+  Maybe Text ->   -- ^ Label URL
+  Hasql.Statement () ()
+updateTracking orderId trackingNumber easypostShipmentId labelUrl = interp True
+  [sql|
+    UPDATE orders
+    SET tracking_number = #{trackingNumber},
+        easypost_shipment_id = #{easypostShipmentId},
+        label_url = #{labelUrl},
+        updated_at = NOW()
+    WHERE id = #{orderId}
+  |]
+
+
+-- | Update the notes for an order.
+updateNotes :: Id -> Text -> Hasql.Statement () ()
+updateNotes orderId notes = interp True
+  [sql|
+    UPDATE orders
+    SET notes = #{notes}, updated_at = NOW()
+    WHERE id = #{orderId}
+  |]
+
+
+-- | List orders, optionally filtered by status. Ordered by created_at DESC.
+listOrders :: Maybe OrderStatus -> Hasql.Statement () [Model]
+listOrders = \case
+  Nothing -> listAllOrders
+  Just status -> listOrdersByStatus status
+
+
+-- | List all orders ordered by created_at DESC.
+listAllOrders :: Hasql.Statement () [Model]
+listAllOrders = interp False
+  [sql|
+    SELECT id, order_number, email, status,
+           shipping_first_name, shipping_last_name,
+           shipping_address_line1, shipping_address_line2,
+           shipping_city, shipping_state, shipping_zip, shipping_country,
+           shipping_method,
+           subtotal_cents, shipping_cents, tax_cents, total_cents,
+           stripe_payment_intent_id, stripe_checkout_session_id,
+           paypal_order_id, payment_method,
+           easypost_shipment_id, tracking_number, label_url,
+           notes, created_at, updated_at
+    FROM orders
+    ORDER BY created_at DESC
+  |]
+
+
+-- | List orders filtered by status, ordered by created_at DESC.
+listOrdersByStatus :: OrderStatus -> Hasql.Statement () [Model]
+listOrdersByStatus status = interp False
+  [sql|
+    SELECT id, order_number, email, status,
+           shipping_first_name, shipping_last_name,
+           shipping_address_line1, shipping_address_line2,
+           shipping_city, shipping_state, shipping_zip, shipping_country,
+           shipping_method,
+           subtotal_cents, shipping_cents, tax_cents, total_cents,
+           stripe_payment_intent_id, stripe_checkout_session_id,
+           paypal_order_id, payment_method,
+           easypost_shipment_id, tracking_number, label_url,
+           notes, created_at, updated_at
+    FROM orders
+    WHERE status = #{status}
+    ORDER BY created_at DESC
+  |]
+
+
+-- | Cancel pending orders older than 30 minutes. Returns the IDs of
+-- cancelled orders so the caller can restore their inventory.
+cancelStalePendingOrders :: Hasql.Statement () [Id]
+cancelStalePendingOrders = interp True
+  [sql|
+    UPDATE orders
+    SET status = 'cancelled', updated_at = NOW()
+    WHERE status = 'pending' AND created_at < NOW() - INTERVAL '30 minutes'
+    RETURNING id
+  |]
