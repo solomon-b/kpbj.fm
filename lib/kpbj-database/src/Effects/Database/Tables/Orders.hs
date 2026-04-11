@@ -35,6 +35,7 @@ module Effects.Database.Tables.Orders
     updateNotes,
     listOrders,
     cancelStalePendingOrders,
+    nextOrderNumber,
   )
 where
 
@@ -50,7 +51,7 @@ import Domain.Types.Cents (Cents)
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Enum, Insert, Order)
@@ -529,3 +530,13 @@ cancelStalePendingOrders = interp True
     WHERE status = 'pending' AND created_at < NOW() - INTERVAL '30 minutes'
     RETURNING id
   |]
+
+
+-- | Get the next order number from the sequence, formatted as KPBJ-NNNN.
+-- Returns Maybe Text because interp infers Maybe for single-row SELECTs.
+-- nextval always succeeds so Nothing should never occur in practice.
+nextOrderNumber :: Hasql.Statement () (Maybe Text)
+nextOrderNumber =
+  fmap (fmap getOneColumn) $
+    interp False
+      [sql| SELECT 'KPBJ-' || LPAD(nextval('order_number_seq')::TEXT, 4, '0') |]
