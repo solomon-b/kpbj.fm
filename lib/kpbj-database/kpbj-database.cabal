@@ -165,6 +165,8 @@ library kpbj-database-test-lib
     Test.Gen.Tables.StagedUploads
     Test.Gen.Tables.StationIds
     Test.Gen.Tables.UserMetadata
+    Test.Gen.Tables.Orders
+    Test.Gen.Tables.OrderItems
     Test.Gen.Tables.Products
     Test.Gen.Tables.ProductImages
     Test.Gen.Tables.ProductOptionTypes
@@ -226,6 +228,8 @@ test-suite kpbj-database-test
     Effects.Database.Tables.EpisodeTrackSpec
     Effects.Database.Tables.EpisodesSpec
     Effects.Database.Tables.EventsSpec
+    Effects.Database.Tables.OrderItemsSpec
+    Effects.Database.Tables.OrdersSpec
     Effects.Database.Tables.PasswordResetTokensSpec
     Effects.Database.Tables.PlaybackHistorySpec
     Effects.Database.Tables.ShowBlogPostsSpec
@@ -267,6 +271,8 @@ test-suite kpbj-database-test
     Test.Gen.Tables.EpisodeTrack
     Test.Gen.Tables.Episodes
     Test.Gen.Tables.Events
+    Test.Gen.Tables.OrderItems
+    Test.Gen.Tables.Orders
     Test.Gen.Tables.PasswordResetTokens
     Test.Gen.Tables.PlaybackHistory
     Test.Gen.Tables.ShowBlogPosts
