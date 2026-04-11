@@ -2,6 +2,8 @@ module Test.Gen.DomainTypes where
 
 --------------------------------------------------------------------------------
 
+import Data.Int (Int64)
+import Domain.Types.Cents (Cents (..))
 import Domain.Types.DisplayName (DisplayName, mkDisplayNameUnsafe)
 import Domain.Types.FullName (FullName, mkFullNameUnsafe)
 import Domain.Types.Slug (Slug, mkSlug)
@@ -29,3 +31,6 @@ genSlug = do
   suffix <- Gen.text (Range.linear 3 10) Gen.alphaNum
   -- Add a separator to make it more realistic
   pure $ mkSlug $ prefix <> "-" <> suffix
+
+genCents :: (MonadGen m) => m Cents
+genCents = Cents <$> Gen.int64 (Range.linear 0 100000)
