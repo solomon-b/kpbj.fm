@@ -35,6 +35,7 @@ module API.Types
     DashboardStoreOrdersRoutes (..),
     StoreRoutes (..),
     StoreApiRoutes (..),
+    WebhookRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
     AnalyticsRoutes (..),
@@ -114,6 +115,10 @@ import API.Dashboard.StationIds.Id.Delete.Route qualified as Dashboard.StationId
 import API.Dashboard.StationIds.New.Get.Route qualified as Dashboard.StationIds.New.Get
 import API.Dashboard.StationIds.New.Post.Route qualified as Dashboard.StationIds.New.Post
 import API.Dashboard.Store.Orders.Get.Route qualified as Dashboard.Store.Orders.Get
+import API.Dashboard.Store.Orders.Id.Get.Route qualified as Dashboard.Store.Orders.Id.Get
+import API.Dashboard.Store.Orders.Id.Label.Post.Route qualified as Dashboard.Store.Orders.Id.Label.Post
+import API.Dashboard.Store.Orders.Id.Notes.Post.Route qualified as Dashboard.Store.Orders.Id.Notes.Post
+import API.Dashboard.Store.Orders.Id.Status.Post.Route qualified as Dashboard.Store.Orders.Id.Status.Post
 import API.Dashboard.Store.Products.Create.Post.Route qualified as Dashboard.Store.Products.Create.Post
 import API.Dashboard.Store.Products.Get.Route qualified as Dashboard.Store.Products.Get
 import API.Dashboard.Store.Products.Id.Deactivate.Post.Route qualified as Dashboard.Store.Products.Id.Deactivate.Post
@@ -159,8 +164,12 @@ import API.Shows.Slug.Get.Route qualified as Show.Get
 import API.Static.Get.Route qualified as Static.Get
 import API.Store.Cart.Get.Route qualified as Store.Cart.Get
 import API.Store.Cart.Validate.Post.Route qualified as Store.Cart.Validate.Post
+import API.Store.Checkout.CreateSession.Post.Route qualified as Store.Checkout.CreateSession.Post
+import API.Store.Checkout.Get.Route qualified as Store.Checkout.Get
 import API.Store.List.Get.Route qualified as Store.List.Get
+import API.Store.Orders.Confirmation.Get.Route qualified as Store.Orders.Confirmation.Get
 import API.Store.Products.Slug.Get.Route qualified as Store.Products.Slug.Get
+import API.Store.ShippingRates.Post.Route qualified as Store.ShippingRates.Post
 import API.Stream.Metadata.Get.Route qualified as Stream.Metadata.Get
 import API.TermsOfService.Get.Route qualified as TermsOfService.Get
 import API.Uploads.Audio.Post.Route qualified as Uploads.Audio.Post
@@ -177,6 +186,7 @@ import API.User.ResetPassword.Post.Route qualified as User.ResetPassword.Post
 import API.User.VerifyEmail.Get.Route qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Route qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Route qualified as User.VerifyEmailSent.Get
+import API.Webhooks.Stripe.Post.Route qualified as Webhooks.Stripe.Post
 import GHC.Generics (Generic)
 import Servant (NamedRoutes, (:-))
 
@@ -227,6 +237,8 @@ data Routes mode = Routes
     store :: mode :- NamedRoutes StoreRoutes,
     -- | @/api/store/...@ - Store API routes
     storeApi :: mode :- NamedRoutes StoreApiRoutes,
+    -- | @/api/webhooks/...@ - Webhook routes
+    webhooks :: mode :- NamedRoutes WebhookRoutes,
     -- | @GET /api/stream/metadata@ - Stream metadata proxy (avoids CORS)
     streamMetadata :: mode :- Stream.Metadata.Get.Route,
     -- | @GET /debug/version@ - Version info for debugging
@@ -680,9 +692,17 @@ data DashboardStoreSettingsRoutes mode = DashboardStoreSettingsRoutes
   deriving stock (Generic)
 
 -- | Dashboard store orders routes under @/dashboard/store/orders@.
-newtype DashboardStoreOrdersRoutes mode = DashboardStoreOrdersRoutes
+data DashboardStoreOrdersRoutes mode = DashboardStoreOrdersRoutes
   { -- | @GET /dashboard/store/orders@ - Order list
-    list :: mode :- Dashboard.Store.Orders.Get.Route
+    list :: mode :- Dashboard.Store.Orders.Get.Route,
+    -- | @GET /dashboard/store/orders/:id@ - Order detail
+    detail :: mode :- Dashboard.Store.Orders.Id.Get.Route,
+    -- | @POST /dashboard/store/orders/:id/status@ - Update order status
+    status :: mode :- Dashboard.Store.Orders.Id.Status.Post.Route,
+    -- | @POST /dashboard/store/orders/:id/notes@ - Update order notes
+    notes :: mode :- Dashboard.Store.Orders.Id.Notes.Post.Route,
+    -- | @POST /dashboard/store/orders/:id/label@ - Purchase shipping label
+    purchaseLabel :: mode :- Dashboard.Store.Orders.Id.Label.Post.Route
   }
   deriving stock (Generic)
 
@@ -735,15 +755,32 @@ data StoreRoutes mode = StoreRoutes
     -- | @GET /store/products/:slug@ - Product detail page
     product :: mode :- Store.Products.Slug.Get.Route,
     -- | @GET /store/cart@ - Cart page
-    cart :: mode :- Store.Cart.Get.Route
+    cart :: mode :- Store.Cart.Get.Route,
+    -- | @GET /store/checkout@ - Checkout page
+    checkout :: mode :- Store.Checkout.Get.Route,
+    -- | @GET /store/orders/:order-number/confirmation@ - Order confirmation page
+    orderConfirmation :: mode :- Store.Orders.Confirmation.Get.Route
   }
   deriving stock (Generic)
 
 -- | Store API routes under @/api/store@.
 --
--- Backend endpoints for store operations (cart validation, etc.).
-newtype StoreApiRoutes mode = StoreApiRoutes
+-- Backend endpoints for store operations (cart validation, checkout, shipping).
+data StoreApiRoutes mode = StoreApiRoutes
   { -- | @POST /api/store/cart/validate@ - Validate cart contents
-    cartValidate :: mode :- Store.Cart.Validate.Post.Route
+    cartValidate :: mode :- Store.Cart.Validate.Post.Route,
+    -- | @POST /api/store/shipping-rates@ - Get shipping rates for address
+    shippingRates :: mode :- Store.ShippingRates.Post.Route,
+    -- | @POST /api/store/checkout/create-session@ - Create Stripe checkout session
+    createSession :: mode :- Store.Checkout.CreateSession.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Webhook routes under @/api/webhooks@.
+--
+-- Endpoints for external service callbacks (Stripe, etc.).
+newtype WebhookRoutes mode = WebhookRoutes
+  { -- | @POST /api/webhooks/stripe@ - Stripe webhook handler
+    stripe :: mode :- Webhooks.Stripe.Post.Route
   }
   deriving stock (Generic)
