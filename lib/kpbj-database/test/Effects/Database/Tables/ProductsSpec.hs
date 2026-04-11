@@ -66,6 +66,8 @@ spec =
           hedgehog . prop_decrementInventoryInsufficient
         runs 10 . it "decrementInventory succeeds with exact stock level" $
           hedgehog . prop_decrementInventoryExact
+        runs 10 . it "decrementInventory fails on inactive product" $
+          hedgehog . prop_decrementInventoryInactive
         runs 10 . it "restoreInventory increases inventory count" $
           hedgehog . prop_restoreInventory
 
@@ -454,7 +456,7 @@ prop_decrementInventorySufficient cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        let prod = template {UUT.piInventoryCount = stock}
+        let prod = template {UUT.piInventoryCount = stock, UUT.piIsActive = True}
         productId <- unwrapInsert (UUT.insertProduct prod)
         decremented <- TRX.statement () (UUT.decrementInventory productId qty)
         selected <- TRX.statement () (UUT.getById productId)
@@ -500,7 +502,7 @@ prop_decrementInventoryExact cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        let prod = template {UUT.piInventoryCount = stock}
+        let prod = template {UUT.piInventoryCount = stock, UUT.piIsActive = True}
         productId <- unwrapInsert (UUT.insertProduct prod)
         decremented <- TRX.statement () (UUT.decrementInventory productId stock)
         selected <- TRX.statement () (UUT.getById productId)
@@ -513,6 +515,28 @@ prop_decrementInventoryExact cfg = do
         decrementedId === productId
         selected <- assertJust mSelected
         UUT.pInventoryCount selected === 0
+
+
+prop_decrementInventoryInactive :: TestDBConfig -> PropertyT IO ()
+prop_decrementInventoryInactive cfg = do
+  arrange (bracketConn cfg) $ do
+    template <- forAllT productInsertGen
+    stock <- forAllT $ Gen.int64 (Range.linear 1 10000)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let prod = template {UUT.piInventoryCount = stock, UUT.piIsActive = False}
+        productId <- unwrapInsert (UUT.insertProduct prod)
+        decremented <- TRX.statement () (UUT.decrementInventory productId 1)
+        selected <- TRX.statement () (UUT.getById productId)
+        TRX.condemn
+        pure (decremented, selected, stock)
+
+      assert $ do
+        (mDecremented, mSelected, originalStock) <- assertRight result
+        assertNothing mDecremented
+        selected <- assertJust mSelected
+        UUT.pInventoryCount selected === originalStock
 
 
 prop_restoreInventory :: TestDBConfig -> PropertyT IO ()
