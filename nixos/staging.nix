@@ -13,6 +13,7 @@
     ./token-cleanup.nix
     ./episode-check.nix
     ./listener-snapshots.nix
+    ./order-cleanup.nix
     ./monitoring.nix
     ./nginx.nix
     ./sops.nix
@@ -53,6 +54,11 @@
 
   kpbj.listenerSnapshots = {
     enable = true;
+  };
+
+  kpbj.orderCleanup = {
+    enable = true;
+    dryRun = false;
   };
 
   kpbj.nginx = {
