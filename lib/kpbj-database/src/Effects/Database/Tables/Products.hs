@@ -28,6 +28,10 @@ module Effects.Database.Tables.Products
     updateProduct,
     deactivateProduct,
 
+    -- * Inventory
+    decrementInventory,
+    restoreInventory,
+
     -- * Listing Types
     ProductWithHeroImage (..),
     pwhToProduct,
@@ -271,6 +275,34 @@ deactivateProduct productId =
             updateWhere = \_ p -> pId p ==. lit productId,
             returning = Returning pId
           }
+
+
+--------------------------------------------------------------------------------
+-- Inventory
+
+-- | Decrement a product's inventory count.
+--
+-- Only succeeds if the product is active and has sufficient inventory
+-- (@inventory_count >= qty@). Returns the product ID on success, 'Nothing'
+-- if the product is inactive or has insufficient inventory.
+decrementInventory :: Id -> Int64 -> Hasql.Statement () (Maybe Id)
+decrementInventory productId qty = interp False
+  [sql|
+    UPDATE products
+    SET inventory_count = inventory_count - #{qty}, updated_at = NOW()
+    WHERE id = #{productId} AND is_active = true AND inventory_count >= #{qty}
+    RETURNING id
+  |]
+
+
+-- | Restore inventory to a product (e.g. after cancellation or refund).
+restoreInventory :: Id -> Int64 -> Hasql.Statement () ()
+restoreInventory productId qty = interp True
+  [sql|
+    UPDATE products
+    SET inventory_count = inventory_count + #{qty}, updated_at = NOW()
+    WHERE id = #{productId}
+  |]
 
 
 --------------------------------------------------------------------------------
