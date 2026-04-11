@@ -216,6 +216,10 @@ library
     API.Dashboard.Store.Orders.Get.Handler
     API.Dashboard.Store.Orders.Get.Route
     API.Dashboard.Store.Orders.Get.Templates
+    API.Dashboard.Store.Orders.Id.Get.Route
+    API.Dashboard.Store.Orders.Id.Label.Post.Route
+    API.Dashboard.Store.Orders.Id.Notes.Post.Route
+    API.Dashboard.Store.Orders.Id.Status.Post.Route
     API.Dashboard.Store.Products.Get.Handler
     API.Dashboard.Store.Products.Get.Route
     API.Dashboard.Store.Products.Get.Templates
@@ -430,13 +434,19 @@ library
     API.Store.Cart.Validate.Post.Handler
     API.Store.Cart.Validate.Post.Route
     API.Store.Cart.Validate.Post.Templates
+    API.Store.Checkout.CreateSession.Post.Route
+    API.Store.Checkout.Get.Route
     API.Store.List.Get.Handler
     API.Store.List.Get.Route
     API.Store.List.Get.Templates
+    API.Store.Orders.Confirmation.Get.Route
     API.Store.Products.Slug.Get.Handler
     API.Store.Products.Slug.Get.Route
     API.Store.Products.Slug.Get.Templates
+    API.Store.ShippingRates.Post.Route
     API.Store.Types
+    Store.Checkout.Emails
+    Store.Checkout.Logic
     API.TermsOfService.Get.Handler
     API.TermsOfService.Get.Route
     API.TermsOfService.Get.Templates
@@ -488,6 +498,7 @@ library
     API.User.ResetPassword.Get.Templates.InvalidToken
     API.User.ResetPassword.Post.Handler
     API.User.ResetPassword.Post.Route
+    API.Webhooks.Stripe.Post.Route
     App.Analytics
     App.BaseUrl
     App.Common
@@ -566,6 +577,7 @@ test-suite kpbj-api-test
                     , kpbj-types
                     , kpbj-database
                     , kpbj-database:kpbj-database-test-lib
+                    , kpbj-email
                     , web-server-core
                     , bytestring
                     , containers
@@ -596,6 +608,7 @@ test-suite kpbj-api-test
                     , password
                     , postgres-options
                     , rel8
+                    , scientific
                     , string-interpolate
                     , text
                     , text-display
@@ -693,6 +706,8 @@ test-suite kpbj-api-test
        API.Store.Cart.Validate.Post.HandlerSpec
        API.Store.List.Get.HandlerSpec
        API.Store.Products.Slug.Get.HandlerSpec
+       Store.Checkout.EmailsSpec
+       Store.Checkout.LogicSpec
        API.User.ForgotPassword.Post.HandlerSpec
        API.User.Login.Post.HandlerSpec
        API.User.Register.Post.HandlerSpec
