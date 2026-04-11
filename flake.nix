@@ -73,6 +73,8 @@
 
               listener-snapshots = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "listener-snapshots" ./jobs/listener-snapshots { });
 
+              order-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "order-cleanup" ./jobs/order-cleanup { });
+
               lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./services/web/lib/lucid-form-builder { });
 
               lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./services/web/lib/lucid-htmx-alpine { });
@@ -160,6 +162,7 @@
             token-cleanup = hsPkgs.token-cleanup;
             episode-check = hsPkgs.episode-check;
             listener-snapshots = hsPkgs.listener-snapshots;
+            order-cleanup = hsPkgs.order-cleanup;
           };
 
           defaultPackage = packages.kpbj-api;
@@ -181,12 +184,13 @@
           token-cleanup = self.packages.x86_64-linux.token-cleanup;
           episode-check = self.packages.x86_64-linux.episode-check;
           listener-snapshots = self.packages.x86_64-linux.listener-snapshots;
+          order-cleanup = self.packages.x86_64-linux.order-cleanup;
           kpbj-api = self.packages.x86_64-linux.kpbj-api;
         in
         {
           kpbj-prod = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots order-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               ./nixos/prod.nix
@@ -194,7 +198,7 @@
           };
           kpbj-staging = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots order-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               ./nixos/staging.nix
