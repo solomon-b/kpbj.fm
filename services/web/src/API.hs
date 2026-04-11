@@ -35,6 +35,7 @@ module API
     DashboardStoreOrdersRoutes (..),
     StoreRoutes (..),
     StoreApiRoutes (..),
+    WebhookRoutes (..),
     InviteRoutes (..),
     UploadRoutes (..),
     PlayoutRoutes (..),
@@ -254,6 +255,7 @@ server =
       analytics = analyticsRoutes,
       store = storeRoutes,
       storeApi = storeApiRoutes,
+      webhooks = webhookRoutes,
       streamMetadata = Stream.Metadata.Get.handler,
       debugVersion = Debug.Version.Get.handler
     }
@@ -392,7 +394,11 @@ server =
 
     dashboardStoreOrdersRoutes =
       DashboardStoreOrdersRoutes
-        { list = Dashboard.Store.Orders.Get.handler
+        { list = Dashboard.Store.Orders.Get.handler,
+          detail = error "TODO: order detail handler",
+          status = error "TODO: order status handler",
+          notes = error "TODO: order notes handler",
+          purchaseLabel = error "TODO: order label handler"
         }
 
     dashboardInvitationsRoutes =
@@ -522,10 +528,19 @@ server =
       StoreRoutes
         { list = Store.List.Get.handler,
           product = Store.Products.Slug.Get.handler,
-          cart = Store.Cart.Get.handler
+          cart = Store.Cart.Get.handler,
+          checkout = error "TODO: checkout handler",
+          orderConfirmation = error "TODO: confirmation handler"
         }
 
     storeApiRoutes =
       StoreApiRoutes
-        { cartValidate = Store.Cart.Validate.Post.handler
+        { cartValidate = Store.Cart.Validate.Post.handler,
+          shippingRates = error "TODO: shipping rates handler",
+          createSession = error "TODO: create session handler"
+        }
+
+    webhookRoutes =
+      WebhookRoutes
+        { stripe = error "TODO: stripe webhook handler"
         }
