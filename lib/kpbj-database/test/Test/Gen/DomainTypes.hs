@@ -2,7 +2,6 @@ module Test.Gen.DomainTypes where
 
 --------------------------------------------------------------------------------
 
-import Data.Int (Int64)
 import Domain.Types.Cents (Cents (..))
 import Domain.Types.DisplayName (DisplayName, mkDisplayNameUnsafe)
 import Domain.Types.FullName (FullName, mkFullNameUnsafe)
