@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -25,6 +26,10 @@ module Effects.Database.Tables.ProductVariants
     insertVariant,
     updateVariant,
     softDeleteVariant,
+
+    -- * Inventory
+    decrementInventory,
+    restoreInventory,
   )
 where
 
@@ -41,7 +46,7 @@ import Domain.Types.Cents (Cents)
 import Effects.Database.Tables.Products qualified as Products
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Insert)
@@ -227,3 +232,29 @@ softDeleteVariant variantId =
             updateWhere = \_ variant -> pvId variant ==. lit variantId,
             returning = Returning pvId
           }
+
+--------------------------------------------------------------------------------
+-- Inventory
+
+-- | Decrement a variant's inventory count.
+--
+-- Only succeeds if the variant has sufficient inventory and is not soft-deleted.
+-- Returns the variant ID on success, 'Nothing' if insufficient inventory or deleted.
+decrementInventory :: Id -> Int64 -> Hasql.Statement () (Maybe Id)
+decrementInventory variantId qty = interp False
+  [sql|
+    UPDATE product_variants
+    SET inventory_count = inventory_count - #{qty}
+    WHERE id = #{variantId} AND inventory_count >= #{qty} AND deleted_at IS NULL
+    RETURNING id
+  |]
+
+
+-- | Restore inventory to a variant (e.g. after cancellation or refund).
+restoreInventory :: Id -> Int64 -> Hasql.Statement () ()
+restoreInventory variantId qty = interp True
+  [sql|
+    UPDATE product_variants
+    SET inventory_count = inventory_count + #{qty}
+    WHERE id = #{variantId}
+  |]
