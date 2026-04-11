@@ -1,9 +1,8 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
--- | Database table definition for @order_items@.
---
--- Schema-only module — queries are implemented in Phase 3.
+-- | Database table definition and queries for @order_items@.
 module Effects.Database.Tables.OrderItems
   ( -- * Id Type
     Id (..),
@@ -14,6 +13,13 @@ module Effects.Database.Tables.OrderItems
 
     -- * Model (Result alias)
     Model,
+
+    -- * Insert Type
+    Insert (..),
+
+    -- * Queries
+    insertOrderItem,
+    getByOrderId,
   )
 where
 
@@ -29,9 +35,10 @@ import Effects.Database.Tables.Orders qualified as Orders
 import Effects.Database.Tables.Products qualified as Products
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..))
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
-import Rel8
+import Rel8 hiding (Insert)
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -109,3 +116,49 @@ orderItemSchema =
             oiCreatedAt = "created_at"
           }
     }
+
+--------------------------------------------------------------------------------
+-- Insert Type
+
+-- | Insert type for creating new order items.
+data Insert = Insert
+  { iiOrderId :: Orders.Id,
+    iiProductId :: Products.Id,
+    iiVariantId :: Maybe ProductVariants.Id,
+    iiProductName :: Text,
+    iiVariantLabel :: Text,
+    iiQuantity :: Int64,
+    iiUnitPriceCents :: Cents
+  }
+  deriving stock (Generic, Show, Eq)
+
+--------------------------------------------------------------------------------
+-- Queries
+
+-- | Insert a new order item. Returns the new item's ID.
+insertOrderItem :: Insert -> Hasql.Statement () (Maybe Id)
+insertOrderItem Insert {..} = interp True
+  [sql|
+    INSERT INTO order_items
+      (order_id, product_id, variant_id,
+       product_name, variant_label,
+       quantity, unit_price_cents)
+    VALUES
+      (#{iiOrderId}, #{iiProductId}, #{iiVariantId},
+       #{iiProductName}, #{iiVariantLabel},
+       #{iiQuantity}, #{iiUnitPriceCents})
+    RETURNING id
+  |]
+
+
+-- | Get all order items for a given order, ordered by ID.
+getByOrderId :: Orders.Id -> Hasql.Statement () [Model]
+getByOrderId orderId = interp False
+  [sql|
+    SELECT id, order_id, product_id, variant_id,
+           product_name, variant_label,
+           quantity, unit_price_cents, created_at
+    FROM order_items
+    WHERE order_id = #{orderId}
+    ORDER BY id
+  |]

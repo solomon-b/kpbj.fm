@@ -15,6 +15,8 @@ import Effects.Database.Tables.EphemeralUploadsSpec qualified as EphemeralUpload
 import Effects.Database.Tables.EpisodeTrackSpec qualified as EpisodeTrack
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
 import Effects.Database.Tables.EventsSpec qualified as Events
+import Effects.Database.Tables.OrderItemsSpec qualified as OrderItems
+import Effects.Database.Tables.OrdersSpec qualified as Orders
 import Effects.Database.Tables.PasswordResetTokensSpec qualified as PasswordResetTokens
 import Effects.Database.Tables.ProductImagesSpec qualified as ProductImages
 import Effects.Database.Tables.ProductOptionTypesSpec qualified as ProductOptionTypes
@@ -121,3 +123,5 @@ main = do
     ProductOptionTypes.spec
     ProductVariantOptions.spec
     StoreSettings.spec
+    Orders.spec
+    OrderItems.spec
