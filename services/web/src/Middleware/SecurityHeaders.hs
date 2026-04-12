@@ -30,6 +30,11 @@ securityHeaders =
     ("X-Frame-Options", "DENY"),
     ("Referrer-Policy", "strict-origin-when-cross-origin"),
     ("Permissions-Policy", "camera=(), microphone=(), geolocation=()"),
+    -- TODO: Remove 'unsafe-inline' and 'unsafe-eval' from script-src.
+    -- Alpine.js requires 'unsafe-eval' (uses new Function() for x-data expressions).
+    -- HTMX inline handlers require 'unsafe-inline'. Fixing this requires either
+    -- the Alpine.js CSP build + Alpine.data() registrations, or nonce-based CSP
+    -- with per-request nonce threading through all script tags.
     ( "Content-Security-Policy",
       "default-src 'none'; \
       \script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://www.paypal.com https://js.stripe.com; \

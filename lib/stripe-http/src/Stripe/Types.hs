@@ -9,6 +9,9 @@ module Stripe.Types
     StripePublishableKey (..),
     StripeWebhookSecret (..),
 
+    -- * Identifiers
+    StripeSessionId (..),
+
     -- * Currency
     Currency (..),
 
@@ -78,6 +81,13 @@ newtype StripeWebhookSecret = StripeWebhookSecret {unStripeWebhookSecret :: Byte
 
 instance Show StripeWebhookSecret where
   show _ = "StripeWebhookSecret \"<redacted>\""
+
+--------------------------------------------------------------------------------
+-- Identifiers
+
+-- | A Stripe Checkout Session identifier (e.g. @cs_test_abc123@).
+newtype StripeSessionId = StripeSessionId {unStripeSessionId :: Text}
+  deriving newtype (Eq, Show, FromJSON, ToJSON)
 
 --------------------------------------------------------------------------------
 -- Currency
@@ -448,7 +458,7 @@ encodeShippingOption idx so =
 -- many more fields which are silently ignored by the 'FromJSON' instance.
 data CheckoutSession = CheckoutSession
   { -- | Unique identifier (e.g. @cs_test_...@).
-    id :: Text,
+    id :: StripeSessionId,
     -- | Client secret for frontend initialization with Stripe Elements.
     clientSecret :: Maybe Text,
     -- | Current status of the session.

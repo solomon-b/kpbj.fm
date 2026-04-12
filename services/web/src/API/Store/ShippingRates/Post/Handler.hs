@@ -114,6 +114,14 @@ resolveOne ::
   CartItem ->
   AppM (Either Text ResolvedItem)
 resolveOne cartItem = do
+  if cartItem.quantity <= 0 || cartItem.quantity > 50
+    then pure $ Left "Invalid item quantity."
+    else resolveOneValid cartItem
+
+resolveOneValid ::
+  CartItem ->
+  AppM (Either Text ResolvedItem)
+resolveOneValid cartItem = do
   mProduct <- execQueryThrow $ Products.getById cartItem.productId
   case mProduct of
     Nothing ->
