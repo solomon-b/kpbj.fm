@@ -12,12 +12,13 @@ import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
 
--- | "GET /store/orders/:order-number/confirmation"
+-- | "GET /store/orders/:order-number/confirmation?session_id=..."
 type Route =
   "store"
     :> "orders"
     :> Servant.Capture "order-number" Text
     :> "confirmation"
+    :> Servant.QueryParam "session_id" Text
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

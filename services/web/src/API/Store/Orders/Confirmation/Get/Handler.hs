@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Store.Orders.Confirmation.Get.Handler where
@@ -19,18 +20,31 @@ import Lucid qualified
 -- | Handler for the order confirmation page.
 --
 -- Loads the order by its human-readable order number (e.g. "KPBJ-0001"),
--- then renders a thank-you page with a masked email address. If no matching
--- order is found, renders a simple not-found message instead.
+-- verifies the provided session_id matches the order's stored Stripe
+-- checkout session ID, then renders a thank-you page with a masked email.
+-- If the order is not found or the session_id doesn't match, renders a
+-- not-found message.
 handler ::
   Text ->
+  Maybe Text ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler orderNumber cookie (foldHxReq -> hxRequest) = do
+handler orderNumber mSessionId cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- fmap snd <$> getUserInfo cookie
   mOrder <- execQueryThrow (Orders.getByOrderNumber orderNumber)
   case mOrder of
     Nothing ->
       renderTemplate hxRequest mUserInfo notFoundTemplate
     Just order ->
-      renderTemplate hxRequest mUserInfo (template order)
+      if validSessionId mSessionId order
+        then renderTemplate hxRequest mUserInfo (template order)
+        else renderTemplate hxRequest mUserInfo notFoundTemplate
+
+-- | Verify that the provided session_id matches the order's stored
+-- Stripe checkout session ID. Both must be present and equal.
+validSessionId :: Maybe Text -> Orders.Model -> Bool
+validSessionId mSessionId order =
+  case (mSessionId, order.oStripeCheckoutSessionId) of
+    (Just sid, Just storedSid) -> sid == storedSid
+    _ -> False

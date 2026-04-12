@@ -70,6 +70,7 @@ import Stripe.Types
     ShippingOption (..),
     ShippingRateData (..),
     StripeSecretKey,
+    StripeSessionId (..),
   )
 
 --------------------------------------------------------------------------------
@@ -241,7 +242,7 @@ handler req = do
         CheckoutSessionCreate
           { mode = "payment",
             uiMode = "embedded",
-            returnUrl = appBase <> rootLink (storeLinks.orderConfirmation orderNumber) <> "?session_id={CHECKOUT_SESSION_ID}",
+            returnUrl = appBase <> rootLink (storeLinks.orderConfirmation orderNumber Nothing) <> "?session_id={CHECKOUT_SESSION_ID}",
             customerEmail = Just req.csrEmail,
             lineItems = productLineItems <> [taxLineItem],
             shippingOptions =
@@ -272,7 +273,8 @@ handler req = do
     Right s -> pure s
 
   -- 8. Store Stripe checkout session ID on the order
-  execQueryThrow (Orders.updateStripeCheckoutSessionId orderId session.id)
+  let (StripeSessionId sessionId) = session.id
+  execQueryThrow (Orders.updateStripeCheckoutSessionId orderId sessionId)
 
   Log.logInfo "Checkout session created" orderNumber
 
@@ -300,6 +302,9 @@ resolveOne ::
   CartItem ->
   AppM ResolvedItem
 resolveOne cartItem = do
+  when (cartItem.quantity <= 0 || cartItem.quantity > 50) $
+    throwBadRequest "Invalid item quantity."
+
   mProduct <- execQueryThrow $ Products.getById cartItem.productId
   product' <- maybe (throwBadRequest "One or more items in your cart are no longer available.") pure mProduct
 

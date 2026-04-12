@@ -12,7 +12,7 @@ where
 import Data.Aeson (FromJSON (..), ToJSON (..), genericParseJSON, genericToJSON)
 import Data.Aeson qualified as Aeson
 import Data.List (stripPrefix)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import Effects.Database.Tables.Products qualified as Products
@@ -98,5 +98,5 @@ instance ToJSON CreateSessionResponse where
 prefixOptions :: String -> Aeson.Options
 prefixOptions prefix =
   Aeson.defaultOptions
-    { Aeson.fieldLabelModifier = Aeson.camelTo2 '_' . fromJust . stripPrefix prefix
+    { Aeson.fieldLabelModifier = Aeson.camelTo2 '_' . fromMaybe (error $ "prefixOptions: field missing prefix " <> show prefix) . stripPrefix prefix
     }

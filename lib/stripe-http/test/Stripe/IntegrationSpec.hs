@@ -65,7 +65,8 @@ spec = describe "Stripe Integration (live test API)" $ do
             Just s -> not (Text.null s)
             Nothing -> False
 
-          retrieveResult <- getCheckoutSession mgr key cs.id
+          let (StripeSessionId csId) = cs.id
+          retrieveResult <- getCheckoutSession mgr key csId
           case retrieveResult of
             Left err -> fail $ "Failed to retrieve Checkout Session: " <> show err
             Right cs' -> do
