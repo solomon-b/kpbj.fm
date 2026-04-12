@@ -153,6 +153,22 @@ in
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" ];
     };
+    sops.secrets.stripe_secret_key = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-web.service" ];
+    };
+    sops.secrets.stripe_publishable_key = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-web.service" ];
+    };
+    sops.secrets.stripe_webhook_secret = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-web.service" ];
+    };
+    sops.secrets.easypost_api_key = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-web.service" ];
+    };
 
     # ── SOPS template (env file with secrets) ────────────────────
     # playout_secret and webhook_secret come from the streaming
@@ -166,6 +182,10 @@ in
         APP_GOOGLE_ANALYTICS_GTAG=${config.sops.placeholder.google_analytics_gtag}
         PLAYOUT_SECRET=${config.sops.placeholder.playout_secret}
         WEBHOOK_SECRET=${config.sops.placeholder.webhook_secret}
+        STRIPE_SECRET_KEY=${config.sops.placeholder.stripe_secret_key}
+        STRIPE_PUBLISHABLE_KEY=${config.sops.placeholder.stripe_publishable_key}
+        STRIPE_WEBHOOK_SECRET=${config.sops.placeholder.stripe_webhook_secret}
+        EASYPOST_API_KEY=${config.sops.placeholder.easypost_api_key}
         DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
       '';
       restartUnits = [ "kpbj-web.service" ];
