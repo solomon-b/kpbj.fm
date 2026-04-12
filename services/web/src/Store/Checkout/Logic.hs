@@ -5,23 +5,26 @@ module Store.Checkout.Logic
     maskEmail,
     formatOrderNumber,
     easypostRateToCents,
+    filterRates,
+    sortRatesByPrice,
   )
 where
 
 --------------------------------------------------------------------------------
 
 import Data.Int (Int64)
+import Data.List (sortOn)
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cents (Cents (..))
+import EasyPost.Types (Rate (..))
 
 --------------------------------------------------------------------------------
 
 -- | Compute subtotal from a list of (unit_price, quantity) pairs.
 computeSubtotal :: [(Cents, Int64)] -> Cents
 computeSubtotal = Cents . sum . fmap (\(Cents p, q) -> p * q)
-
 
 -- | Compute tax as round(subtotal_cents * tax_rate).
 --
@@ -31,11 +34,9 @@ computeTax :: Cents -> Scientific -> Cents
 computeTax (Cents subtotal) taxRate =
   Cents $ round (fromIntegral subtotal * taxRate :: Scientific)
 
-
 -- | Sum subtotal + shipping + tax to produce the order total.
 computeTotal :: Cents -> Cents -> Cents -> Cents
 computeTotal (Cents sub) (Cents ship) (Cents tax) = Cents (sub + ship + tax)
-
 
 -- | Mask an email address for safe public display.
 --
@@ -51,7 +52,6 @@ maskEmail email =
       | Text.null domain -> Text.take 1 local <> "***"
       | otherwise -> Text.take 1 local <> "***" <> domain
 
-
 -- | Format an order number from a sequence value.
 --
 -- Pads to at least 4 digits with leading zeros.
@@ -64,8 +64,7 @@ formatOrderNumber n =
   let padded = Text.pack (show n)
       width = max 4 (Text.length padded)
       zeroPadded = Text.justifyRight width '0' padded
-  in "KPBJ-" <> zeroPadded
-
+   in "KPBJ-" <> zeroPadded
 
 -- | Parse an EasyPost rate string (e.g. "7.58") to whole cents (758).
 --
@@ -75,3 +74,18 @@ easypostRateToCents rateText =
   case reads (Text.unpack rateText) :: [(Double, String)] of
     [(d, "")] -> Just $ Cents $ round (d * 100)
     _ -> Nothing
+
+-- | Filter rates to USPS and UPS only.
+filterRates :: [Rate] -> [Rate]
+filterRates = filter (\r -> r.carrier == "USPS" || r.carrier == "UPS")
+
+-- | Sort EasyPost rates by their parsed cent value (cheapest first).
+--
+-- Rates with unparseable price strings are placed last.
+sortRatesByPrice :: [Rate] -> [Rate]
+sortRatesByPrice = sortOn rateKey
+  where
+    rateKey :: Rate -> (Int, Int64)
+    rateKey r = case easypostRateToCents r.rate of
+      Just (Cents c) -> (0, c)
+      Nothing -> (1, maxBound)

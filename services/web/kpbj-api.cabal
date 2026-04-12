@@ -216,9 +216,15 @@ library
     API.Dashboard.Store.Orders.Get.Handler
     API.Dashboard.Store.Orders.Get.Route
     API.Dashboard.Store.Orders.Get.Templates
+    API.Dashboard.Store.Orders.Id.Get.Handler
     API.Dashboard.Store.Orders.Id.Get.Route
+    API.Dashboard.Store.Orders.Id.Get.Templates
+    API.Dashboard.Store.Orders.Id.Label.Post.Handler
     API.Dashboard.Store.Orders.Id.Label.Post.Route
+    API.Dashboard.Store.Orders.Id.Label.Post.Templates
+    API.Dashboard.Store.Orders.Id.Notes.Post.Handler
     API.Dashboard.Store.Orders.Id.Notes.Post.Route
+    API.Dashboard.Store.Orders.Id.Status.Post.Handler
     API.Dashboard.Store.Orders.Id.Status.Post.Route
     API.Dashboard.Store.Products.Get.Handler
     API.Dashboard.Store.Products.Get.Route
@@ -434,16 +440,23 @@ library
     API.Store.Cart.Validate.Post.Handler
     API.Store.Cart.Validate.Post.Route
     API.Store.Cart.Validate.Post.Templates
+    API.Store.Checkout.CreateSession.Post.Handler
     API.Store.Checkout.CreateSession.Post.Route
+    API.Store.Checkout.Get.Handler
     API.Store.Checkout.Get.Route
+    API.Store.Checkout.Get.Templates
     API.Store.List.Get.Handler
     API.Store.List.Get.Route
     API.Store.List.Get.Templates
+    API.Store.Orders.Confirmation.Get.Handler
     API.Store.Orders.Confirmation.Get.Route
+    API.Store.Orders.Confirmation.Get.Templates
     API.Store.Products.Slug.Get.Handler
     API.Store.Products.Slug.Get.Route
     API.Store.Products.Slug.Get.Templates
+    API.Store.ShippingRates.Post.Handler
     API.Store.ShippingRates.Post.Route
+    API.Store.ShippingRates.Post.Templates
     API.Store.Types
     Store.Checkout.Emails
     Store.Checkout.Logic
@@ -499,6 +512,7 @@ library
     API.User.ResetPassword.Post.Handler
     API.User.ResetPassword.Post.Route
     API.Webhooks.Stripe.Post.Route
+    API.Webhooks.Stripe.Post.Handler
     App.Analytics
     App.BaseUrl
     App.Common

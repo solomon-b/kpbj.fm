@@ -16,16 +16,16 @@ spec = describe "Store.Checkout.Logic" $ do
       computeSubtotal [] `shouldBe` Cents 0
 
     it "computes price * quantity for a single item" $
-      -- $25.00 * 2 = $50.00
+      -- \$25.00 * 2 = $50.00
       computeSubtotal [(Cents 2500, 2)] `shouldBe` Cents 5000
 
     it "sums multiple items correctly" $
-      -- $10.00 * 3 = $30.00, $5.99 * 1 = $5.99, total = $35.99
+      -- \$10.00 * 3 = $30.00, $5.99 * 1 = $5.99, total = $35.99
       computeSubtotal [(Cents 1000, 3), (Cents 599, 1)] `shouldBe` Cents 3599
 
   describe "computeTax" $ do
     it "computes tax by rounding subtotal * rate" $
-      -- $35.00 * 0.095 = $3.325 → banker's rounds to $3.32 (rounds to even)
+      -- \$35.00 * 0.095 = $3.325 → banker's rounds to $3.32 (rounds to even)
       computeTax (Cents 3500) (0.095 :: Scientific) `shouldBe` Cents 332
 
     it "returns zero tax for a zero rate" $
@@ -36,7 +36,7 @@ spec = describe "Store.Checkout.Logic" $ do
 
   describe "computeTotal" $ do
     it "sums subtotal, shipping, and tax" $
-      -- $35.99 + $7.58 + $3.33 = $46.90
+      -- \$35.99 + $7.58 + $3.33 = $46.90
       computeTotal (Cents 3599) (Cents 758) (Cents 333) `shouldBe` Cents 4690
 
     it "works when shipping and tax are zero" $

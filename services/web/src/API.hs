@@ -119,6 +119,10 @@ import API.Dashboard.StationIds.Id.Delete.Handler qualified as Dashboard.Station
 import API.Dashboard.StationIds.New.Get.Handler qualified as Dashboard.StationIds.New.Get
 import API.Dashboard.StationIds.New.Post.Handler qualified as Dashboard.StationIds.New.Post
 import API.Dashboard.Store.Orders.Get.Handler qualified as Dashboard.Store.Orders.Get
+import API.Dashboard.Store.Orders.Id.Get.Handler qualified as Dashboard.Store.Orders.Id.Get
+import API.Dashboard.Store.Orders.Id.Label.Post.Handler qualified as Dashboard.Store.Orders.Id.Label.Post
+import API.Dashboard.Store.Orders.Id.Notes.Post.Handler qualified as Dashboard.Store.Orders.Id.Notes.Post
+import API.Dashboard.Store.Orders.Id.Status.Post.Handler qualified as Dashboard.Store.Orders.Id.Status.Post
 import API.Dashboard.Store.Products.Create.Post.Handler qualified as Dashboard.Store.Products.Create.Post
 import API.Dashboard.Store.Products.Get.Handler qualified as Dashboard.Store.Products.Get
 import API.Dashboard.Store.Products.Id.Deactivate.Post.Handler qualified as Dashboard.Store.Products.Id.Deactivate.Post
@@ -165,8 +169,12 @@ import API.Shows.Slug.Get.Handler qualified as Show.Get
 import API.Static.Get.Handler qualified as Static.Get
 import API.Store.Cart.Get.Handler qualified as Store.Cart.Get
 import API.Store.Cart.Validate.Post.Handler qualified as Store.Cart.Validate.Post
+import API.Store.Checkout.CreateSession.Post.Handler qualified as Store.Checkout.CreateSession.Post
+import API.Store.Checkout.Get.Handler qualified as Store.Checkout.Get
 import API.Store.List.Get.Handler qualified as Store.List.Get
+import API.Store.Orders.Confirmation.Get.Handler qualified as Store.Orders.Confirmation.Get
 import API.Store.Products.Slug.Get.Handler qualified as Store.Products.Slug.Get
+import API.Store.ShippingRates.Post.Handler qualified as Store.ShippingRates.Post
 import API.Stream.Metadata.Get.Handler qualified as Stream.Metadata.Get
 import API.TermsOfService.Get.Handler qualified as TermsOfService.Get
 import API.Types
@@ -184,6 +192,7 @@ import API.User.ResetPassword.Post.Handler qualified as User.ResetPassword.Post
 import API.User.VerifyEmail.Get.Handler qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Handler qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Handler qualified as User.VerifyEmailSent.Get
+import API.Webhooks.Stripe.Post.Handler qualified as Webhooks.Stripe.Post
 import App qualified
 import App.Auth qualified as Auth
 import App.Context (AppContext (..))
@@ -395,10 +404,10 @@ server =
     dashboardStoreOrdersRoutes =
       DashboardStoreOrdersRoutes
         { list = Dashboard.Store.Orders.Get.handler,
-          detail = error "TODO: order detail handler",
-          status = error "TODO: order status handler",
-          notes = error "TODO: order notes handler",
-          purchaseLabel = error "TODO: order label handler"
+          detail = Dashboard.Store.Orders.Id.Get.handler,
+          status = Dashboard.Store.Orders.Id.Status.Post.handler,
+          notes = Dashboard.Store.Orders.Id.Notes.Post.handler,
+          purchaseLabel = Dashboard.Store.Orders.Id.Label.Post.handler
         }
 
     dashboardInvitationsRoutes =
@@ -529,18 +538,18 @@ server =
         { list = Store.List.Get.handler,
           product = Store.Products.Slug.Get.handler,
           cart = Store.Cart.Get.handler,
-          checkout = error "TODO: checkout handler",
-          orderConfirmation = error "TODO: confirmation handler"
+          checkout = Store.Checkout.Get.handler,
+          orderConfirmation = Store.Orders.Confirmation.Get.handler
         }
 
     storeApiRoutes =
       StoreApiRoutes
         { cartValidate = Store.Cart.Validate.Post.handler,
-          shippingRates = error "TODO: shipping rates handler",
-          createSession = error "TODO: create session handler"
+          shippingRates = Store.ShippingRates.Post.handler,
+          createSession = Store.Checkout.CreateSession.Post.handler
         }
 
     webhookRoutes =
       WebhookRoutes
-        { stripe = error "TODO: stripe webhook handler"
+        { stripe = Webhooks.Stripe.Post.handler
         }
