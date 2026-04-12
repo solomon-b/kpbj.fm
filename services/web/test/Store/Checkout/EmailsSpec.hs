@@ -130,7 +130,6 @@ sampleItem =
       oeiUnitPriceCents = Cents 2500
     }
 
-
 -- | An item with no variant — parentheses should not appear in the output.
 sampleItemNoVariant :: OrderEmailItem
 sampleItemNoVariant =
@@ -140,7 +139,6 @@ sampleItemNoVariant =
       oeiQuantity = 1,
       oeiUnitPriceCents = Cents 500
     }
-
 
 sampleOrder :: OrderEmailData
 sampleOrder =
@@ -160,9 +158,9 @@ sampleOrder =
       oedShippingCity = "Los Angeles",
       oedShippingState = "CA",
       oedShippingZip = "90210",
+      oedOrderDetailUrl = "https://www.kpbj.fm/dashboard/store/orders/42",
       oedDate = "April 5, 2026"
     }
-
 
 sampleShipping :: ShippingEmailData
 sampleShipping =
@@ -179,7 +177,6 @@ sampleShipping =
 shouldContainLazy :: LT.Text -> LT.Text -> Expectation
 shouldContainLazy haystack needle =
   haystack `shouldSatisfy` LT.isInfixOf needle
-
 
 shouldNotContainLazy :: LT.Text -> LT.Text -> Expectation
 shouldNotContainLazy haystack needle =

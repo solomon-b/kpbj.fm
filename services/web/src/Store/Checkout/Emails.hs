@@ -20,10 +20,10 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Int (Int64)
+import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
-import Data.String.Interpolate (i)
 import Domain.Types.Cents (Cents, formatDisplay)
 import Effects.Email.Send (Email (..))
 
@@ -46,10 +46,11 @@ data OrderEmailData = OrderEmailData
     oedShippingCity :: Text,
     oedShippingState :: Text,
     oedShippingZip :: Text,
+    -- | Full URL to the dashboard order detail page (e.g. "https://www.kpbj.fm/dashboard/store/orders/42")
+    oedOrderDetailUrl :: Text,
     -- | Pre-formatted date string (e.g. "April 5, 2026")
     oedDate :: Text
   }
-
 
 -- | A single line item within an order email.
 data OrderEmailItem = OrderEmailItem
@@ -59,7 +60,6 @@ data OrderEmailItem = OrderEmailItem
     oeiQuantity :: Int64,
     oeiUnitPriceCents :: Cents
   }
-
 
 -- | Data needed to render a shipping confirmation email.
 data ShippingEmailData = ShippingEmailData
@@ -81,7 +81,6 @@ orderConfirmationEmail od =
       emailLabel = "order-confirmation"
     }
 
-
 -- | Staff notification email sent to the store admin when a new order arrives.
 --
 -- The first argument is the notification email address to send to.
@@ -93,7 +92,6 @@ staffNotificationEmail notificationEmail od =
       emailBody = LT.fromStrict (renderStaffNotificationBody od),
       emailLabel = "new-order-notification"
     }
-
 
 -- | Shipping confirmation email sent to the buyer when an order ships.
 shippingConfirmationEmail :: ShippingEmailData -> Email
@@ -136,7 +134,6 @@ renderOrderConfirmationBody od =
         ]
       ]
 
-
 renderStaffNotificationBody :: OrderEmailData -> Text
 renderStaffNotificationBody od =
   Text.unlines $
@@ -154,9 +151,11 @@ renderStaffNotificationBody od =
           "",
           "Shipping to:"
         ],
-        renderShippingAddress od
+        renderShippingAddress od,
+        [ "",
+          [i|View order: #{oedOrderDetailUrl od}|]
+        ]
       ]
-
 
 renderShippingConfirmationBody :: ShippingEmailData -> Text
 renderShippingConfirmationBody sd =
@@ -181,7 +180,6 @@ renderItemLineWithPrice :: OrderEmailItem -> Text
 renderItemLineWithPrice item =
   "  " <> renderItemDescription item <> " — " <> formatDisplay (oeiUnitPriceCents item)
 
-
 -- | Render an item line without price for the staff notification email.
 --
 -- Items with a variant: "  Tote Bag (Blue) x2"
@@ -189,7 +187,6 @@ renderItemLineWithPrice item =
 renderItemLineNoPrice :: OrderEmailItem -> Text
 renderItemLineNoPrice item =
   "  " <> renderItemDescription item
-
 
 -- | Render the product name, optional variant, and quantity portion of a line.
 renderItemDescription :: OrderEmailItem -> Text
@@ -210,8 +207,7 @@ renderShippingAddress :: OrderEmailData -> [Text]
 renderShippingAddress od =
   let fullName = [i|  #{oedShippingFirstName od} #{oedShippingLastName od}|]
       line1 = "  " <> oedShippingAddressLine1 od
-      line2 = if Text.null (oedShippingAddressLine2 od)
-                then []
-                else ["  " <> oedShippingAddressLine2 od]
+      line2 =
+        ["  " <> oedShippingAddressLine2 od | not (Text.null (oedShippingAddressLine2 od))]
       cityStateZip = [i|  #{oedShippingCity od}, #{oedShippingState od} #{oedShippingZip od}|]
    in [fullName, line1] <> line2 <> [cityStateZip]
