@@ -50,6 +50,7 @@ import Store.Checkout.Emails
   )
 import Stripe.Types
   ( CheckoutSession (..),
+    StripeSessionId (..),
     StripeWebhookSecret,
     WebhookEvent (..),
     eventCheckoutSession,
@@ -133,7 +134,7 @@ handleEvent evt
 -- the signature and want Stripe to receive 200 regardless.
 handleCheckoutCompleted :: CheckoutSession -> AppM ()
 handleCheckoutCompleted session = do
-  let sessionId = session.id
+  let (StripeSessionId sessionId) = session.id
   mOrder <- execQueryThrow (Orders.getByStripeCheckoutSessionId sessionId)
   case mOrder of
     Nothing ->
