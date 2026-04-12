@@ -15,7 +15,7 @@ import Web.FormUrlEncoded qualified as Form
 --------------------------------------------------------------------------------
 
 -- | Form data for updating order notes.
-data NotesForm = NotesForm
+newtype NotesForm = NotesForm
   { nfNotes :: Text
   }
   deriving (Show)
