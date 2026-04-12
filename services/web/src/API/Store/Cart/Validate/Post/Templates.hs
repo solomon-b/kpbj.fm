@@ -61,6 +61,9 @@ data CartWarning = CartWarning
 storeListUrl :: Links.URI
 storeListUrl = Links.linkURI storeLinks.list
 
+checkoutUrl :: Links.URI
+checkoutUrl = Links.linkURI storeLinks.checkout
+
 --------------------------------------------------------------------------------
 
 -- | Render the validated cart fragment.
@@ -89,13 +92,15 @@ template backend items warnings = do
     [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4, "text-center"]]
     "Shipping calculated at checkout."
 
-  -- Checkout button (disabled placeholder)
-  Lucid.button_
-    [ Lucid.type_ "button",
-      Lucid.disabled_ "disabled",
-      class_ $ base [Tokens.fullWidth, Tokens.buttonPrimary, "text-center", "opacity-40", "cursor-not-allowed", Tokens.mb4]
+  -- Checkout button
+  Lucid.a_
+    [ Lucid.href_ [i|/#{checkoutUrl}|],
+      hxGet_ [i|/#{checkoutUrl}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      class_ $ base [Tokens.fullWidth, Tokens.buttonPrimary, "text-center", "block", Tokens.mb4]
     ]
-    "CHECKOUT COMING SOON"
+    "CHECKOUT"
 
   -- Continue shopping link
   Lucid.div_ [class_ $ base ["text-center"]] $
@@ -226,7 +231,7 @@ renderSubtotal :: [ValidatedCartItem] -> Lucid.Html ()
 renderSubtotal items = do
   let subtotal = foldl' addItemTotal (Cents.Cents 0) items
   Lucid.div_
-    [ class_ $ base ["flex", "justify-between", "items-center", "border-t", Tokens.borderMuted, Tokens.py4, Tokens.mb4]
+    [ class_ $ base ["flex", "justify-between", "items-center", Tokens.py4, Tokens.mb4]
     ]
     $ do
       Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.textLg]] "Subtotal"
@@ -236,7 +241,6 @@ renderSubtotal items = do
     addItemTotal :: Cents -> ValidatedCartItem -> Cents
     addItemTotal acc item =
       acc + Cents.Cents (fromIntegral item.vciQuantity * Cents.unCents item.vciUnitPriceCents)
-
 
 -- | Serialize validated cart items to JSON for client-side cart sync.
 --
