@@ -50,6 +50,7 @@ template ::
 template shipment rates subtotal taxRate =
   Lucid.div_
     [ xData_ (ratesAlpineState subtotal taxRate),
+      xOn_ "reset-loading.window" "loading = false",
       class_ $ base [Tokens.border2, Tokens.borderDefault, Tokens.p4]
     ]
     $ do
@@ -95,7 +96,7 @@ template shipment rates subtotal taxRate =
               "\x2190 Back"
             Lucid.button_
               [ Lucid.type_ "button",
-                makeAttributes ":disabled" "selectedRateId === null",
+                makeAttributes ":disabled" "selectedRateId === null || loading",
                 xOn_ "click" "proceedToPayment()",
                 class_ $
                   base
@@ -106,7 +107,7 @@ template shipment rates subtotal taxRate =
                       "disabled:cursor-not-allowed"
                     ]
               ]
-              "Proceed to Payment"
+              $ Lucid.span_ [xText_ "loading ? 'Processing...' : 'Proceed to Payment'"] "Proceed to Payment"
 
 -- | Render a message when no rates are available.
 renderNoRates :: Lucid.Html ()
@@ -241,11 +242,13 @@ ratesAlpineState _subtotal _taxRate =
   [i|{
   selectedRateId: null,
   selectedRatePrice: null,
+  loading: false,
   formatCents(cents) {
     return '$' + (cents / 100).toFixed(2);
   },
   proceedToPayment() {
     if (this.selectedRateId === null) return;
+    this.loading = true;
     this.$dispatch('shipping-rate-selected', {
       rateId: this.selectedRateId,
       ratePrice: this.selectedRatePrice
