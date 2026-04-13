@@ -11,7 +11,7 @@ variable "droplet_region" {
 variable "droplet_size" {
   description = "Droplet size slug (production)"
   type        = string
-  default     = "s-1vcpu-1gb"
+  default     = "s-2vcpu-2gb"
 }
 
 variable "droplet_size_staging" {
