@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Webstore — Rate Limiting** — Per-IP rate limiting on public store API endpoints via `wai-rate-limit` with an in-memory backend. `/api/store/shipping-rates` limited to 10 req/min, `/api/store/checkout/create-session` limited to 5 req/min. Client IP extracted from `CF-Connecting-IP` or `X-Forwarded-For` headers. Background thread purges expired entries every 5 minutes.
 - **Webstore — Checkout Flow** — Guest checkout at `/store/checkout` with address form, real-time shipping rate selection (EasyPost), and Stripe Embedded Checkout for payment. Creates a pending order with inventory reservation, redirects to Stripe, and confirms via webhook. Order confirmation page at `/store/orders/confirmation`.
 - **Webstore — Order Emails** — Confirmation and shipping notification emails. Confirmation includes order number, itemized line items, shipping address, and totals. Shipping email includes tracking number when available.
 - **Webstore — Stripe Integration** — New `stripe-http` library with Checkout Session creation, session retrieval, and webhook signature verification (HMAC-SHA256, timing-safe, 300s replay window). Raw body capture via custom Servant `RawBody` content type.
@@ -46,6 +47,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Episode Check SMTP Config** — The `kpbj-episode-check` systemd service was missing non-secret SMTP environment variables (`APP_SMTP_SERVER`, `APP_SMTP_PORT`, `APP_SMTP_USERNAME`, `APP_SMTP_FROM_EMAIL`, `APP_SMTP_FROM_NAME`), causing it to fail with "SMTP not configured" on every run. The env file only contained the password. Added an `environment` block sourcing these from the web module config.
 
 ### Improved
+- **Webstore — Checkout Loading States** — Loading indicators and double-submit prevention on "Get Shipping Rates" and "Proceed to Payment" buttons. "Preparing payment..." message while Stripe iframe mounts.
+- **Webstore — Checkout Error Recovery** — Replaced browser `alert()` on checkout failure with inline error banner. Stripe initialization wrapped in try/catch with fallback to rates step. Fixed stuck "Processing..." button when session creation fails.
+- **Webstore — Dashboard Empty States** — Dashboard orders list shows "No orders yet" when empty, matching the existing pattern used by Events, Blog, Shows, and Users.
 - **Upload Auth Error Message** — Staged upload fields (audio and image) now show a helpful message when authentication fails during upload, guiding the user to refresh/re-login or check browser cookie settings. Previously showed the opaque "Authentication required".
 
 ---
