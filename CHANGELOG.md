@@ -51,7 +51,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Improved
 - **Webstore — Checkout Loading States** — Loading indicators and double-submit prevention on "Get Shipping Rates" and "Proceed to Payment" buttons. "Preparing payment..." message while Stripe iframe mounts.
 - **Webstore — Checkout Error Recovery** — Replaced browser `alert()` on checkout failure with inline error banner. Stripe initialization wrapped in try/catch with fallback to rates step. Fixed stuck "Processing..." button when session creation fails.
-- **Webstore — Dashboard Empty States** — Dashboard orders list shows "No orders yet" when empty, matching the existing pattern used by Events, Blog, Shows, and Users.
+- **Webstore — Dashboard Empty States** — Dashboard orders list and products list show empty state messages when no data exists. Products empty state hides when the inline create form is opened.
 - **Upload Auth Error Message** — Staged upload fields (audio and image) now show a helpful message when authentication fails during upload, guiding the user to refresh/re-login or check browser cookie settings. Previously showed the opaque "Authentication required".
 
 ---
