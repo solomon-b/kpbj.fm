@@ -379,11 +379,24 @@ resource "cloudflare_ruleset" "waf_custom" {
     # are malicious probes (e.g. the \xAD invalid UTF-8 attacks).
     # Scoped to path only; request bodies are untouched so file
     # uploads work normally.
+    #
+    # Uses lower() + contains to enumerate the 8 hex prefixes
+    # (%8x–%fx) instead of regex `matches`, which requires a
+    # Business plan.
     {
       action      = "block"
       description = "Block non-ASCII percent-encoded bytes in URI path"
       enabled     = true
-      expression  = "(http.request.uri.path matches \"%[89a-fA-F][0-9a-fA-F]\")"
+      expression = join(" or ", [
+        "(lower(http.request.uri.path) contains \"%8\")",
+        "(lower(http.request.uri.path) contains \"%9\")",
+        "(lower(http.request.uri.path) contains \"%a\")",
+        "(lower(http.request.uri.path) contains \"%b\")",
+        "(lower(http.request.uri.path) contains \"%c\")",
+        "(lower(http.request.uri.path) contains \"%d\")",
+        "(lower(http.request.uri.path) contains \"%e\")",
+        "(lower(http.request.uri.path) contains \"%f\")",
+      ])
     },
   ]
 }
