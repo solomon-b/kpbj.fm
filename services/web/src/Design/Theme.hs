@@ -389,22 +389,22 @@ defaultTheme =
           },
       themeDark =
         Palette
-          { pBg = "#1f2937", -- gray-800
-            pBgAlt = "#374151", -- gray-700
-            pFg = "#f3f4f6", -- gray-100
-            pFgMuted = "#9ca3af", -- gray-400
-            pBorder = "#4b5563", -- gray-600
-            pBorderMuted = "#4b5563", -- gray-600 (lighter than bgAlt for visibility)
-            pAccent = "#f3f4f6", -- gray-100
-            pAccentFg = "#1f2937", -- gray-800
+          { pBg = "#1a1a1a", -- soft black
+            pBgAlt = "#262626", -- neutral-800
+            pFg = "#d4d4d4", -- neutral-300
+            pFgMuted = "#a3a3a3", -- neutral-400
+            pBorder = "#404040", -- neutral-700
+            pBorderMuted = "#404040", -- neutral-700 (lighter than bgAlt for visibility)
+            pAccent = "#d4d4d4", -- neutral-300
+            pAccentFg = "#1a1a1a", -- soft black
             pSuccess = "#10b981", -- green-500
             pError = "#f87171", -- red-400
             pWarning = "#fbbf24", -- yellow-400
             pInfo = "#60a5fa", -- blue-400
-            pBgInverse = "#f9fafb", -- gray-50
-            pFgInverse = "#1f2937", -- gray-800
-            pHover = "#374151", -- gray-700
-            pAccentHover = "#e5e7eb" -- gray-200
+            pBgInverse = "#e5e5e5", -- neutral-200
+            pFgInverse = "#1a1a1a", -- soft black
+            pHover = "#262626", -- neutral-800
+            pAccentHover = "#e5e5e5" -- neutral-200
           }
     }
 
