@@ -298,14 +298,14 @@ test.describe("Cart functionality", () => {
     await expect(page.getByText("Subtotal")).toBeVisible();
   });
 
-  test("cart shows checkout coming soon button", async ({ page }) => {
+  test("cart shows checkout button", async ({ page }) => {
     await page.goto("/store/products/kpbj-bumper-sticker");
     await page.getByText("ADD TO CART").click();
 
     await page.goto("/store/cart");
     await expect(page.getByText("Loading cart...")).not.toBeVisible({ timeout: 10_000 });
 
-    await expect(page.getByText("CHECKOUT COMING SOON")).toBeVisible();
+    await expect(page.getByRole("link", { name: "CHECKOUT" })).toBeVisible();
   });
 });
 
