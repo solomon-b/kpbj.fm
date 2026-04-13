@@ -22,7 +22,7 @@
           { address = "fe80::c0af:13ff:fea7:c4df"; prefixLength = 64; }
         ];
         ipv4.routes = [{ address = "143.110.144.1"; prefixLength = 32; }];
-        ipv6.routes = [{ address = ""; prefixLength = 128; }];
+        ipv6.routes = [];
       };
       eth1 = {
         ipv4.addresses = [

@@ -35,6 +35,10 @@ in
       enable = true;
       maxretry = 3;
       bantime = "1h";
+      ignoreIP = [
+        "127.0.0.0/8"    # localhost
+        "75.60.187.54"    # solomon home IP
+      ];
 
       bantime-increment = {
         enable = true;
