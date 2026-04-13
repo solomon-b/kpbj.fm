@@ -41,6 +41,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Fixed
 - **PayPal Donate Button Broken** — The Content-Security-Policy `connect-src` directive was missing `https://api.paypal.com`, blocking the PayPal SDK from exchanging an OAuth token to create an order. Added `api.paypal.com` to `connect-src` in `SecurityHeaders.hs`.
+- **Cloudflare WAF Rules** — Fixed WAF rule for non-ASCII percent-encoded bytes to correctly match high-byte patterns in URI paths.
+- **DMARC Reporting** — Added DMARC reporting email address to DNS record so delivery failures are reported back.
 - **Logout 401 Error** — Logout routes used `AuthProtect "cookie-auth"` (Servant auth middleware with 30-minute idle timeout), while all other routes use `Maybe Cookie` with in-handler auth (no idle timeout). After 30+ minutes of dashboard activity, the idle timeout would reject the logout request with 401 before the handler could run. Switched logout to the same `Maybe Cookie` pattern so it always succeeds — expires the session if valid, clears the cookie regardless.
 - **S3 Sync File Extension Preservation** — The prod-to-staging S3 sync script was downloading files to a generic temp path (`transfer`) with no extension, then re-uploading. This could cause incorrect content-type inference on the staging bucket. Now preserves the original file extension during transfer (`transfer.$ext`).
 - **Overnight Replay Detection** — Fixed currently-airing query Case 5 (overnight replay before-midnight portion) not correctly handling episodes whose duration fills or exceeds the time until midnight. The old +12h code fell through to a simple comparison that failed when the replay duration crossed midnight.
