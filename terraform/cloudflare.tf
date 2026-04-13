@@ -218,7 +218,7 @@ resource "cloudflare_dns_record" "dmarc" {
   zone_id = local.cloudflare_zone_id
   name    = "_dmarc"
   type    = "TXT"
-  content = "\"v=DMARC1; p=none;\""
+  content = "v=DMARC1; p=none; rua=mailto:dmarc-reports@kpbj.fm"
   ttl     = 3600
   comment = "DMARC policy"
 }
