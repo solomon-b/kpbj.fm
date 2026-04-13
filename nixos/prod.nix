@@ -128,7 +128,7 @@
     llm = {
       enable = true;
       apiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-      model = "gemini-2.5-flash";
+      model = "gemini-3.1-flash-lite-preview";
       systemPromptFile = ./scripts/friendly-ghost-prompt.txt;
       apiKeyFile = config.sops.secrets.gemini_api_key.path;
     };
