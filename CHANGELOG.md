@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.11.0] - 2026-04-13
+
 ### Added
 - **Webstore — Rate Limiting** — Per-IP rate limiting on public store API endpoints via `wai-rate-limit` with an in-memory backend. `/api/store/shipping-rates` limited to 10 req/min, `/api/store/checkout/create-session` limited to 5 req/min. Client IP extracted from `CF-Connecting-IP` or `X-Forwarded-For` headers. Background thread purges expired entries every 5 minutes.
 - **Webstore — Checkout Flow** — Guest checkout at `/store/checkout` with address form, real-time shipping rate selection (EasyPost), and Stripe Embedded Checkout for payment. Creates a pending order with inventory reservation, redirects to Stripe, and confirms via webhook. Order confirmation page at `/store/orders/confirmation`.
