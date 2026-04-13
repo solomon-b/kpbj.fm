@@ -52,7 +52,9 @@ template products =
           itcPaginationConfig = Nothing
         }
       ( do
-          mapM_ renderProductRow products
+          if null products
+            then renderEmptyRow
+            else mapM_ renderProductRow products
           renderInlineCreateRow
       )
 
@@ -149,6 +151,18 @@ renderInlineCreateRow =
               class_ $ base [Theme.fgMuted, Tokens.hoverBg, Tokens.textSm, "px-2", "py-1"]
             ]
             "\xd7"
+
+-- | Empty row shown when no products exist.
+renderEmptyRow :: Lucid.Html ()
+renderEmptyRow =
+  Lucid.tr_ [xShow_ "!showCreate"] $
+    Lucid.td_
+      [ Lucid.colspan_ "5",
+        class_ $ base [Theme.fgMuted, "text-center", "py-12"]
+      ]
+      $ do
+        Lucid.p_ [class_ $ base [Tokens.textXl]] "No products yet."
+        Lucid.p_ [class_ $ base ["mt-2"]] "Click + NEW above to create your first product."
 
 renderStatusBadge :: Bool -> Lucid.Html ()
 renderStatusBadge isActive =
