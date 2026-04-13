@@ -37,6 +37,11 @@ terraform {
       source  = "integrations/github"
       version = "~> 6.0"
     }
+
+    stripe = {
+      source  = "lukasaron/stripe"
+      version = "~> 3.2"
+    }
   }
 
   # Remote state in DigitalOcean Spaces (S3-compatible). Credentials
@@ -83,4 +88,14 @@ provider "google" {
 provider "github" {
   token = data.sops_file.secrets.data["github_token"]
   owner = "solomon-b"
+}
+
+provider "stripe" {
+  alias   = "live"
+  api_key = data.sops_file.secrets.data["stripe_secret_key_live"]
+}
+
+provider "stripe" {
+  alias   = "test"
+  api_key = data.sops_file.secrets.data["stripe_secret_key_test"]
 }

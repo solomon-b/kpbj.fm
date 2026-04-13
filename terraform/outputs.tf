@@ -47,3 +47,15 @@ output "google_groups_sa_email" {
   description = "Google Groups service account email"
   value       = google_service_account.google_groups.email
 }
+
+output "stripe_webhook_secret_prod" {
+  description = "Stripe webhook signing secret (production) — copy to secrets/prod-web.yaml"
+  value       = stripe_webhook_endpoint.prod.secret
+  sensitive   = true
+}
+
+output "stripe_webhook_secret_staging" {
+  description = "Stripe webhook signing secret (staging) — copy to secrets/staging-web.yaml"
+  value       = stripe_webhook_endpoint.staging.secret
+  sensitive   = true
+}
