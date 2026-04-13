@@ -20,6 +20,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.Cents qualified as Cents
 import Effects.Database.Tables.Orders qualified as Orders
@@ -31,20 +32,23 @@ import Lucid qualified
 template :: [Orders.Model] -> Lucid.Html ()
 template orders =
   Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
-    renderIndexTable
-      IndexTableConfig
-        { itcBodyId = "orders-table-body",
-          itcHeaders =
-            [ ColumnHeader "Order" AlignLeft,
-              ColumnHeader "Date" AlignLeft,
-              ColumnHeader "Customer" AlignLeft,
-              ColumnHeader "Status" AlignLeft,
-              ColumnHeader "Total" AlignRight
-            ],
-          itcNextPageUrl = Nothing,
-          itcPaginationConfig = Nothing
-        }
-      (mapM_ renderOrderRow orders)
+    if null orders
+      then renderEmptyState
+      else
+        renderIndexTable
+          IndexTableConfig
+            { itcBodyId = "orders-table-body",
+              itcHeaders =
+                [ ColumnHeader "Order" AlignLeft,
+                  ColumnHeader "Date" AlignLeft,
+                  ColumnHeader "Customer" AlignLeft,
+                  ColumnHeader "Status" AlignLeft,
+                  ColumnHeader "Total" AlignRight
+                ],
+              itcNextPageUrl = Nothing,
+              itcPaginationConfig = Nothing
+            }
+          (mapM_ renderOrderRow orders)
 
 renderOrderRow :: Orders.Model -> Lucid.Html ()
 renderOrderRow order =
@@ -88,6 +92,12 @@ statusColors = \case
   Orders.Completed -> (Tokens.successBg, Tokens.successText)
   Orders.Cancelled -> (Tokens.errorBg, Tokens.errorText)
   Orders.Refunded -> (Tokens.warningBg, Tokens.warningText)
+
+renderEmptyState :: Lucid.Html ()
+renderEmptyState = do
+  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+    Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No orders yet."
+    Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Orders will appear here once customers complete purchases."
 
 formatDate :: UTCTime -> Text
 formatDate t = [i|#{formatTime defaultTimeLocale "%b %-d, %Y" t}|]

@@ -156,7 +156,7 @@ successTemplate ::
 successTemplate trackingNumber mLabelUrl = do
   renderBanner'
   Lucid.div_
-    [ class_ $ base [Tokens.bgAlt, Tokens.p4, Tokens.border2, Tokens.borderDefault, "space-y-2"]
+    [ class_ $ base [Tokens.bgAlt, Tokens.p4, "border", Tokens.borderDefault, "space-y-2"]
     ]
     $ do
       Lucid.p_

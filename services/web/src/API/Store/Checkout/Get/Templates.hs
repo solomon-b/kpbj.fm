@@ -88,7 +88,9 @@ template mStripeKey = do
           Lucid.div_ [xShow_ "step === 'address'"] $ do
             renderContactSection
             renderShippingSection
-          Lucid.div_ [xShow_ "step === 'rates'"] renderShippingRatesSection
+          Lucid.div_ [xShow_ "step === 'rates'"] $ do
+            renderCheckoutError
+            renderShippingRatesSection
           Lucid.div_ [xShow_ "step === 'payment'"] renderPaymentSection
 
 --------------------------------------------------------------------------------
@@ -206,14 +208,25 @@ renderShippingSection =
               ]
 
     -- Get Shipping Rates button
-    Lucid.div_ [class_ $ base [Tokens.mt4]] $
-      Lucid.button_
+    Lucid.div_ [class_ $ base [Tokens.mt4]]
+      $ Lucid.button_
         [ Lucid.type_ "button",
           xOn_ "click" "fetchShippingRates()",
-          makeAttributes ":disabled" "!isAddressComplete",
+          makeAttributes ":disabled" "!isAddressComplete || loadingRates",
           class_ $ base [Tokens.buttonPrimary, "w-full", "uppercase", "disabled:opacity-50", "disabled:cursor-not-allowed"]
         ]
-        "Get Shipping Rates"
+      $ Lucid.span_ [xText_ "loadingRates ? 'Loading Rates...' : 'Get Shipping Rates'"] "Get Shipping Rates"
+
+-- | Inline error banner shown on the rates step when session creation fails.
+renderCheckoutError :: Lucid.Html ()
+renderCheckoutError =
+  Lucid.div_
+    [ xShow_ "checkoutError",
+      class_ $ base [Tokens.border2, "border-red-500", Tokens.p4, Tokens.mb4]
+    ]
+    $ Lucid.p_
+      [class_ $ base [Tokens.fgPrimary], xText_ "checkoutError"]
+      mempty
 
 renderShippingRatesSection :: Lucid.Html ()
 renderShippingRatesSection =
@@ -224,7 +237,12 @@ renderShippingRatesSection =
     mempty
 
 renderPaymentSection :: Lucid.Html ()
-renderPaymentSection =
+renderPaymentSection = do
+  Lucid.div_
+    [ xShow_ "loadingPayment",
+      class_ $ base [Tokens.fgMuted, "text-center", Tokens.py8]
+    ]
+    $ Lucid.p_ [] "Preparing payment..."
   Lucid.div_
     [ Lucid.id_ "stripe-checkout",
       class_ $ base [Tokens.mb8]
@@ -362,6 +380,9 @@ checkoutAlpineState mStripeKey =
   },
   step: 'address',
   summaryLoading: false,
+  loadingRates: false,
+  loadingPayment: false,
+  checkoutError: null,
   selectedRateId: null,
   selectedShipmentId: null,
   stripeKey: #{stripeKeyJs mStripeKey},
@@ -382,6 +403,7 @@ checkoutAlpineState mStripeKey =
   },
   fetchShippingRates() {
     if (!this.isAddressComplete) return;
+    this.loadingRates = true;
     const payload = {
       email: this.form.email,
       first_name: this.form.firstName,
@@ -402,14 +424,21 @@ checkoutAlpineState mStripeKey =
     .then(html => {
       document.getElementById('shipping-rates').innerHTML = html;
       this.step = 'rates';
+      this.loadingRates = false;
     })
     .catch(err => {
       document.getElementById('shipping-rates').innerHTML =
         '<div class="border-2 border-red-500 p-4">Failed to load shipping rates. Please try again.</div>';
+      this.loadingRates = false;
     });
+  },
+  resetRatesLoading() {
+    window.dispatchEvent(new CustomEvent('reset-loading'));
   },
   createSession() {
     if (!this.selectedRateId || !this.stripeKey) return;
+    this.loadingPayment = true;
+    this.checkoutError = null;
     const payload = {
       email: this.form.email,
       first_name: this.form.firstName,
@@ -434,12 +463,22 @@ checkoutAlpineState mStripeKey =
     })
     .then(async (data) => {
       this.step = 'payment';
-      const stripe = Stripe(this.stripeKey);
-      this.stripeCheckout = await stripe.initEmbeddedCheckout({ clientSecret: data.client_secret });
-      this.stripeCheckout.mount('\#stripe-checkout');
+      try {
+        const stripe = Stripe(this.stripeKey);
+        this.stripeCheckout = await stripe.initEmbeddedCheckout({ clientSecret: data.client_secret });
+        this.stripeCheckout.mount('\#stripe-checkout');
+        this.loadingPayment = false;
+      } catch (stripeErr) {
+        this.step = 'rates';
+        this.loadingPayment = false;
+        this.checkoutError = 'Payment system failed to load. Please try again.';
+        this.resetRatesLoading();
+      }
     })
     .catch(err => {
-      alert(err.message || 'Something went wrong. Please try again.');
+      this.loadingPayment = false;
+      this.checkoutError = err.message || 'Something went wrong. Please try again.';
+      this.resetRatesLoading();
     });
   }
 }|]
