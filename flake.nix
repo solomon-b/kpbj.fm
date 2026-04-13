@@ -13,9 +13,14 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    friendly-ghost = {
+      url = "github:solomon-b/friendly-ghost";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, web-server-core, sops-nix }:
+  outputs = { self, nixpkgs, flake-utils, web-server-core, sops-nix, friendly-ghost }:
     (flake-utils.lib.eachDefaultSystem
       (system:
         let
@@ -193,6 +198,7 @@
             specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots order-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
+              friendly-ghost.nixosModules.default
               ./nixos/prod.nix
             ];
           };
@@ -201,6 +207,7 @@
             specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots order-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
+              friendly-ghost.nixosModules.default
               ./nixos/staging.nix
             ];
           };

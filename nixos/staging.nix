@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────
 # Staging host — staging.kpbj.fm + stream.staging.kpbj.fm
 # ──────────────────────────────────────────────────────────────
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
 {
   imports = [
     ./hardware-digitalocean.nix
@@ -20,7 +20,6 @@
     ./pgbackrest.nix
     ./postgresql.nix
     ./web.nix
-    ./watchdog.nix
   ];
 
   networking.hostName = "kpbj-staging";
@@ -70,17 +69,76 @@
   # ── Monitoring (Grafana + Loki + Promtail) ───────────────────
   kpbj.monitoring.enable = true;
 
-  # ── Watchdog (LLM log anomaly detection) ────────────────────
-  kpbj.watchdog = {
+  # ── Secrets for friendly-ghost ──────────────────────────────
+  sops.secrets.gemini_api_key = {
+    sopsFile = ../secrets/staging-web.yaml;
+  };
+
+  # ── friendly-ghost (LLM log anomaly detection) ──────────────
+  # Override DynamicUser so the service can read sops secret files
+  # under /run/secrets/ (owned by root). The old watchdog ran as root
+  # for the same reason. Other hardening settings are kept.
+  systemd.services.friendly-ghost.serviceConfig.DynamicUser = lib.mkForce false;
+
+  services.friendly-ghost = {
     enable = true;
-    secretsFile = ../secrets/staging-web.yaml;
-    recipientEmail = "ssbothwell@gmail.com";
-    environment = "staging";
-    timerInterval = "*:0/30";
-    lookbackMinutes = 30;
-    knownIssues = [
-      "sync-host-emails running in dry-run mode on staging with out-of-sync membership — intentional, staging uses dry-run by design"
-    ];
+    interval = "*:0/30";
+
+    journal = {
+      units = [
+        "kpbj-.*"
+        "postgresql"
+        "sshd"
+      ];
+      priority = "info";
+      ignorePatterns = [
+        # ── HTTP noise ──
+        "HTTP/[0-9.]+ (200|301|302) "
+        # ── Liquidsoap routine ──
+        "Ffmpeg_decoder\\.End_of_file"
+        "Finished with"
+        "Prepared .* (RID|rid)"
+        "Could not update timestamps for discarded samples"
+        "Header missing"
+        "Unsynchronized headers not handled"
+        "Incorrect BOM value"
+        "Error reading comment frame, skipped"
+        "Unsupported MIME type"
+        "Unsupported file extension"
+        "video: \\{codec: mjpeg"
+        # ── PostgreSQL routine ──
+        "automatic (vacuum|analyze) of table"
+        "checkpoint (starting|complete)"
+        "archived WAL file"
+        # ── Bot scanners ──
+        "\\.(env|git/config|git/HEAD|wp-admin|wp-login)"
+        "androxgh0st"
+        "child_process\\.execSync"
+        "process\\.mainModule"
+        # ── pgBackRest routine ──
+        "^P00 +INFO"
+        # ── Staging known issues ──
+        "sync-host-emails.*dry.run"
+      ];
+    };
+
+    email = {
+      smtpHost = "smtp.gmail.com";
+      smtpPort = 587;
+      username = "noreply@kpbj.fm";
+      from = "noreply@kpbj.fm";
+      to = [ "ssbothwell@gmail.com" ];
+      subjectPrefix = "[KPBJ staging]";
+      passwordFile = config.sops.secrets.smtp_password.path;
+    };
+
+    llm = {
+      enable = true;
+      apiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+      model = "gemini-2.5-flash";
+      systemPromptFile = ./scripts/friendly-ghost-prompt.txt;
+      apiKeyFile = config.sops.secrets.gemini_api_key.path;
+    };
   };
 
   # ── pgBackRest (PG backups + WAL archiving) ──────────────────

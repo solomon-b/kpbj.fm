@@ -36,6 +36,45 @@
         "type": "github"
       }
     },
+    "flake-utils_3": {
+      "inputs": {
+        "systems": "systems_3"
+      },
+      "locked": {
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "friendly-ghost": {
+      "inputs": {
+        "flake-utils": "flake-utils_2",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1776108121,
+        "narHash": "sha256-4ZIxtDuozlbWeS8Nm/wUxEMzP1bs1BMSQNwYUkNZbDc=",
+        "owner": "solomon-b",
+        "repo": "friendly-ghost",
+        "rev": "f9009713ab164d310eac5d5366fe6a45f6dbab13",
+        "type": "github"
+      },
+      "original": {
+        "owner": "solomon-b",
+        "repo": "friendly-ghost",
+        "type": "github"
+      }
+    },
     "hasql-interpolate-src": {
       "flake": false,
       "locked": {
@@ -104,6 +143,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "friendly-ghost": "friendly-ghost",
         "nixpkgs": "nixpkgs",
         "sops-nix": "sops-nix",
         "web-server-core": "web-server-core"
@@ -159,6 +199,21 @@
         "type": "github"
       }
     },
+    "systems_3": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    },
     "tmp-postgres-src": {
       "flake": false,
       "locked": {
@@ -177,7 +232,7 @@
     },
     "web-server-core": {
       "inputs": {
-        "flake-utils": "flake-utils_2",
+        "flake-utils": "flake-utils_3",
         "hasql-interpolate-src": "hasql-interpolate-src",
         "hasql-src": "hasql-src",
         "nixpkgs": "nixpkgs_2",

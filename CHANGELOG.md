@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+- **Watchdog → friendly-ghost (staging)** — Replaced the custom bash watchdog script with [friendly-ghost](https://github.com/solomon-b/friendly-ghost), a Rust-based systemd journal monitor with pre-filtering. Log noise (routine HTTP responses, Liquidsoap track transitions, PostgreSQL autovacuum, bot scanners, pgBackRest info logs) is now filtered via regex ignore patterns *before* reaching the LLM, rather than relying on the LLM prompt to ignore them. Uses Gemini 2.5 Flash via the OpenAI-compatible endpoint. Staging only for now; production remains on the old watchdog.
 
 ---
 
