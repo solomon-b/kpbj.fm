@@ -101,6 +101,7 @@ library
                   , stripe-http
                   , tagged
                   , temporary
+                  , stm
                   , text
                   , text-display
                   , time
@@ -114,6 +115,7 @@ library
                   , vector
                   , wai
                   , wai-extra
+                  , wai-rate-limit
                   , warp
                   , web-server-core
                   , witherable
@@ -565,6 +567,7 @@ library
     Effects.Storage.S3
     Helpers.RelativeTime
     Middleware.NotFound
+    Middleware.RateLimit
     Middleware.SecurityHeaders
     Middleware.ValidateEncoding
     Utils

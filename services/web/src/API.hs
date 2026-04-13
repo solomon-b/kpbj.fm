@@ -202,6 +202,7 @@ import Component.NotFound (notFoundPage)
 import Data.Has (getter)
 import Lucid qualified
 import Middleware.NotFound (notFoundMiddleware)
+import Middleware.RateLimit (rateLimitMiddleware)
 import Middleware.SecurityHeaders (securityHeadersMiddleware)
 import Middleware.ValidateEncoding (validateEncodingMiddleware)
 import Network.Wai.Handler.Warp qualified as Warp
@@ -224,6 +225,8 @@ runApi = do
 
   App.withAppResources () $ \baseAppCtx ->
     buildCustomContext baseAppCtx configs $ \customCtx -> do
+      rateLimiter <- rateLimitMiddleware
+
       let appCtx = baseAppCtx {appCustom = customCtx}
 
           -- Pre-render the 404 page at startup (no user context)
@@ -235,6 +238,7 @@ runApi = do
           app =
             validateEncodingMiddleware
               . securityHeadersMiddleware
+              . rateLimiter
               . notFoundMiddleware notFoundHtml
               $ App.mkApp @API (const server) servantCtx appCtx
 
