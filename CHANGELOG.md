@@ -11,6 +11,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 +- **Default Theme Dark Mode** — Replaced blue-tinted Tailwind `gray` palette with true monochrome `neutral` values and reduced contrast for a softer, more comfortable dark mode.
 - **Watchdog → friendly-ghost (staging)** — Replaced the custom bash watchdog script with [friendly-ghost](https://github.com/solomon-b/friendly-ghost), a Rust-based systemd journal monitor with pre-filtering. Log noise (routine HTTP responses, Liquidsoap track transitions, PostgreSQL autovacuum, bot scanners, pgBackRest info logs) is now filtered via regex ignore patterns *before* reaching the LLM, rather than relying on the LLM prompt to ignore them. Uses Gemini 2.5 Flash via the OpenAI-compatible endpoint. Staging only for now; production remains on the old watchdog.
 - **friendly-ghost: Gemini 2.5 Flash → 3.1 Flash Lite** — Switched both prod and staging from `gemini-2.5-flash` to `gemini-3.1-flash-lite-preview` due to persistent 503 errors from the 2.5 Flash model.
+- **friendly-ghost: Gemini → DeepSeek** — Switched both prod and staging from `gemini-3.1-flash-lite-preview` to `deepseek-chat` via the DeepSeek API due to continued 503 availability issues with Google's Gemini models.
 
 ### Fixed
 - **fail2ban IP whitelist** — Added `ignoreIP` to fail2ban config to prevent deploy IPs from being banned. A single failed SSH auth attempt (wrong username) could trigger a persistent ban that survived reboots via fail2ban's sqlite database, locking out legitimate operators.

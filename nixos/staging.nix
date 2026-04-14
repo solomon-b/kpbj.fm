@@ -70,7 +70,7 @@
   kpbj.monitoring.enable = true;
 
   # ── Secrets for friendly-ghost ──────────────────────────────
-  sops.secrets.gemini_api_key = {
+  sops.secrets.deepseek_api_key = {
     sopsFile = ../secrets/staging-web.yaml;
   };
 
@@ -134,10 +134,10 @@
 
     llm = {
       enable = true;
-      apiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-      model = "gemini-3.1-flash-lite-preview";
+      apiUrl = "https://api.deepseek.com/chat/completions";
+      model = "deepseek-chat";
       systemPromptFile = ./scripts/friendly-ghost-prompt.txt;
-      apiKeyFile = config.sops.secrets.gemini_api_key.path;
+      apiKeyFile = config.sops.secrets.deepseek_api_key.path;
     };
   };
 
