@@ -117,6 +117,7 @@
         "Unsupported MIME type"
         "Unsupported file extension"
         "video: \\{codec: mjpeg"
+        "crossfade duration is longer"
         # ── PostgreSQL routine ──
         "automatic (vacuum|analyze) of table"
         "checkpoint (starting|complete)"

@@ -355,7 +355,7 @@ in
               uid = "liquidsoap-errors";
               title = "Liquidsoap Errors";
               description = "Liquidsoap logged critical errors (severity 0 or 1) in the last 5 minutes. Audio stream may be interrupted.";
-              expr = ''count_over_time({unit=~"kpbj-liquidsoap.*"} |~ "\\[.*:[01]\\]" [5m])'';
+              expr = ''count_over_time({unit=~"kpbj-liquidsoap.*"} |~ "\\[.*:[01]\\]" !~ "crossfade duration is longer" [5m])'';
             })
             (mkAlertRule {
               uid = "icecast-errors";
