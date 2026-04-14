@@ -227,7 +227,7 @@ resource "cloudflare_dns_record" "dkim_google" {
   zone_id = local.cloudflare_zone_id
   name    = "google._domainkey"
   type    = "TXT"
-  content = "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsu1e1/+320CuGQpz3q1+OV0Urg+IMbu5PUYVFVqUlbzwKftDsq0wivYDNYfrlODkij3FuqYbhwN7sb6f/0QUedUC+cvJ5ioxrJt9WHWQQK5gppw7BGllBbv+B6NCs+NC6YQwi5S3QekkeOsfUWQ/QbM+OVtX8kPLmPb4SXOF6JID67XFIjzCmiQwGniVjaBiDWnAnos0xpkwuabS2ek8jlwxtiAgDd85Yr3Hs2gYaQ+BBdM/jT4OnScq0MygJfytb0YhpLYnYtfMXOMLUKr8aCOLkTXUi5ZD4Uok95JItoaw+NE+s4gZ+YvIpGYxxzBGEuoAhn66FYSWt+lrqAziRwIDAQAB\""
+  content = "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsu1e1/+320CuGQpz3q1+OV0Urg+IMbu5PUYVFVqUlbzwKftDsq0wivYDNYfrlODkij3FuqYbhwN7sb6f/0QUedUC+cvJ5ioxrJt9WHWQQK5gppw7BGllBbv+B6NCs+NC6YQwi5S3QekkeOsfUWQ/QbM+OVtX8kPLmPb4SXOF6JID67XFIjzCmiQwGniVjaBiD\" \"WnAnos0xpkwuabS2ek8jlwxtiAgDd85Yr3Hs2gYaQ+BBdM/jT4OnScq0MygJfytb0YhpLYnYtfMXOMLUKr8aCOLkTXUi5ZD4Uok95JItoaw+NE+s4gZ+YvIpGYxxzBGEuoAhn66FYSWt+lrqAziRwIDAQAB\""
   ttl     = 3600
   comment = "DKIM (Gmail)"
 }

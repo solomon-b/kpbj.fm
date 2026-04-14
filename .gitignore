@@ -1,5 +1,8 @@
 /.direnv/
 /.envrc.local
+.env
+.env.*
+!.env.example
 /dist-newstyle/
 /result
 /keys/

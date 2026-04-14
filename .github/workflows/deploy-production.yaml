@@ -18,18 +18,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Validate release tag
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if ! echo "$TAG" | grep -qP '^v\d+\.\d+\.\d+$'; then
+            echo "ERROR: '$TAG' is not a valid release tag (expected v{major}.{minor}.{patch})"
+            exit 1
+          fi
+          if ! git tag --list | grep -qx "$TAG"; then
+            echo "ERROR: Tag '$TAG' does not exist"
+            exit 1
+          fi
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v31
+        uses: cachix/install-nix-action@616559265b40713947b9c190a8ff4b507b5df49b # v31
 
       - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@v8
+        uses: DeterminateSystems/magic-nix-cache-action@87b14cf437d03d37989d87f0fa5ce4f5dc1a330b # v8
 
       - name: Setup Cachix
-        uses: cachix/cachix-action@v15
+        uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
         with:
           name: kpbj-fm
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
