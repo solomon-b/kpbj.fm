@@ -1,0 +1,77 @@
+{
+  "uid": "service-health",
+  "title": "Service Health",
+  "tags": ["kpbj"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-5m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service Status",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_systemd_unit_state{name=~\"kpbj-web.service|kpbj-liquidsoap.service|kpbj-icecast.service|kpbj-webhook.service|postgresql.service\", state=\"active\"}",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "red" },
+              { "value": 0.5, "color": "green" }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "text": { "titleSize": 16, "valueSize": 24 }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Timer Status",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_systemd_unit_state{name=~\"kpbj-token-cleanup.timer|kpbj-sync-host-emails.timer|kpbj-episode-check.timer|kpbj-listener-snapshots.timer|kpbj-order-cleanup.timer|friendly-ghost.timer\", state=\"active\"}",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "red" },
+              { "value": 0.5, "color": "green" }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "text": { "titleSize": 16, "valueSize": 24 }
+      }
+    }
+  ],
+  "schemaVersion": 39
+}

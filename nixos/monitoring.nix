@@ -9,10 +9,88 @@
 # All services bind to localhost only — access via SSH tunnel:
 #   ssh -N -L 3000:127.0.0.1:3000 root@<host>
 # ──────────────────────────────────────────────────────────────
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   cfg = config.kpbj.monitoring;
+
+  # Helper to build a Grafana alert rule from a Loki query.
+  mkAlertRule = { uid, title, expr, description ? "" }: {
+    inherit uid title;
+    annotations = { inherit description; };
+    condition = "B";
+    data = [
+      {
+        refId = "A";
+        relativeTimeRange = { from = 300; to = 0; };
+        datasourceUid = "loki";
+        model = {
+          inherit expr;
+          refId = "A";
+          queryType = "instant";
+        };
+      }
+      {
+        refId = "B";
+        relativeTimeRange = { from = 300; to = 0; };
+        datasourceUid = "__expr__";
+        model = {
+          type = "threshold";
+          expression = "A";
+          conditions = [{
+            evaluator = { type = "gt"; params = [ 0 ]; };
+          }];
+        };
+      }
+    ];
+    noDataState = "OK";
+    execErrState = "Error";
+    "for" = "0s";
+  };
+
+  # Helper to build a Grafana alert rule from a Prometheus query with a
+  # configurable threshold. Defaults: "gt" comparator, 5-minute sustain.
+  mkPromAlertRule = {
+    uid,
+    title,
+    expr,
+    threshold,
+    description ? "",
+    op ? "gt",
+    forDuration ? "5m",
+  }: {
+    inherit uid title;
+    annotations = { inherit description; };
+    condition = "B";
+    data = [
+      {
+        refId = "A";
+        relativeTimeRange = { from = 300; to = 0; };
+        datasourceUid = "prometheus";
+        model = {
+          inherit expr;
+          refId = "A";
+          instant = true;
+          range = false;
+        };
+      }
+      {
+        refId = "B";
+        relativeTimeRange = { from = 300; to = 0; };
+        datasourceUid = "__expr__";
+        model = {
+          type = "threshold";
+          expression = "A";
+          conditions = [{
+            evaluator = { type = op; params = [ threshold ]; };
+          }];
+        };
+      }
+    ];
+    noDataState = "OK";
+    execErrState = "Error";
+    "for" = forDuration;
+  };
 in
 {
   options.kpbj.monitoring = {
@@ -29,9 +107,19 @@ in
       default = 3100;
       description = "Port for Loki HTTP API (localhost only).";
     };
+
+    alerting = {
+      enable = lib.mkEnableOption "KPBJ alerting (Discord notifications)";
+
+      environment = lib.mkOption {
+        type = lib.types.str;
+        description = "Environment label for alert messages (e.g. 'prod', 'staging').";
+      };
+    };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = lib.mkIf cfg.enable (lib.mkMerge [
+  {
     # ── Loki — log storage backend ─────────────────────────────
     services.loki = {
       enable = true;
@@ -122,12 +210,33 @@ in
           }];
           pipeline_stages = [{
             match = {
-              selector = ''{unit!~"kpbj-.*|postgresql.service|icecast.service"}'';
+              selector = ''{unit!~"kpbj-.*|postgresql.service|icecast.service|friendly-ghost.service"}'';
               action = "drop";
             };
           }];
         }];
       };
+    };
+
+    # ── Prometheus — metrics collection ─────────────────────────
+    services.prometheus = {
+      enable = true;
+      listenAddress = "127.0.0.1";
+      port = 9090;
+      retentionTime = "30d";
+
+      exporters.node = {
+        enable = true;
+        listenAddress = "127.0.0.1";
+        enabledCollectors = [ "systemd" ];
+      };
+
+      scrapeConfigs = [{
+        job_name = "node";
+        static_configs = [{
+          targets = [ "127.0.0.1:${toString config.services.prometheus.exporters.node.port}" ];
+        }];
+      }];
     };
 
     # ── Grafana — dashboards & query UI ────────────────────────
@@ -146,14 +255,187 @@ in
         };
       };
 
-      # Pre-configure Loki as a datasource
-      provision.datasources.settings.datasources = [{
-        name = "Loki";
-        type = "loki";
-        access = "proxy";
-        url = "http://127.0.0.1:${toString cfg.lokiPort}";
-        isDefault = true;
+      # Pre-configure dashboards
+      provision.dashboards.settings.providers = [{
+        name = "KPBJ";
+        options.path = ./dashboards;
       }];
+
+      # Pre-configure datasources
+      provision.datasources.settings.datasources = [
+        {
+          name = "Loki";
+          uid = "loki";
+          type = "loki";
+          access = "proxy";
+          url = "http://127.0.0.1:${toString cfg.lokiPort}";
+          isDefault = true;
+        }
+        {
+          name = "Prometheus";
+          uid = "prometheus";
+          type = "prometheus";
+          access = "proxy";
+          url = "http://127.0.0.1:9090";
+        }
+      ];
     };
-  };
+  }
+
+  # ── Alerting — Discord notifications ───────────────────────
+  (lib.mkIf cfg.alerting.enable {
+    services.grafana.provision.alerting = {
+      contactPoints.settings = {
+        apiVersion = 1;
+        contactPoints = [{
+          orgId = 1;
+          name = "Discord";
+          receivers = [{
+            uid = "discord-kpbj";
+            type = "discord";
+            settings = {
+              url = "\${DISCORD_WEBHOOK_URL}";
+              title = "[${cfg.alerting.environment}] {{ .CommonLabels.alertname }}";
+              message = builtins.concatStringsSep "\n" [
+                "**Environment:** ${cfg.alerting.environment}"
+                "**Alert:** {{ .CommonLabels.alertname }}"
+                ""
+                "{{ range .Alerts }}"
+                "**Status:** {{ .Status }}"
+                "**Unit:** {{ .Labels.unit }}"
+                "{{ if .Annotations.description }}**Details:** {{ .Annotations.description }}{{ end }}"
+                "[View Logs](http://localhost:3000/d/service-logs/Service-Logs?var-unit={{ .Labels.unit }}&from={{ .StartsAt.UnixMilli }}&to=now)"
+                "{{ end }}"
+              ];
+            };
+          }];
+        }];
+      };
+
+      policies.settings = {
+        apiVersion = 1;
+        policies = [{
+          orgId = 1;
+          receiver = "Discord";
+          group_by = [ "grafana_folder" "alertname" ];
+          group_wait = "30s";
+          group_interval = "5m";
+          repeat_interval = "4h";
+        }];
+      };
+
+      rules.settings = {
+        apiVersion = 1;
+        groups = [
+          {
+          orgId = 1;
+          name = "KPBJ Service Alerts";
+          folder = "KPBJ";
+          interval = "5m";
+          rules = [
+            (mkAlertRule {
+              uid = "http-5xx";
+              title = "HTTP 5xx Errors";
+              description = "The web service returned HTTP 5xx server errors in the last 5 minutes. Check web service logs for stack traces.";
+              expr = ''count_over_time({unit="kpbj-web.service"} |~ "\"statusCode\":5[0-9]{2}" [5m])'';
+            })
+            (mkAlertRule {
+              uid = "app-errors";
+              title = "Application Errors";
+              description = "The web service logged application-level errors in the last 5 minutes. Check web service logs for details.";
+              expr = ''count_over_time({unit="kpbj-web.service"} |~ "\"level\":\"error\"" [5m])'';
+            })
+            (mkAlertRule {
+              uid = "db-errors";
+              title = "Database Errors";
+              description = "PostgreSQL logged FATAL or PANIC errors in the last 5 minutes. Database may be unreachable or corrupted.";
+              expr = ''count_over_time({unit="postgresql.service"} |~ "FATAL|PANIC" [5m])'';
+            })
+            (mkAlertRule {
+              uid = "liquidsoap-errors";
+              title = "Liquidsoap Errors";
+              description = "Liquidsoap logged critical errors (severity 0 or 1) in the last 5 minutes. Audio stream may be interrupted.";
+              expr = ''count_over_time({unit=~"kpbj-liquidsoap.*"} |~ "\\[.*:[01]\\]" [5m])'';
+            })
+            (mkAlertRule {
+              uid = "icecast-errors";
+              title = "Icecast Errors";
+              description = "Icecast logged ERROR or FATAL messages in the last 5 minutes. Listener stream may be down.";
+              expr = ''count_over_time({unit=~"kpbj-icecast.*|icecast.service"} |~ "ERROR|FATAL" [5m])'';
+            })
+            (mkAlertRule {
+              uid = "webhook-errors";
+              title = "Webhook Errors";
+              description = "The webhook service logged errors in the last 5 minutes. Dashboard commands (restart, force-play, skip) may not be working.";
+              expr = ''count_over_time({unit=~"kpbj-webhook.*"} |~ "ERROR|FATAL|\"level\":\"error\"" [5m])'';
+            })
+            (mkAlertRule {
+              uid = "batch-job-errors";
+              title = "Batch Job Errors";
+              description = "A scheduled batch job (token-cleanup, sync-host-emails, episode-check, listener-snapshots, or order-cleanup) logged errors in the last 5 minutes.";
+              expr = ''count_over_time({unit=~"kpbj-(token-cleanup|sync-host-emails|episode-check|listener-snapshots|order-cleanup).*"} |~ "ERROR|FATAL|error:|\"level\":\"error\"" [5m])'';
+            })
+            (mkAlertRule {
+              uid = "friendly-ghost-errors";
+              title = "friendly-ghost Errors";
+              description = "The friendly-ghost log monitor logged errors or failed in the last 30 minutes. Log anomaly detection may not be running.";
+              expr = ''count_over_time({unit="friendly-ghost.service"} |~ "error:|Failed with result|status=1" [30m])'';
+            })
+          ];
+          }
+          {
+            orgId = 1;
+            name = "KPBJ Resource Alerts";
+            folder = "KPBJ";
+            interval = "1m";
+            rules = [
+              (mkPromAlertRule {
+                uid = "high-memory";
+                title = "High Memory Usage";
+                description = "Host memory usage above 85% for 5 minutes. Consider restarting leaky services or upgrading the droplet.";
+                expr = ''(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100'';
+                threshold = 85;
+                forDuration = "5m";
+              })
+              (mkPromAlertRule {
+                uid = "low-disk-warning";
+                title = "Low Disk Space (Warning)";
+                description = "Root filesystem has less than 15% free space. Clean up logs, old backups, or expand the volume.";
+                expr = ''(node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) * 100'';
+                threshold = 15;
+                op = "lt";
+                forDuration = "5m";
+              })
+              (mkPromAlertRule {
+                uid = "low-disk-critical";
+                title = "Low Disk Space (Critical)";
+                description = "Root filesystem has less than 5% free space. Services may fail to write — act immediately.";
+                expr = ''(node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) * 100'';
+                threshold = 5;
+                op = "lt";
+                forDuration = "2m";
+              })
+              (mkPromAlertRule {
+                uid = "high-cpu";
+                title = "High CPU Usage";
+                description = "CPU usage above 90% for 10 minutes. Check for runaway processes or unexpected traffic.";
+                expr = ''100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'';
+                threshold = 90;
+                forDuration = "10m";
+              })
+              (mkPromAlertRule {
+                uid = "high-load";
+                title = "High Load Average";
+                description = "5-minute load average exceeds 2x the core count for 10 minutes. System is saturated.";
+                expr = ''node_load5 / count(count(node_cpu_seconds_total) by (cpu))'';
+                threshold = 2;
+                forDuration = "10m";
+              })
+            ];
+          }
+        ];
+      };
+    };
+  })
+  ]);
 }

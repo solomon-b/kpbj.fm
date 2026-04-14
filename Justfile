@@ -376,6 +376,9 @@ staging-logs-webhook since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-w
 # View staging listener-snapshots logs
 staging-logs-listener-snapshots since="" until="": (_remote-logs STAGING_VPS_TARGET "kpbj-listener-snapshots" since until)
 
+# View staging Grafana logs
+staging-logs-grafana since="" until="": (_remote-logs STAGING_VPS_TARGET "grafana" since until)
+
 # View staging service status
 staging-status:
   ssh {{STAGING_VPS_TARGET}} systemctl status kpbj-web kpbj-postgres-setup postgresql
@@ -486,6 +489,9 @@ prod-logs-webhook since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-webhook
 
 # View production listener-snapshots logs
 prod-logs-listener-snapshots since="" until="": (_remote-logs PROD_VPS_TARGET "kpbj-listener-snapshots" since until)
+
+# View production Grafana logs
+prod-logs-grafana since="" until="": (_remote-logs PROD_VPS_TARGET "grafana" since until)
 
 # View production service status
 prod-status:

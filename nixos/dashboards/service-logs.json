@@ -1,0 +1,44 @@
+{
+  "uid": "service-logs",
+  "title": "Service Logs",
+  "tags": ["kpbj"],
+  "timezone": "browser",
+  "time": { "from": "now-5m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "unit",
+        "type": "textbox",
+        "current": { "value": "" },
+        "options": [],
+        "label": "Unit"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Logs — $unit",
+      "type": "logs",
+      "gridPos": { "h": 24, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "uid": "loki", "type": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{unit=\"$unit\"}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    }
+  ],
+  "schemaVersion": 39
+}

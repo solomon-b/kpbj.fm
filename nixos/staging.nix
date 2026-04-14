@@ -68,11 +68,27 @@
 
   # ── Monitoring (Grafana + Loki + Promtail) ───────────────────
   kpbj.monitoring.enable = true;
+  kpbj.monitoring.alerting.enable = true;
+  kpbj.monitoring.alerting.environment = "staging";
 
   # ── Secrets for friendly-ghost ──────────────────────────────
   sops.secrets.deepseek_api_key = {
     sopsFile = ../secrets/staging-web.yaml;
   };
+
+  sops.secrets.discord_webhook_url = {
+    sopsFile = ../secrets/staging-web.yaml;
+  };
+
+  sops.templates."grafana.env" = {
+    content = ''
+      DISCORD_WEBHOOK_URL=${config.sops.placeholder.discord_webhook_url}
+    '';
+    owner = "grafana";
+  };
+
+  systemd.services.grafana.serviceConfig.EnvironmentFile =
+    config.sops.templates."grafana.env".path;
 
   # ── friendly-ghost (LLM log anomaly detection) ──────────────
   # Override DynamicUser so the service can read sops secret files

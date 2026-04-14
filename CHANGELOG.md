@@ -6,6 +6,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Added
 - **Stripe Terraform Provider** — Stripe webhook endpoints are now managed as infrastructure-as-code via the `lukasaron/stripe` Terraform provider. Imported existing prod and staging endpoints. Adding new webhook events is now a one-line change in `stripe.tf` instead of clicking through the Stripe dashboard.
+- **Grafana Alerting → Discord** — Provisioned Grafana alert rules with Discord webhook notifications. 8 rules covering HTTP 5xx, application errors, database FATAL/PANIC, Liquidsoap critical/severe, Icecast errors, webhook errors, batch job failures (token-cleanup, sync-host-emails, episode-check, listener-snapshots, order-cleanup), and friendly-ghost failures. Contact point and notification policy provisioned as code via NixOS. Webhook URL stored in sops.
+- **Service Health Dashboard** — Added Prometheus with the node exporter's systemd collector and a provisioned Grafana dashboard showing up/down status for all KPBJ services and timers. Auto-refreshes every 30 seconds.
 
 ### Changed
 +- **Default Theme Dark Mode** — Replaced blue-tinted Tailwind `gray` palette with true monochrome `neutral` values and reduced contrast for a softer, more comfortable dark mode.
