@@ -38,6 +38,22 @@ your primary value.
 - pgBackRest info-level backup logs are routine
 - Routine service startup messages after a deploy are expected
 
+## SSH — Known Authorized Access
+
+SSH key-based logins from the following sources are expected and should NOT be
+flagged as anomalies:
+
+- **75.60.187.54** — Solomon (station admin), home IP. Regular SSH sessions for
+  server maintenance.
+- **Microsoft Azure IPs** (e.g. 52.152.x.x, 20.x.x.x, 40.x.x.x) — GitHub
+  Actions CI/CD deployments. These use a dedicated deploy key and connect
+  briefly to run NixOS rebuild commands. The specific IP varies across runs.
+
+SSH brute-force attempts from other IPs are handled by fail2ban and
+rate-limiting (srclimit_penalise). Failed pre-auth connections are routine
+internet noise and not worth reporting unless the volume is unusually high or
+they correlate with other suspicious activity.
+
 ## What to Watch For (KPBJ-specific)
 
 - Liquidsoap failing to fetch audio or losing connection to Icecast
