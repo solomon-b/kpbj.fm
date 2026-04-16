@@ -745,7 +745,7 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
       [sql|
     WITH RECURSIVE date_series AS (
       SELECT
-        CURRENT_DATE as date,
+        (CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::DATE as date,
         1 as n
       UNION ALL
       SELECT
@@ -802,7 +802,7 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
       LEFT JOIN episodes e ON e.show_id = si.show_id
         AND e.scheduled_at = (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone
       WHERE e.id IS NULL  -- Only dates without scheduled episodes
-        AND si.show_date >= CURRENT_DATE
+        AND si.show_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::DATE
     )
     SELECT show_id, template_id, show_date, day_of_week, start_time, end_time
     FROM unscheduled_instances
@@ -915,7 +915,7 @@ getShowsMissingEpisodesInDays days =
     False
     [sql|
     WITH RECURSIVE date_series AS (
-      SELECT CURRENT_DATE as date, 1 as n
+      SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::DATE as date, 1 as n
       UNION ALL
       SELECT date + 1, n + 1
       FROM date_series
@@ -991,7 +991,7 @@ getHostsMissingEpisodesOnDay days =
     False
     [sql|
     WITH target_date AS (
-      SELECT CURRENT_DATE + #{days} AS date
+      SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::DATE + #{days} AS date
     ),
     schedule_instances AS (
       SELECT DISTINCT
