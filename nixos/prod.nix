@@ -31,6 +31,7 @@
 
   kpbj.streaming = {
     icecastPort = 8000;
+    icecastHostname = "stream.kpbj.fm";
     webhookPort = 9000;
     apiBase = "http://127.0.0.1:4000/api/playout";
   };

@@ -57,9 +57,5 @@
 
     <security>
         <chroot>0</chroot>
-        <changeowner>
-            <user>nobody</user>
-            <group>nobody</group>
-        </changeowner>
     </security>
 </icecast>

@@ -70,6 +70,12 @@ in
       description = "Replace 'localhost' in audio URLs with this host. Used in dev VM (10.0.2.2).";
     };
 
+    icecastHostname = lib.mkOption {
+      type = lib.types.str;
+      default = "localhost";
+      description = "Public hostname for Icecast (used in YP directory listings).";
+    };
+
     restartOnDeploy = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -78,6 +84,10 @@ in
   };
 
   config = {
+    # Provide /etc/mime.types so Icecast can serve admin/web files
+    # with correct content types (NixOS doesn't ship this by default).
+    environment.etc."mime.types".source = "${pkgs.mailcap}/etc/mime.types";
+
     # ── Icecast ─────────────────────────────────────────────────
     systemd.services.kpbj-icecast = {
       description = "KPBJ Icecast streaming server";
@@ -121,9 +131,10 @@ in
           xml_edit webroot    "${pkgs.icecast}/share/icecast/web"
           xml_edit adminroot  "${pkgs.icecast}/share/icecast/admin"
 
-          # Port and log directory
-          xml_edit port   "${toString cfg.icecastPort}"
-          xml_edit logdir "/var/log/kpbj-icecast"
+          # Port, hostname, and log directory
+          xml_edit port     "${toString cfg.icecastPort}"
+          xml_edit hostname "${cfg.icecastHostname}"
+          xml_edit logdir   "/var/log/kpbj-icecast"
         '';
 
         ExecStart = "${pkgs.icecast}/bin/icecast -c /run/kpbj-icecast/icecast.xml";

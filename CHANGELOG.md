@@ -18,6 +18,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **friendly-ghost: Gemini → DeepSeek** — Switched both prod and staging from `gemini-3.1-flash-lite-preview` to `deepseek-chat` via the DeepSeek API due to continued 503 availability issues with Google's Gemini models.
 
 ### Fixed
+- **Icecast Configuration Warnings** — Fixed three persistent Icecast warnings: set `<hostname>` per environment (was hardcoded to `localhost`, breaking YP directory listings), removed `<changeowner>` block (unnecessary with systemd `DynamicUser` isolation), and provided `/etc/mime.types` via `mailcap` (NixOS doesn't ship it by default).
 - **Episode Reminder Localization** — Schedule queries for upcoming unscheduled show dates and missing-episode reminders used `CURRENT_DATE` (UTC), which rolled over to the next day at 5 PM Pacific. Switched to `CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles'` so date calculations match the station's local time.
 - **Open Redirect on Login** — The `?redirect=` parameter on the login page accepted arbitrary URLs, allowing open redirect attacks. Now validates the redirect target is a relative path.
 - **Liquidsoap Crossfade Duration Noise** — Added `crossfade duration is longer` to friendly-ghost ignore patterns and excluded it from the Grafana Liquidsoap alert query. This benign warning fired frequently and created alert noise.
