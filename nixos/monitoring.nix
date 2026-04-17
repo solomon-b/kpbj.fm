@@ -15,9 +15,9 @@ let
   cfg = config.kpbj.monitoring;
 
   # Helper to build a Grafana alert rule from a Loki query.
-  mkAlertRule = { uid, title, expr, description ? "" }: {
+  mkAlertRule = { uid, title, expr, description ? "", filter ? "" }: {
     inherit uid title;
-    annotations = { inherit description; };
+    annotations = { inherit description filter; };
     condition = "B";
     data = [
       {
@@ -304,7 +304,7 @@ in
                 "**Status:** {{ .Status }}"
                 "**Unit:** {{ .Labels.unit }}"
                 "{{ if .Annotations.description }}**Details:** {{ .Annotations.description }}{{ end }}"
-                "[View Logs](http://localhost:3000/d/service-logs/Service-Logs?var-unit={{ .Labels.unit }}&from={{ .StartsAt.UnixMilli }}&to=now)"
+                "[View Logs](http://localhost:3000/d/service-logs/Service-Logs?var-unit={{ .Labels.unit }}&var-filter={{ .Annotations.filter | urlquery }}&from={{ .StartsAt.UnixMilli }}&to=now)"
                 "{{ end }}"
               ];
             };
@@ -337,48 +337,56 @@ in
               uid = "http-5xx";
               title = "HTTP 5xx Errors";
               description = "The web service returned HTTP 5xx server errors in the last 5 minutes. Check web service logs for stack traces.";
+              filter = ''"statusCode":5[0-9]{2}'';
               expr = ''count_over_time({unit="kpbj-web.service"} |~ "\"statusCode\":5[0-9]{2}" [5m])'';
             })
             (mkAlertRule {
               uid = "app-errors";
               title = "Application Errors";
               description = "The web service logged application-level errors in the last 5 minutes. Check web service logs for details.";
+              filter = ''"level":"error"'';
               expr = ''count_over_time({unit="kpbj-web.service"} |~ "\"level\":\"error\"" [5m])'';
             })
             (mkAlertRule {
               uid = "db-errors";
               title = "Database Errors";
               description = "PostgreSQL logged FATAL or PANIC errors in the last 5 minutes. Database may be unreachable or corrupted.";
+              filter = "FATAL|PANIC";
               expr = ''count_over_time({unit="postgresql.service"} |~ "FATAL|PANIC" [5m])'';
             })
             (mkAlertRule {
               uid = "liquidsoap-errors";
               title = "Liquidsoap Errors";
               description = "Liquidsoap logged critical errors (severity 0 or 1) in the last 5 minutes. Audio stream may be interrupted.";
+              filter = ''\[.*:[01]\]'';
               expr = ''count_over_time({unit=~"kpbj-liquidsoap.*"} |~ "\\[.*:[01]\\]" !~ "crossfade duration is longer" [5m])'';
             })
             (mkAlertRule {
               uid = "icecast-errors";
               title = "Icecast Errors";
               description = "Icecast logged ERROR or FATAL messages in the last 5 minutes. Listener stream may be down.";
+              filter = "ERROR|FATAL";
               expr = ''count_over_time({unit=~"kpbj-icecast.*|icecast.service"} |~ "ERROR|FATAL" [5m])'';
             })
             (mkAlertRule {
               uid = "webhook-errors";
               title = "Webhook Errors";
               description = "The webhook service logged errors in the last 5 minutes. Dashboard commands (restart, force-play, skip) may not be working.";
+              filter = ''ERROR|FATAL|"level":"error"'';
               expr = ''count_over_time({unit=~"kpbj-webhook.*"} |~ "ERROR|FATAL|\"level\":\"error\"" [5m])'';
             })
             (mkAlertRule {
               uid = "batch-job-errors";
               title = "Batch Job Errors";
               description = "A scheduled batch job (token-cleanup, sync-host-emails, episode-check, listener-snapshots, or order-cleanup) logged errors in the last 5 minutes.";
+              filter = ''ERROR|FATAL|error:|"level":"error"'';
               expr = ''count_over_time({unit=~"kpbj-(token-cleanup|sync-host-emails|episode-check|listener-snapshots|order-cleanup).*"} |~ "ERROR|FATAL|error:|\"level\":\"error\"" [5m])'';
             })
             (mkAlertRule {
               uid = "friendly-ghost-errors";
               title = "friendly-ghost Errors";
               description = "The friendly-ghost log monitor logged errors or failed in the last 30 minutes. Log anomaly detection may not be running.";
+              filter = "error:|Failed with result|status=1";
               expr = ''count_over_time({unit="friendly-ghost.service"} |~ "error:|Failed with result|status=1" [30m])'';
             })
           ];
