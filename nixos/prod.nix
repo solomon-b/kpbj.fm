@@ -149,6 +149,7 @@
       model = "deepseek-chat";
       systemPromptFile = ./scripts/friendly-ghost-prompt.txt;
       apiKeyFile = config.sops.secrets.deepseek_api_key.path;
+      maxTokens = 2048;
     };
   };
 
