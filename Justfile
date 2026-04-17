@@ -379,6 +379,9 @@ staging-logs-listener-snapshots since="" until="": (_remote-logs STAGING_VPS_TAR
 # View staging Grafana logs
 staging-logs-grafana since="" until="": (_remote-logs STAGING_VPS_TARGET "grafana" since until)
 
+# View staging friendly-ghost logs
+staging-logs-friendly-ghost since="" until="": (_remote-logs STAGING_VPS_TARGET "friendly-ghost" since until)
+
 # View staging service status
 staging-status:
   ssh {{STAGING_VPS_TARGET}} systemctl status kpbj-web kpbj-postgres-setup postgresql
@@ -492,6 +495,9 @@ prod-logs-listener-snapshots since="" until="": (_remote-logs PROD_VPS_TARGET "k
 
 # View production Grafana logs
 prod-logs-grafana since="" until="": (_remote-logs PROD_VPS_TARGET "grafana" since until)
+
+# View production friendly-ghost logs
+prod-logs-friendly-ghost since="" until="": (_remote-logs PROD_VPS_TARGET "friendly-ghost" since until)
 
 # View production service status
 prod-status:
