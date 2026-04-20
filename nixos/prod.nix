@@ -139,7 +139,7 @@
       username = "noreply@kpbj.fm";
       from = "noreply@kpbj.fm";
       to = [ "ssbothwell@gmail.com" ];
-      subjectPrefix = "[KPBJ prod]";
+      subjectPrefix = "[KPBJ PROD]";
       passwordFile = config.sops.secrets.smtp_password.path;
     };
 
@@ -147,7 +147,19 @@
       enable = true;
       apiUrl = "https://api.deepseek.com/chat/completions";
       model = "deepseek-chat";
-      systemPromptFile = ./scripts/friendly-ghost-prompt.txt;
+      systemPromptFile = pkgs.writeText "friendly-ghost-prompt-prod.txt" (
+        builtins.readFile ./scripts/friendly-ghost-prompt.txt
+        + ''
+
+          ## Environment Appendix
+
+          This friendly-ghost instance is monitoring the **PRODUCTION** environment.
+          Tag every alert with `[PROD]` in the SUBJECT and with
+          `Environment: PROD` as the first line of the body, as described above.
+          Unlike staging, sync-host-emails here runs live against the real DB,
+          so a sudden large diff is worth flagging.
+        ''
+      );
       apiKeyFile = config.sops.secrets.deepseek_api_key.path;
       maxTokens = 2048;
     };

@@ -4,7 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+- **friendly-ghost Environment Tagging** — Alerts now make the environment unmistakable: `subjectPrefix` uppercased to `[KPBJ STAGING]` / `[KPBJ PROD]`, the system prompt requires every alert to begin the SUBJECT with `[STAGING]` / `[PROD]` and the body with `Environment: <env>`. The shared prompt is wrapped per-environment via `pkgs.writeText` so the LLM knows which env it's monitoring.
+- **friendly-ghost Prompt: sync-host-emails Context** — Documented in the prompt that `kpbj-sync-host-emails` runs in `--dry-run` on staging against a DB sanitized by `prod-to-staging.sh`, so large `WOULD REMOVE/ADD` diffs there are expected and must not be flagged; in prod it runs live, and sudden large diffs remain flaggable.
+
+### Fixed
+- **friendly-ghost Staging Noise** — Broadened staging `ignorePatterns` for `sync-host-emails`. The previous single pattern (`sync-host-emails.*dry.run`) only matched one log line; the actual noisy output (`WOULD REMOVE FROM GOOGLE GROUP`, `WOULD ADD TO GOOGLE GROUP`, `Computed diff`, `====` banners) slipped through and caused the LLM to misread the staging dry-run diff as a prod data-integrity incident.
 
 ---
 

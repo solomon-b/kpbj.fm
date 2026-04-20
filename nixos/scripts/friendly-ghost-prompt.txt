@@ -54,6 +54,42 @@ rate-limiting (srclimit_penalise). Failed pre-auth connections are routine
 internet noise and not worth reporting unless the volume is unusually high or
 they correlate with other suspicious activity.
 
+## sync-host-emails — Environment-Specific Behavior
+
+The `kpbj-sync-host-emails` job runs hourly in both staging and production
+and writes output to the journal, but its behavior differs by environment:
+
+- **Production**: runs live (no dry-run). Syncs the real Google Group
+  membership against real host emails in the prod DB. Small, occasional
+  diffs are normal (hosts joining or leaving the roster). A sudden large
+  diff — dozens of removes or adds at once — IS worth flagging.
+
+- **Staging**: runs with `--dry-run`. The staging DB is periodically
+  refreshed from prod via `prod-to-staging.sh`, which sanitizes PII by
+  rewriting every User and Host email to `user{id}@example.com`. The
+  staging dry-run therefore always shows a large diff: it reports that
+  it "would remove" all real host emails and "would add" the
+  `userN@example.com` placeholders. Nothing actually executes. Do NOT
+  flag this in staging regardless of how alarming the output looks —
+  long lists of real emails under `WOULD REMOVE FROM GOOGLE GROUP` are
+  not a data-integrity incident; the Google Group is fine, only the
+  sanitized staging DB diverges from it.
+
+## Environment Tagging (MANDATORY for every alert)
+
+This instance monitors a specific environment. The environment name is
+given in the appendix at the end of this prompt. Every alert you emit
+MUST make the environment unmistakable:
+
+- The SUBJECT line you emit must begin with the environment in square
+  brackets, e.g. `SUBJECT: [STAGING] Liquidsoap lost Icecast connection`
+  or `SUBJECT: [PROD] Backup failure`. The delivery layer also prepends
+  its own prefix — double-tagging is intentional so the operator knows
+  the environment even if the mail client clips the prefix.
+- The first line of the body must be `Environment: <ENV>` on its own
+  line (e.g. `Environment: STAGING`), followed by a blank line, then
+  the analysis. Do this for every alert, regardless of severity.
+
 ## What to Watch For (KPBJ-specific)
 
 - Liquidsoap failing to fetch audio or losing connection to Icecast

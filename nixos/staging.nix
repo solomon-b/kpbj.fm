@@ -136,7 +136,16 @@
         # ── pgBackRest routine ──
         "^P00 +INFO"
         # ── Staging known issues ──
+        # sync-host-emails runs with --dry-run in staging against a DB
+        # whose User/Host emails have been sanitized to userN@example.com
+        # by prod-to-staging.sh. The dry-run diff against the real Google
+        # Group is therefore always large and entirely expected. Drop the
+        # structural log lines here; the system prompt explains the rest
+        # so bare email addresses don't get misread as an incident.
         "sync-host-emails.*dry.run"
+        "WOULD (REMOVE FROM|ADD TO) GOOGLE GROUP"
+        "Computed diff"
+        "^={10,}$"
       ];
     };
 
@@ -146,7 +155,7 @@
       username = "noreply@kpbj.fm";
       from = "noreply@kpbj.fm";
       to = [ "ssbothwell@gmail.com" ];
-      subjectPrefix = "[KPBJ staging]";
+      subjectPrefix = "[KPBJ STAGING]";
       passwordFile = config.sops.secrets.smtp_password.path;
     };
 
@@ -154,7 +163,19 @@
       enable = true;
       apiUrl = "https://api.deepseek.com/chat/completions";
       model = "deepseek-chat";
-      systemPromptFile = ./scripts/friendly-ghost-prompt.txt;
+      systemPromptFile = pkgs.writeText "friendly-ghost-prompt-staging.txt" (
+        builtins.readFile ./scripts/friendly-ghost-prompt.txt
+        + ''
+
+          ## Environment Appendix
+
+          This friendly-ghost instance is monitoring the **STAGING** environment.
+          Tag every alert with `[STAGING]` in the SUBJECT and with
+          `Environment: STAGING` as the first line of the body, as described
+          above. Remember that sync-host-emails runs in dry-run here against a
+          sanitized DB, so its large diffs are expected.
+        ''
+      );
       apiKeyFile = config.sops.secrets.deepseek_api_key.path;
       maxTokens = 2048;
     };
