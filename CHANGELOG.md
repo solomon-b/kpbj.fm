@@ -10,6 +10,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Fixed
 - **friendly-ghost Staging Noise** — Broadened staging `ignorePatterns` for `sync-host-emails`. The previous single pattern (`sync-host-emails.*dry.run`) only matched one log line; the actual noisy output (`WOULD REMOVE FROM GOOGLE GROUP`, `WOULD ADD TO GOOGLE GROUP`, `Computed diff`, `====` banners) slipped through and caused the LLM to misread the staging dry-run diff as a prod data-integrity incident.
+- **Newsletter Signup Form Entry ID** — Updated the Google Form field ID used by the registration newsletter opt-in (`subscribeToNewsletter`) from `entry.936311333` to `entry.1846700939` to match the form's current schema.
 
 ---
 

@@ -163,7 +163,7 @@ validateRequest Register {..} = do
 subscribeToNewsletter :: (MonadIO m, Log.MonadLog m, MonadThrow m) => EmailAddress -> m ()
 subscribeToNewsletter email = do
   Log.logInfo "Subscribing user to newsletter" email
-  let formData = [("entry.936311333", Text.encodeUtf8 $ display email)]
+  let formData = [("entry.1846700939", Text.encodeUtf8 $ display email)]
   request' <- HTTP.parseRequest "POST https://docs.google.com/forms/u/0/d/e/1FAIpQLSfeM91iQ_A7ybaa070b8jiznHNRIJ_2JU0F7wJjo7vAvkS3tQ/formResponse"
   let request = HTTP.setRequestBodyURLEncoded formData request'
   response <- HTTP.httpNoBody request
