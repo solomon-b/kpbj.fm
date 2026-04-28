@@ -72,6 +72,7 @@ import API.Dashboard.Users.Unsuspend.Post.HandlerSpec qualified as DashboardUser
 import API.Events.Event.Get.HandlerSpec qualified as EventHandler
 import API.Events.Get.HandlerSpec qualified as EventsHandler
 import API.Get.HandlerSpec qualified as HomeHandler
+import API.Newsletter.Subscribe.Post.HandlerSpec qualified as NewsletterSubscribeHandler
 import API.Playout.Fallback.Get.HandlerSpec qualified as PlayoutFallbackGetHandler
 import API.Schedule.Get.HandlerSpec qualified as ScheduleHandler
 import API.Shows.Get.HandlerSpec qualified as ShowsHandler
@@ -219,3 +220,4 @@ main = do
     UserLoginHandler.spec
     UserRegisterHandler.spec
     UserForgotPasswordHandler.spec
+    NewsletterSubscribeHandler.spec

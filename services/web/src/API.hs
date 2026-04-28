@@ -156,6 +156,7 @@ import API.Invite.Token.Get.Handler qualified as Invite.Token.Get
 import API.Invite.Token.Post.Handler qualified as Invite.Token.Post
 import API.Links
 import API.Media.Get.Handler qualified as Media.Get
+import API.Newsletter.Subscribe.Post.Handler qualified as Newsletter.Subscribe.Post
 import API.Playout.Fallback.Get.Handler qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Handler qualified as Playout.Now.Get
 import API.Playout.Played.Post.Handler qualified as Playout.Played.Post
@@ -270,6 +271,7 @@ server =
       storeApi = storeApiRoutes,
       webhooks = webhookRoutes,
       streamMetadata = Stream.Metadata.Get.handler,
+      newsletterSubscribePost = Newsletter.Subscribe.Post.handler,
       debugVersion = Debug.Version.Get.handler
     }
   where
