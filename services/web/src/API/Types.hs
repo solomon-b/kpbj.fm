@@ -151,6 +151,7 @@ import API.Get.Route qualified as Root.Get
 import API.Invite.Token.Get.Route qualified as Invite.Token.Get
 import API.Invite.Token.Post.Route qualified as Invite.Token.Post
 import API.Media.Get.Route qualified as Media.Get
+import API.Newsletter.Subscribe.Post.Route qualified as Newsletter.Subscribe.Post
 import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Route qualified as Playout.Now.Get
 import API.Playout.Played.Post.Route qualified as Playout.Played.Post
@@ -241,6 +242,8 @@ data Routes mode = Routes
     webhooks :: mode :- NamedRoutes WebhookRoutes,
     -- | @GET /api/stream/metadata@ - Stream metadata proxy (avoids CORS)
     streamMetadata :: mode :- Stream.Metadata.Get.Route,
+    -- | @POST /api/newsletter/subscribe@ - Newsletter signup
+    newsletterSubscribePost :: mode :- Newsletter.Subscribe.Post.Route,
     -- | @GET /debug/version@ - Version info for debugging
     debugVersion :: mode :- Debug.Version.Get.Route
   }

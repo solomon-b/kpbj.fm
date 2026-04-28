@@ -69,6 +69,7 @@ library
     Effects.Database.Tables.EpisodeTrack
     Effects.Database.Tables.Events
     Effects.Database.Tables.HostInvitation
+    Effects.Database.Tables.NewsletterSubscribers
     Effects.Database.Tables.OrderItems
     Effects.Database.Tables.Orders
     Effects.Database.Tables.PasswordResetTokens
@@ -155,6 +156,7 @@ library kpbj-database-test-lib
     Test.Gen.Tables.EpisodeTrack
     Test.Gen.Tables.Episodes
     Test.Gen.Tables.Events
+    Test.Gen.Tables.NewsletterSubscribers
     Test.Gen.Tables.PasswordResetTokens
     Test.Gen.Tables.PlaybackHistory
     Test.Gen.Tables.ShowBlogPosts
@@ -228,6 +230,7 @@ test-suite kpbj-database-test
     Effects.Database.Tables.EpisodeTrackSpec
     Effects.Database.Tables.EpisodesSpec
     Effects.Database.Tables.EventsSpec
+    Effects.Database.Tables.NewsletterSubscribersSpec
     Effects.Database.Tables.OrderItemsSpec
     Effects.Database.Tables.OrdersSpec
     Effects.Database.Tables.PasswordResetTokensSpec
@@ -271,6 +274,7 @@ test-suite kpbj-database-test
     Test.Gen.Tables.EpisodeTrack
     Test.Gen.Tables.Episodes
     Test.Gen.Tables.Events
+    Test.Gen.Tables.NewsletterSubscribers
     Test.Gen.Tables.OrderItems
     Test.Gen.Tables.Orders
     Test.Gen.Tables.PasswordResetTokens
