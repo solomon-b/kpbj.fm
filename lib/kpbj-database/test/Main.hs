@@ -15,6 +15,7 @@ import Effects.Database.Tables.EphemeralUploadsSpec qualified as EphemeralUpload
 import Effects.Database.Tables.EpisodeTrackSpec qualified as EpisodeTrack
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
 import Effects.Database.Tables.EventsSpec qualified as Events
+import Effects.Database.Tables.NewsletterSubscribersSpec qualified as NewsletterSubscribers
 import Effects.Database.Tables.OrderItemsSpec qualified as OrderItems
 import Effects.Database.Tables.OrdersSpec qualified as Orders
 import Effects.Database.Tables.PasswordResetTokensSpec qualified as PasswordResetTokens
@@ -108,6 +109,7 @@ main = do
     EphemeralUploads.spec
     SitePages.spec
     SitePageRevisions.spec
+    NewsletterSubscribers.spec
 
     -- DB Models - Special Tables
     PlaybackHistory.spec

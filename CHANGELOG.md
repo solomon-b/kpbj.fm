@@ -4,7 +4,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-04-27
+
 ### Changed
+- **Newsletter Signup → Self-Hosted** — Replaced the homepage Google Forms newsletter signup with a self-hosted Postgres-backed signup at `POST /api/newsletter/subscribe`. New `newsletter_subscribers` table stores email + timestamp, duplicate emails are silently swallowed via `ON CONFLICT (email) DO NOTHING`, and the homepage form is now an HTMX-driven swap. The registration newsletter checkbox now writes to the same table instead of POSTing to Google Forms.
 - **friendly-ghost Environment Tagging** — Alerts now make the environment unmistakable: `subjectPrefix` uppercased to `[KPBJ STAGING]` / `[KPBJ PROD]`, the system prompt requires every alert to begin the SUBJECT with `[STAGING]` / `[PROD]` and the body with `Environment: <env>`. The shared prompt is wrapped per-environment via `pkgs.writeText` so the LLM knows which env it's monitoring.
 - **friendly-ghost Prompt: sync-host-emails Context** — Documented in the prompt that `kpbj-sync-host-emails` runs in `--dry-run` on staging against a DB sanitized by `prod-to-staging.sh`, so large `WOULD REMOVE/ADD` diffs there are expected and must not be flagged; in prod it runs live, and sudden large diffs remain flaggable.
 

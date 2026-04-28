@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               kpbj-api
-version:            0.11.1
+version:            0.11.2
 license:            Apache-2.0
 license-file:       LICENSE_HASKELL
 author:             Solomon Bothwell
@@ -353,6 +353,9 @@ library
     API.Dashboard.Users.Unsuspend.Post.Route
     API.Media.Get.Handler
     API.Media.Get.Route
+    API.Newsletter.Subscribe.Post.Handler
+    API.Newsletter.Subscribe.Post.Route
+    API.Newsletter.Subscribe.Post.Templates
     API.PrivacyPolicy.Get.Handler
     API.PrivacyPolicy.Get.Route
     API.PrivacyPolicy.Get.Templates
@@ -725,6 +728,7 @@ test-suite kpbj-api-test
        API.Store.Products.Slug.Get.HandlerSpec
        Store.Checkout.EmailsSpec
        Store.Checkout.LogicSpec
+       API.Newsletter.Subscribe.Post.HandlerSpec
        API.User.ForgotPassword.Post.HandlerSpec
        API.User.Login.Post.HandlerSpec
        API.User.Register.Post.HandlerSpec
