@@ -263,28 +263,6 @@ resource "cloudflare_dns_record" "dkim_k3" {
 }
 
 # ──────────────────────────────────────────────────────────────
-# SSL Certificate Validation
-# ──────────────────────────────────────────────────────────────
-
-resource "cloudflare_dns_record" "acme_challenge_root" {
-  zone_id = local.cloudflare_zone_id
-  name    = "_acme-challenge"
-  type    = "TXT"
-  content = "\"XVlM9mUEMJWveiNgfKDc1yOxJwBMUfy370VkxuwIrqk\""
-  ttl     = 3600
-  comment = "SSL cert validation for kpbj.fm"
-}
-
-resource "cloudflare_dns_record" "acme_challenge_www" {
-  zone_id = local.cloudflare_zone_id
-  name    = "_acme-challenge.www"
-  type    = "TXT"
-  content = "\"1O-zPj55UzJkBjn7ywlN1bD-m31qtC4I3Ec9KGMS-zU\""
-  ttl     = 3600
-  comment = "SSL cert validation for www.kpbj.fm"
-}
-
-# ──────────────────────────────────────────────────────────────
 # Domain Verification
 # ──────────────────────────────────────────────────────────────
 

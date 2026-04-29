@@ -10,6 +10,8 @@
 
 **NEVER add `Co-Authored-By` lines to commits or credit yourself in PRs.** You are a tool, not a collaborator.
 
+**ALWAYS update `CHANGELOG.md` appropriately when making code changes.** Add an entry describing the change under the relevant section.
+
 ## Project Overview
 
 KPBJ 95.9FM community radio station. Four services on a DigitalOcean VPS running NixOS:
