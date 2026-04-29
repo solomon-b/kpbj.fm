@@ -3,6 +3,7 @@ module API.User.Login.Get.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
+import Domain.Types.Cookie (Cookie)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.HxRequest (HxRequest)
 import Lucid qualified
@@ -16,6 +17,7 @@ import Text.HTML (HTML)
 type Route =
   "user"
     :> "login"
+    :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Current-Url" Text
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.QueryParam "redirect" Text
