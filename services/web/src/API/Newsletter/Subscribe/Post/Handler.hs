@@ -12,8 +12,8 @@ module API.Newsletter.Subscribe.Post.Handler (handler, action, SubscribeResult (
 
 import API.Links (apiLinks)
 import API.Newsletter.Subscribe.Post.Route (SubscribeForm (..))
-import API.Types (Routes (..))
 import API.Newsletter.Subscribe.Post.Templates (thanksFragment)
+import API.Types (Routes (..))
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -25,8 +25,8 @@ import Data.Text.Display (display)
 import Domain.Types.EmailAddress qualified as EmailAddress
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
-import Lucid qualified
 import Log qualified
+import Lucid qualified
 
 --------------------------------------------------------------------------------
 
@@ -46,9 +46,7 @@ handler form =
     result <- action form
     case result of
       SubscribeSuccess ->
-        pure $ do
-          thanksFragment
-          renderBanner Success "Subscribed" "Thanks for subscribing!"
+        pure thanksFragment
       SubscribeInvalidEmail ->
         pure $ renderBanner Error "Invalid email" "Please enter a valid email address."
 

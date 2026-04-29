@@ -103,27 +103,20 @@ test.describe("Homepage", () => {
   });
 
   test("newsletter form shows confirmation on submit", async ({ page }) => {
-    // The form POSTs to a real Google Forms endpoint (even in dev), so we
-    // intercept the request to prevent actual submissions. page.route()
-    // matches outgoing requests by URL pattern and lets you handle them.
-    await page.route("**/docs.google.com/forms/**", (route) => {
-      // fulfill() returns a fake response without hitting the real server.
-      route.fulfill({ status: 200, body: "" });
-    });
+    // Use a unique email per run so retries don't collide with the unique
+    // constraint (duplicate inserts silently no-op, but the user-visible
+    // outcome is identical, so we still assert the same swap).
+    const email = `e2e+${Date.now()}@example.com`;
 
-    // Fill in a test email address.
-    await page.getByRole("textbox", { name: "Email Address" }).fill("test@example.com");
-
-    // Click Subscribe.
+    await page.getByRole("textbox", { name: "Email Address" }).fill(email);
     await page.getByRole("button", { name: "Subscribe" }).click();
 
-    // The confirmation message is hidden by default (display: none) and
-    // gets shown by the handleSubmit() JavaScript after a 500ms delay.
-    // Playwright's toBeVisible() will wait for it to appear.
-    await expect(page.locator("#form-confirmation")).toBeVisible();
+    // HTMX swaps the form's wrapper (#newsletter-signup) with a thanks
+    // fragment whose root div carries the same id and renders the text.
+    await expect(page.locator("#newsletter-signup")).toHaveText("Thanks for subscribing!");
 
-    // Verify the confirmation text.
-    await expect(page.locator("#form-confirmation")).toHaveText("Thanks for subscribing!");
+    // The form itself should be gone after the swap.
+    await expect(page.getByRole("button", { name: "Subscribe" })).toHaveCount(0);
   });
 
   // -------------------------------------------------------------------------
