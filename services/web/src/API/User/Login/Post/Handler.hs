@@ -64,7 +64,7 @@ action sockAddr mUserAgent Login {..} redirectQueryParam = do
               let isRelative url = Text.isPrefixOf "/" url && not (Text.isPrefixOf "//" url)
               let redirectLink = case redirectQueryParam of
                     Just url | isRelative url -> url
-                    _ -> Http.toUrlPiece apiLinks.rootGet
+                    _ -> "/" <> Http.toUrlPiece apiLinks.rootGet
               buildLoginSuccess sockAddr mUserAgent redirectLink user
             _ -> do
               Log.logInfo "Login blocked - email not verified" ulEmail
