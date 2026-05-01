@@ -6,6 +6,14 @@
   time.timeZone = "America/Los_Angeles";
   system.stateVersion = "25.05";
 
+  # ── Kernel module blacklist ─────────────────────────────────
+  # Mitigation for CVE-2026-31431 ("Copy Fail"): block algif_aead
+  # from loading via either kernel autoload or userspace modprobe.
+  boot.blacklistedKernelModules = [ "algif_aead" ];
+  boot.extraModprobeConfig = ''
+    install algif_aead /bin/false
+  '';
+
   # ── SSH ──────────────────────────────────────────────────────
   services.openssh = {
     enable = true;
