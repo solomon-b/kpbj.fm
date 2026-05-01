@@ -9,6 +9,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **friendly-ghost Environment Tagging** — Alerts now make the environment unmistakable: `subjectPrefix` uppercased to `[KPBJ STAGING]` / `[KPBJ PROD]`, the system prompt requires every alert to begin the SUBJECT with `[STAGING]` / `[PROD]` and the body with `Environment: <env>`. The shared prompt is wrapped per-environment via `pkgs.writeText` so the LLM knows which env it's monitoring.
 - **friendly-ghost Prompt: sync-host-emails Context** — Documented in the prompt that `kpbj-sync-host-emails` runs in `--dry-run` on staging against a DB sanitized by `prod-to-staging.sh`, so large `WOULD REMOVE/ADD` diffs there are expected and must not be flagged; in prod it runs live, and sudden large diffs remain flaggable.
 
+### Security
+- **Blacklist `algif_aead` Kernel Module** — Mitigation for CVE-2026-31431 ("Copy Fail"). Added `boot.blacklistedKernelModules` and an `install algif_aead /bin/false` modprobe rule to `nixos/common.nix` so the module cannot be autoloaded by the kernel or pulled in via userspace `modprobe` on any KPBJ host (prod, staging, dev).
+
 ### Fixed
 - **Login Redirect After Successful Sign-In** — The login POST handler built its default redirect URL via `Http.toUrlPiece apiLinks.rootGet`, which returns the empty string for the root link. The resulting empty `HX-Redirect` header caused HTMX to call `location.href = ""`, which the browser interprets as a reload of the current URL — leaving the user on `/user/login` after a successful login and making the persistent header still appear logged-out until a hard refresh. Now prepends `"/"` to match the other branches in the same handler.
 - **Already-Authenticated Users on /user/login** — The login GET handler now redirects authenticated users to `/` (or the validated `?redirect=` target) instead of re-rendering the login form, preventing the confusing post-login state where the user lands back on the login page.
