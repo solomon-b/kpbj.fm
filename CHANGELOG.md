@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **"Remember Me" on Login** — The login form's `Remember Me` checkbox previously did nothing: the field was dropped at form parse time, the cookie was always a browser-session cookie (no `Max-Age`/`Expires`), and the server-side session was hardcoded to 1 day. When checked, login now persists the session for 30 days both in `server_sessions.expires_at` and via a `Max-Age=2592000` cookie, so users stay logged in across browser restarts. When unchecked, behavior is unchanged.
+
 ### Changed
 - **Newsletter Signup → Self-Hosted** — Replaced the homepage Google Forms newsletter signup with a self-hosted Postgres-backed signup at `POST /api/newsletter/subscribe`. New `newsletter_subscribers` table stores email + timestamp, duplicate emails are silently swallowed via `ON CONFLICT (email) DO NOTHING`, and the homepage form is now an HTMX-driven swap that replaces itself with a "Thanks for subscribing!" message on success (no top-of-page banner). The registration newsletter checkbox now writes to the same table instead of POSTing to Google Forms.
 - **friendly-ghost Environment Tagging** — Alerts now make the environment unmistakable: `subjectPrefix` uppercased to `[KPBJ STAGING]` / `[KPBJ PROD]`, the system prompt requires every alert to begin the SUBJECT with `[STAGING]` / `[PROD]` and the body with `Environment: <env>`. The shared prompt is wrapped per-environment via `pkgs.writeText` so the LLM knows which env it's monitoring.

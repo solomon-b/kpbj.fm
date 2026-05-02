@@ -3,6 +3,7 @@ module API.User.Login.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Maybe (isJust)
 import Data.Password.Argon2 (Password, mkPassword)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
@@ -20,7 +21,8 @@ import Web.FormUrlEncoded qualified as FormUrlEncoded
 
 data Login = Login
   { ulEmail :: EmailAddress,
-    ulPassword :: Password
+    ulPassword :: Password,
+    ulRememberMe :: Bool
   }
   deriving stock (Generic)
   deriving (Display) via (RecordInstance Login)
@@ -33,6 +35,7 @@ instance FormUrlEncoded.FromForm Login where
     Login
       <$> FormUrlEncoded.parseUnique "email" f
       <*> fmap mkPassword (FormUrlEncoded.parseUnique "password" f)
+      <*> fmap isJust (FormUrlEncoded.parseMaybe @Text "remember" f)
 
 --------------------------------------------------------------------------------
 
