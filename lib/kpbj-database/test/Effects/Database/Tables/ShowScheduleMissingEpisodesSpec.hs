@@ -5,10 +5,11 @@ module Effects.Database.Tables.ShowScheduleMissingEpisodesSpec where
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Text.Display (display)
-import Data.Time (addDays, utctDay)
+import Data.Time (Day, addDays)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Clock (getCurrentTime)
-import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Time.LocalTime (TimeOfDay (..), localDay)
+import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -24,11 +25,21 @@ import Test.Database.Helpers (addTestShowHost, insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertRight)
+import Test.Gen.EmailAddress (mkUniqueEmail)
 import Test.Gen.Tables.ShowSchedule (allWeeksOfMonth, genTimezone)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Hedgehog (hedgehog)
+
+--------------------------------------------------------------------------------
+
+-- | Today in Pacific time. Both schedule queries under test compute their
+-- target dates in @America/Los_Angeles@, so tests that derive a day-of-week
+-- from "today" must use the same timezone — otherwise UTC and PT can disagree
+-- by a calendar day during the late-evening UTC window.
+getPacificToday :: IO Day
+getPacificToday = localDay . utcToPacific <$> getCurrentTime
 
 --------------------------------------------------------------------------------
 
@@ -62,7 +73,7 @@ prop_missingEpisodeAppears cfg = do
     timezone <- forAllT genTimezone
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       -- Use today's day of week so the schedule matches within the 7-day window
       let targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate today in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -95,7 +106,7 @@ prop_episodeWithAudioNotMissing cfg = do
     let timezone = "UTC"
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate today in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
@@ -143,7 +154,7 @@ prop_episodeWithoutAudioIsMissing cfg = do
     let timezone = "UTC"
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate today in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
@@ -188,7 +199,7 @@ prop_beyondWindowNotShown cfg = do
     timezone <- forAllT genTimezone
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       -- Use the day of week that is 10 days from now (won't be within 7-day window)
       let futureDate = addDays 10 today
           futureDow = toDayOfWeek $ let (_, _, d) = toWeekDate futureDate in d
@@ -218,7 +229,7 @@ prop_deletedShowNotShown cfg = do
     timezone <- forAllT genTimezone
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate today in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         let show1 = showInsert {Shows.siStatus = Shows.Active}
@@ -249,7 +260,7 @@ prop_sortedByDate cfg = do
     timezone <- forAllT genTimezone
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate today in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         -- Create two shows on the same day but different times
@@ -287,7 +298,7 @@ prop_hostMissingEpisodeOnDay cfg = do
     userWithMetadata <- forAllT userWithMetadataInsertGen
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDate = addDays 5 today
           targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate targetDate in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -321,7 +332,7 @@ prop_hostNotReturnedWithAudio cfg = do
     let timezone = "UTC"
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDate = addDays 5 today
           targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate targetDate in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -366,7 +377,7 @@ prop_noHostNoRow cfg = do
     showInsert <- forAllT showInsertGen
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDate = addDays 5 today
           targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate targetDate in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -399,7 +410,7 @@ prop_wrongDayNotReturned cfg = do
     userWithMetadata <- forAllT userWithMetadataInsertGen
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       -- Schedule on day +4, but query for day +5
       let nearbyDate = addDays 4 today
           nearbyDow = toDayOfWeek $ let (_, _, d) = toWeekDate nearbyDate in d
@@ -432,7 +443,7 @@ prop_hostDeletedShowNotReturned cfg = do
     userWithMetadata <- forAllT userWithMetadataInsertGen
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDate = addDays 5 today
           targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate targetDate in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -466,7 +477,7 @@ prop_hostReturnedWithoutAudio cfg = do
     let timezone = "UTC"
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDate = addDays 5 today
           targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate targetDate in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -509,11 +520,17 @@ prop_multipleHostsMultipleRows :: TestDBConfig -> PropertyT IO ()
 prop_multipleHostsMultipleRows cfg = do
   arrange (bracketConn cfg) $ do
     showInsert <- forAllT showInsertGen
-    userWithMetadata1 <- forAllT userWithMetadataInsertGen
-    userWithMetadata2 <- forAllT userWithMetadataInsertGen
+    userWithMetadata1Raw <- forAllT userWithMetadataInsertGen
+    userWithMetadata2Raw <- forAllT userWithMetadataInsertGen
+    -- Override generated emails: 'genEmail' can shrink both calls to the same
+    -- value, which would violate users_email_key on the second insert.
+    email1 <- liftIO mkUniqueEmail
+    email2 <- liftIO mkUniqueEmail
+    let userWithMetadata1 = userWithMetadata1Raw {UserMetadata.uwmiEmail = email1}
+        userWithMetadata2 = userWithMetadata2Raw {UserMetadata.uwmiEmail = email2}
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDate = addDays 5 today
           targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate targetDate in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -549,7 +566,7 @@ prop_hostExpiredValidityNotReturned cfg = do
     userWithMetadata <- forAllT userWithMetadataInsertGen
 
     act $ do
-      today <- liftIO $ utctDay <$> getCurrentTime
+      today <- liftIO getPacificToday
       let targetDate = addDays 5 today
           targetDow = toDayOfWeek $ let (_, _, d) = toWeekDate targetDate in d
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
