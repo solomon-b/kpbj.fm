@@ -2,8 +2,12 @@ module Test.Gen.EmailAddress where
 
 --------------------------------------------------------------------------------
 
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable
-import Data.Text
+import Data.Text (toLower)
+import Data.Text qualified as Text
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID.V4
 import Domain.Types.EmailAddress
 import Hedgehog
 import Hedgehog.Gen qualified as Gen
@@ -24,3 +28,14 @@ genEmail = do
         ".",
         tld
       ]
+
+-- | Generate a guaranteed-unique 'EmailAddress' for property tests.
+--
+-- 'genEmail' can shrink to identical values when called more than once in a
+-- single property, causing @users_email_key@ unique-constraint violations.
+-- Use this helper in any test that inserts multiple users to guarantee
+-- distinct emails regardless of Hedgehog shrinking.
+mkUniqueEmail :: (MonadIO m) => m EmailAddress
+mkUniqueEmail = liftIO $ do
+  uuid <- UUID.V4.nextRandom
+  pure $ mkEmailAddress $ "test-" <> Text.pack (UUID.toString uuid) <> "@test.example.com"
