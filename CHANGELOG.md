@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **`just prod-deploy` Command** — New Justfile recipe that triggers the production deploy workflow on GitHub Actions. The `create-release-tag` workflow auto-tags merged `release/*` PRs but the tag push doesn't reliably fire `deploy-production`, so manually invoking the workflow is the standard path. Pass a tag explicitly (`just prod-deploy v0.11.2`) or run with no arguments to fzf-pick from local `v*` tags (sorted newest-first, fetches first).
 
 ---
 

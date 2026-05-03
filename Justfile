@@ -552,6 +552,20 @@ prod-ssh:
 prod-restart:
   ssh {{PROD_VPS_TARGET}} systemctl restart kpbj-web
 
+# Trigger production deploy via GitHub Actions; if no tag given, pick one interactively with fzf
+prod-deploy tag="": _require-gh
+  #!/usr/bin/env bash
+  set -euo pipefail
+  TAG="{{tag}}"
+  if [ -z "$TAG" ]; then
+    command -v fzf >/dev/null 2>&1 || { echo "ERROR: 'fzf' not installed and no tag given. Pass one explicitly: just prod-deploy v0.11.2"; exit 1; }
+    git fetch --tags --quiet origin
+    TAG=$(git tag --list 'v*' --sort=-v:refname | fzf --prompt='Select release tag to deploy > ' --height=20 --reverse) || exit 1
+    [ -n "$TAG" ] || { echo "No tag selected"; exit 1; }
+  fi
+  echo "Triggering production deploy for $TAG"
+  gh workflow run deploy-production.yaml -f tag="$TAG"
+
 # Edit production web secrets
 prod-secrets: _require-sops
   sops secrets/prod-web.yaml
