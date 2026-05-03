@@ -7,7 +7,7 @@ module API.Static.Get.Handler where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as LBS
-import Data.FileEmbed (embedFile)
+import Data.FileEmbed (embedFile, makeRelativeToProject)
 import Data.Kind (Type)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
@@ -47,10 +47,10 @@ handler filename = Tagged $ \_req respond ->
 staticAssets :: Map Text (ByteString, Text)
 staticAssets =
   Map.fromList
-    [ ("range.png", ($(embedFile "static/range.png"), "image/png")),
-      ("alpine.min.js", ($(embedFile "static/alpine.min.js"), "application/javascript")),
-      ("htmx.min.js", ($(embedFile "static/htmx.min.js"), "application/javascript")),
-      ("cropper.min.js", ($(embedFile "static/cropper.min.js"), "application/javascript")),
-      ("chart.min.js", ($(embedFile "static/chart.min.js"), "application/javascript")),
-      ("cropper.min.css", ($(embedFile "static/cropper.min.css"), "text/css"))
+    [ ("range.png", ($(makeRelativeToProject "static/range.png" >>= embedFile), "image/png")),
+      ("alpine.min.js", ($(makeRelativeToProject "static/alpine.min.js" >>= embedFile), "application/javascript")),
+      ("htmx.min.js", ($(makeRelativeToProject "static/htmx.min.js" >>= embedFile), "application/javascript")),
+      ("cropper.min.js", ($(makeRelativeToProject "static/cropper.min.js" >>= embedFile), "application/javascript")),
+      ("chart.min.js", ($(makeRelativeToProject "static/chart.min.js" >>= embedFile), "application/javascript")),
+      ("cropper.min.css", ($(makeRelativeToProject "static/cropper.min.css" >>= embedFile), "text/css"))
     ]

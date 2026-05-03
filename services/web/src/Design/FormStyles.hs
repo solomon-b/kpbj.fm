@@ -10,7 +10,7 @@ module Design.FormStyles (formBuilderCSS) where
 --------------------------------------------------------------------------------
 
 import Data.ByteString (ByteString)
-import Data.FileEmbed (embedFile)
+import Data.FileEmbed (embedFile, makeRelativeToProject)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 
@@ -24,4 +24,4 @@ formBuilderCSS = decodeUtf8 formBuilderCSSBytes
 
 -- | Raw CSS bytes embedded from static/forms.css.
 formBuilderCSSBytes :: ByteString
-formBuilderCSSBytes = $(embedFile "static/forms.css")
+formBuilderCSSBytes = $(makeRelativeToProject "static/forms.css" >>= embedFile)
