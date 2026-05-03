@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.11.2] - 2026-05-02
+
 ### Added
 - **"Remember Me" on Login** — The login form's `Remember Me` checkbox previously did nothing: the field was dropped at form parse time, the cookie was always a browser-session cookie (no `Max-Age`/`Expires`), and the server-side session was hardcoded to 1 day. When checked, login now persists the session for 30 days both in `server_sessions.expires_at` and via a `Max-Age=2592000` cookie, so users stay logged in across browser restarts. When unchecked, behavior is unchanged.
 
