@@ -379,9 +379,9 @@ in
                 (mkAlertRule {
                   uid = "batch-job-errors";
                   title = "Batch Job Errors";
-                  description = "A scheduled batch job (token-cleanup, sync-host-emails, episode-check, listener-snapshots, or order-cleanup) logged errors in the last 5 minutes.";
+                  description = "A scheduled batch job (token-cleanup, sync-host-emails, episode-check, listener-snapshots, ga-poller, or order-cleanup) logged errors in the last 5 minutes.";
                   filter = ''ERROR|FATAL|error:|"level":"error"'';
-                  expr = ''count_over_time({unit=~"kpbj-(token-cleanup|sync-host-emails|episode-check|listener-snapshots|order-cleanup).*"} |~ "ERROR|FATAL|error:|\"level\":\"error\"" [5m])'';
+                  expr = ''count_over_time({unit=~"kpbj-(token-cleanup|sync-host-emails|episode-check|listener-snapshots|ga-poller|order-cleanup).*"} |~ "ERROR|FATAL|error:|\"level\":\"error\"" [5m])'';
                 })
                 (mkAlertRule {
                   uid = "friendly-ghost-errors";

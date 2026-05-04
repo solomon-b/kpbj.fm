@@ -13,6 +13,7 @@
     ./token-cleanup.nix
     ./episode-check.nix
     ./listener-snapshots.nix
+    ./ga-poller.nix
     ./order-cleanup.nix
     ./monitoring.nix
     ./nginx.nix
@@ -53,6 +54,10 @@
   };
 
   kpbj.listenerSnapshots = {
+    enable = true;
+  };
+
+  kpbj.gaPoller = {
     enable = true;
   };
 

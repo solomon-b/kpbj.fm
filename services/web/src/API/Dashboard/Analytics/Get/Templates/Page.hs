@@ -108,9 +108,41 @@ template mCurrentListeners = do
         Lucid.template_ [xIf_ "topEpisodes.length === 0 && !loading"] $
           Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] "No episode plays in this period."
 
+      -- Google Analytics rollups: referrers, countries, cities
+      Lucid.div_ [class_ $ base ["grid", "grid-cols-1", "md:grid-cols-3", Tokens.gap4, Tokens.mt4]] $ do
+        topDimensionPanel "TOP REFERRERS" "topReferrers"
+        topDimensionPanel "TOP COUNTRIES" "topCountries"
+        topDimensionPanel "TOP CITIES" "topCities"
+
   -- Alpine component + Chart.js initialization script
   let chartJsUrl = rootLink $ staticAssetLink "chart.min.js"
   Lucid.script_ [] (analyticsScript analyticsDataUrl chartJsUrl)
+
+-- | Render a top-N table panel for one Google Analytics dimension.
+--
+-- The panel binds to an Alpine state property whose value is an array of
+-- objects with @rank@, @label@, and @sessions@ fields.
+topDimensionPanel :: Text -> Text -> Lucid.Html ()
+topDimensionPanel heading collection =
+  Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.p3]] $ do
+    Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fontBold, Tokens.fgMuted, Tokens.mb2]] (Lucid.toHtml heading)
+    Lucid.template_ [xFor_ [i|row in #{collection}|], xKey_ "row.rank"]
+      $ Lucid.div_
+        [ class_ $ base ["flex", "justify-between", Tokens.textSm],
+          Lucid.style_ "margin-bottom: 4px;"
+        ]
+      $ do
+        Lucid.span_ [class_ $ base ["truncate", "pr-2"]] $ do
+          Lucid.span_ [class_ $ base [Tokens.fgMuted], xText_ "row.rank + '.'"] mempty
+          Lucid.span_ [xText_ "' ' + row.label"] mempty
+        Lucid.span_
+          [ class_ $ base [Tokens.fontBold],
+            Lucid.style_ "color: var(--theme-info);",
+            xText_ "row.sessions"
+          ]
+          mempty
+    Lucid.template_ [xIf_ [i|#{collection}.length === 0 && !loading|]] $
+      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] "No data in this period."
 
 -- | Render a time range button with active highlighting.
 rangeButton :: Text -> Lucid.Html ()
@@ -137,6 +169,9 @@ function analyticsDashboard() {
     listeners: { peak: null, avg: null },
     archivePlays: { total: null },
     topEpisodes: [],
+    topReferrers: [],
+    topCountries: [],
+    topCities: [],
     loading: false,
     error: '',
 
@@ -261,6 +296,9 @@ function analyticsDashboard() {
         this.listeners = { peak: data.listeners.peak, avg: data.listeners.avg };
         this.archivePlays = { total: data.archivePlays.total };
         this.topEpisodes = data.topEpisodes;
+        this.topReferrers = data.topReferrers || [];
+        this.topCountries = data.topCountries || [];
+        this.topCities = data.topCities || [];
 
         if (listenersChart) {
           listenersChart.data.labels = data.listeners.labels;

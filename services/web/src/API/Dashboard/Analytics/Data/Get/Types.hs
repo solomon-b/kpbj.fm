@@ -7,6 +7,7 @@ module API.Dashboard.Analytics.Data.Get.Types
     ListenerData (..),
     ArchivePlayData (..),
     TopEpisode (..),
+    TopDimensionEntry (..),
   )
 where
 
@@ -21,7 +22,10 @@ import GHC.Generics (Generic)
 data AnalyticsData = AnalyticsData
   { listeners :: ListenerData,
     archivePlays :: ArchivePlayData,
-    topEpisodes :: [TopEpisode]
+    topEpisodes :: [TopEpisode],
+    topReferrers :: [TopDimensionEntry],
+    topCountries :: [TopDimensionEntry],
+    topCities :: [TopDimensionEntry]
   }
   deriving stock (Generic)
   deriving anyclass (Aeson.ToJSON)
@@ -64,6 +68,16 @@ data TopEpisode = TopEpisode
     showTitle :: Text,
     plays :: Int,
     url :: Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (Aeson.ToJSON)
+
+-- | One row in a top-N table sourced from Google Analytics
+-- (referrers, countries, or cities).
+data TopDimensionEntry = TopDimensionEntry
+  { rank :: Int,
+    label :: Text,
+    sessions :: Int
   }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (Aeson.ToJSON)

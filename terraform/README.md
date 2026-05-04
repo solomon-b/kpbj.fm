@@ -87,7 +87,8 @@ just tf-validate
 | Cloudflare DNS records               | cloudflare   | `cloudflare.tf`   |
 | Cloudflare proxy settings            | cloudflare   | `cloudflare.tf`   |
 | GCP Admin SDK API enablement         | google       | `google.tf`       |
-| GCP service account + key            | google       | `google.tf`       |
+| GCP GA Data API enablement           | google       | `google.tf`       |
+| GCP service accounts + keys (Google Groups, GA Data API) | google | `google.tf` |
 
 ## What Stays Manual
 
@@ -95,6 +96,34 @@ just tf-validate
 - **NixOS VPS configuration** — deployed via `just nixos-deploy-*`
 - **Secrets** — SOPS-encrypted in `secrets/`, decrypted by sops-nix on VPS
 - **GHCR image builds** — handled by GitHub Actions
+- **GA4 property access** — the Google provider doesn't manage GA Admin (different API). See "Google Analytics setup" below.
+
+## Google Analytics setup
+
+The `ga-poller` job needs a service account with Viewer access on the GA4 property. Terraform creates the service account and key; granting Viewer on the property is one manual click.
+
+```bash
+# 1. Apply — creates the SA, enables the API, generates a key
+just tf-apply
+
+# 2. Copy the SA email
+terraform -chdir=terraform output -raw ga_data_api_sa_email
+
+# 3. In GA Admin → Property Access Management:
+#    Add user → paste the SA email → role: Viewer → Add
+
+# 4. Grab the GA4 numeric Property ID from GA Admin → Property Settings.
+#    Format: 9-digit number (NOT the G-XXXXXXXXXX measurement ID).
+
+# 5. Decode the key JSON
+terraform -chdir=terraform output -raw ga_data_api_sa_key_json | base64 -d
+
+# 6. Paste both values into the prod and staging web secrets:
+sops secrets/prod-web.yaml      # add google_analytics_property_id and google_analytics_service_account_key
+sops secrets/staging-web.yaml   # same
+```
+
+The private key lives in encrypted S3 backend state and in sops-encrypted YAML — no plaintext on disk.
 
 ## File Overview
 
