@@ -1,0 +1,40 @@
+cabal-version:      3.0
+name:               ga-poller
+version:            0.1.0
+license:            Apache-2.0
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+executable ga-poller
+  main-is:          Main.hs
+  build-depends:    base
+                  , aeson
+                  , bytestring
+                  , crypton-x509
+                  , crypton-x509-store
+                  , hasql
+                  , http-client
+                  , http-conduit
+                  , http-types
+                  , jose               >= 0.11 && < 0.12
+                  , kpbj-database
+                  , log-base
+                  , string-interpolate
+                  , text
+                  , time
+                  , transformers
+  hs-source-dirs:   .
+  default-language: Haskell2010
+  default-extensions:
+      BangPatterns
+      ImportQualifiedPost
+      LambdaCase
+      NumericUnderscores
+      OverloadedStrings
+      QuasiQuotes
+      RecordWildCards
+      ScopedTypeVariables
+      StrictData
+      TypeApplications
+  ghc-options:      -Wall -threaded

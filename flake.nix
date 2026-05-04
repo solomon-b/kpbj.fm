@@ -78,6 +78,8 @@
 
               listener-snapshots = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "listener-snapshots" ./jobs/listener-snapshots { });
 
+              ga-poller = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "ga-poller" ./jobs/ga-poller { });
+
               order-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "order-cleanup" ./jobs/order-cleanup { });
 
               lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./services/web/lib/lucid-form-builder { });
@@ -133,7 +135,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-database p.kpbj-email p.kpbj-api p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots ];
+            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-database p.kpbj-email p.kpbj-api p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
@@ -167,6 +169,7 @@
             token-cleanup = hsPkgs.token-cleanup;
             episode-check = hsPkgs.episode-check;
             listener-snapshots = hsPkgs.listener-snapshots;
+            ga-poller = hsPkgs.ga-poller;
             order-cleanup = hsPkgs.order-cleanup;
           };
 
@@ -189,13 +192,14 @@
           token-cleanup = self.packages.x86_64-linux.token-cleanup;
           episode-check = self.packages.x86_64-linux.episode-check;
           listener-snapshots = self.packages.x86_64-linux.listener-snapshots;
+          ga-poller = self.packages.x86_64-linux.ga-poller;
           order-cleanup = self.packages.x86_64-linux.order-cleanup;
           kpbj-api = self.packages.x86_64-linux.kpbj-api;
         in
         {
           kpbj-prod = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots order-cleanup kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller order-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               friendly-ghost.nixosModules.default
@@ -204,7 +208,7 @@
           };
           kpbj-staging = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots order-cleanup kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller order-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               friendly-ghost.nixosModules.default

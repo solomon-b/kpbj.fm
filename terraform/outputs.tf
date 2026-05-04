@@ -48,6 +48,17 @@ output "google_groups_sa_email" {
   value       = google_service_account.google_groups.email
 }
 
+output "ga_data_api_sa_email" {
+  description = "GA Data API service account email — grant this Viewer access on the GA4 property in GA Admin → Property Access Management"
+  value       = google_service_account.ga_data_api.email
+}
+
+output "ga_data_api_sa_key_json" {
+  description = "GA Data API service account key (base64-encoded JSON) — decode with `terraform output -raw ga_data_api_sa_key_json | base64 -d`, then paste the JSON into secrets/{prod,staging}-web.yaml as google_analytics_service_account_key via sops"
+  value       = google_service_account_key.ga_data_api.private_key
+  sensitive   = true
+}
+
 output "stripe_webhook_secret_prod" {
   description = "Stripe webhook signing secret (production) — copy to secrets/prod-web.yaml"
   value       = stripe_webhook_endpoint.prod.secret

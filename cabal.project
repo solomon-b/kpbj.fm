@@ -15,6 +15,7 @@ packages:
   jobs/token-cleanup/token-cleanup.cabal
   jobs/episode-check/episode-check.cabal
   jobs/listener-snapshots/listener-snapshots.cabal
+  jobs/ga-poller/ga-poller.cabal
   jobs/order-cleanup/order-cleanup.cabal
 
 source-repository-package

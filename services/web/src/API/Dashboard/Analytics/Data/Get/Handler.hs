@@ -11,6 +11,7 @@ module API.Dashboard.Analytics.Data.Get.Handler
     rangeToParams,
     roundTo1,
     mkTopEpisode,
+    mkTopDimension,
   )
 where
 
@@ -35,6 +36,7 @@ import Domain.Types.Slug (Slug (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EpisodePlayEvents qualified as EpisodePlayEvents
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.GaSnapshots qualified as GaSnapshots
 import Effects.Database.Tables.ListenerSnapshots qualified as ListenerSnapshots
 import Log qualified
 import Servant.Links qualified as Links
@@ -86,6 +88,19 @@ action range = do
     queryOr [] "getTopEpisodes" $
       execQuery (EpisodePlayEvents.getTopEpisodes start now topEpisodesLimit)
 
+  -- Google Analytics rollups (referrers, countries, cities)
+  refs <-
+    queryOr [] "getTopReferrers" $
+      execQuery (GaSnapshots.getTopReferrers start now topDimensionLimit)
+
+  countries <-
+    queryOr [] "getTopCountries" $
+      execQuery (GaSnapshots.getTopCountries start now topDimensionLimit)
+
+  cities <-
+    queryOr [] "getTopCities" $
+      execQuery (GaSnapshots.getTopCities start now topDimensionLimit)
+
   pure
     AnalyticsData
       { listeners =
@@ -101,7 +116,10 @@ action range = do
               playData = map (\(count, _) -> fromIntegral (count :: Int64)) plays,
               total = fromIntegral (fromMaybe 0 total :: Int64)
             },
-        topEpisodes = zipWith mkTopEpisode [1 ..] topEps
+        topEpisodes = zipWith mkTopEpisode [1 ..] topEps,
+        topReferrers = zipWith mkTopDimension [1 ..] refs,
+        topCountries = zipWith mkTopDimension [1 ..] countries,
+        topCities = zipWith mkTopDimension [1 ..] cities
       }
 
 -- | Execute a query action, logging failures and returning a default value.
@@ -121,6 +139,10 @@ queryOr def label m = do
 topEpisodesLimit :: Int32
 topEpisodesLimit = 10
 
+-- | Number of rows to return per Google Analytics dimension.
+topDimensionLimit :: Int32
+topDimensionLimit = 10
+
 -- | Map range string to (start time, bucket size).
 rangeToParams :: Text -> UTCTime -> (UTCTime, ListenerSnapshots.BucketSize)
 rangeToParams range now = case range of
@@ -137,6 +159,15 @@ formatUTC = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ"
 -- | Round a Double to one decimal place.
 roundTo1 :: Double -> Double
 roundTo1 x = fromIntegral (round (x * 10) :: Int) / 10
+
+-- | Build a TopDimensionEntry from a ranked GA query row.
+mkTopDimension :: Int -> GaSnapshots.TopDimensionRow -> TopDimensionEntry
+mkTopDimension n row =
+  TopDimensionEntry
+    { rank = n,
+      label = row.value,
+      sessions = fromIntegral row.sessions
+    }
 
 -- | Build a TopEpisode from a ranked query row.
 mkTopEpisode :: Int -> EpisodePlayEvents.TopEpisodeRow -> TopEpisode

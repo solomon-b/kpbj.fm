@@ -169,6 +169,14 @@ in
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" ];
     };
+    sops.secrets.google_analytics_property_id = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-ga-poller.service" ];
+    };
+    sops.secrets.google_analytics_service_account_key = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-ga-poller.service" ];
+    };
 
     # ── SOPS template (env file with secrets) ────────────────────
     # playout_secret and webhook_secret come from the streaming
@@ -189,6 +197,19 @@ in
         DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
       '';
       restartUnits = [ "kpbj-web.service" ];
+    };
+
+    # ── SOPS template (ga-poller env) ────────────────────────────
+    # The service runs as DynamicUser and can't read the sops mount
+    # directly; ExecStartPre (in ga-poller.nix) copies the secret into
+    # /run/kpbj-ga-poller/sa-key.json with DynamicUser ownership.
+    sops.templates."kpbj-ga-poller.env" = {
+      content = ''
+        DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
+        GA_PROPERTY_ID=${config.sops.placeholder.google_analytics_property_id}
+        GA_SERVICE_ACCOUNT_KEY_PATH=/run/kpbj-ga-poller/sa-key.json
+      '';
+      restartUnits = [ "kpbj-ga-poller.service" ];
     };
 
     # ── Wire passwordFile into postgresql module ─────────────────

@@ -2,13 +2,14 @@ module API.Dashboard.Analytics.Data.Get.HandlerSpec (spec) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Analytics.Data.Get.Handler (mkTopEpisode, rangeToParams, roundTo1)
-import API.Dashboard.Analytics.Data.Get.Types (TopEpisode (..))
+import API.Dashboard.Analytics.Data.Get.Handler (mkTopDimension, mkTopEpisode, rangeToParams, roundTo1)
+import API.Dashboard.Analytics.Data.Get.Types (TopDimensionEntry (..), TopEpisode (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
 import Effects.Database.Tables.EpisodePlayEvents qualified as EpisodePlayEvents
+import Effects.Database.Tables.GaSnapshots qualified as GaSnapshots
 import Effects.Database.Tables.ListenerSnapshots (BucketSize (..))
 import Hedgehog
 import Hedgehog.Gen qualified as Gen
@@ -85,36 +86,59 @@ spec = describe "API.Dashboard.Analytics.Data.Get.Handler" $ do
     it "builds a TopEpisode with formatted title and URL" $ do
       let row = EpisodePlayEvents.TopEpisodeRow { episodeId = 42, showTitle = "Jazz Hour", showSlug = "jazz-hour", episodeNumber = 5, playCount = 100 }
           ep = mkTopEpisode 1 row
-      rank ep `shouldBe` 1
-      title ep `shouldBe` "Jazz Hour #5"
-      showTitle ep `shouldBe` "Jazz Hour"
-      plays ep `shouldBe` 100
-      url ep `shouldBe` "/shows/jazz-hour/episodes/5"
+      ep.rank `shouldBe` 1
+      ep.title `shouldBe` "Jazz Hour #5"
+      ep.showTitle `shouldBe` "Jazz Hour"
+      ep.plays `shouldBe` 100
+      ep.url `shouldBe` "/shows/jazz-hour/episodes/5"
 
     it "uses the provided rank, not data from the row" $ do
       let row = EpisodePlayEvents.TopEpisodeRow { episodeId = 1, showTitle = "Show", showSlug = "show", episodeNumber = 1, playCount = 50 }
           ep = mkTopEpisode 3 row
-      rank ep `shouldBe` 3
+      ep.rank `shouldBe` 3
 
     it "handles episode number 0" $ do
       let row = EpisodePlayEvents.TopEpisodeRow { episodeId = 1, showTitle = "Test Show", showSlug = "test-show", episodeNumber = 0, playCount = 10 }
           ep = mkTopEpisode 1 row
-      title ep `shouldBe` "Test Show #0"
+      ep.title `shouldBe` "Test Show #0"
 
     it "handles large play counts" $ do
       let row = EpisodePlayEvents.TopEpisodeRow { episodeId = 1, showTitle = "Popular", showSlug = "popular", episodeNumber = 1, playCount = 999999 }
           ep = mkTopEpisode 1 row
-      plays ep `shouldBe` 999999
+      ep.plays `shouldBe` 999999
 
     it "rank always matches the provided value (property)" $ hedgehog $ do
       n <- forAll $ Gen.int (Range.linear 1 100)
       row <- forAll genTopEpisodeRow
-      rank (mkTopEpisode n row) === n
+      (mkTopEpisode n row).rank === n
 
     it "plays is non-negative when playCount is non-negative (property)" $ hedgehog $ do
       n <- forAll $ Gen.int (Range.linear 1 10)
       row <- forAll genTopEpisodeRow
-      assert $ plays (mkTopEpisode n row) >= 0
+      assert $ (mkTopEpisode n row).plays >= 0
+
+  describe "mkTopDimension" $ do
+    it "builds a TopDimensionEntry preserving label and sessions" $ do
+      let row = GaSnapshots.TopDimensionRow { value = "google", sessions = 1234 }
+          entry = mkTopDimension 1 row
+      entry.rank `shouldBe` 1
+      entry.label `shouldBe` "google"
+      (entry.sessions :: Int) `shouldBe` 1234
+
+    it "uses the provided rank, not data from the row" $ do
+      let row = GaSnapshots.TopDimensionRow { value = "(direct)", sessions = 50 }
+          entry = mkTopDimension 7 row
+      entry.rank `shouldBe` 7
+
+    it "rank always matches the provided value (property)" $ hedgehog $ do
+      n <- forAll $ Gen.int (Range.linear 1 50)
+      row <- forAll genTopDimensionRow
+      (mkTopDimension n row).rank === n
+
+    it "preserves the label exactly (property)" $ hedgehog $ do
+      n <- forAll $ Gen.int (Range.linear 1 50)
+      row <- forAll genTopDimensionRow
+      (mkTopDimension n row).label === row.value
 
 --------------------------------------------------------------------------------
 -- Generators
@@ -136,3 +160,12 @@ genTopEpisodeRow = do
 
 genSlug :: Gen Text
 genSlug = Text.pack <$> Gen.string (Range.linear 1 30) Gen.alphaNum
+
+genTopDimensionRow :: Gen GaSnapshots.TopDimensionRow
+genTopDimensionRow = do
+  v <- genSlug
+  s <- Gen.int64 (Range.linear 0 1000000)
+  pure GaSnapshots.TopDimensionRow
+    { GaSnapshots.value = v
+    , GaSnapshots.sessions = s
+    }
