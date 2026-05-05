@@ -71,7 +71,6 @@ data OnboardResult = OnboardResult
     orShowSlug :: Slug
   }
 
-
 -- | Error message for display in OOB banner.
 errorMessage :: HandlerError -> Text
 errorMessage = \case
@@ -114,9 +113,10 @@ handler token _cookie remoteHost mUserAgent form = do
           Log.logInfo "Session creation failed after onboarding" (Text.pack $ show loginErr)
           let redirectUrl = "/" <> Http.toUrlPiece (userLinks.loginGet Nothing Nothing)
           pure $ Servant.noHeader $ Servant.addHeader redirectUrl $ renderBanner Success "Account Created" "Your account was created. Please log in."
-        Right sessionId -> do
+        Right loginResult -> do
           -- Success -- set cookie and redirect to the new show dashboard
-          let cookieHeader = Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
+          let sessionId = Auth.loginResultSessionId loginResult
+              cookieHeader = Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
               showDetailUrl = Links.linkURI $ dashboardShowsLinks.detail onboardResult.orShowId onboardResult.orShowSlug Nothing
               redirectUrl = [i|/#{showDetailUrl}|] :: Text
           pure $ Servant.addHeader cookieHeader $ Servant.addHeader redirectUrl $ pure ()
@@ -196,23 +196,25 @@ action token form = do
   Log.logInfo "Created user for onboarding" (Aeson.object ["userId" .= show uid])
 
   -- 10. Create user metadata with Host role
-  mMetadataId <- execQueryThrow $
-    UserMetadata.insertUserMetadata $
-      UserMetadata.Insert uid displayName fullName Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
+  mMetadataId <-
+    execQueryThrow $
+      UserMetadata.insertUserMetadata $
+        UserMetadata.Insert uid displayName fullName Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
   case mMetadataId of
     Nothing -> throwHandlerFailure "Failed to create user metadata."
     Just _ -> pure ()
 
   -- 11. Insert show
-  insertResult <- execQuery $
-    Shows.insertShow
-      Shows.Insert
-        { Shows.siTitle = sanitizedTitle,
-          Shows.siSlug = showSlug,
-          Shows.siDescription = mDescription,
-          Shows.siLogoUrl = mLogoPath,
-          Shows.siStatus = Shows.Active
-        }
+  insertResult <-
+    execQuery $
+      Shows.insertShow
+        Shows.Insert
+          { Shows.siTitle = sanitizedTitle,
+            Shows.siSlug = showSlug,
+            Shows.siDescription = mDescription,
+            Shows.siLogoUrl = mLogoPath,
+            Shows.siStatus = Shows.Active
+          }
   showId <- case insertResult of
     Left dbErr -> do
       Log.logInfo "Database error creating show during onboarding" (Aeson.object ["error" .= Text.pack (show dbErr)])
@@ -223,13 +225,14 @@ action token form = do
     Right (Just sid) -> pure sid
 
   -- 12. Assign host to show
-  hostInsertResult <- execQuery $
-    ShowHost.insertShowHost
-      ShowHost.Insert
-        { ShowHost.shiId = showId,
-          ShowHost.shiUserId = uid,
-          ShowHost.shiRole = ShowHost.Host
-        }
+  hostInsertResult <-
+    execQuery $
+      ShowHost.insertShowHost
+        ShowHost.Insert
+          { ShowHost.shiId = showId,
+            ShowHost.shiUserId = uid,
+            ShowHost.shiRole = ShowHost.Host
+          }
   case hostInsertResult of
     Left dbErr ->
       Log.logInfo "Failed to assign host to show" (Aeson.object ["userId" .= show uid, "error" .= Text.pack (show dbErr)])
@@ -282,7 +285,6 @@ lookupInvitation token = do
     Right Nothing -> throwValidationError "This invitation link is invalid, expired, or has already been used."
     Right (Just inv) -> pure inv
 
-
 -- | Validate and parse an email address.
 validateEmail ::
   Text ->
@@ -292,7 +294,6 @@ validateEmail emailText = do
   case EmailAddress.validate email of
     Left _ -> throwValidationError "Please enter a valid email address."
     Right validEmail -> pure validEmail
-
 
 -- | Validate password policy and hash.
 validateAndHashPassword ::
@@ -306,7 +307,6 @@ validateAndHashPassword passwordText = do
     PW.Validate.ValidPassword ->
       lift $ hashPassword password
 
-
 -- | Validate display name is non-empty.
 validateDisplayName ::
   Text ->
@@ -315,7 +315,6 @@ validateDisplayName nameText =
   case DisplayName.mkDisplayName (Text.strip nameText) of
     Nothing -> throwValidationError "Display name is required."
     Just dn -> pure dn
-
 
 -- | Validate full name is non-empty.
 validateFullName ::
@@ -340,7 +339,6 @@ parseInvitationSchedules scheduleJson = case scheduleJson of
   _ -> case Aeson.fromJSON scheduleJson of
     Aeson.Error err -> Left $ "Invalid schedule JSON: " <> Text.pack err
     Aeson.Success slots -> traverse parseScheduleSlot slots
-
 
 -- | Create schedules for a newly created show.
 --

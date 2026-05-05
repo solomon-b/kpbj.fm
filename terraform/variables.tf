@@ -17,7 +17,7 @@ variable "droplet_size" {
 variable "droplet_size_staging" {
   description = "Droplet size slug (staging)"
   type        = string
-  default     = "s-1vcpu-1gb"
+  default     = "s-1vcpu-2gb"
 }
 
 variable "droplet_image" {

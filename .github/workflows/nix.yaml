@@ -108,11 +108,7 @@ jobs:
           APP_ENVIRONMENT: Development
           APP_WARP_PORT: "4000"
           APP_HOSTNAME: localhost:4000
-          APP_POSTGRES_HOST: localhost
-          APP_POSTGRES_PORT: "5433"
-          APP_POSTGRES_DB: dev_db
-          APP_POSTGRES_USER: postgres
-          APP_POSTGRES_PASSWORD: "postgres"
+          APP_POSTGRES_CONNECTION_STRING: "postgres://postgres:postgres@localhost:5433/dev_db"
           APP_LOCAL_STORAGE_ROOT: /tmp/kpbj
           STREAM_URL: http://localhost:8000/stream
           METADATA_URL: http://localhost:8000/status-json.xsl

@@ -21,13 +21,11 @@ import Data.Has qualified as Has
 import Data.Password.Argon2 (PasswordCheck (..), checkPassword)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (NominalDiffTime, nominalDay)
 import Domain.Types.EmailAddress ()
 import Effects.Database.Execute (execQuery, execQueryThrow)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
-import Effects.Database.Tables.ServerSessions qualified as ServerSessions
 import Effects.Database.Tables.User qualified as User
-import Hasql.Interpolate (interp, sql)
-import Hasql.Statement qualified as Hasql
 import Log qualified
 import Network.Socket
 import Servant qualified
@@ -84,9 +82,9 @@ action sockAddr mUserAgent Login {..} redirectQueryParam = do
 
 -- | Build session cookie and redirect URL for a successful login.
 --
--- When @rememberMe@ is 'True', extends the server-side session expiry to
--- 'rememberMeDays' (overriding the upstream 1-day default) and emits a
--- persistent cookie with @Max-Age@ instead of a browser-session cookie.
+-- When @rememberMe@ is 'True', creates a 30-day session and emits a
+-- persistent cookie with a matching @Max-Age@. Otherwise the upstream
+-- 1-day default applies and the cookie is a browser-session cookie.
 buildLoginSuccess ::
   SockAddr ->
   Maybe Text ->
@@ -96,40 +94,22 @@ buildLoginSuccess ::
   ExceptT HandlerError AppM LoginResult
 buildLoginSuccess sockAddr mUserAgent redirectLink user rememberMe = do
   env <- asks (Has.getter @Environment)
+  let duration = if rememberMe then rememberMeDuration else nominalDay
   -- Always create a fresh session (upstream insertServerSession caps at 5 per user)
-  sessionId <-
-    lift (Auth.login (User.mId user) sockAddr mUserAgent) >>= \case
+  result <-
+    lift (Auth.loginWithExpiry duration (User.mId user) sockAddr mUserAgent) >>= \case
       Left err -> throwHandlerFailure $ Text.pack $ show err
-      Right sid -> pure sid
-  cookieHeader <-
-    if rememberMe
-      then do
-        lift $ execQueryThrow (extendSessionExpiry sessionId)
-        pure $ mkPersistentCookieSession env (Domains.cookieDomainMaybe env) sessionId rememberMeMaxAgeSeconds
-      else pure $ Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
+      Right r -> pure r
+  let sessionId = Auth.loginResultSessionId result
+      cookieHeader =
+        if rememberMe
+          then Auth.mkCookieSessionWithMaxAge (Auth.loginResultDuration result) env (Domains.cookieDomainMaybe env) sessionId
+          else Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
   pure $ LoginSuccess cookieHeader redirectLink
 
--- | Cookie @Max-Age@ when "Remember Me" is checked: 30 days in seconds.
-rememberMeMaxAgeSeconds :: Integer
-rememberMeMaxAgeSeconds = 30 * 24 * 60 * 60
-
--- | Extend a session row's @expires_at@ to 30 days from now. Used for
--- "Remember Me" because upstream 'Auth.login' hardcodes a 1-day expiry.
-extendSessionExpiry :: ServerSessions.Id -> Hasql.Statement () ()
-extendSessionExpiry sid =
-  interp
-    False
-    [sql|
-    UPDATE server_sessions
-    SET expires_at = NOW() + INTERVAL '30 days'
-    WHERE id = #{sid}
-  |]
-
--- | Like 'Auth.mkCookieSession' but with a @Max-Age@ attribute appended,
--- producing a persistent cookie that survives browser restarts.
-mkPersistentCookieSession :: Environment -> Maybe Text -> ServerSessions.Id -> Integer -> Text
-mkPersistentCookieSession env mDomain sId maxAge =
-  Auth.mkCookieSession env mDomain sId <> "; Max-Age=" <> Text.pack (show maxAge)
+-- | Server-side session lifetime when "Remember Me" is checked.
+rememberMeDuration :: NominalDiffTime
+rememberMeDuration = 30 * nominalDay
 
 handler ::
   SockAddr ->

@@ -20,7 +20,6 @@ import App.Monad (AppM)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
-import Data.List (foldl')
 import Data.Password.Argon2 (Argon2, Password, PasswordCheck (..), PasswordHash, checkPassword, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
 import Data.Text (Text)

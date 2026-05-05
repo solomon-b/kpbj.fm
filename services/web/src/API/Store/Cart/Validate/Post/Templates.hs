@@ -18,7 +18,6 @@ import API.Types (StoreRoutes (..))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.Foldable (for_, traverse_)
-import Data.List (foldl')
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Encoding qualified as Text

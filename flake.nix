@@ -2,7 +2,7 @@
   description = "kpbj.fm";
 
   inputs = {
-    nixpkgs.url = github:NixOS/nixpkgs/nixos-25.05;
+    nixpkgs.url = github:NixOS/nixpkgs/nixos-25.11;
     flake-utils.url = github:numtide/flake-utils;
 
     web-server-core = {
@@ -52,12 +52,6 @@
               amazonka-sts = pkgs.haskell.lib.dontCheck
                 (hfinal.callCabal2nix "amazonka-sts" (amazonkaSrc + "/lib/services/amazonka-sts") { });
 
-              hasql = pkgs.haskell.lib.dontCheck hfinal.hasql_1_9_1_2;
-
-              hasql-pool = pkgs.haskell.lib.dontCheck hfinal.hasql-pool_1_3_0_1;
-
-              hasql-transaction = pkgs.haskell.lib.dontCheck hfinal.hasql-transaction_1_2_0_1;
-
               kpbj-types = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-types" ./lib/kpbj-types { });
 
               kpbj-database = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-database" ./lib/kpbj-database { });
@@ -88,8 +82,6 @@
 
               lucid-tailwind = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-tailwind" ./services/web/lib/lucid-tailwind { });
 
-              text-builder = pkgs.haskell.lib.dontCheck hfinal.text-builder_1_0_0_3;
-
               # rel8 1.7.0.0 for hasql 1.9 compatibility
               rel8 = pkgs.haskell.lib.dontCheck (hfinal.callHackageDirect
                 {
@@ -117,8 +109,8 @@
                 (pkgs.fetchgit
                   {
                     url = "https://github.com/solomon-b/web-server";
-                    rev = "16bcc47190f10bb5cea486092d833c1c63fcf783";
-                    sha256 = "sha256-LLPOmBR39+OhY7sYZ78C9R/AYnaqE91+yFWfZyKHKFY=";
+                    rev = "c6df09aa3607452662b9f6d8713502c595df9511";
+                    sha256 = "sha256-11whPVqlHH9u9qiNIx5Zi+4AP/eazxPlDyspJH+QMHY=";
                   } + "/xmlhtml-qq")
                 { });
 
@@ -126,8 +118,8 @@
                 (pkgs.fetchgit
                   {
                     url = "https://github.com/solomon-b/web-server";
-                    rev = "16bcc47190f10bb5cea486092d833c1c63fcf783";
-                    sha256 = "sha256-LLPOmBR39+OhY7sYZ78C9R/AYnaqE91+yFWfZyKHKFY=";
+                    rev = "c6df09aa3607452662b9f6d8713502c595df9511";
+                    sha256 = "sha256-11whPVqlHH9u9qiNIx5Zi+4AP/eazxPlDyspJH+QMHY=";
                   } + "/xmlhtml-lens")
                 { });
             };
