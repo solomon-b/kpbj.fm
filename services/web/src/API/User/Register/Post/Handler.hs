@@ -15,7 +15,6 @@ import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor (first)
-import Data.List (foldl')
 import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword)
 import Data.Password.Validate qualified as PW.Validate

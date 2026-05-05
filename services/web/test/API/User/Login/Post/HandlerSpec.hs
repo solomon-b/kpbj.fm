@@ -102,8 +102,8 @@ test_invalidCredentialsWrongPassword cfg = do
       Left err -> expectationFailure $ "Expected Right LoginInvalidCredentials but got Left: " <> show err
 
 -- | With @remember = true@, login emits a persistent @Max-Age@ cookie and the
--- server-side session row's @expires_at@ is extended to ~30 days from now
--- (overriding upstream @Auth.login@'s 1-day default).
+-- server-side session row's @expires_at@ is set to ~30 days from now via
+-- @Auth.loginWithExpiry@ (overriding the 1-day default of @Auth.login@).
 test_rememberMePersistsSession :: TestDBConfig -> IO ()
 test_rememberMePersistsSession cfg = do
   userInsert <- mkUserInsert "login-remember-me" UserMetadata.User

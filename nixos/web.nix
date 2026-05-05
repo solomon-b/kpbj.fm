@@ -183,7 +183,7 @@ in
     # secrets file (already declared in sops.nix).
     sops.templates."kpbj-web.env" = {
       content = ''
-        APP_POSTGRES_PASSWORD=${config.sops.placeholder.db_password}
+        APP_POSTGRES_CONNECTION_STRING=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
         APP_SMTP_PASSWORD=${config.sops.placeholder.smtp_password}
         AWS_ACCESS_KEY_ID=${config.sops.placeholder.aws_access_key_id}
         AWS_SECRET_ACCESS_KEY=${config.sops.placeholder.aws_secret_access_key}
@@ -234,12 +234,6 @@ in
         APP_WARP_REQUEST_TIMEOUT = "600";
         APP_OBSERVABILITY_EXPORTER = "StdOut";
         APP_OBSERVABILITY_VERBOSITY = "Brief";
-
-        # Database (password comes via EnvironmentFile)
-        APP_POSTGRES_HOST = "127.0.0.1";
-        APP_POSTGRES_PORT = "5432";
-        APP_POSTGRES_DB = pgCfg.dbName;
-        APP_POSTGRES_USER = pgCfg.dbUser;
 
         # SMTP (password comes via EnvironmentFile)
         APP_SMTP_SERVER = cfg.smtpServer;

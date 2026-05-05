@@ -108,6 +108,7 @@ attemptAutoLogin userId sockAddr mUserAgent = do
   Auth.login userId sockAddr mUserAgent >>= \case
     Left err -> do
       pure $ Left $ Text.pack $ show err
-    Right sessionId -> do
-      let newCookie = Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
+    Right loginResult -> do
+      let sessionId = Auth.loginResultSessionId loginResult
+          newCookie = Auth.mkCookieSession env (Domains.cookieDomainMaybe env) sessionId
       pure $ Right newCookie

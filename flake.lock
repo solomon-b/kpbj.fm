@@ -75,67 +75,34 @@
         "type": "github"
       }
     },
-    "hasql-interpolate-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1742226962,
-        "narHash": "sha256-oANUeRbBoFJaJnOGFVZt5no3t46korNOQr9eFBPKTBU=",
-        "owner": "awkward-squad",
-        "repo": "hasql-interpolate",
-        "rev": "f1d04cea75868ba3051ad158e314ebbeccfbda80",
-        "type": "github"
-      },
-      "original": {
-        "owner": "awkward-squad",
-        "repo": "hasql-interpolate",
-        "type": "github"
-      }
-    },
-    "hasql-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1759114320,
-        "narHash": "sha256-EFVWmbeByz1g2hN/n6w0A43xLDEbXeVC/0pn51UkEuQ=",
-        "owner": "JonathanLorimer",
-        "repo": "hasql",
-        "rev": "38cca3c32fa7dc6fdf84347cf6b3a9c5cc8e20e2",
-        "type": "github"
-      },
-      "original": {
-        "owner": "JonathanLorimer",
-        "ref": "expose-hasql-encoders-params",
-        "repo": "hasql",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1767313136,
-        "narHash": "sha256-16KkgfdYqjaeRGBaYsNrhPRRENs0qzkQVUooNHtoy2w=",
+        "lastModified": 1777673416,
+        "narHash": "sha256-5c2POKPOjU40Kh0MirOdScBLG0bu9TAuPYAtPRNZMBs=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "ac62194c3917d5f474c1a844b6fd6da2db95077d",
+        "rev": "26ef669cffa904b6f6832ab57b77892a37c1a671",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixos-25.05",
+        "ref": "nixos-25.11",
         "repo": "nixpkgs",
         "type": "github"
       }
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1767313136,
-        "narHash": "sha256-16KkgfdYqjaeRGBaYsNrhPRRENs0qzkQVUooNHtoy2w=",
+        "lastModified": 1777673416,
+        "narHash": "sha256-5c2POKPOjU40Kh0MirOdScBLG0bu9TAuPYAtPRNZMBs=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "ac62194c3917d5f474c1a844b6fd6da2db95077d",
+        "rev": "26ef669cffa904b6f6832ab57b77892a37c1a671",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixos-25.05",
+        "ref": "nixos-25.11",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -233,17 +200,15 @@
     "web-server-core": {
       "inputs": {
         "flake-utils": "flake-utils_3",
-        "hasql-interpolate-src": "hasql-interpolate-src",
-        "hasql-src": "hasql-src",
         "nixpkgs": "nixpkgs_2",
         "tmp-postgres-src": "tmp-postgres-src"
       },
       "locked": {
-        "lastModified": 1772759726,
-        "narHash": "sha256-WciX+JBOzjmXJcLGSLMG8ih6/vxjgOVg+DMcT/dclJo=",
+        "lastModified": 1777919318,
+        "narHash": "sha256-11whPVqlHH9u9qiNIx5Zi+4AP/eazxPlDyspJH+QMHY=",
         "owner": "solomon-b",
         "repo": "web-server",
-        "rev": "914cdb9be72d8adfa5f584cfe748c433f5cbe171",
+        "rev": "c6df09aa3607452662b9f6d8713502c595df9511",
         "type": "github"
       },
       "original": {

@@ -77,5 +77,16 @@ in
 
     # Nginx needs access to ACME certs
     users.users.nginx.extraGroups = [ "acme" ];
+
+    # Avoid a deploy-time race where nixos-rebuild restarts nginx
+    # concurrently with acme-renew rewriting cert/key files; nginx can
+    # observe a half-written pair and fail with "key values mismatch".
+    # A 10s back-off across 5 retries gives acme units time to finish
+    # their atomic rename before nginx's next attempt.
+    systemd.services.nginx.serviceConfig = {
+      RestartSec = "10s";
+      StartLimitBurst = 5;
+      StartLimitIntervalSec = 60;
+    };
   };
 }

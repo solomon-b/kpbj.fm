@@ -25,11 +25,7 @@ Create a `.envrc.local` file with the following env vars:
 # Required
 export APP_ENVIRONMENT="Development"
 export APP_HOSTNAME="localhost"
-export APP_POSTGRES_DB="dev_db"
-export APP_POSTGRES_HOST="localhost"
-export APP_POSTGRES_PASSWORD="postgres"
-export APP_POSTGRES_PORT="5433"
-export APP_POSTGRES_USER="postgres"
+export APP_POSTGRES_CONNECTION_STRING="postgres://postgres:postgres@localhost:5433/dev_db"
 export DATABASE_URL="postgresql://postgres@localhost:5433/dev_db" # Used by SqlX
 export APP_WARP_PORT="4000"
 export APP_WARP_SERVERNAME="localhost"
