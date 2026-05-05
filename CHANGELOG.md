@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.12.0] - 2026-05-04
+
 ### Changed
 - **NixOS 25.11 / web-server-core 0.2.0.0** — Bumped `nixpkgs` from `nixos-25.05` to `nixos-25.11` and `web-server-core` to `0.2.0.0`. Dropped now-redundant Haskell package pins (`hasql`, `hasql-pool`, `hasql-transaction`, `text-builder`) that 25.11 ships compatible defaults for, and removed the corresponding `xmlhtml-{qq,lens}` pin to track the new web-server-core revision.
 - **Postgres Connection: Single Env Var** — The five `APP_POSTGRES_{HOST,PORT,DB,USER,PASSWORD}` env vars are gone. `web-server-core` now reads a single `APP_POSTGRES_CONNECTION_STRING` (libpq URL). Updated `nixos/web.nix` (sops template), CI workflow, README, and `.envrc.local` accordingly.
