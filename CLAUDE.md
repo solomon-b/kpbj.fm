@@ -35,27 +35,50 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for system topology and CI/CD. See [READM
 
 ### HTMX Response Patterns
 
-**Pattern A - Redirect with Banner** (POST success, navigate away):
+Three canonical shapes. Each pairs a return type, a `handle*Errors` wrapper from `App.Handler.Error`, and a success-path response.
+
+**Pattern A — Redirect with flash** (POST success, navigate away).
+
+Route returns redirect headers + `NoContent`:
 ```haskell
-let banner = BannerParams Success "Created" "Item created successfully."
-pure $ Servant.addHeader [i|/#{targetUrl}|] $ redirectWithBanner [i|/#{targetUrl}|] banner
+type Route =
+  ... :> Servant.Post '[HTML]
+        (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 ```
 
-**Pattern B - Row Update with OOB Banner** (update item in list):
+Handler uses `handleRedirectErrors` and emits the redirect URL + a flash cookie carrying a `FlashMessage`:
+```haskell
+handler cookie form =
+  handleRedirectErrors "Action name" defaultLink $ do
+    (_user, userMetadata) <- requireAuth cookie
+    requireStaffNotSuspended "..." userMetadata
+    -- ... business logic ...
+    let targetUrl = [i|/#{Links.linkURI $ someLinks.somePage}|] :: Text
+        flash = FlashMessage Success "Created" "Item created successfully."
+    pure $
+      Servant.addHeader targetUrl $
+        Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
+```
+
+`handleRedirectErrors`'s second argument is a `Servant.Link` (not `Text`) used as the fallback redirect target on auth/access failures. Validation errors fall through to an inline OOB error banner instead of redirecting. Imports: `Component.Flash (FlashMessage (..), flashCookie)`, `Component.Banner (BannerType (..))`, `App.Handler.Error (handleRedirectErrors)`.
+
+**Pattern B — Row update with OOB banner** (update item in list, stay on page):
 ```haskell
 pure $ do
   renderItemRow updatedItem
   renderBanner Success "Updated" "Item updated."
 ```
+Wrap with `handleBannerErrors`. Return type is `AppM (Lucid.Html ())`.
 
-**Pattern C - Row Delete with OOB Banner** (remove from list):
+**Pattern C — Row delete with OOB banner** (remove from list):
 ```haskell
 pure $ do
-  Lucid.toHtmlRaw ("" :: Text)  -- removes target element
+  mempty  -- empty body; HTMX removes the target via hx-swap="outerHTML" (or "delete")
   renderBanner Success "Deleted" "Item deleted."
 ```
+Wrap with `handleBannerErrors`. Return type is `AppM (Lucid.Html ())`.
 
-**Errors**: Always return OOB banner only: `pure $ renderBanner Error "Failed" "Error message."`
+**Errors**: don't construct error banners by hand. Use the `handle*Errors` wrappers and the `throw*` helpers in `App.Handler.Error` (`throwDatabaseError`, `throwNotFound`, `throwNotAuthorized`, …). Each wrapper renders the appropriate OOB error banner (Pattern B/C) or redirect-with-flash (Pattern A) automatically.
 
 ### Type-Safe Links (MANDATORY)
 

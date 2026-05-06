@@ -20,6 +20,7 @@ import API.Links
     dashboardInvitationsLinks,
     dashboardLinks,
     dashboardMissingEpisodesLink,
+    dashboardNewsletterSubscribersLinks,
     dashboardShowsLinks,
     dashboardSitePagesLinks,
     dashboardStationBlogLinks,
@@ -111,6 +112,10 @@ dashboardAnalyticsGetUrl = Links.linkURI dashboardAnalyticsLinks.get
 dashboardInvitationsGetUrl :: Links.URI
 dashboardInvitationsGetUrl = Links.linkURI dashboardInvitationsLinks.list
 
+dashboardNewsletterSubscribersGetUrl :: Links.URI
+dashboardNewsletterSubscribersGetUrl =
+  Links.linkURI $ dashboardNewsletterSubscribersLinks.list Nothing Nothing
+
 dashboardStoreProductsGetUrl :: Links.URI
 dashboardStoreProductsGetUrl = Links.linkURI dashboardStoreProductsLinks.list
 
@@ -139,6 +144,7 @@ data DashboardNav
   | NavMissingEpisodes
   | NavAnalytics
   | NavInvitations
+  | NavNewsletterSubscribers
   | NavStoreProducts
   | NavStoreOrders
   | NavStoreSettings
@@ -162,6 +168,7 @@ isShowScoped = \case
   NavMissingEpisodes -> False
   NavAnalytics -> False
   NavInvitations -> False
+  NavNewsletterSubscribers -> False
   NavStoreProducts -> False
   NavStoreOrders -> False
   NavStoreSettings -> False
@@ -249,6 +256,7 @@ sidebar userMeta activeNav selectedShow =
           Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
             staffNavItem "USERS" NavUsers activeNav
             staffNavItem "INVITATIONS" NavInvitations activeNav
+            staffNavItem "NEWSLETTER" NavNewsletterSubscribers activeNav
             staffNavItem "SHOWS" NavShows activeNav
             staffNavItem "STATION BLOG" NavStationBlog activeNav
             staffNavItem "EVENTS" NavEvents activeNav
@@ -372,6 +380,7 @@ staffNavUrl = \case
   NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
   NavAnalytics -> Just dashboardAnalyticsGetUrl
   NavInvitations -> Just dashboardInvitationsGetUrl
+  NavNewsletterSubscribers -> Just dashboardNewsletterSubscribersGetUrl
   NavStoreProducts -> Just dashboardStoreProductsGetUrl
   NavStoreOrders -> Just dashboardStoreOrdersGetUrl
   NavStoreSettings -> Just dashboardStoreSettingsGetUrl
@@ -399,6 +408,7 @@ navUrl nav mShow =
         NavMissingEpisodes -> Just dashboardMissingEpisodesGetUrl
         NavAnalytics -> Just dashboardAnalyticsGetUrl
         NavInvitations -> Just dashboardInvitationsGetUrl
+        NavNewsletterSubscribers -> Just dashboardNewsletterSubscribersGetUrl
         NavStoreProducts -> Just dashboardStoreProductsGetUrl
         NavStoreOrders -> Just dashboardStoreOrdersGetUrl
         NavStoreSettings -> Just dashboardStoreSettingsGetUrl
