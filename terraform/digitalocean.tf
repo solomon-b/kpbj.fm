@@ -143,6 +143,30 @@ resource "digitalocean_firewall" "stream_prod" {
   }
 }
 
+# ──────────────────────────────────────────────────────────────
+# Project — groups KPBJ resources in the DO control panel
+# ──────────────────────────────────────────────────────────────
+#
+# Project assignment is metadata-only on DO's side: assigning a
+# resource here moves it out of whatever project currently owns
+# it (including the account default project) without touching
+# the resource itself — no reboot, no IP change, no downtime.
+# Firewalls and SSH keys are not project-assignable.
+
+resource "digitalocean_project" "kpbj" {
+  name        = "kpbj-fm"
+  description = "KPBJ 95.9FM community radio — streaming VPS, web app, object storage"
+  purpose     = "Web Application"
+
+  resources = [
+    digitalocean_droplet.stream_prod.urn,
+    digitalocean_droplet.staging.urn,
+    digitalocean_spaces_bucket.prod_storage.urn,
+    digitalocean_spaces_bucket.staging_storage.urn,
+    digitalocean_spaces_bucket.pgbackrest.urn,
+  ]
+}
+
 resource "digitalocean_firewall" "staging" {
   name        = "kpbj-staging-fw"
   droplet_ids = [digitalocean_droplet.staging.id]
