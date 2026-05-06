@@ -26,6 +26,7 @@ module API.Types
     DashboardShowsRoutes (..),
     DashboardUsersRoutes (..),
     DashboardInvitationsRoutes (..),
+    DashboardNewsletterSubscribersRoutes (..),
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     DashboardAnalyticsRoutes (..),
@@ -86,6 +87,10 @@ import API.Dashboard.Invitations.New.Get.Route qualified as Dashboard.Invitation
 import API.Dashboard.Invitations.New.Post.Route qualified as Dashboard.Invitations.New.Post
 import API.Dashboard.Invitations.Regenerate.Route qualified as Dashboard.Invitations.Regenerate
 import API.Dashboard.MissingEpisodes.Get.Route qualified as Dashboard.MissingEpisodes.Get
+import API.Dashboard.NewsletterSubscribers.Bulk.Get.Route qualified as Dashboard.NewsletterSubscribers.Bulk.Get
+import API.Dashboard.NewsletterSubscribers.Bulk.Post.Route qualified as Dashboard.NewsletterSubscribers.Bulk.Post
+import API.Dashboard.NewsletterSubscribers.Delete.Route qualified as Dashboard.NewsletterSubscribers.Delete
+import API.Dashboard.NewsletterSubscribers.Get.Route qualified as Dashboard.NewsletterSubscribers.Get
 import API.Dashboard.Profile.Edit.Get.Route qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Route qualified as Dashboard.Profile.Edit.Post
 import API.Dashboard.Shows.Get.Route qualified as Dashboard.Shows.Get
@@ -417,7 +422,9 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @/dashboard/analytics/...@ - Analytics dashboard routes
     analytics :: mode :- NamedRoutes DashboardAnalyticsRoutes,
     -- | @/dashboard/store/...@ - Store management routes
-    store :: mode :- NamedRoutes DashboardStoreRoutes
+    store :: mode :- NamedRoutes DashboardStoreRoutes,
+    -- | @/dashboard/newsletter-subscribers/...@ - Newsletter subscriber management routes
+    newsletterSubscribers :: mode :- NamedRoutes DashboardNewsletterSubscribersRoutes
   }
   deriving stock (Generic)
 
@@ -652,6 +659,22 @@ data DashboardInvitationsRoutes mode = DashboardInvitationsRoutes
     regenerate :: mode :- Dashboard.Invitations.Regenerate.Route,
     -- | @DELETE /dashboard/invitations/:invitationId@ - Revoke invitation
     delete :: mode :- Dashboard.Invitations.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard newsletter subscriber management routes under @/dashboard/newsletter-subscribers@.
+--
+-- For staff and admins to view, search, bulk-add, and delete homepage
+-- newsletter signups.
+data DashboardNewsletterSubscribersRoutes mode = DashboardNewsletterSubscribersRoutes
+  { -- | @GET /dashboard/newsletter-subscribers@ - Subscriber list with search + pagination
+    list :: mode :- Dashboard.NewsletterSubscribers.Get.Route,
+    -- | @GET /dashboard/newsletter-subscribers/bulk@ - Bulk add form
+    bulkGet :: mode :- Dashboard.NewsletterSubscribers.Bulk.Get.Route,
+    -- | @POST /dashboard/newsletter-subscribers/bulk@ - Submit bulk add
+    bulkPost :: mode :- Dashboard.NewsletterSubscribers.Bulk.Post.Route,
+    -- | @DELETE /dashboard/newsletter-subscribers/:subscriberId@ - Delete subscriber
+    delete :: mode :- Dashboard.NewsletterSubscribers.Delete.Route
   }
   deriving stock (Generic)
 

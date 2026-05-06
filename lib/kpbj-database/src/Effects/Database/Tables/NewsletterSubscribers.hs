@@ -18,6 +18,10 @@ module Effects.Database.Tables.NewsletterSubscribers
     -- * Queries
     insert,
     countByEmail,
+    getPaginated,
+    countAll,
+    getById,
+    deleteById,
   )
 where
 
@@ -26,6 +30,7 @@ where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
+import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import Domain.Types.EmailAddress (EmailAddress)
@@ -113,3 +118,80 @@ countByEmail email =
           WHERE email = #{email}
         |]
    in maybe 0 getOneColumn <$> query
+
+-- | Fetch a page of subscribers, optionally filtered by an email substring.
+--
+-- Search uses a case-insensitive @LIKE@ on the email; pass 'Nothing' to skip
+-- the filter. Rows are ordered most-recently-subscribed first.
+getPaginated :: Maybe Text -> Int64 -> Int64 -> Hasql.Statement () [Model]
+getPaginated mSearch limit offset =
+  case mSearch of
+    Nothing ->
+      interp
+        False
+        [sql|
+        SELECT id, email, created_at
+        FROM newsletter_subscribers
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+    Just search ->
+      interp
+        False
+        [sql|
+        SELECT id, email, created_at
+        FROM newsletter_subscribers
+        WHERE email ILIKE '%' || #{search} || '%'
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+      |]
+
+-- | Count all subscribers, optionally filtered by an email substring.
+--
+-- Mirrors the filter used by 'getPaginated' so callers can compute total
+-- result sets and pagination state.
+countAll :: Maybe Text -> Hasql.Statement () Int64
+countAll mSearch =
+  let query = case mSearch of
+        Nothing ->
+          interp
+            False
+            [sql|
+            SELECT COUNT(*)::INT8
+            FROM newsletter_subscribers
+          |]
+        Just search ->
+          interp
+            False
+            [sql|
+            SELECT COUNT(*)::INT8
+            FROM newsletter_subscribers
+            WHERE email ILIKE '%' || #{search} || '%'
+          |]
+   in maybe 0 getOneColumn <$> query
+
+-- | Look up a single subscriber by primary key.
+getById :: Id -> Hasql.Statement () (Maybe Model)
+getById subId =
+  fmap listToMaybe $
+    interp
+      False
+      [sql|
+      SELECT id, email, created_at
+      FROM newsletter_subscribers
+      WHERE id = #{subId}
+    |]
+
+-- | Delete a subscriber by primary key.
+--
+-- Returns @Just id@ when a row was deleted, @Nothing@ if nothing matched.
+deleteById :: Id -> Hasql.Statement () (Maybe Id)
+deleteById subId =
+  fmap listToMaybe $
+    interp
+      False
+      [sql|
+      DELETE FROM newsletter_subscribers
+      WHERE id = #{subId}
+      RETURNING id
+    |]

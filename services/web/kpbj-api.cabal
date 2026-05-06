@@ -185,6 +185,17 @@ library
     API.Dashboard.Invitations.Delete.Handler
     API.Dashboard.Invitations.Regenerate.Route
     API.Dashboard.Invitations.Regenerate.Handler
+    API.Dashboard.NewsletterSubscribers.Get.Route
+    API.Dashboard.NewsletterSubscribers.Get.Handler
+    API.Dashboard.NewsletterSubscribers.Get.Templates.Page
+    API.Dashboard.NewsletterSubscribers.Get.Templates.ItemsFragment
+    API.Dashboard.NewsletterSubscribers.Bulk.Get.Route
+    API.Dashboard.NewsletterSubscribers.Bulk.Get.Handler
+    API.Dashboard.NewsletterSubscribers.Bulk.Get.Templates
+    API.Dashboard.NewsletterSubscribers.Bulk.Post.Route
+    API.Dashboard.NewsletterSubscribers.Bulk.Post.Handler
+    API.Dashboard.NewsletterSubscribers.Delete.Route
+    API.Dashboard.NewsletterSubscribers.Delete.Handler
     API.Dashboard.Events.Get.Handler
     API.Dashboard.Events.Get.Route
     API.Dashboard.Events.Get.Templates.ItemsFragment

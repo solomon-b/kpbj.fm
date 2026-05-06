@@ -90,6 +90,10 @@ import API.Dashboard.Invitations.New.Get.Handler qualified as Dashboard.Invitati
 import API.Dashboard.Invitations.New.Post.Handler qualified as Dashboard.Invitations.New.Post
 import API.Dashboard.Invitations.Regenerate.Handler qualified as Dashboard.Invitations.Regenerate
 import API.Dashboard.MissingEpisodes.Get.Handler qualified as Dashboard.MissingEpisodes.Get
+import API.Dashboard.NewsletterSubscribers.Bulk.Get.Handler qualified as Dashboard.NewsletterSubscribers.Bulk.Get
+import API.Dashboard.NewsletterSubscribers.Bulk.Post.Handler qualified as Dashboard.NewsletterSubscribers.Bulk.Post
+import API.Dashboard.NewsletterSubscribers.Delete.Handler qualified as Dashboard.NewsletterSubscribers.Delete
+import API.Dashboard.NewsletterSubscribers.Get.Handler qualified as Dashboard.NewsletterSubscribers.Get
 import API.Dashboard.Profile.Edit.Get.Handler qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Handler qualified as Dashboard.Profile.Edit.Post
 import API.Dashboard.Shows.Get.Handler qualified as Dashboard.Shows.Get
@@ -381,7 +385,16 @@ server =
           streamSettings = dashboardStreamSettingsRoutes,
           missingEpisodes = Dashboard.MissingEpisodes.Get.handler,
           analytics = dashboardAnalyticsRoutes,
-          store = dashboardStoreRoutes
+          store = dashboardStoreRoutes,
+          newsletterSubscribers = dashboardNewsletterSubscribersRoutes
+        }
+
+    dashboardNewsletterSubscribersRoutes =
+      DashboardNewsletterSubscribersRoutes
+        { list = Dashboard.NewsletterSubscribers.Get.handler,
+          bulkGet = Dashboard.NewsletterSubscribers.Bulk.Get.handler,
+          bulkPost = Dashboard.NewsletterSubscribers.Bulk.Post.handler,
+          delete = Dashboard.NewsletterSubscribers.Delete.handler
         }
 
     dashboardStoreRoutes =

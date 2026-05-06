@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Newsletter Subscribers Admin CRUD** — Admin dashboard CRUD for newsletter subscribers — list with search/pagination, bulk insert (comma or newline-separated), and per-row delete. New routes under `/dashboard/newsletter-subscribers`, gated by `requireStaffNotSuspended`. Backed by new `getPaginated`, `countAll`, `getById`, and `deleteById` queries on the existing `newsletter_subscribers` table.
+
 ### Changed
 - **Dedicated `kpbj-fm` DigitalOcean Project** — Added a `digitalocean_project` resource (`terraform/digitalocean.tf`) that groups both droplets (`stream_prod`, `staging`) and all three Spaces buckets (`production-kpbj-storage`, `staging-kpbj-storage`, `kpbj-pgbackrest`) under a dedicated `kpbj-fm` project in the DO control panel. Project assignment is metadata-only on DO's side, so the move is non-destructive — no reboot, no IP change, no downtime. Firewalls and SSH keys are not project-assignable, so they remain unaffiliated.
 

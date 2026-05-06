@@ -45,6 +45,7 @@ module API.Links
     dashboardMissingEpisodesLink,
     dashboardAnalyticsLinks,
     dashboardInvitationsLinks,
+    dashboardNewsletterSubscribersLinks,
     dashboardStoreLinks,
     dashboardStoreProductsLinks,
     dashboardStoreSettingsLinks,
@@ -178,6 +179,10 @@ dashboardAnalyticsLinks = dashboardAdminLinks.analytics
 -- | Dashboard invitations route links.
 dashboardInvitationsLinks :: DashboardInvitationsRoutes (AsLink Link)
 dashboardInvitationsLinks = dashboardAdminLinks.invitations
+
+-- | Dashboard newsletter subscribers route links.
+dashboardNewsletterSubscribersLinks :: DashboardNewsletterSubscribersRoutes (AsLink Link)
+dashboardNewsletterSubscribersLinks = dashboardAdminLinks.newsletterSubscribers
 
 -- | Invite onboarding route links.
 inviteLinks :: InviteRoutes (AsLink Link)
