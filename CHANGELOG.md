@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+- **Dedicated `kpbj-fm` DigitalOcean Project** — Added a `digitalocean_project` resource (`terraform/digitalocean.tf`) that groups both droplets (`stream_prod`, `staging`) and all three Spaces buckets (`production-kpbj-storage`, `staging-kpbj-storage`, `kpbj-pgbackrest`) under a dedicated `kpbj-fm` project in the DO control panel. Project assignment is metadata-only on DO's side, so the move is non-destructive — no reboot, no IP change, no downtime. Firewalls and SSH keys are not project-assignable, so they remain unaffiliated.
 
 ---
 
