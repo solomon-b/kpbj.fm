@@ -169,6 +169,18 @@ in
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" ];
     };
+    sops.secrets.mailchimp_api_key = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-web.service" "kpbj-mailchimp-reconcile.service" ];
+    };
+    sops.secrets.mailchimp_audience_id = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-web.service" "kpbj-mailchimp-reconcile.service" ];
+    };
+    sops.secrets.mailchimp_webhook_secret = {
+      sopsFile = cfg.secretsFile;
+      restartUnits = [ "kpbj-web.service" ];
+    };
     sops.secrets.google_analytics_property_id = {
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-ga-poller.service" ];
@@ -194,9 +206,24 @@ in
         STRIPE_PUBLISHABLE_KEY=${config.sops.placeholder.stripe_publishable_key}
         STRIPE_WEBHOOK_SECRET=${config.sops.placeholder.stripe_webhook_secret}
         EASYPOST_API_KEY=${config.sops.placeholder.easypost_api_key}
+        MAILCHIMP_API_KEY=${config.sops.placeholder.mailchimp_api_key}
+        MAILCHIMP_AUDIENCE_ID=${config.sops.placeholder.mailchimp_audience_id}
+        MAILCHIMP_WEBHOOK_SECRET=${config.sops.placeholder.mailchimp_webhook_secret}
         DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
       '';
       restartUnits = [ "kpbj-web.service" ];
+    };
+
+    # ── SOPS template (mailchimp-reconcile env) ──────────────────
+    # The reconcile job only needs DATABASE_URL + the two outbound
+    # credentials (no webhook secret — that's a webhook concern).
+    sops.templates."kpbj-mailchimp-reconcile.env" = {
+      content = ''
+        DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
+        MAILCHIMP_API_KEY=${config.sops.placeholder.mailchimp_api_key}
+        MAILCHIMP_AUDIENCE_ID=${config.sops.placeholder.mailchimp_audience_id}
+      '';
+      restartUnits = [ "kpbj-mailchimp-reconcile.service" ];
     };
 
     # ── SOPS template (ga-poller env) ────────────────────────────

@@ -75,6 +75,7 @@ library
                   , kpbj-types
                   , kpbj-database
                   , kpbj-email
+                  , mailchimp-http
                   , rel8
                   , hs-opentelemetry-sdk
                   , http-api-data
@@ -527,6 +528,10 @@ library
     API.User.ResetPassword.Get.Templates.InvalidToken
     API.User.ResetPassword.Post.Handler
     API.User.ResetPassword.Post.Route
+    API.Webhooks.Mailchimp.Get.Route
+    API.Webhooks.Mailchimp.Get.Handler
+    API.Webhooks.Mailchimp.Post.Route
+    API.Webhooks.Mailchimp.Post.Handler
     API.Webhooks.Stripe.Post.Route
     API.Webhooks.Stripe.Post.Handler
     App.Analytics
@@ -572,6 +577,7 @@ library
     Effects.FileUpload
     Effects.HostNotifications
     Effects.PasswordReset
+    Effects.Mailchimp.Sync
     Effects.Markdown
     Effects.MimeTypeValidation
     Effects.StagedUploadCleanup

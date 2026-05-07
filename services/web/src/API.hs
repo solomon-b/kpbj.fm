@@ -197,6 +197,8 @@ import API.User.ResetPassword.Post.Handler qualified as User.ResetPassword.Post
 import API.User.VerifyEmail.Get.Handler qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Handler qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Handler qualified as User.VerifyEmailSent.Get
+import API.Webhooks.Mailchimp.Get.Handler qualified as Webhooks.Mailchimp.Get
+import API.Webhooks.Mailchimp.Post.Handler qualified as Webhooks.Mailchimp.Post
 import API.Webhooks.Stripe.Post.Handler qualified as Webhooks.Stripe.Post
 import App qualified
 import App.Auth qualified as Auth
@@ -570,5 +572,7 @@ server =
 
     webhookRoutes =
       WebhookRoutes
-        { stripe = Webhooks.Stripe.Post.handler
+        { stripe = Webhooks.Stripe.Post.handler,
+          mailchimpGet = Webhooks.Mailchimp.Get.handler,
+          mailchimpPost = Webhooks.Mailchimp.Post.handler
         }

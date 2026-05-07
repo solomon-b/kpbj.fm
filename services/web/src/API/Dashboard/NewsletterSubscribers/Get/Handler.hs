@@ -38,7 +38,6 @@ import Utils (fromRightM)
 pageSize :: Int64
 pageSize = 50
 
-
 -- | Handler for GET /dashboard/newsletter-subscribers.
 handler ::
   Maybe Cookie ->
@@ -75,12 +74,10 @@ handler cookie (foldHxReq -> hxRequest) mSearchRaw mPage =
             (Just actionButton)
             (template subscribers total page hasMore mSearch)
 
-
 -- | Drop empty/whitespace-only search strings.
 normalizeSearch :: Maybe Text -> Maybe Text
 normalizeSearch =
   (>>= \t -> let stripped = Text.strip t in if Text.null stripped then Nothing else Just stripped)
-
 
 -- | "BULK ADD" action button rendered in the dashboard top bar.
 actionButton :: Lucid.Html ()

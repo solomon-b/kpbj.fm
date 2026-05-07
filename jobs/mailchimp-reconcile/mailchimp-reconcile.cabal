@@ -1,0 +1,41 @@
+cabal-version:      3.0
+name:               mailchimp-reconcile
+version:            0.1.0
+license:            Apache-2.0
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+executable mailchimp-reconcile
+  main-is:          Main.hs
+  build-depends:    base
+                  , aeson
+                  , bytestring
+                  , containers
+                  , hasql
+                  , http-client
+                  , http-client-tls
+                  , kpbj-database
+                  , log-base
+                  , mailchimp-http
+                  , optparse-applicative
+                  , string-interpolate
+                  , text
+                  , text-display
+                  , time
+                  , web-server-core
+  hs-source-dirs:   .
+  default-language: Haskell2010
+  default-extensions:
+      BangPatterns
+      ImportQualifiedPost
+      LambdaCase
+      NamedFieldPuns
+      OverloadedRecordDot
+      OverloadedStrings
+      QuasiQuotes
+      RecordWildCards
+      ScopedTypeVariables
+      StrictData
+      TypeApplications
+  ghc-options:      -Wall -threaded
