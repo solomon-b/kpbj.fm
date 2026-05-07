@@ -1,0 +1,86 @@
+cabal-version:      3.0
+name:               mailchimp-http
+version:            0.1.0.0
+synopsis:           Thin Mailchimp Marketing API client via servant-client
+license:            BSD-3-Clause
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+--------------------------------------------------------------------------------
+
+common common-extensions
+  default-extensions:
+      DataKinds
+      DeriveAnyClass
+      DeriveGeneric
+      DerivingStrategies
+      DuplicateRecordFields
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      MultiParamTypeClasses
+      NoFieldSelectors
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TypeOperators
+
+--------------------------------------------------------------------------------
+
+library
+  import: common-extensions
+  build-depends:
+      aeson
+    , base
+    , base64-bytestring
+    , bytestring
+    , crypton
+    , http-client
+    , http-media
+    , http-types
+    , memory
+    , servant
+    , servant-client
+    , text
+    , text-display
+    , time
+    , web-server-core
+  exposed-modules:
+    Mailchimp.API
+    Mailchimp.Client
+    Mailchimp.Config
+    Mailchimp.Servant.FormBody
+    Mailchimp.Types
+    Mailchimp.Webhook
+  hs-source-dirs: src
+  default-language: Haskell2010
+  ghc-options: -Wall -Werror
+
+--------------------------------------------------------------------------------
+
+test-suite mailchimp-http-test
+  import: common-extensions
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  other-modules:
+    Mailchimp.ConfigSpec
+    Mailchimp.WebhookSpec
+  default-language: Haskell2010
+  default-extensions:
+    LambdaCase
+    OverloadedRecordDot
+    OverloadedStrings
+  build-depends:
+      base >= 4.19 && < 5
+    , bytestring
+    , hspec
+    , mailchimp-http
+    , text
+    , text-display
+    , time
+    , web-server-core
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  ghc-options: -Wall -Werror

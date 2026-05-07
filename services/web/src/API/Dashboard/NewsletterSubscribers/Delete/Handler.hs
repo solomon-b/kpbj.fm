@@ -6,9 +6,11 @@ import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
+import Control.Monad.Trans.Class (lift)
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
+import Effects.Mailchimp.Sync (SyncOp (..), syncAsync)
 import Lucid qualified
 
 --------------------------------------------------------------------------------
@@ -30,7 +32,8 @@ handler subId cookie =
     case result of
       Left dbErr -> throwDatabaseError dbErr
       Right Nothing -> throwNotFound "Subscriber"
-      Right (Just _) -> pure ()
+      Right (Just (_id, email)) ->
+        lift $ syncAsync (Archive email subId)
     pure $ do
       mempty
       renderBanner Success "Subscriber Deleted" "The subscriber has been removed."

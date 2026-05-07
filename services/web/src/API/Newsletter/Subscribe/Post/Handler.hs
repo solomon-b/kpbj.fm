@@ -25,6 +25,7 @@ import Data.Text.Display (display)
 import Domain.Types.EmailAddress qualified as EmailAddress
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
+import Effects.Mailchimp.Sync (SyncOp (..), syncAsync)
 import Log qualified
 import Lucid qualified
 
@@ -36,6 +37,10 @@ data SubscribeResult
     SubscribeSuccess
   | -- | Email failed domain-level validation.
     SubscribeInvalidEmail
+  | -- | Email matches an existing tombstoned row whose Mailchimp status is
+    -- @cleaned@ (a hard bounce). Mailchimp won't accept re-subscribe via API,
+    -- so we surface a friendly message asking the user to contact us.
+    SubscribeBlockedCleaned
   deriving stock (Show, Eq)
 
 --------------------------------------------------------------------------------
@@ -49,6 +54,12 @@ handler form =
         pure thanksFragment
       SubscribeInvalidEmail ->
         pure $ renderBanner Error "Invalid email" "Please enter a valid email address."
+      SubscribeBlockedCleaned ->
+        pure $
+          renderBanner
+            Warning
+            "Address previously bounced"
+            "This email address was previously marked undeliverable by our mail provider. Email us at contact@kpbj.fm to resubscribe."
 
 --------------------------------------------------------------------------------
 
@@ -63,6 +74,27 @@ action SubscribeForm {..} =
       lift $ Log.logInfo "Newsletter subscribe: invalid email" (Aeson.object ["email" .= display sfEmail])
       pure SubscribeInvalidEmail
     Right validEmail -> do
-      _ <- lift $ execQueryThrow (NewsletterSubscribers.insert (NewsletterSubscribers.Insert validEmail))
-      lift $ Log.logInfo "Newsletter subscribe: success" (Aeson.object ["email" .= display validEmail])
-      pure SubscribeSuccess
+      mSubId <- lift $ execQueryThrow (NewsletterSubscribers.insert (NewsletterSubscribers.Insert validEmail))
+      case mSubId of
+        Just subId -> do
+          lift $ syncAsync (Upsert validEmail subId)
+          lift $ Log.logInfo "Newsletter subscribe: success" (Aeson.object ["email" .= display validEmail])
+          pure SubscribeSuccess
+        Nothing -> do
+          -- ON CONFLICT swallowed the insert. Look up the existing row to
+          -- distinguish a normal duplicate (treat as success) from a
+          -- 'cleaned' tombstone (surface friendly message).
+          existing <- lift $ execQueryThrow (NewsletterSubscribers.getByEmail validEmail)
+          case existing >>= NewsletterSubscribers.mMailchimpStatus of
+            Just "cleaned" -> do
+              lift $
+                Log.logInfo
+                  "Newsletter subscribe: blocked (cleaned tombstone)"
+                  (Aeson.object ["email" .= display validEmail])
+              pure SubscribeBlockedCleaned
+            _ -> do
+              lift $
+                Log.logInfo
+                  "Newsletter subscribe: success (already subscribed)"
+                  (Aeson.object ["email" .= display validEmail])
+              pure SubscribeSuccess

@@ -14,6 +14,7 @@
     ./episode-check.nix
     ./listener-snapshots.nix
     ./ga-poller.nix
+    ./mailchimp-reconcile.nix
     ./order-cleanup.nix
     ./monitoring.nix
     ./nginx.nix
@@ -56,6 +57,10 @@
   };
 
   kpbj.gaPoller = {
+    enable = true;
+  };
+
+  kpbj.mailchimpReconcile = {
     enable = true;
   };
 

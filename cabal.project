@@ -11,11 +11,13 @@ packages:
   lib/kpbj-email/kpbj-email.cabal
   lib/stripe-http/stripe-http.cabal
   lib/easypost-http/easypost-http.cabal
+  lib/mailchimp-http/mailchimp-http.cabal
   jobs/sync-host-emails/sync-host-emails.cabal
   jobs/token-cleanup/token-cleanup.cabal
   jobs/episode-check/episode-check.cabal
   jobs/listener-snapshots/listener-snapshots.cabal
   jobs/ga-poller/ga-poller.cabal
+  jobs/mailchimp-reconcile/mailchimp-reconcile.cabal
   jobs/order-cleanup/order-cleanup.cabal
 
 source-repository-package

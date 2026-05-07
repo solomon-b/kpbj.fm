@@ -196,6 +196,8 @@ import API.User.ResetPassword.Post.Route qualified as User.ResetPassword.Post
 import API.User.VerifyEmail.Get.Route qualified as User.VerifyEmail.Get
 import API.User.VerifyEmailResend.Post.Route qualified as User.VerifyEmailResend.Post
 import API.User.VerifyEmailSent.Get.Route qualified as User.VerifyEmailSent.Get
+import API.Webhooks.Mailchimp.Get.Route qualified as Webhooks.Mailchimp.Get
+import API.Webhooks.Mailchimp.Post.Route qualified as Webhooks.Mailchimp.Post
 import API.Webhooks.Stripe.Post.Route qualified as Webhooks.Stripe.Post
 import GHC.Generics (Generic)
 import Servant (NamedRoutes, (:-))
@@ -816,9 +818,13 @@ data StoreApiRoutes mode = StoreApiRoutes
 
 -- | Webhook routes under @/api/webhooks@.
 --
--- Endpoints for external service callbacks (Stripe, etc.).
-newtype WebhookRoutes mode = WebhookRoutes
+-- Endpoints for external service callbacks (Stripe, Mailchimp, etc.).
+data WebhookRoutes mode = WebhookRoutes
   { -- | @POST /api/webhooks/stripe@ - Stripe webhook handler
-    stripe :: mode :- Webhooks.Stripe.Post.Route
+    stripe :: mode :- Webhooks.Stripe.Post.Route,
+    -- | @GET /api/webhooks/mailchimp@ - Mailchimp URL validation probe
+    mailchimpGet :: mode :- Webhooks.Mailchimp.Get.Route,
+    -- | @POST /api/webhooks/mailchimp@ - Mailchimp event delivery
+    mailchimpPost :: mode :- Webhooks.Mailchimp.Post.Route
   }
   deriving stock (Generic)

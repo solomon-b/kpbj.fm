@@ -7,8 +7,7 @@ import API.Types (UserRoutes (..))
 import API.User.Register.Post.Route (Register (..), RegisterParsed (..))
 import App.Handler.Error (HandlerError, logHandlerError, throwHandlerFailure)
 import App.Monad (AppM)
-import Control.Monad (when)
-import Control.Monad.Catch (MonadThrow (..))
+import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
@@ -24,12 +23,12 @@ import Data.Text.Display.Core (Display (..))
 import Data.Validation
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.EmailAddress qualified as EmailAddress
-import Effects.Database.Class (MonadDB)
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.EmailVerification qualified as EmailVerification
+import Effects.Mailchimp.Sync (SyncOp (..), syncAsync)
 import Hasql.Interpolate (OneRow (..))
 import Log qualified
 import Network.Socket (SockAddr)
@@ -158,8 +157,14 @@ validateRequest Register {..} = do
   passwordValidation <- parsePassword urPassword
   pure $ RegisterParsed <$> emailValidation <*> passwordValidation <*> pure urDisplayName <*> pure urFullName
 
-subscribeToNewsletter :: (Log.MonadLog m, MonadThrow m, MonadDB m) => EmailAddress -> m ()
+-- | Specialized to 'AppM' rather than the prior polymorphic
+-- @(MonadLog m, MonadThrow m, MonadDB m) => m ()@ because 'syncAsync'
+-- additionally requires @MonadIO@, @MonadReader r m@, and two @Has@
+-- constraints. There is exactly one caller — the registration handler —
+-- so the polymorphism was abstraction without a second consumer.
+subscribeToNewsletter :: EmailAddress -> AppM ()
 subscribeToNewsletter email = do
   Log.logInfo "Subscribing user to newsletter" email
-  _ <- execQueryThrow (NewsletterSubscribers.insert (NewsletterSubscribers.Insert email))
+  mSubId <- execQueryThrow (NewsletterSubscribers.insert (NewsletterSubscribers.Insert email))
+  forM_ mSubId $ \subId -> syncAsync (Upsert email subId)
   Log.logInfo "Newsletter subscription recorded" email

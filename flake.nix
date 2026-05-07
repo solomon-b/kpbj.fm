@@ -62,6 +62,8 @@
 
               easypost-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "easypost-http" ./lib/easypost-http { });
 
+              mailchimp-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "mailchimp-http" ./lib/mailchimp-http { });
+
               kpbj-api = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-api" ./services/web { });
 
               sync-host-emails = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "sync-host-emails" ./jobs/sync-host-emails { });
@@ -73,6 +75,8 @@
               listener-snapshots = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "listener-snapshots" ./jobs/listener-snapshots { });
 
               ga-poller = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "ga-poller" ./jobs/ga-poller { });
+
+              mailchimp-reconcile = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "mailchimp-reconcile" ./jobs/mailchimp-reconcile { });
 
               order-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "order-cleanup" ./jobs/order-cleanup { });
 
@@ -127,7 +131,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-database p.kpbj-email p.kpbj-api p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller ];
+            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-database p.kpbj-email p.kpbj-api p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
@@ -162,6 +166,7 @@
             episode-check = hsPkgs.episode-check;
             listener-snapshots = hsPkgs.listener-snapshots;
             ga-poller = hsPkgs.ga-poller;
+            mailchimp-reconcile = hsPkgs.mailchimp-reconcile;
             order-cleanup = hsPkgs.order-cleanup;
           };
 
@@ -185,13 +190,14 @@
           episode-check = self.packages.x86_64-linux.episode-check;
           listener-snapshots = self.packages.x86_64-linux.listener-snapshots;
           ga-poller = self.packages.x86_64-linux.ga-poller;
+          mailchimp-reconcile = self.packages.x86_64-linux.mailchimp-reconcile;
           order-cleanup = self.packages.x86_64-linux.order-cleanup;
           kpbj-api = self.packages.x86_64-linux.kpbj-api;
         in
         {
           kpbj-prod = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller order-cleanup kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller mailchimp-reconcile order-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               friendly-ghost.nixosModules.default
@@ -200,7 +206,7 @@
           };
           kpbj-staging = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller order-cleanup kpbj-api; };
+            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller mailchimp-reconcile order-cleanup kpbj-api; };
             modules = [
               sops-nix.nixosModules.sops
               friendly-ghost.nixosModules.default
