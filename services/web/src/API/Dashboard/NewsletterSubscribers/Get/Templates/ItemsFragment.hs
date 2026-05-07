@@ -33,7 +33,7 @@ renderItemsFragment ::
   Lucid.Html ()
 renderItemsFragment subscribers currentPage hasMore mSearch =
   renderTableFragment
-    3
+    4
     "#subscribers-table-body"
     (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
     (mapM_ renderSubscriberRow subscribers)

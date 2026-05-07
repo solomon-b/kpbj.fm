@@ -32,6 +32,7 @@ import App.Storage (S3ConfigResult (..), StorageBackend (..), StorageContext (..
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
+import Data.Either (fromRight)
 import Data.Has qualified as Has
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -39,6 +40,8 @@ import Data.Text.Encoding qualified as TE
 import Data.Time (getCurrentTime)
 import EasyPost.Types (EasyPostApiKey (..))
 import Log qualified
+import Mailchimp.Client (MailchimpClient, mkClient)
+import Mailchimp.Config (MailchimpApiKey (..), MailchimpAudienceId (..), MailchimpWebhookSecret (..), parseDataCenter)
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Client.TLS qualified as TLS
 import Stripe.Types (StripePublishableKey (..), StripeSecretKey (..), StripeWebhookSecret (..))
@@ -95,6 +98,8 @@ data CustomContext = CustomContext
     stripePublishableKey :: Maybe StripePublishableKey,
     stripeWebhookSecret :: Maybe StripeWebhookSecret,
     easypostApiKey :: Maybe EasyPostApiKey,
+    mailchimpClient :: Maybe MailchimpClient,
+    mailchimpWebhookSecret :: Maybe MailchimpWebhookSecret,
     httpManager :: Manager
   }
 
@@ -140,6 +145,14 @@ instance Has.Has (Maybe StripeWebhookSecret) CustomContext where
 instance Has.Has (Maybe EasyPostApiKey) CustomContext where
   getter = easypostApiKey
   modifier f ctx = ctx {easypostApiKey = f (easypostApiKey ctx)}
+
+instance Has.Has (Maybe MailchimpClient) CustomContext where
+  getter = mailchimpClient
+  modifier f ctx = ctx {mailchimpClient = f (mailchimpClient ctx)}
+
+instance Has.Has (Maybe MailchimpWebhookSecret) CustomContext where
+  getter = mailchimpWebhookSecret
+  modifier f ctx = ctx {mailchimpWebhookSecret = f (mailchimpWebhookSecret ctx)}
 
 instance Has.Has Manager CustomContext where
   getter = httpManager
@@ -230,6 +243,14 @@ instance Has.Has (Maybe EasyPostApiKey) (AppContext CustomContext) where
   getter = Has.getter @(Maybe EasyPostApiKey) . appCustom
   modifier f ctx = ctx {appCustom = Has.modifier @(Maybe EasyPostApiKey) f (appCustom ctx)}
 
+instance Has.Has (Maybe MailchimpClient) (AppContext CustomContext) where
+  getter = Has.getter @(Maybe MailchimpClient) . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @(Maybe MailchimpClient) f (appCustom ctx)}
+
+instance Has.Has (Maybe MailchimpWebhookSecret) (AppContext CustomContext) where
+  getter = Has.getter @(Maybe MailchimpWebhookSecret) . appCustom
+  modifier f ctx = ctx {appCustom = Has.modifier @(Maybe MailchimpWebhookSecret) f (appCustom ctx)}
+
 instance Has.Has Manager (AppContext CustomContext) where
   getter = Has.getter @Manager . appCustom
   modifier f ctx = ctx {appCustom = Has.modifier @Manager f (appCustom ctx)}
@@ -247,7 +268,10 @@ data CustomConfigs = CustomConfigs
     ccStripeSecretKey :: Maybe StripeSecretKey,
     ccStripePublishableKey :: Maybe StripePublishableKey,
     ccStripeWebhookSecret :: Maybe StripeWebhookSecret,
-    ccEasypostApiKey :: Maybe EasyPostApiKey
+    ccEasypostApiKey :: Maybe EasyPostApiKey,
+    ccMailchimpApiKey :: Maybe MailchimpApiKey,
+    ccMailchimpAudienceId :: Maybe MailchimpAudienceId,
+    ccMailchimpWebhookSecret :: Maybe MailchimpWebhookSecret
   }
 
 -- | Load all custom configurations from environment (Phase 1).
@@ -266,6 +290,9 @@ loadCustomConfigs = do
   mStripePubKey <- liftIO $ fmap (StripePublishableKey . Text.pack) <$> lookupEnv "STRIPE_PUBLISHABLE_KEY"
   mStripeWebhookSecret <- liftIO $ fmap (StripeWebhookSecret . TE.encodeUtf8 . Text.pack) <$> lookupEnv "STRIPE_WEBHOOK_SECRET"
   mEasypostKey <- liftIO $ fmap (EasyPostApiKey . TE.encodeUtf8 . Text.pack) <$> lookupEnv "EASYPOST_API_KEY"
+  mMailchimpApiKey <- liftIO $ fmap (MailchimpApiKey . TE.encodeUtf8 . Text.pack) <$> lookupEnv "MAILCHIMP_API_KEY"
+  mMailchimpAudienceId <- liftIO $ fmap (MailchimpAudienceId . Text.pack) <$> lookupEnv "MAILCHIMP_AUDIENCE_ID"
+  mMailchimpWebhookSecret <- liftIO $ fmap (MailchimpWebhookSecret . Text.pack) <$> lookupEnv "MAILCHIMP_WEBHOOK_SECRET"
   pure
     CustomConfigs
       { ccStorageConfig = storageConfig,
@@ -277,7 +304,10 @@ loadCustomConfigs = do
         ccStripeSecretKey = mStripeSecret,
         ccStripePublishableKey = mStripePubKey,
         ccStripeWebhookSecret = mStripeWebhookSecret,
-        ccEasypostApiKey = mEasypostKey
+        ccEasypostApiKey = mEasypostKey,
+        ccMailchimpApiKey = mMailchimpApiKey,
+        ccMailchimpAudienceId = mMailchimpAudienceId,
+        ccMailchimpWebhookSecret = mMailchimpWebhookSecret
       }
 
 -- | Build CustomContext inside withAppResources callback (Phase 2).
@@ -296,6 +326,10 @@ buildCustomContext appCtx CustomConfigs {..} action = do
   -- Create TLS-capable HTTP manager for external API calls
   mgr <- TLS.newTlsManager
 
+  -- Build the Mailchimp client when both credentials are present.
+  -- Failure to parse the data center suffix logs and disables the client.
+  mailchimp <- buildMailchimpClient (appLoggerEnv appCtx) mgr ccMailchimpApiKey ccMailchimpAudienceId
+
   -- Build storage context (which may log and/or fail)
   withStorageContext appCtx ccStorageConfig $ \storage -> do
     let customCtx =
@@ -310,9 +344,48 @@ buildCustomContext appCtx CustomConfigs {..} action = do
               stripePublishableKey = ccStripePublishableKey,
               stripeWebhookSecret = ccStripeWebhookSecret,
               easypostApiKey = ccEasypostApiKey,
+              mailchimpClient = mailchimp,
+              mailchimpWebhookSecret = ccMailchimpWebhookSecret,
               httpManager = mgr
             }
     action customCtx
+
+-- | Build a 'MailchimpClient' from the loaded credentials.
+--
+-- Returns 'Nothing' when either credential is missing (the dev / unconfigured
+-- case), or when the API key's data center suffix cannot be parsed (logged
+-- as a warning so a typo does not fail the boot but is still visible).
+buildMailchimpClient ::
+  Log.LoggerEnv ->
+  Manager ->
+  Maybe MailchimpApiKey ->
+  Maybe MailchimpAudienceId ->
+  IO (Maybe MailchimpClient)
+buildMailchimpClient logEnv mgr mKey mAudience = do
+  time <- getCurrentTime
+  case (mKey, mAudience) of
+    (Just key, Just audience@(MailchimpAudienceId audienceId)) ->
+      case mkClient mgr key audience of
+        Right client -> do
+          let dc = fromRight "?" (parseDataCenter key)
+          Log.logMessageIO
+            logEnv
+            time
+            Log.LogInfo
+            "Mailchimp client configured"
+            ( Aeson.object
+                [ "enabled" .= True,
+                  "data_center" .= dc,
+                  "audience_id" .= audienceId
+                ]
+            )
+          pure (Just client)
+        Left err -> do
+          Log.logMessageIO logEnv time Log.LogAttention "Mailchimp client could not be built" (Aeson.object ["error" .= err])
+          pure Nothing
+    _ -> do
+      Log.logMessageIO logEnv time Log.LogInfo "Mailchimp client not configured" (Aeson.object ["enabled" .= False])
+      pure Nothing
 
 -- | Log the configuration state for analytics, SMTP, playout, webhook, stream, Stripe, and EasyPost.
 logConfigState :: Log.LoggerEnv -> AnalyticsConfig -> Maybe SmtpConfig -> PlayoutSecret -> WebhookConfig -> StreamConfig -> IO ()

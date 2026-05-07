@@ -14,6 +14,7 @@ import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (foldM)
+import Control.Monad.Trans.Class (lift)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -22,6 +23,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.EmailAddress (EmailAddress, isValid, mkEmailAddress)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
+import Effects.Mailchimp.Sync (SyncOp (..), syncAsync)
 import Log qualified
 import Servant qualified
 import Servant.Links qualified as Links
@@ -62,9 +64,10 @@ handler cookie form =
       result <- execQuery (NewsletterSubscribers.insert (NewsletterSubscribers.Insert email))
       case result of
         Left dbErr -> throwDatabaseError dbErr
-        Right (Just _) -> pure (added + 1, duplicate)
+        Right (Just subId) -> do
+          lift $ syncAsync (Upsert email subId)
+          pure (added + 1, duplicate)
         Right Nothing -> pure (added, duplicate + 1)
-
 
 -- | Split, trim, dedupe, and validate the pasted email list.
 --
@@ -89,7 +92,6 @@ parseEmails raw =
           uniqueTokens
    in (reverse valid, invalid)
 
-
 -- | Drop duplicate tokens while preserving the first-seen order.
 dedupe :: [Text] -> [Text]
 dedupe = go Set.empty
@@ -98,7 +100,6 @@ dedupe = go Set.empty
     go seen (t : ts)
       | Set.member t seen = go seen ts
       | otherwise = t : go (Set.insert t seen) ts
-
 
 -- | Build the user-facing summary string, omitting zero-count phrases.
 summary :: Int -> Int -> Int -> Text

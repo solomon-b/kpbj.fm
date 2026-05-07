@@ -61,6 +61,7 @@ template subscribers total currentPage hasMore mSearch = do
                 itcHeaders =
                   [ ColumnHeader "Email" AlignLeft,
                     ColumnHeader "Subscribed On" AlignLeft,
+                    ColumnHeader "Mailchimp" AlignLeft,
                     ColumnHeader "" AlignCenter
                   ],
                 itcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
@@ -79,7 +80,6 @@ template subscribers total currentPage hasMore mSearch = do
 
     prevPageUrl :: Links.URI
     prevPageUrl = Links.linkURI $ dashboardNewsletterSubscribersLinks.list mSearch (Just (currentPage - 1))
-
 
 -- | Search input bar that re-fetches the list on submit.
 renderSearchBar :: Maybe Text -> Int64 -> Lucid.Html ()
@@ -111,7 +111,6 @@ renderSearchBar mSearch total =
           Lucid.toHtml $
             (show total :: String) <> " subscriber" <> (if total == 1 then "" else "s")
 
-
 -- | Render a single subscriber row, with a per-row delete button.
 renderSubscriberRow :: NewsletterSubscribers.Model -> Lucid.Html ()
 renderSubscriberRow subscriber =
@@ -136,6 +135,9 @@ renderSubscriberRow subscriber =
           Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
             Lucid.toHtml (formatDateTime (NewsletterSubscribers.mCreatedAt subscriber))
 
+        Lucid.td_ [class_ $ base [Tokens.p4]] $
+          renderMailchimpBadge (NewsletterSubscribers.mMailchimpStatus subscriber)
+
         Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
           Lucid.button_
             [ hxDelete_ deleteUrl,
@@ -146,6 +148,33 @@ renderSubscriberRow subscriber =
             ]
             "Delete"
 
+-- | Render a colored pill for the Mailchimp sync status.
+--
+--  * @\"subscribed\"@ → green Success
+--  * @\"pending\"@    → yellow Warning
+--  * @\"error\"@      → red Error
+--  * @\"unsubscribed\"@ / @\"cleaned\"@ → muted Info (only briefly visible
+--    before the reconcile job removes the row)
+--  * @Nothing@        → muted em-dash (never synced; pre-bootstrap rows)
+renderMailchimpBadge :: Maybe Text -> Lucid.Html ()
+renderMailchimpBadge = \case
+  Nothing ->
+    Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
+      Lucid.toHtml @Text "—"
+  Just status ->
+    let (bgClass, textClass, label) = badgeStyle status
+     in Lucid.span_
+          [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
+          $ Lucid.toHtml label
+  where
+    badgeStyle :: Text -> (Text, Text, Text)
+    badgeStyle = \case
+      "subscribed" -> (Tokens.successBg, Tokens.successText, "Subscribed")
+      "pending" -> (Tokens.warningBg, Tokens.warningText, "Pending")
+      "error" -> (Tokens.errorBg, Tokens.errorText, "Error")
+      "unsubscribed" -> (Tokens.bgAlt, Tokens.fgMuted, "Unsubscribed")
+      "cleaned" -> (Tokens.bgAlt, Tokens.fgMuted, "Cleaned")
+      other -> (Tokens.bgAlt, Tokens.fgMuted, other)
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState mSearch =
@@ -158,7 +187,6 @@ renderEmptyState mSearch =
       Nothing -> do
         Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] "No newsletter subscribers yet."
         Lucid.p_ [class_ $ base [Tokens.fgMuted, "mt-2"]] "Bulk add subscribers to get started."
-
 
 -- | Format a UTC timestamp as a human-readable date string.
 formatDateTime :: UTCTime -> String

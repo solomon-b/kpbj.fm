@@ -106,5 +106,7 @@ testCustomContext mgr =
       stripePublishableKey = Nothing,
       stripeWebhookSecret = Nothing,
       easypostApiKey = Nothing,
+      mailchimpClient = Nothing,
+      mailchimpWebhookSecret = Nothing,
       httpManager = mgr
     }

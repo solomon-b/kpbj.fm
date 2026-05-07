@@ -169,6 +169,45 @@ just staging-status / just prod-status  # Deployment status
 just staging-ssh / just prod-ssh        # SSH into VPS
 ```
 
+### Mailchimp Setup
+
+Newsletter sending stays in Mailchimp; the in-app `newsletter_subscribers` table is the post-bootstrap source of truth and is reconciled bidirectionally.
+
+**1. Environment variables**
+
+Set these on the web service (encrypted into `secrets/{prod,staging}-web.yaml`):
+
+```
+MAILCHIMP_API_KEY        # "<random>-<dc>", e.g. "abcd1234efgh-us21"
+MAILCHIMP_AUDIENCE_ID    # short hex string from the Mailchimp audience settings
+MAILCHIMP_WEBHOOK_SECRET # arbitrary 32-byte hex you generate
+```
+
+The first two together build the outbound client; the third authenticates inbound webhook deliveries via `?key=<secret>`.
+
+**2. Register the webhook**
+
+In the Mailchimp UI (Audience → Settings → Webhooks), register:
+
+```
+https://www.kpbj.fm/api/webhooks/mailchimp?key=<MAILCHIMP_WEBHOOK_SECRET>
+```
+
+Subscribe to: `subscribe`, `unsubscribe`, `cleaned`, `upemail`. Mailchimp validates the URL by hitting it; the GET handler returns 200.
+
+**3. One-time bootstrap**
+
+After the first deploy with the env vars in place, SSH to the VPS and start the bootstrap unit. It pulls every currently-subscribed Mailchimp member into the local `newsletter_subscribers` table:
+
+```bash
+sudo systemctl start kpbj-mailchimp-reconcile-bootstrap
+sudo journalctl -u kpbj-mailchimp-reconcile-bootstrap -f
+```
+
+The unit is `Type=oneshot` and exits when the import completes. It is idempotent — re-running is harmless because conflicting emails are skipped via `ON CONFLICT DO NOTHING`.
+
+After bootstrap, the daily timer `kpbj-mailchimp-reconcile.timer` (02:30 UTC) reconciles drift between PG and MC.
+
 ### Streaming (NixOS VPS)
 
 Liquidsoap and Icecast run on NixOS streaming droplets with secrets managed via sops-nix.

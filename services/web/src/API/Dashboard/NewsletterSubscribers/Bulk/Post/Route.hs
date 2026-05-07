@@ -31,5 +31,6 @@ type Route =
     :> "bulk"
     :> Servant.Header "Cookie" Cookie
     :> Servant.ReqBody '[Servant.FormUrlEncoded] BulkForm
-    :> Servant.Post '[HTML]
+    :> Servant.Post
+         '[HTML]
          (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
