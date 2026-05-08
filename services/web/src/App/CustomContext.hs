@@ -330,6 +330,26 @@ buildCustomContext appCtx CustomConfigs {..} action = do
   -- Failure to parse the data center suffix logs and disables the client.
   mailchimp <- buildMailchimpClient (appLoggerEnv appCtx) mgr ccMailchimpApiKey ccMailchimpAudienceId
 
+  -- Loud banner for the inbound webhook secret. The handler at
+  -- API.Webhooks.Mailchimp.Post.Handler 204s without processing when this is
+  -- 'Nothing'; surface it at boot so a missed prod rotation is visible.
+  webhookTime <- getCurrentTime
+  case ccMailchimpWebhookSecret of
+    Just _ ->
+      Log.logMessageIO
+        (appLoggerEnv appCtx)
+        webhookTime
+        Log.LogInfo
+        "Mailchimp webhook secret configured"
+        (Aeson.object ["enabled" .= True])
+    Nothing ->
+      Log.logMessageIO
+        (appLoggerEnv appCtx)
+        webhookTime
+        Log.LogAttention
+        "MAILCHIMP WEBHOOK DISABLED — POST /api/webhooks/mailchimp will 204 without processing (no MAILCHIMP_WEBHOOK_SECRET)"
+        (Aeson.object ["enabled" .= False])
+
   -- Build storage context (which may log and/or fail)
   withStorageContext appCtx ccStorageConfig $ \storage -> do
     let customCtx =
@@ -384,7 +404,12 @@ buildMailchimpClient logEnv mgr mKey mAudience = do
           Log.logMessageIO logEnv time Log.LogAttention "Mailchimp client could not be built" (Aeson.object ["error" .= err])
           pure Nothing
     _ -> do
-      Log.logMessageIO logEnv time Log.LogInfo "Mailchimp client not configured" (Aeson.object ["enabled" .= False])
+      Log.logMessageIO
+        logEnv
+        time
+        Log.LogAttention
+        "MAILCHIMP DISABLED — outbound sync is a no-op (no MAILCHIMP_API_KEY or MAILCHIMP_AUDIENCE_ID)"
+        (Aeson.object ["enabled" .= False])
       pure Nothing
 
 -- | Log the configuration state for analytics, SMTP, playout, webhook, stream, Stripe, and EasyPost.
