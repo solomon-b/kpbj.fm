@@ -215,6 +215,7 @@
   # ── Web service ──────────────────────────────────────────────
   kpbj.web = {
     enable = true;
+    mailchimp.enable = true;
     secretsFile = ../secrets/staging-web.yaml;
     hostname = "staging.kpbj.fm";
     environment = "Staging";
