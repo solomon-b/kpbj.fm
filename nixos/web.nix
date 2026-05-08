@@ -121,6 +121,19 @@ in
       type = lib.types.str;
       description = "URL of the Icecast metadata/status endpoint (e.g. https://stream.kpbj.fm/status).";
     };
+
+    mailchimp.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Enable Mailchimp newsletter sync. Requires mailchimp_api_key,
+        mailchimp_audience_id, and mailchimp_webhook_secret in the secrets file.
+        When false, the web service still boots and the homepage signup form
+        still writes locally — only the outbound MC sync and the inbound
+        webhook are disabled. Pair with kpbj.mailchimpReconcile.enable = false
+        to also skip the daily reconcile timer.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -169,15 +182,15 @@ in
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" ];
     };
-    sops.secrets.mailchimp_api_key = {
+    sops.secrets.mailchimp_api_key = lib.mkIf cfg.mailchimp.enable {
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" "kpbj-mailchimp-reconcile.service" ];
     };
-    sops.secrets.mailchimp_audience_id = {
+    sops.secrets.mailchimp_audience_id = lib.mkIf cfg.mailchimp.enable {
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" "kpbj-mailchimp-reconcile.service" ];
     };
-    sops.secrets.mailchimp_webhook_secret = {
+    sops.secrets.mailchimp_webhook_secret = lib.mkIf cfg.mailchimp.enable {
       sopsFile = cfg.secretsFile;
       restartUnits = [ "kpbj-web.service" ];
     };
@@ -194,30 +207,35 @@ in
     # playout_secret and webhook_secret come from the streaming
     # secrets file (already declared in sops.nix).
     sops.templates."kpbj-web.env" = {
-      content = ''
-        APP_POSTGRES_CONNECTION_STRING=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
-        APP_SMTP_PASSWORD=${config.sops.placeholder.smtp_password}
-        AWS_ACCESS_KEY_ID=${config.sops.placeholder.aws_access_key_id}
-        AWS_SECRET_ACCESS_KEY=${config.sops.placeholder.aws_secret_access_key}
-        APP_GOOGLE_ANALYTICS_GTAG=${config.sops.placeholder.google_analytics_gtag}
-        PLAYOUT_SECRET=${config.sops.placeholder.playout_secret}
-        WEBHOOK_SECRET=${config.sops.placeholder.webhook_secret}
-        STRIPE_SECRET_KEY=${config.sops.placeholder.stripe_secret_key}
-        STRIPE_PUBLISHABLE_KEY=${config.sops.placeholder.stripe_publishable_key}
-        STRIPE_WEBHOOK_SECRET=${config.sops.placeholder.stripe_webhook_secret}
-        EASYPOST_API_KEY=${config.sops.placeholder.easypost_api_key}
-        MAILCHIMP_API_KEY=${config.sops.placeholder.mailchimp_api_key}
-        MAILCHIMP_AUDIENCE_ID=${config.sops.placeholder.mailchimp_audience_id}
-        MAILCHIMP_WEBHOOK_SECRET=${config.sops.placeholder.mailchimp_webhook_secret}
-        DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
-      '';
+      content =
+        ''
+          APP_POSTGRES_CONNECTION_STRING=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
+          APP_SMTP_PASSWORD=${config.sops.placeholder.smtp_password}
+          AWS_ACCESS_KEY_ID=${config.sops.placeholder.aws_access_key_id}
+          AWS_SECRET_ACCESS_KEY=${config.sops.placeholder.aws_secret_access_key}
+          APP_GOOGLE_ANALYTICS_GTAG=${config.sops.placeholder.google_analytics_gtag}
+          PLAYOUT_SECRET=${config.sops.placeholder.playout_secret}
+          WEBHOOK_SECRET=${config.sops.placeholder.webhook_secret}
+          STRIPE_SECRET_KEY=${config.sops.placeholder.stripe_secret_key}
+          STRIPE_PUBLISHABLE_KEY=${config.sops.placeholder.stripe_publishable_key}
+          STRIPE_WEBHOOK_SECRET=${config.sops.placeholder.stripe_webhook_secret}
+          EASYPOST_API_KEY=${config.sops.placeholder.easypost_api_key}
+        ''
+        + lib.optionalString cfg.mailchimp.enable ''
+          MAILCHIMP_API_KEY=${config.sops.placeholder.mailchimp_api_key}
+          MAILCHIMP_AUDIENCE_ID=${config.sops.placeholder.mailchimp_audience_id}
+          MAILCHIMP_WEBHOOK_SECRET=${config.sops.placeholder.mailchimp_webhook_secret}
+        ''
+        + ''
+          DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
+        '';
       restartUnits = [ "kpbj-web.service" ];
     };
 
     # ── SOPS template (mailchimp-reconcile env) ──────────────────
     # The reconcile job only needs DATABASE_URL + the two outbound
     # credentials (no webhook secret — that's a webhook concern).
-    sops.templates."kpbj-mailchimp-reconcile.env" = {
+    sops.templates."kpbj-mailchimp-reconcile.env" = lib.mkIf cfg.mailchimp.enable {
       content = ''
         DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}
         MAILCHIMP_API_KEY=${config.sops.placeholder.mailchimp_api_key}
