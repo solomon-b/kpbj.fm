@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Host Invitation Recipient Email + Readable Token** — Invitations now require a recipient email and automatically send a plain-text invite link to that address on creation. Existing-user collisions are blocked. The dashboard list shows the recipient per row. Pending invitations can be edited inline (HTMX row swap) or resent without minting a new token. New invitations use a human-readable `INV-XXXX-XXXX` code (Crockford base32) instead of UUID hex. Existing UUID-format tokens remain valid until they expire or are claimed. New migration `add_recipient_email_to_host_invitations` backfills legacy rows with `unknown@kpbj.fm`.
 - **Newsletter Subscribers Admin CRUD** — Admin dashboard CRUD for newsletter subscribers — list with search/pagination, bulk insert (comma or newline-separated), and per-row delete. New routes under `/dashboard/newsletter-subscribers`, gated by `requireStaffNotSuspended`. Backed by new `getPaginated`, `countAll`, `getById`, and `deleteById` queries on the existing `newsletter_subscribers` table.
 
 ### Changed

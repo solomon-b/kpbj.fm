@@ -15,9 +15,6 @@ import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad.IO.Class (liftIO)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Text qualified as Text
-import Data.UUID qualified as UUID
-import Data.UUID.V4 qualified as UUID.V4
 import Domain.Types.Cookie (Cookie)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
@@ -55,14 +52,15 @@ handler invitationId cookie =
       Left dbErr -> throwDatabaseError dbErr
       Right Nothing -> throwNotFound "Invitation"
       Right (Just inv) -> do
-        -- Generate a new token
-        token <- liftIO generateToken
+        -- Generate a new human-readable token
+        token <- liftIO HostInvitation.generateInviteCode
 
-        -- Create a new invitation with the same schedule data
+        -- Create a new invitation with the same schedule data and recipient
         let insertData =
               HostInvitation.Insert
                 { HostInvitation.iToken = token,
                   HostInvitation.iScheduleData = inv.hiScheduleData,
+                  HostInvitation.iRecipientEmail = inv.hiRecipientEmail,
                   HostInvitation.iCreatedBy = userMetadata.mUserId
                 }
 
@@ -73,19 +71,11 @@ handler invitationId cookie =
           Right (Just _newId) -> pure ()
 
         -- Redirect to the invitation list with a success flash
-        let flash = FlashMessage Success "Invitation Regenerated"
-              "A new invitation link has been created with the same schedule."
-        pure $ Servant.addHeader dashboardInvitationsGetUrl
-                 $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
-
-
---------------------------------------------------------------------------------
-
--- | Generate a cryptographically secure token for host invitations.
---
--- Uses UUID v4 (random) with hyphens removed for a 32-character hex string.
-generateToken :: IO HostInvitation.Token
-generateToken = do
-  uuid <- UUID.V4.nextRandom
-  let tokenText = Text.filter (/= '-') $ UUID.toText uuid
-  pure $ HostInvitation.Token tokenText
+        let flash =
+              FlashMessage
+                Success
+                "Invitation Regenerated"
+                "A new invitation link has been created with the same schedule."
+        pure $
+          Servant.addHeader dashboardInvitationsGetUrl $
+            Servant.addHeader (flashCookie (Just flash)) Servant.NoContent

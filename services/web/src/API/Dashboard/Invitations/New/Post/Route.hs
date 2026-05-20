@@ -19,16 +19,20 @@ import Text.HTML (HTML)
 
 -- | Form data for creating a new host invitation.
 data NewInvitationForm = NewInvitationForm
-  { nifSchedulesJson :: Text,
+  { nifRecipientEmail :: Text,
+    nifSchedulesJson :: Text,
     nifScheduleStartDate :: Text
   }
   deriving (Show)
 
 instance FromMultipart Mem NewInvitationForm where
   fromMultipart multipartData =
-    NewInvitationForm
-      <$> pure (fromRight "[]" (lookupInput "schedules_json" multipartData))
-      <*> pure (fromRight "" (lookupInput "schedule_start_date" multipartData))
+    pure
+      NewInvitationForm
+        { nifRecipientEmail = fromRight "" (lookupInput "recipient_email" multipartData),
+          nifSchedulesJson = fromRight "[]" (lookupInput "schedules_json" multipartData),
+          nifScheduleStartDate = fromRight "" (lookupInput "schedule_start_date" multipartData)
+        }
 
 --------------------------------------------------------------------------------
 
@@ -39,5 +43,6 @@ type Route =
     :> "new"
     :> Servant.Header "Cookie" Cookie
     :> MultipartForm Mem NewInvitationForm
-    :> Servant.Post '[HTML]
+    :> Servant.Post
+         '[HTML]
          (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

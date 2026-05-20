@@ -139,6 +139,15 @@ action token form = do
 
   -- 2. Validate account fields
   validEmail <- validateEmail (iofEmail form)
+
+  -- 2a. Enforce that the submitted email matches the invitation recipient.
+  --     The form pre-fills this field read-only; if a client bypasses that,
+  --     reject server-side.
+  when (validEmail /= invitation.hiRecipientEmail) $
+    throwValidationError
+      "This invitation is bound to a different email address. \
+      \Contact staff if the recipient needs to be changed."
+
   hashedPw <- validateAndHashPassword (iofPassword form)
   displayName <- validateDisplayName (iofDisplayName form)
   fullName <- validateFullName (iofFullName form)
@@ -169,7 +178,7 @@ action token form = do
     Right Nothing -> pure ()
 
   -- 6. Parse schedule data from invitation
-  schedules <- case parseInvitationSchedules (invitation.hiScheduleData) of
+  schedules <- case parseInvitationSchedules invitation.hiScheduleData of
     Left err -> do
       Log.logInfo "Failed to parse invitation schedule data" (Aeson.object ["error" .= err])
       throwValidationError ("Invalid schedule data: " <> err)

@@ -47,6 +47,7 @@ library
     , hasql-transaction
     , kpbj-types
     , password
+    , random
     , rel8
     , scientific
     , servant-server

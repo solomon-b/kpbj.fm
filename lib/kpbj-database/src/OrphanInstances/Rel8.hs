@@ -16,6 +16,8 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.DisplayName qualified as DisplayName
+import Domain.Types.EmailAddress (EmailAddress)
+import Domain.Types.EmailAddress qualified as EmailAddress
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
 import Effects.Database.Tables.User qualified as User
@@ -67,6 +69,26 @@ instance DBType FullName where
 
 -- | DBEq instance for FullName from web-server-core.
 instance DBEq FullName
+
+--------------------------------------------------------------------------------
+
+-- | DBType instance for EmailAddress from web-server-core.
+--
+-- Converts to/from Text for database storage. Decode runs full validation
+-- so malformed rows surface as decode errors rather than silently flowing
+-- through the system.
+instance DBType EmailAddress where
+  typeInformation =
+    parseTypeInformation
+      ( \t -> case EmailAddress.validate (EmailAddress.mkEmailAddress t) of
+          Left _ -> Left $ "Invalid EmailAddress: " <> Text.unpack t
+          Right ea -> Right ea
+      )
+      display
+      typeInformation
+
+-- | DBEq instance for EmailAddress from web-server-core.
+instance DBEq EmailAddress
 
 --------------------------------------------------------------------------------
 

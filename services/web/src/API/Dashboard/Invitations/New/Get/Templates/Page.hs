@@ -20,7 +20,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardInvitationsGetUrl :: Links.URI
-dashboardInvitationsGetUrl = Links.linkURI $ dashboardInvitationsLinks.list
+dashboardInvitationsGetUrl = Links.linkURI dashboardInvitationsLinks.list
 
 dashboardInvitationsNewPostUrl :: Links.URI
 dashboardInvitationsNewPostUrl = Links.linkURI dashboardInvitationsLinks.newPost
@@ -50,6 +50,14 @@ template =
     form = do
       formTitle "GENERATE HOST INVITATION"
       formSubtitle "Create a signup link for a new host."
+
+      -- Recipient Section
+      section "RECIPIENT" $ do
+        textField "recipient_email" $ do
+          label "Recipient Email"
+          placeholder "host@example.com"
+          hint "The invitation email will be sent here. Must not match an existing KPBJ account."
+          required
 
       -- Schedule Section
       section "SCHEDULE" $ do
