@@ -40,12 +40,17 @@ module Effects.Database.Tables.HostInvitation
     getAllWithCreator,
     claimInvitation,
     revokeInvitation,
+    updateRecipientEmail,
     getById,
+
+    -- * Token Generation
+    generateInviteCode,
   )
 where
 
 --------------------------------------------------------------------------------
 
+import Control.Monad (replicateM)
 import Data.Aeson (FromJSON, ToJSON, Value)
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
@@ -53,6 +58,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
 import Data.Time (UTCTime)
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
@@ -65,6 +71,7 @@ import Rel8 hiding (Enum, Insert, insert)
 import Rel8 qualified
 import Rel8.Expr.Time (now)
 import Servant qualified
+import System.Random qualified as Random
 
 --------------------------------------------------------------------------------
 -- Id Type
@@ -158,6 +165,7 @@ data HostInvitation f = HostInvitation
     hiToken :: Column f Token,
     hiStatus :: Column f Status,
     hiScheduleData :: Column f Value,
+    hiRecipientEmail :: Column f EmailAddress,
     hiCreatedBy :: Column f User.Id,
     hiClaimedBy :: Column f (Maybe User.Id),
     hiClaimedAt :: Column f (Maybe UTCTime),
@@ -201,6 +209,7 @@ hostInvitationSchema =
             hiToken = "token",
             hiStatus = "status",
             hiScheduleData = "schedule_data",
+            hiRecipientEmail = "recipient_email",
             hiCreatedBy = "created_by",
             hiClaimedBy = "claimed_by",
             hiClaimedAt = "claimed_at",
@@ -216,6 +225,7 @@ hostInvitationSchema =
 data Insert = Insert
   { iToken :: Token,
     iScheduleData :: Value,
+    iRecipientEmail :: EmailAddress,
     iCreatedBy :: User.Id
   }
   deriving stock (Generic, Show, Eq)
@@ -232,6 +242,7 @@ data ModelWithCreator = ModelWithCreator
     mwcToken :: Token,
     mwcStatus :: Status,
     mwcScheduleData :: Value,
+    mwcRecipientEmail :: EmailAddress,
     mwcCreatedByName :: Text,
     mwcClaimedByName :: Maybe Text,
     mwcCreatedAt :: UTCTime,
@@ -269,6 +280,7 @@ insert Insert {..} =
                       hiToken = lit iToken,
                       hiStatus = lit Pending,
                       hiScheduleData = lit iScheduleData,
+                      hiRecipientEmail = lit iRecipientEmail,
                       hiCreatedBy = lit iCreatedBy,
                       hiClaimedBy = Rel8.null,
                       hiClaimedAt = Rel8.null,
@@ -288,7 +300,7 @@ getByToken tokenValue =
   interp
     False
     [sql|
-    SELECT id, token, status, schedule_data, created_by, claimed_by, claimed_at, created_at, expires_at
+    SELECT id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
     FROM host_invitations
     WHERE token = #{tokenValue}
       AND status = 'pending'
@@ -301,7 +313,7 @@ getAll =
   interp
     True
     [sql|
-    SELECT id, token, status, schedule_data, created_by, claimed_by, claimed_at, created_at, expires_at
+    SELECT id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
     FROM host_invitations
     ORDER BY created_at DESC
   |]
@@ -320,6 +332,7 @@ getAllWithCreator =
       hi.token,
       hi.status,
       hi.schedule_data,
+      hi.recipient_email,
       creator_um.display_name,
       claimer_um.display_name,
       hi.created_at,
@@ -353,7 +366,7 @@ claimInvitation tokenValue userId =
     WHERE token = #{tokenValue}
       AND status = 'pending'
       AND expires_at > NOW()
-    RETURNING id, token, status, schedule_data, created_by, claimed_by, claimed_at, created_at, expires_at
+    RETURNING id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
   |]
 
 -- | Revoke a pending host invitation.
@@ -370,7 +383,7 @@ revokeInvitation invitationId =
     SET status = 'revoked'
     WHERE id = #{invitationId}
       AND status = 'pending'
-    RETURNING id, token, status, schedule_data, created_by, claimed_by, claimed_at, created_at, expires_at
+    RETURNING id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
   |]
 
 -- | Get a host invitation by its ID.
@@ -379,7 +392,55 @@ getById invitationId =
   interp
     False
     [sql|
-    SELECT id, token, status, schedule_data, created_by, claimed_by, claimed_at, created_at, expires_at
+    SELECT id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
     FROM host_invitations
     WHERE id = #{invitationId}
   |]
+
+--------------------------------------------------------------------------------
+
+-- | Update the recipient email of a pending invitation.
+--
+-- Returns the updated model if the invitation exists and is in 'pending'
+-- status. Returns Nothing otherwise.
+updateRecipientEmail :: Id -> EmailAddress -> Hasql.Statement () (Maybe Model)
+updateRecipientEmail invitationId newEmail =
+  interp
+    False
+    [sql|
+    UPDATE host_invitations
+    SET recipient_email = #{newEmail}
+    WHERE id = #{invitationId}
+      AND status = 'pending'
+    RETURNING id, token, status, schedule_data, recipient_email,
+              created_by, claimed_by, claimed_at, created_at, expires_at
+  |]
+
+--------------------------------------------------------------------------------
+-- Token generation
+
+-- | Crockford-style base32 alphabet — excludes @0@, @O@, @1@, @I@, @L@
+--   to avoid visual ambiguity when read aloud or transcribed.
+inviteCodeAlphabet :: Text
+inviteCodeAlphabet = "23456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+-- | Generate a human-readable invitation code of the form
+--   @INV-XXXX-XXXX@ where each @X@ is drawn from 'inviteCodeAlphabet'.
+--
+--   Entropy: @30^8 ≈ 6.5×10^11@ combinations. Sufficient against
+--   rate-limited brute-force on 7-day-expiring single-use tokens;
+--   not appropriate for non-expiring secrets.
+--
+--   Uses 'System.Random.randomRIO' on the 'IO' RNG. If a future
+--   threat model demands stronger guarantees, swap to a CSPRNG —
+--   the signature does not change.
+generateInviteCode :: IO Token
+generateInviteCode = do
+  let alpha = Text.unpack inviteCodeAlphabet
+      n = length alpha
+      pick = do
+        idx <- Random.randomRIO (0, n - 1)
+        pure (alpha !! idx)
+  g1 <- replicateM 4 pick
+  g2 <- replicateM 4 pick
+  pure $ Token (Text.pack ("INV-" <> g1 <> "-" <> g2))

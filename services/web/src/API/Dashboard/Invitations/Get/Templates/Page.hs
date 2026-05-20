@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Invitations.Get.Templates.Page (template, renderScheduleSummary) where
+module API.Dashboard.Invitations.Get.Templates.Page
+  ( template,
+    renderInvitationRow,
+    renderScheduleSummary,
+  )
+where
 
 --------------------------------------------------------------------------------
 
@@ -34,8 +39,10 @@ import Servant.Links qualified as Links
 
 -- | Template for the invitations list page.
 template ::
-  Text ->                              -- ^ Base URL for building invite links
-  [HostInvitation.ModelWithCreator] ->  -- ^ List of invitations with creator info
+  -- | Base URL for building invite links
+  Text ->
+  -- | List of invitations with creator info
+  [HostInvitation.ModelWithCreator] ->
   Lucid.Html ()
 template appBaseUrl invitations =
   Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
@@ -47,6 +54,7 @@ template appBaseUrl invitations =
             { itcBodyId = "invitations-table-body",
               itcHeaders =
                 [ ColumnHeader "Schedule" AlignLeft,
+                  ColumnHeader "Recipient" AlignLeft,
                   ColumnHeader "Status" AlignLeft,
                   ColumnHeader "Created By" AlignLeft,
                   ColumnHeader "Expires" AlignLeft,
@@ -56,7 +64,6 @@ template appBaseUrl invitations =
               itcPaginationConfig = Nothing
             }
           (mapM_ (renderInvitationRow appBaseUrl) invitations)
-
 
 renderInvitationRow :: Text -> HostInvitation.ModelWithCreator -> Lucid.Html ()
 renderInvitationRow appBaseUrl invitation =
@@ -69,6 +76,11 @@ renderInvitationRow appBaseUrl invitation =
       Lucid.td_ [class_ $ base [Tokens.p4]] $
         Lucid.span_ [Lucid.class_ Tokens.textSm] $
           Lucid.toHtml (renderScheduleSummary invitation.mwcScheduleData)
+
+      -- Recipient column
+      Lucid.td_ [class_ $ base [Tokens.p4]] $
+        Lucid.span_ [Lucid.class_ Tokens.textSm] $
+          Lucid.toHtml (display invitation.mwcRecipientEmail)
 
       -- Status column
       Lucid.td_ [class_ $ base [Tokens.p4]] $
@@ -93,7 +105,6 @@ renderInvitationRow appBaseUrl invitation =
     rowId :: Text
     rowId = "invitation-row-" <> invitationIdText
 
-
 renderStatusBadge :: HostInvitation.Status -> Lucid.Html ()
 renderStatusBadge status =
   Lucid.span_
@@ -106,12 +117,11 @@ renderStatusBadge status =
       HostInvitation.Expired -> (Tokens.bgAlt, Tokens.fgMuted, "Expired")
       HostInvitation.Revoked -> (Tokens.errorBg, Tokens.errorText, "Revoked")
 
-
 renderActions :: Text -> HostInvitation.ModelWithCreator -> Lucid.Html ()
 renderActions appBaseUrl invitation =
   case invitation.mwcStatus of
     HostInvitation.Pending -> do
-      Lucid.div_ [class_ $ base ["flex", "gap-2", "justify-center"]] $ do
+      Lucid.div_ [class_ $ base ["flex", "gap-2", "justify-center", "flex-wrap"]] $ do
         -- Copy Link button
         Lucid.button_
           [ xData_ "{ copied: false }",
@@ -121,6 +131,21 @@ renderActions appBaseUrl invitation =
           $ do
             Lucid.span_ [xShow_ "!copied"] "Copy Link"
             Lucid.span_ [xShow_ "copied"] "Copied!"
+        -- Edit button
+        Lucid.button_
+          [ hxGet_ editGetUrl,
+            hxTarget_ rowSelector,
+            hxSwap_ "outerHTML",
+            class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
+          ]
+          "Edit"
+        -- Resend button
+        Lucid.button_
+          [ hxPost_ resendUrl,
+            hxSwap_ "none",
+            class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
+          ]
+          "Resend"
         -- Revoke button
         Lucid.button_
           [ hxDelete_ deleteUrl,
@@ -161,6 +186,16 @@ renderActions appBaseUrl invitation =
       let link = Links.linkURI $ dashboardInvitationsLinks.regenerate invitation.mwcId
        in [i|/#{link}|]
 
+    editGetUrl :: Text
+    editGetUrl =
+      let link = Links.linkURI $ dashboardInvitationsLinks.editGet invitation.mwcId
+       in [i|/#{link}|]
+
+    resendUrl :: Text
+    resendUrl =
+      let link = Links.linkURI $ dashboardInvitationsLinks.resendPost invitation.mwcId
+       in [i|/#{link}|]
+
     rowSelector :: Text
     rowSelector = "#invitation-row-" <> display invitation.mwcId
 
@@ -169,18 +204,15 @@ renderActions appBaseUrl invitation =
       Just name -> [i|Claimed by #{name}|]
       Nothing -> "Claimed"
 
-
 renderEmptyState :: Lucid.Html ()
 renderEmptyState =
   Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "p-12", "text-center"]] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] "No invitations found."
     Lucid.p_ [class_ $ base [Tokens.fgMuted, "mt-2"]] "Create a new invitation to onboard a host."
 
-
 -- | Format a UTC timestamp as a human-readable date string.
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y" . utcToPacific
-
 
 -- | Render a human-readable summary of schedule data JSON.
 --
@@ -197,7 +229,6 @@ renderScheduleSummary (Array slots) =
     [] -> "No schedule"
     slotList -> Text.intercalate "; " (map renderSlot slotList)
 renderScheduleSummary _ = "Invalid schedule"
-
 
 renderSlot :: Value -> Text
 renderSlot (Object obj) =
@@ -239,7 +270,6 @@ renderSlot (Object obj) =
       _ -> Nothing
 renderSlot _ = "Invalid slot"
 
-
 renderFrequency :: [Int] -> Text
 renderFrequency weeks
   | weeks == [1, 2, 3, 4, 5] || weeks == [1, 2, 3, 4] = "Weekly"
@@ -251,7 +281,6 @@ renderFrequency weeks
     ordinal 3 = "3rd"
     ordinal n = [i|#{n}th|]
 
-
 renderDayAbbrev :: Text -> Text
 renderDayAbbrev day = case Text.toLower day of
   "monday" -> "Mon"
@@ -262,7 +291,6 @@ renderDayAbbrev day = case Text.toLower day of
   "saturday" -> "Sat"
   "sunday" -> "Sun"
   other -> other
-
 
 renderTime :: Text -> Text
 renderTime timeStr =
@@ -292,7 +320,6 @@ renderTime timeStr =
     padMinute m
       | m < 10 = [i|0#{m}|]
       | otherwise = [i|#{m}|]
-
 
 renderDuration :: Int -> Text
 renderDuration minutes

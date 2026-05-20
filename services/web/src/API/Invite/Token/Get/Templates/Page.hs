@@ -15,8 +15,10 @@ import API.Types (InviteRoutes (..), Routes (..), UserRoutes (..))
 import Data.Aeson (Value)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Lucid qualified
 import Lucid.Alpine
@@ -31,12 +33,14 @@ import Servant.Links qualified as Links
 -- Step 1 collects account information; step 2 collects show details.
 -- The entire form submits as a single multipart POST.
 template ::
-  HostInvitation.Token ->  -- ^ Invitation token for form action URL
-  HostInvitation.Model ->  -- ^ Invitation model with schedule data
+  -- | Invitation token for form action URL
+  HostInvitation.Token ->
+  -- | Invitation model with schedule data
+  HostInvitation.Model ->
   Lucid.Html ()
 template token invitation =
-  Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.py8], xData_ "{ step: 1 }"] $
-    Lucid.form_
+  Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.py8], xData_ "{ step: 1 }"]
+    $ Lucid.form_
       [ Lucid.action_ postUrl,
         Lucid.method_ "post",
         Lucid.enctype_ "multipart/form-data",
@@ -45,12 +49,12 @@ template token invitation =
         hxSwap_ "innerHTML",
         class_ $ base [Tokens.bgMain, "p-8"]
       ]
-      $ do
-        -- Step 1: Create Account
-        step1 scheduleData
+    $ do
+      -- Step 1: Create Account
+      step1 recipientEmail scheduleData
 
-        -- Step 2: Set Up Your Show
-        step2 scheduleData
+      -- Step 2: Set Up Your Show
+      step2 scheduleData
   where
     postUrl :: Text
     postUrl =
@@ -60,20 +64,24 @@ template token invitation =
     scheduleData :: Value
     scheduleData = invitation.hiScheduleData
 
+    recipientEmail :: EmailAddress
+    recipientEmail = invitation.hiRecipientEmail
 
 --------------------------------------------------------------------------------
 -- Step 1: Create Account
 
-step1 :: Value -> Lucid.Html ()
-step1 scheduleData =
-  Lucid.div_ [xShow_ "step === 1", xCloak_] $ do
+step1 :: EmailAddress -> Value -> Lucid.Html ()
+step1 recipientEmail scheduleData =
+  Lucid.div_ [Lucid.id_ "step1-fields", xShow_ "step === 1", xCloak_] $ do
     -- Step indicator
     stepIndicator 1
 
     -- Welcome header
-    Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
+    Lucid.h1_
+      [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]]
       "Welcome to KPBJ 95.9FM"
-    Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] $
+    Lucid.p_
+      [class_ $ base [Tokens.fgMuted, Tokens.mb6]]
       "You've been invited to host a show. Let's get you set up."
 
     -- Schedule preview
@@ -89,13 +97,17 @@ step1 scheduleData =
           class_ $ base inputClasses
         ]
 
-    formFieldWithHint "Email Address" "We'll use this for account notifications and important updates" $ do
+    -- Recipient email is fixed to the invitation. Rendered read-only and
+    -- re-validated server-side. If it's wrong, the invitee must contact
+    -- staff to update + resend the invitation.
+    formFieldWithHint "Email Address" "This is the email this invitation was sent to. Contact staff if it's incorrect." $ do
       Lucid.input_
         [ Lucid.type_ "email",
           Lucid.name_ "email",
-          Lucid.placeholder_ "your@email.com",
+          Lucid.value_ (display recipientEmail),
+          Lucid.readonly_ "",
           Lucid.required_ "",
-          class_ $ base inputClasses
+          class_ $ base (inputClasses <> ["cursor-not-allowed", "opacity-70"])
         ]
 
     formFieldWithHint "Host Name" "This is the name you will use as a show host. It will appear on your show page and episode listings." $ do
@@ -113,6 +125,7 @@ step1 scheduleData =
           Lucid.name_ "password",
           Lucid.placeholder_ "Create a secure password",
           Lucid.required_ "",
+          Lucid.minlength_ "8",
           class_ $ base inputClasses
         ]
 
@@ -122,6 +135,7 @@ step1 scheduleData =
           Lucid.name_ "confirm_password",
           Lucid.placeholder_ "Confirm your password",
           Lucid.required_ "",
+          Lucid.minlength_ "8",
           class_ $ base inputClasses
         ]
 
@@ -135,18 +149,19 @@ step1 scheduleData =
     -- Terms checkbox
     termsCheckbox
 
-    -- Next button
+    -- Next button. Step transition is gated on step-1 fields passing
+    -- HTML5 constraint validation; reportValidity surfaces the first
+    -- invalid field's native browser tooltip.
     Lucid.div_ [class_ $ base [Tokens.mt8]] $
       Lucid.button_
         [ Lucid.type_ "button",
-          xOnClick_ "step = 2",
+          xOnClick_ "if (Array.from(document.querySelectorAll('#step1-fields input, #step1-fields select, #step1-fields textarea')).every(el => el.reportValidity())) { step = 2 }",
           class_ $ base [Tokens.buttonPrimary, Tokens.fullWidth]
         ]
         "Next: Set Up Your Show \x2192"
 
     -- Login link
     loginSection
-
 
 --------------------------------------------------------------------------------
 -- Step 2: Set Up Your Show
@@ -158,9 +173,11 @@ step2 scheduleData =
     stepIndicator 2
 
     -- Header
-    Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
+    Lucid.h1_
+      [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]]
       "Tell us about your show"
-    Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb6]] $
+    Lucid.p_
+      [class_ $ base [Tokens.fgMuted, Tokens.mb6]]
       "You can always update these details later from your dashboard."
 
     -- Show fields
@@ -215,7 +232,6 @@ step2 scheduleData =
         ]
         "Create Account & Show"
 
-
 --------------------------------------------------------------------------------
 -- Shared Components
 
@@ -242,16 +258,15 @@ stepIndicator currentStep =
 
     stepBadgeClasses = [Tokens.fontBold]
 
-
 -- | Read-only schedule preview card.
 schedulePreview :: Value -> Lucid.Html ()
 schedulePreview scheduleData =
   Lucid.div_ [class_ $ base [Tokens.bgAlt, "border", Tokens.borderMuted, Tokens.p4, Tokens.mb6]] $ do
-    Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, Tokens.fontBold, Tokens.mb2, "uppercase"]] $
+    Lucid.div_
+      [class_ $ base [Tokens.textXs, Tokens.fgMuted, Tokens.fontBold, Tokens.mb2, "uppercase"]]
       "Your Assigned Timeslot"
     Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgPrimary, Tokens.fontBold]] $
       Lucid.toHtml (renderScheduleSummary scheduleData)
-
 
 -- | Standard form field wrapper with label.
 formField :: Text -> Lucid.Html () -> Lucid.Html ()
@@ -260,7 +275,6 @@ formField labelText content =
     Lucid.label_ [class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.mb2, "block"]] $
       Lucid.toHtml labelText
     content
-
 
 -- | Form field wrapper with label and hint text.
 formFieldWithHint :: Text -> Text -> Lucid.Html () -> Lucid.Html ()
@@ -272,11 +286,9 @@ formFieldWithHint labelText hintText content =
     Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "mt-1"]] $
       Lucid.toHtml hintText
 
-
 -- | Common input classes.
 inputClasses :: [Text]
 inputClasses = [Tokens.fullWidth, Tokens.bgAlt, "border", Tokens.borderMuted, Tokens.p3, Tokens.textSm, "focus:outline-none", "focus:border-[var(--theme-info)]"]
-
 
 -- | Password requirements info box.
 passwordRequirements :: Lucid.Html ()
@@ -286,7 +298,6 @@ passwordRequirements =
     Lucid.div_ "\x2022 At least 8 characters long"
     Lucid.div_ "\x2022 Include uppercase and lowercase letters"
     Lucid.div_ "\x2022 Include at least one number"
-
 
 -- | Checkbox field with optional description.
 checkboxField :: Text -> Text -> Maybe Text -> Lucid.Html ()
@@ -304,7 +315,6 @@ checkboxField fieldName labelText mDescription =
           Just desc ->
             Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted]] $ Lucid.toHtml desc
           Nothing -> pure ()
-
 
 -- | Terms of Service checkbox with links.
 termsCheckbox :: Lucid.Html ()
@@ -342,7 +352,6 @@ termsCheckbox =
     termsUrl = rootLink apiLinks.termsOfServiceGet
     privacyUrl = rootLink apiLinks.privacyPolicyGet
 
-
 -- | Login section at bottom of step 1.
 loginSection :: Lucid.Html ()
 loginSection =
@@ -360,7 +369,6 @@ loginSection =
   where
     loginUrl = rootLink $ userLinks.loginGet Nothing Nothing
 
-
 --------------------------------------------------------------------------------
 -- Already Logged In Template
 
@@ -369,9 +377,11 @@ alreadyLoggedInTemplate :: Lucid.Html ()
 alreadyLoggedInTemplate =
   Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.py8]] $
     Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8", "text-center"]] $ do
-      Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] $
+      Lucid.h1_
+        [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]]
         "You already have an account"
-      Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb8]] $
+      Lucid.p_
+        [class_ $ base [Tokens.fgMuted, Tokens.mb8]]
         "Contact staff to be assigned to a show."
       Lucid.a_
         [ Lucid.href_ homeUrl,
