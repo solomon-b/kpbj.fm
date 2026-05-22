@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.12.1] - 2026-05-21
+
 ### Added
 - **Mailchimp Graceful Disable** — Web service and inbound webhook now log a loud `MAILCHIMP DISABLED` banner (`LogAttention`) at boot when `MAILCHIMP_API_KEY` / `MAILCHIMP_AUDIENCE_ID` / `MAILCHIMP_WEBHOOK_SECRET` are absent, so a missed prod rotation does not go silent. New `kpbj.web.mailchimp.enable` NixOS option (default `true`) gates the three sops secret declarations, the `MAILCHIMP_*` env template lines, and the reconcile env template. Staging points at a separate Mailchimp audience with its own sopsified credentials (Mailchimp does not offer sandbox accounts), so end-to-end signup/webhook round-trips can be exercised without touching the prod audience.
 - **Host Invitation Recipient Email + Readable Token** — Invitations now require a recipient email and automatically send a plain-text invite link to that address on creation. Existing-user collisions are blocked. The dashboard list shows the recipient per row. Pending invitations can be edited inline (HTMX row swap) or resent without minting a new token. Invitations use a human-readable `INV-XXXX-XXXX` code (Crockford-style base32, 0/1/O/I/L excluded for visual disambiguation) instead of UUID hex; the new format is enforced by a CHECK constraint at the DB level. Migration `add_recipient_email_to_host_invitations` wipes legacy rows — the new server-side email-equality check on claim renders legacy invitations (with no bound recipient) unclaimable, and claimed-row history is independently in `shows` / `show_hosts`.
