@@ -56,7 +56,8 @@ spec = describe "EasyPost Integration (live test API)" $ do
           ShipmentCreate
             { fromAddress = fromAddress,
               toAddress = toAddress,
-              parcel = Parcel {weight = 16.0}
+              parcel = Parcel {weight = 16.0},
+              verify = []
             }
 
     createResult <- createShipment mgr key sc
@@ -79,7 +80,8 @@ spec = describe "EasyPost Integration (live test API)" $ do
           ShipmentCreate
             { fromAddress = fromAddress,
               toAddress = toAddress,
-              parcel = Parcel {weight = 8.0}
+              parcel = Parcel {weight = 8.0},
+              verify = []
             }
 
     createResult <- createShipment mgr key sc
@@ -97,7 +99,8 @@ spec = describe "EasyPost Integration (live test API)" $ do
           ShipmentCreate
             { fromAddress = fromAddress,
               toAddress = toAddress,
-              parcel = Parcel {weight = 10.0}
+              parcel = Parcel {weight = 10.0},
+              verify = []
             }
 
     createResult <- createShipment mgr key sc

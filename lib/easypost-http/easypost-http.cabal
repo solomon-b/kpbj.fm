@@ -53,10 +53,14 @@ test-suite easypost-http-test
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          Main.hs
-  other-modules:    EasyPost.IntegrationSpec
+  other-modules:
+    EasyPost.IntegrationSpec
+    EasyPost.TypesSpec
   default-language: Haskell2010
   build-depends:
-      base
+      aeson
+    , base
+    , bytestring
     , easypost-http
     , hspec
     , http-client

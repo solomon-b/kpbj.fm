@@ -99,6 +99,7 @@ import Effects.StagedUploadsSpec qualified as StagedUploadsEffects
 import Middleware.ValidateEncodingSpec qualified as ValidateEncoding
 import Store.Checkout.EmailsSpec qualified as StoreCheckoutEmails
 import Store.Checkout.LogicSpec qualified as StoreCheckoutLogic
+import Store.Checkout.ShippingErrorsSpec qualified as StoreCheckoutShippingErrors
 import System.Environment (lookupEnv)
 import Test.Database.Setup (withTmpPG)
 import Test.Hspec
@@ -134,6 +135,7 @@ main = do
     StagedUploadsEffects.spec
     StoreCheckoutEmails.spec
     StoreCheckoutLogic.spec
+    StoreCheckoutShippingErrors.spec
     ValidateEncoding.spec
 
   -- Handler Integration Tests (database-dependent)

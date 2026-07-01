@@ -485,6 +485,7 @@ library
     API.Store.Types
     Store.Checkout.Emails
     Store.Checkout.Logic
+    Store.Checkout.ShippingErrors
     API.TermsOfService.Get.Handler
     API.TermsOfService.Get.Route
     API.TermsOfService.Get.Templates
@@ -627,6 +628,7 @@ test-suite kpbj-api-test
                     , web-server-core
                     , bytestring
                     , containers
+                    , easypost-http
                     , exceptions
                     , data-has
                     , hasql
@@ -655,6 +657,7 @@ test-suite kpbj-api-test
                     , postgres-options
                     , rel8
                     , scientific
+                    , servant-client-core
                     , string-interpolate
                     , text
                     , text-display
@@ -754,6 +757,7 @@ test-suite kpbj-api-test
        API.Store.Products.Slug.Get.HandlerSpec
        Store.Checkout.EmailsSpec
        Store.Checkout.LogicSpec
+       Store.Checkout.ShippingErrorsSpec
        API.Newsletter.Subscribe.Post.HandlerSpec
        API.User.ForgotPassword.Post.HandlerSpec
        API.User.Login.Post.HandlerSpec

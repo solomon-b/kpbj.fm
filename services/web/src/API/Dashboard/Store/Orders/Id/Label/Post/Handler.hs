@@ -50,6 +50,7 @@ import Log qualified
 import Lucid qualified
 import Network.HTTP.Client (Manager)
 import Store.Checkout.Logic (sortRatesByPrice)
+import Store.Checkout.ShippingErrors (easyPostFailureMessage)
 import Utils (fromMaybeM)
 
 --------------------------------------------------------------------------------
@@ -95,7 +96,7 @@ createShipmentAndShowRates order = do
   case result of
     Left (EasyPostClientError err) -> do
       lift $ Log.logInfo "EasyPost createShipment failed" (show err)
-      pure $ renderBanner Error "Shipping Error" "Could not create shipment. Please try again."
+      pure $ renderBanner Error "Shipping Error" (easyPostFailureMessage (EasyPostClientError err))
     Right shipment ->
       pure $ Templates.ratesTemplate shipment (sortRatesByPrice shipment.rates) order.oId
 
@@ -119,7 +120,7 @@ buyLabelAndUpdate orderId form = do
   case result of
     Left (EasyPostClientError err) -> do
       lift $ Log.logInfo "EasyPost buyShipment failed" (show err)
-      pure $ renderBanner Error "Label Error" "Could not purchase label. Please try again."
+      pure $ renderBanner Error "Label Error" (easyPostFailureMessage (EasyPostClientError err))
     Right shipment -> do
       let trackingNumber = fromMaybe "" shipment.trackingCode
           mLabelUrl = fmap (\(Label url) -> url) shipment.postageLabel
@@ -175,7 +176,8 @@ buildShipmentCreate order settings totalWeightOz =
   ShipmentCreate
     { fromAddress = fromAddr,
       toAddress = toAddr,
-      parcel = Parcel {weight = totalWeightOz}
+      parcel = Parcel {weight = totalWeightOz},
+      verify = []
     }
   where
     fromAddr =

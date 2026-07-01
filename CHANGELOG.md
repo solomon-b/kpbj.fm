@@ -6,6 +6,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Changed
 - **Shipping carriers managed in EasyPost** — Removed the backend carrier whitelist (`filterRates`) from the checkout and label-purchase flows. Every rate EasyPost returns is now offered (sorted by price); which carriers appear is controlled entirely by the carrier accounts configured in the EasyPost dashboard.
+- **Helpful shipping-address errors at checkout** — When EasyPost rejects a shipping address, the checkout now surfaces the specific problem (e.g. "House number is missing") instead of a generic "check your address" banner. The `easypost-http` client parses EasyPost's structured `{"error": {...}}` payloads (`EasyPostError`/`EasyPostFieldError`), and the customer shipping-rate lookup now proactively requests delivery-address verification, showing a targeted message when the address can't be verified before quoting rates. The same parsed-error copy is reused across the create-session and label-purchase failure paths.
 
 ---
 
