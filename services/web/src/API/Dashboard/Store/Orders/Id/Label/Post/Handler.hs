@@ -49,7 +49,7 @@ import Effects.Database.Tables.StoreSettings qualified as StoreSettings
 import Log qualified
 import Lucid qualified
 import Network.HTTP.Client (Manager)
-import Store.Checkout.Logic (filterRates, sortRatesByPrice)
+import Store.Checkout.Logic (sortRatesByPrice)
 import Utils (fromMaybeM)
 
 --------------------------------------------------------------------------------
@@ -97,7 +97,7 @@ createShipmentAndShowRates order = do
       lift $ Log.logInfo "EasyPost createShipment failed" (show err)
       pure $ renderBanner Error "Shipping Error" "Could not create shipment. Please try again."
     Right shipment ->
-      pure $ Templates.ratesTemplate shipment (sortRatesByPrice (filterRates shipment.rates)) order.oId
+      pure $ Templates.ratesTemplate shipment (sortRatesByPrice shipment.rates) order.oId
 
 -- | Step 2: buy the selected rate, persist tracking info, return success HTML.
 buyLabelAndUpdate ::

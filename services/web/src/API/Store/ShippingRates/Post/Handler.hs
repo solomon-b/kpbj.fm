@@ -39,7 +39,7 @@ import Effects.Database.Tables.StoreSettings qualified as StoreSettings
 import Log qualified
 import Lucid qualified
 import Network.HTTP.Client (Manager)
-import Store.Checkout.Logic (computeSubtotal, filterRates, sortRatesByPrice)
+import Store.Checkout.Logic (computeSubtotal, sortRatesByPrice)
 
 --------------------------------------------------------------------------------
 
@@ -80,10 +80,10 @@ handler req = do
                       let subtotal =
                             computeSubtotal
                               [ (ri.riUnitPrice, fromIntegral ri.riQuantity)
-                                | ri <- resolvedItems
+                              | ri <- resolvedItems
                               ]
                           taxRate = settings.ssTaxRate
-                          sortedRates = sortRatesByPrice (filterRates shipment.rates)
+                          sortedRates = sortRatesByPrice shipment.rates
                       pure $ Templates.template shipment sortedRates subtotal taxRate
 
 --------------------------------------------------------------------------------
@@ -212,7 +212,7 @@ buildShipmentCreate req settings resolvedItems =
       fromIntegral $
         sum
           [ ri.riWeightOz * fromIntegral ri.riQuantity
-            | ri <- resolvedItems
+          | ri <- resolvedItems
           ]
 
 --------------------------------------------------------------------------------

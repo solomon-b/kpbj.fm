@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+- **Shipping carriers managed in EasyPost** — Removed the backend carrier whitelist (`filterRates`) from the checkout and label-purchase flows. Every rate EasyPost returns is now offered (sorted by price); which carriers appear is controlled entirely by the carrier accounts configured in the EasyPost dashboard.
 
 ---
 
