@@ -5,7 +5,6 @@ module Store.Checkout.Logic
     maskEmail,
     formatOrderNumber,
     easypostRateToCents,
-    filterRates,
     sortRatesByPrice,
   )
 where
@@ -74,10 +73,6 @@ easypostRateToCents rateText =
   case reads (Text.unpack rateText) :: [(Double, String)] of
     [(d, "")] -> Just $ Cents $ round (d * 100)
     _ -> Nothing
-
--- | Filter rates to USPS and UPS only.
-filterRates :: [Rate] -> [Rate]
-filterRates = filter (\r -> r.carrier == "USPS" || r.carrier == "UPS")
 
 -- | Sort EasyPost rates by their parsed cent value (cheapest first).
 --
