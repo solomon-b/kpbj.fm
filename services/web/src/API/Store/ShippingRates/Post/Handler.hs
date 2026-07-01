@@ -40,6 +40,7 @@ import Log qualified
 import Lucid qualified
 import Network.HTTP.Client (Manager)
 import Store.Checkout.Logic (computeSubtotal, sortRatesByPrice)
+import Store.Checkout.ShippingErrors (deliveryVerificationError, easyPostFailureMessage)
 
 --------------------------------------------------------------------------------
 
@@ -75,16 +76,19 @@ handler req = do
                   case result of
                     Left (EasyPostClientError err) -> do
                       Log.logInfo "EasyPost createShipment failed" (show err)
-                      pure $ renderBanner Error "Shipping Error" "Could not retrieve shipping rates. Please check your address and try again."
-                    Right shipment -> do
-                      let subtotal =
-                            computeSubtotal
-                              [ (ri.riUnitPrice, fromIntegral ri.riQuantity)
-                              | ri <- resolvedItems
-                              ]
-                          taxRate = settings.ssTaxRate
-                          sortedRates = sortRatesByPrice shipment.rates
-                      pure $ Templates.template shipment sortedRates subtotal taxRate
+                      pure $ renderBanner Error "Address Problem" (easyPostFailureMessage (EasyPostClientError err))
+                    Right shipment ->
+                      case deliveryVerificationError shipment of
+                        Just msg -> pure $ renderBanner Error "Address Problem" msg
+                        Nothing -> do
+                          let subtotal =
+                                computeSubtotal
+                                  [ (ri.riUnitPrice, fromIntegral ri.riQuantity)
+                                  | ri <- resolvedItems
+                                  ]
+                              taxRate = settings.ssTaxRate
+                              sortedRates = sortRatesByPrice shipment.rates
+                          pure $ Templates.template shipment sortedRates subtotal taxRate
 
 --------------------------------------------------------------------------------
 
@@ -184,7 +188,8 @@ buildShipmentCreate req settings resolvedItems =
   ShipmentCreate
     { fromAddress = fromAddr,
       toAddress = toAddr,
-      parcel = Parcel {weight = totalWeightOz}
+      parcel = Parcel {weight = totalWeightOz},
+      verify = ["delivery"]
     }
   where
     fromAddr =

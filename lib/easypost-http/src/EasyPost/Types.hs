@@ -25,11 +25,19 @@ module EasyPost.Types
 
     -- * Label
     Label (..),
+
+    -- * Errors
+    EasyPostError (..),
+    EasyPostFieldError (..),
+
+    -- * Verification
+    Verification (..),
   )
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -125,20 +133,35 @@ data ShipmentCreate = ShipmentCreate
     -- | Destination address.
     toAddress :: Address,
     -- | Package dimensions and weight.
-    parcel :: Parcel
+    parcel :: Parcel,
+    -- | Address verifications to request (e.g. @["delivery"]@).
+    --
+    -- When empty, no @verify@ key is emitted so the request body is
+    -- byte-identical to callers that don't request verification.
+    verify :: [Text]
   }
   deriving stock (Show, Eq, Generic)
 
 instance ToJSON ShipmentCreate where
   toJSON sc =
     Aeson.object
-      [ "shipment"
-          Aeson..= Aeson.object
-            [ "from_address" Aeson..= sc.fromAddress,
-              "to_address" Aeson..= sc.toAddress,
-              "parcel" Aeson..= sc.parcel
-            ]
-      ]
+      ( [ "shipment"
+            Aeson..= Aeson.object
+              [ "from_address" Aeson..= sc.fromAddress,
+                "to_address" Aeson..= sc.toAddress,
+                "parcel" Aeson..= sc.parcel
+              ]
+        ]
+          <> verifyField
+      )
+    where
+      -- EasyPost expects @verify@ at the ROOT of the request body, as a sibling
+      -- of the @shipment@ object (same pattern as the Address API's
+      -- @{"address": {...}, "verify": ...}@) — NOT nested inside @shipment@.
+      -- Emitted only when non-empty so non-verifying callers are unaffected.
+      verifyField
+        | null sc.verify = []
+        | otherwise = ["verify" Aeson..= sc.verify]
 
 --------------------------------------------------------------------------------
 -- Label
@@ -218,7 +241,13 @@ data Shipment = Shipment
     -- | Tracking code, present after purchase.
     trackingCode :: Maybe Text,
     -- | Postage label, present after purchase.
-    postageLabel :: Maybe Label
+    postageLabel :: Maybe Label,
+    -- | Delivery verification result for the to-address, when EasyPost
+    -- was asked to verify the shipment and returned a verification block.
+    --
+    -- Parsed from @to_address.verifications.delivery@; 'Nothing' when any
+    -- of those keys are absent.
+    toAddressDeliveryVerification :: Maybe Verification
   }
   deriving stock (Show, Eq, Generic)
 
@@ -232,12 +261,96 @@ instance ToJSON Shipment where
         <> maybe [] (\pl -> ["postage_label" Aeson..= pl]) s.postageLabel
 
 instance FromJSON Shipment where
-  parseJSON = Aeson.withObject "Shipment" $ \o ->
-    Shipment
-      <$> o Aeson..: "id"
-      <*> o Aeson..:? "rates" Aeson..!= []
-      <*> o Aeson..:? "tracking_code"
-      <*> o Aeson..:? "postage_label"
+  parseJSON = Aeson.withObject "Shipment" $ \o -> do
+    shipmentId <- o Aeson..: "id"
+    rates <- o Aeson..:? "rates" Aeson..!= []
+    trackingCode <- o Aeson..:? "tracking_code"
+    postageLabel <- o Aeson..:? "postage_label"
+    -- Dig through @to_address.verifications.delivery@ defensively: any
+    -- missing intermediate key yields 'Nothing' rather than a parse error.
+    mToAddress <- o Aeson..:? "to_address" :: Aeson.Parser (Maybe Aeson.Object)
+    deliveryVerification <- case mToAddress of
+      Nothing -> pure Nothing
+      Just toAddr -> do
+        mVerifications <- toAddr Aeson..:? "verifications" :: Aeson.Parser (Maybe Aeson.Object)
+        case mVerifications of
+          Nothing -> pure Nothing
+          Just verifications -> verifications Aeson..:? "delivery"
+    pure
+      Shipment
+        { id = shipmentId,
+          rates = rates,
+          trackingCode = trackingCode,
+          postageLabel = postageLabel,
+          toAddressDeliveryVerification = deliveryVerification
+        }
+
+--------------------------------------------------------------------------------
+-- Errors
+
+-- | A single field-level error reported by EasyPost.
+--
+-- EasyPost returns @errors@ array items as either an object with
+-- @field@/@message@/@suggestion@ keys, or a bare JSON string. Both shapes
+-- decode here; a bare string populates 'message' with the other fields empty.
+data EasyPostFieldError = EasyPostFieldError
+  { -- | The offending request field, when identified.
+    field :: Maybe Text,
+    -- | Human-readable description of the problem.
+    message :: Text,
+    -- | Suggested correction, when EasyPost offers one.
+    suggestion :: Maybe Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON EasyPostFieldError where
+  parseJSON = \case
+    Aeson.String s -> pure (EasyPostFieldError Nothing s Nothing)
+    v ->
+      flip (Aeson.withObject "EasyPostFieldError") v $ \o ->
+        EasyPostFieldError
+          <$> o Aeson..:? "field"
+          <*> o Aeson..: "message"
+          <*> o Aeson..:? "suggestion"
+
+-- | A structured EasyPost API error, unwrapped from the @{"error": {...}}@ envelope.
+data EasyPostError = EasyPostError
+  { -- | Machine-readable error code (e.g. @"ADDRESS.VERIFY.FAILURE"@).
+    code :: Text,
+    -- | Top-level human-readable message.
+    message :: Text,
+    -- | Field-level errors, when present.
+    errors :: [EasyPostFieldError]
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON EasyPostError where
+  parseJSON = Aeson.withObject "EasyPostError" $ \envelope -> do
+    o <- envelope Aeson..: "error"
+    EasyPostError
+      <$> o Aeson..: "code"
+      <*> o Aeson..: "message"
+      <*> o Aeson..:? "errors" Aeson..!= []
+
+--------------------------------------------------------------------------------
+-- Verification
+
+-- | An EasyPost address verification result.
+--
+-- Parsed from a shipment's @to_address.verifications.delivery@ block.
+data Verification = Verification
+  { -- | Whether the address passed verification.
+    success :: Bool,
+    -- | Verification errors, when the address failed.
+    errors :: [EasyPostFieldError]
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON Verification where
+  parseJSON = Aeson.withObject "Verification" $ \o ->
+    Verification
+      <$> o Aeson..: "success"
+      <*> o Aeson..:? "errors" Aeson..!= []
 
 --------------------------------------------------------------------------------
 -- Shipment Buy

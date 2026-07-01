@@ -58,6 +58,7 @@ import Log qualified
 import Network.HTTP.Client (Manager)
 import Servant.Server qualified as Servant
 import Store.Checkout.Logic (computeSubtotal, computeTax, computeTotal, easypostRateToCents)
+import Store.Checkout.ShippingErrors (easyPostFailureMessage)
 import Stripe.Client (StripeClientError (..), createCheckoutSession)
 import Stripe.Types
   ( CheckoutSession (..),
@@ -116,7 +117,7 @@ handler req = do
   shipment <- case shipmentResult of
     Left (EasyPostClientError err) -> do
       Log.logAttention "EasyPost getShipment failed during checkout" (show err)
-      throwServerError "Could not verify shipping rate. Please go back and try again."
+      throwServerError (easyPostFailureMessage (EasyPostClientError err))
     Right s -> pure s
 
   let mMatchedRate = find (\r -> r.id == req.csrShippingRateId) shipment.rates
@@ -133,7 +134,7 @@ handler req = do
   -- 4. Compute totals
   let priceQtyPairs =
         [ (ri.riUnitPrice, fromIntegral ri.riQuantity)
-          | ri <- resolvedItems
+        | ri <- resolvedItems
         ]
       subtotal = computeSubtotal priceQtyPairs
       tax = computeTax subtotal settings.ssTaxRate
@@ -220,7 +221,7 @@ handler req = do
                   },
               quantity = item.riQuantity
             }
-          | item <- resolvedItems
+        | item <- resolvedItems
         ]
 
       taxLineItem =

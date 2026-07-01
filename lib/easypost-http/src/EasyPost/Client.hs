@@ -10,6 +10,7 @@
 module EasyPost.Client
   ( -- * Error Type
     EasyPostClientError (..),
+    easyPostErrorDetails,
 
     -- * Client Functions
     createShipment,
@@ -18,6 +19,7 @@ module EasyPost.Client
   )
 where
 
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Base64 qualified as Base64
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
@@ -25,6 +27,7 @@ import Data.Text.Encoding qualified as Text
 import EasyPost.API (EasyPostAPI)
 import EasyPost.Types
   ( EasyPostApiKey (..),
+    EasyPostError,
     Shipment,
     ShipmentBuy,
     ShipmentCreate,
@@ -37,6 +40,25 @@ import Servant.Client qualified as Client
 -- | An error from an EasyPost API call, wrapping the underlying 'Client.ClientError'.
 newtype EasyPostClientError = EasyPostClientError {unEasyPostClientError :: Client.ClientError}
   deriving stock (Show)
+
+
+-- | Extract EasyPost's structured error body from a client error, when present.
+--
+-- EasyPost returns a JSON @{"error": {...}}@ body on 4xx/5xx responses. This
+-- pulls the raw response body out of the wrapped 'Client.ClientError' and
+-- attempts to decode it into an 'EasyPostError'. Returns 'Nothing' for
+-- connection-level failures (which carry no response body) and when the body
+-- cannot be decoded.
+easyPostErrorDetails :: EasyPostClientError -> Maybe EasyPostError
+easyPostErrorDetails (EasyPostClientError clientError) =
+  case clientError of
+    Client.FailureResponse _ resp -> decodeBody resp
+    Client.DecodeFailure _ resp -> decodeBody resp
+    Client.UnsupportedContentType _ resp -> decodeBody resp
+    Client.InvalidContentTypeHeader resp -> decodeBody resp
+    Client.ConnectionError _ -> Nothing
+  where
+    decodeBody = Aeson.decode . Client.responseBody
 
 
 -- | Base URL for the EasyPost API.
