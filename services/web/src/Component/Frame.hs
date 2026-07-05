@@ -836,6 +836,14 @@ mobileNavLinks mUser =
     mobileNavLink "Shows" showsGetUrl
     mobileNavLink "Schedule" scheduleGetUrl
     mobileNavLink "Donate" donateGetUrl
+    Lucid.a_
+      [ Lucid.href_ "https://pools.events/o/kpbjfm/join",
+        Lucid.target_ "_blank",
+        Lucid.rel_ "noopener noreferrer",
+        xOnClick_ "menuOpen = false",
+        class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.fgPrimary, "hover:opacity-70"]
+      ]
+      "Membership"
     mobileNavLink "Events" eventsGetUrl
     mobileNavLink "Store" storeGetUrl
     -- mobileNavLink "Blog" blogGetUrl
@@ -892,6 +900,7 @@ navigation =
     Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsGetUrl}|], hxGet_ [i|/#{showsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Shows"
     Lucid.a_ [Lucid.id_ "nav-schedule", Lucid.href_ [i|/#{scheduleGetUrl}|], hxGet_ [i|/#{scheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Schedule"
     Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Donate"
+    Lucid.a_ [Lucid.id_ "nav-membership", Lucid.href_ "https://pools.events/o/kpbjfm/join", Lucid.target_ "_blank", Lucid.rel_ "noopener noreferrer", Lucid.class_ navLinkDark] "Membership"
     Lucid.a_ [Lucid.id_ "nav-events", Lucid.href_ [i|/#{eventsGetUrl}|], hxGet_ [i|/#{eventsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Events"
     Lucid.a_ [Lucid.id_ "nav-store", Lucid.href_ [i|/#{storeGetUrl}|], hxGet_ [i|/#{storeGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Store"
     -- Lucid.a_ [Lucid.id_ "nav-blog", Lucid.href_ [i|/#{blogGetUrl}|], hxGet_ [i|/#{blogGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Blog"
