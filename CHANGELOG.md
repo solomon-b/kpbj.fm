@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Membership link in main nav** — Added a dedicated "Membership" entry (linking to the pools.events listener-membership signup) to both the desktop navbar and the mobile hamburger menu, placed immediately after "Donate". Rendered as a plain external anchor (`target="_blank"`, `rel="noopener noreferrer"`) rather than an HTMX-swapped internal link, since the destination is cross-origin. The existing membership link in the donate-page content is unchanged.
+
 ### Changed
 - **Shipping carriers managed in EasyPost** — Removed the backend carrier whitelist (`filterRates`) from the checkout and label-purchase flows. Every rate EasyPost returns is now offered (sorted by price); which carriers appear is controlled entirely by the carrier accounts configured in the EasyPost dashboard.
 - **Helpful shipping-address errors at checkout** — When EasyPost rejects a shipping address, the checkout now surfaces the specific problem (e.g. "House number is missing") instead of a generic "check your address" banner. The `easypost-http` client parses EasyPost's structured `{"error": {...}}` payloads (`EasyPostError`/`EasyPostFieldError`), and the customer shipping-rate lookup now proactively requests delivery-address verification, showing a targeted message when the address can't be verified before quoting rates. The same parsed-error copy is reused across the create-session and label-purchase failure paths.
