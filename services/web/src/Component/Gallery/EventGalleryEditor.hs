@@ -219,6 +219,7 @@ renderEventGalleryEditor maxSizeMB existingImages = do
       -- Hidden file input for adding photos (supports selecting several at once)
       Lucid.input_
         [ Lucid.type_ "file",
+          Lucid.id_ "event-gallery-add-input",
           Lucid.accept_ "image/jpeg,image/jpg,image/png,image/webp,image/gif",
           makeAttributes "multiple" "multiple",
           xRef_ "addInput",

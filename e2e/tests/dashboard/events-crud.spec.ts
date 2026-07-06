@@ -1,5 +1,39 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
+import path from "path";
 import { STAFF_AUTH } from "../../playwright.config";
+
+const IMAGE_FIXTURE = path.join(
+  __dirname,
+  "..",
+  "..",
+  "fixtures",
+  "test-image.png"
+);
+
+// Reorder gallery cards via synthetic HTML5 drag events. Playwright's dragTo
+// uses mouse events, which do not trigger the dragstart/dragover/drop handlers
+// the editor listens on.
+async function dragCard(page: Page, fromIdx: number, toIdx: number) {
+  await page.evaluate(
+    ([from, to]) => {
+      const cards = document.querySelectorAll(".fb-images-card");
+      const dt = new DataTransfer();
+      const fire = (el: Element, type: string) =>
+        el.dispatchEvent(
+          new DragEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: dt,
+          })
+        );
+      fire(cards[from], "dragstart");
+      fire(cards[to], "dragover");
+      fire(cards[to], "drop");
+      fire(cards[from], "dragend");
+    },
+    [fromIdx, toIdx]
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Events CRUD tests
@@ -158,5 +192,113 @@ test.describe("Events CRUD", () => {
         page.locator("#events-table-body").getByText(eventTitle)
       ).not.toBeVisible();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Event photo gallery editor
+//
+// Serial block: creates its own event, exercises upload / caption / reorder /
+// delete through the edit form, verifies against the public page, then cleans
+// up the event.
+// ---------------------------------------------------------------------------
+
+test.describe.serial("Event photo gallery editor", () => {
+  const title = `E2E Gallery Event ${Date.now()}`;
+  let editUrl = "";
+  let publicUrl = "";
+
+  test("create an event to attach photos to", async ({ page }) => {
+    await page.goto("/dashboard/events/new");
+    await page.locator('input[name="title"]').fill(title);
+    await page
+      .locator('textarea[name="description"]')
+      .fill("Event created by the gallery e2e test.");
+    await page.locator('input[name="starts_at"]').fill("2027-07-15T14:00");
+    await page.locator('input[name="ends_at"]').fill("2027-07-15T18:00");
+    await page.locator('input[name="location_name"]').fill("Gallery Venue");
+    await page
+      .locator('input[name="location_address"]')
+      .fill("1 Gallery Way, Sun Valley, CA 91352");
+    await page.getByRole("button", { name: "CREATE EVENT" }).click();
+    await page.waitForURL(/\/dashboard\/events\/\d+\//);
+
+    const m = page.url().match(/\/dashboard\/events\/(\d+)\/([^/?]+)/);
+    expect(m).not.toBeNull();
+    const [, id, slug] = m!;
+    editUrl = `/dashboard/events/${id}/${slug}/edit`;
+    publicUrl = `/events/${id}/${slug}`;
+  });
+
+  test("upload a photo with a caption and save", async ({ page }) => {
+    await page.goto(editUrl);
+    await page.locator("#event-gallery-add-input").setInputFiles(IMAGE_FIXTURE);
+    // Alpine renders a preview card for the new photo.
+    await expect(page.locator(".fb-images-card")).toHaveCount(1);
+    await page.getByPlaceholder("Caption (optional)").fill("Opening night");
+
+    await page.getByRole("button", { name: "UPDATE EVENT" }).click();
+    await page.waitForURL(/\/dashboard\/events\/\d+\//);
+    await expect(page.locator("#banner-container")).toContainText(/updated/i);
+  });
+
+  test("uploaded photo persists on reload", async ({ page }) => {
+    await page.goto(editUrl);
+    await expect(page.locator(".fb-images-card")).toHaveCount(1);
+    await expect(
+      page.getByPlaceholder("Caption (optional)").first()
+    ).toHaveValue("Opening night");
+  });
+
+  test("photo appears on the public event page", async ({ page }) => {
+    await page.goto(publicUrl);
+    await expect(page.getByRole("heading", { name: "PHOTOS" })).toBeVisible();
+    await expect(page.locator(".eg-gallery-item")).toHaveCount(1);
+    await expect(page.getByText("Opening night")).toBeVisible();
+  });
+
+  test("reordering photos persists", async ({ page }) => {
+    await page.goto(editUrl);
+    // Add a second photo and caption it distinctly.
+    await page.locator("#event-gallery-add-input").setInputFiles(IMAGE_FIXTURE);
+    await expect(page.locator(".fb-images-card")).toHaveCount(2);
+    await page
+      .getByPlaceholder("Caption (optional)")
+      .nth(1)
+      .fill("After party");
+
+    // Drag the second card in front of the first.
+    await dragCard(page, 1, 0);
+
+    await page.getByRole("button", { name: "UPDATE EVENT" }).click();
+    await page.waitForURL(/\/dashboard\/events\/\d+\//);
+
+    // "After party" is now sort_order 0, so it renders first on the public page.
+    await page.goto(publicUrl);
+    const captions = page.locator(".eg-gallery-caption");
+    await expect(captions).toHaveCount(2);
+    await expect(captions.first()).toHaveText("After party");
+  });
+
+  test("deleting a photo removes it", async ({ page }) => {
+    await page.goto(editUrl);
+    await expect(page.locator(".fb-images-card")).toHaveCount(2);
+    // Remove the first card.
+    await page.locator(".fb-images-remove").first().click();
+    await expect(page.locator(".fb-images-card")).toHaveCount(1);
+
+    await page.getByRole("button", { name: "UPDATE EVENT" }).click();
+    await page.waitForURL(/\/dashboard\/events\/\d+\//);
+
+    await page.goto(publicUrl);
+    await expect(page.locator(".eg-gallery-item")).toHaveCount(1);
+  });
+
+  test("cleanup: delete the event", async ({ page }) => {
+    await page.goto("/dashboard/events");
+    const row = page.locator("#events-table-body tr", { hasText: title });
+    page.once("dialog", (d) => d.accept());
+    await row.locator("select").selectOption("delete");
+    await page.waitForURL(/\/dashboard\/events/);
   });
 });

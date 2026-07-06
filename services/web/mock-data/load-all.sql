@@ -63,6 +63,10 @@
 \i 12_events.sql
 
 \echo ''
+\echo '12b. Creating event photo galleries...'
+\i 12b_event_images.sql
+
+\echo ''
 \echo '13. Creating blog tags...'
 \i 13_blog_tags.sql
 
