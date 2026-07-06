@@ -57,6 +57,10 @@ spec =
           hedgehog . prop_softDeleteShow
         runs 10 . it "softDeleteShow: second delete is no-op" $
           hedgehog . prop_softDeleteShow_idempotent
+        runs 10 . it "restoreShow: clears deleted_at, getById returns the show again" $
+          hedgehog . prop_restoreShow
+        runs 10 . it "restoreShow: restoring a non-deleted show is a no-op" $
+          hedgehog . prop_restoreShow_noop
 
       describe "Constraints" $ do
         runs 10 . it "rejects duplicate slug on insert" $ hedgehog . prop_insertDuplicateSlug
@@ -393,6 +397,55 @@ prop_softDeleteShow_idempotent cfg = do
         deletedId <- assertJust firstDelete
         deletedId === showId
         assertNothing secondDelete
+        pure ()
+
+-- | restoreShow: clears deleted_at, getById returns the show again.
+prop_restoreShow :: TestDBConfig -> PropertyT IO ()
+prop_restoreShow cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- unwrapInsert (UUT.insertShow showInsert)
+
+        _ <- TRX.statement () (UUT.softDeleteShow showId)
+        afterDelete <- TRX.statement () (UUT.getShowById showId)
+
+        restoreResult <- TRX.statement () (UUT.restoreShow showId)
+        afterRestore <- TRX.statement () (UUT.getShowById showId)
+        TRX.condemn
+        pure (showId, afterDelete, restoreResult, afterRestore)
+
+      assert $ do
+        (showId, afterDelete, restoreResult, afterRestore) <- assertRight result
+        assertNothing afterDelete
+        restoredId <- assertJust restoreResult
+        restoredId === showId
+        restored <- assertJust afterRestore
+        UUT.id restored === showId
+        pure ()
+
+-- | restoreShow: restoring a show that is not deleted returns Nothing (no-op).
+prop_restoreShow_noop :: TestDBConfig -> PropertyT IO ()
+prop_restoreShow_noop cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- unwrapInsert (UUT.insertShow showInsert)
+
+        restoreResult <- TRX.statement () (UUT.restoreShow showId)
+        stillPresent <- TRX.statement () (UUT.getShowById showId)
+        TRX.condemn
+        pure (showId, restoreResult, stillPresent)
+
+      assert $ do
+        (showId, restoreResult, stillPresent) <- assertRight result
+        assertNothing restoreResult
+        present <- assertJust stillPresent
+        UUT.id present === showId
         pure ()
 
 --------------------------------------------------------------------------------

@@ -109,6 +109,7 @@ import API.Dashboard.Shows.Slug.Edit.Post.Handler qualified as Dashboard.Shows.S
 import API.Dashboard.Shows.Slug.Episode.New.Get.Handler qualified as Dashboard.Shows.Slug.Episode.New.Get
 import API.Dashboard.Shows.Slug.Episode.New.Post.Handler qualified as Dashboard.Shows.Slug.Episode.New.Post
 import API.Dashboard.Shows.Slug.Get.Handler qualified as Dashboard.Shows.Slug.Get
+import API.Dashboard.Shows.Slug.Restore.Post.Handler qualified as Dashboard.Shows.Slug.Restore.Post
 import API.Dashboard.SitePages.Get.Handler qualified as Dashboard.SitePages.Get
 import API.Dashboard.SitePages.Slug.Edit.Get.Handler qualified as Dashboard.SitePages.Slug.Edit.Get
 import API.Dashboard.SitePages.Slug.Edit.Post.Handler qualified as Dashboard.SitePages.Slug.Edit.Post
@@ -528,6 +529,7 @@ server =
           editGet = Dashboard.Shows.Slug.Edit.Get.handler,
           editPost = Dashboard.Shows.Slug.Edit.Post.handler,
           delete = Dashboard.Shows.Slug.Delete.handler,
+          restorePost = Dashboard.Shows.Slug.Restore.Post.handler,
           episodeNewGet = Dashboard.Shows.Slug.Episode.New.Get.handler,
           episodeNewPost = Dashboard.Shows.Slug.Episode.New.Post.handler
         }

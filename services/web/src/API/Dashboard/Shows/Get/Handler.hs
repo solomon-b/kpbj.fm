@@ -48,6 +48,7 @@ data ShowListViewData = ShowListViewData
     slvHasMore :: Bool,
     slvQueryFilter :: Maybe Text,
     slvStatusFilter :: Maybe Shows.Status,
+    slvDeletedView :: Bool,
     slvIsAdmin :: Bool,
     slvIsAppendRequest :: Bool
   }
@@ -59,9 +60,10 @@ action ::
   Maybe Int64 ->
   Maybe (Filter Text) ->
   Maybe (Filter Shows.Status) ->
+  Bool ->
   HxRequest ->
   ExceptT HandlerError AppM ShowListViewData
-action user userMetadata maybePage queryFilterParam statusFilterParam hxRequest = do
+action user userMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest = do
   -- 1. Set up pagination and filters
   let page = fromMaybe 1 maybePage
       limit = 20 :: Limit
@@ -79,7 +81,7 @@ action user userMetadata maybePage queryFilterParam statusFilterParam hxRequest 
   let selectedShow = listToMaybe sidebarShows
 
   -- 4. Fetch shows for main content
-  allShowsResult <- getShowResults limit offset queryFilter statusFilter
+  allShowsResult <- getShowResults limit offset queryFilter statusFilter deletedView
 
   -- 5. Compute pagination
   let theShows = take (fromIntegral limit) allShowsResult
@@ -95,6 +97,7 @@ action user userMetadata maybePage queryFilterParam statusFilterParam hxRequest 
         slvHasMore = hasMore,
         slvQueryFilter = queryFilter,
         slvStatusFilter = statusFilter,
+        slvDeletedView = deletedView,
         slvIsAdmin = isAdmin,
         slvIsAppendRequest = isAppendRequest
       }
@@ -103,20 +106,21 @@ handler ::
   Maybe Int64 ->
   Maybe (Filter Text) ->
   Maybe (Filter Shows.Status) ->
+  Bool ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage queryFilterParam statusFilterParam cookie (foldHxReq -> hxRequest) =
+handler maybePage queryFilterParam statusFilterParam deletedView cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata maybePage queryFilterParam statusFilterParam hxRequest
+    vd <- action user userMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest
     if vd.slvIsAppendRequest
-      then pure $ renderItemsFragment vd.slvIsAdmin vd.slvShows vd.slvPage vd.slvHasMore vd.slvQueryFilter vd.slvStatusFilter
+      then pure $ renderItemsFragment vd.slvIsAdmin vd.slvDeletedView vd.slvShows vd.slvPage vd.slvHasMore vd.slvQueryFilter vd.slvStatusFilter
       else do
-        let showsTemplate = template vd.slvIsAdmin vd.slvShows vd.slvPage vd.slvHasMore vd.slvQueryFilter vd.slvStatusFilter
-            filtersContent = Just $ filtersUI vd.slvQueryFilter vd.slvStatusFilter
+        let showsTemplate = template vd.slvIsAdmin vd.slvDeletedView vd.slvShows vd.slvPage vd.slvHasMore vd.slvQueryFilter vd.slvStatusFilter
+            filtersContent = Just $ filtersUI vd.slvQueryFilter vd.slvStatusFilter vd.slvDeletedView
         lift $ renderDashboardTemplate hxRequest vd.slvUserMetadata vd.slvSidebarShows vd.slvSelectedShow NavShows filtersContent newShowButton showsTemplate
   where
     newShowButton :: Maybe (Lucid.Html ())
@@ -143,9 +147,9 @@ fetchSidebarShows isAdmin user =
     else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
 -- | Filter UI for top bar
-filtersUI :: Maybe Text -> Maybe Shows.Status -> Lucid.Html ()
-filtersUI queryFilter statusFilter = do
-  let dashboardShowsGetUrl = rootLink $ dashboardShowsLinks.list Nothing Nothing Nothing
+filtersUI :: Maybe Text -> Maybe Shows.Status -> Bool -> Lucid.Html ()
+filtersUI queryFilter statusFilter deletedView = do
+  let dashboardShowsGetUrl = rootLink $ dashboardShowsLinks.list Nothing Nothing Nothing False
   Lucid.form_
     [ hxGet_ dashboardShowsGetUrl,
       hxTarget_ "#main-content",
@@ -170,6 +174,18 @@ filtersUI queryFilter statusFilter = do
           Lucid.option_ ([Lucid.value_ ""] <> selectedWhen (isNothing statusFilter)) "All Statuses"
           Lucid.option_ ([Lucid.value_ "active"] <> selectedWhen (statusFilter == Just Shows.Active)) "Active"
           Lucid.option_ ([Lucid.value_ "inactive"] <> selectedWhen (statusFilter == Just Shows.Inactive)) "Inactive"
+      -- Deleted-only toggle
+      Lucid.label_
+        [class_ $ base ["flex", "items-center", "gap-1", Tokens.textSm, Tokens.fgPrimary]]
+        $ do
+          Lucid.input_
+            ( [ Lucid.type_ "checkbox",
+                Lucid.name_ "deleted",
+                Lucid.value_ "true"
+              ]
+                <> checkedWhen deletedView
+            )
+          "Deleted only"
       -- Submit button
       Lucid.button_
         [ Lucid.type_ "submit",
@@ -178,19 +194,23 @@ filtersUI queryFilter statusFilter = do
         "Filter"
   where
     selectedWhen cond = [Lucid.selected_ "selected" | cond]
+    checkedWhen cond = [Lucid.checked_ | cond]
 
 getShowResults ::
   Limit ->
   Offset ->
   Maybe Text ->
   Maybe Shows.Status ->
+  Bool ->
   ExceptT HandlerError AppM [Shows.ShowWithHostInfo]
-getShowResults limit offset queryFilter statusFilter =
+getShowResults limit offset queryFilter statusFilter deletedView =
   fromRightM throwDatabaseError $
-    case (queryFilter, statusFilter) of
-      (Just query, _) ->
-        execQuery (Shows.searchShowsWithHostInfo (Search query) (limit + 1) offset)
-      (Nothing, Just status) ->
-        execQuery (Shows.getShowsByStatusWithHostInfo status (limit + 1) offset)
-      (Nothing, Nothing) ->
-        execQuery (Shows.getAllShowsWithHostInfo (limit + 1) offset)
+    if deletedView
+      then execQuery (Shows.getDeletedShowsWithHostInfo (limit + 1) offset)
+      else case (queryFilter, statusFilter) of
+        (Just query, _) ->
+          execQuery (Shows.searchShowsWithHostInfo (Search query) (limit + 1) offset)
+        (Nothing, Just status) ->
+          execQuery (Shows.getShowsByStatusWithHostInfo status (limit + 1) offset)
+        (Nothing, Nothing) ->
+          execQuery (Shows.getAllShowsWithHostInfo (limit + 1) offset)

@@ -27,6 +27,7 @@ module Effects.Database.Tables.Shows
 
     -- * Queries
     getShowBySlug,
+    getDeletedShowBySlug,
     getShowById,
     getShowsFiltered,
     insertShow,
@@ -39,10 +40,12 @@ module Effects.Database.Tables.Shows
 
     -- * Soft Delete
     softDeleteShow,
+    restoreShow,
 
     -- * Admin Queries
     ShowWithHostInfo (..),
     getAllShowsWithHostInfo,
+    getDeletedShowsWithHostInfo,
     getShowsByStatusWithHostInfo,
     searchShowsWithHostInfo,
 
@@ -264,6 +267,17 @@ getShowBySlug showSlug = fmap listToMaybe $ run $ select do
   where_ $ isNull (deletedAt s)
   pure s
 
+-- | Get a soft-deleted show by slug (only returns rows with a non-NULL deleted_at).
+--
+-- Needed by the restore flow because 'getShowBySlug' hides deleted rows, so it
+-- cannot resolve a slug to an id for a show that is currently soft-deleted.
+getDeletedShowBySlug :: Slug -> Hasql.Statement () (Maybe Model)
+getDeletedShowBySlug showSlug = fmap listToMaybe $ run $ select do
+  s <- each showSchema
+  where_ $ slug s ==. lit showSlug
+  where_ $ not_ (isNull (deletedAt s))
+  pure s
+
 -- | Get show by ID (excludes soft-deleted shows).
 getShowById :: Id -> Hasql.Statement () (Maybe Model)
 getShowById showId = fmap listToMaybe $ run $ select do
@@ -385,6 +399,29 @@ softDeleteShow showId =
             returning = Returning id
           }
 
+-- | Restore a soft-deleted show by clearing its deleted_at timestamp.
+--
+-- Returns the show ID if successfully restored, Nothing if the show was not
+-- currently deleted (or does not exist). Idempotent: only affects rows whose
+-- deleted_at is non-NULL.
+restoreShow :: Id -> Hasql.Statement () (Maybe Id)
+restoreShow showId =
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = showSchema,
+            from = pure (),
+            set = \_ showRec ->
+              showRec
+                { deletedAt = Rel8.null
+                },
+            updateWhere = \_ showRec ->
+              id showRec ==. lit showId {- HLINT ignore "Redundant id" -}
+                &&. not_ (isNull (deletedAt showRec)),
+            returning = Returning id
+          }
+
 --------------------------------------------------------------------------------
 -- Show Host Queries
 
@@ -481,6 +518,29 @@ getAllShowsWithHostInfo (Limit lim) (Offset off) =
     WHERE s.deleted_at IS NULL
     GROUP BY s.id
     ORDER BY s.created_at DESC
+    LIMIT #{lim} OFFSET #{off}
+  |]
+
+-- | Get soft-deleted shows with host info for admin listing.
+--
+-- Returns only shows whose deleted_at is non-NULL, most recently deleted first.
+-- Only counts active hosts (where left_at IS NULL).
+getDeletedShowsWithHostInfo :: Limit -> Offset -> Hasql.Statement () [ShowWithHostInfo]
+getDeletedShowsWithHostInfo (Limit lim) (Offset off) =
+  interp
+    False
+    [sql|
+    SELECT
+      s.id, s.title, s.slug, s.description, s.logo_url,
+      s.status, s.created_at, s.updated_at,
+      COUNT(DISTINCT sh.user_id) FILTER (WHERE sh.left_at IS NULL)::bigint as host_count,
+      STRING_AGG(DISTINCT um.display_name, ', ' ORDER BY um.display_name) FILTER (WHERE sh.left_at IS NULL) as host_names
+    FROM shows s
+    LEFT JOIN show_hosts sh ON s.id = sh.show_id
+    LEFT JOIN user_metadata um ON sh.user_id = um.user_id
+    WHERE s.deleted_at IS NOT NULL
+    GROUP BY s.id
+    ORDER BY s.deleted_at DESC
     LIMIT #{lim} OFFSET #{off}
   |]
 

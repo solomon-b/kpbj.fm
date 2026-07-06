@@ -37,7 +37,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI $ apiLinks.dashboard.admin.shows.list Nothing Nothing Nothing
+dashboardShowsGetUrl = Links.linkURI $ apiLinks.dashboard.admin.shows.list Nothing Nothing Nothing False
 
 showGetUrl :: Slug -> Links.URI
 showGetUrl slug = Links.linkURI $ apiLinks.shows.detail slug Nothing
@@ -186,7 +186,7 @@ renderSchedulePreview activeTemplates pendingTemplates pendingStartDate =
 
     -- Pending schedule with start date
     unless (null pendingTemplates) $ do
-      when (not (null activeTemplates)) $
+      unless (null activeTemplates) $
         Lucid.hr_ [class_ $ base [Tokens.borderMuted, "my-3"]]
       let header =
             if Text.null pendingStartDate

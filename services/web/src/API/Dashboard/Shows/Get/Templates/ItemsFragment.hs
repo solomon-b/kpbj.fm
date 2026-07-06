@@ -32,18 +32,19 @@ import Servant.Links qualified as Links
 -- to the existing table body.
 renderItemsFragment ::
   IsAdmin ->
+  Bool ->
   [Shows.ShowWithHostInfo] ->
   Int64 ->
   Bool ->
   Maybe Text ->
   Maybe Shows.Status ->
   Lucid.Html ()
-renderItemsFragment isAdmin theShows currentPage hasMore maybeQuery maybeStatusFilter =
+renderItemsFragment isAdmin deletedView theShows currentPage hasMore maybeQuery maybeStatusFilter =
   renderTableFragment
     4 -- Number of columns (was incorrectly 5 before)
     "#shows-table-body"
     (if hasMore then Just [i|/#{nextPageUrl}|] else Nothing)
-    (mapM_ (renderShowRow isAdmin) theShows)
+    (mapM_ (renderShowRow isAdmin deletedView) theShows)
   where
     nextPageUrl :: Links.URI
-    nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))
+    nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter)) deletedView

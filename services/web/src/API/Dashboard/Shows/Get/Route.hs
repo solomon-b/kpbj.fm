@@ -22,6 +22,7 @@ type Route =
     :> Servant.QueryParam "page" Int64
     :> Servant.QueryParam "q" (Filter Text)
     :> Servant.QueryParam "status" (Filter Shows.Status)
+    :> Servant.QueryFlag "deleted"
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

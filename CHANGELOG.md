@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Restore soft-deleted shows** — Admins can restore soft-deleted shows from a new "Deleted only" toggle on the dashboard shows list (`/dashboard/shows?deleted`). The deleted view lists shows most-recently-deleted first with a "Deleted" badge and a per-row Restore action (`POST /dashboard/shows/:slug/restore`), which clears `deleted_at` and swaps the row out. Backed by three new idempotent `shows` queries (`restoreShow`, `getDeletedShowBySlug`, `getDeletedShowsWithHostInfo`). The delete-confirm copy now notes the show can be restored later.
 - **Membership link in main nav** — Added a dedicated "Membership" entry (linking to the pools.events listener-membership signup) to both the desktop navbar and the mobile hamburger menu, placed immediately after "Donate". Rendered as a plain external anchor (`target="_blank"`, `rel="noopener noreferrer"`) rather than an HTMX-swapped internal link, since the destination is cross-origin. The existing membership link in the donate-page content is unchanged.
 
 ### Changed

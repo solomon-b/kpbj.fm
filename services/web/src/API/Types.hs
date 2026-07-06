@@ -106,6 +106,7 @@ import API.Dashboard.Shows.Slug.Edit.Post.Route qualified as Dashboard.Shows.Slu
 import API.Dashboard.Shows.Slug.Episode.New.Get.Route qualified as Dashboard.Shows.Slug.Episode.New.Get
 import API.Dashboard.Shows.Slug.Episode.New.Post.Route qualified as Dashboard.Shows.Slug.Episode.New.Post
 import API.Dashboard.Shows.Slug.Get.Route qualified as Dashboard.Shows.Slug.Get
+import API.Dashboard.Shows.Slug.Restore.Post.Route qualified as Dashboard.Shows.Slug.Restore.Post
 import API.Dashboard.SitePages.Get.Route qualified as Dashboard.SitePages.Get
 import API.Dashboard.SitePages.Slug.Edit.Get.Route qualified as Dashboard.SitePages.Slug.Edit.Get
 import API.Dashboard.SitePages.Slug.Edit.Post.Route qualified as Dashboard.SitePages.Slug.Edit.Post
@@ -530,6 +531,8 @@ data DashboardShowsRoutes mode = DashboardShowsRoutes
     editPost :: mode :- Dashboard.Shows.Slug.Edit.Post.Route,
     -- | @DELETE /dashboard/shows/:slug@ - Delete show (soft delete)
     delete :: mode :- Dashboard.Shows.Slug.Delete.Route,
+    -- | @POST /dashboard/shows/:slug/restore@ - Restore soft-deleted show
+    restorePost :: mode :- Dashboard.Shows.Slug.Restore.Post.Route,
     -- | @GET /dashboard/shows/:slug/episodes/new@ - New episode upload form
     episodeNewGet :: mode :- Dashboard.Shows.Slug.Episode.New.Get.Route,
     -- | @POST /dashboard/shows/:slug/episodes/new@ - Create new episode
