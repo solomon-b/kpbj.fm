@@ -176,7 +176,11 @@ test.describe("Event photo gallery", () => {
   });
 
   test("shows a photo caption under the thumbnail", async ({ page }) => {
-    await expect(page.getByText("The crowd at the plaza")).toBeVisible();
+    // Scope to the thumbnail caption; the same text also lives in the
+    // (hidden) lightbox caption.
+    await expect(
+      page.locator(".eg-gallery-caption", { hasText: "The crowd at the plaza" })
+    ).toBeVisible();
   });
 
   test("clicking a thumbnail opens the lightbox", async ({ page }) => {
