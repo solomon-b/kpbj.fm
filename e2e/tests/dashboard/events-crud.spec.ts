@@ -275,6 +275,9 @@ test.describe.serial("Event photo gallery editor", () => {
 
     await page.getByRole("button", { name: "UPDATE EVENT" }).click();
     await page.waitForURL(/\/dashboard\/events\/\d+\//);
+    // Let the redirected dashboard page settle before navigating away, or the
+    // in-flight requests abort the next goto (net::ERR_ABORTED).
+    await page.waitForLoadState("networkidle");
 
     // "After party" is now sort_order 0, so it renders first on the public page.
     await page.goto(publicUrl);
@@ -292,6 +295,7 @@ test.describe.serial("Event photo gallery editor", () => {
 
     await page.getByRole("button", { name: "UPDATE EVENT" }).click();
     await page.waitForURL(/\/dashboard\/events\/\d+\//);
+    await page.waitForLoadState("networkidle");
 
     await page.goto(publicUrl);
     await expect(page.locator(".eg-gallery-item")).toHaveCount(1);
