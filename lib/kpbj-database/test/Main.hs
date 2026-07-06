@@ -14,6 +14,7 @@ import Effects.Database.Tables.EmailVerificationTokensSpec qualified as EmailVer
 import Effects.Database.Tables.EphemeralUploadsSpec qualified as EphemeralUploads
 import Effects.Database.Tables.EpisodeTrackSpec qualified as EpisodeTrack
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
+import Effects.Database.Tables.EventImagesSpec qualified as EventImages
 import Effects.Database.Tables.EventsSpec qualified as Events
 import Effects.Database.Tables.NewsletterSubscribersSpec qualified as NewsletterSubscribers
 import Effects.Database.Tables.OrderItemsSpec qualified as OrderItems
@@ -91,6 +92,7 @@ main = do
     BlogPosts.spec
     BlogTags.spec
     Events.spec
+    EventImages.spec
     ShowHost.spec
     ShowSchedule.spec
     ShowScheduleMissingEpisodes.spec

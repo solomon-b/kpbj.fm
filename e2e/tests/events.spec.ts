@@ -157,3 +157,64 @@ test.describe("Event detail", () => {
     await expect(page.getByText(/Dig through crates of vinyl/)).toBeVisible();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Event photo gallery (public)
+// ---------------------------------------------------------------------------
+// Mock data attaches 3 photos to "Summer Block Party". Other events have none.
+
+test.describe("Event photo gallery", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/events");
+    await page.getByText("Summer Block Party").click();
+    await page.waitForURL(/\/events\/\d+\/summer-block-party/);
+  });
+
+  test("shows the PHOTOS gallery grid with thumbnails", async ({ page }) => {
+    await expect(page.getByRole("heading", { name: "PHOTOS" })).toBeVisible();
+    await expect(page.locator(".eg-gallery-item")).toHaveCount(3);
+  });
+
+  test("shows a photo caption under the thumbnail", async ({ page }) => {
+    // Scope to the thumbnail caption; the same text also lives in the
+    // (hidden) lightbox caption.
+    await expect(
+      page.locator(".eg-gallery-caption", { hasText: "The crowd at the plaza" })
+    ).toBeVisible();
+  });
+
+  test("clicking a thumbnail opens the lightbox", async ({ page }) => {
+    await expect(page.locator(".eg-lightbox")).toBeHidden();
+    await page.locator(".eg-gallery-item").first().click();
+    await expect(page.locator(".eg-lightbox")).toBeVisible();
+    // First photo (sort_order 0) caption shows in the lightbox.
+    await expect(page.locator(".eg-lightbox-caption")).toHaveText(
+      "The crowd at the plaza"
+    );
+  });
+
+  test("lightbox navigates to the next photo and closes on Escape", async ({
+    page,
+  }) => {
+    await page.locator(".eg-gallery-item").first().click();
+    await expect(page.locator(".eg-lightbox")).toBeVisible();
+
+    await page.locator(".eg-lightbox-nav--next").click();
+    await expect(page.locator(".eg-lightbox-caption")).toHaveText(
+      "Live band on the main stage"
+    );
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".eg-lightbox")).toBeHidden();
+  });
+});
+
+test.describe("Event without photos", () => {
+  test("shows no gallery section", async ({ page }) => {
+    await page.goto("/events");
+    await page.getByText("Spring Record Fair & Swap Meet").click();
+    await page.waitForURL(/\/events\/\d+\/spring-record-fair/);
+    await expect(page.getByRole("heading", { name: "PHOTOS" })).toHaveCount(0);
+    await expect(page.locator(".eg-gallery-grid")).toHaveCount(0);
+  });
+});

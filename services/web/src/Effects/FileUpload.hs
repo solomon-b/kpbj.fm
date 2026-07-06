@@ -6,6 +6,7 @@ module Effects.FileUpload
     uploadShowLogo,
     uploadBlogHeroImage,
     uploadEventPosterImage,
+    uploadEventGalleryImage,
     uploadProductImage,
     uploadUserAvatar,
 
@@ -309,6 +310,62 @@ uploadProductImage backend mAwsEnv productSlug fileData
 
         -- Store file using appropriate backend
         objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket ProductImage dateHier filename content actualMimeType
+
+        pure $
+          Just
+            UploadResult
+              { uploadResultOriginalName = originalName,
+                uploadResultStoragePath = Text.unpack objectKey,
+                uploadResultMimeType = actualMimeType,
+                uploadResultFileSize = fileSize
+              }
+
+-- | Upload a gallery photo for an event.
+--
+-- Validates the image file using both browser-provided MIME type and magic byte detection,
+-- then stores it using the configured storage backend. Unlike poster and product images,
+-- gallery photos are stored as-is with their original aspect ratio (no server-side cropping).
+--
+-- Returns 'Nothing' if no file was provided (empty upload).
+--
+-- Storage path format: images\/event-galleries\/{YYYY}\/{MM}\/{DD}\/{event-slug}_{hash}.{ext}
+uploadEventGalleryImage ::
+  (MonadIO m, MonadMask m, Log.MonadLog m) =>
+  -- | Storage backend configuration
+  StorageBackend ->
+  -- | AWS environment (required for S3, Nothing for local)
+  Maybe AWS.Env ->
+  -- | Event slug for filename prefix
+  Text ->
+  -- | Uploaded gallery image file data
+  FileData Mem ->
+  m (Either UploadError (Maybe UploadResult))
+uploadEventGalleryImage backend mAwsEnv eventSlug fileData
+  | isEmptyUpload fileData = pure (Right Nothing)
+  | otherwise =
+      withTempUpload fileData $ \tempPath content -> runExceptT $ do
+        let originalName = fdFileName fileData
+            browserMimeType = fdFileCType fileData
+            fileSize = fromIntegral $ BS.length content
+
+        -- Get time and random seed
+        time <- liftIO getCurrentTime
+        seed <- liftIO Random.newStdGen
+
+        -- Validate with browser-provided MIME type and file size
+        liftEither $ validateUpload ImageBucket originalName browserMimeType fileSize
+
+        -- Validate actual file content against magic bytes
+        actualMimeType <- ExceptT $ do
+          either (Left . UnsupportedFileType) Right <$> MimeValidation.validateImageFile tempPath browserMimeType
+
+        -- Generate filename and date hierarchy
+        let dateHier = dateHierarchyFromTime time
+            extension = getExtensionFromMimeType actualMimeType
+            filename = generateUniqueFilename eventSlug extension seed
+
+        -- Store file using appropriate backend
+        objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket EventGalleryImage dateHier filename content actualMimeType
 
         pure $
           Just

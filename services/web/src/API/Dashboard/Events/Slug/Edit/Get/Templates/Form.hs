@@ -10,12 +10,14 @@ where
 
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
+import Component.Gallery.EventGalleryEditor (GalleryImageView (..), renderEventGalleryEditor)
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Domain.Types.Timezone (formatPacificForDateTimeInput)
+import Effects.Database.Tables.EventImages qualified as EventImages
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -38,8 +40,8 @@ eventEditPostUrl eventId slug = Links.linkURI $ dashboardEventsLinks.editPost ev
 --------------------------------------------------------------------------------
 
 -- | Event edit template using V2 FormBuilder
-template :: StorageBackend -> Events.Model -> UserMetadata.Model -> Lucid.Html ()
-template backend event userMeta = do
+template :: StorageBackend -> Events.Model -> [EventImages.Model] -> UserMetadata.Model -> Lucid.Html ()
+template backend event galleryImages userMeta = do
   renderFormHeader event userMeta eventBackUrl
   renderForm config form
   where
@@ -48,6 +50,15 @@ template backend event userMeta = do
     eventBackUrl = eventDetailUrl eventId eventSlug
     eventEditUrl = eventEditPostUrl eventId eventSlug
     imageUrl = maybe "" (buildMediaUrl backend) event.emPosterImageUrl
+    galleryViews =
+      [ GalleryImageView
+          { givId = EventImages.unId (EventImages.eviId img),
+            givUrl = buildMediaUrl backend (EventImages.eviImagePath img),
+            givCaption = EventImages.eviCaption img,
+            givAltText = EventImages.eviAltText img
+          }
+        | img <- galleryImages
+      ]
     startsAtValue = formatPacificForDateTimeInput event.emStartsAt
     endsAtValue = formatPacificForDateTimeInput event.emEndsAt
 
@@ -125,6 +136,10 @@ template backend event userMeta = do
           required
           minLength 3
           maxLength 500
+
+      -- Optional post-event photo gallery (embedded Alpine.js component; its
+      -- hidden inputs submit with this form's multipart POST). No cropping.
+      plain $ renderEventGalleryEditor 10 galleryViews
 
       footerToggle "status" $ do
         offLabel "Draft"

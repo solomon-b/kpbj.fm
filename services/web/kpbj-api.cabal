@@ -568,6 +568,8 @@ library
     Component.Card.Event
     Component.Card.Product
     Component.Card.Show
+    Component.Gallery.EventGalleryEditor
+    Component.Gallery.EventGalleryView
     Component.DashboardFrame
     Component.Frame
     Component.NotFound
