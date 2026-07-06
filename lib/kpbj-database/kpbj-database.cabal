@@ -69,6 +69,7 @@ library
     Effects.Database.Tables.ListenerSnapshots
     Effects.Database.Tables.EpisodeTags
     Effects.Database.Tables.EpisodeTrack
+    Effects.Database.Tables.EventImages
     Effects.Database.Tables.Events
     Effects.Database.Tables.HostInvitation
     Effects.Database.Tables.NewsletterSubscribers
@@ -169,6 +170,7 @@ library kpbj-database-test-lib
     Test.Gen.Tables.StagedUploads
     Test.Gen.Tables.StationIds
     Test.Gen.Tables.UserMetadata
+    Test.Gen.Tables.EventImages
     Test.Gen.Tables.Orders
     Test.Gen.Tables.OrderItems
     Test.Gen.Tables.Products
@@ -250,6 +252,7 @@ test-suite kpbj-database-test
     Effects.Database.Tables.StationIdsSpec
     Effects.Database.Tables.UserMetadataSpec
     Effects.Database.Tables.UserRoleSpec
+    Effects.Database.Tables.EventImagesSpec
     Effects.Database.Tables.ProductsSpec
     Effects.Database.Tables.ProductImagesSpec
     Effects.Database.Tables.ProductVariantsSpec
@@ -289,6 +292,7 @@ test-suite kpbj-database-test
     Test.Gen.Tables.StagedUploads
     Test.Gen.Tables.StationIds
     Test.Gen.Tables.UserMetadata
+    Test.Gen.Tables.EventImages
     Test.Gen.Tables.Products
     Test.Gen.Tables.ProductImages
     Test.Gen.Tables.ProductOptionTypes

@@ -83,7 +83,7 @@ test_returnsContentWithCorrectSlug cfg = bracketAppM cfg $ do
           expectationFailure $ "Expected Right but got Left: " <> show err
         Right (EventRedirect url) ->
           expectationFailure $ "Expected EventContent but got EventRedirect to: " <> show url
-        Right (EventContent _backend event) ->
+        Right (EventContent _backend event _images) ->
           Events.emId event `shouldBe` eventId
 
 -- | When the URL slug does not match the event's canonical slug, EventRedirect
@@ -108,7 +108,7 @@ test_redirectsWithWrongSlug cfg = bracketAppM cfg $ do
       liftIO $ case result of
         Left err ->
           expectationFailure $ "Expected Right but got Left: " <> show err
-        Right (EventContent _ _) ->
+        Right (EventContent _ _ _) ->
           expectationFailure "Expected EventRedirect but got EventContent"
         Right (EventRedirect url) -> do
           -- The redirect URL must contain the canonical slug, not the wrong one.

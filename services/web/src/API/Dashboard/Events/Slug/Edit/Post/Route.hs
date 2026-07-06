@@ -11,7 +11,7 @@ import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Effects.Database.Tables.Events qualified as Events
 import Servant ((:>))
 import Servant qualified
-import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
+import Servant.Multipart (FileData (..), FromMultipart, Mem, MultipartData (..), MultipartForm, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -40,7 +40,13 @@ data EventEditForm = EventEditForm
     eefStatus :: Text,
     eefPosterImage :: Maybe (FileData Mem),
     eefPosterImageClear :: Bool, -- True if user explicitly removed the poster image
-    eefFeaturedOnHomepage :: Text
+    eefFeaturedOnHomepage :: Text,
+    -- | JSON metadata for gallery photos: [{id, sort_order, alt_text, caption}]
+    eefGalleryData :: Maybe Text,
+    -- | JSON array of deleted gallery photo IDs
+    eefGalleryDeleted :: Maybe Text,
+    -- | New gallery photo files from the gallery editor
+    eefGalleryFiles :: [FileData Mem]
   }
   deriving (Show)
 
@@ -57,6 +63,9 @@ instance FromMultipart Mem EventEditForm where
       <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
       <*> pure (parseClearFlag "poster_image_clear")
       <*> lookupInput "featured_on_homepage" multipartData
+      <*> pure (either (const Nothing) Just (lookupInput "event_gallery_data" multipartData))
+      <*> pure (either (const Nothing) Just (lookupInput "event_gallery_deleted" multipartData))
+      <*> pure (getAllFiles "event_gallery_files" multipartData)
     where
       fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
       fileDataToNothing (Just fileData)
@@ -69,6 +78,10 @@ instance FromMultipart Mem EventEditForm where
       parseClearFlag name = case lookupInput name multipartData of
         Right "true" -> True
         _ -> False
+
+      -- \| Extract all files with a given input name (multi-file gallery upload).
+      getAllFiles :: Text -> MultipartData Mem -> [FileData Mem]
+      getAllFiles fieldName md = filter (\fd -> fdInputName fd == fieldName) (files md)
 
 -- | Parse event status from text
 parseStatus :: Text -> Maybe Events.Status

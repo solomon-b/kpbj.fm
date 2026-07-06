@@ -36,6 +36,7 @@ data ResourceType
   | ShowLogo
   | BlogHeroImage
   | EventPosterImage
+  | EventGalleryImage
   | ProductImage
   | UserAvatar
   | StationIdAudio
@@ -67,6 +68,7 @@ resourceTypePath = \case
   ShowLogo -> "logos"
   BlogHeroImage -> "blog-heroes"
   EventPosterImage -> "event-posters"
+  EventGalleryImage -> "event-galleries"
   ProductImage -> "store"
   UserAvatar -> "avatars"
   StationIdAudio -> "station-ids"
