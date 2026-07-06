@@ -22,6 +22,7 @@ TRUNCATE TABLE
     show_tag_assignments,
     show_tags,
     shows,
+    event_images,
     events,
     show_blog_post_tags,
     show_blog_posts,
