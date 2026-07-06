@@ -45,7 +45,7 @@ test_emptyDbReturnsNoShows cfg = do
           setupUserModels adminInsert
     (userModel, userMetaModel) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing Nothing Nothing IsNotHxRequest
+    result <- runExceptT $ action userModel userMetaModel Nothing Nothing Nothing False IsNotHxRequest
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -65,7 +65,7 @@ test_insertedShowAppears cfg = do
       pure (userModel, userMetaModel, showId)
     (userModel, userMetaModel, _showId) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing Nothing Nothing IsNotHxRequest
+    result <- runExceptT $ action userModel userMetaModel Nothing Nothing Nothing False IsNotHxRequest
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -89,10 +89,10 @@ test_statusFilterWorks cfg = do
 
     activeResult <-
       runExceptT $
-        action userModel userMetaModel Nothing Nothing (Just (Filter (Just Shows.Active))) IsNotHxRequest
+        action userModel userMetaModel Nothing Nothing (Just (Filter (Just Shows.Active))) False IsNotHxRequest
     inactiveResult <-
       runExceptT $
-        action userModel userMetaModel Nothing Nothing (Just (Filter (Just Shows.Inactive))) IsNotHxRequest
+        action userModel userMetaModel Nothing Nothing (Just (Filter (Just Shows.Inactive))) False IsNotHxRequest
 
     liftIO $ do
       case activeResult of

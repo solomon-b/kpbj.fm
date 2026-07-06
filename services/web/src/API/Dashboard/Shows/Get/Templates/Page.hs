@@ -44,17 +44,18 @@ type IsAdmin = Bool
 -- | Shows list template (filters are now in the top bar)
 template ::
   IsAdmin ->
+  Bool ->
   [Shows.ShowWithHostInfo] ->
   Int64 ->
   Bool ->
   Maybe Text ->
   Maybe Shows.Status ->
   Lucid.Html ()
-template isAdmin theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
+template isAdmin deletedView theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   -- Shows table or empty state
   Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null theShowList
-      then renderEmptyState maybeQuery
+      then renderEmptyState deletedView maybeQuery
       else
         renderIndexTable
           IndexTableConfig
@@ -74,21 +75,23 @@ template isAdmin theShowList currentPage hasMore maybeQuery maybeStatusFilter = 
                       pcCurrentPage = currentPage
                     }
             }
-          (mapM_ (renderShowRow isAdmin) theShowList)
+          (mapM_ (renderShowRow isAdmin deletedView) theShowList)
   where
     nextPageUrl :: Links.URI
-    nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))
+    nextPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage + 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter)) deletedView
     prevPageUrl :: Links.URI
-    prevPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage - 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter))
+    prevPageUrl = Links.linkURI $ dashboardShowsLinks.list (Just (currentPage - 1)) (Just (Filter maybeQuery)) (Just (Filter maybeStatusFilter)) deletedView
 
-renderShowRow :: IsAdmin -> Shows.ShowWithHostInfo -> Lucid.Html ()
-renderShowRow isAdmin showInfo =
+renderShowRow :: IsAdmin -> Bool -> Shows.ShowWithHostInfo -> Lucid.Html ()
+renderShowRow isAdmin deletedView showInfo =
   let showSlug = showInfo.swhiSlug
       showTitle = showInfo.swhiTitle
       showDetailUri = Links.linkURI $ dashboardShowsLinks.detail showInfo.swhiId showSlug Nothing
       showDetailUrl = [i|/#{showDetailUri}|]
       showEditUrl = Links.linkURI $ dashboardShowsLinks.editGet showSlug
       showDeleteUrl = [i|/dashboard/shows/#{display showSlug}|]
+      showRestoreUri = Links.linkURI $ dashboardShowsLinks.restorePost showSlug
+      showRestoreUrl = [i|/#{showRestoreUri}|] :: Text
    in do
         Lucid.tr_
           [class_ $ base ["border-b-2", Tokens.borderMuted, Tokens.hoverBg]]
@@ -98,7 +101,9 @@ renderShowRow isAdmin showInfo =
                 Lucid.toHtml showInfo.swhiTitle
 
             Lucid.td_ (clickableCellAttrs showDetailUrl) $
-              renderStatusBadge showInfo.swhiStatus
+              if deletedView
+                then renderDeletedBadge
+                else renderStatusBadge showInfo.swhiStatus
 
             Lucid.td_ (clickableCellAttrs showDetailUrl) $ do
               case showInfo.swhiHostNames of
@@ -110,52 +115,66 @@ renderShowRow isAdmin showInfo =
                       "(" <> show showInfo.swhiHostCount <> ")"
 
             Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-              Lucid.div_ [xData_ "{}"] $
-                do
-                  -- Hidden link for Edit - HTMX handles history properly
-                  Lucid.a_
-                    [ Lucid.href_ [i|/#{showEditUrl}|],
-                      hxGet_ [i|/#{showEditUrl}|],
-                      hxTarget_ "#main-content",
-                      hxPushUrl_ "true",
-                      xRef_ "editLink",
-                      Lucid.class_ "hidden"
-                    ]
-                    ""
-                  -- Hidden button for Delete (admin only) - HTMX handles the request
+              if deletedView
+                then
+                  -- Restore action (admin only)
                   if isAdmin
                     then
                       Lucid.button_
-                        [ hxDelete_ showDeleteUrl,
+                        [ hxPost_ showRestoreUrl,
                           hxTarget_ "closest tr",
                           hxSwap_ "outerHTML swap:1s",
-                          hxConfirm_ [i|Are you sure you want to delete "#{showTitle}"? This action cannot be undone.|],
-                          xRef_ "deleteBtn",
-                          Lucid.class_ "hidden"
+                          xOnClick_ "event.stopPropagation()",
+                          class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary, "hover:opacity-80"]
                         ]
-                        ""
+                        "Restore"
                     else mempty
-                  -- Visible dropdown
-                  Lucid.select_
-                    [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
-                      xOnChange_
-                        [i|
-                      const action = $el.value;
-                      $el.value = '';
-                      if (action === 'edit') {
-                        $refs.editLink.click();
-                      } else if (action === 'delete') {
-                        $refs.deleteBtn.click();
-                      }
-                    |],
-                      xOnClick_ "event.stopPropagation()"
-                    ]
-                    $ do
-                      Lucid.option_ [Lucid.value_ ""] "Actions..."
-                      Lucid.option_ [Lucid.value_ "edit"] "Edit"
-                      if isAdmin
-                        then Lucid.option_ [Lucid.value_ "delete"] "Delete"
-                        else mempty
+                else Lucid.div_ [xData_ "{}"] $
+                  do
+                    -- Hidden link for Edit - HTMX handles history properly
+                    Lucid.a_
+                      [ Lucid.href_ [i|/#{showEditUrl}|],
+                        hxGet_ [i|/#{showEditUrl}|],
+                        hxTarget_ "#main-content",
+                        hxPushUrl_ "true",
+                        xRef_ "editLink",
+                        Lucid.class_ "hidden"
+                      ]
+                      ""
+                    -- Hidden button for Delete (admin only) - HTMX handles the request
+                    if isAdmin
+                      then
+                        Lucid.button_
+                          [ hxDelete_ showDeleteUrl,
+                            hxTarget_ "closest tr",
+                            hxSwap_ "outerHTML swap:1s",
+                            hxConfirm_ [i|Are you sure you want to delete "#{showTitle}"? You can restore it later from the Deleted view.|],
+                            xRef_ "deleteBtn",
+                            Lucid.class_ "hidden"
+                          ]
+                          ""
+                      else mempty
+                    -- Visible dropdown
+                    Lucid.select_
+                      [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
+                        xOnChange_
+                          [i|
+                          const action = $el.value;
+                          $el.value = '';
+                          if (action === 'edit') {
+                            $refs.editLink.click();
+                          } else if (action === 'delete') {
+                            $refs.deleteBtn.click();
+                          }
+                        |],
+                        xOnClick_ "event.stopPropagation()"
+                      ]
+                      $ do
+                        Lucid.option_ [Lucid.value_ ""] "Actions..."
+                        Lucid.option_ [Lucid.value_ "edit"] "Edit"
+                        if isAdmin
+                          then Lucid.option_ [Lucid.value_ "delete"] "Delete"
+                          else mempty
 
 renderStatusBadge :: Shows.Status -> Lucid.Html ()
 renderStatusBadge status = do
@@ -167,10 +186,18 @@ renderStatusBadge status = do
     [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
     $ Lucid.toHtml statusText
 
-renderEmptyState :: Maybe Text -> Lucid.Html ()
-renderEmptyState maybeQuery = do
+renderDeletedBadge :: Lucid.Html ()
+renderDeletedBadge =
+  Lucid.span_
+    [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", Tokens.errorBg, Tokens.errorText]]
+    "Deleted"
+
+renderEmptyState :: Bool -> Maybe Text -> Lucid.Html ()
+renderEmptyState deletedView maybeQuery = do
   Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "p-12", "text-center"]] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] $
-      case maybeQuery of
-        Nothing -> "No shows found. Create your first show!"
-        Just query -> Lucid.toHtml $ "No shows found matching \"" <> query <> "\"."
+      if deletedView
+        then "No deleted shows."
+        else case maybeQuery of
+          Nothing -> "No shows found. Create your first show!"
+          Just query -> Lucid.toHtml $ "No shows found matching \"" <> query <> "\"."

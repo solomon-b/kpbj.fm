@@ -80,7 +80,7 @@ dashboardUsersGetUrl :: Links.URI
 dashboardUsersGetUrl = Links.linkURI $ dashboardUsersLinks.list Nothing Nothing Nothing Nothing
 
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing
+dashboardShowsGetUrl = Links.linkURI $ dashboardShowsLinks.list Nothing Nothing Nothing False
 
 dashboardStationBlogGetUrl :: Links.URI
 dashboardStationBlogGetUrl = Links.linkURI $ dashboardStationBlogLinks.list Nothing

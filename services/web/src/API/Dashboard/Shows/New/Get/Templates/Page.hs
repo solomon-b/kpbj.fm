@@ -26,7 +26,7 @@ import Servant.Links qualified as Links
 --------------------------------------------------------------------------------
 
 dashboardShowsGetUrl :: Links.URI
-dashboardShowsGetUrl = Links.linkURI $ apiLinks.dashboard.admin.shows.list Nothing Nothing Nothing
+dashboardShowsGetUrl = Links.linkURI $ apiLinks.dashboard.admin.shows.list Nothing Nothing Nothing False
 
 dashboardShowsNewPostUrl :: Links.URI
 dashboardShowsNewPostUrl = Links.linkURI apiLinks.dashboard.admin.shows.newPost
