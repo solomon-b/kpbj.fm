@@ -254,7 +254,10 @@ test.describe.serial("Event photo gallery editor", () => {
     await page.goto(publicUrl);
     await expect(page.getByRole("heading", { name: "PHOTOS" })).toBeVisible();
     await expect(page.locator(".eg-gallery-item")).toHaveCount(1);
-    await expect(page.getByText("Opening night")).toBeVisible();
+    // Scope to the thumbnail caption; the lightbox caption holds the same text.
+    await expect(
+      page.locator(".eg-gallery-caption", { hasText: "Opening night" })
+    ).toBeVisible();
   });
 
   test("reordering photos persists", async ({ page }) => {
