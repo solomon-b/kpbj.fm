@@ -26,6 +26,7 @@ import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery, execTransaction)
+import Effects.Database.Tables.EventImages qualified as EventImages
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -43,6 +44,7 @@ data EventEditViewData = EventEditViewData
     eevAllShows :: [Shows.Model],
     eevSelectedShow :: Maybe Shows.Model,
     eevEvent :: Events.Model,
+    eevGalleryImages :: [EventImages.Model],
     eevStorageBackend :: StorageBackend
   }
 
@@ -68,7 +70,12 @@ action user userMetadata eventId = do
   unless (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole) $
     throwNotAuthorized "You can only edit events you created or have staff permissions." (Just userMetadata.mUserRole)
 
-  -- 4. Get storage backend for URL construction
+  -- 4. Fetch existing gallery photos
+  galleryImages <-
+    fromRightM throwDatabaseError $
+      execQuery (EventImages.getByEventId eventId)
+
+  -- 5. Get storage backend for URL construction
   storageBackend <- asks getter
 
   Log.logInfo "Authorized user accessing event edit form" event.emId
@@ -78,6 +85,7 @@ action user userMetadata eventId = do
         eevAllShows = allShows,
         eevSelectedShow = selectedShow,
         eevEvent = event,
+        eevGalleryImages = galleryImages,
         eevStorageBackend = storageBackend
       }
 
@@ -93,7 +101,7 @@ handler eventId _urlSlug cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit events." userMetadata
     vd <- action user userMetadata eventId
-    let editTemplate = template vd.eevStorageBackend vd.eevEvent vd.eevUserMetadata
+    let editTemplate = template vd.eevStorageBackend vd.eevEvent vd.eevGalleryImages vd.eevUserMetadata
     lift $
       renderDashboardTemplate
         hxRequest

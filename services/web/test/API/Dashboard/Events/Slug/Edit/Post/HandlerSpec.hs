@@ -48,7 +48,10 @@ validEditForm =
       eefStatus = "published",
       eefPosterImage = Nothing,
       eefPosterImageClear = False,
-      eefFeaturedOnHomepage = "false"
+      eefFeaturedOnHomepage = "false",
+      eefGalleryData = Nothing,
+      eefGalleryDeleted = Nothing,
+      eefGalleryFiles = []
     }
 
 --------------------------------------------------------------------------------

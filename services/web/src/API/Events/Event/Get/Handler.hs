@@ -25,6 +25,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery)
+import Effects.Database.Tables.EventImages qualified as EventImages
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Markdown (renderContentM)
 import Lucid qualified
@@ -34,7 +35,7 @@ import Utils (fromMaybeM, fromRightM)
 
 data EventViewData
   = EventRedirect Text
-  | EventContent StorageBackend Events.Model
+  | EventContent StorageBackend Events.Model [EventImages.Model]
 
 --------------------------------------------------------------------------------
 
@@ -86,9 +87,9 @@ handler eventId mUrlSlug cookie (foldHxReq -> hxRequest) =
       case vd of
         EventRedirect canonicalUrl ->
           lift $ throwHxRedirect canonicalUrl Nothing
-        EventContent backend event -> do
+        EventContent backend event images -> do
           renderedDescription <- lift $ renderContentM (Events.emDescription event)
-          lift $ renderTemplate hxRequest mUserInfo (template backend event renderedDescription)
+          lift $ renderTemplate hxRequest mUserInfo (template backend event images renderedDescription)
     renderInline content = do
       mUserInfo <- getUserInfo cookie <&> fmap snd
       renderTemplate hxRequest mUserInfo content
@@ -114,5 +115,8 @@ action eventId mUrlSlug = do
   if matchSlug canonicalSlug mUrlSlug
     then do
       backend <- asks getter
-      pure $ EventContent backend event
+      images <-
+        fromRightM throwDatabaseError $
+          execQuery (EventImages.getByEventId eventId)
+      pure $ EventContent backend event images
     else pure $ EventRedirect canonicalUrl
