@@ -192,16 +192,11 @@
   };
 
   # ── pgBackRest (PG backups + WAL archiving) ──────────────────
-  kpbj.pgbackrest = {
-    enable = true;
-    s3 = {
-      bucket = "kpbj-pgbackrest";
-      endpoint = "sfo3.digitaloceanspaces.com";
-      region = "sfo3";
-      path = "/staging";
-      secretsFile = ../secrets/staging-web.yaml;
-    };
-  };
+  # Disabled on staging entirely — no local or S3 backups, no WAL archiving.
+  # Staging data is disposable: it's rebuilt from production on demand via
+  # `just prod-to-staging`, so there's nothing worth backing up. Production
+  # keeps full pgBackRest (repo1 local + repo2 S3).
+  kpbj.pgbackrest.enable = false;
 
   # ── PostgreSQL ───────────────────────────────────────────────
   kpbj.postgresql = {
