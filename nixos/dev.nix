@@ -7,9 +7,9 @@
 # divergent codepaths.
 #
 # Usage:
-#   just stream-dev-build   # Build the VM
-#   just stream-dev-start   # Run the VM (port-forwards 8000, 9000)
-#   just stream-dev-stop    # Kill the VM
+#   just dev-stream-build   # Build the VM
+#   just dev-stream-start   # Run the VM (port-forwards 8000, 9000)
+#   just dev-stream-stop    # Kill the VM
 # ──────────────────────────────────────────────────────────────
 { modulesPath, lib, ... }:
 {

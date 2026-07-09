@@ -237,7 +237,7 @@ just format-changed   # Format changed files
 just hlint-changed    # Lint changed files
 
 # Database
-just dev-postgres-start/stop/psql
+just dev-db-start / dev-db-stop / dev-psql
 just dev-migrations-add NAME / dev-migrations-run / dev-migrations-reset
 just dev-mock-data
 ```

@@ -10,7 +10,7 @@
 # Usage: ./scripts/prod-to-local-db.sh
 #
 # Prerequisites:
-#   - Local PostgreSQL running (just dev-postgres-start)
+#   - Local PostgreSQL running (just dev-db-start)
 #   - SSH access to production VPS
 #
 
@@ -40,7 +40,7 @@ PROD_READONLY_PASSWORD=$(sops -d --extract '["db_readonly_password"]' secrets/pr
 # Check if local postgres is running
 if ! pg_isready -h localhost -p "$DEV_DB_PORT" -q; then
   echo "ERROR: Local PostgreSQL is not running on port $DEV_DB_PORT."
-  echo "Start it with: just dev-postgres-start"
+  echo "Start it with: just dev-db-start"
   exit 1
 fi
 

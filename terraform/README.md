@@ -94,7 +94,7 @@ just tf-validate
 ## What Stays Manual
 
 - **GitHub Actions CI/CD** — workflows in `.github/workflows/`
-- **NixOS VPS configuration** — deployed via `just nixos-deploy-*`
+- **NixOS VPS configuration** — deployed via `just prod-nixos-deploy` / `just staging-nixos-deploy`
 - **Secrets** — SOPS-encrypted in `secrets/`, decrypted by sops-nix on VPS
 - **GHCR image builds** — handled by GitHub Actions
 - **GA4 property access** — the Google provider doesn't manage GA Admin (different API). See "Google Analytics setup" below.

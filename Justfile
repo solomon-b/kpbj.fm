@@ -276,7 +276,7 @@ dev-migrations-list:
   sqlx migrate info --source services/web/migrations
 
 # Build and run a development docker container
-dev-postgres-start: _require-docker
+dev-db-start: _require-docker
   echo "🟢 Starting the Development Postgres service.."
   docker run \
     --rm \
@@ -289,13 +289,13 @@ dev-postgres-start: _require-docker
   echo "✨ Success!"
 
 # Halt the development docker container
-dev-postgres-stop:
+dev-db-stop:
   echo "🔴 Stopping the Development Postgres service.."
   docker container stop kpbj-dev-postgres
   echo ✨ "Success!"
 
 # Connect to the development postgres db with psql.
-dev-postgres-psql:
+dev-psql:
   echo "🌐 Connecting to the Development Postgres service.."
   psql -h localhost -p {{DEV_DB_PORT}} -U postgres -d dev_db
 
@@ -614,7 +614,7 @@ prod-to-staging: _require-sops _require-aws
 # Credentials loaded from SOPS-encrypted secrets/backup.yaml.
 
 # Copy production database to local dev with PII sanitization
-# Requires local postgres running (just dev-postgres-start)
+# Requires local postgres running (just dev-db-start)
 prod-to-local-db: _require-sops
   ./scripts/prod-to-local-db.sh
 
@@ -719,11 +719,11 @@ STREAM_VM_PIDFILE := "/tmp/kpbj-stream-dev.pid"
 SOPS_KEY_DIR := "/tmp/kpbj-dev-sops-key"
 
 # Build the dev streaming VM
-stream-dev-build:
+dev-stream-build:
   nix build .#nixosConfigurations.kpbj-stream-dev.config.system.build.vm
 
 # Start the dev streaming VM (backgrounded)
-stream-dev-start: stream-dev-build _require-sops
+dev-stream-start: dev-stream-build _require-sops
   #!/usr/bin/env bash
   set -euo pipefail
   if [ -f "{{STREAM_VM_PIDFILE}}" ] && kill -0 "$(cat "{{STREAM_VM_PIDFILE}}")" 2>/dev/null; then
@@ -739,15 +739,15 @@ stream-dev-start: stream-dev-build _require-sops
   echo "Icecast: http://localhost:8000  Webhook: http://localhost:9000"
 
 # SSH into the dev streaming VM
-stream-dev-ssh:
+dev-stream-ssh:
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 root@localhost
 
 # View dev streaming VM logs (all three services)
-stream-dev-logs:
+dev-stream-logs:
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 root@localhost journalctl -u 'kpbj-*' -f
 
 # Stop the dev streaming VM
-stream-dev-stop:
+dev-stream-stop:
   #!/usr/bin/env bash
   set -euo pipefail
   if [ ! -f "{{STREAM_VM_PIDFILE}}" ]; then
@@ -782,27 +782,27 @@ nixos-setup HOST ENV:
 # Deploy NixOS config to production streaming VPS
 # Uses 'boot' instead of 'switch' to avoid hangs on first deploy,
 # then reboots. Safe for ongoing deploys too (activates on next boot).
-nixos-deploy-prod:
+prod-nixos-deploy:
   nixos-rebuild switch --flake .#kpbj-prod --target-host {{PROD_STREAM_TARGET}}
 
 # Deploy NixOS config to staging streaming VPS
-nixos-deploy-staging:
+staging-nixos-deploy:
   nixos-rebuild switch --flake .#kpbj-staging --target-host {{STAGING_STREAM_TARGET}}
 
 # Preview NixOS changes for production (dry-activate)
-nixos-deploy-prod-dry:
+prod-nixos-deploy-dry:
   nixos-rebuild dry-activate --flake .#kpbj-prod --target-host {{PROD_STREAM_TARGET}}
 
 # Preview NixOS changes for staging (dry-activate)
-nixos-deploy-staging-dry:
+staging-nixos-deploy-dry:
   nixos-rebuild dry-activate --flake .#kpbj-staging --target-host {{STAGING_STREAM_TARGET}}
 
 # Build production NixOS config locally (verify it evaluates)
-nixos-build-prod:
+prod-nixos-build:
   nix build .#nixosConfigurations.kpbj-prod.config.system.build.toplevel
 
 # Build staging NixOS config locally (verify it evaluates)
-nixos-build-staging:
+staging-nixos-build:
   nix build .#nixosConfigurations.kpbj-staging.config.system.build.toplevel
 
 # =============================================================================

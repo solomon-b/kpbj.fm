@@ -169,14 +169,14 @@ This triggers the GitHub Actions workflow. Monitor with `gh run watch`.
 Alternatively, if you need to push manually:
 
 ```bash
-just stream-dev-build  # Build locally
+just dev-stream-build  # Build locally
 # Then push via docker push
 ```
 
 ## Phase 7: Deploy Staging
 
 ```bash
-just nixos-deploy-staging
+just staging-nixos-deploy
 ```
 
 This runs `nixos-rebuild boot` targeting the staging droplet and then reboots. sops-nix will decrypt `secrets/staging-streaming.yaml` using the host's SSH key and render the env file for the containers.
@@ -208,7 +208,7 @@ nixos-rebuild boot --flake .#kpbj-stream-prod --target-host root@<prod-droplet-i
 ssh root@<prod-droplet-ip> reboot
 ```
 
-**Note:** `just nixos-deploy-prod` targets `stream.kpbj.fm` which still points to the legacy VPS at this point. Use the droplet IP directly until DNS cutover is complete.
+**Note:** `just prod-nixos-deploy` targets `stream.kpbj.fm` which still points to the legacy VPS at this point. Use the droplet IP directly until DNS cutover is complete.
 
 ### Verify production (on the new droplet, before DNS cutover)
 
@@ -334,7 +334,7 @@ ssh root@<ip> "podman pull ghcr.io/solomon-b/kpbj-liquidsoap:latest && systemctl
 |------|---------|
 | Edit streaming secrets | `just sops-edit-prod-streaming` / `just sops-edit-staging-streaming` |
 | Edit Terraform secrets | `just tf-edit-secrets` |
-| Deploy NixOS config | `just nixos-deploy-prod` / `just nixos-deploy-staging` |
+| Deploy NixOS config | `just prod-nixos-deploy` / `just staging-nixos-deploy` |
 | Edit web secrets | `just sops-edit-prod-web` / `just sops-edit-staging-web` |
 | Get a host's age key | `just sops-host-key <hostname>` |
 | Preview infra changes | `just tf-plan` |
