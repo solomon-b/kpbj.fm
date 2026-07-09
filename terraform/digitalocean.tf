@@ -6,7 +6,7 @@
 # (Icecast, Liquidsoap, Webhook). Droplets start as Ubuntu and
 # are automatically converted to NixOS via nixos-infect on first
 # boot. After infect completes, run `just nixos-setup` then
-# `just nixos-deploy-*` to push the declarative NixOS config
+# `just prod-nixos-deploy` / `just staging-nixos-deploy` to push the declarative NixOS config
 # (Podman containers, nginx + ACME).
 # ──────────────────────────────────────────────────────────────
 

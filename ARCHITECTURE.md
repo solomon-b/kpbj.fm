@@ -129,7 +129,7 @@ services/liquidsoap/radio.liq   # Liquidsoap automation script
 services/webhook/hooks.yaml     # Webhook definitions
 ```
 
-Deploy commands: `just nixos-deploy-staging`, `just nixos-deploy-prod`
+Deploy commands: `just staging-nixos-deploy`, `just prod-nixos-deploy`
 
 ## Secrets Management (SOPS)
 
@@ -173,5 +173,5 @@ Infrastructure provisioning is managed by Terraform in `terraform/`. This covers
 ### What Stays Manual
 
 - GitHub Actions CI/CD (`.github/workflows/`)
-- NixOS VPS configuration (`just nixos-deploy-*`)
+- NixOS VPS configuration (`just prod-nixos-deploy` / `just staging-nixos-deploy`)
 - Secrets (SOPS-encrypted in `secrets/`, decrypted by sops-nix on VPS)

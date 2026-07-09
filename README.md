@@ -49,7 +49,7 @@ In development, the app uses local filesystem storage (`/tmp/kpbj`).
 
 ```bash
 nix develop                 # Enter dev shell
-just dev-postgres-start     # Start PostgreSQL
+just dev-db-start           # Start PostgreSQL
 just dev-migrations-run     # Run migrations
 just dev-mock-data          # Load test data (optional)
 just run                    # Start server at localhost:4000
@@ -70,9 +70,9 @@ To run the full streaming stack locally (Icecast + Liquidsoap + Webhook) in a Ni
 
 ```bash
 sops secrets/dev-streaming.yaml   # Create dev streaming secrets (first time only)
-just stream-dev-build             # Build the VM
-just stream-dev-start             # Start the VM (ports 8000, 9000)
-just stream-dev-stop              # Stop the VM
+just dev-stream-build             # Build the VM
+just dev-stream-start             # Start the VM (ports 8000, 9000)
+just dev-stream-stop              # Stop the VM
 ```
 
 Stream available at `http://localhost:8000/stream`. Webhook at `http://localhost:9000`. Requires the web service running on port 4000.
@@ -218,6 +218,6 @@ just nixos-setup root@<ip> prod        # Wait for NixOS, get host age key
 just nixos-setup root@<ip> staging
 
 # Deploy NixOS configuration
-just nixos-deploy-prod                 # Deploy to production VPS
-just nixos-deploy-staging              # Deploy to staging VPS
+just prod-nixos-deploy                 # Deploy to production VPS
+just staging-nixos-deploy              # Deploy to staging VPS
 ```
