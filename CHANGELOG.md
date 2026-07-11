@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.12.2] - 2026-07-11
+
 ### Added
 - **Event photo galleries** — Events can now carry an optional gallery of photos, posted after the fact as a historical record. Staff (or the event's author) manage photos in a new "EVENT PHOTO GALLERY" section of the event edit form (`/dashboard/events/:id/:slug/edit`): drag to reorder, add a visible caption and alt text per photo, and remove photos. Unlike poster/product images, gallery photos are stored as-is with their original aspect ratio (no cropping), so mixed portrait/landscape phone photos are preserved. On the public event page the photos render as a responsive thumbnail grid with a click-to-enlarge Alpine.js lightbox (prev/next, Esc/backdrop to close); the section is hidden entirely when an event has no photos. Backed by a new `event_images` table (`Effects.Database.Tables.EventImages`), an `uploadEventGalleryImage` effect storing under `images/event-galleries/…`, and a prepare→transaction→cleanup save path mirroring product images. No new routes — the gallery piggybacks on the existing event edit POST and public detail GET.
 - **Restore soft-deleted shows** — Admins can restore soft-deleted shows from a new "Deleted only" toggle on the dashboard shows list (`/dashboard/shows?deleted`). The deleted view lists shows most-recently-deleted first with a "Deleted" badge and a per-row Restore action (`POST /dashboard/shows/:slug/restore`), which clears `deleted_at` and swaps the row out. Backed by three new idempotent `shows` queries (`restoreShow`, `getDeletedShowBySlug`, `getDeletedShowsWithHostInfo`). The delete-confirm copy now notes the show can be restored later.
