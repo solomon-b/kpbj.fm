@@ -5,11 +5,15 @@ module Store.Checkout.ShippingErrorsSpec (spec) where
 import Control.Exception (ErrorCall (..), toException)
 import Data.ByteString.Lazy (ByteString)
 import Data.Text (Text)
+import Data.Time (UTCTime)
 import EasyPost.Client (EasyPostClientError (..))
 import EasyPost.Types
-  ( EasyPostFieldError (..),
+  ( Address (..),
+    EasyPostFieldError (..),
+    Parcel (..),
     Shipment (..),
     Verification (..),
+    Verifications (..),
   )
 import Network.HTTP.Types (http11, status422)
 import Servant.Client.Core qualified as Client
@@ -34,15 +38,94 @@ connectionError =
 genericFallback :: Text
 genericFallback = "We couldn't process your shipping address. Please check it and try again."
 
+t0 :: UTCTime
+t0 = read "2025-01-01 00:00:00 UTC"
+
+baseAddress :: Address
+baseAddress =
+  Address
+    { id = "adr_test",
+      object = "Address",
+      mode = "test",
+      createdAt = t0,
+      updatedAt = t0,
+      street1 = Just "388 Townsend St",
+      street2 = Nothing,
+      city = Just "San Francisco",
+      state = Just "CA",
+      zip = Just "94107",
+      country = Just "US",
+      name = Just "Jane Doe",
+      company = Nothing,
+      phone = Nothing,
+      email = Nothing,
+      federalTaxId = Nothing,
+      stateTaxId = Nothing,
+      residential = Nothing,
+      carrierFacility = Nothing,
+      verifications = Nothing
+    }
+
+baseParcel :: Parcel
+baseParcel =
+  Parcel
+    { id = "prcl_test",
+      object = "Parcel",
+      mode = "test",
+      createdAt = t0,
+      updatedAt = t0,
+      length = Nothing,
+      width = Nothing,
+      height = Nothing,
+      weight = 16,
+      predefinedPackage = Nothing
+    }
+
+baseShipment :: Shipment
+baseShipment =
+  Shipment
+    { id = "shp_test",
+      object = "Shipment",
+      mode = "test",
+      createdAt = t0,
+      updatedAt = t0,
+      reference = Nothing,
+      toAddress = baseAddress,
+      fromAddress = baseAddress,
+      returnAddress = Nothing,
+      buyerAddress = Nothing,
+      parcel = baseParcel,
+      customsInfo = Nothing,
+      rates = [],
+      selectedRate = Nothing,
+      postageLabel = Nothing,
+      trackingCode = Nothing,
+      tracker = Nothing,
+      options = Nothing,
+      messages = [],
+      status = Nothing,
+      refundStatus = Nothing,
+      isReturn = False,
+      insurance = Nothing,
+      uspsZone = Nothing,
+      batchId = Nothing,
+      batchStatus = Nothing,
+      batchMessage = Nothing,
+      forms = [],
+      fees = [],
+      orderId = Nothing,
+      scanForm = Nothing,
+      lineItems = Nothing
+    }
+
 -- | Build a shipment carrying only a delivery verification result.
 mkShipment :: Maybe Verification -> Shipment
 mkShipment verification =
-  Shipment
-    { id = "shp_test",
-      rates = [],
-      trackingCode = Nothing,
-      postageLabel = Nothing,
-      toAddressDeliveryVerification = verification
+  baseShipment
+    { toAddress =
+        baseAddress
+          { verifications = Just Verifications {delivery = verification, zip4 = Nothing}
+          }
     }
 
 --------------------------------------------------------------------------------
@@ -85,15 +168,17 @@ spec = do
                   [ EasyPostFieldError
                       { field = Just "address",
                         message = "Address not found",
-                        suggestion = Nothing
+                        suggestion = Nothing,
+                        code = Nothing
                       }
-                  ]
+                  ],
+                details = Nothing
               }
       deliveryVerificationError (mkShipment (Just verification))
         `shouldBe` Just "Address not found"
 
     it "returns Nothing for a successful verification" $ do
-      let verification = Verification {success = True, errors = []}
+      let verification = Verification {success = True, errors = [], details = Nothing}
       deliveryVerificationError (mkShipment (Just verification))
         `shouldBe` Nothing
 

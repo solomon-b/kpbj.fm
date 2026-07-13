@@ -26,11 +26,11 @@ import Data.Text qualified as Text
 import Domain.Types.Cents (Cents (..))
 import EasyPost.Client (EasyPostClientError (..), createShipment)
 import EasyPost.Types
-  ( Address (..),
+  ( AddressParams (..),
     EasyPostApiKey,
-    Parcel (..),
+    ParcelParams (..),
     Shipment (..),
-    ShipmentCreate (..),
+    ShipmentParams (..),
   )
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
@@ -178,39 +178,74 @@ resolveVariant product' variantId qty = do
 
 --------------------------------------------------------------------------------
 
--- | Build the EasyPost ShipmentCreate from request and resolved items.
+-- | Build the EasyPost ShipmentParams from request and resolved items.
+--
+-- Ships in the larger 14.5×19 mailer (hardcoded parcel dimensions) — USPS
+-- requires all three dimensions or it returns zero rates.
 buildShipmentCreate ::
   ShippingRateRequest ->
   StoreSettings.Model ->
   [ResolvedItem] ->
-  ShipmentCreate
+  ShipmentParams
 buildShipmentCreate req settings resolvedItems =
-  ShipmentCreate
+  ShipmentParams
     { fromAddress = fromAddr,
       toAddress = toAddr,
-      parcel = Parcel {weight = totalWeightOz},
-      verify = ["delivery"]
+      parcel =
+        ParcelParams
+          { weight = totalWeightOz,
+            length = Just 19,
+            width = Just 14.5,
+            height = Just 1,
+            predefinedPackage = Nothing
+          },
+      carrierAccounts = [],
+      service = Nothing,
+      reference = Nothing,
+      customsInfo = Nothing,
+      options = Nothing,
+      isReturn = Nothing
     }
   where
     fromAddr =
-      Address
-        { name = settings.ssShipFromName,
+      AddressParams
+        { name = Just settings.ssShipFromName,
+          company = Nothing,
           street1 = settings.ssShipFromAddressLine1,
           street2 = Nothing,
           city = settings.ssShipFromCity,
           state = settings.ssShipFromState,
           zip = settings.ssShipFromZip,
-          country = settings.ssShipFromCountry
+          country = settings.ssShipFromCountry,
+          phone = Nothing,
+          email = Nothing,
+          federalTaxId = Nothing,
+          stateTaxId = Nothing,
+          residential = Nothing,
+          carrierFacility = Nothing,
+          verify = [],
+          verifyStrict = [],
+          verifyCarrier = []
         }
     toAddr =
-      Address
-        { name = req.srrFirstName <> " " <> req.srrLastName,
+      AddressParams
+        { name = Just (req.srrFirstName <> " " <> req.srrLastName),
+          company = Nothing,
           street1 = req.srrAddressLine1,
           street2 = if Text.null req.srrAddressLine2 then Nothing else Just req.srrAddressLine2,
           city = req.srrCity,
           state = req.srrState,
           zip = req.srrZip,
-          country = "US"
+          country = "US",
+          phone = Nothing,
+          email = Nothing,
+          federalTaxId = Nothing,
+          stateTaxId = Nothing,
+          residential = Nothing,
+          carrierFacility = Nothing,
+          verify = ["delivery"],
+          verifyStrict = [],
+          verifyCarrier = []
         }
     totalWeightOz :: Double
     totalWeightOz =

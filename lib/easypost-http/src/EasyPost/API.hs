@@ -28,7 +28,7 @@ import Servant.API
     (:<|>),
     (:>),
   )
-import EasyPost.Types (Shipment, ShipmentBuy, ShipmentCreate)
+import EasyPost.Types (Shipment, ShipmentBuy, ShipmentParams)
 
 
 -- | @POST /v2/shipments@
@@ -39,7 +39,7 @@ type CreateShipmentAPI =
   "v2"
     :> "shipments"
     :> Header' '[Required, Strict] "Authorization" Text
-    :> ReqBody '[JSON] ShipmentCreate
+    :> ReqBody '[JSON] ShipmentParams
     :> PostCreated '[JSON] Shipment
 
 

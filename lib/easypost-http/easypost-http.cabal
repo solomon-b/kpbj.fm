@@ -38,6 +38,7 @@ library
     , servant
     , servant-client
     , text
+    , time
   exposed-modules:
     EasyPost.API
     EasyPost.Client

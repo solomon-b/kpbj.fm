@@ -25,40 +25,80 @@ withEasyPost action = do
       action key mgr
 
 -- | Test addresses using EasyPost's recommended test values.
-fromAddress :: Address
+fromAddress :: AddressParams
 fromAddress =
-  Address
-    { name = "KPBJ 95.9FM",
+  AddressParams
+    { name = Just "KPBJ 95.9FM",
+      company = Nothing,
       street1 = "417 Montgomery Street",
       street2 = Just "Floor 5",
       city = "San Francisco",
       state = "CA",
       zip = "94104",
-      country = "US"
+      country = "US",
+      phone = Nothing,
+      email = Nothing,
+      federalTaxId = Nothing,
+      stateTaxId = Nothing,
+      residential = Nothing,
+      carrierFacility = Nothing,
+      verify = [],
+      verifyStrict = [],
+      verifyCarrier = []
     }
 
-toAddress :: Address
+toAddress :: AddressParams
 toAddress =
-  Address
-    { name = "Jane Doe",
+  AddressParams
+    { name = Just "Jane Doe",
+      company = Nothing,
       street1 = "388 Townsend St",
       street2 = Just "Apt 20",
       city = "San Francisco",
       state = "CA",
       zip = "94107",
-      country = "US"
+      country = "US",
+      phone = Nothing,
+      email = Nothing,
+      federalTaxId = Nothing,
+      stateTaxId = Nothing,
+      residential = Nothing,
+      carrierFacility = Nothing,
+      verify = [],
+      verifyStrict = [],
+      verifyCarrier = []
+    }
+
+-- | Build a shipment create request with the test addresses and a parcel of
+-- the given weight (in ounces).
+mkShipmentParams :: Double -> ShipmentParams
+mkShipmentParams weight =
+  ShipmentParams
+    { fromAddress = fromAddress,
+      toAddress = toAddress,
+      parcel =
+        -- EasyPost create-validation requires all three dimensions once any is
+        -- present, and USPS refuses to rate a dimensionless parcel — so we send
+        -- a representative poly-mailer size (inches) alongside the weight.
+        ParcelParams
+          { weight = weight,
+            length = Just 13,
+            width = Just 10,
+            height = Just 1,
+            predefinedPackage = Nothing
+          },
+      carrierAccounts = [],
+      service = Nothing,
+      reference = Nothing,
+      customsInfo = Nothing,
+      options = Nothing,
+      isReturn = Nothing
     }
 
 spec :: Spec
 spec = describe "EasyPost Integration (live test API)" $ do
   it "creates a shipment and gets rates" $ withEasyPost $ \key mgr -> do
-    let sc =
-          ShipmentCreate
-            { fromAddress = fromAddress,
-              toAddress = toAddress,
-              parcel = Parcel {weight = 16.0},
-              verify = []
-            }
+    let sc = mkShipmentParams 16.0
 
     createResult <- createShipment mgr key sc
     case createResult of
@@ -76,13 +116,7 @@ spec = describe "EasyPost Integration (live test API)" $ do
           ) shipment.rates
 
   it "retrieves a shipment by ID" $ withEasyPost $ \key mgr -> do
-    let sc =
-          ShipmentCreate
-            { fromAddress = fromAddress,
-              toAddress = toAddress,
-              parcel = Parcel {weight = 8.0},
-              verify = []
-            }
+    let sc = mkShipmentParams 8.0
 
     createResult <- createShipment mgr key sc
     case createResult of
@@ -95,13 +129,7 @@ spec = describe "EasyPost Integration (live test API)" $ do
             shipment'.id `shouldBe` shipment.id
 
   it "buys a shipment and gets tracking + label" $ withEasyPost $ \key mgr -> do
-    let sc =
-          ShipmentCreate
-            { fromAddress = fromAddress,
-              toAddress = toAddress,
-              parcel = Parcel {weight = 10.0},
-              verify = []
-            }
+    let sc = mkShipmentParams 10.0
 
     createResult <- createShipment mgr key sc
     case createResult of
@@ -111,7 +139,7 @@ spec = describe "EasyPost Integration (live test API)" $ do
         case shipment.rates of
           [] -> fail "No rates returned"
           (cheapest : _) -> do
-            let buy = ShipmentBuy {rateId = cheapest.id}
+            let buy = ShipmentBuy {rateId = cheapest.id, insurance = Nothing}
             buyResult <- buyShipment mgr key shipment.id buy
             case buyResult of
               Left err -> fail $ "Failed to buy shipment: " <> show err

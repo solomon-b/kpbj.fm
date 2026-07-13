@@ -32,13 +32,13 @@ import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
 import EasyPost.Client (EasyPostClientError (..), buyShipment, createShipment)
 import EasyPost.Types
-  ( Address (..),
+  ( AddressParams (..),
     EasyPostApiKey,
-    Label (..),
-    Parcel (..),
+    ParcelParams (..),
+    PostageLabel (..),
     Shipment (..),
     ShipmentBuy (..),
-    ShipmentCreate (..),
+    ShipmentParams (..),
   )
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.OrderItems qualified as OrderItems
@@ -115,7 +115,7 @@ buyLabelAndUpdate orderId form = do
   let shipmentId = lfShipmentId form
       rateId = lfRateId form
 
-  result <- liftIO $ buyShipment manager apiKey shipmentId (ShipmentBuy rateId)
+  result <- liftIO $ buyShipment manager apiKey shipmentId (ShipmentBuy {rateId = rateId, insurance = Nothing})
 
   case result of
     Left (EasyPostClientError err) -> do
@@ -123,7 +123,7 @@ buyLabelAndUpdate orderId form = do
       pure $ renderBanner Error "Label Error" (easyPostFailureMessage (EasyPostClientError err))
     Right shipment -> do
       let trackingNumber = fromMaybe "" shipment.trackingCode
-          mLabelUrl = fmap (\(Label url) -> url) shipment.postageLabel
+          mLabelUrl = fmap (.labelUrl) shipment.postageLabel
       lift $
         void $
           execQueryThrow
@@ -166,33 +166,59 @@ itemWeight item = do
 
   pure (effectiveWeight * item.oiQuantity)
 
--- | Build an EasyPost ShipmentCreate from the order and store settings.
+-- | Build an EasyPost ShipmentParams from the order and store settings.
+--
+-- Ships in the larger 14.5×19 mailer (hardcoded parcel dimensions) — USPS
+-- requires all three dimensions or it returns zero rates.
 buildShipmentCreate ::
   Orders.Model ->
   StoreSettings.Model ->
   Double ->
-  ShipmentCreate
+  ShipmentParams
 buildShipmentCreate order settings totalWeightOz =
-  ShipmentCreate
+  ShipmentParams
     { fromAddress = fromAddr,
       toAddress = toAddr,
-      parcel = Parcel {weight = totalWeightOz},
-      verify = []
+      parcel =
+        ParcelParams
+          { weight = totalWeightOz,
+            length = Just 19,
+            width = Just 14.5,
+            height = Just 1,
+            predefinedPackage = Nothing
+          },
+      carrierAccounts = [],
+      service = Nothing,
+      reference = Nothing,
+      customsInfo = Nothing,
+      options = Nothing,
+      isReturn = Nothing
     }
   where
     fromAddr =
-      Address
-        { name = settings.ssShipFromName,
+      AddressParams
+        { name = Just settings.ssShipFromName,
+          company = Nothing,
           street1 = settings.ssShipFromAddressLine1,
           street2 = Nothing,
           city = settings.ssShipFromCity,
           state = settings.ssShipFromState,
           zip = settings.ssShipFromZip,
-          country = settings.ssShipFromCountry
+          country = settings.ssShipFromCountry,
+          phone = Nothing,
+          email = Nothing,
+          federalTaxId = Nothing,
+          stateTaxId = Nothing,
+          residential = Nothing,
+          carrierFacility = Nothing,
+          verify = [],
+          verifyStrict = [],
+          verifyCarrier = []
         }
     toAddr =
-      Address
-        { name = order.oShippingFirstName <> " " <> order.oShippingLastName,
+      AddressParams
+        { name = Just (order.oShippingFirstName <> " " <> order.oShippingLastName),
+          company = Nothing,
           street1 = order.oShippingAddressLine1,
           street2 =
             if Text.null order.oShippingAddressLine2
@@ -201,5 +227,14 @@ buildShipmentCreate order settings totalWeightOz =
           city = order.oShippingCity,
           state = order.oShippingState,
           zip = order.oShippingZip,
-          country = order.oShippingCountry
+          country = order.oShippingCountry,
+          phone = Nothing,
+          email = Nothing,
+          federalTaxId = Nothing,
+          stateTaxId = Nothing,
+          residential = Nothing,
+          carrierFacility = Nothing,
+          verify = [],
+          verifyStrict = [],
+          verifyCarrier = []
         }
