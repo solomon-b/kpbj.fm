@@ -4,7 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+- **easypost-http: split request/response types and model all documented fields** — The EasyPost domain types are now split into request types (`AddressParams`, `ParcelParams`, `ShipmentParams`) and response types (`Address`, `Parcel`, `Shipment`, `Rate`, `PostageLabel`), each modeling every documented field. Request types have hand-written `ToJSON` (nesting + omit-when-empty); response types derive `FromJSON` from a shared snake_case options value (with hand-written instances where lists need defaulting). Address verification is now expressed via `verify`/`verify_strict`/`verify_carrier` on `AddressParams` (previously a root-level shipment key). Added `Verifications`/`VerificationDetails`; `PostageLabel` replaces the old `Label` type; `ShipmentParams` replaces `ShipmentCreate`. Field-level errors (`EasyPostFieldError`) gained a `code` field. Not-yet-modeled nested objects (customs info, tracker, options, forms, fees, etc.) are retained as raw JSON.
+- **Store checkout/label handlers updated to the split easypost-http types** — The shipping-rate and label-purchase handlers now build `ShipmentParams`/`AddressParams`/`ParcelParams` requests and parse the new `Shipment`/`Address`/`PostageLabel` responses. Delivery-address verification is read from `toAddress.verifications.delivery` instead of the old bespoke `toAddressDeliveryVerification` field. Both builders now ship in the larger 14.5×19 mailer (hardcoded parcel dimensions) — USPS requires all three parcel dimensions or it returns zero rates.
 
 ---
 

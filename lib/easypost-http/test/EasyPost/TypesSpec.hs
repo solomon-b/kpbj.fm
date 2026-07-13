@@ -4,10 +4,12 @@ module EasyPost.TypesSpec where
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy (ByteString)
 import EasyPost.Types
-  ( EasyPostError (..),
+  ( Address (..),
+    EasyPostError (..),
     EasyPostFieldError (..),
     Shipment (..),
     Verification (..),
+    Verifications (..),
   )
 import Test.Hspec (Spec, describe, it, shouldBe)
 
@@ -27,7 +29,8 @@ spec = do
                 [ EasyPostFieldError
                     { field = Just "shipment.parcel.weight",
                       message = "must be greater than 0",
-                      suggestion = Nothing
+                      suggestion = Nothing,
+                      code = Nothing
                     }
                 ]
             }
@@ -35,7 +38,7 @@ spec = do
     it "decodes an ADDRESS.VERIFY.FAILURE error with a null suggestion" $ do
       let body :: ByteString
           body =
-            "{\"error\":{\"code\":\"ADDRESS.VERIFY.FAILURE\",\"message\":\"Unable to verify address.\",\"errors\":[{\"field\":\"street1\",\"message\":\"House number is missing\",\"suggestion\":null}]}}"
+            "{\"error\":{\"code\":\"ADDRESS.VERIFY.FAILURE\",\"message\":\"Unable to verify address.\",\"errors\":[{\"field\":\"street1\",\"message\":\"House number is missing\",\"suggestion\":null,\"code\":\"E.ADDRESS.NOT_FOUND\"}]}}"
       Aeson.decode body
         `shouldBe` Just
           EasyPostError
@@ -45,7 +48,8 @@ spec = do
                 [ EasyPostFieldError
                     { field = Just "street1",
                       message = "House number is missing",
-                      suggestion = Nothing
+                      suggestion = Nothing,
+                      code = Just "E.ADDRESS.NOT_FOUND"
                     }
                 ]
             }
@@ -63,7 +67,8 @@ spec = do
                 [ EasyPostFieldError
                     { field = Nothing,
                       message = "a bare string error",
-                      suggestion = Nothing
+                      suggestion = Nothing,
+                      code = Nothing
                     }
                 ]
             }
@@ -72,9 +77,9 @@ spec = do
     it "decodes a failed to_address delivery verification" $ do
       let body :: ByteString
           body =
-            "{\"id\":\"shp_1\",\"rates\":[],\"to_address\":{\"verifications\":{\"delivery\":{\"success\":false,\"errors\":[{\"code\":\"E.ADDRESS.NOT_FOUND\",\"field\":\"address\",\"message\":\"Address not found\",\"suggestion\":null}],\"details\":null}}}}"
+            "{\"id\":\"shp_1\",\"object\":\"Shipment\",\"mode\":\"test\",\"created_at\":\"2025-05-09T20:37:54Z\",\"updated_at\":\"2025-05-09T20:37:54Z\",\"rates\":[],\"parcel\":{\"id\":\"prcl_1\",\"object\":\"Parcel\",\"mode\":\"test\",\"created_at\":\"2025-05-09T20:37:54Z\",\"updated_at\":\"2025-05-09T20:37:54Z\",\"weight\":16.0},\"from_address\":{\"id\":\"adr_from\",\"object\":\"Address\",\"mode\":\"test\",\"created_at\":\"2025-05-09T20:37:54Z\",\"updated_at\":\"2025-05-09T20:37:54Z\"},\"to_address\":{\"id\":\"adr_to\",\"object\":\"Address\",\"mode\":\"test\",\"created_at\":\"2025-05-09T20:37:54Z\",\"updated_at\":\"2025-05-09T20:37:54Z\",\"verifications\":{\"delivery\":{\"success\":false,\"errors\":[{\"code\":\"E.ADDRESS.NOT_FOUND\",\"field\":\"address\",\"message\":\"Address not found\",\"suggestion\":null}],\"details\":null}}}}"
           mShipment = Aeson.decode body :: Maybe Shipment
-      fmap (.toAddressDeliveryVerification) mShipment
+      fmap (\s -> s.toAddress.verifications >>= (.delivery)) mShipment
         `shouldBe` Just
           ( Just
               Verification
@@ -83,15 +88,18 @@ spec = do
                     [ EasyPostFieldError
                         { field = Just "address",
                           message = "Address not found",
-                          suggestion = Nothing
+                          suggestion = Nothing,
+                          code = Just "E.ADDRESS.NOT_FOUND"
                         }
-                    ]
+                    ],
+                  details = Nothing
                 }
           )
 
     it "yields Nothing when verifications are absent" $ do
       let body :: ByteString
-          body = "{\"id\":\"shp_2\",\"rates\":[]}"
+          body =
+            "{\"id\":\"shp_2\",\"object\":\"Shipment\",\"mode\":\"test\",\"created_at\":\"2025-05-09T20:37:54Z\",\"updated_at\":\"2025-05-09T20:37:54Z\",\"rates\":[],\"parcel\":{\"id\":\"prcl_2\",\"object\":\"Parcel\",\"mode\":\"test\",\"created_at\":\"2025-05-09T20:37:54Z\",\"updated_at\":\"2025-05-09T20:37:54Z\",\"weight\":8.0},\"from_address\":{\"id\":\"adr_from\",\"object\":\"Address\",\"mode\":\"test\",\"created_at\":\"2025-05-09T20:37:54Z\",\"updated_at\":\"2025-05-09T20:37:54Z\"},\"to_address\":{\"id\":\"adr_to\",\"object\":\"Address\",\"mode\":\"test\",\"created_at\":\"2025-05-09T20:37:54Z\",\"updated_at\":\"2025-05-09T20:37:54Z\"}}"
           mShipment = Aeson.decode body :: Maybe Shipment
-      fmap (.toAddressDeliveryVerification) mShipment
+      fmap (\s -> s.toAddress.verifications) mShipment
         `shouldBe` Just Nothing

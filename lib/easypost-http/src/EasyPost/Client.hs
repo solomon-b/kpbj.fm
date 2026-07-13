@@ -30,7 +30,7 @@ import EasyPost.Types
     EasyPostError,
     Shipment,
     ShipmentBuy,
-    ShipmentCreate,
+    ShipmentParams,
   )
 import Network.HTTP.Client (Manager)
 import Servant.API ((:<|>) (..))
@@ -73,7 +73,7 @@ easyPostBaseUrl =
 
 
 -- | Derive client functions from the 'EasyPostAPI' type.
-createShipmentClient :: Text -> ShipmentCreate -> Client.ClientM Shipment
+createShipmentClient :: Text -> ShipmentParams -> Client.ClientM Shipment
 getShipmentClient :: Text -> Text -> Client.ClientM Shipment
 buyShipmentClient :: Text -> Text -> ShipmentBuy -> Client.ClientM Shipment
 createShipmentClient :<|> getShipmentClient :<|> buyShipmentClient = Client.client (Proxy :: Proxy EasyPostAPI)
@@ -98,7 +98,7 @@ createShipment ::
   -- | API key
   EasyPostApiKey ->
   -- | Shipment parameters
-  ShipmentCreate ->
+  ShipmentParams ->
   IO (Either EasyPostClientError Shipment)
 createShipment manager apiKey params = do
   let env = Client.mkClientEnv manager easyPostBaseUrl

@@ -21,10 +21,12 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import EasyPost.Client (EasyPostClientError, easyPostErrorDetails)
 import EasyPost.Types
-  ( EasyPostError (..),
+  ( Address (..),
+    EasyPostError (..),
     EasyPostFieldError (..),
     Shipment (..),
     Verification (..),
+    Verifications (..),
   )
 
 --------------------------------------------------------------------------------
@@ -57,7 +59,7 @@ formatEasyPostError easyPostError =
 -- delivery verification succeeded.
 deliveryVerificationError :: Shipment -> Maybe Text
 deliveryVerificationError shipment =
-  case shipment.toAddressDeliveryVerification of
+  case shipment.toAddress.verifications >>= (.delivery) of
     Just verification
       | not verification.success ->
           Just (fromMaybe genericFallback (formatFieldErrors verification.errors))
