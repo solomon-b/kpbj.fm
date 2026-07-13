@@ -6,8 +6,6 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.List (sort)
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Database qualified
@@ -16,6 +14,7 @@ import Hasql.Session qualified as Session
 import Log qualified
 import Log.Backend.StandardOutput qualified as Log
 import Options.Applicative
+import Sync (SyncPlan (..), computeSyncPlan)
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
 
@@ -90,47 +89,45 @@ main = do
           Log.logInfo "Found hosts in database" $ Aeson.object ["count" .= length es]
           pure es
 
-      -- Compute set differences (case-insensitive)
-      let groupEmailSet = Set.fromList $ map (Text.toLower . gmEmail) groupMembers
-          hostEmailSet = Set.fromList $ map Text.toLower emails
-          toRemove = Set.difference groupEmailSet hostEmailSet
-          toAdd = Set.difference hostEmailSet groupEmailSet
+      -- Compute the reconciliation plan (case-insensitive, manager-protected)
+      let plan = computeSyncPlan groupMembers emails
 
       Log.logInfo "Computed diff" $
         Aeson.object
-          [ "to_remove" .= Set.size toRemove,
-            "to_add" .= Set.size toAdd
+          [ "to_remove" .= length (spToRemove plan),
+            "to_add" .= length (spToAdd plan),
+            "protected" .= length (spProtected plan)
           ]
 
       -- Perform the sync
       if dryRun
         then liftIO $ do
-          Text.putStrLn "========================================"
-          Text.putStrLn "WOULD REMOVE FROM GOOGLE GROUP"
-          Text.putStrLn "========================================"
-          if Set.null toRemove
-            then Text.putStrLn "(none)"
-            else mapM_ Text.putStrLn (sort $ Set.toList toRemove)
-
-          Text.putStrLn ""
-          Text.putStrLn "========================================"
-          Text.putStrLn "WOULD ADD TO GOOGLE GROUP"
-          Text.putStrLn "========================================"
-          if Set.null toAdd
-            then Text.putStrLn "(none)"
-            else mapM_ Text.putStrLn (sort $ Set.toList toAdd)
+          printSection "WOULD REMOVE FROM GOOGLE GROUP" (spToRemove plan)
+          printSection "WOULD ADD TO GOOGLE GROUP" (spToAdd plan)
+          printSection "PROTECTED (skipped)" (spProtected plan)
         else do
-          -- Remove members not in DB
-          mapM_ (removeMember token groupEmail) (sort $ Set.toList toRemove)
+          -- Remove non-host MEMBERs (managers/owners are excluded by the plan)
+          mapM_ (removeMember token groupEmail) (spToRemove plan)
 
-          -- Add hosts missing from group
-          mapM_ (addMember token groupEmail) (sort $ Set.toList toAdd)
+          -- Add hosts missing from the group
+          mapM_ (addMember token groupEmail) (spToAdd plan)
 
           Log.logInfo "Sync complete" ()
 
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
+
+-- | Print a titled section of emails to stdout for dry-run output.
+printSection :: Text.Text -> [Text.Text] -> IO ()
+printSection title items = do
+  Text.putStrLn "========================================"
+  Text.putStrLn title
+  Text.putStrLn "========================================"
+  if null items
+    then Text.putStrLn "(none)"
+    else mapM_ Text.putStrLn items
+  Text.putStrLn ""
 
 -- | Unwrap a GoogleGroupsError or die.
 case' :: (MonadIO m, Log.MonadLog m) => Either GoogleGroupsError a -> m a
