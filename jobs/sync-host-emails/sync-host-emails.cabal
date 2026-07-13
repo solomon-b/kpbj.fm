@@ -6,29 +6,7 @@ author:             Solomon Bothwell
 maintainer:         ssbothwell@gmail.com
 build-type:         Simple
 
-executable sync-host-emails
-  main-is:          Main.hs
-  other-modules:    GoogleGroups
-                  , Database
-  build-depends:    base
-                  , aeson
-                  , bytestring
-                  , containers
-                  , crypton-x509
-                  , crypton-x509-store
-                  , hasql
-                  , http-client
-                  , http-conduit
-                  , http-types
-                  , jose               >= 0.11 && < 0.12
-                  , log-base
-                  , optparse-applicative
-                  , rel8
-                  , string-interpolate
-                  , text
-                  , time
-                  , transformers
-  hs-source-dirs:   .
+common extensions
   default-language: Haskell2010
   default-extensions:
       BlockArguments
@@ -41,4 +19,53 @@ executable sync-host-emails
       RecordWildCards
       StrictData
       TypeApplications
+
+library
+  import:           extensions
+  exposed-modules:  Database
+                  , GoogleGroups
+                  , Sync
+  build-depends:    base
+                  , aeson
+                  , bytestring
+                  , containers
+                  , crypton-x509
+                  , crypton-x509-store
+                  , hasql
+                  , http-client
+                  , http-conduit
+                  , http-types
+                  , jose               >= 0.11 && < 0.12
+                  , rel8
+                  , string-interpolate
+                  , text
+                  , time
+                  , transformers
+  hs-source-dirs:   src
+  ghc-options:      -Wall
+
+executable sync-host-emails
+  import:           extensions
+  main-is:          Main.hs
+  build-depends:    base
+                  , aeson
+                  , hasql
+                  , log-base
+                  , optparse-applicative
+                  , sync-host-emails
+                  , text
+  hs-source-dirs:   .
   ghc-options:      -Wall -threaded
+
+test-suite sync-host-emails-spec
+  import:             extensions
+  type:               exitcode-stdio-1.0
+  main-is:            Spec.hs
+  other-modules:      SyncSpec
+  hs-source-dirs:     test
+  build-tool-depends: hspec-discover:hspec-discover
+  build-depends:      base
+                    , hspec
+                    , sync-host-emails
+                    , text
+  ghc-options:        -Wall

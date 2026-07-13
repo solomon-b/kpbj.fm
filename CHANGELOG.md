@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixed
+- **Host email sync no longer removes group managers** — The `sync-host-emails` job previously removed any Google Group member whose email was not in the host set, including accounts manually promoted to `MANAGER`/`OWNER` in Google Admin. The reconciliation now excludes `MANAGER`/`OWNER` members from removal (protect-only; the job still never assigns the manager role, and still adds hosts as plain `MEMBER`). Dry-run output gains a `PROTECTED (skipped)` section and the run log a `protected` count. Reconciliation is now a pure, unit-tested `computeSyncPlan` (`jobs/sync-host-emails/src/Sync.hs`), and the package was split into a library + executable + hspec test-suite to support it.
 
 ---
 
