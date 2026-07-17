@@ -61,6 +61,7 @@ module Lucid.Form.Builder
 
     -- * Field Functions
     textField,
+    urlField,
     passwordField,
     textareaField,
     selectField,
@@ -200,6 +201,7 @@ import Lucid.Form.Builder.Core
     textField,
     textareaField,
     toggleField,
+    urlField,
   )
 import Lucid.Form.Builder.Field
   ( FieldBuilder,

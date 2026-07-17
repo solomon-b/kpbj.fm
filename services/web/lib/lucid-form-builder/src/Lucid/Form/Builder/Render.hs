@@ -299,6 +299,7 @@ renderFooterToggle field = do
 renderField :: Field -> Lucid.Html ()
 renderField field = case fType field of
   TextField -> renderTextField field
+  UrlField -> renderUrlField field
   PasswordField -> renderPasswordField field
   TextareaField rows -> renderTextareaField field rows
   SelectField -> renderSelectField field
@@ -319,7 +320,14 @@ renderField field = case fType field of
 -- Text Field
 
 renderTextField :: Field -> Lucid.Html ()
-renderTextField field = do
+renderTextField = renderTextInputField "text"
+
+renderUrlField :: Field -> Lucid.Html ()
+renderUrlField = renderTextInputField "url"
+
+-- | Render a single-line input of the given HTML @type@ (shared by text and URL fields).
+renderTextInputField :: Text -> Field -> Lucid.Html ()
+renderTextInputField inputType field = do
   let name = fName field
       cfg = fConfig field
       val = fValidation field
@@ -337,7 +345,7 @@ renderTextField field = do
 
     -- Input
     Lucid.input_ $
-      [ Lucid.type_ "text",
+      [ Lucid.type_ inputType,
         Lucid.name_ name,
         Lucid.id_ name,
         Lucid.class_ "fb-input"

@@ -37,6 +37,7 @@ module Lucid.Form.Builder.Core
 
     -- * Field Functions
     textField,
+    urlField,
     passwordField,
     textareaField,
     selectField,
@@ -156,6 +157,14 @@ formSubtitle = tellSubtitle
 -- >   required
 textField :: Text -> FieldBuilder -> FormBuilder
 textField name builder = tellField $ buildField name TextField builder
+
+-- | Add a URL input field (single-line text rendered as @type="url"@).
+--
+-- > urlField "website" do
+-- >   label "Website"
+-- >   placeholder "https://example.com"
+urlField :: Text -> FieldBuilder -> FormBuilder
+urlField name builder = tellField $ buildField name UrlField builder
 
 -- | Add a password input field (masked text).
 --

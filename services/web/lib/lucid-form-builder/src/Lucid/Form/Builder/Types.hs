@@ -120,6 +120,8 @@ data Field = Field
 data FieldType
   = -- | Single-line text input
     TextField
+  | -- | URL input (single-line text rendered as <input type="url">)
+    UrlField
   | -- | Password input (like TextField but masked)
     PasswordField
   | -- | Multi-line text input
