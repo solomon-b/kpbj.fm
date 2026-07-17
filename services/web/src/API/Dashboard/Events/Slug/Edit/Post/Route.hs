@@ -46,7 +46,9 @@ data EventEditForm = EventEditForm
     -- | JSON array of deleted gallery photo IDs
     eefGalleryDeleted :: Maybe Text,
     -- | New gallery photo files from the gallery editor
-    eefGalleryFiles :: [FileData Mem]
+    eefGalleryFiles :: [FileData Mem],
+    -- | Optional off-site ticket/RSVP link
+    eefTicketUrl :: Text
   }
   deriving (Show)
 
@@ -66,6 +68,7 @@ instance FromMultipart Mem EventEditForm where
       <*> pure (either (const Nothing) Just (lookupInput "event_gallery_data" multipartData))
       <*> pure (either (const Nothing) Just (lookupInput "event_gallery_deleted" multipartData))
       <*> pure (getAllFiles "event_gallery_files" multipartData)
+      <*> lookupInput "ticket_url" multipartData
     where
       fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
       fileDataToNothing (Just fileData)

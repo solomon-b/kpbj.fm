@@ -19,6 +19,7 @@ module Effects.ContentSanitization
     validateContentLength,
     ContentValidationError (..),
     displayContentValidationError,
+    validateOptionalHttpUrl,
 
     -- * Numeric Parsing
     parseIntDefault0,
@@ -31,6 +32,7 @@ where
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Network.URI qualified as URI
 import Text.HTML.SanitizeXSS (sanitizeXSS)
 import Text.Read (readMaybe)
 
@@ -52,6 +54,27 @@ validateContentLength maxLen content
   | Text.null (Text.strip content) = Left ContentEmpty
   | Text.length content > maxLen = Left $ ContentTooLong maxLen (Text.length content)
   | otherwise = Right content
+
+-- | Validate an optional external URL.
+--
+-- Blank input (after trimming) yields @Right Nothing@ (no link). Otherwise the
+-- value must be an absolute @http:@ or @https:@ URL with a non-empty host and at
+-- most @maxLen@ characters. The trimmed URL is returned on success.
+validateOptionalHttpUrl :: Int -> Text -> Either ContentValidationError (Maybe Text)
+validateOptionalHttpUrl maxLen raw =
+  let trimmed = Text.strip raw
+   in if Text.null trimmed
+        then Right Nothing
+        else
+          if Text.length trimmed > maxLen
+            then Left (ContentTooLong maxLen (Text.length trimmed))
+            else case URI.parseAbsoluteURI (Text.unpack trimmed) of
+              Just uri
+                | URI.uriScheme uri `elem` ["http:", "https:"],
+                  Just auth <- URI.uriAuthority uri,
+                  not (null (URI.uriRegName auth)) ->
+                    Right (Just trimmed)
+              _ -> Left (ContentInvalid "must be a valid http:// or https:// URL")
 
 -- | Convert ContentValidationError to user-friendly display text
 displayContentValidationError :: ContentValidationError -> Text

@@ -108,6 +108,7 @@ updateEvent eventId event editForm = do
   validDescription <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 5000 sanitizedDescription)
   validLocationName <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 100 sanitizedLocationName)
   validLocationAddress <- requireRight Sanitize.displayContentValidationError (Sanitize.validateContentLength 500 sanitizedLocationAddress)
+  validTicketUrl <- requireRight Sanitize.displayContentValidationError (Sanitize.validateOptionalHttpUrl 2000 (eefTicketUrl editForm))
 
   -- 5. Upload poster image if provided, or clear if requested
   posterImagePath <- case eefPosterImage editForm of
@@ -153,6 +154,7 @@ updateEvent eventId event editForm = do
             Events.eiStatus = parsedStatus,
             Events.eiAuthorId = event.emAuthorId,
             Events.eiPosterImageUrl = posterImagePath,
+            Events.eiTicketUrl = validTicketUrl,
             Events.eiFeaturedOnHomepage = featuredOnHomepage
           }
 

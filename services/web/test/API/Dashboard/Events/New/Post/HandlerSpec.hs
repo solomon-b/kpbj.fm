@@ -28,6 +28,8 @@ spec =
       describe "action" $ do
         it "creates an event with valid form data" test_createsEvent
         it "fails when end time is before start time" test_failsOnInvalidDates
+        it "persists a valid ticket url" test_persistsTicketUrl
+        it "rejects an invalid ticket url" test_rejectsInvalidTicketUrl
 
 --------------------------------------------------------------------------------
 
@@ -43,7 +45,8 @@ validEventForm =
       nefLocationAddress = "456 Park Ave, Burbank, CA",
       nefStatus = "published",
       nefPosterImage = Nothing,
-      nefFeaturedOnHomepage = "false"
+      nefFeaturedOnHomepage = "false",
+      nefTicketUrl = ""
     }
 
 --------------------------------------------------------------------------------
@@ -94,6 +97,50 @@ test_failsOnInvalidDates cfg = do
 
     result <- runExceptT $ action userModel badForm
 
+    liftIO $ case result of
+      Left (ValidationError _) -> pure ()
+      Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err
+      Right _ -> expectationFailure "Expected Left ValidationError but got Right"
+
+-- | A valid ticket url is stored on the created event.
+test_persistsTicketUrl :: TestDBConfig -> IO ()
+test_persistsTicketUrl cfg = do
+  userInsert <- mkUserInsert "ev-new-post-ticket" UserMetadata.Staff
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      TRX.statement () (User.getUser userId) >>= maybe (error "user not found") pure
+    userModel <- liftIO $ expectSetupRight dbResult
+
+    let form = validEventForm {nefTicketUrl = "https://tickets.example.com/e/1"}
+    result <- runExceptT $ action userModel form
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right _ -> pure ()
+
+    lookupResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (Events.getAllEvents 50 0)
+
+    liftIO $ do
+      events <- expectSetupRight lookupResult
+      map Events.emTicketUrl events `shouldBe` [Just "https://tickets.example.com/e/1"]
+
+-- | An invalid ticket url is rejected with a ValidationError and no event is created.
+test_rejectsInvalidTicketUrl :: TestDBConfig -> IO ()
+test_rejectsInvalidTicketUrl cfg = do
+  userInsert <- mkUserInsert "ev-new-post-badticket" UserMetadata.Staff
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      TRX.statement () (User.getUser userId) >>= maybe (error "user not found") pure
+    userModel <- liftIO $ expectSetupRight dbResult
+
+    let form = validEventForm {nefTicketUrl = "not-a-url"}
+    result <- runExceptT $ action userModel form
     liftIO $ case result of
       Left (ValidationError _) -> pure ()
       Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err

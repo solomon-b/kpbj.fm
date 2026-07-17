@@ -27,5 +27,6 @@ eventInsertGen userId = do
   eiStatus <- genEventStatus
   let eiAuthorId = userId
       eiPosterImageUrl = Nothing
+      eiTicketUrl = Nothing
       eiFeaturedOnHomepage = False
   pure Events.Insert {..}

@@ -89,6 +89,40 @@ spec = do
         let longContent = Text.replicate 200 "a"
         validateContentLength 100 longContent `shouldBe` Left (ContentTooLong 100 200)
 
+    describe "validateOptionalHttpUrl" $ do
+      it "accepts valid https URLs" $
+        validateOptionalHttpUrl 2000 "https://eventbrite.com/e/123"
+          `shouldBe` Right (Just "https://eventbrite.com/e/123")
+
+      it "accepts valid http URLs" $
+        validateOptionalHttpUrl 2000 "http://venue.com/tickets"
+          `shouldBe` Right (Just "http://venue.com/tickets")
+
+      it "trims surrounding whitespace" $
+        validateOptionalHttpUrl 2000 "  https://example.com/x  "
+          `shouldBe` Right (Just "https://example.com/x")
+
+      it "treats blank input as no link" $ do
+        validateOptionalHttpUrl 2000 "" `shouldBe` Right Nothing
+        validateOptionalHttpUrl 2000 "   " `shouldBe` Right Nothing
+
+      it "rejects URLs without an http(s) scheme" $ do
+        validateOptionalHttpUrl 2000 "javascript:alert(1)"
+          `shouldBe` Left (ContentInvalid "must be a valid http:// or https:// URL")
+        validateOptionalHttpUrl 2000 "eventbrite.com/e/123"
+          `shouldBe` Left (ContentInvalid "must be a valid http:// or https:// URL")
+        validateOptionalHttpUrl 2000 "ftp://files.example.com"
+          `shouldBe` Left (ContentInvalid "must be a valid http:// or https:// URL")
+
+      it "rejects http(s) URLs with no host" $
+        validateOptionalHttpUrl 2000 "https://"
+          `shouldBe` Left (ContentInvalid "must be a valid http:// or https:// URL")
+
+      it "rejects URLs longer than the max length" $ do
+        let longUrl = "https://example.com/" <> Text.replicate 3000 "a"
+        validateOptionalHttpUrl 2000 longUrl
+          `shouldBe` Left (ContentTooLong 2000 (Text.length longUrl))
+
     describe "displayContentValidationError" $ do
       it "formats ContentTooLong errors clearly" $ do
         let validationError = ContentTooLong 100 150

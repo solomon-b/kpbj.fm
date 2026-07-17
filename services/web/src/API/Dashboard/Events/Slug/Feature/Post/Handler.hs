@@ -107,5 +107,6 @@ toInsert event =
       Events.eiStatus = event.emStatus,
       Events.eiAuthorId = event.emAuthorId,
       Events.eiPosterImageUrl = event.emPosterImageUrl,
+      Events.eiTicketUrl = event.emTicketUrl,
       Events.eiFeaturedOnHomepage = event.emFeaturedOnHomepage
     }

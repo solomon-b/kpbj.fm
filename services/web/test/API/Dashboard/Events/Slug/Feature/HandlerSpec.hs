@@ -66,6 +66,7 @@ test_promotesEventToFeatured cfg = do
                 Events.eiStatus = Events.Published,
                 Events.eiAuthorId = userId,
                 Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
       insertTestEvent eventInsert
@@ -97,6 +98,7 @@ test_demotesEventFromFeatured cfg = do
                 Events.eiStatus = Events.Published,
                 Events.eiAuthorId = userId,
                 Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = True
               }
       insertTestEvent eventInsert
@@ -130,6 +132,7 @@ test_hostCannotFeature cfg = do
                 Events.eiStatus = Events.Published,
                 Events.eiAuthorId = authorId,
                 Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
       eventId <- insertTestEvent eventInsert

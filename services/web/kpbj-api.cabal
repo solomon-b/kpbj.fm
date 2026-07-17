@@ -89,6 +89,7 @@ library
                   , magic
                   , mtl
                   , network
+                  , network-uri
                   , pandoc
                   , pandoc-types
                   , password

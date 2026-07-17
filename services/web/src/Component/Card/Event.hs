@@ -70,6 +70,7 @@ renderEventCard backend variant event mRenderedDescription = do
           Lucid.div_ [class_ $ base ["mt-4"]] $ do
             renderTitle variant event
             renderDateAndLocation variant event
+            renderTicketLink variant event
             renderDescription mRenderedDescription
 
 -- | Convenience function for summary cards (list view).
@@ -166,3 +167,18 @@ renderDateAndLocation variant event =
 renderDescription :: Maybe (Lucid.Html ()) -> Lucid.Html ()
 renderDescription mRenderedDescription =
   for_ mRenderedDescription (Lucid.div_ [class_ $ base [Tokens.mt4]])
+
+-- | Render the "GET TICKETS" button (Detail variant only, when a ticket URL is set).
+renderTicketLink :: Variant -> Events.Model -> Lucid.Html ()
+renderTicketLink variant event =
+  case (variant, event.emTicketUrl) of
+    (Detail, Just ticketUrl) ->
+      Lucid.div_ [class_ $ base [Tokens.mt4]] $
+        Lucid.a_
+          [ Lucid.href_ ticketUrl,
+            Lucid.target_ "_blank",
+            Lucid.rel_ "noopener noreferrer",
+            class_ $ base [Tokens.buttonPrimary, "inline-block"]
+          ]
+          "GET TICKETS"
+    _ -> pure ()

@@ -47,6 +47,7 @@ mkEventInsert userId slug =
       Events.eiStatus = Events.Published,
       Events.eiAuthorId = userId,
       Events.eiPosterImageUrl = Nothing,
+      Events.eiTicketUrl = Nothing,
       Events.eiFeaturedOnHomepage = False
     }
 

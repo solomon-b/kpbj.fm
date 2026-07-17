@@ -11,6 +11,7 @@ where
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
 import Component.Gallery.EventGalleryEditor (GalleryImageView (..), renderEventGalleryEditor)
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -90,6 +91,13 @@ template backend event galleryImages userMeta = do
           required
           minLength 10
           maxLength 5000
+
+        urlField "ticket_url" $ do
+          label "Ticket / RSVP Link"
+          placeholder "https://eventbrite.com/e/..."
+          value (fromMaybe "" event.emTicketUrl)
+          hint "Optional. Link to an external ticket or RSVP page."
+          maxLength 2000
 
         imageField "poster_image" $ do
           label "Event Poster Image"

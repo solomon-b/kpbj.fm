@@ -38,7 +38,7 @@ import Utils (fromRightM)
 --------------------------------------------------------------------------------
 
 -- Validation functions
-validateEventForm :: NewEventForm -> Either Sanitize.ContentValidationError (Text, Text, UTCTime, UTCTime, Text, Text, Events.Status)
+validateEventForm :: NewEventForm -> Either Sanitize.ContentValidationError (Text, Text, UTCTime, UTCTime, Text, Text, Events.Status, Maybe Text)
 validateEventForm form = do
   -- Sanitize and validate inputs
   let sanitizedTitle = Sanitize.sanitizeTitle form.nefTitle
@@ -63,10 +63,13 @@ validateEventForm form = do
     Left errors -> Left $ Sanitize.ContentInvalid $ Text.intercalate ", " errors
     Right s -> Right s
 
+  -- Validate the optional off-site ticket link
+  ticketUrl <- Sanitize.validateOptionalHttpUrl 2000 form.nefTicketUrl
+
   -- Validate that end time is after start time
   if endsAt <= startsAt
     then Left $ Sanitize.ContentInvalid "End time must be after start time"
-    else Right (validTitle, validDescription, startsAt, endsAt, validLocationName, validLocationAddress, status)
+    else Right (validTitle, validDescription, startsAt, endsAt, validLocationName, validLocationAddress, status, ticketUrl)
 
 validateDateTime :: Text -> Text -> Either [Text] UTCTime
 validateDateTime fieldName dateTimeStr
@@ -99,7 +102,7 @@ action user form = do
   posterImagePath <- lift $ handlePosterUpload form
 
   -- 2. Validate form
-  (title, description, startsAt, endsAt, locationName, locationAddress, status) <-
+  (title, description, startsAt, endsAt, locationName, locationAddress, status, ticketUrl) <-
     requireRight Sanitize.displayContentValidationError (validateEventForm form)
 
   -- 3. Insert event
@@ -117,6 +120,7 @@ action user form = do
             Events.eiStatus = status,
             Events.eiAuthorId = User.mId user,
             Events.eiPosterImageUrl = posterImagePath,
+            Events.eiTicketUrl = ticketUrl,
             Events.eiFeaturedOnHomepage = featuredOnHomepage
           }
   eventId <-

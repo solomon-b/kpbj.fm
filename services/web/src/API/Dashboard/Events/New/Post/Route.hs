@@ -33,7 +33,8 @@ data NewEventForm = NewEventForm
     nefLocationAddress :: Text,
     nefStatus :: Text,
     nefPosterImage :: Maybe (FileData Mem),
-    nefFeaturedOnHomepage :: Text
+    nefFeaturedOnHomepage :: Text,
+    nefTicketUrl :: Text
   }
   deriving (Show)
 
@@ -49,6 +50,7 @@ instance FromMultipart Mem NewEventForm where
       <*> lookupInput "status" multipartData
       <*> pure (fileDataToNothing $ either (const Nothing) Just (lookupFile "poster_image" multipartData))
       <*> lookupInput "featured_on_homepage" multipartData
+      <*> lookupInput "ticket_url" multipartData
     where
       fileDataToNothing :: Maybe (FileData Mem) -> Maybe (FileData Mem)
       fileDataToNothing (Just fileData)

@@ -151,6 +151,7 @@ data Event f = Event
     emStatus :: Column f Status,
     emAuthorId :: Column f User.Id,
     emPosterImageUrl :: Column f (Maybe Text),
+    emTicketUrl :: Column f (Maybe Text),
     emFeaturedOnHomepage :: Column f Bool,
     emCreatedAt :: Column f UTCTime,
     emUpdatedAt :: Column f UTCTime
@@ -199,6 +200,7 @@ eventSchema =
             emStatus = "status",
             emAuthorId = "author_id",
             emPosterImageUrl = "poster_image_url",
+            emTicketUrl = "ticket_url",
             emFeaturedOnHomepage = "featured_on_homepage",
             emCreatedAt = "created_at",
             emUpdatedAt = "updated_at"
@@ -231,6 +233,7 @@ data Insert = Insert
     eiStatus :: Status,
     eiAuthorId :: User.Id,
     eiPosterImageUrl :: Maybe Text,
+    eiTicketUrl :: Maybe Text,
     eiFeaturedOnHomepage :: Bool
   }
   deriving stock (Generic, Show, Eq)
@@ -280,6 +283,7 @@ insertEvent Insert {..} =
                       emStatus = lit eiStatus,
                       emAuthorId = lit eiAuthorId,
                       emPosterImageUrl = lit eiPosterImageUrl,
+                      emTicketUrl = lit eiTicketUrl,
                       emFeaturedOnHomepage = lit eiFeaturedOnHomepage,
                       emCreatedAt = now,
                       emUpdatedAt = now
@@ -309,6 +313,7 @@ updateEvent eventId Insert {..} =
                   emLocationAddress = lit eiLocationAddress,
                   emStatus = lit eiStatus,
                   emPosterImageUrl = lit eiPosterImageUrl,
+                  emTicketUrl = lit eiTicketUrl,
                   emFeaturedOnHomepage = lit eiFeaturedOnHomepage,
                   emUpdatedAt = now
                 },

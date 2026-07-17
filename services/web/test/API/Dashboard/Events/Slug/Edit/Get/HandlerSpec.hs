@@ -73,6 +73,7 @@ test_staffCanAccessEditForm cfg = do
                 Events.eiStatus = Events.Published,
                 Events.eiAuthorId = creatorId,
                 Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
       eventId <- insertTestEvent eventInsert
@@ -107,6 +108,7 @@ test_notAuthorizedForUnrelatedUser cfg = do
                 Events.eiStatus = Events.Published,
                 Events.eiAuthorId = creatorId,
                 Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
       eventId <- insertTestEvent eventInsert

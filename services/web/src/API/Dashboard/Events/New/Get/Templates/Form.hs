@@ -63,6 +63,12 @@ template userMeta = do
           hint "Comma separated tags"
           maxLength 500
 
+        urlField "ticket_url" $ do
+          label "Ticket / RSVP Link"
+          placeholder "https://eventbrite.com/e/..."
+          hint "Optional. Link to an external ticket or RSVP page."
+          maxLength 2000
+
         textareaField "description" 8 $ do
           label "Event Description"
           placeholder "Describe your event. Include any special details, what attendees should expect, what to bring, etc."

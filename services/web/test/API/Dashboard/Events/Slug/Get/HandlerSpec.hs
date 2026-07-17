@@ -72,6 +72,7 @@ test_returnsEventDetail cfg = do
                 Events.eiStatus = Events.Published,
                 Events.eiAuthorId = userModel.mId,
                 Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
       eventId <- insertTestEvent eventInsert

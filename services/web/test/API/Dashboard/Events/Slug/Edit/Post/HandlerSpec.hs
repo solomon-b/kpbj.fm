@@ -32,6 +32,7 @@ spec =
         it "returns NotFound for a nonexistent event ID" test_notFoundForMissingEvent
         it "staff user can update an event title" test_updatesEventTitle
         it "unrelated regular user gets NotAuthorized" test_notAuthorizedForUnrelatedUser
+        it "updates the ticket url" test_updatesTicketUrl
 
 --------------------------------------------------------------------------------
 
@@ -51,7 +52,8 @@ validEditForm =
       eefFeaturedOnHomepage = "false",
       eefGalleryData = Nothing,
       eefGalleryDeleted = Nothing,
-      eefGalleryFiles = []
+      eefGalleryFiles = [],
+      eefTicketUrl = ""
     }
 
 --------------------------------------------------------------------------------
@@ -96,6 +98,7 @@ test_updatesEventTitle cfg = do
                 Events.eiStatus = Events.Published,
                 Events.eiAuthorId = creatorId,
                 Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
       eventId <- insertTestEvent eventInsert
@@ -142,6 +145,7 @@ test_notAuthorizedForUnrelatedUser cfg = do
                 Events.eiStatus = Events.Published,
                 Events.eiAuthorId = creatorId,
                 Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
       eventId <- insertTestEvent eventInsert
@@ -154,3 +158,49 @@ test_notAuthorizedForUnrelatedUser cfg = do
       Left (NotAuthorized _ _) -> pure ()
       Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
       Right _ -> expectationFailure "Expected Left NotAuthorized but got Right"
+
+-- | Editing an event with a ticket url stores it on the event.
+test_updatesTicketUrl :: TestDBConfig -> IO ()
+test_updatesTicketUrl cfg = do
+  creatorInsert <- mkUserInsert "ev-edit-post-ticket-creator" UserMetadata.Staff
+  staffInsert <- mkUserInsert "ev-edit-post-ticket-staff" UserMetadata.Staff
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      creatorId <- insertTestUser creatorInsert
+      (staffModel, staffMetaModel) <- setupUserModels staffInsert
+      let eventInsert =
+            Events.Insert
+              { Events.eiTitle = "Ticket Edit Event",
+                Events.eiSlug = Slug.mkSlug "ticket-edit-event",
+                Events.eiDescription = "Description.",
+                Events.eiStartsAt = read "2026-06-15 17:00:00 UTC",
+                Events.eiEndsAt = read "2026-06-15 19:00:00 UTC",
+                Events.eiLocationName = "Venue",
+                Events.eiLocationAddress = "1 Rd",
+                Events.eiStatus = Events.Published,
+                Events.eiAuthorId = creatorId,
+                Events.eiPosterImageUrl = Nothing,
+                Events.eiTicketUrl = Nothing,
+                Events.eiFeaturedOnHomepage = False
+              }
+      eventId <- insertTestEvent eventInsert
+      pure (staffModel, staffMetaModel, eventId)
+    (staffModel, staffMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
+
+    let form = validEditForm {eefTicketUrl = "https://tickets.example.com/e/42"}
+    result <- runExceptT $ action staffModel staffMetaModel eventId (Slug.mkSlug "ticket-edit-event") form
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right _ -> pure ()
+
+    lookupResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (Events.getEventById eventId)
+
+    liftIO $ do
+      mEvent <- expectSetupRight lookupResult
+      case mEvent of
+        Nothing -> assertFailure "Event not found after update"
+        Just updatedEvent -> updatedEvent.emTicketUrl `shouldBe` Just "https://tickets.example.com/e/42"
