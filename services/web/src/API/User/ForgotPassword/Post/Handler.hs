@@ -12,6 +12,7 @@ module API.User.ForgotPassword.Post.Handler (handler, action) where
 
 import API.User.ForgotPassword.Get.Templates.Page qualified as Templates
 import API.User.ForgotPassword.Post.Route (ForgotPasswordForm (..))
+import App.BaseUrl (baseUrl)
 import App.Common (renderUnauthTemplate)
 import App.Handler.Error (HandlerError)
 import App.Monad (AppM)
@@ -28,7 +29,6 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PasswordResetTokens qualified as ResetTokens
 import Effects.Database.Tables.User qualified as User
-import App.BaseUrl (baseUrl)
 import Effects.Email.Send qualified as Email
 import Effects.PasswordReset qualified as PasswordReset
 import Log qualified

@@ -10,9 +10,9 @@ where
 
 --------------------------------------------------------------------------------
 
+import App.CustomContext (StreamConfig)
 import App.Handler.Error (notFoundContent)
 import Component.Frame qualified as Frame
-import App.CustomContext (StreamConfig)
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId)
 import Lucid qualified
 

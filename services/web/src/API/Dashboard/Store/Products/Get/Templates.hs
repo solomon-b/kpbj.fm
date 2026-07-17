@@ -155,14 +155,14 @@ renderInlineCreateRow =
 -- | Empty row shown when no products exist.
 renderEmptyRow :: Lucid.Html ()
 renderEmptyRow =
-  Lucid.tr_ [xShow_ "!showCreate"] $
-    Lucid.td_
+  Lucid.tr_ [xShow_ "!showCreate"]
+    $ Lucid.td_
       [ Lucid.colspan_ "5",
         class_ $ base [Theme.fgMuted, "text-center", "py-12"]
       ]
-      $ do
-        Lucid.p_ [class_ $ base [Tokens.textXl]] "No products yet."
-        Lucid.p_ [class_ $ base ["mt-2"]] "Click + NEW above to create your first product."
+    $ do
+      Lucid.p_ [class_ $ base [Tokens.textXl]] "No products yet."
+      Lucid.p_ [class_ $ base ["mt-2"]] "Click + NEW above to create your first product."
 
 renderStatusBadge :: Bool -> Lucid.Html ()
 renderStatusBadge isActive =

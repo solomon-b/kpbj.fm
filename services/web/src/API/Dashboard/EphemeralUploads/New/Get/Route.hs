@@ -13,9 +13,9 @@ import Text.HTML (HTML)
 
 -- | "GET /dashboard/ephemeral-uploads/new"
 type Route =
-    "dashboard"
-      :> "ephemeral-uploads"
-      :> "new"
-      :> Servant.Header "Cookie" Cookie
-      :> Servant.Header "HX-Request" HxRequest
-      :> Servant.Get '[HTML] (Lucid.Html ())
+  "dashboard"
+    :> "ephemeral-uploads"
+    :> "new"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Get '[HTML] (Lucid.Html ())

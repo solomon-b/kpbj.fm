@@ -57,7 +57,7 @@ template backend event galleryImages userMeta = do
             givCaption = EventImages.eviCaption img,
             givAltText = EventImages.eviAltText img
           }
-        | img <- galleryImages
+      | img <- galleryImages
       ]
     startsAtValue = formatPacificForDateTimeInput event.emStartsAt
     endsAtValue = formatPacificForDateTimeInput event.emEndsAt

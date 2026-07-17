@@ -19,7 +19,7 @@ CHANGED_SHELL_FILES := '$(git diff --diff-filter=d --name-only `git merge-base H
 NIX_FMT := "nixpkgs-fmt"
 ORMOLU := "ormolu"
 ORMOLU_VERSION := "$(" + ORMOLU + " --version | awk 'NR==1 { print $2 }')"
-ORMOLU_CHECK_VERSION := "0.7.2.0"
+ORMOLU_CHECK_VERSION := "0.8.0.2"
 
 # Run Shellcheck with access to any file that's sourced, relative to the script's own directory
 SHELLCHECK := "$(shellcheck --external-sources --source-path=SCRIPTDIR)"
@@ -147,7 +147,7 @@ update-cropperjs *VERSION:
 # Formatting & Linting
 # =============================================================================
 # Code quality tools for Haskell, Nix, and shell scripts.
-# Prerequisites: ormolu (0.7.2.0), nixpkgs-fmt, shellcheck, hlint, weeder
+# Prerequisites: ormolu (0.8.0.2), nixpkgs-fmt, shellcheck, hlint, weeder
 
 check-ormolu-version:
   @if ! [ "{{ORMOLU_VERSION}}" = "{{ORMOLU_CHECK_VERSION}}" ]; then \

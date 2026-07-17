@@ -48,7 +48,6 @@ handler cookie (foldHxReq -> hxRequest) =
         (Just actionButton)
         (template appBaseUrl invitations)
 
-
 -- | Action button for creating a new invitation.
 actionButton :: Lucid.Html ()
 actionButton =

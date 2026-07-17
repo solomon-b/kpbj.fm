@@ -18,6 +18,7 @@ import Component.Table
   )
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text.Display (display)
 import Data.Time (Day, defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Theme qualified as Theme
@@ -25,7 +26,6 @@ import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.HTMX
-import Data.Text.Display (display)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links
 

@@ -24,6 +24,7 @@ where
 
 --------------------------------------------------------------------------------
 
+import App.BaseUrl (baseUrl)
 import App.Monad (AppM)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -41,7 +42,6 @@ import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
 import Effects.Database.Tables.User qualified as User
-import App.BaseUrl (baseUrl)
 import Effects.Email.Send qualified as Email
 import Log qualified
 

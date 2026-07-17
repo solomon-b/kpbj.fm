@@ -51,23 +51,24 @@ action mSecret request = do
         throwNotAuthenticated
 
   -- Resolve episode ID from source URL when source type is "episode"
-  mEpisodeId <- if request.prSourceType == "episode"
-    then do
-      storageBackend <- lift $ asks (Has.getter @StorageBackend)
-      appBaseUrl <- lift baseUrl
-      let mObjectKey = extractObjectKey appBaseUrl storageBackend request.prSourceUrl
-      case mObjectKey of
-        Nothing -> do
-          Log.logAttention "Could not extract object key from source URL" request.prSourceUrl
-          pure Nothing
-        Just objectKey -> do
-          result <- execQuery (Episodes.getEpisodeByAudioPath objectKey)
-          case result of
-            Right (Just episode) -> pure (Just episode.id.unId)
-            _ -> do
-              Log.logAttention "No episode found for audio path" objectKey
-              pure Nothing
-    else pure Nothing
+  mEpisodeId <-
+    if request.prSourceType == "episode"
+      then do
+        storageBackend <- lift $ asks (Has.getter @StorageBackend)
+        appBaseUrl <- lift baseUrl
+        let mObjectKey = extractObjectKey appBaseUrl storageBackend request.prSourceUrl
+        case mObjectKey of
+          Nothing -> do
+            Log.logAttention "Could not extract object key from source URL" request.prSourceUrl
+            pure Nothing
+          Just objectKey -> do
+            result <- execQuery (Episodes.getEpisodeByAudioPath objectKey)
+            case result of
+              Right (Just episode) -> pure (Just episode.id.unId)
+              _ -> do
+                Log.logAttention "No episode found for audio path" objectKey
+                pure Nothing
+      else pure Nothing
 
   let insert =
         PlaybackHistory.Insert
@@ -98,7 +99,6 @@ handler mSecret request = do
     Left NotAuthenticated -> throwM err401
     Left _ -> throwM err500
     Right () -> pure Servant.NoContent
-
 
 -- | Extract the object key from a full media URL by stripping the storage prefix.
 --

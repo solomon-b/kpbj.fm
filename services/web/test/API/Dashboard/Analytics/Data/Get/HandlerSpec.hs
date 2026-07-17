@@ -84,7 +84,7 @@ spec = describe "API.Dashboard.Analytics.Data.Get.Handler" $ do
 
   describe "mkTopEpisode" $ do
     it "builds a TopEpisode with formatted title and URL" $ do
-      let row = EpisodePlayEvents.TopEpisodeRow { episodeId = 42, showTitle = "Jazz Hour", showSlug = "jazz-hour", episodeNumber = 5, playCount = 100 }
+      let row = EpisodePlayEvents.TopEpisodeRow {episodeId = 42, showTitle = "Jazz Hour", showSlug = "jazz-hour", episodeNumber = 5, playCount = 100}
           ep = mkTopEpisode 1 row
       ep.rank `shouldBe` 1
       ep.title `shouldBe` "Jazz Hour #5"
@@ -93,17 +93,17 @@ spec = describe "API.Dashboard.Analytics.Data.Get.Handler" $ do
       ep.url `shouldBe` "/shows/jazz-hour/episodes/5"
 
     it "uses the provided rank, not data from the row" $ do
-      let row = EpisodePlayEvents.TopEpisodeRow { episodeId = 1, showTitle = "Show", showSlug = "show", episodeNumber = 1, playCount = 50 }
+      let row = EpisodePlayEvents.TopEpisodeRow {episodeId = 1, showTitle = "Show", showSlug = "show", episodeNumber = 1, playCount = 50}
           ep = mkTopEpisode 3 row
       ep.rank `shouldBe` 3
 
     it "handles episode number 0" $ do
-      let row = EpisodePlayEvents.TopEpisodeRow { episodeId = 1, showTitle = "Test Show", showSlug = "test-show", episodeNumber = 0, playCount = 10 }
+      let row = EpisodePlayEvents.TopEpisodeRow {episodeId = 1, showTitle = "Test Show", showSlug = "test-show", episodeNumber = 0, playCount = 10}
           ep = mkTopEpisode 1 row
       ep.title `shouldBe` "Test Show #0"
 
     it "handles large play counts" $ do
-      let row = EpisodePlayEvents.TopEpisodeRow { episodeId = 1, showTitle = "Popular", showSlug = "popular", episodeNumber = 1, playCount = 999999 }
+      let row = EpisodePlayEvents.TopEpisodeRow {episodeId = 1, showTitle = "Popular", showSlug = "popular", episodeNumber = 1, playCount = 999999}
           ep = mkTopEpisode 1 row
       ep.plays `shouldBe` 999999
 
@@ -119,14 +119,14 @@ spec = describe "API.Dashboard.Analytics.Data.Get.Handler" $ do
 
   describe "mkTopDimension" $ do
     it "builds a TopDimensionEntry preserving label and sessions" $ do
-      let row = GaSnapshots.TopDimensionRow { value = "google", sessions = 1234 }
+      let row = GaSnapshots.TopDimensionRow {value = "google", sessions = 1234}
           entry = mkTopDimension 1 row
       entry.rank `shouldBe` 1
       entry.label `shouldBe` "google"
       (entry.sessions :: Int) `shouldBe` 1234
 
     it "uses the provided rank, not data from the row" $ do
-      let row = GaSnapshots.TopDimensionRow { value = "(direct)", sessions = 50 }
+      let row = GaSnapshots.TopDimensionRow {value = "(direct)", sessions = 50}
           entry = mkTopDimension 7 row
       entry.rank `shouldBe` 7
 
@@ -150,13 +150,14 @@ genTopEpisodeRow = do
   sSlug <- genSlug
   epNum <- Gen.int64 (Range.linear 0 500)
   pCount <- Gen.int64 (Range.linear 0 1000000)
-  pure EpisodePlayEvents.TopEpisodeRow
-    { EpisodePlayEvents.episodeId = eid
-    , EpisodePlayEvents.showTitle = sTitle
-    , EpisodePlayEvents.showSlug = sSlug
-    , EpisodePlayEvents.episodeNumber = epNum
-    , EpisodePlayEvents.playCount = pCount
-    }
+  pure
+    EpisodePlayEvents.TopEpisodeRow
+      { EpisodePlayEvents.episodeId = eid,
+        EpisodePlayEvents.showTitle = sTitle,
+        EpisodePlayEvents.showSlug = sSlug,
+        EpisodePlayEvents.episodeNumber = epNum,
+        EpisodePlayEvents.playCount = pCount
+      }
 
 genSlug :: Gen Text
 genSlug = Text.pack <$> Gen.string (Range.linear 1 30) Gen.alphaNum
@@ -165,7 +166,8 @@ genTopDimensionRow :: Gen GaSnapshots.TopDimensionRow
 genTopDimensionRow = do
   v <- genSlug
   s <- Gen.int64 (Range.linear 0 1000000)
-  pure GaSnapshots.TopDimensionRow
-    { GaSnapshots.value = v
-    , GaSnapshots.sessions = s
-    }
+  pure
+    GaSnapshots.TopDimensionRow
+      { GaSnapshots.value = v,
+        GaSnapshots.sessions = s
+      }

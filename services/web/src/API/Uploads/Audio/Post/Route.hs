@@ -24,13 +24,13 @@ type CorsHeaders =
 
 -- | "POST /api/uploads/audio"
 type Route =
-    "api"
-      :> "uploads"
-      :> "audio"
-      :> Servant.Header "Cookie" Cookie
-      :> Servant.Header "Origin" Origin
-      :> MultipartForm Tmp AudioUploadForm
-      :> Servant.Post '[Servant.JSON] (Servant.Headers CorsHeaders UploadApiResponse)
+  "api"
+    :> "uploads"
+    :> "audio"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "Origin" Origin
+    :> MultipartForm Tmp AudioUploadForm
+    :> Servant.Post '[Servant.JSON] (Servant.Headers CorsHeaders UploadApiResponse)
 
 -- | OPTIONS preflight route for CORS.
 type OptionsRoute =

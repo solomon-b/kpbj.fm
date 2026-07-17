@@ -19,11 +19,11 @@ import API.Types
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Domain.Types.Timezone (utcToPacific)
 import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
+import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
 import Lucid.HTMX

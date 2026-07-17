@@ -24,12 +24,12 @@ import Data.Int (Int64)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text.Encoding
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Data.Text.Display (display)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EventImages qualified as EventImages

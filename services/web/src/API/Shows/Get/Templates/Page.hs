@@ -113,7 +113,6 @@ template vd = do
         Lucid.noscript_ $
           unless (null allShows) $
             renderPagination currentPage hasMore maybeTagId maybeStatus maybeSearch maybeSortBy
-
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ showsLinks.list (Just (vd.svCurrentPage + 1)) (fmap (Filter . Just) vd.svTagFilter) (fmap (Filter . Just) vd.svStatusFilter) (fmap (Filter . Just) vd.svSearchFilter) (fmap (Filter . Just) vd.svSortByFilter)

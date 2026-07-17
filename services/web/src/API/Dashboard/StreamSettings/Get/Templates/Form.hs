@@ -275,7 +275,8 @@ playbackHistorySection history =
               Lucid.td_ [class_ $ base [Tokens.p2]] $ do
                 Lucid.div_ $ Lucid.toHtml entry.phTitle
                 Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "truncate", "max-w-[400px]"]] $
-                  Lucid.toHtml $ stripSourceUrlPrefix entry.phSourceUrl
+                  Lucid.toHtml $
+                    stripSourceUrlPrefix entry.phSourceUrl
               Lucid.td_ [class_ $ base [Tokens.p2]] $
                 Lucid.toHtml (fromMaybe "" entry.phArtist)
               Lucid.td_ [class_ $ base [Tokens.p2]] $

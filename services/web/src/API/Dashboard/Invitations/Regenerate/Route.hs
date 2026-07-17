@@ -18,5 +18,6 @@ type Route =
     :> Servant.Capture "invitationId" HostInvitation.Id
     :> "regenerate"
     :> Servant.Header "Cookie" Cookie
-    :> Servant.Post '[HTML]
+    :> Servant.Post
+         '[HTML]
          (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

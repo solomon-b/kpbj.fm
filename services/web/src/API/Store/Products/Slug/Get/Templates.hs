@@ -358,7 +358,7 @@ alpineState backend product' images optionTypes optionValues variants variantOpt
       Map.fromListWith
         (<>)
         [ (vo.voVariantId, [ProductOptionValues.unId vo.voOptionValueId])
-          | vo <- variantOptions
+        | vo <- variantOptions
         ]
 
     buildImageJson :: ProductImages.Model -> Aeson.Value

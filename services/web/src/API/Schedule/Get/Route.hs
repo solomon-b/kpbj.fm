@@ -14,8 +14,8 @@ import Text.HTML (HTML)
 
 -- | "GET /schedule"
 type Route =
-   "schedule"
-     :> Servant.QueryParam "week" WeekOffset
-     :> Servant.Header "Cookie" Cookie
-     :> Servant.Header "HX-Request" HxRequest
-     :> Servant.Get '[HTML] (Lucid.Html ())
+  "schedule"
+    :> Servant.QueryParam "week" WeekOffset
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Get '[HTML] (Lucid.Html ())

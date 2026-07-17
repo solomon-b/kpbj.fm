@@ -67,7 +67,6 @@ episodeIndexUrl showSlug = rootLink $ dashboardEpisodesLinks.list showSlug Nothi
 
 --------------------------------------------------------------------------------
 
-
 -- | Episode edit template.
 --
 -- Renders the edit form for an existing episode, including:

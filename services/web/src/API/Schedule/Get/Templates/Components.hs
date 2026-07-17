@@ -11,6 +11,7 @@ import Data.List (sortBy)
 import Data.Map.Strict qualified as Map
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..))
 import Data.Time qualified as Time
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -23,7 +24,6 @@ import Lucid qualified
 import Lucid.Alpine
 import Lucid.Base (Attributes)
 import Lucid.HTMX
-import Data.Text.Display (display)
 import OrphanInstances.DayOfWeek (fromDayOfWeek)
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Servant.Links qualified as Links

@@ -13,8 +13,8 @@ import Text.HTML (HTML)
 
 -- | "GET /dashboard/site-pages"
 type Route =
-    "dashboard"
-      :> "site-pages"
-      :> Servant.Header "Cookie" Cookie
-      :> Servant.Header "HX-Request" HxRequest
-      :> Servant.Get '[HTML] (Lucid.Html ())
+  "dashboard"
+    :> "site-pages"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Get '[HTML] (Lucid.Html ())

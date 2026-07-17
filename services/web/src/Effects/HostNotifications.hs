@@ -15,6 +15,7 @@ where
 
 import API.Links (dashboardLinks, showsLinks)
 import API.Types
+import App.BaseUrl (baseUrl)
 import App.Monad (AppM)
 import Control.Monad (forM_)
 import Data.Maybe (fromMaybe)
@@ -29,7 +30,6 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import App.BaseUrl (baseUrl)
 import Effects.Email.Send qualified as Email
 import Log qualified
 import Servant.Links qualified as Links

@@ -2,9 +2,9 @@ module Domain.Icecast.StatusSpec (spec) where
 
 --------------------------------------------------------------------------------
 
-import Domain.Icecast.Status (parseListenerCount)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LBS
+import Domain.Icecast.Status (parseListenerCount)
 import Test.Hspec
 
 --------------------------------------------------------------------------------
@@ -80,8 +80,8 @@ multiSourceJson =
           Aeson..= Aeson.object
             [ "source"
                 Aeson..= [ Aeson.object ["listeners" Aeson..= (5 :: Int)],
-                            Aeson.object ["listeners" Aeson..= (3 :: Int)]
-                          ]
+                           Aeson.object ["listeners" Aeson..= (3 :: Int)]
+                         ]
             ]
       ]
 
@@ -104,8 +104,8 @@ arrayWithNonObjectJson =
           Aeson..= Aeson.object
             [ "source"
                 Aeson..= [ Aeson.object ["listeners" Aeson..= (5 :: Int)],
-                            Aeson.String "not a source"
-                          ]
+                           Aeson.String "not a source"
+                         ]
             ]
       ]
 

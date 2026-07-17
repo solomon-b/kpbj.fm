@@ -77,7 +77,9 @@ type Route =
     :> Servant.RemoteHost
     :> Servant.Header "User-Agent" Text
     :> MultipartForm Mem InviteOnboardingForm
-    :> Servant.Post '[HTML]
-         (Servant.Headers
-           '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text]
-           (Lucid.Html ()))
+    :> Servant.Post
+         '[HTML]
+         ( Servant.Headers
+             '[Servant.Header "Set-Cookie" Text, Servant.Header "HX-Redirect" Text]
+             (Lucid.Html ())
+         )

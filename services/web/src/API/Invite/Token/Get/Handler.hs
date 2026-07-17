@@ -22,9 +22,12 @@ import Lucid qualified
 -- Shows an error page if the token is invalid, expired, or already claimed.
 -- Shows an "already logged in" message if the user has a session.
 handler ::
-  HostInvitation.Token ->   -- ^ Invitation token from URL
-  Maybe Cookie ->           -- ^ Session cookie
-  Maybe HxRequest ->        -- ^ HTMX request header
+  -- | Invitation token from URL
+  HostInvitation.Token ->
+  -- | Session cookie
+  Maybe Cookie ->
+  -- | HTMX request header
+  Maybe HxRequest ->
   AppM (Lucid.Html ())
 handler token cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie

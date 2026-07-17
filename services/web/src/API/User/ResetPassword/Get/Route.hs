@@ -13,8 +13,8 @@ import Text.HTML (HTML)
 
 -- | "GET /user/reset-password"
 type Route =
-    "user"
-      :> "reset-password"
-      :> Servant.Header "HX-Request" HxRequest
-      :> Servant.QueryParam "token" Token
-      :> Servant.Get '[HTML] (Lucid.Html ())
+  "user"
+    :> "reset-password"
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.QueryParam "token" Token
+    :> Servant.Get '[HTML] (Lucid.Html ())

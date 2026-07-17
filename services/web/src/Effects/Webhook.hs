@@ -15,9 +15,9 @@ import App.CustomContext (WebhookConfig (..), WebhookSecret (..))
 import App.Monad (AppM)
 import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
+import Data.Aeson qualified as Aeson
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Aeson qualified as Aeson
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Network.HTTP.Client qualified as HTTPClient

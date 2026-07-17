@@ -5,9 +5,9 @@ module API.Dashboard.Events.Slug.Get.Templates.Page where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
-import Domain.Types.Timezone (utcToPacific)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
