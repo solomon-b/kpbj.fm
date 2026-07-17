@@ -150,6 +150,7 @@ import API.Dashboard.Users.Detail.Get.Route qualified as Dashboard.Users.Detail.
 import API.Dashboard.Users.Edit.Get.Route qualified as Dashboard.Users.Edit.Get
 import API.Dashboard.Users.Edit.Post.Route qualified as Dashboard.Users.Edit.Post
 import API.Dashboard.Users.Get.Route qualified as Dashboard.Users.Get
+import API.Dashboard.Users.ResetPassword.Post.Route qualified as Dashboard.Users.ResetPassword.Post
 import API.Dashboard.Users.Role.Patch.Route qualified as Dashboard.Users.Role.Patch
 import API.Dashboard.Users.Suspend.Post.Route qualified as Dashboard.Users.Suspend.Post
 import API.Dashboard.Users.Unsuspend.Post.Route qualified as Dashboard.Users.Unsuspend.Post
@@ -558,6 +559,8 @@ data DashboardUsersRoutes mode = DashboardUsersRoutes
     suspendPost :: mode :- Dashboard.Users.Suspend.Post.Route,
     -- | @POST /dashboard/users/:id/unsuspend@ - Unsuspend user
     unsuspendPost :: mode :- Dashboard.Users.Unsuspend.Post.Route,
+    -- | @POST /dashboard/users/:id/reset-password@ - Assign a new random password
+    resetPasswordPost :: mode :- Dashboard.Users.ResetPassword.Post.Route,
     -- | @DELETE /dashboard/users/:id@ - Delete user
     delete :: mode :- Dashboard.Users.Delete.Route
   }

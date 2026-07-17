@@ -77,6 +77,11 @@ template viewerId viewerRole now users currentPage hasMore maybeQuery maybeRoleF
                     }
             }
           (mapM_ (renderUserRow viewerId viewerRole now) users)
+
+  -- Stable swap target for the one-time "assign password" modal. Rendered once
+  -- outside the table so it is unaffected by infinite-scroll row fragments; the
+  -- admin action swaps the modal fragment into it.
+  Lucid.div_ [Lucid.id_ "assign-password-modal"] mempty
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
     nextPageUrl :: Links.URI
@@ -117,6 +122,7 @@ renderUserRow viewerId viewerRole now user =
       userDeleteUrl = Links.linkURI $ dashboardUsersLinks.delete userId
       userSuspendUrl = Links.linkURI $ dashboardUsersLinks.suspendPost userId
       userUnsuspendUrl = Links.linkURI $ dashboardUsersLinks.unsuspendPost userId
+      userResetPasswordUrl = Links.linkURI $ dashboardUsersLinks.resetPasswordPost userId
       userIdText = display userId
       rowId = [i|user-row-#{userIdText}|]
       deleteConfirmMessage =
@@ -133,6 +139,10 @@ renderUserRow viewerId viewerRole now user =
         "Are you sure you want to unsuspend user \""
           <> display displayName
           <> "\"? They will regain full access to their account."
+      resetPasswordConfirmMessage =
+        "Generate a new password for \""
+          <> display displayName
+          <> "\" and sign them out of all sessions? You'll see the new password once."
       isSuspended = isJust suspendedAt
       rowTarget = "#" <> rowId
       suspendAction =
@@ -184,6 +194,16 @@ renderUserRow viewerId viewerRole now user =
                   [i|/#{userEditUrl}|]
               ]
                 <> suspendAction
+                <> [ ActionsDropdown.htmxPostAction
+                       "assignpassword"
+                       "Assign Password"
+                       [i|/#{userResetPasswordUrl}|]
+                       "#assign-password-modal"
+                       ActionsDropdown.SwapInnerHTML
+                       (Just resetPasswordConfirmMessage)
+                       []
+                   | viewerRole == UserMetadata.Admin
+                   ]
                 <> [ ActionsDropdown.htmxDeleteAction
                        "delete"
                        "Delete"
@@ -191,7 +211,7 @@ renderUserRow viewerId viewerRole now user =
                        rowTarget
                        ActionsDropdown.SwapOuterHTML
                        deleteConfirmMessage
-                     | viewerRole == UserMetadata.Admin && viewerId /= userId
+                   | viewerRole == UserMetadata.Admin && viewerId /= userId
                    ]
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()

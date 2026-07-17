@@ -365,6 +365,9 @@ library
     API.Dashboard.Users.Edit.Get.Templates.Page
     API.Dashboard.Users.Edit.Post.Handler
     API.Dashboard.Users.Edit.Post.Route
+    API.Dashboard.Users.ResetPassword.Post.Handler
+    API.Dashboard.Users.ResetPassword.Post.Route
+    API.Dashboard.Users.ResetPassword.Post.Templates
     API.Dashboard.Users.Role.Patch.Handler
     API.Dashboard.Users.Role.Patch.Route
     API.Dashboard.Users.Suspend.Post.Handler

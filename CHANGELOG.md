@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **Admin manual password reset** — Admins can now assign a new password to any user directly from the dashboard users index (`/dashboard/users`). A new admin-only "Assign Password" action in each row's Actions dropdown (`POST /dashboard/users/:id/reset-password`) auto-generates a random 16-character alphanumeric password (the admin does not type one), hashes it with Argon2, writes it to the user's record, and deletes all of that user's `server_sessions` rows so they are signed out everywhere and must log in with the new password. The plaintext password is returned once inside an Alpine.js modal (with a copy button) shown in place on the index; it is never stored in plaintext. Backed by a new `generateRandomPassword` in `Effects.PasswordReset` (reusing the existing UUID-v4 entropy source and guaranteeing the default password policy by construction) and by exposing the module's existing `updateUserPassword`/`deleteAllSessionsForUser` helpers.
 
 ---
 
