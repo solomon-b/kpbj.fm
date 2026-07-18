@@ -1,6 +1,8 @@
 -- Schedule Templates
 -- Each show airs once per week at a specific time (24/7 coverage)
 -- All shows are weekly (weeks_of_month = [1,2,3,4,5]) and use Pacific timezone
+-- Slots ending at midnight are stored as end_time '00:00' (an overnight slot,
+-- end_time <= start_time), matching what the editor writes via addMinutesToTimeOfDay.
 
 INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time, end_time, timezone) VALUES
 -- SUNDAY
@@ -15,7 +17,7 @@ INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time
 ((SELECT id FROM shows WHERE slug = 'reggae-vibes'), 'sunday', ARRAY[1,2,3,4,5], '16:00', '18:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'blues-after-dark'), 'sunday', ARRAY[1,2,3,4,5], '18:00', '20:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'experimental-sounds'), 'sunday', ARRAY[1,2,3,4,5], '20:00', '22:00', 'America/Los_Angeles'),
-((SELECT id FROM shows WHERE slug = 'midnight-ambient'), 'sunday', ARRAY[1,2,3,4,5], '22:00', '24:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'midnight-ambient'), 'sunday', ARRAY[1,2,3,4,5], '22:00', '00:00', 'America/Los_Angeles'),
 
 -- MONDAY
 ((SELECT id FROM shows WHERE slug = 'monday-morning-wake-up'), 'monday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
@@ -30,7 +32,7 @@ INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time
 ((SELECT id FROM shows WHERE slug = 'punk-power-hour'), 'monday', ARRAY[1,2,3,4,5], '18:00', '19:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'metal-madness'), 'monday', ARRAY[1,2,3,4,5], '19:00', '21:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'late-night-chill'), 'monday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
-((SELECT id FROM shows WHERE slug = 'graveyard-shift'), 'monday', ARRAY[1,2,3,4,5], '23:00', '24:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'graveyard-shift'), 'monday', ARRAY[1,2,3,4,5], '23:00', '00:00', 'America/Los_Angeles'),
 
 -- TUESDAY
 ((SELECT id FROM shows WHERE slug = 'tuesday-sunrise'), 'tuesday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
@@ -60,7 +62,7 @@ INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time
 ((SELECT id FROM shows WHERE slug = 'jazz-fusion'), 'wednesday', ARRAY[1,2,3,4,5], '18:00', '20:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'post-rock-horizons'), 'wednesday', ARRAY[1,2,3,4,5], '20:00', '21:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'industrial-underground'), 'wednesday', ARRAY[1,2,3,4,5], '21:00', '22:00', 'America/Los_Angeles'),
-((SELECT id FROM shows WHERE slug = 'night-drones'), 'wednesday', ARRAY[1,2,3,4,5], '22:00', '24:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'night-drones'), 'wednesday', ARRAY[1,2,3,4,5], '22:00', '00:00', 'America/Los_Angeles'),
 
 -- THURSDAY
 ((SELECT id FROM shows WHERE slug = 'thursday-wake-up-call'), 'thursday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
@@ -76,7 +78,7 @@ INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time
 ((SELECT id FROM shows WHERE slug = 'doom-and-stoner'), 'thursday', ARRAY[1,2,3,4,5], '19:00', '20:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'witch-house'), 'thursday', ARRAY[1,2,3,4,5], '20:00', '21:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'late-night-jazz'), 'thursday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
-((SELECT id FROM shows WHERE slug = 'minimal-techno'), 'thursday', ARRAY[1,2,3,4,5], '23:00', '24:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'minimal-techno'), 'thursday', ARRAY[1,2,3,4,5], '23:00', '00:00', 'America/Los_Angeles'),
 
 -- FRIDAY
 ((SELECT id FROM shows WHERE slug = 'friday-morning-groove'), 'friday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
@@ -92,7 +94,7 @@ INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time
 ((SELECT id FROM shows WHERE slug = 'black-metal'), 'friday', ARRAY[1,2,3,4,5], '19:00', '20:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'vaporwave-dreams'), 'friday', ARRAY[1,2,3,4,5], '20:00', '21:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'midnight-madness'), 'friday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
-((SELECT id FROM shows WHERE slug = 'deep-house'), 'friday', ARRAY[1,2,3,4,5], '23:00', '24:00', 'America/Los_Angeles'),
+((SELECT id FROM shows WHERE slug = 'deep-house'), 'friday', ARRAY[1,2,3,4,5], '23:00', '00:00', 'America/Los_Angeles'),
 
 -- SATURDAY
 ((SELECT id FROM shows WHERE slug = 'saturday-morning-cartoons'), 'saturday', ARRAY[1,2,3,4,5], '00:00', '02:00', 'America/Los_Angeles'),
@@ -107,7 +109,7 @@ INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time
 ((SELECT id FROM shows WHERE slug = 'thrash-metal'), 'saturday', ARRAY[1,2,3,4,5], '18:00', '19:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'synthwave-night'), 'saturday', ARRAY[1,2,3,4,5], '19:00', '21:00', 'America/Los_Angeles'),
 ((SELECT id FROM shows WHERE slug = 'ambient-soundscapes'), 'saturday', ARRAY[1,2,3,4,5], '21:00', '23:00', 'America/Los_Angeles'),
-((SELECT id FROM shows WHERE slug = 'late-night-beats'), 'saturday', ARRAY[1,2,3,4,5], '23:00', '24:00', 'America/Los_Angeles');
+((SELECT id FROM shows WHERE slug = 'late-night-beats'), 'saturday', ARRAY[1,2,3,4,5], '23:00', '00:00', 'America/Los_Angeles');
 
 -- Create validity periods for all schedule templates
 -- All templates are effective from 30 days ago and currently active
