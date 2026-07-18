@@ -133,6 +133,10 @@ library
     API.About.Get.Handler
     API.About.Get.Route
     API.About.Get.Templates
+    API.Archive.Get.Handler
+    API.Archive.Get.Route
+    API.Archive.Get.Templates.ItemsFragment
+    API.Archive.Get.Templates.Page
     API.Blog.Get.Handler
     API.Blog.Get.Route
     API.Blog.Get.Templates.ItemsFragment
@@ -681,6 +685,7 @@ test-suite kpbj-api-test
                     , http-types
     other-modules:
        App.Handler.CombinatorsSpec
+       API.Archive.Get.HandlerSpec
        API.Blog.Get.HandlerSpec
        API.Dashboard.Analytics.Data.Get.HandlerSpec
        Domain.Icecast.StatusSpec

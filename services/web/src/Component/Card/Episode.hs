@@ -8,8 +8,9 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Links (showEpisodesLinks)
+import API.Links (showEpisodesLinks, showsLinks)
 import API.Types
+import Control.Monad (when)
 import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -37,12 +38,20 @@ episodeDetailUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeDetailUrl showSlug episodeNumber =
   Links.linkURI $ showEpisodesLinks.detail showSlug episodeNumber
 
+showDetailUrl :: Slug -> Links.URI
+showDetailUrl showSlug =
+  Links.linkURI $ showsLinks.detail showSlug Nothing
+
 --------------------------------------------------------------------------------
 -- Main Render Function
 
 -- | Render an episode card with artwork (with play button overlay) and date.
-renderEpisodeCard :: StorageBackend -> Shows.Model -> Episodes.Model -> Lucid.Html ()
-renderEpisodeCard backend showModel episode = do
+--
+-- When @showShowTitle@ is True, the owning show's title is rendered above the
+-- date, linking to the show page. Used on the cross-show archive, where the
+-- show a card belongs to isn't otherwise obvious. Single-show pages pass False.
+renderEpisodeCard :: StorageBackend -> Bool -> Shows.Model -> Episodes.Model -> Lucid.Html ()
+renderEpisodeCard backend showShowTitle showModel episode = do
   let epUrl = episodeDetailUrl showModel.slug episode.episodeNumber
       showTitle = showModel.title
       episodeNum = episode.episodeNumber
@@ -65,6 +74,9 @@ renderEpisodeCard backend showModel episode = do
     $ do
       -- Artwork with play button overlay
       renderArtworkWithPlayer backend epUrl mArtworkUrl
+
+      -- Show title (archive only, where cards span multiple shows)
+      when showShowTitle $ renderShowTitle showTitle (showDetailUrl showModel.slug)
 
       -- Episode date
       case episode.scheduledAt of
@@ -135,6 +147,18 @@ renderScrubBar =
           class_ $ base ["h-full", "bg-white/80", "group-hover:bg-white", "pointer-events-none"]
         ]
         mempty
+
+-- | Render the show title as a link to the show page.
+renderShowTitle :: Text -> Links.URI -> Lucid.Html ()
+renderShowTitle title showUrl =
+  Lucid.a_
+    [ Lucid.href_ [i|/#{showUrl}|],
+      hxGet_ [i|/#{showUrl}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      class_ $ base [Tokens.fontBold, Tokens.textSm, "block", "hover:underline", "mb-1"]
+    ]
+    (Lucid.toHtml title)
 
 -- | Render episode date.
 renderEpisodeDate :: UTCTime -> Lucid.Html ()

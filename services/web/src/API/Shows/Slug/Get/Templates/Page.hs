@@ -54,7 +54,7 @@ renderEpisodesContent backend showModel episodes currentPage = do
     else do
       -- Grid layout: 1 column on mobile, 2 on tablet, 3 on desktop
       Lucid.div_ [class_ $ do { base ["grid", "grid-cols-1", Tokens.gap6]; tablet ["grid-cols-2"]; desktop ["grid-cols-3"] }] $ do
-        mapM_ (renderEpisodeCard backend showModel) episodes
+        mapM_ (renderEpisodeCard backend False showModel) episodes
       renderPagination showModel currentPage (length episodes)
 
 -- | Render pagination controls

@@ -43,7 +43,7 @@ template :: StorageBackend -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Mod
 template backend showModel episode tracks tags = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Episode card (reuses the same component from show page)
-    renderEpisodeCard backend showModel episode
+    renderEpisodeCard backend False showModel episode
 
     -- Description section
     when (isJust episode.description) $ do

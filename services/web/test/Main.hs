@@ -2,6 +2,7 @@ module Main where
 
 --------------------------------------------------------------------------------
 
+import API.Archive.Get.HandlerSpec qualified as ArchiveGetHandler
 import API.Blog.Get.HandlerSpec qualified as BlogGetHandler
 import API.Blog.Post.Get.HandlerSpec qualified as BlogPostGetHandler
 import API.Dashboard.Analytics.Data.Get.HandlerSpec qualified as AnalyticsDataHandler
@@ -167,6 +168,7 @@ main = do
     DashboardBlogsEditGetHandler.spec
     DashboardBlogsEditPostHandler.spec
     DashboardBlogsDeleteHandler.spec
+    ArchiveGetHandler.spec
     BlogGetHandler.spec
     BlogPostGetHandler.spec
     ScheduleHandler.spec

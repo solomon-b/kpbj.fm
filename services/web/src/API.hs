@@ -50,6 +50,7 @@ where
 
 import API.About.Get.Handler qualified as About.Get
 import API.Analytics.EpisodePlay.Post.Handler qualified as Analytics.EpisodePlay.Post
+import API.Archive.Get.Handler qualified as Archive.Get
 import API.Blog.Get.Handler qualified as Blog.Get
 import API.Blog.Post.Get.Handler qualified as Blog.Post.Get
 import API.Dashboard.Analytics.Data.Get.Handler qualified as Dashboard.Analytics.Data.Get
@@ -266,6 +267,7 @@ server =
       staticGet = Static.Get.handler,
       mediaGet = Media.Get.handler,
       aboutGet = About.Get.handler,
+      archiveGet = Archive.Get.handler,
       donateGet = Donate.Get.handler,
       privacyPolicyGet = PrivacyPolicy.Get.handler,
       termsOfServiceGet = TermsOfService.Get.handler,

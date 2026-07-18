@@ -22,6 +22,7 @@ module API.Links
 
     -- * Link generation structures
     apiLinks,
+    archiveLink,
     blogLinks,
     eventsLinks,
     scheduleLink,
@@ -61,6 +62,7 @@ where
 --------------------------------------------------------------------------------
 
 import API.Types
+import Data.Int (Int64)
 import Data.Text (Text)
 import Domain.Types.WeekOffset (WeekOffset)
 import Servant.Links (AsLink, Link, allFieldLinks)
@@ -99,6 +101,10 @@ eventsLinks = apiLinks.events
 -- | Schedule route link (top-level /schedule)
 scheduleLink :: Maybe WeekOffset -> Link
 scheduleLink = apiLinks.schedule
+
+-- | Archive route link (episode archive page). Takes an optional page number.
+archiveLink :: Maybe Int64 -> Link
+archiveLink = apiLinks.archiveGet
 
 -- | Shows route links
 showsLinks :: ShowsRoutes (AsLink Link)

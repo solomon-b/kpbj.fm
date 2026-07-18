@@ -34,6 +34,7 @@ module Effects.Database.Tables.Episodes
 
     -- * Queries
     getPublishedEpisodesForShow,
+    getPublishedEpisodesWithShows,
     getEpisodesForShow,
     getEpisodeByShowAndNumber,
     getEpisodeById,
@@ -341,6 +342,28 @@ getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
             where_ $ ep.scheduledAt <=. nullify (lit currentTime)
             pure ep
 
+-- | Get published episodes across all non-deleted shows, each paired with its
+-- show, ordered by publish date (newest first).
+--
+-- Powers the public @/archive@ page. Includes episodes from inactive shows —
+-- only soft-deleted shows are excluded. "Published" matches
+-- 'getPublishedEpisodesForShow': not deleted and scheduled in the past.
+getPublishedEpisodesWithShows :: UTCTime -> Limit -> Offset -> Hasql.Statement () [(Model, Shows.Model)]
+getPublishedEpisodesWithShows currentTime (Limit lim) (Offset off) =
+  run $
+    select $
+      Rel8.limit (fromIntegral lim) $
+        Rel8.offset (fromIntegral off) $
+          orderBy ((\(ep, _s) -> ep.publishedAt) >$< nullsLast desc) do
+            ep <- each episodeSchema
+            s <- each Shows.showSchema
+            where_ $ ep.showId ==. s.id
+            where_ $ isNull ep.deletedAt
+            where_ $ isNonNull ep.scheduledAt
+            where_ $ ep.scheduledAt <=. nullify (lit currentTime)
+            where_ $ isNull s.deletedAt
+            pure (ep, s)
+
 -- | Get episodes for a show (for hosts viewing their own show).
 --
 -- Returns all non-deleted episodes, ordered by scheduled date descending.
@@ -386,7 +409,6 @@ getEpisodeByAudioPath audioPath = fmap listToMaybe $ run $ select do
   where_ $ ep.audioFilePath ==. nullify (lit audioPath)
   where_ $ isNull ep.deletedAt
   pure ep
-
 
 -- | Get non-deleted episodes by user (episodes they created).
 getEpisodesByUser :: User.Id -> Limit -> Offset -> Hasql.Statement () [Model]

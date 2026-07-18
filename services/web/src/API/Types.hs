@@ -47,6 +47,7 @@ where
 
 import API.About.Get.Route qualified as About.Get
 import API.Analytics.EpisodePlay.Post.Route qualified as Analytics.EpisodePlay.Post
+import API.Archive.Get.Route qualified as Archive.Get
 import API.Blog.Get.Route qualified as Blog.Get
 import API.Blog.Post.Get.Route qualified as Blog.Post.Get
 import API.Dashboard.Analytics.Data.Get.Route qualified as Dashboard.Analytics.Data.Get
@@ -221,6 +222,8 @@ data Routes mode = Routes
     mediaGet :: mode :- Media.Get.Route,
     -- | @GET /about@ - About page
     aboutGet :: mode :- About.Get.Route,
+    -- | @GET /archive@ - Episode archive across all shows
+    archiveGet :: mode :- Archive.Get.Route,
     -- | @GET /donate@ - Donation page
     donateGet :: mode :- Donate.Get.Route,
     -- | @GET /privacy-policy@ - Privacy policy page

@@ -4,7 +4,7 @@ module Component.Frame where
 
 --------------------------------------------------------------------------------
 
-import API.Links (apiLinks, dashboardLinks, eventsLinks, rootLink, scheduleLink, showsLinks, staticAssetLink, storeLinks, userLinks)
+import API.Links (apiLinks, archiveLink, dashboardLinks, eventsLinks, rootLink, scheduleLink, showsLinks, staticAssetLink, storeLinks, userLinks)
 import API.Types
 import App.CustomContext (StreamConfig (..))
 import Component.Banner (bannerContainerId)
@@ -51,6 +51,9 @@ scheduleGetUrl = Link.linkURI $ scheduleLink Nothing
 
 showsGetUrl :: Link.URI
 showsGetUrl = Link.linkURI $ showsLinks.list Nothing Nothing Nothing Nothing Nothing
+
+archiveGetUrl :: Link.URI
+archiveGetUrl = Link.linkURI $ archiveLink Nothing
 
 eventsGetUrl :: Link.URI
 eventsGetUrl = Link.linkURI eventsLinks.list
@@ -834,6 +837,7 @@ mobileNavLinks mUser =
   Lucid.nav_ [class_ $ base ["flex", "flex-col", Tokens.gap6]] $ do
     mobileNavLink "Home" rootGetUrl
     mobileNavLink "Shows" showsGetUrl
+    mobileNavLink "Archive" archiveGetUrl
     mobileNavLink "Schedule" scheduleGetUrl
     mobileNavLink "Donate" donateGetUrl
     Lucid.a_
@@ -898,6 +902,7 @@ navigation :: Lucid.Html ()
 navigation =
   Lucid.nav_ [class_ $ base ["flex", Tokens.gap8, "items-center", "flex-wrap"]] $ do
     Lucid.a_ [Lucid.id_ "nav-shows", Lucid.href_ [i|/#{showsGetUrl}|], hxGet_ [i|/#{showsGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Shows"
+    Lucid.a_ [Lucid.id_ "nav-archive", Lucid.href_ [i|/#{archiveGetUrl}|], hxGet_ [i|/#{archiveGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Archive"
     Lucid.a_ [Lucid.id_ "nav-schedule", Lucid.href_ [i|/#{scheduleGetUrl}|], hxGet_ [i|/#{scheduleGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Schedule"
     Lucid.a_ [Lucid.id_ "nav-donate", Lucid.href_ [i|/#{donateGetUrl}|], hxGet_ [i|/#{donateGetUrl}|], hxTarget_ "#main-content", hxPushUrl_ "true", Lucid.class_ navLinkDark] "Donate"
     Lucid.a_ [Lucid.id_ "nav-membership", Lucid.href_ "https://pools.events/o/kpbjfm/join", Lucid.target_ "_blank", Lucid.rel_ "noopener noreferrer", Lucid.class_ navLinkDark] "Membership"
