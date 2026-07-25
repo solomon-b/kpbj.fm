@@ -143,7 +143,7 @@
               pkgs.nixpkgs-fmt
               pkgs.ormolu
               pkgs.openssl
-              pkgs.postgresql
+              pkgs.postgresql_17
               pkgs.rclone
               pkgs.shellcheck
               pkgs.sqlx-cli

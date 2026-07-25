@@ -285,7 +285,7 @@ dev-db-start: _require-docker
     -e POSTGRES_HOST_AUTH_METHOD=trust \
     -e POSTGRES_DB=dev_db \
     -v {{HOME}}/.kpbj-dev-pg-data:/var/lib/postgresql/data \
-    -d postgres
+    -d postgres:17
   echo "✨ Success!"
 
 # Halt the development docker container
