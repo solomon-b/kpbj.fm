@@ -37,6 +37,7 @@ import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.Alpine
+import Lucid.Base qualified as LucidBase
 import OrphanInstances.DayOfWeek (dayOfWeekToPostgres)
 import Rel8 (Result)
 
@@ -47,7 +48,9 @@ data ScheduleEditorData = ScheduleEditorData
   { -- | JSON array of existing schedule slots, or "[]" for a new show.
     sedExistingJson :: Text,
     -- | "YYYY-MM-DD" for edit pre-population, "" for new show.
-    sedStartDate :: Text
+    sedStartDate :: Text,
+    -- | "YYYY-MM-DD" lower bound for the date picker; "" means no bound.
+    sedMinDate :: Text
   }
 
 --------------------------------------------------------------------------------
@@ -130,7 +133,7 @@ renderScheduleEditor ScheduleEditorData {..} =
     $ do
       renderFrequencySelector
       renderWeekSelector
-      renderStartDate
+      renderStartDate sedMinDate
       renderSlots
       renderAddButton
       renderHiddenInput
@@ -658,16 +661,18 @@ renderReplayTimePicker =
 --
 -- Lets staff choose when the new schedule takes effect. Defaults to whatever
 -- @startDate@ is in the Alpine state (empty string for new shows, a pre-filled
--- date for existing shows).
-renderStartDate :: Lucid.Html ()
-renderStartDate =
+-- date for existing shows). When @minDate@ is non-empty it becomes the input's
+-- @min@ attribute, greying out earlier dates in the native picker.
+renderStartDate :: Text -> Lucid.Html ()
+renderStartDate minDate =
   Lucid.div_ [xShow_ "frequency !== null", class_ $ base [Tokens.mb4]] $ do
     Lucid.label_ [class_ $ base [Tokens.fontBold, Tokens.textSm, "block", Tokens.mb2]] "When does this schedule start?"
-    Lucid.input_
+    Lucid.input_ $
       [ Lucid.type_ "date",
         xModel_ "startDate",
         class_ $ base [Tokens.border2, Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "font-mono", "p-2"]
       ]
+        <> [LucidBase.makeAttributes "min" minDate | not (Text.null minDate)]
 
 -- | Hidden input that carries @startDate@ to the server on form submission.
 renderStartDateHidden :: Lucid.Html ()

@@ -45,8 +45,8 @@ showGetUrl slug = Links.linkURI $ apiLinks.shows.detail slug Nothing
 --------------------------------------------------------------------------------
 
 -- | Show edit template using V2 FormBuilder
-template :: StorageBackend -> Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> Text -> [ShowSchedule.ScheduleTemplate Result] -> [ShowSchedule.ScheduleTemplate Result] -> Lucid.Html ()
-template backend showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds existingTags startDate currentScheduleTemplates pendingScheduleTemplates = do
+template :: StorageBackend -> Shows.Model -> UserMetadata.Model -> Bool -> Text -> [UserMetadata.UserWithMetadata] -> Set User.Id -> Text -> Text -> Text -> [ShowSchedule.ScheduleTemplate Result] -> [ShowSchedule.ScheduleTemplate Result] -> Lucid.Html ()
+template backend showModel userMeta isStaff schedulesJson eligibleHosts currentHostIds existingTags startDate minDate currentScheduleTemplates pendingScheduleTemplates = do
   renderFormHeader userMeta showModel
   renderForm config form
   where
@@ -131,7 +131,7 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
               "Set the recurring schedule for this show."
             unless (null currentScheduleTemplates && null pendingScheduleTemplates) $
               renderSchedulePreview currentScheduleTemplates pendingScheduleTemplates startDate
-            renderScheduleEditor (ScheduleEditorData schedulesJson startDate)
+            renderScheduleEditor (ScheduleEditorData schedulesJson startDate minDate)
 
       cancelButton [i|/#{dashboardShowsGetUrl}|] "CANCEL"
       submitButton "UPDATE SHOW"

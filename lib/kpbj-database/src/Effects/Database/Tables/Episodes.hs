@@ -47,10 +47,12 @@ module Effects.Database.Tables.Episodes
     updateScheduledSlot,
     deleteEpisode,
     clearTemplateForUpcomingEpisodes,
+    getUpcomingEpisodesForTemplates,
 
     -- * Result Types
     EpisodeWithShow (..),
     SearchResult (..),
+    UpcomingEpisodeRef (..),
 
     -- * Search Queries
     searchEpisodesWithAudio,
@@ -69,7 +71,7 @@ import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
-import Data.Time (UTCTime)
+import Data.Time (Day, UTCTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug)
@@ -323,6 +325,19 @@ data SearchResult = SearchResult
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance SearchResult)
+
+-- | A reference to an upcoming episode still attached to a template.
+--
+-- @scheduled_at@ is non-null and @episode_number@ is non-null by the query's
+-- WHERE clause and the @episodes@ schema, so both are unwrapped here.
+data UpcomingEpisodeRef = UpcomingEpisodeRef
+  { uerId :: Id,
+    uerEpisodeNumber :: EpisodeNumber,
+    uerScheduledAt :: UTCTime
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (DecodeRow)
+  deriving (Display) via (RecordInstance UpcomingEpisodeRef)
 
 --------------------------------------------------------------------------------
 -- Queries
@@ -741,13 +756,18 @@ deleteEpisode episodeId =
             returning = Returning (.id)
           }
 
--- | Clear schedule_template_id for upcoming episodes tied to a given template.
+-- | Clear schedule_template_id for upcoming episodes tied to a given template,
+-- gated by the change's start date.
 --
 -- Used when a schedule template is invalidated (e.g., timeslot changed) to
 -- explicitly detach future episodes rather than leaving them with a stale FK.
--- Returns the IDs of affected episodes for logging.
-clearTemplateForUpcomingEpisodes :: ShowSchedule.TemplateId -> Hasql.Statement () [Id]
-clearTemplateForUpcomingEpisodes templateId =
+-- Only episodes whose Pacific air date is on or after @fromDate@ are detached, so
+-- when a change is deferred to a future date the interim episodes keep airing on
+-- the old slot until then. The @scheduled_at > NOW()@ guard still applies, so an
+-- episode that already aired earlier today is never detached. Returns the IDs of
+-- affected episodes for logging.
+clearTemplateForUpcomingEpisodes :: ShowSchedule.TemplateId -> Day -> Hasql.Statement () [Id]
+clearTemplateForUpcomingEpisodes templateId fromDate =
   interp
     False
     [sql|
@@ -755,8 +775,32 @@ clearTemplateForUpcomingEpisodes templateId =
     SET schedule_template_id = NULL, scheduled_at = NULL, updated_at = NOW()
     WHERE schedule_template_id = #{templateId}
       AND scheduled_at > NOW()
+      AND (scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{fromDate}
       AND deleted_at IS NULL
     RETURNING id
+  |]
+
+-- | Upcoming, non-deleted episodes attached to any of the given templates, gated
+-- by the change's start date.
+--
+-- These are the rows 'clearTemplateForUpcomingEpisodes' would null when a
+-- schedule edit removes or re-keys their slot. It reports which upcoming
+-- episodes an edit unscheduled so staff can reschedule them. The @fromDate@ gate
+-- and the @scheduled_at > NOW()@ guard match 'clearTemplateForUpcomingEpisodes',
+-- so the report equals the set that gets detached. An empty template
+-- list matches nothing and returns an empty result.
+getUpcomingEpisodesForTemplates :: [ShowSchedule.TemplateId] -> Day -> Hasql.Statement () [UpcomingEpisodeRef]
+getUpcomingEpisodesForTemplates templateIds fromDate =
+  interp
+    False
+    [sql|
+    SELECT id, episode_number, scheduled_at
+    FROM episodes
+    WHERE schedule_template_id = ANY(#{templateIds})
+      AND scheduled_at > NOW()
+      AND (scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{fromDate}
+      AND deleted_at IS NULL
+    ORDER BY scheduled_at
   |]
 
 --------------------------------------------------------------------------------

@@ -670,6 +670,7 @@ test-suite kpbj-api-test
                     , rel8
                     , scientific
                     , servant-client-core
+                    , servant-server
                     , string-interpolate
                     , text
                     , text-display
@@ -685,6 +686,7 @@ test-suite kpbj-api-test
                     , http-types
     other-modules:
        App.Handler.CombinatorsSpec
+       App.Handler.ErrorSpec
        API.Archive.Get.HandlerSpec
        API.Blog.Get.HandlerSpec
        API.Dashboard.Analytics.Data.Get.HandlerSpec

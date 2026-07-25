@@ -8,8 +8,10 @@ module API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), normalizeTemplate, parseScheduleSlot, schedulesMatch, validateNoOverlaps)
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), normalizeTemplate, parseScheduleSlot, removedTemplates, scheduleUpdateFlash, schedulesMatch, validateNoOverlaps)
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..))
+import Component.Banner (BannerType (..))
+import Component.Flash (FlashMessage (..))
 import Data.Either (isLeft)
 import Data.Int (Int64)
 import Data.List (sort)
@@ -17,6 +19,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Time (DayOfWeek (..), TimeOfDay (..), UTCTime (..))
 import Data.Time.Calendar (fromGregorian)
+import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Hedgehog
@@ -137,6 +140,54 @@ spec =
       it "returns False when form has schedules but DB is empty" $ do
         let slots = [ParsedScheduleSlot Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing]
         schedulesMatch [] slots `shouldBe` False
+
+    describe "removedTemplates" $ do
+      it "returns a template whose slot was removed from the form" $ do
+        let friday = mkTemplateWith (ShowSchedule.TemplateId 1) (Just Friday) (Just [1, 2, 3, 4, 5]) (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
+            monday = mkTemplateWith (ShowSchedule.TemplateId 2) (Just Monday) (Just [1, 2, 3, 4, 5]) (TimeOfDay 8 0 0) (TimeOfDay 10 0 0) Nothing
+            -- The form keeps only the Friday slot; the Monday slot is removed.
+            form = [ParsedScheduleSlot Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing]
+        map ShowSchedule.stId (removedTemplates [friday, monday] form) `shouldBe` [ShowSchedule.TemplateId 2]
+
+      it "returns the original template when a slot is re-keyed by changing weeks" $ do
+        let template = mkTemplateWith (ShowSchedule.TemplateId 5) (Just Friday) (Just [1, 2, 3, 4, 5]) (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
+            -- Same day and time, but the weeks changed, so the signature no longer matches.
+            form = [ParsedScheduleSlot Friday [1, 3] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing]
+        map ShowSchedule.stId (removedTemplates [template] form) `shouldBe` [ShowSchedule.TemplateId 5]
+
+      it "returns the original template when a slot is re-keyed by changing replay" $ do
+        let template = mkTemplateWith (ShowSchedule.TemplateId 7) (Just Friday) (Just [1, 2, 3, 4, 5]) (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 2 0 0))
+            -- Same day, weeks, and time, but the replay time changed.
+            form = [ParsedScheduleSlot Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 3 0 0))]
+        map ShowSchedule.stId (removedTemplates [template] form) `shouldBe` [ShowSchedule.TemplateId 7]
+
+      it "does not return a template whose slot is unchanged" $ do
+        let template = mkTemplateWith (ShowSchedule.TemplateId 1) (Just Friday) (Just [1, 2, 3, 4, 5]) (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
+            form = [ParsedScheduleSlot Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing]
+        map ShowSchedule.stId (removedTemplates [template] form) `shouldBe` []
+
+      it "ignores slots added in the form that have no DB template" $ do
+        let template = mkTemplateWith (ShowSchedule.TemplateId 1) (Just Friday) (Just [1, 2, 3, 4, 5]) (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
+            -- The form keeps the Friday slot and adds a brand-new Monday slot.
+            form =
+              [ ParsedScheduleSlot Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing,
+                ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 8 0 0) (TimeOfDay 10 0 0) Nothing
+              ]
+        map ShowSchedule.stId (removedTemplates [template] form) `shouldBe` []
+
+    describe "scheduleUpdateFlash" $ do
+      it "empty list yields a Success flash" $
+        case scheduleUpdateFlash [] of
+          FlashMessage t _ _ -> t `shouldBe` Success
+
+      it "non-empty list yields a Warning flash" $ do
+        let ref =
+              Episodes.UpcomingEpisodeRef
+                (Episodes.Id 1)
+                (Episodes.EpisodeNumber 3)
+                (UTCTime (fromGregorian 2026 8 1) 0)
+        case scheduleUpdateFlash [ref] of
+          FlashMessage t _ _ -> t `shouldBe` Warning
 
     describe "validateNoOverlaps" $ do
       -- No-overlap cases
@@ -270,11 +321,23 @@ spec =
 --------------------------------------------------------------------------------
 -- Test Helpers
 
--- | Create a ScheduleTemplate Result for testing.
+-- | Create a ScheduleTemplate Result for testing (id 1, no replay).
 mkTemplate :: Maybe DayOfWeek -> Maybe [Int64] -> TimeOfDay -> TimeOfDay -> ShowSchedule.ScheduleTemplate Rel8.Result
 mkTemplate dow weeks start end =
+  mkTemplateWith (ShowSchedule.TemplateId 1) dow weeks start end Nothing
+
+-- | Create a ScheduleTemplate Result with an explicit id and replay time.
+mkTemplateWith ::
+  ShowSchedule.TemplateId ->
+  Maybe DayOfWeek ->
+  Maybe [Int64] ->
+  TimeOfDay ->
+  TimeOfDay ->
+  Maybe TimeOfDay ->
+  ShowSchedule.ScheduleTemplate Rel8.Result
+mkTemplateWith tid dow weeks start end replay =
   ShowSchedule.ScheduleTemplate
-    { stId = ShowSchedule.TemplateId 1,
+    { stId = tid,
       stShowId = Shows.Id 1,
       stDayOfWeek = dow,
       stWeeksOfMonth = weeks,
@@ -282,7 +345,7 @@ mkTemplate dow weeks start end =
       stEndTime = end,
       stTimezone = "America/Los_Angeles",
       stCreatedAt = UTCTime (fromGregorian 2025 1 1) 0,
-      stReplayStartTime = Nothing
+      stReplayStartTime = replay
     }
 
 -- | Create a ScheduleSlotInfo for testing.

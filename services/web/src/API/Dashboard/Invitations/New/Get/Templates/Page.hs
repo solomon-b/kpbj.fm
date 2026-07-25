@@ -61,7 +61,7 @@ template =
 
       -- Schedule Section
       section "SCHEDULE" $ do
-        plain $ renderScheduleEditor (ScheduleEditorData "[]" "")
+        plain $ renderScheduleEditor (ScheduleEditorData "[]" "" "")
 
       cancelButton backUrl "CANCEL"
       submitButton "GENERATE INVITATION LINK"

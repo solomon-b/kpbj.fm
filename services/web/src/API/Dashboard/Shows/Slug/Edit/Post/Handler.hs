@@ -11,6 +11,8 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler
     schedulesMatch,
     validateNoOverlaps,
     checkScheduleConflicts,
+    removedTemplates,
+    scheduleUpdateFlash,
   )
 where
 
@@ -122,21 +124,22 @@ handler slug cookie editForm =
   handleRedirectErrors "Show edit" (dashboardShowsLinks.editGet slug) $ do
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId slug userMetadata
-    (showId, newSlug) <- action userMetadata slug editForm
+    (showId, newSlug, unscheduledEpisodes) <- action userMetadata slug editForm
     let showUrl = [i|/#{dashboardShowDetailUrl showId newSlug}|] :: Text
-        flash = FlashMessage Success "Show Updated" "Your show has been updated successfully."
+        flash = scheduleUpdateFlash unscheduledEpisodes
     pure $ Servant.addHeader showUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 
 --------------------------------------------------------------------------------
 
 -- | Business logic: fetch show, validate, update.
 --
--- Returns the show ID and (potentially updated) slug for the redirect.
+-- Returns the show ID, the (potentially updated) slug for the redirect, and any
+-- upcoming episodes the schedule change unscheduled so the caller can report them.
 action ::
   UserMetadata.Model ->
   Slug ->
   ShowEditForm ->
-  ExceptT HandlerError AppM (Shows.Id, Slug)
+  ExceptT HandlerError AppM (Shows.Id, Slug, [Episodes.UpcomingEpisodeRef])
 action userMetadata slug editForm = do
   -- 1. Fetch the show
   showModel <- fetchShowOrNotFound slug
@@ -197,35 +200,42 @@ action userMetadata slug editForm = do
   lift $ processShowTags showModel.id (sefTags editForm)
 
   -- 8. Process schedule and host updates if staff
-  when isStaff $ do
-    schedules <- case parseSchedules (sefSchedulesJson editForm) of
-      Left err -> do
-        Log.logInfo "Schedule validation failed" err
-        throwValidationError err
-      Right s -> pure s
+  unscheduledEpisodes <-
+    if isStaff
+      then do
+        schedules <- case parseSchedules (sefSchedulesJson editForm) of
+          Left err -> do
+            Log.logInfo "Schedule validation failed" err
+            throwValidationError err
+          Right s -> pure s
+        conflictCheck <- lift $ checkScheduleConflicts showModel.id schedules
+        case conflictCheck of
+          Left conflictErr -> do
+            Log.logInfo "Schedule conflict with other show" conflictErr
+            throwValidationError conflictErr
+          Right () -> pure ()
+        mStartDate <- case sefScheduleStartDate editForm of
+          Nothing -> pure Nothing
+          Just dateText -> case parseDateYMD dateText of
+            Nothing -> do
+              Log.logInfo "Invalid schedule start date" dateText
+              throwValidationError "Invalid schedule start date."
+            Just d -> do
+              today <- localDay . utcToPacific <$> lift currentSystemTime
+              if d < today
+                then do
+                  Log.logInfo "Schedule start date in the past" (Text.pack (show d))
+                  throwValidationError "The schedule start date can't be in the past."
+                else pure (Just d)
+        lift $ do
+          unscheduled <- updateSchedulesForShow showModel.id schedules mStartDate
+          newlyAddedHosts <- updateHostsForShow showModel.id (sefHosts editForm)
+          let mTimeslot = buildTimeslotDescription schedules
+          HostNotifications.sendHostAssignmentNotifications showModel mTimeslot newlyAddedHosts
+          pure unscheduled
+      else pure []
 
-    conflictCheck <- lift $ checkScheduleConflicts showModel.id schedules
-    case conflictCheck of
-      Left conflictErr -> do
-        Log.logInfo "Schedule conflict with other show" conflictErr
-        throwValidationError conflictErr
-      Right () -> pure ()
-
-    mStartDate <- case sefScheduleStartDate editForm of
-      Nothing -> pure Nothing
-      Just dateText -> case parseDateYMD dateText of
-        Nothing -> do
-          Log.logInfo "Invalid schedule start date" dateText
-          throwValidationError "Invalid schedule start date."
-        Just d -> pure (Just d)
-
-    lift $ do
-      updateSchedulesForShow showModel.id schedules mStartDate
-      newlyAddedHosts <- updateHostsForShow showModel.id (sefHosts editForm)
-      let mTimeslot = buildTimeslotDescription schedules
-      HostNotifications.sendHostAssignmentNotifications showModel mTimeslot newlyAddedHosts
-
-  pure (showModel.id, generatedSlug)
+  pure (showModel.id, generatedSlug, unscheduledEpisodes)
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::
@@ -393,6 +403,54 @@ schedulesMatch dbTemplates parsedSlots =
       formSet = Set.fromList parsedSlots
    in dbSet == formSet
 
+-- | Active templates whose slot signature is absent from the submitted form.
+--
+-- These are the templates 'updateScheduleTemplates' will terminate and detach
+-- episodes from. That means any active template whose normalized slot is not
+-- present in the form, either deleted outright or re-keyed to a different
+-- signature. Templates with no day of week (which cannot normalize) are dropped,
+-- matching 'normalizeTemplate'.
+removedTemplates ::
+  [ShowSchedule.ScheduleTemplate Result] ->
+  [ParsedScheduleSlot] ->
+  [ShowSchedule.ScheduleTemplate Result]
+removedTemplates activeTemplates parsedSlots =
+  let templateMap :: Map.Map ParsedScheduleSlot [ShowSchedule.ScheduleTemplate Result]
+      templateMap =
+        foldMap
+          ( \t ->
+              normalizeTemplate t & \case
+                Just slot -> Map.singleton slot [t]
+                Nothing -> Map.empty
+          )
+          activeTemplates
+      dbSet = Map.keysSet templateMap
+      formSet = Set.fromList parsedSlots
+      removed = Set.difference dbSet formSet
+   in concatMap (\slot -> Map.findWithDefault [] slot templateMap) (Set.toList removed)
+
+-- | Warning-flash body listing the upcoming episodes that a schedule edit just
+-- unscheduled. They keep their audio and show up flagged "UNSCHEDULED" in the
+-- dashboard. Staff assign each a new slot from the episode edit page.
+renderUnscheduledNotice :: [Episodes.UpcomingEpisodeRef] -> Text
+renderUnscheduledNotice eps =
+  let n = length eps
+      describeEp ep =
+        let epNum = Episodes.unEpisodeNumber ep.uerEpisodeNumber
+            scheduledText =
+              Text.pack $ formatTime defaultTimeLocale "%Y-%m-%d %H:%M" (utcToPacific ep.uerScheduledAt)
+         in [i|Episode \##{epNum} (was #{scheduledText})|] :: Text
+      listing = Text.intercalate ", " (map describeEp eps)
+   in [i|Your show was updated, but #{n} upcoming episode(s) were unscheduled because their time slot changed: #{listing}. They now show as UNSCHEDULED in the dashboard and need a new slot.|]
+
+-- | Success flash for a show edit, downgraded to a Warning that names the
+-- episodes when the schedule change unscheduled any upcoming episodes.
+scheduleUpdateFlash :: [Episodes.UpcomingEpisodeRef] -> FlashMessage
+scheduleUpdateFlash [] =
+  FlashMessage Success "Show Updated" "Your show has been updated successfully."
+scheduleUpdateFlash eps =
+  FlashMessage Warning "Show Updated" (renderUnscheduledNotice eps)
+
 --------------------------------------------------------------------------------
 
 -- | Check for schedule conflicts with other shows.
@@ -445,7 +503,7 @@ updateSchedulesForShow ::
   Shows.Id ->
   [ParsedScheduleSlot] ->
   Maybe Day ->
-  AppM ()
+  AppM [Episodes.UpcomingEpisodeRef]
 updateSchedulesForShow showId newSchedules mStartDate = do
   -- Use Pacific time as default start date when none provided
   nowUtc <- currentSystemTime
@@ -472,10 +530,23 @@ updateSchedulesForShow showId newSchedules mStartDate = do
 
   -- Always diff against active templates
   if schedulesMatch activeTemplates newSchedules
-    then Log.logInfo "Schedule unchanged, skipping update" (show showId)
+    then do
+      Log.logInfo "Schedule unchanged, skipping update" (show showId)
+      pure []
     else do
       Log.logInfo "Schedule changed, updating" (show showId)
+      let removedIds = map (.stId) (removedTemplates activeTemplates newSchedules)
+      unscheduled <-
+        if null removedIds
+          then pure []
+          else
+            execQuery (Episodes.getUpcomingEpisodesForTemplates removedIds startDate) >>= \case
+              Left err -> do
+                Log.logInfo "Failed to fetch episodes to be unscheduled" (Text.pack $ show err)
+                pure []
+              Right eps -> pure eps
       updateScheduleTemplates showId activeTemplates newSchedules startDate
+      pure unscheduled
 
 -- | Cancel a pending schedule, restoring active templates to open-ended.
 --
@@ -533,47 +604,34 @@ updateScheduleTemplates ::
   Day ->
   AppM ()
 updateScheduleTemplates showId activeTemplates parsedSlots startDate = do
-  let -- Normalize each DB template into a ParsedScheduleSlot for comparison, and
-      -- build a reverse lookup so we can find the original template(s) to terminate.
+  let -- Normalize each DB template into a ParsedScheduleSlot so we can compute the
+      -- set of newly added slots (those in the form but absent from the DB).
       -- Templates with no day of week (shouldn't happen in practice) are dropped.
-      templateMap :: Map.Map ParsedScheduleSlot [ShowSchedule.ScheduleTemplate Result]
-      templateMap =
-        foldMap
-          ( \t ->
-              normalizeTemplate t & \case
-                Just slot -> Map.singleton slot [t]
-                Nothing -> Map.empty
-          )
-          activeTemplates
-
-      -- Compare as sets to compute the three-way partition
-      dbSet = Map.keysSet templateMap
+      dbSet = Set.fromList (mapMaybe normalizeTemplate activeTemplates)
       formSet = Set.fromList parsedSlots
 
-      -- Slots in DB but not in form — user removed these
-      removed = Set.difference dbSet formSet
       -- Slots in form but not in DB — user added these
       added = Set.difference formSet dbSet
 
-  -- For each removed slot, look up the original DB template(s) and end their
-  -- active validity periods by setting effective_until to startDate.
-  forM_ (Set.toList removed) $ \slot ->
-    forM_ (Map.findWithDefault [] slot templateMap) $ \template -> do
-      activeValidities <-
-        execQuery (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId) >>= \case
-          Left err -> do
-            Log.logInfo "Failed to fetch validity periods" (Text.pack $ show err)
-            pure []
-          Right validities -> pure validities
+  -- For each removed (or re-keyed) template, end its active validity periods by
+  -- setting effective_until to startDate, then detach its upcoming episodes.
+  forM_ (removedTemplates activeTemplates parsedSlots) $ \template -> do
+    activeValidities <-
+      execQuery (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId) >>= \case
+        Left err -> do
+          Log.logInfo "Failed to fetch validity periods" (Text.pack $ show err)
+          pure []
+        Right validities -> pure validities
 
-      forM_ activeValidities $ \validity -> do
-        _ <- execQuery (ShowSchedule.endValidity validity.stvId startDate)
-        Log.logInfo "Closed out schedule validity" (show template.stId, show validity.stvId)
+    forM_ activeValidities $ \validity -> do
+      _ <- execQuery (ShowSchedule.endValidity validity.stvId startDate)
+      Log.logInfo "Closed out schedule validity" (show template.stId, show validity.stvId)
 
-      -- Detach upcoming episodes from this expired template
-      execQuery (Episodes.clearTemplateForUpcomingEpisodes template.stId) >>= \case
-        Left err -> Log.logAttention "Failed to clear template from episodes" (show err)
-        Right ids -> Log.logInfo "Detached episodes from expired template" (show template.stId, length ids)
+    -- Detach upcoming episodes from this expired template, but only those airing
+    -- on or after the change date so interim episodes keep their slot.
+    execQuery (Episodes.clearTemplateForUpcomingEpisodes template.stId startDate) >>= \case
+      Left err -> Log.logAttention "Failed to clear template from episodes" (show err)
+      Right ids -> Log.logInfo "Detached episodes from expired template" (show template.stId, length ids)
 
   -- For each added slot, create a fresh template and an open-ended validity
   -- period starting from today.

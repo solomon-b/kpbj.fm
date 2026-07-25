@@ -42,6 +42,7 @@ module App.Handler.Error
 
     -- * Error Response Builders
     errorRedirectParams,
+    inlineBannerError,
     notFoundContent,
     errorContent,
   )
@@ -256,14 +257,7 @@ handleRedirectErrors actionName defaultUrl action =
           let (url, flash) = errorRedirectParams defaultUrl err
            in throwHxRedirect url (Just flash)
         -- Validation/content errors: OOB banner inline (user stays on form)
-        _ ->
-          throwM $
-            Servant.ServerError
-              { errHTTPCode = 200,
-                errReasonPhrase = "OK",
-                errBody = Lucid.renderBS (errorBanner err),
-                errHeaders = [("Content-Type", "text/html; charset=utf-8")]
-              }
+        _ -> throwM (inlineBannerError err)
 
 -- | Error handler for handlers that return OOB banners on errors.
 --
@@ -365,6 +359,26 @@ errorRedirectParams defaultLink = \case
     (rootLink defaultLink, FlashMessage Error "Validation Error" msg)
   HandlerFailure msg ->
     (rootLink defaultLink, FlashMessage Error "Error" msg)
+
+-- | The 200 response that carries an inline out-of-band error banner for a
+-- Pattern A (redirect-on-success) form, sent with the @HX-Reswap: none
+-- show:window:top@ response header. The @none@ part tells HTMX to apply only the
+-- out-of-band banner swap and skip the main content swap, so the form's hx-target
+-- (#main-content) is left in place instead of being blanked by the OOB-only body.
+-- The @show:window:top@ part scrolls the window to the top so the banner is
+-- visible even when the user submitted from lower down a long form. The scroll
+-- runs during settle regardless of the @none@ swap style.
+inlineBannerError :: HandlerError -> Servant.ServerError
+inlineBannerError err =
+  Servant.ServerError
+    { errHTTPCode = 200,
+      errReasonPhrase = "OK",
+      errBody = Lucid.renderBS (errorBanner err),
+      errHeaders =
+        [ ("Content-Type", "text/html; charset=utf-8"),
+          ("HX-Reswap", "none show:window:top")
+        ]
+    }
 
 -- | Map a handler error to an OOB error banner.
 errorBanner :: HandlerError -> Lucid.Html ()

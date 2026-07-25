@@ -3,6 +3,7 @@ module Effects.Database.Tables.EpisodesSpec where
 --------------------------------------------------------------------------------
 
 import Control.Monad.IO.Class (liftIO)
+import Data.Time.Calendar (addDays)
 import Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime, utctDay)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
@@ -70,10 +71,26 @@ spec =
       describe "Unscheduled Episodes" $ do
         runs 10 . it "clearTemplateForUpcomingEpisodes: nulls schedule fields for future episodes" $
           hedgehog . prop_clearTemplateForUpcomingEpisodes
+        runs 10 . it "clearTemplateForUpcomingEpisodes: only clears episodes on/after the change date" $
+          hedgehog . prop_clearTemplateForUpcomingEpisodes_dateGate
         runs 10 . it "getEpisodesForShow: unscheduled episodes sort last" $
           hedgehog . prop_unscheduledEpisodesSortLast
         runs 10 . it "getPublishedEpisodesForShow: excludes unscheduled episodes" $
           hedgehog . prop_publishedExcludesUnscheduled
+
+      describe "Template Blocking" $ do
+        runs 10 . it "getUpcomingEpisodesForTemplates: returns an upcoming attached episode" $
+          hedgehog . prop_getUpcomingEpisodesForTemplates_returnsUpcoming
+        runs 10 . it "getUpcomingEpisodesForTemplates: excludes episodes scheduled in the past" $
+          hedgehog . prop_getUpcomingEpisodesForTemplates_excludesPast
+        runs 10 . it "getUpcomingEpisodesForTemplates: excludes episodes scheduled before the change date" $
+          hedgehog . prop_getUpcomingEpisodesForTemplates_dateGate
+        runs 10 . it "getUpcomingEpisodesForTemplates: excludes soft-deleted episodes" $
+          hedgehog . prop_getUpcomingEpisodesForTemplates_excludesDeleted
+        runs 10 . it "getUpcomingEpisodesForTemplates: excludes episodes on other templates" $
+          hedgehog . prop_getUpcomingEpisodesForTemplates_excludesOtherTemplate
+        runs 10 . it "getUpcomingEpisodesForTemplates: empty template list returns no episodes" $
+          hedgehog . prop_getUpcomingEpisodesForTemplates_emptyList
 
       describe "Tag Operations" $ do
         runs 10 . it "getTagsForEpisode: returns tags for episode" $
@@ -657,8 +674,9 @@ prop_clearTemplateForUpcomingEpisodes cfg = do
         let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
-        -- Clear template for upcoming episodes
-        clearedIds <- TRX.statement () (UUT.clearTemplateForUpcomingEpisodes templateId)
+        -- Clear template for upcoming episodes. Pass today's date as the change
+        -- date: the episode is scheduled tomorrow, so it is on/after and clears.
+        clearedIds <- TRX.statement () (UUT.clearTemplateForUpcomingEpisodes templateId (utctDay now))
 
         -- Re-fetch the episode
         afterClear <- TRX.statement () (UUT.getEpisodeById episodeId)
@@ -673,6 +691,59 @@ prop_clearTemplateForUpcomingEpisodes cfg = do
         afterClear <- assertJust mAfterClear
         UUT.scheduleTemplateId afterClear === Nothing
         UUT.scheduledAt afterClear === Nothing
+        pure ()
+
+-- | clearTemplateForUpcomingEpisodes: only nulls episodes whose Pacific air date
+-- is on or after the change date. An upcoming episode scheduled before that date
+-- keeps its slot; one on/after is detached.
+prop_clearTemplateForUpcomingEpisodes_dateGate :: TestDBConfig -> PropertyT IO ()
+prop_clearTemplateForUpcomingEpisodes_dateGate cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    epBeforeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    epAfterTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      -- Both episodes are in the future (so the scheduled_at > NOW() guard keeps
+      -- them as candidates), but their Pacific air dates straddle the change date.
+      -- Clean noon timestamps avoid sub-microsecond round-trip mismatches.
+      let baseDay = utctDay now
+          fromDate = addDays 5 baseDay
+          beforeTime = UTCTime (addDays 1 baseDay) (secondsToDiffTime 43200)
+          afterTime = UTCTime (addDays 10 baseDay) (secondsToDiffTime 43200)
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let epBefore = epBeforeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just beforeTime, UUT.eiCreatedBy = userId}
+        let epAfter = epAfterTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just afterTime, UUT.eiCreatedBy = userId}
+
+        beforeId <- unwrapInsert (UUT.insertEpisode epBefore)
+        afterId <- unwrapInsert (UUT.insertEpisode epAfter)
+
+        clearedIds <- TRX.statement () (UUT.clearTemplateForUpcomingEpisodes templateId fromDate)
+
+        afterBefore <- TRX.statement () (UUT.getEpisodeById beforeId)
+        afterAfter <- TRX.statement () (UUT.getEpisodeById afterId)
+
+        TRX.condemn
+        pure (afterId, templateId, clearedIds, afterBefore, afterAfter)
+
+      assert $ do
+        (afterId, templateId, clearedIds, mAfterBefore, mAfterAfter) <- assertRight result
+        -- Only the on/after episode was cleared
+        clearedIds === [afterId]
+        -- The before-fromDate episode keeps its schedule fields
+        beforeEp <- assertJust mAfterBefore
+        UUT.scheduleTemplateId beforeEp === Just templateId
+        UUT.scheduledAt beforeEp === Just beforeTime
+        -- The on/after episode is detached
+        afterEp <- assertJust mAfterAfter
+        UUT.scheduleTemplateId afterEp === Nothing
+        UUT.scheduledAt afterEp === Nothing
         pure ()
 
 -- | getEpisodesForShow: unscheduled episodes (NULL scheduledAt) sort after scheduled ones.
@@ -747,4 +818,196 @@ prop_publishedExcludesUnscheduled cfg = do
         -- Only the scheduled past episode should appear
         ep <- assertSingleton published
         UUT.id ep === scheduledId
+        pure ()
+
+--------------------------------------------------------------------------------
+-- Template Blocking tests
+
+-- | getUpcomingEpisodesForTemplates: returns an upcoming episode attached to the template.
+prop_getUpcomingEpisodesForTemplates_returnsUpcoming :: TestDBConfig -> PropertyT IO ()
+prop_getUpcomingEpisodesForTemplates_returnsUpcoming cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let futureTime = addUTCTime (86400 :: NominalDiffTime) now
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId] (utctDay now))
+        TRX.condemn
+        pure (episodeId, refs)
+
+      assert $ do
+        (episodeId, refs) <- assertRight result
+        ref <- assertSingleton refs
+        UUT.uerId ref === episodeId
+        pure ()
+
+-- | getUpcomingEpisodesForTemplates: excludes episodes scheduled in the past.
+prop_getUpcomingEpisodesForTemplates_excludesPast :: TestDBConfig -> PropertyT IO ()
+prop_getUpcomingEpisodesForTemplates_excludesPast cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let pastTime = addUTCTime (-86400 :: NominalDiffTime) now
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
+        _episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId] (utctDay now))
+        TRX.condemn
+        pure refs
+
+      assert $ do
+        refs <- assertRight result
+        map UUT.uerId refs === []
+        pure ()
+
+-- | getUpcomingEpisodesForTemplates: excludes episodes whose Pacific air date is
+-- before the change date, and includes those on/after it. Mirrors the gate that
+-- 'clearTemplateForUpcomingEpisodes' applies so the report equals the detach set.
+prop_getUpcomingEpisodesForTemplates_dateGate :: TestDBConfig -> PropertyT IO ()
+prop_getUpcomingEpisodesForTemplates_dateGate cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    epBeforeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    epAfterTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let baseDay = utctDay now
+          fromDate = addDays 5 baseDay
+          beforeTime = UTCTime (addDays 1 baseDay) (secondsToDiffTime 43200)
+          afterTime = UTCTime (addDays 10 baseDay) (secondsToDiffTime 43200)
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let epBefore = epBeforeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just beforeTime, UUT.eiCreatedBy = userId}
+        let epAfter = epAfterTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just afterTime, UUT.eiCreatedBy = userId}
+
+        _beforeId <- unwrapInsert (UUT.insertEpisode epBefore)
+        afterId <- unwrapInsert (UUT.insertEpisode epAfter)
+
+        refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId] fromDate)
+        TRX.condemn
+        pure (afterId, refs)
+
+      assert $ do
+        (afterId, refs) <- assertRight result
+        -- Only the on/after episode is reported; the before-fromDate one is gated out.
+        map UUT.uerId refs === [afterId]
+        pure ()
+
+-- | getUpcomingEpisodesForTemplates: excludes soft-deleted episodes.
+prop_getUpcomingEpisodesForTemplates_excludesDeleted :: TestDBConfig -> PropertyT IO ()
+prop_getUpcomingEpisodesForTemplates_excludesDeleted cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let futureTime = addUTCTime (86400 :: NominalDiffTime) now
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        -- Soft-delete the episode: it must no longer block
+        _ <- TRX.statement () (UUT.deleteEpisode episodeId)
+
+        refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId] (utctDay now))
+        TRX.condemn
+        pure refs
+
+      assert $ do
+        refs <- assertRight result
+        map UUT.uerId refs === []
+        pure ()
+
+-- | getUpcomingEpisodesForTemplates: excludes episodes attached to a different template.
+prop_getUpcomingEpisodesForTemplates_excludesOtherTemplate :: TestDBConfig -> PropertyT IO ()
+prop_getUpcomingEpisodesForTemplates_excludesOtherTemplate cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate1 <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    scheduleTemplate2 <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId1) <- insertTestShowWithSchedule showInsert scheduleTemplate1
+
+        -- A second template on the same show, which the episode is NOT attached to
+        let template2WithShowId = scheduleTemplate2 {ShowSchedule.stiShowId = showId}
+        templateId2 <- TRX.statement () (ShowSchedule.insertScheduleTemplate template2WithShowId)
+
+        let futureTime = addUTCTime (86400 :: NominalDiffTime) now
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId1, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        _episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        -- Query for the other template only
+        refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId2] (utctDay now))
+        TRX.condemn
+        pure refs
+
+      assert $ do
+        refs <- assertRight result
+        map UUT.uerId refs === []
+        pure ()
+
+-- | getUpcomingEpisodesForTemplates: an empty template list matches nothing.
+prop_getUpcomingEpisodesForTemplates_emptyList :: TestDBConfig -> PropertyT IO ()
+prop_getUpcomingEpisodesForTemplates_emptyList cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        -- Insert an upcoming episode; the empty-list query must still return nothing
+        let futureTime = addUTCTime (86400 :: NominalDiffTime) now
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        _episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [] (utctDay now))
+        TRX.condemn
+        pure refs
+
+      assert $ do
+        refs <- assertRight result
+        map UUT.uerId refs === []
         pure ()

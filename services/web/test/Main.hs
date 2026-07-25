@@ -89,6 +89,7 @@ import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
 import API.User.Register.Post.HandlerSpec qualified as UserRegisterHandler
 import App.DomainsSpec qualified as Domains
 import App.Handler.CombinatorsSpec qualified as Combinators
+import App.Handler.ErrorSpec qualified as ErrorHandler
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
 import Domain.Icecast.StatusSpec qualified as IcecastStatus
@@ -142,6 +143,7 @@ main = do
   -- Handler Integration Tests (database-dependent)
   withTmpPG $ hspecWith cfg $ parallel $ do
     Combinators.spec
+    ErrorHandler.spec
     HomeHandler.spec
     PlayoutFallbackGetHandler.spec
     EventsHandler.spec

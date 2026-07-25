@@ -28,6 +28,8 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
+import Domain.Types.Timezone (LocalTime (..), utcToPacific)
+import Effects.Clock (currentSystemTime)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -56,6 +58,7 @@ data ShowEditViewData = ShowEditViewData
     sevCurrentHostIds :: Set User.Id,
     sevExistingTags :: Text,
     sevScheduleStartDate :: Text, -- "YYYY-MM-DD" or ""
+    sevScheduleMinDate :: Text, -- "YYYY-MM-DD" lower bound for the date picker, or ""
 
     -- | Currently-active templates shown as read-only when a pending schedule exists.
     sevCurrentScheduleTemplates :: [ShowSchedule.ScheduleTemplate Result],
@@ -89,10 +92,10 @@ action user userMetadata slug = do
         Right tags -> Text.intercalate ", " $ map ShowTags.stName tags
 
   -- 6. Fetch staff-only data (schedules, hosts) if user is staff
-  (schedulesJson, eligibleHosts, currentHostIds, scheduleStartDate, currentTemplates, pendingTemplates') <-
+  (schedulesJson, eligibleHosts, currentHostIds, scheduleStartDate, scheduleMinDate, currentTemplates, pendingTemplates') <-
     fromRightM throwDatabaseError $
       lift $
-        bool (pure (Right ("[]", [], Set.empty, "", [], []))) (fetchStaffData showModel.id) isStaff
+        bool (pure (Right ("[]", [], Set.empty, "", "", [], []))) (fetchStaffData showModel.id) isStaff
 
   pure
     ShowEditViewData
@@ -106,6 +109,7 @@ action user userMetadata slug = do
         sevCurrentHostIds = currentHostIds,
         sevExistingTags = existingTags,
         sevScheduleStartDate = scheduleStartDate,
+        sevScheduleMinDate = scheduleMinDate,
         sevCurrentScheduleTemplates = currentTemplates,
         sevPendingScheduleTemplates = pendingTemplates'
       }
@@ -121,7 +125,7 @@ handler slug cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId slug userMetadata
     vd <- action user userMetadata slug
-    let editTemplate = template vd.sevBackend vd.sevShowModel vd.sevUserMetadata vd.sevIsStaff vd.sevSchedulesJson vd.sevEligibleHosts vd.sevCurrentHostIds vd.sevExistingTags vd.sevScheduleStartDate vd.sevCurrentScheduleTemplates vd.sevPendingScheduleTemplates
+    let editTemplate = template vd.sevBackend vd.sevShowModel vd.sevUserMetadata vd.sevIsStaff vd.sevSchedulesJson vd.sevEligibleHosts vd.sevCurrentHostIds vd.sevExistingTags vd.sevScheduleStartDate vd.sevScheduleMinDate vd.sevCurrentScheduleTemplates vd.sevPendingScheduleTemplates
     lift $ renderDashboardTemplate hxRequest vd.sevUserMetadata vd.sevSidebarShows (Just vd.sevShowModel) NavSettings Nothing Nothing editTemplate
 
 -- | Fetch show by slug, throwing NotFound if not found
@@ -150,32 +154,38 @@ fetchShowsForUser user userMetadata =
 -- When no pending schedule exists, the form shows the current active schedule.
 fetchStaffData ::
   Shows.Id ->
-  AppM (Either HSQL.Pool.UsageError (Text, [UserMetadata.UserWithMetadata], Set User.Id, Text, [ShowSchedule.ScheduleTemplate Result], [ShowSchedule.ScheduleTemplate Result]))
-fetchStaffData showId = runDBTransaction $ do
-  activeTemplates <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showId
-  pendingTemplates <- TRX.statement () $ ShowSchedule.getPendingScheduleTemplatesForShow showId
-  eligibleHosts <- TRX.statement () $ UserMetadata.getAllUsersWithPagination 1000 0
-  currentHostIds <- TRX.statement () $ ShowHost.getShowHosts showId
+  AppM (Either HSQL.Pool.UsageError (Text, [UserMetadata.UserWithMetadata], Set User.Id, Text, Text, [ShowSchedule.ScheduleTemplate Result], [ShowSchedule.ScheduleTemplate Result]))
+fetchStaffData showId = do
+  -- Today in Pacific, computed outside the DB transaction. Used both as the date
+  -- picker's lower bound and to clamp the pre-filled start date to no earlier than
+  -- today (a future/pending schedule keeps its date, a past active date becomes today).
+  today <- localDay . utcToPacific <$> currentSystemTime
+  let todayText = Text.pack (show today)
+  runDBTransaction $ do
+    activeTemplates <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showId
+    pendingTemplates <- TRX.statement () $ ShowSchedule.getPendingScheduleTemplatesForShow showId
+    eligibleHosts <- TRX.statement () $ UserMetadata.getAllUsersWithPagination 1000 0
+    currentHostIds <- TRX.statement () $ ShowHost.getShowHosts showId
 
-  -- If pending templates exist, populate form with them and show active as read-only.
-  -- Otherwise, populate form with the active templates.
-  let (formTemplates, currentForDisplay) = case pendingTemplates of
-        [] -> (activeTemplates, [])
-        _ -> (pendingTemplates, activeTemplates)
+    -- If pending templates exist, populate form with them and show active as read-only.
+    -- Otherwise, populate form with the active templates.
+    let (formTemplates, currentForDisplay) = case pendingTemplates of
+          [] -> (activeTemplates, [])
+          _ -> (pendingTemplates, activeTemplates)
 
-  let hasPending = not (null pendingTemplates)
-  startDate <- case formTemplates of
-    [] -> pure ""
-    (t : _) -> do
-      -- For pending templates, use unfiltered query since their validity hasn't started yet.
-      -- For active templates, use the active-only query.
-      validities <-
-        TRX.statement () $
-          if hasPending
-            then ShowSchedule.getValidityPeriodsForTemplate t.stId
-            else ShowSchedule.getActiveValidityPeriodsForTemplate t.stId
-      pure $ case validities of
-        [] -> ""
-        vs -> Text.pack $ show $ minimum $ map (.stvEffectiveFrom) vs
+    let hasPending = not (null pendingTemplates)
+    startDate <- case formTemplates of
+      [] -> pure todayText
+      (t : _) -> do
+        -- For pending templates, use unfiltered query since their validity hasn't started yet.
+        -- For active templates, use the active-only query.
+        validities <-
+          TRX.statement () $
+            if hasPending
+              then ShowSchedule.getValidityPeriodsForTemplate t.stId
+              else ShowSchedule.getActiveValidityPeriodsForTemplate t.stId
+        pure $ case validities of
+          [] -> todayText
+          vs -> Text.pack $ show $ max today $ minimum $ map (.stvEffectiveFrom) vs
 
-  pure (schedulesToEditorJson formTemplates, eligibleHosts, Set.fromList $ fmap (.shmUserId) currentHostIds, startDate, currentForDisplay, pendingTemplates)
+    pure (schedulesToEditorJson formTemplates, eligibleHosts, Set.fromList $ fmap (.shmUserId) currentHostIds, startDate, todayText, currentForDisplay, pendingTemplates)

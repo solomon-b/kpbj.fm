@@ -102,7 +102,7 @@ template eligibleHosts = do
           Lucid.p_
             [class_ $ base [T.textSm, T.fgMuted, T.mb4]]
             "Set the recurring schedule for this show."
-          renderScheduleEditor (ScheduleEditorData "[]" "")
+          renderScheduleEditor (ScheduleEditorData "[]" "" "")
 
       cancelButton backUrl "CANCEL"
       submitButton "CREATE SHOW"
