@@ -515,9 +515,12 @@ getCurrentlyAiringEpisode currentTime =
       FROM episodes e
       JOIN schedule_templates st ON st.id = e.schedule_template_id
       JOIN schedule_template_validity stv ON stv.template_id = st.id
+      JOIN shows s ON s.id = e.show_id
       WHERE
         e.audio_file_path IS NOT NULL
         AND e.deleted_at IS NULL
+        AND s.status = 'active'
+        AND s.deleted_at IS NULL
         AND stv.effective_from <= (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE
         AND (stv.effective_until IS NULL OR stv.effective_until > (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE)
     ),

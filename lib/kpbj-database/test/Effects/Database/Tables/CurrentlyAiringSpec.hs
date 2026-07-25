@@ -26,11 +26,11 @@ import Data.Time
     fromGregorian,
     timeOfDayToTime,
   )
-import Domain.Types.Timezone (pacificToUtc)
 import Domain.Types.DisplayName (mkDisplayNameUnsafe)
 import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Domain.Types.Slug (mkSlug)
+import Domain.Types.Timezone (pacificToUtc)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -55,6 +55,8 @@ spec =
         it "returns Nothing when no episodes exist" basicNoEpisodes
         it "returns Nothing when episode has no audio file" basicNoAudio
         it "returns Nothing when episode is deleted" basicDeletedEpisode
+        it "returns Nothing when the show is soft-deleted" basicDeletedShow
+        it "returns Nothing when the show is inactive" basicInactiveShow
         it "returns Nothing when episode is scheduled for different day" basicDifferentDay
         it "returns the episode when it is currently airing" basicCurrentlyAiring
 
@@ -386,6 +388,88 @@ basicDeletedEpisode cfg = bracketConn cfg $ do
     (episodeId, _) <- setupTestData passHash startTime endTime Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing
     -- Soft delete the episode
     _ <- TRX.statement () $ Episodes.deleteEpisode episodeId
+    TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+basicDeletedShow :: TestDBConfig -> IO ()
+basicDeletedShow cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let startTime = TimeOfDay 14 0 0
+      endTime = TimeOfDay 16 0 0
+      scheduledAt = mkTestTime startTime
+      queryTime = mkTestTime (TimeOfDay 15 0 0)
+
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (_, showId) <- setupTestData passHash startTime endTime Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing
+    -- Soft delete the show
+    _ <- TRX.statement () $ Shows.softDeleteShow showId
+    TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+basicInactiveShow :: TestDBConfig -> IO ()
+basicInactiveShow cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let startTime = TimeOfDay 14 0 0
+      endTime = TimeOfDay 16 0 0
+      scheduledAt = mkTestTime startTime
+      queryTime = mkTestTime (TimeOfDay 15 0 0)
+      slotDuration = 7200 -- 2 hours in seconds
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    -- Inline setup to insert the show as Inactive (setupTestData hardcodes Active)
+    (OneRow userId) <-
+      TRX.statement () $
+        User.insertUser $
+          User.ModelInsert (mkEmailAddress "test@example.com") passHash
+    _ <-
+      TRX.statement () $
+        UserMetadata.insertUserMetadata $
+          UserMetadata.Insert userId (mkDisplayNameUnsafe "Test User") (mkFullNameUnsafe "Test User") Nothing UserMetadata.Staff UserMetadata.Automatic UserMetadata.DefaultTheme
+
+    showId <-
+      unwrapInsert $
+        Shows.insertShow
+          Shows.Insert {siTitle = "Test Show", siSlug = mkSlug "test-show", siDescription = Nothing, siLogoUrl = Nothing, siStatus = Shows.Inactive}
+
+    templateId <-
+      TRX.statement () $
+        ShowSchedule.insertScheduleTemplate
+          ShowSchedule.ScheduleTemplateInsert
+            { stiShowId = showId,
+              stiDayOfWeek = Nothing,
+              stiWeeksOfMonth = Nothing,
+              stiStartTime = startTime,
+              stiEndTime = endTime,
+              stiTimezone = "America/Los_Angeles",
+              stiReplayStartTime = Nothing
+            }
+
+    _ <-
+      unwrapInsert $
+        ShowSchedule.insertValidity
+          ShowSchedule.ValidityInsert {viTemplateId = templateId, viEffectiveFrom = testDay, viEffectiveUntil = Nothing}
+
+    _ <-
+      unwrapInsert $
+        Episodes.insertEpisode
+          Episodes.Insert
+            { eiId = showId,
+              eiDescription = Just "Test Episode",
+              eiAudioFilePath = Just "audio/test.mp3",
+              eiAudioFileSize = Just 1000000,
+              eiAudioMimeType = Just "audio/mpeg",
+              eiDurationSeconds = Just slotDuration,
+              eiArtworkUrl = Nothing,
+              eiScheduleTemplateId = Just templateId,
+              eiScheduledAt = Just scheduledAt,
+              eiCreatedBy = userId
+            }
+
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
   case result of
