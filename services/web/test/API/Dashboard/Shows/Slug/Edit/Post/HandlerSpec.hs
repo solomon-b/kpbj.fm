@@ -10,8 +10,10 @@ import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Text (Text)
+import Data.Time (DayOfWeek (..), TimeOfDay (..), addDays, getCurrentTime, utctDay)
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as TRX
@@ -33,6 +35,7 @@ spec =
         it "updates show title when valid form submitted" test_updatesShowTitle
         it "updates show description when valid form submitted" test_updatesShowDescription
         it "preserves existing logo when sefLogoClear is False and no new file" test_preservesLogoUrl
+        it "allows an unrelated edit when another show holds the same slot from a future date" test_unchangedScheduleSkipsConflictCheck
 
 --------------------------------------------------------------------------------
 
@@ -227,3 +230,90 @@ test_preservesLogoUrl cfg = do
       case updatedShowResult' of
         Nothing -> expectationFailure "Expected updated show to exist in DB but got Nothing"
         Just s -> Shows.logoUrl s `shouldBe` originalLogoUrl
+
+-- | An edit that leaves the schedule alone is not conflict-checked, so it goes
+-- through even when another show holds the same slot from a future date.
+--
+-- The edit form always re-posts the show's current slots. Conflict-checking every
+-- edit would reject the title change below, because the other show's pending
+-- booking overlaps the re-posted slot, and would leave this show uneditable.
+test_unchangedScheduleSkipsConflictCheck :: TestDBConfig -> IO ()
+test_unchangedScheduleSkipsConflictCheck cfg = do
+  userInsert <- mkUserInsert "edit-pending-slot" UserMetadata.Staff
+  today <- utctDay <$> getCurrentTime
+
+  let showSlug = Slug "edit-pending-slot-show"
+      showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Thursday Night Show",
+            Shows.siSlug = showSlug,
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      otherShowInsert =
+        Shows.Insert
+          { Shows.siTitle = "Incoming Thursday Show",
+            Shows.siSlug = Slug "edit-pending-slot-other-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      -- Both shows sit on Thursday 20:00-21:00.
+      thursdayNight =
+        defaultScheduleInsert
+          { ShowSchedule.stiDayOfWeek = Just Thursday,
+            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+            ShowSchedule.stiStartTime = TimeOfDay 20 0 0,
+            ShowSchedule.stiEndTime = TimeOfDay 21 0 0
+          }
+      newTitle = "Thursday Night Show Renamed"
+      -- The form re-posts the show's current slot verbatim. Only the title changes.
+      form =
+        (editForm newTitle "active")
+          { sefSchedulesJson =
+              Just "[{\"dayOfWeek\":\"thursday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTime\":\"20:00\",\"duration\":60,\"replayTime\":null}]"
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      -- The show being edited holds the slot today.
+      (showId, templateId) <- insertTestShowWithSchedule showInsert thursdayNight
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing)
+
+      -- Another show holds the same slot from 30 days out, open-ended.
+      (_otherShowId, otherTemplateId) <- insertTestShowWithSchedule otherShowInsert thursdayNight
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert otherTemplateId (addDays 30 today) Nothing)
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, showId)
+
+    (userMetaModel, showModel, showId) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected the edit to succeed but got Left: " <> show err
+      Right _ -> pure ()
+
+    updatedShowResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (Shows.getShowById showId)
+
+    liftIO $ do
+      updatedShowResult' <- expectSetupRight updatedShowResult
+      case updatedShowResult' of
+        Nothing -> expectationFailure "Expected updated show to exist in DB but got Nothing"
+        Just s -> Shows.title s `shouldBe` newTitle

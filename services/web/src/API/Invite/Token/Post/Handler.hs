@@ -185,7 +185,10 @@ action token form = do
     Right s -> pure s
 
   -- 7. Check schedule conflicts
-  conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules
+  --
+  -- Onboarding never defers the schedule, so it takes effect today.
+  today <- localDay . utcToPacific <$> lift currentSystemTime
+  conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules today
   case conflictResult of
     Left conflictErr -> do
       Log.logInfo "Schedule conflict detected during onboarding" (Aeson.object ["error" .= conflictErr])
