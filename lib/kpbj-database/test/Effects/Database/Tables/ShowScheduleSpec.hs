@@ -61,6 +61,7 @@ spec =
       -- Conflict detection
       describe "checkTimeSlotConflict" $ do
         runs 10 . it "detects overlapping time slots" $ hedgehog . prop_checkTimeSlotConflict
+        runs 10 . it "range-overlaps validity windows against the effective date" $ hedgehog . prop_checkTimeSlotConflictValidityWindows
 
       -- Validity management
       describe "Validity" $ do
@@ -524,10 +525,10 @@ prop_checkTimeSlotConflict cfg = do
         showId2 <- unwrapInsert (Shows.insertShow show2)
 
         -- Check overlapping slot (11:00-13:00 overlaps with 10:00-12:00)
-        mConflict <- TRX.statement () (UUT.checkTimeSlotConflict showId2 dow allWeeksOfMonth (TimeOfDay 11 0 0) (TimeOfDay 13 0 0))
+        mConflict <- TRX.statement () (UUT.checkTimeSlotConflict showId2 dow allWeeksOfMonth (TimeOfDay 11 0 0) (TimeOfDay 13 0 0) today)
 
         -- Check non-overlapping slot (13:00-15:00 doesn't overlap with 10:00-12:00)
-        mNoConflict <- TRX.statement () (UUT.checkTimeSlotConflict showId2 dow allWeeksOfMonth (TimeOfDay 13 0 0) (TimeOfDay 15 0 0))
+        mNoConflict <- TRX.statement () (UUT.checkTimeSlotConflict showId2 dow allWeeksOfMonth (TimeOfDay 13 0 0) (TimeOfDay 15 0 0) today)
 
         TRX.condemn
         pure (show1, mConflict, mNoConflict)
@@ -539,6 +540,82 @@ prop_checkTimeSlotConflict cfg = do
         conflictTitle === Shows.siTitle show1
         -- Non-overlapping slot returns Nothing
         assertNothing mNoConflict
+
+-- | checkTimeSlotConflict: validity windows are range-overlapped against the
+-- date the proposed slot takes effect.
+--
+-- The proposed slot is the open-ended window @[fromDate, infinity)@, so this
+-- covers the three cases the @fromDate@ parameter exists for:
+--
+--   * another show's pending (future, open-ended) booking is a conflict today,
+--   * a cancelled booking, stored as an empty window, is not a conflict,
+--   * a booking whose window closes on the effective date hands the slot off
+--     cleanly and is not a conflict, though it still conflicts for a change
+--     taking effect while that window is open.
+prop_checkTimeSlotConflictValidityWindows :: TestDBConfig -> PropertyT IO ()
+prop_checkTimeSlotConflictValidityWindows cfg = do
+  arrange (bracketConn cfg) $ do
+    pendingInsert <- forAllT showInsertGen
+    cancelledInsert <- forAllT showInsertGen
+    handoffInsert <- forAllT showInsertGen
+    probeInsert <- forAllT showInsertGen
+    dow <- forAllT genDayOfWeek
+    timezone <- forAllT genTimezone
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      -- The date the handoff show vacates its slot.
+      let handoffEnd = addDays 10 today
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let activeShow showInsert suffix =
+              showInsert
+                { Shows.siStatus = Shows.Active,
+                  Shows.siSlug = Shows.siSlug showInsert <> suffix
+                }
+            template showId start end =
+              UUT.ScheduleTemplateInsert showId (Just dow) (Just allWeeksOfMonth) start end timezone Nothing
+
+        -- (a) Pending booking: 01:00-02:00 held open-ended from 30 days out.
+        let pendingShow = activeShow pendingInsert "window-pending"
+        pendingShowId <- unwrapInsert (Shows.insertShow pendingShow)
+        pendingTemplateId <- TRX.statement () (UUT.insertScheduleTemplate (template pendingShowId (TimeOfDay 1 0 0) (TimeOfDay 2 0 0)))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert pendingTemplateId (addDays 30 today) Nothing))
+
+        -- (b) Cancelled booking: 03:00-04:00 stored as an empty window.
+        let cancelledShow = activeShow cancelledInsert "window-cancelled"
+        cancelledShowId <- unwrapInsert (Shows.insertShow cancelledShow)
+        cancelledTemplateId <- TRX.statement () (UUT.insertScheduleTemplate (template cancelledShowId (TimeOfDay 3 0 0) (TimeOfDay 4 0 0)))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert cancelledTemplateId (addDays 30 today) (Just (addDays 30 today))))
+
+        -- (c) Clean handoff: 05:00-06:00 held until handoffEnd, then vacated.
+        let handoffShow = activeShow handoffInsert "window-handoff"
+        handoffShowId <- unwrapInsert (Shows.insertShow handoffShow)
+        handoffTemplateId <- TRX.statement () (UUT.insertScheduleTemplate (template handoffShowId (TimeOfDay 5 0 0) (TimeOfDay 6 0 0)))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert handoffTemplateId (addDays (-30) today) (Just handoffEnd)))
+
+        -- The show doing the booking, excluded from every check below.
+        probeShowId <- unwrapInsert (Shows.insertShow (activeShow probeInsert "window-probe"))
+
+        mPending <- TRX.statement () (UUT.checkTimeSlotConflict probeShowId dow allWeeksOfMonth (TimeOfDay 1 0 0) (TimeOfDay 2 0 0) today)
+        mCancelled <- TRX.statement () (UUT.checkTimeSlotConflict probeShowId dow allWeeksOfMonth (TimeOfDay 3 0 0) (TimeOfDay 4 0 0) today)
+        mHandoffOnVacate <- TRX.statement () (UUT.checkTimeSlotConflict probeShowId dow allWeeksOfMonth (TimeOfDay 5 0 0) (TimeOfDay 6 0 0) handoffEnd)
+        mHandoffToday <- TRX.statement () (UUT.checkTimeSlotConflict probeShowId dow allWeeksOfMonth (TimeOfDay 5 0 0) (TimeOfDay 6 0 0) today)
+
+        TRX.condemn
+        pure (pendingShow, handoffShow, mPending, mCancelled, mHandoffOnVacate, mHandoffToday)
+
+      assert $ do
+        (pendingShow, handoffShow, mPending, mCancelled, mHandoffOnVacate, mHandoffToday) <- assertRight result
+        -- (a) The pending booking is visible to a check made today
+        pendingTitle <- assertJust mPending
+        pendingTitle === Shows.siTitle pendingShow
+        -- (b) The cancelled empty window never airs, so it is not a conflict
+        assertNothing mCancelled
+        -- (c) The slot is free from the date its holder vacates it
+        assertNothing mHandoffOnVacate
+        -- ... but is taken for a change that would take effect today
+        handoffTitle <- assertJust mHandoffToday
+        handoffTitle === Shows.siTitle handoffShow
 
 --------------------------------------------------------------------------------
 -- Validity Management Tests

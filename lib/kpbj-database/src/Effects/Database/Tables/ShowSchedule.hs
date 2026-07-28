@@ -269,20 +269,35 @@ newtype ConflictingShowTitle = ConflictingShowTitle {getConflictingShowTitle :: 
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
 
--- | Check if a time slot conflicts with any active schedule (excluding a specific show).
+-- | Check if a time slot conflicts with another show's schedule (excluding a specific show).
 --
 -- Returns the title of the conflicting show if there's a conflict, Nothing otherwise.
 -- Checks for overlapping time ranges on the same day of week with overlapping weeks.
 -- Uses raw SQL because of complex overlap logic and array operations.
 -- Excludes soft-deleted shows.
+--
+-- The caller passes the date the proposed slot takes effect as @fromDate@. The
+-- proposed slot is treated as the open-ended window @[fromDate, infinity)@, so
+-- two validity-window predicates decide which of the other shows' rows can
+-- collide with it:
+--
+--   * @effective_until IS NULL OR effective_until > fromDate@ is the half-open
+--     overlap test against the other show's @[effective_from, effective_until)@.
+--     A window that already closed on or before @fromDate@ cannot collide, and a
+--     window that has not started yet still can, which is how a pending (future)
+--     booking gets caught.
+--   * @effective_until IS NULL OR effective_until > effective_from@ drops empty
+--     windows. A cancelled pending schedule is stored as @effective_until =
+--     effective_from@ and never airs, so it must not count as a conflict.
 checkTimeSlotConflict ::
   Shows.Id ->
   DayOfWeek ->
   [Int64] ->
   TimeOfDay ->
   TimeOfDay ->
+  Day ->
   Hasql.Statement () (Maybe Text)
-checkTimeSlotConflict excludeShowId dow weeks start end =
+checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
   fmap getConflictingShowTitle
     <$> interp
       False
@@ -307,8 +322,8 @@ checkTimeSlotConflict excludeShowId dow weeks start end =
         AND s.deleted_at IS NULL
         AND st.show_id != #{excludeShowId}
         AND st.day_of_week = #{dow}::day_of_week
-        AND stv.effective_from <= CURRENT_DATE
-        AND (stv.effective_until IS NULL OR stv.effective_until > CURRENT_DATE)
+        AND (stv.effective_until IS NULL OR stv.effective_until > #{fromDate})
+        AND (stv.effective_until IS NULL OR stv.effective_until > stv.effective_from)
         AND (st.weeks_of_month IS NULL OR st.weeks_of_month && #{weeks})
     )
     SELECT sl.title

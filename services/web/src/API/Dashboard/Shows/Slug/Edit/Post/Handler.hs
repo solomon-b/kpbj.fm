@@ -208,25 +208,44 @@ action userMetadata slug editForm = do
             Log.logInfo "Schedule validation failed" err
             throwValidationError err
           Right s -> pure s
-        conflictCheck <- lift $ checkScheduleConflicts showModel.id schedules
-        case conflictCheck of
-          Left conflictErr -> do
-            Log.logInfo "Schedule conflict with other show" conflictErr
-            throwValidationError conflictErr
-          Right () -> pure ()
+        today <- localDay . utcToPacific <$> lift currentSystemTime
         mStartDate <- case sefScheduleStartDate editForm of
           Nothing -> pure Nothing
           Just dateText -> case parseDateYMD dateText of
             Nothing -> do
               Log.logInfo "Invalid schedule start date" dateText
               throwValidationError "Invalid schedule start date."
-            Just d -> do
-              today <- localDay . utcToPacific <$> lift currentSystemTime
+            Just d ->
               if d < today
                 then do
                   Log.logInfo "Schedule start date in the past" (Text.pack (show d))
                   throwValidationError "The schedule start date can't be in the past."
                 else pure (Just d)
+        -- Date the submitted schedule takes effect. Deferred edits are checked
+        -- against that future date, not today.
+        let startDate = fromMaybe today mStartDate
+        -- Only conflict-check a schedule that actually changed. The edit form always
+        -- re-posts the show's current slots, so checking on every edit would reject
+        -- unrelated changes (title, logo, hosts) whenever another show legitimately
+        -- holds the same slot in a validity window that doesn't overlap this show's.
+        -- This re-reads the active templates that 'updateSchedulesForShow' fetches
+        -- again below. The duplicate query keeps the change small.
+        scheduleUnchanged <-
+          lift $
+            execQuery (ShowSchedule.getActiveScheduleTemplatesForShow showModel.id) >>= \case
+              Left err -> do
+                -- Fail safe. Without the current schedule we can't tell whether it
+                -- changed, so run the check and accept a possible false conflict.
+                Log.logAttention "Failed to fetch active schedules for conflict check" (Text.pack $ show err)
+                pure False
+              Right templates -> pure (schedulesMatch templates schedules)
+        unless scheduleUnchanged $ do
+          conflictCheck <- lift $ checkScheduleConflicts showModel.id schedules startDate
+          case conflictCheck of
+            Left conflictErr -> do
+              Log.logInfo "Schedule conflict with other show" conflictErr
+              throwValidationError conflictErr
+            Right () -> pure ()
         lift $ do
           unscheduled <- updateSchedulesForShow showModel.id schedules mStartDate
           newlyAddedHosts <- updateHostsForShow showModel.id (sefHosts editForm)
@@ -455,18 +474,21 @@ scheduleUpdateFlash eps =
 
 -- | Check for schedule conflicts with other shows.
 --
--- Checks both primary and replay time ranges against the database.
+-- Checks both primary and replay time ranges against the database. @fromDate@ is
+-- the date the proposed schedule takes effect. Other shows' validity windows that
+-- have already closed by then are not conflicts.
 checkScheduleConflicts ::
   Shows.Id ->
   [ParsedScheduleSlot] ->
+  Day ->
   AppM (Either Text ())
-checkScheduleConflicts showId = go
+checkScheduleConflicts showId slots fromDate = go slots
   where
     go [] = pure (Right ())
     go (slot : rest) = do
       let weeks = map fromIntegral (pssWeeks slot)
       -- Check primary slot
-      execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks (pssStart slot) (pssEnd slot)) >>= \case
+      execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks (pssStart slot) (pssEnd slot) fromDate) >>= \case
         Left err -> do
           Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
           pure (Left "Unable to verify schedule availability. Please try again.")
@@ -479,7 +501,7 @@ checkScheduleConflicts showId = go
             Just replayStart -> do
               let dur = slotDurationMins (pssStart slot) (pssEnd slot)
                   replayEnd = addMinutesToTimeOfDay replayStart dur
-              execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks replayStart replayEnd) >>= \case
+              execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks replayStart replayEnd fromDate) >>= \case
                 Left err -> do
                   Log.logAttention "Failed to check replay conflict" (Text.pack $ show err)
                   pure (Left "Unable to verify schedule availability. Please try again.")

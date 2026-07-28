@@ -94,15 +94,31 @@ action form = do
       throwValidationError ("Invalid schedule data: " <> err)
     Right s -> pure s
 
-  -- 3. Check schedule conflicts (Shows.Id 0 means check against ALL active shows)
-  conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules
+  -- 3. Parse optional schedule start date
+  mStartDate <- case nsfScheduleStartDate form of
+    Nothing -> pure Nothing
+    Just dateText -> case parseDateYMD dateText of
+      Nothing -> do
+        Log.logInfo "Invalid schedule start date" dateText
+        throwValidationError "Invalid schedule start date."
+      Just d -> pure (Just d)
+
+  -- 4. Check schedule conflicts (Shows.Id 0 means check against ALL active shows)
+  --
+  -- This flow accepts past start dates, so the conflict check clamps to today. A
+  -- past date would re-admit long-dead validity windows and report conflicts with
+  -- shows that vacated the slot months ago. A past overlap is historical, not
+  -- bookable, so only the window from today forward can actually collide.
+  today <- localDay . utcToPacific <$> lift currentSystemTime
+  let conflictFromDate = maybe today (max today) mStartDate
+  conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules conflictFromDate
   case conflictResult of
     Left conflictErr -> do
       Log.logInfo "Schedule conflict detected" (Aeson.object ["error" .= conflictErr])
       throwValidationError conflictErr
     Right () -> pure ()
 
-  -- 4. Process file uploads
+  -- 5. Process file uploads
   uploadResult <- lift $ processShowArtworkUploads showData.siSlug (nsfLogoFile form)
   mLogoPath <- case uploadResult of
     Left uploadErr -> do
@@ -110,14 +126,14 @@ action form = do
       throwValidationError ("File upload error: " <> uploadErr)
     Right path -> pure path
 
-  -- 5. Check slug uniqueness
+  -- 6. Check slug uniqueness
   existingShow <- execQuery (Shows.getShowBySlug showData.siSlug)
   case existingShow of
     Left dbErr -> throwDatabaseError dbErr
     Right (Just _) -> throwValidationError "A show with this URL already exists. Try a different title."
     Right Nothing -> pure ()
 
-  -- 6. Insert show
+  -- 7. Insert show
   let finalShowData = showData {Shows.siLogoUrl = mLogoPath}
   insertResult <- execQuery (Shows.insertShow finalShowData)
   showId <- case insertResult of
@@ -129,16 +145,10 @@ action form = do
       throwHandlerFailure "Failed to create show."
     Right (Just sid) -> pure sid
 
-  -- 7. Parse optional schedule start date
-  mStartDate <- case nsfScheduleStartDate form of
-    Nothing -> pure Nothing
-    Just dateText -> case parseDateYMD dateText of
-      Nothing -> do
-        Log.logInfo "Invalid schedule start date" dateText
-        throwValidationError "Invalid schedule start date."
-      Just d -> pure (Just d)
-
   -- 8. Post-creation side effects (fire and forget)
+  --
+  -- The unclamped start date is used here so the stored effective_from is exactly
+  -- what staff asked for.
   lift $ do
     assignHostsToShow showId (nsfHosts form)
     processShowTags showId (nsfTags form)
