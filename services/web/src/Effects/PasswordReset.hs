@@ -77,7 +77,7 @@ generateResetToken = liftIO $ do
 
 -- | Generate a random 16-character alphanumeric password.
 --
--- Used by the admin "assign password" flow, where the server generates the
+-- Used by the admin "reset password" flow, where the server generates the
 -- password rather than the admin typing one. The plaintext is shown to the
 -- admin once and never persisted.
 --

@@ -23,7 +23,7 @@ import Lucid qualified
 
 --------------------------------------------------------------------------------
 
--- | Admin-only: assign a freshly generated password to a user.
+-- | Admin-only: reset a user's password to a freshly generated one.
 --
 -- Generates a random strong password, hashes it with Argon2, writes the hash to
 -- the user's record, and deletes all of the user's sessions (forcing re-login
@@ -34,7 +34,7 @@ handler ::
   Maybe Cookie ->
   AppM (Lucid.Html ())
 handler targetUserId cookie =
-  handleBannerErrors "Assign password" $ do
+  handleBannerErrors "Reset password" $ do
     (_user, userMetadata) <- requireAuth cookie
     requireAdminNotSuspended "Only admins can reset user passwords." userMetadata
     user <-

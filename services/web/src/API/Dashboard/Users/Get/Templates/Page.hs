@@ -78,10 +78,10 @@ template viewerId viewerRole now users currentPage hasMore maybeQuery maybeRoleF
             }
           (mapM_ (renderUserRow viewerId viewerRole now) users)
 
-  -- Stable swap target for the one-time "assign password" modal. Rendered once
+  -- Stable swap target for the one-time "reset password" modal. Rendered once
   -- outside the table so it is unaffected by infinite-scroll row fragments; the
   -- admin action swaps the modal fragment into it.
-  Lucid.div_ [Lucid.id_ "assign-password-modal"] mempty
+  Lucid.div_ [Lucid.id_ "reset-password-modal"] mempty
   where
     maybeSortFilter = if sortBy == JoinDateNewest then Nothing else Just (Filter (Just sortBy))
     nextPageUrl :: Links.URI
@@ -195,10 +195,10 @@ renderUserRow viewerId viewerRole now user =
               ]
                 <> suspendAction
                 <> [ ActionsDropdown.htmxPostAction
-                       "assignpassword"
-                       "Assign Password"
+                       "resetpassword"
+                       "Reset Password"
                        [i|/#{userResetPasswordUrl}|]
-                       "#assign-password-modal"
+                       "#reset-password-modal"
                        ActionsDropdown.SwapInnerHTML
                        (Just resetPasswordConfirmMessage)
                        []
