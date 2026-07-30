@@ -37,6 +37,7 @@ spec =
       -- Template CRUD tests
       runs 20 . it "schema validation: insert and select schedule template" $ hedgehog . prop_insertSelectTemplate
       runs 20 . it "query validation: getScheduleTemplatesForShow" $ hedgehog . prop_getTemplatesForShow
+      runs 10 . it "templateBelongsToShow: only its owning show" $ hedgehog . prop_templateBelongsToShow
 
       -- Active schedule queries
       runs 20 . it "query validation: getActiveScheduleTemplatesForShow" $ hedgehog . prop_getActiveTemplates
@@ -145,6 +146,44 @@ prop_getTemplatesForShow cfg = do
         Hedgehog.assert (length templates >= 2)
         forM_ templates $ \template -> do
           template.stShowId === showId
+
+-- | templateBelongsToShow: a template is owned only by the show it was created for.
+--
+-- Both episode writers gate on this before touching
+-- @episodes.schedule_template_id@, because the form field carries a raw template
+-- id that a crafted POST can point at any show. A template id that does not exist
+-- is not owned either.
+prop_templateBelongsToShow :: TestDBConfig -> PropertyT IO ()
+prop_templateBelongsToShow cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert1 <- forAllT showInsertGen
+    showInsert2 <- forAllT showInsertGen
+    (startTime, endTime) <- forAllT genTimeRange
+    dow <- forAllT genDayOfWeek
+    timezone <- forAllT genTimezone
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let show1 = showInsert1 {Shows.siSlug = Shows.siSlug showInsert1 <> "owner1"}
+            show2 = showInsert2 {Shows.siSlug = Shows.siSlug showInsert2 <> "owner2"}
+        showId1 <- unwrapInsert (Shows.insertShow show1)
+        showId2 <- unwrapInsert (Shows.insertShow show2)
+
+        let schedule = UUT.ScheduleTemplateInsert showId1 (Just dow) (Just allWeeksOfMonth) startTime endTime timezone Nothing
+        templateId <- TRX.statement () (UUT.insertScheduleTemplate schedule)
+
+        owned <- TRX.statement () (UUT.templateBelongsToShow templateId showId1)
+        borrowed <- TRX.statement () (UUT.templateBelongsToShow templateId showId2)
+        missing <- TRX.statement () (UUT.templateBelongsToShow (UUT.TemplateId 0) showId1)
+
+        TRX.condemn
+        pure (owned, borrowed, missing)
+
+      assert $ do
+        (owned, borrowed, missing) <- assertRight result
+        owned === True
+        borrowed === False
+        missing === False
 
 --------------------------------------------------------------------------------
 -- Active Schedule Tests

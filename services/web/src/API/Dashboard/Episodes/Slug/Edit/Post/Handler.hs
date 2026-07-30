@@ -290,23 +290,39 @@ processScheduleUpdate isPast isStaffOrAdmin episode editForm =
                 then do
                   Log.logInfo "Host attempted to change schedule on past episode" episode.id
                   pure ["Schedule changes not allowed for past episodes"]
-                else do
-                  let slotUpdate =
-                        Episodes.ScheduleSlotUpdate
-                          { Episodes.essuId = episode.id,
-                            Episodes.essuScheduleTemplateId = newTemplateId,
-                            Episodes.essuScheduledAt = newScheduledAt
-                          }
-                  execQuery (Episodes.updateScheduledSlot slotUpdate) >>= \case
-                    Left err -> do
-                      Log.logInfo "Failed to update schedule slot" (episode.id, show err)
-                      pure ["Failed to update schedule"]
-                    Right Nothing -> do
-                      Log.logInfo "Schedule slot update returned Nothing" episode.id
-                      pure ["Failed to update schedule"]
-                    Right (Just _) -> do
-                      Log.logInfo "Successfully updated schedule slot" episode.id
-                      pure []
+                else
+                  templateBelongsToShow newTemplateId episode.showId >>= \case
+                    False -> do
+                      Log.logAttention "Rejected schedule update: template does not belong to this show" (episode.id, newTemplateId)
+                      pure ["Schedule update failed: that time slot does not belong to this show"]
+                    True -> do
+                      let slotUpdate =
+                            Episodes.ScheduleSlotUpdate
+                              { Episodes.essuId = episode.id,
+                                Episodes.essuScheduleTemplateId = newTemplateId,
+                                Episodes.essuScheduledAt = newScheduledAt
+                              }
+                      execQuery (Episodes.updateScheduledSlot slotUpdate) >>= \case
+                        Left err -> do
+                          Log.logInfo "Failed to update schedule slot" (episode.id, show err)
+                          pure ["Failed to update schedule"]
+                        Right Nothing -> do
+                          Log.logInfo "Schedule slot update returned Nothing" episode.id
+                          pure ["Failed to update schedule"]
+                        Right (Just _) -> do
+                          Log.logInfo "Successfully updated schedule slot" episode.id
+                          pure []
+
+-- | 'ShowSchedule.templateBelongsToShow' in 'AppM'.
+--
+-- Fails closed: on a database error the schedule change is refused.
+templateBelongsToShow :: ShowSchedule.TemplateId -> Shows.Id -> AppM Bool
+templateBelongsToShow templateId showId =
+  execQuery (ShowSchedule.templateBelongsToShow templateId showId) >>= \case
+    Left err -> do
+      Log.logAttention "Failed to check schedule template ownership" (Text.pack $ show err)
+      pure False
+    Right owned -> pure owned
 
 -- | Process track updates, returning a warning if it fails
 processTrackUpdates ::

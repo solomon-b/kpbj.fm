@@ -145,12 +145,20 @@ processEpisodeUpload _userMetadata user showModel form = do
           then pure (Right True) -- Staff and Admins always authorized
           else execQuery (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
-      case isAuthorized of
-        Left _err -> pure $ Left "Database error checking host permissions"
-        Right isHost ->
-          if not isHost
-            then pure $ Left "You are not authorized to create episodes for this show"
-            else do
+      -- The scheduled_date field carries a raw template_id, so confirm the slot
+      -- belongs to this show before it reaches episodes.schedule_template_id.
+      -- Checked before the upload so a rejected request writes no files.
+      templateOwned <- execQuery (ShowSchedule.templateBelongsToShow episodeData.scheduleTemplateId (Shows.Id episodeData.showId))
+
+      case (isAuthorized, templateOwned) of
+        (Left _err, _) -> pure $ Left "Database error checking host permissions"
+        (_, Left _err) -> pure $ Left "Database error checking time slot"
+        (Right isHost, Right isOwned)
+          | not isHost -> pure $ Left "You are not authorized to create episodes for this show"
+          | not isOwned -> do
+              Log.logAttention "Rejected episode upload: template does not belong to this show" (episodeData.showId, episodeData.scheduleTemplateId)
+              pure $ Left "That time slot does not belong to this show"
+          | otherwise -> do
               -- Handle file uploads (pass scheduled date for file organization)
               -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
               -- Artwork: Direct upload only (small files don't benefit from staged uploads)
