@@ -22,6 +22,7 @@ module Effects.Database.Tables.ShowSchedule
 
     -- * Schedule Template Queries
     getScheduleTemplateById,
+    templateBelongsToShow,
     getScheduleTemplatesForShow,
     getActiveScheduleTemplatesForShow,
     getPendingScheduleTemplatesForShow,
@@ -72,7 +73,7 @@ import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneRow (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import Data.Text.Display (display)
 import OrphanInstances.DayOfWeek ()
@@ -216,6 +217,27 @@ getScheduleTemplateById templateId = fmap listToMaybe $ run $ select do
   st <- each scheduleTemplateSchema
   where_ $ stId st ==. lit templateId
   pure st
+
+-- | Whether a schedule template belongs to a given show.
+--
+-- The episode upload and edit forms carry a raw @template_id@ inside their
+-- @scheduled_date@ field, so a crafted POST can name any show's template.
+-- 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisode' joins episodes to
+-- templates without comparing show ids, which means an episode pointed at another
+-- show's template becomes a real airing candidate in that show's window. Every
+-- writer of @episodes.schedule_template_id@ checks ownership first.
+templateBelongsToShow :: TemplateId -> Shows.Id -> Hasql.Statement () Bool
+templateBelongsToShow templateId showId =
+  let query =
+        interp
+          True
+          [sql|
+        SELECT EXISTS(
+          SELECT 1 FROM schedule_templates
+          WHERE id = #{templateId} AND show_id = #{showId}
+        )
+      |]
+   in maybe False getOneColumn <$> query
 
 -- | Get all schedule templates for a show.
 getScheduleTemplatesForShow :: Shows.Id -> Hasql.Statement () [ScheduleTemplate Result]
