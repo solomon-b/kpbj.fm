@@ -515,9 +515,14 @@ checkScheduleConflicts showId slots fromDate = go slots
 -- match, skips the terminate-and-recreate cycle. This prevents orphaning episodes
 -- that are linked to the existing schedule templates.
 --
--- When pending (future) templates exist, they are cancelled first (their validity
--- periods terminated, and active templates restored to open-ended). The diff is
--- then always applied against the active templates, ensuring a clean state.
+-- \"Current\" means the pending templates when a pending schedule exists, and the
+-- active ones otherwise, mirroring which set the edit form was populated from. The
+-- start date is part of the comparison because 'schedulesMatch' only looks at slot
+-- signatures.
+--
+-- Only once the submitted schedule actually differs is a pending schedule cancelled
+-- (validity terminated, its episodes detached, active templates restored to
+-- open-ended). The diff itself is then applied against the active templates.
 --
 -- When @mStartDate@ is provided it is used as the @effective_from@ date for any
 -- newly inserted validity records. When absent the current Pacific date is used.
@@ -545,18 +550,24 @@ updateSchedulesForShow showId newSchedules mStartDate = do
         pure []
       Right templates -> pure templates
 
-  -- If pending templates exist, cancel them and restore active to open-ended.
-  -- This ensures we always diff against a clean active state.
-  unless (null pendingTemplates) $
-    cancelPendingSchedule pendingTemplates activeTemplates
+  -- The edit form is populated from the pending schedule when one exists (see
+  -- 'API.Dashboard.Shows.Slug.Edit.Get.Handler'), so an unrelated save re-posts the
+  -- pending slots verbatim. Compare against whatever the form was filled from, not
+  -- always the active templates, or a title-only edit reads as a schedule change and
+  -- destroys the pending below.
+  let currentTemplates = if null pendingTemplates then activeTemplates else pendingTemplates
+  startDateUnchanged <- pendingStartDateMatches pendingTemplates mStartDate
 
-  -- Always diff against active templates
-  if schedulesMatch activeTemplates newSchedules
+  if schedulesMatch currentTemplates newSchedules && startDateUnchanged
     then do
       Log.logInfo "Schedule unchanged, skipping update" (show showId)
       pure []
     else do
       Log.logInfo "Schedule changed, updating" (show showId)
+      -- Cancel any pending schedule so the diff below runs against a clean active
+      -- state. Only reached when the submitted schedule actually differs.
+      unless (null pendingTemplates) $
+        cancelPendingSchedule pendingTemplates activeTemplates
       let removedIds = map (.stId) (removedTemplates activeTemplates newSchedules)
       unscheduled <-
         if null removedIds
@@ -570,10 +581,42 @@ updateSchedulesForShow showId newSchedules mStartDate = do
       updateScheduleTemplates showId activeTemplates newSchedules startDate
       pure unscheduled
 
+-- | Whether the submitted start date matches the pending schedule's existing one.
+--
+-- 'schedulesMatch' compares slot signatures only (day, weeks, times), so without this
+-- a save that moves a pending schedule's start date and changes nothing else would
+-- read as unchanged and be silently dropped.
+--
+-- Vacuously 'True' when there is no pending schedule, since there is no date to move.
+-- Fails open: if the validity periods can't be read we report a change, which falls
+-- through to the existing update path rather than discarding the edit.
+pendingStartDateMatches ::
+  [ShowSchedule.ScheduleTemplate Result] ->
+  Maybe Day ->
+  AppM Bool
+pendingStartDateMatches [] _ = pure True
+pendingStartDateMatches (template : _) mStartDate =
+  execQuery (ShowSchedule.getValidityPeriodsForTemplate template.stId) >>= \case
+    Left err -> do
+      Log.logAttention "Failed to fetch pending validity for start-date comparison" (Text.pack $ show err)
+      pure False
+    Right validities -> case map (.stvEffectiveFrom) validities of
+      [] -> pure False
+      froms -> pure (mStartDate == Just (minimum froms))
+
 -- | Cancel a pending schedule, restoring active templates to open-ended.
 --
 -- 1. Terminates each pending template's validity by setting effective_until = effective_from
--- 2. Restores active templates' validity to open-ended (clears effective_until)
+-- 2. Detaches any episode already uploaded against the pending slot
+-- 3. Restores active templates' validity to open-ended (clears effective_until)
+--
+-- Step 2 matters because a cancelled pending's validity becomes the empty window
+-- @[from, from)@, which no date satisfies. An episode left pointing at one is
+-- invisible to 'Episodes.getCurrentlyAiringEpisode' and airs as silence with no
+-- warning. Pending slots are bookable (they appear in
+-- 'ShowSchedule.getUpcomingUnscheduledShowDates'), so episodes really do accumulate
+-- on them. Detaching leaves the episode UNSCHEDULED instead, which keeps its audio,
+-- flags it in the dashboard, and lets staff reassign it.
 cancelPendingSchedule ::
   [ShowSchedule.ScheduleTemplate Result] ->
   [ShowSchedule.ScheduleTemplate Result] ->
@@ -590,6 +633,16 @@ cancelPendingSchedule pendingTemplates activeTemplates = do
     forM_ validities $ \validity -> do
       _ <- execQuery (ShowSchedule.endValidity validity.stvId validity.stvEffectiveFrom)
       Log.logInfo "Cancelled pending schedule validity" (show template.stId, show validity.stvId)
+
+    -- Detach episodes booked against the slot being cancelled. A pending template's
+    -- episodes all fall on or after its effective_from, so clearing from the earliest
+    -- one covers them.
+    case map (.stvEffectiveFrom) validities of
+      [] -> pure ()
+      froms ->
+        execQuery (Episodes.clearTemplateForUpcomingEpisodes template.stId (minimum froms)) >>= \case
+          Left err -> Log.logAttention "Failed to clear template from cancelled pending's episodes" (show err)
+          Right ids -> Log.logInfo "Detached episodes from cancelled pending" (show template.stId, length ids)
 
   -- Restore active validity periods to open-ended
   forM_ activeTemplates $ \template -> do

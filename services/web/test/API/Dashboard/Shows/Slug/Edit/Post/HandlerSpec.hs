@@ -10,6 +10,7 @@ import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..), TimeOfDay (..), addDays, getCurrentTime, utctDay)
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
@@ -36,6 +37,7 @@ spec =
         it "updates show description when valid form submitted" test_updatesShowDescription
         it "preserves existing logo when sefLogoClear is False and no new file" test_preservesLogoUrl
         it "allows an unrelated edit when another show holds the same slot from a future date" test_unchangedScheduleSkipsConflictCheck
+        it "leaves a pending schedule intact when only the title changes" test_titleEditPreservesPendingSchedule
 
 --------------------------------------------------------------------------------
 
@@ -317,3 +319,95 @@ test_unchangedScheduleSkipsConflictCheck cfg = do
       case updatedShowResult' of
         Nothing -> expectationFailure "Expected updated show to exist in DB but got Nothing"
         Just s -> Shows.title s `shouldBe` newTitle
+
+-- | A title-only edit must not destroy the show's pending schedule.
+--
+-- The edit form is populated from the pending templates when a pending schedule
+-- exists, so an unrelated save re-posts the pending slots verbatim. Diffing those
+-- against the active templates reports a change, which cancelled the pending and
+-- orphaned any episode already booked against it. Cancelling collapses the validity
+-- to the empty window @[from, from)@, which no date satisfies, so those episodes go
+-- silent with no warning.
+test_titleEditPreservesPendingSchedule :: TestDBConfig -> IO ()
+test_titleEditPreservesPendingSchedule cfg = do
+  userInsert <- mkUserInsert "edit-keeps-pending" UserMetadata.Staff
+  today <- utctDay <$> getCurrentTime
+
+  let changeoverDate = addDays 30 today
+      showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Monday Morning Show",
+            Shows.siSlug = Slug "edit-keeps-pending-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      -- Currently airing slot, closed out on the changeover date.
+      mondayMorning =
+        defaultScheduleInsert
+          { ShowSchedule.stiDayOfWeek = Just Monday,
+            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+            ShowSchedule.stiStartTime = TimeOfDay 9 0 0,
+            ShowSchedule.stiEndTime = TimeOfDay 10 0 0
+          }
+      -- Pending slot that takes over on the changeover date.
+      tuesdayAfternoon =
+        mondayMorning
+          { ShowSchedule.stiDayOfWeek = Just Tuesday,
+            ShowSchedule.stiStartTime = TimeOfDay 15 0 0,
+            ShowSchedule.stiEndTime = TimeOfDay 16 0 0
+          }
+      newTitle = "Monday Morning Show Renamed"
+      -- What the edit form posts back: the pending slot and its start date, untouched.
+      form =
+        (editForm newTitle "active")
+          { sefSchedulesJson =
+              Just "[{\"dayOfWeek\":\"tuesday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTime\":\"15:00\",\"duration\":60,\"replayTime\":null}]",
+            sefScheduleStartDate = Just (Text.pack (show changeoverDate))
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      (showId, activeTemplateId) <- insertTestShowWithSchedule showInsert mondayMorning
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity
+            (ShowSchedule.ValidityInsert activeTemplateId (addDays (-30) today) (Just changeoverDate))
+
+      pendingTemplateId <-
+        TRX.statement () $
+          ShowSchedule.insertScheduleTemplate tuesdayAfternoon {ShowSchedule.stiShowId = showId}
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert pendingTemplateId changeoverDate Nothing)
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, pendingTemplateId)
+
+    (userMetaModel, showModel, pendingTemplateId) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected the edit to succeed but got Left: " <> show err
+      Right _ -> pure ()
+
+    validityResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate pendingTemplateId)
+
+    liftIO $ do
+      validities <- expectSetupRight validityResult
+      case validities of
+        [] -> expectationFailure "Expected the pending template to still have a validity period"
+        (v : _) ->
+          -- Still open-ended. A cancelled pending would read Just changeoverDate here.
+          v.stvEffectiveUntil `shouldBe` Nothing
