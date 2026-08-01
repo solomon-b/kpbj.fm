@@ -59,6 +59,7 @@ library
                   , conduit
                   , containers
                   , cookie
+                  , crypton
                   , data-has
                   , deriving-aeson
                   , easypost-http
@@ -87,6 +88,7 @@ library
                   , log-base
                   , lucid2
                   , magic
+                  , memory
                   , mtl
                   , network
                   , network-uri
@@ -777,6 +779,7 @@ test-suite kpbj-api-test
        API.User.ForgotPassword.Post.HandlerSpec
        API.User.Login.Post.HandlerSpec
        API.User.Register.Post.HandlerSpec
+       App.CustomContextSpec
        App.DomainsSpec
        Effects.ContentSanitizationSpec
        Effects.DiffSpec
