@@ -47,6 +47,7 @@ module Effects.Database.Tables.Episodes
     updateScheduledSlot,
     deleteEpisode,
     clearTemplateForUpcomingEpisodes,
+    closeSchedulesAndDetachEpisodes,
     getUpcomingEpisodesForTemplates,
 
     -- * Result Types
@@ -778,6 +779,55 @@ clearTemplateForUpcomingEpisodes templateId fromDate =
       AND (scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{fromDate}
       AND deleted_at IS NULL
     RETURNING id
+  |]
+
+-- | Close every open schedule window of a show, and detach its upcoming episodes.
+--
+-- Used when a show becomes inactive or is soft-deleted. An inactive show must not
+-- keep a claim on a time slot. If it keeps one, a later reactivation can put two
+-- shows on the same slot, because the conflict check ignores inactive shows.
+--
+-- The end date is @GREATEST(effective_from, closeDate)@, not @closeDate@. An active
+-- window closes on @closeDate@. A pending window starts after @closeDate@, so
+-- @closeDate@ alone would make @effective_until@ earlier than @effective_from@. An
+-- inverted range makes the show vanish from every query that reads the schedule.
+-- @GREATEST@ gives the pending window the empty range @[from, from)@ instead, which
+-- is the same shape the pending cancel path already writes.
+--
+-- Windows that are already closed or already empty are not changed.
+--
+-- Episodes on those templates are detached in the same statement, so a caller
+-- without a transaction cannot leave a closed window with attached episodes. An
+-- episode left on a closed window is invisible to 'getCurrentlyAiringEpisode' and
+-- airs as silence. Detached episodes keep their audio and show as UNSCHEDULED.
+--
+-- Returns the detached episodes so the caller can report them.
+closeSchedulesAndDetachEpisodes :: Shows.Id -> Day -> Hasql.Statement () [UpcomingEpisodeRef]
+closeSchedulesAndDetachEpisodes showId closeDate =
+  interp
+    False
+    [sql|
+    WITH closed AS (
+      UPDATE schedule_template_validity v
+      SET effective_until = GREATEST(v.effective_from, #{closeDate})
+      FROM schedule_templates st
+      WHERE st.id = v.template_id
+        AND st.show_id = #{showId}
+        AND v.effective_until IS DISTINCT FROM GREATEST(v.effective_from, #{closeDate})
+        AND (v.effective_until IS NULL OR v.effective_until > #{closeDate})
+        AND (v.effective_until IS NULL OR v.effective_until > v.effective_from)
+      RETURNING st.id AS template_id
+    ),
+    detached AS (
+      UPDATE episodes e
+      SET schedule_template_id = NULL, scheduled_at = NULL, updated_at = NOW()
+      WHERE e.schedule_template_id IN (SELECT template_id FROM closed)
+        AND e.scheduled_at > NOW()
+        AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{closeDate}
+        AND e.deleted_at IS NULL
+      RETURNING e.id, e.episode_number, e.scheduled_at
+    )
+    SELECT id, episode_number, scheduled_at FROM detached ORDER BY scheduled_at
   |]
 
 -- | Upcoming, non-deleted episodes attached to any of the given templates, gated

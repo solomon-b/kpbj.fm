@@ -254,7 +254,38 @@ action userMetadata slug editForm = do
           pure unscheduled
       else pure []
 
-  pure (showModel.id, generatedSlug, unscheduledEpisodes)
+  -- 9. If the show is now inactive, close its schedule windows.
+  --
+  -- This runs after step 8 on purpose. Step 8 diffs the submitted form against the
+  -- show's active templates and recreates any slot it does not find. If the close
+  -- ran first, step 8 would see no active templates and write the slots back.
+  --
+  -- An inactive show must not hold a slot. The conflict check skips inactive shows,
+  -- so a slot that stays claimed lets a later reactivation put two shows on one
+  -- slot. Closing the windows here means a reactivated show has no schedule and
+  -- must be booked again.
+  deactivated <-
+    if finalStatus == Shows.Inactive && showModel.status /= Shows.Inactive
+      then lift $ closeSchedulesOnDeactivate showModel.id
+      else pure []
+
+  pure (showModel.id, generatedSlug, unscheduledEpisodes <> deactivated)
+
+-- | Close a show's schedule windows and detach its upcoming episodes.
+--
+-- Returns the detached episodes so the caller can name them in the flash message.
+-- A database error is logged and reported as no detached episodes, because the
+-- show status has already been written and this action must not fail the save.
+closeSchedulesOnDeactivate :: Shows.Id -> AppM [Episodes.UpcomingEpisodeRef]
+closeSchedulesOnDeactivate showId = do
+  today <- localDay . utcToPacific <$> currentSystemTime
+  execQuery (Episodes.closeSchedulesAndDetachEpisodes showId today) >>= \case
+    Left err -> do
+      Log.logAttention "Failed to close schedules for deactivated show" (Text.pack $ show err)
+      pure []
+    Right detached -> do
+      Log.logInfo "Closed schedules for deactivated show" (show showId, length detached)
+      pure detached
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::
