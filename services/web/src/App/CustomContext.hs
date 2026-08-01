@@ -16,6 +16,8 @@ module App.CustomContext
     GoogleAnalyticsId (..),
     SmtpConfig (..),
     PlayoutSecret (..),
+    mkPlayoutSecret,
+    secretsMatch,
     WebhookSecret (..),
     WebhookConfig (..),
     StreamConfig (..),
@@ -30,8 +32,10 @@ import App.Context (AppContext (..))
 import App.Smtp (SmtpConfig (..), loadSmtpConfig)
 import App.Storage (S3ConfigResult (..), StorageBackend (..), StorageContext (..), loadStorageConfig, withStorageContext)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Crypto.Hash (SHA256, hash)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
+import Data.ByteArray (constEq)
 import Data.Either (fromRight)
 import Data.Has qualified as Has
 import Data.Text (Text)
@@ -46,6 +50,7 @@ import Network.HTTP.Client (Manager)
 import Network.HTTP.Client.TLS qualified as TLS
 import Stripe.Types (StripePublishableKey (..), StripeSecretKey (..), StripeWebhookSecret (..))
 import System.Environment (lookupEnv)
+import System.IO (hPutStrLn, stderr)
 
 --------------------------------------------------------------------------------
 
@@ -455,10 +460,59 @@ logConfigState logEnv analytics smtp playout webhook stream = do
     isJust Nothing = False
 
 -- | Load the playout secret from environment (Phase 1).
+--
+-- The loader reports a blank value, then treats it as absent. See 'mkPlayoutSecret'.
 loadPlayoutSecret :: (MonadIO m) => m PlayoutSecret
 loadPlayoutSecret = do
   mSecret <- liftIO $ lookupEnv "PLAYOUT_SECRET"
-  pure $ PlayoutSecret (Text.pack <$> mSecret)
+  let secret = mkPlayoutSecret mSecret
+  case (mSecret, secret.unPlayoutSecret) of
+    (Just _, Nothing) ->
+      liftIO $
+        hPutStrLn
+          stderr
+          "WARNING: PLAYOUT_SECRET is set but blank. The loader treats it as unset. The /played endpoint will reject every request."
+    _ -> pure ()
+  pure secret
+
+-- | Build a 'PlayoutSecret' from a raw environment value.
+--
+-- A blank value becomes 'Nothing', the same as an unset variable. Before this, a blank
+-- @PLAYOUT_SECRET@ authenticated any caller who sent a blank @X-Playout-Secret@
+-- header. The handler compared @Just "" == Just ""@, which is true.
+--
+-- A blank value is easy to produce. @services/liquidsoap/radio.liq@ gives the same
+-- variable a default of @""@. Both sides can then be blank and appear to work.
+--
+-- A value of only whitespace also counts as blank. The loader does not trim the value,
+-- because a secret can start or end with a space. The header must match it exactly.
+mkPlayoutSecret :: Maybe String -> PlayoutSecret
+mkPlayoutSecret mRaw = PlayoutSecret $ do
+  raw <- Text.pack <$> mRaw
+  if Text.null (Text.strip raw) then Nothing else Just raw
+
+-- | Compare a presented secret against the configured one, in constant time.
+--
+-- Plain @Text@ equality is not safe here. It compares the lengths first. It then calls
+-- @memcmp@, which stops at the first byte that differs. That leaks the length of the
+-- configured secret. It also makes the response time grow with the length of a correct
+-- prefix. An attacker can then extend a guess one byte at a time.
+--
+-- This function hashes both sides first. 'constEq' reads its whole input and never
+-- stops early, but it must still handle inputs of different lengths. A digest always
+-- has the same length, so the hash removes that problem.
+-- 'Stripe.Webhook.verifySignature' already uses this pattern.
+--
+-- Do not replace this with a loop written in Haskell. Three things break the constant
+-- time property before you add any logic:
+--
+--   * @&&@ and @||@ stop as soon as the result is known.
+--   * GHC can reorder the code, or add branches again.
+--   * An index into @Text@ walks the UTF-8 array, so its cost depends on the data.
+secretsMatch :: Text -> Text -> Bool
+secretsMatch given expected = digest given `constEq` digest expected
+  where
+    digest = hash @_ @SHA256 . TE.encodeUtf8
 
 -- | Load webhook configuration from WEBHOOK_URL and WEBHOOK_SECRET env vars (Phase 1).
 loadWebhookConfig :: (MonadIO m) => m WebhookConfig

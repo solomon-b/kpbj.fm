@@ -10,7 +10,7 @@ where
 
 import API.Playout.Types (PlayedRequest (..))
 import App.BaseUrl (baseUrl)
-import App.CustomContext (PlayoutSecret (..))
+import App.CustomContext (PlayoutSecret (..), secretsMatch)
 import App.Handler.Error (HandlerError (..), throwHandlerFailure, throwNotAuthenticated)
 import App.Monad (AppM)
 import App.Storage (StorageBackend (..))
@@ -45,10 +45,14 @@ action mSecret request = do
     Nothing -> do
       Log.logAttention "PLAYOUT_SECRET not configured, rejecting request" ()
       throwNotAuthenticated
-    Just expected -> do
-      unless (mSecret == Just expected) $ do
-        Log.logAttention "Invalid or missing X-Playout-Secret header" ()
+    Just expected -> case mSecret of
+      Nothing -> do
+        Log.logAttention "Missing X-Playout-Secret header" ()
         throwNotAuthenticated
+      Just given ->
+        unless (secretsMatch given expected) $ do
+          Log.logAttention "Invalid X-Playout-Secret header" ()
+          throwNotAuthenticated
 
   -- Resolve episode ID from source URL when source type is "episode"
   mEpisodeId <-

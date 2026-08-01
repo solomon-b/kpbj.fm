@@ -87,6 +87,7 @@ import API.Store.Products.Slug.Get.HandlerSpec qualified as StoreProductHandler
 import API.User.ForgotPassword.Post.HandlerSpec qualified as UserForgotPasswordHandler
 import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
 import API.User.Register.Post.HandlerSpec qualified as UserRegisterHandler
+import App.CustomContextSpec qualified as CustomContext
 import App.DomainsSpec qualified as Domains
 import App.Handler.CombinatorsSpec qualified as Combinators
 import App.Handler.ErrorSpec qualified as ErrorHandler
@@ -127,6 +128,7 @@ main = do
   hspecWith cfg $ parallel $ do
     AnalyticsDataHandler.spec
     IcecastStatus.spec
+    CustomContext.spec
     Domains.spec
     ScheduleDiff.spec
     ScheduleEditor.spec
