@@ -9,6 +9,7 @@ import API.Dashboard.Shows.Slug.Edit.Post.Route (ShowEditForm (..))
 import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
+import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..), TimeOfDay (..), addDays, getCurrentTime, utctDay)
@@ -38,6 +39,7 @@ spec =
         it "preserves existing logo when sefLogoClear is False and no new file" test_preservesLogoUrl
         it "allows an unrelated edit when another show holds the same slot from a future date" test_unchangedScheduleSkipsConflictCheck
         it "leaves a pending schedule intact when only the title changes" test_titleEditPreservesPendingSchedule
+        it "closes the schedule windows when the show is set inactive" test_deactivateClosesScheduleWindow
 
 --------------------------------------------------------------------------------
 
@@ -411,3 +413,79 @@ test_titleEditPreservesPendingSchedule cfg = do
         (v : _) ->
           -- Still open-ended. A cancelled pending would read Just changeoverDate here.
           v.stvEffectiveUntil `shouldBe` Nothing
+
+-- | Setting a show inactive closes its schedule windows.
+--
+-- The close runs as step 9, after the schedule diff in step 8. Step 8 recreates any
+-- submitted slot it cannot find among the active templates, so a close placed before
+-- it would be undone on the same save. This test fails if the two steps swap.
+--
+-- An inactive show that keeps an open window can be reactivated onto a slot another
+-- show has taken since, because the conflict check skips inactive shows.
+test_deactivateClosesScheduleWindow :: TestDBConfig -> IO ()
+test_deactivateClosesScheduleWindow cfg = do
+  userInsert <- mkUserInsert "edit-deactivate" UserMetadata.Staff
+  today <- utctDay <$> getCurrentTime
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Retiring Show",
+            Shows.siSlug = Slug "edit-deactivate-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      wednesdayNoon =
+        defaultScheduleInsert
+          { ShowSchedule.stiDayOfWeek = Just Wednesday,
+            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+            ShowSchedule.stiStartTime = TimeOfDay 12 0 0,
+            ShowSchedule.stiEndTime = TimeOfDay 13 0 0
+          }
+      -- The form re-posts the show's current slot. Only the status changes.
+      form =
+        (editForm "Retiring Show" "inactive")
+          { sefSchedulesJson =
+              Just "[{\"dayOfWeek\":\"wednesday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTime\":\"12:00\",\"duration\":60,\"replayTime\":null}]"
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      (showId, templateId) <- insertTestShowWithSchedule showInsert wednesdayNoon
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing)
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, showId)
+
+    (userMetaModel, showModel, showId) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected the edit to succeed but got Left: " <> show err
+      Right _ -> pure ()
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          templates <- TRX.statement () (ShowSchedule.getScheduleTemplatesForShow showId)
+          validities <- traverse (\t -> TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate t.stId)) templates
+          pure (concat validities)
+
+    liftIO $ do
+      validities <- expectSetupRight afterResult
+      case validities of
+        [] -> expectationFailure "Expected the show to still have a validity period"
+        _ ->
+          -- Every window is closed. An open one means step 9 ran before step 8, or
+          -- did not run at all.
+          filter (\v -> isNothing v.stvEffectiveUntil) validities `shouldBe` []

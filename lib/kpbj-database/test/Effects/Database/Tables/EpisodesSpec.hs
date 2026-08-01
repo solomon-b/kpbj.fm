@@ -78,6 +78,16 @@ spec =
         runs 10 . it "getPublishedEpisodesForShow: excludes unscheduled episodes" $
           hedgehog . prop_publishedExcludesUnscheduled
 
+      describe "Releasing a slot on deactivate" $ do
+        runs 10 . it "closeSchedulesAndDetachEpisodes: closes an active window on the given date" $
+          hedgehog . prop_closeSchedules_closesActiveWindow
+        runs 10 . it "closeSchedulesAndDetachEpisodes: a pending window becomes empty, never inverted" $
+          hedgehog . prop_closeSchedules_pendingWindowNeverInverted
+        runs 10 . it "closeSchedulesAndDetachEpisodes: leaves a past episode attached" $
+          hedgehog . prop_closeSchedules_keepsPastEpisode
+        runs 10 . it "closeSchedulesAndDetachEpisodes: does not move an already-closed window" $
+          hedgehog . prop_closeSchedules_leavesClosedWindow
+
       describe "Template Blocking" $ do
         runs 10 . it "getUpcomingEpisodesForTemplates: returns an upcoming attached episode" $
           hedgehog . prop_getUpcomingEpisodesForTemplates_returnsUpcoming
@@ -1011,3 +1021,155 @@ prop_getUpcomingEpisodesForTemplates_emptyList cfg = do
         refs <- assertRight result
         map UUT.uerId refs === []
         pure ()
+
+--------------------------------------------------------------------------------
+-- Releasing a slot on deactivate
+
+-- | closeSchedulesAndDetachEpisodes: an open window closes on the given date, and
+-- a future episode on it is detached and returned.
+--
+-- This is the path a deactivation or a soft delete takes. An inactive show must not
+-- keep a claim on a time slot, or a later reactivation can put two shows on it.
+prop_closeSchedules_closesActiveWindow :: TestDBConfig -> PropertyT IO ()
+prop_closeSchedules_closesActiveWindow cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = utctDay now
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+        -- Open-ended window that started 30 days ago.
+        _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing))
+
+        -- Whole seconds only. PostgreSQL truncates to microseconds, so a timestamp
+        -- built from getCurrentTime does not round-trip.
+        let futureTime = UTCTime (addDays 2 today) (secondsToDiffTime 72000)
+            episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        detached <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId today)
+        validities <- TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate templateId)
+        afterClose <- TRX.statement () (UUT.getEpisodeById episodeId)
+
+        TRX.condemn
+        pure (episodeId, detached, validities, afterClose)
+
+      assert $ do
+        (episodeId, detached, validities, mAfterClose) <- assertRight result
+        map UUT.uerId detached === [episodeId]
+        validity <- assertSingleton validities
+        ShowSchedule.stvEffectiveUntil validity === Just today
+        afterClose <- assertJust mAfterClose
+        UUT.scheduleTemplateId afterClose === Nothing
+        UUT.scheduledAt afterClose === Nothing
+
+-- | closeSchedulesAndDetachEpisodes: a pending window closes to @[from, from)@.
+--
+-- The end date is @GREATEST(effective_from, closeDate)@. A pending window starts
+-- after the close date, so @closeDate@ alone would write @effective_until@ earlier
+-- than @effective_from@. An inverted range makes the show vanish from every query
+-- that reads the schedule, and nothing reports it. This test fails if @GREATEST@ is
+-- removed.
+prop_closeSchedules_pendingWindowNeverInverted :: TestDBConfig -> PropertyT IO ()
+prop_closeSchedules_pendingWindowNeverInverted cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = utctDay now
+          pendingFrom = addDays 30 today
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+        -- Pending: the window opens 30 days from now.
+        _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId pendingFrom Nothing))
+
+        _ <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId today)
+        validities <- TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate templateId)
+
+        TRX.condemn
+        pure validities
+
+      assert $ do
+        validities <- assertRight result
+        validity <- assertSingleton validities
+        -- Empty, not inverted. Equal to effective_from, not to today.
+        ShowSchedule.stvEffectiveUntil validity === Just pendingFrom
+        ShowSchedule.stvEffectiveFrom validity === pendingFrom
+
+-- | closeSchedulesAndDetachEpisodes: a past episode keeps its slot.
+--
+-- The detach must never reach backwards. A past episode is the record of a
+-- broadcast that happened. Nulling it destroys history and cannot be undone.
+prop_closeSchedules_keepsPastEpisode :: TestDBConfig -> PropertyT IO ()
+prop_closeSchedules_keepsPastEpisode cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = utctDay now
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+        _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing))
+
+        -- Whole seconds only, for the same reason as above.
+        let pastTime = UTCTime (addDays (-7) today) (secondsToDiffTime 72000)
+            pastInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
+        pastId <- unwrapInsert (UUT.insertEpisode pastInsert)
+
+        detached <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId today)
+        afterClose <- TRX.statement () (UUT.getEpisodeById pastId)
+
+        TRX.condemn
+        pure (templateId, pastTime, detached, afterClose)
+
+      assert $ do
+        (templateId, pastTime, detached, mAfterClose) <- assertRight result
+        detached === []
+        afterClose <- assertJust mAfterClose
+        UUT.scheduleTemplateId afterClose === Just templateId
+        UUT.scheduledAt afterClose === Just pastTime
+
+-- | closeSchedulesAndDetachEpisodes: a window that already closed does not move.
+--
+-- Without the guards, an old window would jump forward to the close date. That
+-- reopens a period the show did not hold, and it can manufacture an overlap with
+-- whichever show took the slot afterwards.
+prop_closeSchedules_leavesClosedWindow :: TestDBConfig -> PropertyT IO ()
+prop_closeSchedules_leavesClosedWindow cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = utctDay now
+          oldFrom = addDays (-90) today
+          oldUntil = addDays (-30) today
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+        _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId oldFrom (Just oldUntil)))
+
+        _ <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId today)
+        validities <- TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate templateId)
+
+        TRX.condemn
+        pure validities
+
+      assert $ do
+        validities <- assertRight result
+        validity <- assertSingleton validities
+        ShowSchedule.stvEffectiveFrom validity === oldFrom
+        ShowSchedule.stvEffectiveUntil validity === Just oldUntil
