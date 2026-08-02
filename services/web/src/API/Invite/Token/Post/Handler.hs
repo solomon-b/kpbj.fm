@@ -5,7 +5,7 @@ module API.Invite.Token.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, parseScheduleSlot)
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, parseScheduleSlot, validateNoOverlaps)
 import API.Invite.Token.Post.Route (InviteOnboardingForm (..))
 import API.Links (dashboardShowsLinks, userLinks)
 import API.Types (DashboardShowsRoutes (..), UserRoutes (..))
@@ -343,14 +343,17 @@ validateFullName nameText =
 -- | Parse schedule data from invitation JSON.
 --
 -- The invitation stores schedule data as a JSON array of schedule slot objects.
--- This uses the same parsing logic as the show creation/edit handlers.
+-- This uses the same parsing logic as the show creation/edit handlers, and the
+-- same check that the slots do not overlap each other.
 parseInvitationSchedules :: Aeson.Value -> Either Text [ParsedScheduleSlot]
 parseInvitationSchedules scheduleJson = case scheduleJson of
   Aeson.Array arr
     | null arr -> Right []
   _ -> case Aeson.fromJSON scheduleJson of
     Aeson.Error err -> Left $ "Invalid schedule JSON: " <> Text.pack err
-    Aeson.Success slots -> traverse parseScheduleSlot slots
+    Aeson.Success slots -> do
+      parsed <- traverse parseScheduleSlot slots
+      validateNoOverlaps parsed
 
 -- | Create schedules for a newly created show.
 --

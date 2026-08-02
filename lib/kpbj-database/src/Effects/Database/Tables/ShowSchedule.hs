@@ -69,7 +69,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (timeOfDayToTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (utcToPacific)
+import Domain.Types.Timezone (minutesFromMidnight, utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
@@ -294,9 +294,10 @@ newtype ConflictingShowTitle = ConflictingShowTitle {getConflictingShowTitle :: 
 -- | Check if a time slot conflicts with another show's schedule (excluding a specific show).
 --
 -- Returns the title of the conflicting show if there's a conflict, Nothing otherwise.
--- Checks for overlapping time ranges on the same day of week with overlapping weeks.
 -- Uses raw SQL because of complex overlap logic and array operations.
 -- Excludes soft-deleted shows.
+--
+-- === Validity windows
 --
 -- The caller passes the date the proposed slot takes effect as @fromDate@. The
 -- proposed slot is treated as the open-ended window @[fromDate, infinity)@, so
@@ -311,6 +312,41 @@ newtype ConflictingShowTitle = ConflictingShowTitle {getConflictingShowTitle :: 
 --   * @effective_until IS NULL OR effective_until > effective_from@ drops empty
 --     windows. A cancelled pending schedule is stored as @effective_until =
 --     effective_from@ and never airs, so it must not count as a conflict.
+--
+-- === The time model
+--
+-- Every window becomes a half-open range of minutes from midnight of the day it
+-- starts on. A window that crosses midnight gets an end above 1440. A window
+-- that stops at midnight gets an end of exactly 1440 and does not cross. So a
+-- range @[s, e)@ takes @[s, LEAST(e, 1440))@ on its own day, and @[0, e - 1440)@
+-- on the next day when @e@ is above 1440.
+--
+-- Each template gives one window for its primary air time. It gives a second
+-- window for its replay, which runs for the same number of minutes.
+--
+-- === Which days can collide
+--
+-- The proposed slot recurs on one day of the week. Three comparisons can find a
+-- collision, and the query makes all three:
+--
+--   * The window sits on the same day, and the two day-of-week parts overlap.
+--   * The window sits on the next day, and the proposed slot crosses midnight
+--     onto it.
+--   * The window sits on the previous day, and it crosses midnight onto the
+--     proposed slot.
+--
+-- A recurring template also has to match on @weeks_of_month@. The week can
+-- change across midnight, because a date in week @w@ is followed by a date in
+-- week @w@ or week @w + 1@. The day after the last day of a month is in week 1,
+-- and a month can end in week 4 (February) or week 5. The two cross-midnight
+-- comparisons therefore widen the week test to @{w, w + 1}@, plus week 1 when
+-- @w@ is 4 or 5. This can report a conflict that a concrete calendar would not
+-- produce. It never misses one.
+--
+-- A one-time template has @day_of_week IS NULL@ and runs on its
+-- @effective_from@ date. The query matches those against the concrete date, so
+-- it needs no widening. No write path creates a one-time template today. The
+-- schema permits one and the airing queries read one, so the check covers it.
 checkTimeSlotConflict ::
   Shows.Id ->
   DayOfWeek ->
@@ -320,67 +356,127 @@ checkTimeSlotConflict ::
   Day ->
   Hasql.Statement () (Maybe Text)
 checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
-  fmap getConflictingShowTitle
-    <$> interp
-      False
-      [sql|
-    WITH slots AS (
+  let dayNum = dayOfWeekNumber dow
+      prevDay = (dayNum + 6) `mod` 7
+      nextDay = (dayNum + 1) `mod` 7
+      startMin = fromIntegral (minutesFromMidnight start) :: Int64
+      rawEndMin = fromIntegral (minutesFromMidnight end) :: Int64
+      endMin = if rawEndMin > startMin then rawEndMin else rawEndMin + 1440
+   in fmap getConflictingShowTitle
+        <$> interp
+          False
+          [sql|
+    WITH templates AS (
       SELECT
         s.title,
-        st.start_time,
-        st.end_time,
-        st.replay_start_time,
-        -- Precompute replay end time once
-        (st.replay_start_time + (
-          CASE WHEN st.end_time > st.start_time
-            THEN st.end_time - st.start_time
-            ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
-          END
-        ))::TIME as replay_end_time
+        CASE st.day_of_week::TEXT
+          WHEN 'sunday'    THEN 0
+          WHEN 'monday'    THEN 1
+          WHEN 'tuesday'   THEN 2
+          WHEN 'wednesday' THEN 3
+          WHEN 'thursday'  THEN 4
+          WHEN 'friday'    THEN 5
+          WHEN 'saturday'  THEN 6
+        END AS day_num,
+        st.weeks_of_month AS weeks,
+        st.day_of_week IS NULL AS one_time,
+        stv.effective_from AS on_date,
+        (EXTRACT(HOUR FROM st.start_time) * 60 + EXTRACT(MINUTE FROM st.start_time))::INT AS start_min,
+        (EXTRACT(HOUR FROM st.end_time) * 60 + EXTRACT(MINUTE FROM st.end_time))::INT
+          + CASE WHEN st.end_time > st.start_time THEN 0 ELSE 1440 END AS end_min,
+        (EXTRACT(HOUR FROM st.replay_start_time) * 60 + EXTRACT(MINUTE FROM st.replay_start_time))::INT AS replay_start_min
       FROM schedule_templates st
       JOIN schedule_template_validity stv ON stv.template_id = st.id
       JOIN shows s ON s.id = st.show_id
       WHERE s.status = 'active'
         AND s.deleted_at IS NULL
         AND st.show_id != #{excludeShowId}
-        AND st.day_of_week = #{dow}::day_of_week
-        AND (stv.effective_until IS NULL OR stv.effective_until > #{fromDate})
         AND (stv.effective_until IS NULL OR stv.effective_until > stv.effective_from)
-        AND (st.weeks_of_month IS NULL OR st.weeks_of_month && #{weeks})
+        AND CASE
+              WHEN st.day_of_week IS NULL
+                -- A one-time template runs on effective_from only. The day before
+                -- counts too, because a window can cross midnight from there.
+                THEN stv.effective_from >= #{fromDate} - 1
+              ELSE stv.effective_until IS NULL OR stv.effective_until > #{fromDate}
+            END
+    ),
+    windows AS (
+      SELECT title, day_num, weeks, one_time, on_date, start_min, end_min
+      FROM templates
+      UNION ALL
+      SELECT title, day_num, weeks, one_time, on_date,
+             replay_start_min, replay_start_min + (end_min - start_min)
+      FROM templates
+      WHERE replay_start_min IS NOT NULL
+    ),
+    placed AS (
+      SELECT
+        w.*,
+        -- The window runs on a day the proposed slot also runs on.
+        CASE WHEN w.one_time
+          THEN EXTRACT(DOW FROM w.on_date)::INT = #{dayNum}
+               AND CEIL(EXTRACT(DAY FROM w.on_date) / 7.0)::INT = ANY(#{weeks})
+          ELSE w.day_num = #{dayNum} AND w.weeks && #{weeks}
+        END AS same_day,
+        -- The window runs on the day after a day the proposed slot runs on.
+        CASE WHEN w.one_time
+          THEN EXTRACT(DOW FROM w.on_date - 1)::INT = #{dayNum}
+               AND CEIL(EXTRACT(DAY FROM w.on_date - 1) / 7.0)::INT = ANY(#{weeks})
+          ELSE w.day_num = #{nextDay}
+               AND EXISTS (
+                 SELECT 1 FROM unnest(w.weeks) tw
+                 WHERE tw = ANY(#{weeks})
+                    OR tw - 1 = ANY(#{weeks})
+                    OR (tw = 1 AND (4 = ANY(#{weeks}) OR 5 = ANY(#{weeks})))
+               )
+        END AS day_after,
+        -- The window runs on the day before a day the proposed slot runs on.
+        CASE WHEN w.one_time
+          THEN EXTRACT(DOW FROM w.on_date + 1)::INT = #{dayNum}
+               AND CEIL(EXTRACT(DAY FROM w.on_date + 1) / 7.0)::INT = ANY(#{weeks})
+          ELSE w.day_num = #{prevDay}
+               AND EXISTS (
+                 SELECT 1 FROM unnest(w.weeks) tw
+                 WHERE tw = ANY(#{weeks})
+                    OR tw + 1 = ANY(#{weeks})
+                    OR (tw >= 4 AND 1 = ANY(#{weeks}))
+               )
+        END AS day_before
+      FROM windows w
     )
-    SELECT sl.title
-    FROM slots sl
+    SELECT p.title
+    FROM placed p
     WHERE
-      -- Proposed slot overlaps existing PRIMARY slot
+      -- Same day: the two day-of-week parts overlap.
       (
-        CASE
-          WHEN sl.end_time > sl.start_time AND #{end} > #{start} THEN
-            sl.start_time < #{end} AND #{start} < sl.end_time
-          WHEN sl.end_time <= sl.start_time AND #{end} > #{start} THEN
-            #{start} < sl.end_time OR #{end} > sl.start_time
-          WHEN #{end} <= #{start} AND sl.end_time > sl.start_time THEN
-            sl.start_time < #{end} OR sl.end_time > #{start}
-          ELSE TRUE
-        END
+        p.same_day
+        AND p.start_min < LEAST(#{endMin}, 1440)
+        AND LEAST(p.end_min, 1440) > #{startMin}
       )
       OR
-      -- Proposed slot overlaps existing REPLAY slot
+      -- The proposed slot crosses midnight and its tail lands on this window.
+      -- The tail is [0, endMin - 1440), so it hits any window that starts before
+      -- the tail ends. Every window ends after minute 0, so that half is given.
       (
-        sl.replay_start_time IS NOT NULL
-        AND (
-          CASE
-            WHEN sl.replay_end_time > sl.replay_start_time AND #{end} > #{start} THEN
-              sl.replay_start_time < #{end} AND #{start} < sl.replay_end_time
-            WHEN sl.replay_end_time <= sl.replay_start_time AND #{end} > #{start} THEN
-              #{start} < sl.replay_end_time OR #{end} > sl.replay_start_time
-            WHEN #{end} <= #{start} AND sl.replay_end_time > sl.replay_start_time THEN
-              sl.replay_start_time < #{end} OR sl.replay_end_time > #{start}
-            ELSE TRUE
-          END
-        )
+        p.day_after
+        AND #{endMin} > 1440
+        AND p.start_min < #{endMin} - 1440
+      )
+      OR
+      -- This window crosses midnight and its tail lands on the proposed slot.
+      (
+        p.day_before
+        AND p.end_min > 1440
+        AND #{startMin} < p.end_min - 1440
       )
     LIMIT 1
   |]
+
+-- | The day of the week as the integer @EXTRACT(DOW)@ returns. Sunday is 0.
+--
+-- 'Data.Time.DayOfWeek' numbers Monday 1 through Sunday 7, so only Sunday moves.
+dayOfWeekNumber :: DayOfWeek -> Int64
+dayOfWeekNumber d = fromIntegral (fromEnum d `mod` 7)
 
 -- | Insert a new schedule template.
 --

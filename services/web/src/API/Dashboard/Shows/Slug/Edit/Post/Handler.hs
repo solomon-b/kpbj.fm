@@ -48,7 +48,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
+import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, minutesFromMidnight, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization (sanitizeTitle)
 import Effects.Database.Execute (execQuery)
@@ -340,11 +340,14 @@ parseScheduleSlot slot = do
             pssReplayStartTime = mReplay
           }
 
--- | Validate that schedule slots don't overlap on the same day.
+-- | Validate that the slots of one submission do not overlap each other.
 --
--- Two slots overlap if they're on the same day, share at least one week of the month,
--- and their time ranges intersect. Also checks replay time ranges against all other
--- primary and replay ranges.
+-- This is the check within a single show. 'checkScheduleConflicts' makes the
+-- check against the other shows in the database.
+--
+-- Each slot expands into its primary range and, when it has one, its replay
+-- range. Every pair then goes through 'slotsOverlap', which covers a slot that
+-- crosses midnight onto the next day.
 validateNoOverlaps :: [ParsedScheduleSlot] -> Either Text [ParsedScheduleSlot]
 validateNoOverlaps slots =
   let -- Expand each slot into primary + optional replay virtual slot
@@ -388,36 +391,75 @@ findOverlap (x : xs) =
     [] -> findOverlap xs
 
 -- | Check if two schedule slots overlap.
+--
+-- Each slot becomes a half-open range of minutes from midnight of its own day.
+-- See 'slotMinutes'. A slot that crosses midnight takes @[start, 1440)@ on its
+-- own day and @[0, end - 1440)@ on the next day.
+--
+-- Two slots can meet on three days, and this checks all three. They can share a
+-- day. The first can cross midnight onto the second's day. The second can cross
+-- midnight onto the first's day.
+--
+-- 'ShowSchedule.checkTimeSlotConflict' applies the same three comparisons
+-- against the other shows in the database.
 slotsOverlap :: ParsedScheduleSlot -> ParsedScheduleSlot -> Bool
-slotsOverlap slot1 slot2 =
-  pssDay slot1 == pssDay slot2
-    && weeksOverlap (pssWeeks slot1) (pssWeeks slot2)
-    && timesOverlap slot1 slot2
+slotsOverlap slot1 slot2 = sameDay || tail1HitsSlot2 || tail2HitsSlot1
+  where
+    (start1, end1) = slotMinutes slot1
+    (start2, end2) = slotMinutes slot2
+
+    sameDay =
+      pssDay slot1 == pssDay slot2
+        && weeksOverlap (pssWeeks slot1) (pssWeeks slot2)
+        && start1 < min end2 1440
+        && min end1 1440 > start2
+
+    tail1HitsSlot2 =
+      end1 > 1440
+        && pssDay slot2 == nextDayOfWeek (pssDay slot1)
+        && weeksMeetAcrossMidnight (pssWeeks slot1) (pssWeeks slot2)
+        && start2 < end1 - 1440
+
+    tail2HitsSlot1 =
+      end2 > 1440
+        && pssDay slot1 == nextDayOfWeek (pssDay slot2)
+        && weeksMeetAcrossMidnight (pssWeeks slot2) (pssWeeks slot1)
+        && start1 < end2 - 1440
+
+-- | A slot as a half-open range of minutes from midnight of the day it starts on.
+--
+-- The end goes above 1440 when the slot crosses midnight. A slot that stops at
+-- midnight gets an end of exactly 1440 and does not cross.
+slotMinutes :: ParsedScheduleSlot -> (Int, Int)
+slotMinutes slot =
+  let start = minutesFromMidnight (pssStart slot)
+      end = minutesFromMidnight (pssEnd slot)
+   in (start, if end > start then end else end + 1440)
+
+-- | The next day of the week. Saturday gives Sunday.
+nextDayOfWeek :: DayOfWeek -> DayOfWeek
+nextDayOfWeek d = toEnum (fromEnum d + 1)
 
 -- | Check if two lists of weeks share any common weeks.
 weeksOverlap :: [Int64] -> [Int64] -> Bool
 weeksOverlap weeks1 weeks2 = any (`elem` weeks2) weeks1
 
--- | Check if time ranges overlap.
+-- | The weeks of the month a date can fall in, given the week of the day before it.
 --
--- Handles overnight shows (where end time < start time, e.g., 23:00-01:00).
-timesOverlap :: ParsedScheduleSlot -> ParsedScheduleSlot -> Bool
-timesOverlap slot1 slot2 =
-  let start1 = pssStart slot1
-      end1 = pssEnd slot1
-      start2 = pssStart slot2
-      end2 = pssEnd slot2
-      isOvernight1 = end1 <= start1
-      isOvernight2 = end2 <= start2
-   in case (isOvernight1, isOvernight2) of
-        (False, False) ->
-          start1 < end2 && start2 < end1
-        (True, False) ->
-          start2 < end1 || end2 > start1
-        (False, True) ->
-          start1 < end2 || end1 > start2
-        (True, True) ->
-          True
+-- Week @w@ covers the days @7(w - 1) + 1@ to @7w@, so the next day is in week
+-- @w@ or week @w + 1@. The day after the last day of a month is in week 1, and
+-- a month can end in week 4 (February) or week 5.
+nextWeeks :: Int64 -> [Int64]
+nextWeeks w = [w, w + 1] <> [1 | w >= 4]
+
+-- | Check if a slot on the @earlier@ weeks can cross midnight onto a slot on the
+-- @later@ weeks.
+--
+-- This can report a meeting that a concrete calendar would not produce. It never
+-- misses one.
+weeksMeetAcrossMidnight :: [Int64] -> [Int64] -> Bool
+weeksMeetAcrossMidnight earlier later =
+  any (any (`elem` later) . nextWeeks) earlier
 
 -- | Format a TimeOfDay as "HH:MM" for error messages.
 formatTimeHHMM :: TimeOfDay -> Text

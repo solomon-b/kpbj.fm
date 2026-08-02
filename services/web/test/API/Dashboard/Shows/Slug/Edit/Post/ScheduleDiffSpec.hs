@@ -17,8 +17,10 @@ import Data.Int (Int64)
 import Data.List (sort)
 import Data.Set qualified as Set
 import Data.Text (Text)
-import Data.Time (DayOfWeek (..), TimeOfDay (..), UTCTime (..))
-import Data.Time.Calendar (fromGregorian)
+import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), UTCTime (..), addDays, diffDays)
+import Data.Time qualified as Time
+import Data.Time.Calendar (fromGregorian, toGregorian)
+import Domain.Types.Timezone (addMinutesToTimeOfDay, slotDurationMins)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -28,6 +30,7 @@ import Hedgehog.Range qualified as Range
 import Rel8 qualified
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 import Test.Hspec.Hedgehog (hedgehog)
+import Test.Hspec.QuickCheck (modifyMaxSuccess)
 
 --------------------------------------------------------------------------------
 
@@ -290,6 +293,110 @@ spec =
               ]
         validateNoOverlaps slots `shouldBe` Right slots
 
+      -- Slots that cross midnight onto the next day
+      it "rejects a slot whose tail takes the next day's slot" $ do
+        -- Monday 23:00-01:00 occupies Tuesday 00:00-01:00.
+        let slots =
+              [ ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Tuesday [1, 2, 3, 4, 5] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldSatisfy` isLeft
+
+      it "rejects the same pair in the other order" $ do
+        let slots =
+              [ ParsedScheduleSlot Tuesday [1, 2, 3, 4, 5] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldSatisfy` isLeft
+
+      it "rejects a Saturday tail that lands on Sunday" $ do
+        let slots =
+              [ ParsedScheduleSlot Saturday [1, 2, 3, 4, 5] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Sunday [1, 2, 3, 4, 5] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldSatisfy` isLeft
+
+      it "allows a next-day slot that starts where the tail ends" $ do
+        let slots =
+              [ ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Tuesday [1, 2, 3, 4, 5] (TimeOfDay 1 0 0) (TimeOfDay 2 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldBe` Right slots
+
+      it "allows a slot that stops at midnight beside the next day's slot" $ do
+        -- Monday 23:00-00:00 stops at midnight and takes nothing from Tuesday.
+        let slots =
+              [ ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 23 0 0) (TimeOfDay 0 0 0) Nothing,
+                ParsedScheduleSlot Tuesday [1, 2, 3, 4, 5] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldBe` Right slots
+
+      it "rejects a replay whose tail takes the next day's slot" $ do
+        -- Monday 22:00-23:00 (1h) with a replay at 23:30 → replay 23:30-00:30.
+        let slots =
+              [ ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 22 0 0) (TimeOfDay 23 0 0) (Just (TimeOfDay 23 30 0)),
+                ParsedScheduleSlot Tuesday [1, 2, 3, 4, 5] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldSatisfy` isLeft
+
+      -- The week of the month across midnight
+      it "rejects a week-1 tail that lands in week 2" $ do
+        -- The first Monday can be the 7th, so the next day is in week 2.
+        let slots =
+              [ ParsedScheduleSlot Monday [1] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Tuesday [2] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldSatisfy` isLeft
+
+      it "rejects a week-5 tail that lands in week 1" $ do
+        -- A week-5 Monday can be the last day of a month.
+        let slots =
+              [ ParsedScheduleSlot Monday [5] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Tuesday [1] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldSatisfy` isLeft
+
+      it "allows a week-1 tail beside a week-4 slot" $ do
+        -- A week-1 Monday is followed by a week-1 or week-2 Tuesday, never week 4.
+        let slots =
+              [ ParsedScheduleSlot Monday [1] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Tuesday [4] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldBe` Right slots
+
+    -- The checks above are hand-picked. These two compare the whole of
+    -- validateNoOverlaps against 'calendarOverlap', which reaches the answer a
+    -- different way: it lays both slots on a real calendar and looks for two
+    -- occurrences that intersect.
+    describe "validateNoOverlaps against a calendar" $ do
+      modifyMaxSuccess (const 500) $
+        it "never misses an overlap the calendar produces" $
+          hedgehog $ do
+            slot1 <- forAll genFormSlot
+            slot2 <- forAll genFormSlot
+            if calendarOverlap slot1 slot2
+              then assert (isLeft (validateNoOverlaps [slot1, slot2]))
+              else success
+
+      -- A uniform generator almost never lands two slots on adjacent days at
+      -- the hours where a slot can cross midnight. This one aims at that region.
+      modifyMaxSuccess (const 2000) $
+        it "never misses an overlap around midnight" $
+          hedgehog $ do
+            (slot1, slot2) <- forAll genMidnightPair
+            if calendarOverlap slot1 slot2
+              then assert (isLeft (validateNoOverlaps [slot1, slot2]))
+              else success
+
+      -- With no slot crossing midnight there is no week widening, so the two
+      -- models have to agree in both directions.
+      modifyMaxSuccess (const 500) $
+        it "agrees exactly when no slot crosses midnight" $
+          hedgehog $ do
+            slot1 <- forAll (Gen.filter withinOneDay genFormSlot)
+            slot2 <- forAll (Gen.filter withinOneDay genFormSlot)
+            isLeft (validateNoOverlaps [slot1, slot2]) === calendarOverlap slot1 slot2
+
     describe "diff algebra" $ do
       it "unchanged slots appear in neither removed nor added" $ hedgehog $ do
         db <- forAll $ Gen.list (Range.linear 0 10) genParsedScheduleSlot
@@ -379,3 +486,103 @@ genParsedScheduleSlot = do
         pssEnd = TimeOfDay endHour 0 0,
         pssReplayStartTime = mReplay
       }
+
+-- | A slot the schedule editor can actually produce.
+--
+-- The time picker offers every half hour, and the duration buttons offer 30, 60,
+-- and 120 minutes. A late start therefore gives a slot that crosses midnight.
+genFormSlot :: Gen ParsedScheduleSlot
+genFormSlot = do
+  day <- Gen.element [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday]
+  weeks <- sort <$> Gen.filter (not . null) (Gen.subsequence [1, 2, 3, 4, 5])
+  halfHours <- Gen.int (Range.linear 0 47)
+  duration <- Gen.element [30, 60, 120]
+  let start = TimeOfDay (halfHours `div` 2) (30 * (halfHours `mod` 2)) 0
+  pure $
+    ParsedScheduleSlot
+      { pssDay = day,
+        pssWeeks = weeks,
+        pssStart = start,
+        pssEnd = addMinutesToTimeOfDay start duration,
+        pssReplayStartTime = Nothing
+      }
+
+-- | A pair of slots aimed at the region where a slot can cross midnight.
+--
+-- The second slot sits on the day before, the same day, or the day after the
+-- first. Both start late in the evening or early in the morning. A uniform
+-- generator reaches this region about twice in ten thousand draws.
+genMidnightPair :: Gen (ParsedScheduleSlot, ParsedScheduleSlot)
+genMidnightPair = do
+  day <- Gen.element [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday]
+  offset <- Gen.element [-1, 0, 1]
+  slot1 <- genEdgeSlot day
+  slot2 <- genEdgeSlot (toEnum (fromEnum day + offset))
+  pure (slot1, slot2)
+
+-- | A slot on a given day that starts between 21:00 and 03:00.
+genEdgeSlot :: DayOfWeek -> Gen ParsedScheduleSlot
+genEdgeSlot day = do
+  weeks <- sort <$> Gen.filter (not . null) (Gen.subsequence [1, 2, 3, 4, 5])
+  halfHours <- Gen.element ([42 .. 47] <> [0 .. 6])
+  duration <- Gen.element [30, 60, 120]
+  let start = TimeOfDay (halfHours `div` 2) (30 * (halfHours `mod` 2)) 0
+  pure $
+    ParsedScheduleSlot
+      { pssDay = day,
+        pssWeeks = weeks,
+        pssStart = start,
+        pssEnd = addMinutesToTimeOfDay start duration,
+        pssReplayStartTime = Nothing
+      }
+
+--------------------------------------------------------------------------------
+-- A calendar model of slot overlap
+
+-- | The first date of the window the calendar model covers.
+calendarStart :: Day
+calendarStart = fromGregorian 2026 1 1
+
+-- | The length of that window. Three years covers every month length, including
+-- a 28-day February, which is the only way a week-4 date can be a month end.
+calendarDays :: Int
+calendarDays = 1096
+
+-- | The week of the month a date falls in. Days 1 to 7 are week 1.
+weekOfMonth :: Day -> Int64
+weekOfMonth day =
+  let (_, _, dayOfMonth) = toGregorian day
+   in fromIntegral ((dayOfMonth - 1) `div` 7 + 1)
+
+-- | Every occurrence of a slot in the calendar window, as a range of minutes
+-- from midnight on 'calendarStart'.
+occurrences :: ParsedScheduleSlot -> [(Integer, Integer)]
+occurrences slot =
+  [ (begin, begin + fromIntegral (slotDurationMins (pssStart slot) (pssEnd slot)))
+  | day <- take calendarDays (iterate (addDays 1) calendarStart),
+    Time.dayOfWeek day == pssDay slot,
+    weekOfMonth day `elem` pssWeeks slot,
+    let begin =
+          diffDays day calendarStart * 1440
+            + fromIntegral (todHour (pssStart slot) * 60 + todMin (pssStart slot))
+  ]
+
+-- | Whether two slots ever air at the same time on a real calendar.
+--
+-- This reaches the answer without the day-of-week and week-of-month reasoning
+-- that 'validateNoOverlaps' uses. It walks real dates instead.
+calendarOverlap :: ParsedScheduleSlot -> ParsedScheduleSlot -> Bool
+calendarOverlap slot1 slot2 =
+  or
+    [ begin1 < end2 && begin2 < end1
+    | (begin1, end1) <- occurrences slot1,
+      (begin2, end2) <- occurrences slot2
+    ]
+
+-- | Whether a slot stays inside the day it starts on.
+withinOneDay :: ParsedScheduleSlot -> Bool
+withinOneDay slot =
+  todHour (pssStart slot) * 60
+    + todMin (pssStart slot)
+    + slotDurationMins (pssStart slot) (pssEnd slot)
+    <= 1440
