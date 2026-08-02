@@ -6,7 +6,7 @@ module API.Dashboard.Shows.New.Post.Handler (handler, action) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..))
-import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, parseScheduleSlot)
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, parseScheduleSlot, validateNoOverlaps)
 import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
@@ -303,7 +303,7 @@ processShowTags showId (Just tagsText) = do
 --------------------------------------------------------------------------------
 -- Schedule Creation Helpers
 
--- | Parse schedules JSON from form data, validate all fields.
+-- | Parse schedules JSON from form data, validate all fields, and check for overlaps.
 parseSchedules :: Maybe Text -> Either Text [ParsedScheduleSlot]
 parseSchedules Nothing = Right []
 parseSchedules (Just schedulesJson)
@@ -311,7 +311,9 @@ parseSchedules (Just schedulesJson)
   | schedulesJson == "[]" = Right []
   | otherwise = case Aeson.eitherDecodeStrict (Text.encodeUtf8 schedulesJson) of
       Left err -> Left $ "Invalid schedules JSON: " <> Text.pack err
-      Right slots -> traverse parseScheduleSlot slots
+      Right slots -> do
+        parsed <- traverse parseScheduleSlot slots
+        validateNoOverlaps parsed
 
 -- | Create schedules for a newly created show.
 --

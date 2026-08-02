@@ -14,6 +14,7 @@ module Domain.Types.Timezone
     -- * Time Utilities
     addMinutesToTimeOfDay,
     slotDurationMins,
+    minutesFromMidnight,
     parseTimeHHMM,
     parseDateYMD,
 
@@ -103,6 +104,12 @@ slotDurationMins start end =
       endMins = todHour end * 60 + todMin end
       rawMins = endMins - startMins
    in if rawMins <= 0 then rawMins + (24 * 60) else rawMins
+
+-- | Count the minutes from midnight to a 'TimeOfDay'.
+--
+-- Midnight is 0 and 23:59 is 1439. Seconds are dropped.
+minutesFromMidnight :: TimeOfDay -> Int
+minutesFromMidnight t = todHour t * 60 + todMin t
 
 -- | Parse a time of day from @\"HH:MM\"@ format.
 parseTimeHHMM :: Text -> Maybe TimeOfDay

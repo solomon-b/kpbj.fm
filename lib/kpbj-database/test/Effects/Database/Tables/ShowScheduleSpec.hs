@@ -4,7 +4,9 @@ module Effects.Database.Tables.ShowScheduleSpec where
 
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
-import Data.Time (addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
+import Data.Int (Int64)
+import Data.Time (Day, DayOfWeek, addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
+import Data.Time qualified as Time
 import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -63,6 +65,8 @@ spec =
       describe "checkTimeSlotConflict" $ do
         runs 10 . it "detects overlapping time slots" $ hedgehog . prop_checkTimeSlotConflict
         runs 10 . it "range-overlaps validity windows against the effective date" $ hedgehog . prop_checkTimeSlotConflictValidityWindows
+        runs 10 . it "sees a window that crosses midnight from the next day" $ hedgehog . prop_checkTimeSlotConflictOvernight
+        runs 10 . it "matches a one-time template on its concrete date" $ hedgehog . prop_checkTimeSlotConflictOneTime
 
       -- Validity management
       describe "Validity" $ do
@@ -655,6 +659,166 @@ prop_checkTimeSlotConflictValidityWindows cfg = do
         -- ... but is taken for a change that would take effect today
         handoffTitle <- assertJust mHandoffToday
         handoffTitle === Shows.siTitle handoffShow
+
+-- | Move a day of the week forward. Saturday wraps to Sunday.
+shiftDow :: Int -> DayOfWeek -> DayOfWeek
+shiftDow n d = toEnum (fromEnum d + n)
+
+-- | The week of the month a date falls in. Days 1 to 7 are week 1.
+weekOfMonth :: Day -> Int64
+weekOfMonth day =
+  let (_, _, dayOfMonth) = toGregorian day
+   in fromIntegral ((dayOfMonth - 1) `div` 7 + 1)
+
+-- | checkTimeSlotConflict: a window that crosses midnight is visible from the next day.
+--
+-- The proposed slot recurs on one day of the week, so the check compares against
+-- three days: the same day, the day before, and the day after. A window that
+-- stops at midnight does not cross, and stays invisible from the next day.
+--
+-- Each booking below sits on its own day of the week, and no probe reaches past
+-- one day, so the bookings do not mask each other.
+prop_checkTimeSlotConflictOvernight :: TestDBConfig -> PropertyT IO ()
+prop_checkTimeSlotConflictOvernight cfg = do
+  arrange (bracketConn cfg) $ do
+    lateInsert <- forAllT showInsertGen
+    earlyInsert <- forAllT showInsertGen
+    midnightInsert <- forAllT showInsertGen
+    weekOneInsert <- forAllT showInsertGen
+    probeInsert <- forAllT showInsertGen
+    dow <- forAllT genDayOfWeek
+    timezone <- forAllT genTimezone
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let activeShow showInsert suffix =
+              showInsert
+                { Shows.siStatus = Shows.Active,
+                  Shows.siSlug = Shows.siSlug showInsert <> suffix
+                }
+            book showInsert suffix day weeks start end = do
+              let entry = activeShow showInsert suffix
+              showId <- unwrapInsert (Shows.insertShow entry)
+              templateId <-
+                TRX.statement () $
+                  UUT.insertScheduleTemplate (UUT.ScheduleTemplateInsert showId (Just day) (Just weeks) start end timezone Nothing)
+              _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+              pure (Shows.siTitle entry)
+
+        -- Runs 23:00 to 01:00, so it takes the first hour of the next day.
+        lateTitle <- book lateInsert "overnight-late" dow allWeeksOfMonth (TimeOfDay 23 0 0) (TimeOfDay 1 0 0)
+        -- Runs 00:00 to 01:00, two days on, and receives a tail from the day before it.
+        earlyTitle <- book earlyInsert "overnight-early" (shiftDow 2 dow) allWeeksOfMonth (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+        -- Stops at midnight, so it takes nothing from the next day.
+        _ <- book midnightInsert "overnight-midnight" (shiftDow 3 dow) allWeeksOfMonth (TimeOfDay 22 0 0) (TimeOfDay 0 0 0)
+        -- Crosses midnight on the first week of the month only.
+        weekOneTitle <- book weekOneInsert "overnight-weekone" (shiftDow 5 dow) [1] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0)
+
+        probeShowId <- unwrapInsert (Shows.insertShow (activeShow probeInsert "overnight-probe"))
+        let probe day weeks start end = TRX.statement () (UUT.checkTimeSlotConflict probeShowId day weeks start end today)
+
+        -- (a) The late show's tail takes the first hour of the next day.
+        mTailHit <- probe (shiftDow 1 dow) allWeeksOfMonth (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+        -- (b) The hour after that tail ends is free.
+        mAfterTail <- probe (shiftDow 1 dow) allWeeksOfMonth (TimeOfDay 1 0 0) (TimeOfDay 2 0 0)
+        -- (c) A proposed slot that crosses midnight reaches the next day's show.
+        mProposedTail <- probe (shiftDow 1 dow) allWeeksOfMonth (TimeOfDay 23 0 0) (TimeOfDay 1 0 0)
+        -- (d) A show that stops at midnight leaves the next day free.
+        mMidnightStop <- probe (shiftDow 4 dow) allWeeksOfMonth (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+        -- (e) A week-1 date can be the 7th, so its tail can land in week 2.
+        mWeekTwo <- probe (shiftDow 6 dow) [2] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+        -- (f) A week-1 tail can never land in week 4.
+        mWeekFour <- probe (shiftDow 6 dow) [4] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+
+        TRX.condemn
+        pure (lateTitle, earlyTitle, weekOneTitle, mTailHit, mAfterTail, mProposedTail, mMidnightStop, mWeekTwo, mWeekFour)
+
+      assert $ do
+        (lateTitle, earlyTitle, weekOneTitle, mTailHit, mAfterTail, mProposedTail, mMidnightStop, mWeekTwo, mWeekFour) <- assertRight result
+        tailTitle <- assertJust mTailHit
+        tailTitle === lateTitle
+        assertNothing mAfterTail
+        proposedTitle <- assertJust mProposedTail
+        proposedTitle === earlyTitle
+        assertNothing mMidnightStop
+        weekTwoTitle <- assertJust mWeekTwo
+        weekTwoTitle === weekOneTitle
+        assertNothing mWeekFour
+
+-- | checkTimeSlotConflict: a one-time template is matched on its concrete date.
+--
+-- A one-time template has @day_of_week IS NULL@ and runs on its
+-- @effective_from@ date. The check compared @day_of_week@ with equality, which
+-- is UNKNOWN against NULL, so every one-time template was invisible and two
+-- shows could take one slot.
+prop_checkTimeSlotConflictOneTime :: TestDBConfig -> PropertyT IO ()
+prop_checkTimeSlotConflictOneTime cfg = do
+  arrange (bracketConn cfg) $ do
+    eveningInsert <- forAllT showInsertGen
+    earlyInsert <- forAllT showInsertGen
+    overnightInsert <- forAllT showInsertGen
+    probeInsert <- forAllT showInsertGen
+    timezone <- forAllT genTimezone
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      -- The three booked dates are 2 and 3 days apart, so no two of them fall on
+      -- the same day of the week, and no probe below reaches two of them.
+      let eveningDate = addDays 14 today
+          earlyDate = addDays 16 today
+          earlyPrevDate = addDays 15 today
+          overnightDate = addDays 17 today
+          spilloverDate = addDays 18 today
+          otherWeek w = if w == 1 then 3 else 1
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        let activeShow showInsert suffix =
+              showInsert
+                { Shows.siStatus = Shows.Active,
+                  Shows.siSlug = Shows.siSlug showInsert <> suffix
+                }
+            bookOneTime showInsert suffix onDate start end = do
+              let entry = activeShow showInsert suffix
+              showId <- unwrapInsert (Shows.insertShow entry)
+              templateId <-
+                TRX.statement () $
+                  UUT.insertScheduleTemplate (UUT.ScheduleTemplateInsert showId Nothing Nothing start end timezone Nothing)
+              _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId onDate (Just (addDays 1 onDate))))
+              pure (Shows.siTitle entry)
+
+        eveningTitle <- bookOneTime eveningInsert "onetime-evening" eveningDate (TimeOfDay 20 0 0) (TimeOfDay 22 0 0)
+        earlyTitle <- bookOneTime earlyInsert "onetime-early" earlyDate (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+        overnightTitle <- bookOneTime overnightInsert "onetime-overnight" overnightDate (TimeOfDay 23 0 0) (TimeOfDay 1 0 0)
+
+        probeShowId <- unwrapInsert (Shows.insertShow (activeShow probeInsert "onetime-probe"))
+        let probe day weeks start end = TRX.statement () (UUT.checkTimeSlotConflict probeShowId day weeks start end today)
+
+        -- (a) A recurring slot that lands on the one-time date takes the same hours.
+        mSameSlot <- probe (Time.dayOfWeek eveningDate) [weekOfMonth eveningDate] (TimeOfDay 20 0 0) (TimeOfDay 22 0 0)
+        -- (b) The same day of the week in another week of the month is free.
+        mOtherWeek <- probe (Time.dayOfWeek eveningDate) [otherWeek (weekOfMonth eveningDate)] (TimeOfDay 20 0 0) (TimeOfDay 22 0 0)
+        -- (c) A day of the week that no booking touches is free.
+        mOtherDay <- probe (shiftDow 5 (Time.dayOfWeek eveningDate)) allWeeksOfMonth (TimeOfDay 20 0 0) (TimeOfDay 22 0 0)
+        -- (d) A one-time template that crosses midnight reaches the date after it.
+        mSpillover <- probe (Time.dayOfWeek spilloverDate) [weekOfMonth spilloverDate] (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+        -- (e) A proposed slot that crosses midnight reaches the one-time date after it.
+        -- The probe runs on the day before earlyDate, from 23:00 to 01:00, so its
+        -- tail covers earlyDate from 00:00 to 01:00.
+        mProposedTail <- probe (Time.dayOfWeek earlyPrevDate) [weekOfMonth earlyPrevDate] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0)
+
+        TRX.condemn
+        pure (eveningTitle, earlyTitle, overnightTitle, mSameSlot, mOtherWeek, mOtherDay, mSpillover, mProposedTail)
+
+      assert $ do
+        (eveningTitle, earlyTitle, overnightTitle, mSameSlot, mOtherWeek, mOtherDay, mSpillover, mProposedTail) <- assertRight result
+        sameSlotTitle <- assertJust mSameSlot
+        sameSlotTitle === eveningTitle
+        assertNothing mOtherWeek
+        assertNothing mOtherDay
+        spilloverTitle <- assertJust mSpillover
+        spilloverTitle === overnightTitle
+        proposedTailTitle <- assertJust mProposedTail
+        proposedTailTitle === earlyTitle
 
 --------------------------------------------------------------------------------
 -- Validity Management Tests
