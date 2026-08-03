@@ -226,6 +226,7 @@ test-suite kpbj-database-test
     , unliftio-core
     , uuid
   other-modules:
+    Effects.Database.RecurrenceSpec
     Effects.Database.Tables.BlogPostsSpec
     Effects.Database.Tables.BlogTagsSpec
     Effects.Database.Tables.CurrentlyAiringSpec

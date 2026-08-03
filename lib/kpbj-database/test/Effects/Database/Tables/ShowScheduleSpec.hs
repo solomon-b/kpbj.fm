@@ -4,8 +4,7 @@ module Effects.Database.Tables.ShowScheduleSpec where
 
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
-import Data.Int (Int64)
-import Data.Time (Day, DayOfWeek, addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
+import Data.Time (DayOfWeek, addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
 import Data.Time qualified as Time
 import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.Calendar.WeekDate (toWeekDate)
@@ -24,7 +23,7 @@ import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight)
-import Test.Gen.Tables.ShowSchedule (allWeeksOfMonth, genDayOfWeek, genFutureDay, genTimeRange, genTimezone, genWeeksOfMonth)
+import Test.Gen.Tables.ShowSchedule (allWeeksOfMonth, genDayOfWeek, genFutureDay, genTimeRange, genTimezone, genWeeksOfMonth, weekOfMonth)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
@@ -664,12 +663,6 @@ prop_checkTimeSlotConflictValidityWindows cfg = do
 -- | Move a day of the week forward. Saturday wraps to Sunday.
 shiftDow :: Int -> DayOfWeek -> DayOfWeek
 shiftDow n d = toEnum (fromEnum d + n)
-
--- | The week of the month a date falls in. Days 1 to 7 are week 1.
-weekOfMonth :: Day -> Int64
-weekOfMonth day =
-  let (_, _, dayOfMonth) = toGregorian day
-   in fromIntegral ((dayOfMonth - 1) `div` 7 + 1)
 
 -- | checkTimeSlotConflict: a window that crosses midnight is visible from the next day.
 --
