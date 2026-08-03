@@ -10,6 +10,7 @@ import API.Playout.Types (NowPlayingResponse (..), mkPlayoutMetadata)
 import App.BaseUrl (baseUrl)
 import App.Monad (AppM)
 import App.Storage (StorageBackend (..), buildMediaUrl)
+import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Data.Either (fromRight)
@@ -19,6 +20,7 @@ import Data.Time (getCurrentTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
+import Log qualified
 
 --------------------------------------------------------------------------------
 
@@ -31,12 +33,23 @@ import Effects.Database.Tables.Shows qualified as Shows
 handler :: AppM NowPlayingResponse
 handler = do
   currentTime <- liftIO getCurrentTime
-  result <- execQuery $ Episodes.getCurrentlyAiringEpisode currentTime
+  result <- execQuery $ Episodes.getCurrentlyAiringEpisodes currentTime
 
-  case result of
-    Left _err -> pure NothingPlaying -- Graceful degradation on DB error
-    Right Nothing -> pure NothingPlaying
-    Right (Just episode) -> case episode.audioFilePath of
+  mEpisode <- case result of
+    Left _err -> pure Nothing -- Graceful degradation on DB error
+    Right [] -> pure Nothing
+    Right (episode : rest) -> do
+      -- Two shows claim this time. The order is stable, so the stream stays on
+      -- one of them, but the overlap is a data defect and it silences the other.
+      unless (null rest) $
+        Log.logAttention
+          "More than one episode is airing now"
+          (show (map (.id) (episode : rest)))
+      pure (Just episode)
+
+  case mEpisode of
+    Nothing -> pure NothingPlaying
+    Just episode -> case episode.audioFilePath of
       Nothing -> pure NothingPlaying
       Just audioPath -> do
         -- Fetch show info for metadata

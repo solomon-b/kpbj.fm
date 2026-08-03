@@ -41,6 +41,7 @@ module Effects.Database.Tables.Episodes
     getEpisodeByAudioPath,
     getEpisodesByUser,
     getCurrentlyAiringEpisode,
+    getCurrentlyAiringEpisodes,
     insertEpisode,
     updateEpisode,
     updateEpisodeFiles,
@@ -439,20 +440,65 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
             where_ $ isNull ep.deletedAt
             pure ep
 
--- | Get the episode that is currently airing based on the schedule.
+-- | Up to two rows that the schedule says should be on air at the given time.
 --
--- Finds episodes where:
+-- Liquidsoap polls @\/api\/playout\/now@, which calls this and broadcasts the
+-- first row.
 --
--- 1. The episode has an audio file uploaded
--- 2. The episode is not deleted
--- 3. The current Pacific time falls within the show's airing window
--- 4. The schedule template is currently valid (effective dates match)
+-- == What a row is
 --
--- == Duration-Based Airing
+-- The query works in (episode, window) pairs, not in episodes. A template with a
+-- @replay_start_time@ gives its episode two windows, so one episode can produce
+-- two rows. See "Why there can be two rows" below.
 --
--- When @duration_seconds@ is set, the episode only airs for that duration
--- (prevents replay bleeding when episode is shorter than time slot).
--- When @duration_seconds@ is NULL, falls back to the full slot duration.
+-- == The airing window
+--
+-- @schedule_templates@ holds a @day_of_week@, a @weeks_of_month@, a
+-- @start_time@, an @end_time@, an optional @replay_start_time@, and a
+-- @timezone@. A separate table, @schedule_template_validity@, has one or more
+-- rows per template, each with an @effective_from@ and an @effective_until@.
+-- Those two columns bound the air dates the template applies to.
+--
+-- An overnight slot has nowhere to record that its end falls on the following
+-- date, so the schema encodes that in the order of the two @time@ values. A
+-- Monday 23:00 to 02:00 show is one row with @start_time = '23:00'@ and
+-- @end_time = '02:00'@.
+--
+-- A window therefore opens at @start_time@ on the episode's air date and closes
+-- at @end_time@, on the following date when @end_time <= start_time@. Two equal
+-- values give a 24-hour window. The air date is
+-- @(scheduled_at AT TIME ZONE 'America\/Los_Angeles')::DATE@.
+--
+-- A replay window opens at @replay_start_time@ and runs for the same length as
+-- the primary, and it wraps the same way.
+--
+-- The zone is the literal @'America\/Los_Angeles'@ in all five places it appears
+-- here. @schedule_templates.timezone@ is not read.
+--
+-- == Why the window is a pair of timestamptz values
+--
+-- A @time@ carries no date and no zone, and the Pacific offset changes twice a
+-- year, so the two are not interchangeable:
+--
+-- * On 2025-11-02 the clock runs 01:00 to 02:00 twice. The @time@ @01:30@
+--   matches both 08:30 UTC and 09:30 UTC, and a @00:00@ to @02:00@ window covers
+--   3 elapsed hours.
+-- * On 2026-03-08 the clock jumps from 01:59 to 03:00. The @time@ @02:30@
+--   matches no @timestamptz@, and a @02:00@ to @04:00@ window covers 1 elapsed
+--   hour.
+--
+-- == When a row airs
+--
+-- @
+-- window_stop = LEAST(window_end, window_start + duration_seconds)
+-- airing      = currentTime >= window_start AND currentTime < window_stop
+-- @
+--
+-- @LEAST@ skips a NULL, so an episode with no @duration_seconds@ runs to
+-- @window_end@. @duration_seconds@ is written by browser JavaScript at upload
+-- from @HTMLAudioElement.duration@, in @Component.AudioDurationScript@, and
+-- nothing validates it. A value of 0 makes @window_stop@ equal @window_start@,
+-- so that episode never airs.
 --
 -- @
 -- Slot: 2 PM ─────────────────────────── 4 PM
@@ -464,193 +510,135 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 --       │◀── AIRING ──────▶│◀── NOT ──▶│
 -- @
 --
--- == The 6 Cases
+-- == What the query excludes
 --
--- Standard shows (end > start):
+-- * an episode with no @audio_file_path@, or with @deleted_at@ set
+-- * an episode of a show that is not @active@, or that has @deleted_at@ set
+-- * an episode with a NULL @schedule_template_id@, dropped by the join, or a
+--   NULL @scheduled_at@, dropped because the air date is then NULL
+-- * an air date outside @[effective_from, effective_until)@ on the joined
+--   validity row
+-- * an air date the recurrence does not cover, by @recurrence_airs_on@ over
+--   @day_of_week@ and @weeks_of_month@. A template with @day_of_week IS NULL@ is
+--   exempt and always passes this test
+-- * the replay row of a template with no @replay_start_time@
+-- * an air date that is neither today nor yesterday in Pacific. This prunes the
+--   scan. The window comparison decides the answer
 --
--- * __Case 1__: Primary airing, scheduled today, within duration or slot
--- * __Case 4__: Replay (replay_start_time), scheduled today, within duration or slot
+-- It does __not__ exclude an episode with a NULL @published_at@.
 --
--- Overnight shows (end <= start, e.g., 11 PM - 2 AM):
+-- == Why there can be two rows
 --
--- * __Case 2__: Primary, before midnight portion (scheduled today)
--- * __Case 3__: Primary, after midnight portion (scheduled yesterday)
--- * __Case 5__: Replay, before midnight portion (scheduled today)
--- * __Case 6__: Replay, after midnight portion (scheduled yesterday)
+-- Rows are ordered @is_replay, scheduled_at DESC, id DESC@ and limited to 2, so
+-- the first row does not change between polls while the data is unchanged. A
+-- second row means one of:
 --
--- For overnight shows, duration logic is more complex because it may
--- end before midnight (only Case 2/5 matches) or extend past midnight
--- (both before and after midnight portions match).
+-- * two shows hold overlapping slots
+-- * one show holds two overlapping slots
+-- * one episode matches both its primary and its replay window. That happens
+--   whenever @replay_start_time@ falls inside the primary window, and no
+--   constraint forbids it
+-- * one template has two @schedule_template_validity@ rows covering the air
+--   date. The join multiplies and there is no @DISTINCT@, so the two rows are
+--   identical. That table is constrained only by
+--   @UNIQUE (template_id, effective_from)@
 --
--- Used by Liquidsoap to determine what audio to play.
-getCurrentlyAiringEpisode :: UTCTime -> Hasql.Statement () (Maybe Model)
-getCurrentlyAiringEpisode currentTime =
+-- The first two are scheduling conflicts. The last two are one airing counted
+-- twice. The query does not distinguish them.
+getCurrentlyAiringEpisodes :: UTCTime -> Hasql.Statement () [Model]
+getCurrentlyAiringEpisodes currentTime =
   interp
     False
     [sql|
-    WITH current_pacific AS (
-      -- Convert current UTC time to Pacific
+    WITH airing_windows AS (
       SELECT
-        (#{currentTime} AT TIME ZONE 'America/Los_Angeles')::DATE as today_pacific,
-        ((#{currentTime} AT TIME ZONE 'America/Los_Angeles')::DATE - INTERVAL '1 day')::DATE as yesterday_pacific,
-        (#{currentTime} AT TIME ZONE 'America/Los_Angeles')::TIME as time_now
-    ),
-    -- Precompute show duration and replay end time to avoid repeating the
-    -- overnight-aware duration CASE expression across every replay case.
-    schedule_slots AS (
-      SELECT
-        st.*,
-        e.id AS ep_id,
-        e.show_id AS ep_show_id,
-        e.description AS ep_description,
-        e.episode_number AS ep_episode_number,
-        e.audio_file_path AS ep_audio_file_path,
-        e.audio_file_size AS ep_audio_file_size,
-        e.audio_mime_type AS ep_audio_mime_type,
-        e.duration_seconds AS ep_duration_seconds,
-        e.artwork_url AS ep_artwork_url,
-        e.schedule_template_id AS ep_schedule_template_id,
-        e.scheduled_at AS ep_scheduled_at,
-        e.published_at AS ep_published_at,
-        e.deleted_at AS ep_deleted_at,
-        e.created_by AS ep_created_by,
-        e.created_at AS ep_created_at,
-        e.updated_at AS ep_updated_at,
-        -- Show duration as interval (handles overnight wraparound)
-        CASE WHEN st.end_time > st.start_time
-          THEN st.end_time - st.start_time
-          ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
-        END AS show_duration,
-        -- Replay end time (NULL when no replay)
-        (st.replay_start_time + (
-          CASE WHEN st.end_time > st.start_time
-            THEN st.end_time - st.start_time
-            ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
-          END
-        ))::TIME AS replay_end_time
+        e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
+        e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
+        e.schedule_template_id, e.scheduled_at, e.published_at, e.deleted_at,
+        e.created_by, e.created_at, e.updated_at,
+        v.is_replay,
+        w.window_start,
+        -- The episode stops at the end of its slot or at the end of its audio,
+        -- whichever comes first. LEAST skips a NULL duration.
+        LEAST(
+          w.window_end,
+          w.window_start + e.duration_seconds * INTERVAL '1 second'
+        ) AS window_stop
       FROM episodes e
       JOIN schedule_templates st ON st.id = e.schedule_template_id
       JOIN schedule_template_validity stv ON stv.template_id = st.id
       JOIN shows s ON s.id = e.show_id
+      -- The date the episode airs on, in the station's timezone.
+      CROSS JOIN LATERAL (
+        SELECT (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE AS air_date
+      ) d
+      -- The length of the slot as a time interval. An overnight slot wraps midnight.
+      CROSS JOIN LATERAL (
+        SELECT
+          CASE WHEN st.end_time > st.start_time
+            THEN st.end_time - st.start_time
+            ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
+          END AS slot_length
+      ) sl
+      -- One row for the primary window, one for the replay. A replay runs for
+      -- the same length as its primary.
+      CROSS JOIN LATERAL (
+        VALUES
+          (FALSE, st.start_time, st.end_time),
+          (TRUE, st.replay_start_time, (st.replay_start_time + sl.slot_length)::TIME)
+      ) AS v(is_replay, start_time, end_time)
+      -- The window as a pair of timestamptz values. A window that closes at or
+      -- before it opens runs onto the next date.
+      CROSS JOIN LATERAL (
+        SELECT
+          (d.air_date + v.start_time) AT TIME ZONE 'America/Los_Angeles'
+            AS window_start,
+          ((d.air_date + CASE WHEN v.end_time <= v.start_time THEN 1 ELSE 0 END) + v.end_time)
+            AT TIME ZONE 'America/Los_Angeles'
+            AS window_end
+      ) w
       WHERE
-        e.audio_file_path IS NOT NULL
+        -- A template with no replay contributes its primary row only.
+        v.start_time IS NOT NULL
+        AND e.audio_file_path IS NOT NULL
         AND e.deleted_at IS NULL
         AND s.status = 'active'
         AND s.deleted_at IS NULL
-        AND stv.effective_from <= (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE
-        AND (stv.effective_until IS NULL OR stv.effective_until > (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE)
-        -- The episode's date must be one its template actually airs on.
-        --
-        -- Anchored to the episode's date, not to today, so it composes with every
-        -- case below. Cases 3 and 6 pin the episode to yesterday, and a Monday
-        -- 23:00 show airing at 00:30 on Tuesday is still a Monday episode.
-        --
-        -- A one-time template has no recurrence and is exempt.
+        -- A window opens on the air date and closes at most one date later, so
+        -- only these two dates can hold the current time. This prunes the
+        -- scan. The comparison below decides the answer.
+        AND d.air_date BETWEEN (#{currentTime} AT TIME ZONE 'America/Los_Angeles')::DATE - 1
+                           AND (#{currentTime} AT TIME ZONE 'America/Los_Angeles')::DATE
+        AND stv.effective_from <= d.air_date
+        AND (stv.effective_until IS NULL OR stv.effective_until > d.air_date)
+        -- The air date must be a date the template holds. A one-time template
+        -- has no recurrence and is exempt.
         AND (
           st.day_of_week IS NULL
-          OR recurrence_airs_on(
-               day_of_week_num(st.day_of_week),
-               st.weeks_of_month,
-               (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE
-             )
-        )
-    ),
-    matching_episodes AS (
-      SELECT
-        ss.ep_id AS id, ss.ep_show_id AS show_id, ss.ep_description AS description,
-        ss.ep_episode_number AS episode_number, ss.ep_audio_file_path AS audio_file_path,
-        ss.ep_audio_file_size AS audio_file_size, ss.ep_audio_mime_type AS audio_mime_type,
-        ss.ep_duration_seconds AS duration_seconds, ss.ep_artwork_url AS artwork_url,
-        ss.ep_schedule_template_id AS schedule_template_id, ss.ep_scheduled_at AS scheduled_at,
-        ss.ep_published_at AS published_at, ss.ep_deleted_at AS deleted_at,
-        ss.ep_created_by AS created_by, ss.ep_created_at AS created_at, ss.ep_updated_at AS updated_at
-      FROM schedule_slots ss
-      CROSS JOIN current_pacific cp
-      WHERE
-        (
-          -- Case 1: Standard show (end > start) scheduled for today
-          (
-            ss.end_time > ss.start_time
-            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
-            AND cp.time_now >= ss.start_time
-            AND cp.time_now < LEAST(
-              ss.end_time,
-              (ss.start_time + COALESCE(ss.ep_duration_seconds * INTERVAL '1 second', ss.show_duration))::TIME
-            )
-          )
-          OR
-          -- Case 2: Overnight show (end <= start) - before midnight portion (scheduled today)
-          (
-            ss.end_time <= ss.start_time
-            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
-            AND cp.time_now >= ss.start_time
-            AND (
-              ss.ep_duration_seconds IS NULL
-              OR ss.ep_duration_seconds >= EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.start_time))
-              OR cp.time_now < (ss.start_time + ss.ep_duration_seconds * INTERVAL '1 second')::TIME
-            )
-          )
-          OR
-          -- Case 3: Overnight show (end <= start) - after midnight portion (scheduled yesterday)
-          (
-            ss.end_time <= ss.start_time
-            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
-            AND cp.time_now < LEAST(
-              ss.end_time,
-              CASE
-                WHEN ss.ep_duration_seconds IS NULL THEN ss.end_time
-                WHEN ss.ep_duration_seconds > EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.start_time))
-                THEN ((ss.ep_duration_seconds - EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.start_time))) * INTERVAL '1 second')::TIME
-                ELSE TIME '00:00:00'
-              END
-            )
-          )
-          OR
-          -- Case 4: Replay airing for standard replay shows scheduled today
-          (
-            ss.replay_start_time IS NOT NULL
-            AND ss.replay_end_time > ss.replay_start_time
-            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
-            AND cp.time_now >= ss.replay_start_time
-            AND cp.time_now < LEAST(
-              ss.replay_end_time,
-              (ss.replay_start_time + COALESCE(ss.ep_duration_seconds * INTERVAL '1 second', ss.show_duration))::TIME
-            )
-          )
-          OR
-          -- Case 5: Replay airing for overnight replay shows - before midnight portion (scheduled today)
-          (
-            ss.replay_start_time IS NOT NULL
-            AND ss.replay_end_time <= ss.replay_start_time
-            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.today_pacific
-            AND cp.time_now >= ss.replay_start_time
-            AND (
-              ss.ep_duration_seconds IS NULL
-              OR ss.ep_duration_seconds >= EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.replay_start_time))
-              OR cp.time_now < (ss.replay_start_time + ss.ep_duration_seconds * INTERVAL '1 second')::TIME
-            )
-          )
-          OR
-          -- Case 6: Replay airing for overnight replay shows - after midnight portion (scheduled yesterday)
-          (
-            ss.replay_start_time IS NOT NULL
-            AND ss.replay_end_time <= ss.replay_start_time
-            AND (ss.ep_scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE = cp.yesterday_pacific
-            AND cp.time_now < LEAST(
-              ss.replay_end_time,
-              CASE
-                WHEN ss.ep_duration_seconds IS NULL THEN ss.replay_end_time
-                WHEN ss.ep_duration_seconds > EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.replay_start_time))
-                THEN ((ss.ep_duration_seconds - EXTRACT(EPOCH FROM (TIME '24:00:00' - ss.replay_start_time))) * INTERVAL '1 second')::TIME
-                ELSE TIME '00:00:00'
-              END
-            )
-          )
+          OR recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, d.air_date)
         )
     )
-    SELECT * FROM matching_episodes
-    LIMIT 1
+    SELECT
+      id, show_id, description, episode_number, audio_file_path,
+      audio_file_size, audio_mime_type, duration_seconds, artwork_url,
+      schedule_template_id, scheduled_at, published_at, deleted_at,
+      created_by, created_at, updated_at
+    FROM airing_windows
+    WHERE #{currentTime} >= window_start
+      AND #{currentTime} < window_stop
+    -- A primary airing beats a replay. Past that the order only has to be
+    -- stable, so the stream does not flip between two claimants on each poll.
+    ORDER BY is_replay, scheduled_at DESC, id DESC
+    LIMIT 2
   |]
+
+-- | The first row of 'getCurrentlyAiringEpisodes', or Nothing.
+--
+-- Discards the second row, so the caller cannot tell a single airing from an
+-- overlap or a duplicate. Prefer 'getCurrentlyAiringEpisodes' where the caller
+-- can act on that.
+getCurrentlyAiringEpisode :: UTCTime -> Hasql.Statement () (Maybe Model)
+getCurrentlyAiringEpisode = fmap listToMaybe . getCurrentlyAiringEpisodes
 
 -- | Insert a new episode.
 --
