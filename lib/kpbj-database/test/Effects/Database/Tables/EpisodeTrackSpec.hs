@@ -4,6 +4,7 @@ module Effects.Database.Tables.EpisodeTrackSpec where
 
 --------------------------------------------------------------------------------
 
+import Data.Time.Calendar (Day, fromGregorian)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.EpisodeTrack qualified as UUT
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -20,13 +21,17 @@ import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertRight, assertSingleton)
 import Test.Gen.Tables.EpisodeTrack (episodeTrackInsertGen)
 import Test.Gen.Tables.Episodes (episodeInsertGen)
-import Test.Gen.Tables.ShowSchedule (scheduleTemplateInsertGen)
+import Test.Gen.Tables.ShowSchedule (airTimeForTemplate, genRecurringScheduleInsert)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Hedgehog (hedgehog)
 
 --------------------------------------------------------------------------------
+
+-- | A fixed day for fixtures that never look at when the episode airs.
+episodeTrackBaseDay :: Day
+episodeTrackBaseDay = fromGregorian 2026 1 1
 
 spec :: Spec
 spec =
@@ -53,7 +58,7 @@ prop_insertSelect cfg = do
   arrange (bracketConn cfg) $ do
     userWithMetadata <- forAllT userWithMetadataInsertGen
     showInsert <- forAllT showInsertGen
-    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
     episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
     trackTemplate <- forAllT $ episodeTrackInsertGen (Episodes.Id 1)
 
@@ -62,7 +67,7 @@ prop_insertSelect cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         let trackInsert = trackTemplate {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}
@@ -90,7 +95,7 @@ prop_getTracksForEpisode cfg = do
   arrange (bracketConn cfg) $ do
     userWithMetadata <- forAllT userWithMetadataInsertGen
     showInsert <- forAllT showInsertGen
-    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
     episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
     track1Template <- forAllT $ episodeTrackInsertGen (Episodes.Id 1)
     track2Template <- forAllT $ episodeTrackInsertGen (Episodes.Id 1)
@@ -100,7 +105,7 @@ prop_getTracksForEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         -- Insert track 2 first, then track 1, to verify ordering
@@ -131,7 +136,7 @@ prop_deleteAllTracksForEpisode cfg = do
   arrange (bracketConn cfg) $ do
     userWithMetadata <- forAllT userWithMetadataInsertGen
     showInsert <- forAllT showInsertGen
-    scheduleTemplate <- forAllT $ scheduleTemplateInsertGen (Shows.Id 1)
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
     episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
     track1Template <- forAllT $ episodeTrackInsertGen (Episodes.Id 1)
     track2Template <- forAllT $ episodeTrackInsertGen (Episodes.Id 1)
@@ -141,7 +146,7 @@ prop_deleteAllTracksForEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         let track1 = track1Template {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}
