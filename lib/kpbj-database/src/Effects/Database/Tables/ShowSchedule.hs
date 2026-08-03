@@ -52,6 +52,9 @@ module Effects.Database.Tables.ShowSchedule
     getShowsMissingEpisodesInDays,
     HostMissingEpisode (..),
     getHostsMissingEpisodesOnDay,
+
+    -- * Recurrence
+    dayOfWeekNumber,
   )
 where
 
@@ -369,15 +372,7 @@ checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
     WITH templates AS (
       SELECT
         s.title,
-        CASE st.day_of_week::TEXT
-          WHEN 'sunday'    THEN 0
-          WHEN 'monday'    THEN 1
-          WHEN 'tuesday'   THEN 2
-          WHEN 'wednesday' THEN 3
-          WHEN 'thursday'  THEN 4
-          WHEN 'friday'    THEN 5
-          WHEN 'saturday'  THEN 6
-        END AS day_num,
+        day_of_week_num(st.day_of_week) AS day_num,
         st.weeks_of_month AS weeks,
         st.day_of_week IS NULL AS one_time,
         stv.effective_from AS on_date,
@@ -414,14 +409,12 @@ checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
         w.*,
         -- The window runs on a day the proposed slot also runs on.
         CASE WHEN w.one_time
-          THEN EXTRACT(DOW FROM w.on_date)::INT = #{dayNum}
-               AND CEIL(EXTRACT(DAY FROM w.on_date) / 7.0)::INT = ANY(#{weeks})
+          THEN recurrence_airs_on(#{dayNum}, #{weeks}, w.on_date)
           ELSE w.day_num = #{dayNum} AND w.weeks && #{weeks}
         END AS same_day,
         -- The window runs on the day after a day the proposed slot runs on.
         CASE WHEN w.one_time
-          THEN EXTRACT(DOW FROM w.on_date - 1)::INT = #{dayNum}
-               AND CEIL(EXTRACT(DAY FROM w.on_date - 1) / 7.0)::INT = ANY(#{weeks})
+          THEN recurrence_airs_on(#{dayNum}, #{weeks}, w.on_date - 1)
           ELSE w.day_num = #{nextDay}
                AND EXISTS (
                  SELECT 1 FROM unnest(w.weeks) tw
@@ -432,8 +425,7 @@ checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
         END AS day_after,
         -- The window runs on the day before a day the proposed slot runs on.
         CASE WHEN w.one_time
-          THEN EXTRACT(DOW FROM w.on_date + 1)::INT = #{dayNum}
-               AND CEIL(EXTRACT(DAY FROM w.on_date + 1) / 7.0)::INT = ANY(#{weeks})
+          THEN recurrence_airs_on(#{dayNum}, #{weeks}, w.on_date + 1)
           ELSE w.day_num = #{prevDay}
                AND EXISTS (
                  SELECT 1 FROM unnest(w.weeks) tw
@@ -658,21 +650,8 @@ getScheduledShowsForDate targetDate =
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
       AND (
-        -- Recurring shows: match day of week and week of month
-        (st.day_of_week IS NOT NULL
-         AND EXTRACT(DOW FROM #{targetDate}::date)::INTEGER =
-             CASE st.day_of_week::TEXT
-               WHEN 'sunday' THEN 0
-               WHEN 'monday' THEN 1
-               WHEN 'tuesday' THEN 2
-               WHEN 'wednesday' THEN 3
-               WHEN 'thursday' THEN 4
-               WHEN 'friday' THEN 5
-               WHEN 'saturday' THEN 6
-             END
-         AND (st.weeks_of_month IS NULL
-              OR CEIL(EXTRACT(DAY FROM #{targetDate}::date) / 7.0)::INTEGER = ANY(st.weeks_of_month))
-        )
+        -- Recurring shows: the template's recurrence covers the date
+        recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, #{targetDate}::date)
         OR
         -- One-time shows: match exact date via validity period
         (st.day_of_week IS NULL
@@ -724,21 +703,8 @@ getScheduledShowsForDate targetDate =
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
       AND (
-        -- Recurring shows: match day of week and week of month
-        (st.day_of_week IS NOT NULL
-         AND EXTRACT(DOW FROM #{targetDate}::date)::INTEGER =
-             CASE st.day_of_week::TEXT
-               WHEN 'sunday' THEN 0
-               WHEN 'monday' THEN 1
-               WHEN 'tuesday' THEN 2
-               WHEN 'wednesday' THEN 3
-               WHEN 'thursday' THEN 4
-               WHEN 'friday' THEN 5
-               WHEN 'saturday' THEN 6
-             END
-         AND (st.weeks_of_month IS NULL
-              OR CEIL(EXTRACT(DAY FROM #{targetDate}::date) / 7.0)::INTEGER = ANY(st.weeks_of_month))
-        )
+        -- Recurring shows: the template's recurrence covers the date
+        recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, #{targetDate}::date)
         OR
         -- One-time shows: match exact date via validity period
         (st.day_of_week IS NULL
@@ -831,21 +797,7 @@ getUpcomingShowDates showId referenceDate (Limit limitVal) =
         AND st.day_of_week IS NOT NULL  -- Only recurring shows
         AND stv.effective_from <= ds.date
         AND (stv.effective_until IS NULL OR stv.effective_until > ds.date)
-        AND EXTRACT(DOW FROM ds.date)::INTEGER =
-            CASE st.day_of_week::TEXT
-              WHEN 'sunday' THEN 0
-              WHEN 'monday' THEN 1
-              WHEN 'tuesday' THEN 2
-              WHEN 'wednesday' THEN 3
-              WHEN 'thursday' THEN 4
-              WHEN 'friday' THEN 5
-              WHEN 'saturday' THEN 6
-            END
-        AND (
-          st.weeks_of_month IS NULL OR
-          -- Check if current week of month is in the array
-          CEIL(EXTRACT(DAY FROM ds.date) / 7.0)::INTEGER = ANY(st.weeks_of_month)
-        )
+        AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, ds.date)
     )
     SELECT
       show_id,
@@ -903,20 +855,7 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
         AND st.day_of_week IS NOT NULL
         AND stv.effective_from <= ds.date
         AND (stv.effective_until IS NULL OR stv.effective_until > ds.date)
-        AND EXTRACT(DOW FROM ds.date)::INTEGER =
-            CASE st.day_of_week::TEXT
-              WHEN 'sunday' THEN 0
-              WHEN 'monday' THEN 1
-              WHEN 'tuesday' THEN 2
-              WHEN 'wednesday' THEN 3
-              WHEN 'thursday' THEN 4
-              WHEN 'friday' THEN 5
-              WHEN 'saturday' THEN 6
-            END
-        AND (
-          st.weeks_of_month IS NULL OR
-          CEIL(EXTRACT(DAY FROM ds.date) / 7.0)::INTEGER = ANY(st.weeks_of_month)
-        )
+        AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, ds.date)
     ),
     unscheduled_instances AS (
       SELECT
@@ -1073,20 +1012,7 @@ getShowsMissingEpisodesInDays days =
         AND st.day_of_week IS NOT NULL
         AND stv.effective_from <= ds.date
         AND (stv.effective_until IS NULL OR stv.effective_until > ds.date)
-        AND EXTRACT(DOW FROM ds.date)::INTEGER =
-            CASE st.day_of_week::TEXT
-              WHEN 'sunday' THEN 0
-              WHEN 'monday' THEN 1
-              WHEN 'tuesday' THEN 2
-              WHEN 'wednesday' THEN 3
-              WHEN 'thursday' THEN 4
-              WHEN 'friday' THEN 5
-              WHEN 'saturday' THEN 6
-            END
-        AND (
-          st.weeks_of_month IS NULL OR
-          CEIL(EXTRACT(DAY FROM ds.date) / 7.0)::INTEGER = ANY(st.weeks_of_month)
-        )
+        AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, ds.date)
     )
     SELECT
       si.show_id,
@@ -1145,20 +1071,7 @@ getHostsMissingEpisodesOnDay days =
         AND st.day_of_week IS NOT NULL
         AND stv.effective_from <= td.date
         AND (stv.effective_until IS NULL OR stv.effective_until > td.date)
-        AND EXTRACT(DOW FROM td.date)::INTEGER =
-            CASE st.day_of_week::TEXT
-              WHEN 'sunday' THEN 0
-              WHEN 'monday' THEN 1
-              WHEN 'tuesday' THEN 2
-              WHEN 'wednesday' THEN 3
-              WHEN 'thursday' THEN 4
-              WHEN 'friday' THEN 5
-              WHEN 'saturday' THEN 6
-            END
-        AND (
-          st.weeks_of_month IS NULL OR
-          CEIL(EXTRACT(DAY FROM td.date) / 7.0)::INTEGER = ANY(st.weeks_of_month)
-        )
+        AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, td.date)
     )
     SELECT
       u.email,
