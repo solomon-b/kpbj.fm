@@ -545,26 +545,14 @@ getCurrentlyAiringEpisode currentTime =
         -- case below. Cases 3 and 6 pin the episode to yesterday, and a Monday
         -- 23:00 show airing at 00:30 on Tuesday is still a Monday episode.
         --
-        -- The formula matches getScheduledShowsForDate. A one-time template has no
-        -- recurrence and is exempt.
+        -- A one-time template has no recurrence and is exempt.
         AND (
           st.day_of_week IS NULL
-          OR (
-            EXTRACT(DOW FROM (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE)::INTEGER =
-              CASE st.day_of_week::TEXT
-                WHEN 'sunday' THEN 0
-                WHEN 'monday' THEN 1
-                WHEN 'tuesday' THEN 2
-                WHEN 'wednesday' THEN 3
-                WHEN 'thursday' THEN 4
-                WHEN 'friday' THEN 5
-                WHEN 'saturday' THEN 6
-              END
-            AND (
-              st.weeks_of_month IS NULL
-              OR CEIL(EXTRACT(DAY FROM (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE) / 7.0)::INTEGER = ANY(st.weeks_of_month)
-            )
-          )
+          OR recurrence_airs_on(
+               day_of_week_num(st.day_of_week),
+               st.weeks_of_month,
+               (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE
+             )
         )
     ),
     matching_episodes AS (
