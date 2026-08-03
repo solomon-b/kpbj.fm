@@ -339,6 +339,25 @@ spec =
               ]
         validateNoOverlaps slots `shouldSatisfy` isLeft
 
+      -- Two slots on one day that both cross midnight
+      it "rejects two same-day slots that both cross midnight" $ do
+        -- Each takes the hour before midnight on the same day, so they do meet.
+        -- Any two slots that cross midnight on one day take that day up to 24:00.
+        let slots =
+              [ ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 23 30 0) (TimeOfDay 0 30 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldSatisfy` isLeft
+
+      it "allows an early slot beside a same-day slot that crosses midnight" $ do
+        -- Monday 23:00-01:00 takes Monday 23:00 to 24:00 and Tuesday 00:00-01:00.
+        -- Monday 00:30-02:30 sits early on Monday and meets neither part.
+        let slots =
+              [ ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) Nothing,
+                ParsedScheduleSlot Monday [1, 2, 3, 4, 5] (TimeOfDay 0 30 0) (TimeOfDay 2 30 0) Nothing
+              ]
+        validateNoOverlaps slots `shouldBe` Right slots
+
       -- The week of the month across midnight
       it "rejects a week-1 tail that lands in week 2" $ do
         -- The first Monday can be the 7th, so the next day is in week 2.
@@ -387,6 +406,17 @@ spec =
             if calendarOverlap slot1 slot2
               then assert (isLeft (validateNoOverlaps [slot1, slot2]))
               else success
+
+      -- Two slots that share a day can meet only through the same-day
+      -- comparison, and that comparison does no widening. So the two models have
+      -- to agree in both directions, including when both slots cross midnight.
+      modifyMaxSuccess (const 1000) $
+        it "agrees exactly on two slots that share a day" $
+          hedgehog $ do
+            day <- forAll (Gen.element [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday])
+            slot1 <- forAll (genEdgeSlot day)
+            slot2 <- forAll (genEdgeSlot day)
+            isLeft (validateNoOverlaps [slot1, slot2]) === calendarOverlap slot1 slot2
 
       -- With no slot crossing midnight there is no week widening, so the two
       -- models have to agree in both directions.
