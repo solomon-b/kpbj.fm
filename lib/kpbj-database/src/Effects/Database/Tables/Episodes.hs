@@ -440,7 +440,7 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
             where_ $ isNull ep.deletedAt
             pure ep
 
--- | Up to two rows that the schedule says should be on air at the given time.
+-- | Every row that the schedule says should be on air at the given time.
 --
 -- Liquidsoap polls @\/api\/playout\/now@, which calls this and broadcasts the
 -- first row.
@@ -449,7 +449,7 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 --
 -- The query works in (episode, window) pairs, not in episodes. A template with a
 -- @replay_start_time@ gives its episode two windows, so one episode can produce
--- two rows. See "Why there can be two rows" below.
+-- two rows. See "Why there can be more than one row" below.
 --
 -- == The airing window
 --
@@ -472,7 +472,7 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- A replay window opens at @replay_start_time@ and runs for the same length as
 -- the primary, and it wraps the same way.
 --
--- The zone is the literal @'America\/Los_Angeles'@ in all five places it appears
+-- The zone is the literal @'America\/Los_Angeles'@ in every place it appears
 -- here. @schedule_templates.timezone@ is not read.
 --
 -- == Why the window is a pair of timestamptz values
@@ -486,6 +486,38 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- * On 2026-03-08 the clock jumps from 01:59 to 03:00. The @time@ @02:30@
 --   matches no @timestamptz@, and a @02:00@ to @04:00@ window covers 1 elapsed
 --   hour.
+--
+-- === A clock time inside the repeated hour
+--
+-- On the fall-back date a @time@ from 01:00 to 01:59 names two instants, an hour
+-- apart. @AT TIME ZONE@ alone returns the later one. Both endpoints take the
+-- earlier one instead, through
+-- @LEAST(t AT TIME ZONE z, (t - INTERVAL '1 hour') AT TIME ZONE z + INTERVAL '1 hour')@.
+--
+-- So a 01:00 to 02:00 slot opens when the clock first reads 01:00 and covers the
+-- 2 elapsed hours it really holds. A 1-hour episode plays the first of them and
+-- leaves the second silent. The silence belongs at the end of a slot, where a
+-- short episode always puts it, and not at the start where nothing explains it.
+--
+-- The correction moves the instant back by one hour, the size of the Pacific
+-- shift. Every other @time@ of the year names one instant, so @LEAST@ picks that
+-- instant from both arms and the correction changes nothing. That includes the
+-- spring-forward gap.
+--
+-- === A slot that the spring-forward change deletes
+--
+-- On 2026-03-08 no instant reads as a Pacific time from 02:00 to 02:59, and
+-- PostgreSQL normalizes such a time forward by an hour. A slot that opens in
+-- that range therefore has no elapsed time to run in:
+--
+-- * 02:00 to 03:00 gives @window_start = window_end@, an empty window
+-- * 02:30 to 03:00 gives @window_start@ /after/ @window_end@, an inverted window
+--
+-- Neither airs. @window_stop@ is at most @window_end@, and a row airs only when
+-- the current time is at or after @window_start@ and before @window_stop@, so
+-- both shapes fail the test for every @duration_seconds@. The hour is dead air
+-- and nothing here reports it. The old query behaved the same way, for the same
+-- reason: that clock reading never occurs.
 --
 -- == When a row airs
 --
@@ -527,11 +559,11 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 --
 -- It does __not__ exclude an episode with a NULL @published_at@.
 --
--- == Why there can be two rows
+-- == Why there can be more than one row
 --
--- Rows are ordered @is_replay, scheduled_at DESC, id DESC@ and limited to 2, so
--- the first row does not change between polls while the data is unchanged. A
--- second row means one of:
+-- Rows are ordered @is_replay, scheduled_at DESC, id DESC@, so the first row
+-- does not change between polls while the data is unchanged. There is no
+-- @LIMIT@. A second row means one of:
 --
 -- * two shows hold overlapping slots
 -- * one show holds two overlapping slots
@@ -587,15 +619,35 @@ getCurrentlyAiringEpisodes currentTime =
           (FALSE, st.start_time, st.end_time),
           (TRUE, st.replay_start_time, (st.replay_start_time + sl.slot_length)::TIME)
       ) AS v(is_replay, start_time, end_time)
-      -- The window as a pair of timestamptz values. A window that closes at or
+      -- The window as a pair of local timestamps. A window that closes at or
       -- before it opens runs onto the next date.
       CROSS JOIN LATERAL (
         SELECT
-          (d.air_date + v.start_time) AT TIME ZONE 'America/Los_Angeles'
-            AS window_start,
-          ((d.air_date + CASE WHEN v.end_time <= v.start_time THEN 1 ELSE 0 END) + v.end_time)
-            AT TIME ZONE 'America/Los_Angeles'
-            AS window_end
+          d.air_date + v.start_time AS local_start,
+          (d.air_date + CASE WHEN v.end_time <= v.start_time THEN 1 ELSE 0 END) + v.end_time
+            AS local_end
+      ) l
+      -- The same pair as timestamptz values.
+      --
+      -- On the fall-back date a local time from 01:00 to 01:59 names two
+      -- instants, an hour apart, and AT TIME ZONE alone returns the later one.
+      -- LEAST against the same conversion an hour earlier takes the first
+      -- instant instead, so a slot opens when the clock first reads its start
+      -- time. A short episode then leaves its silence at the end of the slot.
+      -- One hour is the size of the Pacific shift, and the correction is a
+      -- no-op on every other local time of the year.
+      CROSS JOIN LATERAL (
+        SELECT
+          LEAST(
+            l.local_start AT TIME ZONE 'America/Los_Angeles',
+            (l.local_start - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
+              + INTERVAL '1 hour'
+          ) AS window_start,
+          LEAST(
+            l.local_end AT TIME ZONE 'America/Los_Angeles',
+            (l.local_end - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
+              + INTERVAL '1 hour'
+          ) AS window_end
       ) w
       WHERE
         -- A template with no replay contributes its primary row only.
@@ -629,7 +681,6 @@ getCurrentlyAiringEpisodes currentTime =
     -- A primary airing beats a replay. Past that the order only has to be
     -- stable, so the stream does not flip between two claimants on each poll.
     ORDER BY is_replay, scheduled_at DESC, id DESC
-    LIMIT 2
   |]
 
 -- | The first row of 'getCurrentlyAiringEpisodes', or Nothing.
