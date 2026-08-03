@@ -539,6 +539,33 @@ getCurrentlyAiringEpisode currentTime =
         AND s.deleted_at IS NULL
         AND stv.effective_from <= (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE
         AND (stv.effective_until IS NULL OR stv.effective_until > (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE)
+        -- The episode's date must be one its template actually airs on.
+        --
+        -- Anchored to the episode's date, not to today, so it composes with every
+        -- case below. Cases 3 and 6 pin the episode to yesterday, and a Monday
+        -- 23:00 show airing at 00:30 on Tuesday is still a Monday episode.
+        --
+        -- The formula matches getScheduledShowsForDate. A one-time template has no
+        -- recurrence and is exempt.
+        AND (
+          st.day_of_week IS NULL
+          OR (
+            EXTRACT(DOW FROM (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE)::INTEGER =
+              CASE st.day_of_week::TEXT
+                WHEN 'sunday' THEN 0
+                WHEN 'monday' THEN 1
+                WHEN 'tuesday' THEN 2
+                WHEN 'wednesday' THEN 3
+                WHEN 'thursday' THEN 4
+                WHEN 'friday' THEN 5
+                WHEN 'saturday' THEN 6
+              END
+            AND (
+              st.weeks_of_month IS NULL
+              OR CEIL(EXTRACT(DAY FROM (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE) / 7.0)::INTEGER = ANY(st.weeks_of_month)
+            )
+          )
+        )
     ),
     matching_episodes AS (
       SELECT

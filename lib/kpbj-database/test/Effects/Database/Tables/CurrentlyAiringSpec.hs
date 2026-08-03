@@ -17,8 +17,10 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, PasswordHash, hashPassword, mkPassword)
 import Data.Text (Text)
+import Data.Int (Int64)
 import Data.Time
   ( Day,
+    DayOfWeek (..),
     LocalTime (..),
     TimeOfDay (..),
     UTCTime (..),
@@ -58,6 +60,9 @@ spec =
         it "returns Nothing when the show is soft-deleted" basicDeletedShow
         it "returns Nothing when the show is inactive" basicInactiveShow
         it "returns Nothing when episode is scheduled for different day" basicDifferentDay
+        it "recurring: airs when the episode date matches the template" recurringDateMatches
+        it "recurring: returns Nothing when the weekday does not match the template" recurringWrongWeekday
+        it "recurring: returns Nothing when the week of the month does not match" recurringWrongWeekOfMonth
         it "returns the episode when it is currently airing" basicCurrentlyAiring
 
       -- Standard show time slot tests
@@ -267,6 +272,132 @@ setupTestDataFull passHash startTime endTime replayStartTime scheduledAt mAudioP
           }
 
   pure (episodeId, showId, userId)
+
+-- | Setup a show on a recurring template, with an episode on a chosen date.
+--
+-- The airing query takes the time of day from the template and the date from the
+-- episode. These tests check that it also requires the two to agree, which the
+-- one-time templates the other fixtures use are exempt from.
+setupRecurringTestData ::
+  PasswordHash Argon2 ->
+  -- | The day of the week the template airs on
+  DayOfWeek ->
+  -- | The weeks of the month the template airs in
+  [Int64] ->
+  -- | The date the episode claims to air on
+  Day ->
+  TRX.Transaction Episodes.Id
+setupRecurringTestData passHash dayOfWeek weeksOfMonth episodeDate = do
+  (OneRow userId) <-
+    TRX.statement () $
+      User.insertUser $
+        User.ModelInsert (mkEmailAddress "recurring@example.com") passHash
+  _ <-
+    TRX.statement () $
+      UserMetadata.insertUserMetadata $
+        UserMetadata.Insert
+          userId
+          (mkDisplayNameUnsafe "Recurring Host")
+          (mkFullNameUnsafe "Recurring Host")
+          Nothing
+          UserMetadata.Staff
+          UserMetadata.Automatic
+          UserMetadata.DefaultTheme
+
+  showId <-
+    unwrapInsert $
+      Shows.insertShow
+        Shows.Insert
+          { siTitle = "Recurring Show",
+            siSlug = mkSlug "recurring-show",
+            siDescription = Nothing,
+            siLogoUrl = Nothing,
+            siStatus = Shows.Active
+          }
+
+  templateId <-
+    TRX.statement () $
+      ShowSchedule.insertScheduleTemplate
+        ShowSchedule.ScheduleTemplateInsert
+          { stiShowId = showId,
+            stiDayOfWeek = Just dayOfWeek,
+            stiWeeksOfMonth = Just weeksOfMonth,
+            stiStartTime = TimeOfDay 14 0 0,
+            stiEndTime = TimeOfDay 16 0 0,
+            stiTimezone = "America/Los_Angeles",
+            stiReplayStartTime = Nothing
+          }
+
+  _ <-
+    unwrapInsert $
+      ShowSchedule.insertValidity
+        ShowSchedule.ValidityInsert
+          { viTemplateId = templateId,
+            viEffectiveFrom = addDays (-30) episodeDate,
+            viEffectiveUntil = Nothing
+          }
+
+  unwrapInsert $
+    Episodes.insertEpisode
+      Episodes.Insert
+        { eiId = showId,
+          eiDescription = Just "Recurring Episode",
+          eiAudioFilePath = Just "audio/recurring.mp3",
+          eiAudioFileSize = Just 1000000,
+          eiAudioMimeType = Just "audio/mpeg",
+          eiDurationSeconds = Just 7200,
+          eiArtworkUrl = Nothing,
+          eiScheduleTemplateId = Just templateId,
+          eiScheduledAt = Just (pacificToUtc (LocalTime episodeDate (TimeOfDay 14 0 0))),
+          eiCreatedBy = userId
+        }
+
+-- | testDay is a Monday in week 1 of the month.
+recurringDateMatches :: TestDBConfig -> IO ()
+recurringDateMatches cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let queryTime = pacificToUtc (LocalTime testDay (TimeOfDay 15 0 0))
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    episodeId <- setupRecurringTestData passHash Monday [1, 2, 3, 4, 5] testDay
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (episodeId, mEpisode)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
+
+-- | A Wednesday episode on a Monday template must not air, even at the
+-- template's own hours on that Wednesday.
+recurringWrongWeekday :: TestDBConfig -> IO ()
+recurringWrongWeekday cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let wednesday = addDays 2 testDay
+      queryTime = pacificToUtc (LocalTime wednesday (TimeOfDay 15 0 0))
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupRecurringTestData passHash Monday [1, 2, 3, 4, 5] wednesday
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure mEpisode
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | The weekday alone is not enough. A third-Monday template must not air an
+-- episode on a first Monday.
+recurringWrongWeekOfMonth :: TestDBConfig -> IO ()
+recurringWrongWeekOfMonth cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let queryTime = pacificToUtc (LocalTime testDay (TimeOfDay 15 0 0))
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupRecurringTestData passHash Monday [3] testDay
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure mEpisode
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
 
 -- | Setup test data with custom duration (discards user ID).
 setupTestDataWithDuration ::
