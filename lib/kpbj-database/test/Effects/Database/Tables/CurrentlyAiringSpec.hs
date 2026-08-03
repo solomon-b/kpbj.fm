@@ -1,14 +1,22 @@
--- | Tests for getCurrentlyAiringEpisode query.
+{-# LANGUAGE QuasiQuotes #-}
+
+-- | Tests for the getCurrentlyAiringEpisodes query.
 --
--- This is critical functionality for Liquidsoap integration - the query must
--- correctly determine what episode is currently airing based on:
+-- Liquidsoap polls this to decide what to broadcast, so a wrong answer is dead
+-- air or the wrong show. The query pairs each episode with one or two airing
+-- windows, each a pair of @timestamptz@ values, and asks whether the given
+-- instant falls inside one. These tests cover:
 --
--- 1. Schedule template time slots (start_time, end_time)
--- 2. Schedule validity periods (effective_from, effective_until)
--- 3. Episode scheduled_at matching today's date
--- 4. Overnight shows (end_time <= start_time, e.g., 11 PM - 2 AM)
--- 5. Replay airings (replay_start_time IS NOT NULL)
--- 6. Audio file presence and episode deletion status
+-- 1. The window built from the template's start_time and end_time
+-- 2. An overnight window, where end_time <= start_time and the window wraps
+-- 3. A replay window, which opens at replay_start_time and wraps the same way
+-- 4. The stop at the end of the audio, from duration_seconds
+-- 5. Both daylight saving transitions, where a span of clock times and a span
+--    of instants have different lengths
+-- 6. Schedule validity periods, effective_from and effective_until
+-- 7. The recurrence test over day_of_week and weeks_of_month
+-- 8. Audio file presence, episode deletion, and show status
+-- 9. The order of the rows when more than one claims the same instant
 module Effects.Database.Tables.CurrentlyAiringSpec where
 
 --------------------------------------------------------------------------------
@@ -39,7 +47,8 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Hasql.Interpolate (OneRow (..))
+import Hasql.Interpolate (OneRow (..), interp, sql)
+import Hasql.Statement qualified as Hasql
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Test.Database.Helpers (unwrapInsert)
@@ -122,6 +131,40 @@ spec =
         it "returns Nothing between timeslots" multiSlotBetween
         it "returns Nothing before all timeslots" multiSlotBeforeAll
         it "returns Nothing after all timeslots" multiSlotAfterAll
+
+      -- A span of `time` values and a span of `timestamptz` values differ in
+      -- length on these two dates.
+      describe "daylight saving transitions" $ do
+        it "fall back: airs while its audio is still running" fallBackWithinDuration
+        it "fall back: stops when the audio ends, not when the clock agrees" fallBackStopsWhenAudioEnds
+        it "fall back: a NULL duration fills the longer slot" fallBackNullDurationFillsSlot
+        it "fall back: a slot opens the first time the clock reads its start" fallBackOpensAtFirstReading
+        it "fall back: the silence lands at the end of the repeated hour" fallBackSilenceAtSlotEnd
+        it "fall back: a slot closes the first time the clock reads its end" fallBackClosesAtFirstReading
+        it "spring forward: airs inside the shortened slot" springForwardWithinSlot
+        it "spring forward: the slot end cuts the episode short" springForwardCutAtSlotEnd
+        it "spring forward: a slot inside the gap never airs" springForwardGapSlotNeverAirs
+
+      -- Two shows claim the same time
+      describe "overlapping claims" $ do
+        it "returns both and picks the same one every time" overlapIsDeterministic
+        it "orders a primary airing ahead of a replay" primaryBeatsReplay
+        it "returns both when two different shows claim one time" twoShowsOverlap
+
+      -- The replay window wraps by the same rule the primary does.
+      describe "replay across midnight" $ do
+        it "airs before midnight" replayCrossesMidnightBefore
+        it "airs after midnight, on the following date" replayCrossesMidnightAfter
+        it "stops at the replay end on the following date" replayCrossesMidnightEnds
+
+      -- Behaviour the Haddock states. These pin it so a change is deliberate.
+      describe "documented behaviour" $ do
+        it "a duration of 0 never airs" zeroDurationNeverAirs
+        it "an episode with no published_at still airs" unpublishedEpisodeStillAirs
+        it "a detached episode never airs" detachedEpisodeNeverAirs
+        it "equal start and end times give a 24-hour window" equalTimesGiveFullDay
+        it "ignores the template timezone and uses Pacific" templateTimezoneIsIgnored
+        it "an episode from two dates ago never airs" oldEpisodeNeverAirs
 
 --------------------------------------------------------------------------------
 -- Test Helpers
@@ -1525,6 +1568,606 @@ multiSlotAfterAll cfg = bracketConn cfg $ do
     _ep2 <- addTimeslot showId userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+--------------------------------------------------------------------------------
+-- Daylight saving transitions
+--
+-- These are the two dates each year on which subtracting two `time` values gives
+-- a different answer from subtracting the matching `timestamptz` values. The
+-- query compares `timestamptz` values, so it gets both dates right. Comparing
+-- `time` values gets both wrong, in opposite directions.
+--
+-- The query times below are given as UTC, not as Pacific `time` values. On the
+-- fall-back date the Pacific clock reads 01:30 twice, so a `time` cannot say
+-- which of the two is meant.
+
+-- | 2025-11-02. The clock repeats 01:00 to 02:00 Pacific.
+--
+-- A 00:00 to 02:00 slot therefore covers 3 elapsed hours.
+fallBackDay :: Day
+fallBackDay = fromGregorian 2025 11 2
+
+-- | 2026-03-08. The clock skips 02:00 to 03:00 Pacific.
+--
+-- A 02:00 to 04:00 slot therefore covers 1 elapsed hour.
+springForwardDay :: Day
+springForwardDay = fromGregorian 2026 3 8
+
+-- | A UTC time, given directly rather than through a Pacific `time`.
+utcAt :: Day -> TimeOfDay -> UTCTime
+utcAt day tod = UTCTime day (timeOfDayToTime tod)
+
+-- | Fall back, 1.5 elapsed hours into a 2-hour episode. It is still playing.
+--
+-- 08:30 UTC is the first 01:30, which is still PDT.
+fallBackWithinDuration :: TestDBConfig -> IO ()
+fallBackWithinDuration cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = pacificToUtc (LocalTime fallBackDay (TimeOfDay 0 0 0))
+      queryTime = utcAt fallBackDay (TimeOfDay 8 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (episodeId, _showId) <- setupTestData passHash (TimeOfDay 0 0 0) (TimeOfDay 2 0 0) Nothing scheduledAt (Just "audio/fallback.mp3") fallBackDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (episodeId, mEpisode)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
+
+-- | Fall back, 2.5 elapsed hours into a 2-hour episode. The audio has ended.
+--
+-- 09:30 UTC is the second 01:30, now PST. The Pacific clock still reads 01:30,
+-- which is inside the 00:00 to 02:00 slot, so comparing `time` values keeps the
+-- episode on air for about an hour after its audio ran out. Liquidsoap re-serves
+-- the same file, which gives dead air or a stall.
+fallBackStopsWhenAudioEnds :: TestDBConfig -> IO ()
+fallBackStopsWhenAudioEnds cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = pacificToUtc (LocalTime fallBackDay (TimeOfDay 0 0 0))
+      queryTime = utcAt fallBackDay (TimeOfDay 9 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestData passHash (TimeOfDay 0 0 0) (TimeOfDay 2 0 0) Nothing scheduledAt (Just "audio/fallback.mp3") fallBackDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure mEpisode
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | Fall back with no recorded duration. The episode fills the whole slot.
+--
+-- The slot covers 3 elapsed hours on this date, so the same 09:30 UTC that ends the
+-- episode above is still inside the slot here. This pins the slot boundary as
+-- a pair of `time` values, and not as a fixed 2 hours.
+fallBackNullDurationFillsSlot :: TestDBConfig -> IO ()
+fallBackNullDurationFillsSlot cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = pacificToUtc (LocalTime fallBackDay (TimeOfDay 0 0 0))
+      insideSlot = utcAt fallBackDay (TimeOfDay 9 30 0)
+      atSlotEnd = utcAt fallBackDay (TimeOfDay 10 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestDataWithDuration passHash (TimeOfDay 0 0 0) (TimeOfDay 2 0 0) Nothing scheduledAt (Just "audio/fallback.mp3") fallBackDay Nothing Nothing
+    stillOn <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode insideSlot
+    ended <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode atSlotEnd
+    TRX.condemn
+    pure (stillOn, ended)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (stillOn, ended) -> liftIO $ do
+      isJust stillOn `shouldBe` True
+      ended `shouldBe` Nothing
+
+-- | Fall back. A 01:00 slot opens the first time the clock reads 01:00.
+--
+-- 01:00 to 01:59 happens twice on this date, so the local time 01:00 names two
+-- instants, 08:00 UTC and 09:00 UTC. The query takes the first. Without that
+-- correction the slot would open at 09:00 UTC and the hour before it would be
+-- dead air, with nothing to explain the gap.
+--
+-- The slot is 01:00 to 02:00 and the episode carries 1 hour of audio.
+fallBackOpensAtFirstReading :: TestDBConfig -> IO ()
+fallBackOpensAtFirstReading cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = pacificToUtc (LocalTime fallBackDay (TimeOfDay 1 0 0))
+      firstReading = utcAt fallBackDay (TimeOfDay 8 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (episodeId, _showId) <- setupTestDataWithDuration passHash (TimeOfDay 1 0 0) (TimeOfDay 2 0 0) Nothing scheduledAt (Just "audio/fallback.mp3") fallBackDay Nothing (Just 3600)
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode firstReading
+    TRX.condemn
+    pure (episodeId, mEpisode)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
+
+-- | Fall back. The repeated hour is silent at the end of the slot, not the start.
+--
+-- The same 01:00 to 02:00 slot really covers 2 elapsed hours, and the episode
+-- holds 1 hour of audio, so one hour has to be silent. It is the second one.
+-- 09:30 UTC is the second 01:30, and by then the audio has ended.
+fallBackSilenceAtSlotEnd :: TestDBConfig -> IO ()
+fallBackSilenceAtSlotEnd cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = pacificToUtc (LocalTime fallBackDay (TimeOfDay 1 0 0))
+      secondReading = utcAt fallBackDay (TimeOfDay 9 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestDataWithDuration passHash (TimeOfDay 1 0 0) (TimeOfDay 2 0 0) Nothing scheduledAt (Just "audio/fallback.mp3") fallBackDay Nothing (Just 3600)
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode secondReading
+    TRX.condemn
+    pure mEpisode
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | Fall back. A slot ends the first time the clock reads its end time.
+--
+-- Both ends of a window take the earlier of the two instants an ambiguous local
+-- time names. The end has to follow the same rule as the start, or a slot would
+-- close an hour after the next one opens and the two would air at once.
+--
+-- The slot runs 23:00 on 2025-11-01 to 01:30 on 2025-11-02, and 01:30 happens
+-- twice. The episode carries no duration, so only the slot end can stop it.
+-- 08:15 UTC is inside. 09:00 UTC is past the first 01:30 and before the second,
+-- so it separates the two readings.
+fallBackClosesAtFirstReading :: TestDBConfig -> IO ()
+fallBackClosesAtFirstReading cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let airDate = addDays (-1) fallBackDay
+      scheduledAt = pacificToUtc (LocalTime airDate (TimeOfDay 23 0 0))
+      insideSlot = utcAt fallBackDay (TimeOfDay 8 15 0)
+      pastFirstReading = utcAt fallBackDay (TimeOfDay 9 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestDataWithDuration passHash (TimeOfDay 23 0 0) (TimeOfDay 1 30 0) Nothing scheduledAt (Just "audio/fallback.mp3") airDate Nothing Nothing
+    stillOn <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode insideSlot
+    ended <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode pastFirstReading
+    TRX.condemn
+    pure (stillOn, ended)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (stillOn, ended) -> liftIO $ do
+      isJust stillOn `shouldBe` True
+      ended `shouldBe` Nothing
+
+-- | Spring forward, 30 elapsed minutes into a slot that covers only 1 elapsed hour.
+--
+-- 10:30 UTC is 03:30 PDT. The slot opens at 02:00, which does not exist on this
+-- date and normalizes forward to 03:00 PDT.
+springForwardWithinSlot :: TestDBConfig -> IO ()
+springForwardWithinSlot cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = pacificToUtc (LocalTime springForwardDay (TimeOfDay 2 0 0))
+      queryTime = utcAt springForwardDay (TimeOfDay 10 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (episodeId, _showId) <- setupTestData passHash (TimeOfDay 2 0 0) (TimeOfDay 4 0 0) Nothing scheduledAt (Just "audio/spring.mp3") springForwardDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (episodeId, mEpisode)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
+
+-- | Spring forward. The slot ends while an hour of audio is still unplayed.
+--
+-- 11:00 UTC is 04:00 PDT, the slot's end. The episode carries a 2-hour duration
+-- but only 1 elapsed hour of the slot exists on this date. The window boundary
+-- wins, because the next show starts at 04:00.
+springForwardCutAtSlotEnd :: TestDBConfig -> IO ()
+springForwardCutAtSlotEnd cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = pacificToUtc (LocalTime springForwardDay (TimeOfDay 2 0 0))
+      queryTime = utcAt springForwardDay (TimeOfDay 11 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestData passHash (TimeOfDay 2 0 0) (TimeOfDay 4 0 0) Nothing scheduledAt (Just "audio/spring.mp3") springForwardDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure mEpisode
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | Spring forward. A slot that opens inside the gap never airs.
+--
+-- No instant reads as a Pacific time from 02:00 to 02:59 on this date, and
+-- PostgreSQL normalizes such a time forward by an hour. The two slots here cover
+-- both shapes that produces:
+--
+-- * 02:00 to 03:00 collapses to an empty window, where start equals end
+-- * 02:30 to 03:00 inverts, where the start lands after the end
+--
+-- Neither can air, because a row airs only at or after its start and before its
+-- stop, and the stop is at most the end. Probed across 03:00 to 03:45 PDT, which
+-- is where both windows sit.
+springForwardGapSlotNeverAirs :: TestDBConfig -> IO ()
+springForwardGapSlotNeverAirs cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let emptyAt = pacificToUtc (LocalTime springForwardDay (TimeOfDay 2 0 0))
+      invertedAt = pacificToUtc (LocalTime springForwardDay (TimeOfDay 2 30 0))
+      probes = map (utcAt springForwardDay) [TimeOfDay 10 0 0, TimeOfDay 10 15 0, TimeOfDay 10 30 0, TimeOfDay 10 45 0]
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (_, showId, userId) <-
+      setupTestDataFull passHash (TimeOfDay 2 0 0) (TimeOfDay 3 0 0) Nothing emptyAt (Just "audio/empty.mp3") springForwardDay Nothing Nothing
+    _ <- addTimeslot showId userId (TimeOfDay 2 30 0) (TimeOfDay 3 0 0) Nothing invertedAt (Just "audio/inverted.mp3") springForwardDay Nothing
+    airing <- traverse (TRX.statement () . Episodes.getCurrentlyAiringEpisodes) probes
+    TRX.condemn
+    pure airing
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right airing -> liftIO $ airing `shouldBe` map (const []) probes
+
+--------------------------------------------------------------------------------
+-- Two shows claiming the same time
+
+-- | Two overlapping slots both hold 3:30 PM. The order must not vary.
+--
+-- An overlap is a data defect, and the conflict checks exist to stop it. When
+-- one reaches the database anyway, the stream has to stay on one show rather
+-- than swap between them on each poll. The later air time wins.
+overlapIsDeterministic :: TestDBConfig -> IO ()
+overlapIsDeterministic cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let earlyStart = TimeOfDay 14 0 0
+      lateStart = TimeOfDay 15 0 0
+      queryTime = mkTestTime (TimeOfDay 15 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (early, showId, userId) <- setupTestDataFull passHash earlyStart (TimeOfDay 16 0 0) Nothing (mkTestTime earlyStart) (Just "audio/early.mp3") testDay Nothing Nothing
+    late <- addTimeslot showId userId lateStart (TimeOfDay 17 0 0) Nothing (mkTestTime lateStart) (Just "audio/late.mp3") testDay Nothing
+    both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime
+    picked <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (early, late, both, picked)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (early, late, both, picked) -> liftIO $ do
+      map (.id) both `shouldBe` [late, early]
+      fmap (.id) picked `shouldBe` Just late
+
+--------------------------------------------------------------------------------
+-- Fixtures for the coverage tests below
+
+-- | Clear @published_at@. 'Episodes.insertEpisode' always sets it to now.
+unpublishEpisode :: Episodes.Id -> Hasql.Statement () ()
+unpublishEpisode episodeId =
+  interp False [sql| UPDATE episodes SET published_at = NULL WHERE id = #{episodeId} |]
+
+-- | Detach an episode from its slot.
+--
+-- @episodes_schedule_consistency@ requires @schedule_template_id@ and
+-- @scheduled_at@ to be NULL together, so this clears both.
+detachEpisode :: Episodes.Id -> Hasql.Statement () ()
+detachEpisode episodeId =
+  interp
+    False
+    [sql| UPDATE episodes SET schedule_template_id = NULL, scheduled_at = NULL WHERE id = #{episodeId} |]
+
+-- | Move a show's templates to another timezone.
+setShowTimezone :: Shows.Id -> Text -> Hasql.Statement () ()
+setShowTimezone showId zone =
+  interp False [sql| UPDATE schedule_templates SET timezone = #{zone} WHERE show_id = #{showId} |]
+
+-- | A second show, with its own host, template, validity and episode.
+--
+-- 'setupTestDataFull' hardcodes one email and one slug, so a cross-show test
+-- needs a fixture of its own.
+addSecondShow ::
+  PasswordHash Argon2 ->
+  -- | Start time
+  TimeOfDay ->
+  -- | End time
+  TimeOfDay ->
+  -- | Episode scheduled_at (UTC)
+  UTCTime ->
+  -- | Validity effective_from
+  Day ->
+  TRX.Transaction Episodes.Id
+addSecondShow passHash startTime endTime scheduledAt effectiveFrom = do
+  (OneRow userId) <-
+    TRX.statement () $
+      User.insertUser $
+        User.ModelInsert (mkEmailAddress "second@example.com") passHash
+  _ <-
+    TRX.statement () $
+      UserMetadata.insertUserMetadata $
+        UserMetadata.Insert
+          userId
+          (mkDisplayNameUnsafe "Second Host")
+          (mkFullNameUnsafe "Second Host")
+          Nothing
+          UserMetadata.Staff
+          UserMetadata.Automatic
+          UserMetadata.DefaultTheme
+  showId <-
+    unwrapInsert $
+      Shows.insertShow
+        Shows.Insert
+          { siTitle = "Second Show",
+            siSlug = mkSlug "second-show",
+            siDescription = Nothing,
+            siLogoUrl = Nothing,
+            siStatus = Shows.Active
+          }
+  templateId <-
+    TRX.statement () $
+      ShowSchedule.insertScheduleTemplate
+        ShowSchedule.ScheduleTemplateInsert
+          { stiShowId = showId,
+            stiDayOfWeek = Nothing,
+            stiWeeksOfMonth = Nothing,
+            stiStartTime = startTime,
+            stiEndTime = endTime,
+            stiTimezone = "America/Los_Angeles",
+            stiReplayStartTime = Nothing
+          }
+  _ <-
+    unwrapInsert $
+      ShowSchedule.insertValidity
+        ShowSchedule.ValidityInsert
+          { viTemplateId = templateId,
+            viEffectiveFrom = effectiveFrom,
+            viEffectiveUntil = Nothing
+          }
+  unwrapInsert $
+    Episodes.insertEpisode
+      Episodes.Insert
+        { eiId = showId,
+          eiDescription = Just "Second Show Episode",
+          eiAudioFilePath = Just "audio/second.mp3",
+          eiAudioFileSize = Just 1000000,
+          eiAudioMimeType = Just "audio/mpeg",
+          eiDurationSeconds = Just (truncate (timeOfDayToTime endTime - timeOfDayToTime startTime)),
+          eiArtworkUrl = Nothing,
+          eiScheduleTemplateId = Just templateId,
+          eiScheduledAt = Just scheduledAt,
+          eiCreatedBy = userId
+        }
+
+--------------------------------------------------------------------------------
+-- A replay window that crosses midnight
+--
+-- The query builds one window per (episode, primary or replay) pair and wraps
+-- any window whose end is at or before its start. A replay wraps through the
+-- same rule the primary does, and these three cases are the only coverage of
+-- that branch for a replay.
+--
+-- Primary 22:00 to 23:00, so the slot is 1 hour and the replay at 23:30 runs to
+-- 00:30 on the following date.
+
+-- | The replay is on air before midnight.
+replayCrossesMidnightBefore :: TestDBConfig -> IO ()
+replayCrossesMidnightBefore cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = mkTestTime (TimeOfDay 22 0 0)
+      queryTime = mkTestTime (TimeOfDay 23 45 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (episodeId, _) <- setupTestData passHash (TimeOfDay 22 0 0) (TimeOfDay 23 0 0) (Just (TimeOfDay 23 30 0)) scheduledAt (Just "audio/test.mp3") testDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (episodeId, mEpisode)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
+
+-- | The replay is still on air after midnight, on the following date.
+--
+-- The episode's air date is the previous date. Only the date prune and the
+-- window wrap keep it reachable.
+replayCrossesMidnightAfter :: TestDBConfig -> IO ()
+replayCrossesMidnightAfter cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = mkTestTime (TimeOfDay 22 0 0)
+      queryTime = mkTestTimeNextDay (TimeOfDay 0 15 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (episodeId, _) <- setupTestData passHash (TimeOfDay 22 0 0) (TimeOfDay 23 0 0) (Just (TimeOfDay 23 30 0)) scheduledAt (Just "audio/test.mp3") testDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (episodeId, mEpisode)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
+
+-- | The replay stops at its own end on the following date.
+replayCrossesMidnightEnds :: TestDBConfig -> IO ()
+replayCrossesMidnightEnds cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = mkTestTime (TimeOfDay 22 0 0)
+      queryTime = mkTestTimeNextDay (TimeOfDay 0 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestData passHash (TimeOfDay 22 0 0) (TimeOfDay 23 0 0) (Just (TimeOfDay 23 30 0)) scheduledAt (Just "audio/test.mp3") testDay Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure mEpisode
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+--------------------------------------------------------------------------------
+-- Ordering and the row limit
+
+-- | A primary airing sorts ahead of a replay that covers the same time.
+--
+-- @is_replay@ is the first ORDER BY key, and this is the only test that isolates
+-- it. The replayed episode must carry the *later* @scheduled_at@, or the second
+-- key alone would produce the same order and the test would prove nothing.
+--
+-- The live slot is 18:00 to 23:00 with its episode at 18:00. The replayed slot is
+-- 20:00 to 21:00 with its episode at 20:00 and a replay from 22:00 to 23:00. At
+-- 22:30 both windows are open, and the replayed episode has the later air time.
+primaryBeatsReplay :: TestDBConfig -> IO ()
+primaryBeatsReplay cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let queryTime = mkTestTime (TimeOfDay 22 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (live, showId, userId) <-
+      setupTestDataFull passHash (TimeOfDay 18 0 0) (TimeOfDay 23 0 0) Nothing (mkTestTime (TimeOfDay 18 0 0)) (Just "audio/live.mp3") testDay Nothing Nothing
+    replayed <- addTimeslot showId userId (TimeOfDay 20 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 22 0 0)) (mkTestTime (TimeOfDay 20 0 0)) (Just "audio/replayed.mp3") testDay Nothing
+    both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime
+    picked <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (replayed, live, both, picked)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (replayed, live, both, picked) -> liftIO $ do
+      -- Without the is_replay key, scheduled_at DESC would put replayed first.
+      map (.id) both `shouldBe` [live, replayed]
+      fmap (.id) picked `shouldBe` Just live
+
+-- | Two different shows claiming one time both come back, in a stable order.
+--
+-- This is the shape the cross-show conflict checks exist to prevent. When one
+-- reaches the database anyway, the later air time wins and the caller sees both.
+twoShowsOverlap :: TestDBConfig -> IO ()
+twoShowsOverlap cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let queryTime = mkTestTime (TimeOfDay 15 30 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (first, _showId) <-
+      setupTestData passHash (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) Nothing (mkTestTime (TimeOfDay 14 0 0)) (Just "audio/first.mp3") testDay Nothing
+    second <- addSecondShow passHash (TimeOfDay 15 0 0) (TimeOfDay 17 0 0) (mkTestTime (TimeOfDay 15 0 0)) testDay
+    both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime
+    picked <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (first, second, both, picked)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (first, second, both, picked) -> liftIO $ do
+      map (.id) both `shouldBe` [second, first]
+      fmap (.id) picked `shouldBe` Just second
+
+--------------------------------------------------------------------------------
+-- Documented behaviour that must not drift
+
+-- | A duration of 0 makes the window empty, so the episode never airs.
+--
+-- @window_stop@ is @LEAST(window_end, window_start + 0)@, which is
+-- @window_start@, and the test is @currentTime < window_stop@. Nothing validates
+-- @duration_seconds@ on the way in.
+zeroDurationNeverAirs :: TestDBConfig -> IO ()
+zeroDurationNeverAirs cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = mkTestTime (TimeOfDay 14 0 0)
+      queryTime = mkTestTime (TimeOfDay 15 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestDataWithDuration passHash (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing (Just 0)
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure mEpisode
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | An episode with no @published_at@ still airs.
+--
+-- The query has no @published_at@ filter. Whether it should is a separate
+-- question. This test states what it does, so a change is deliberate.
+unpublishedEpisodeStillAirs :: TestDBConfig -> IO ()
+unpublishedEpisodeStillAirs cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = mkTestTime (TimeOfDay 14 0 0)
+      queryTime = mkTestTime (TimeOfDay 15 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (episodeId, _) <- setupTestData passHash (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing
+    TRX.statement () $ unpublishEpisode episodeId
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure (episodeId, mEpisode)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
+
+-- | A detached episode never airs.
+--
+-- The join to @schedule_templates@ drops a NULL @schedule_template_id@, and the
+-- air date of a NULL @scheduled_at@ is NULL, which fails the date test. This is
+-- the UNSCHEDULED state a removed slot leaves behind.
+detachedEpisodeNeverAirs :: TestDBConfig -> IO ()
+detachedEpisodeNeverAirs cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = mkTestTime (TimeOfDay 14 0 0)
+      queryTime = mkTestTime (TimeOfDay 15 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (episodeId, _) <- setupTestData passHash (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing
+    TRX.statement () $ detachEpisode episodeId
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure mEpisode
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+-- | Equal start and end times describe a 24-hour window.
+--
+-- @end_time <= start_time@ takes the wrapping branch, and the slot length is
+-- @24 hours - 0@. The window therefore closes at the same clock time on the
+-- following date.
+equalTimesGiveFullDay :: TestDBConfig -> IO ()
+equalTimesGiveFullDay cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = mkTestTime (TimeOfDay 14 0 0)
+      lateNextDay = mkTestTimeNextDay (TimeOfDay 13 59 0)
+      atWrap = mkTestTimeNextDay (TimeOfDay 14 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestData passHash (TimeOfDay 14 0 0) (TimeOfDay 14 0 0) Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing
+    stillOn <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode lateNextDay
+    ended <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode atWrap
+    TRX.condemn
+    pure (stillOn, ended)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (stillOn, ended) -> liftIO $ do
+      isJust stillOn `shouldBe` True
+      ended `shouldBe` Nothing
+
+-- | The query ignores @schedule_templates.timezone@ and always uses Pacific.
+--
+-- The template below says New York, and the episode still airs on its Pacific
+-- hours. @getUpcomingShowDates@ reads @timezone@, so the two disagree. Every
+-- template is Pacific today, which is why nothing has noticed.
+templateTimezoneIsIgnored :: TestDBConfig -> IO ()
+templateTimezoneIsIgnored cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let scheduledAt = mkTestTime (TimeOfDay 14 0 0)
+      pacificMidShow = mkTestTime (TimeOfDay 15 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (episodeId, showId) <- setupTestData passHash (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing
+    TRX.statement () $ setShowTimezone showId "America/New_York"
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode pacificMidShow
+    TRX.condemn
+    pure (episodeId, mEpisode)
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
+
+-- | An episode from two dates ago never airs.
+--
+-- The date prune keeps only today and yesterday. A window opens on the air date
+-- and closes at most one date later, so the prune can never change the answer.
+-- It bounds the scan. This test guards the outcome, not the prune.
+oldEpisodeNeverAirs :: TestDBConfig -> IO ()
+oldEpisodeNeverAirs cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  let twoDaysAgo = addDays (-2) testDay
+      scheduledAt = pacificToUtc (LocalTime twoDaysAgo (TimeOfDay 14 0 0))
+      queryTime = mkTestTime (TimeOfDay 15 0 0)
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestData passHash (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) Nothing scheduledAt (Just "audio/test.mp3") (addDays (-30) testDay) Nothing
+    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
+    TRX.condemn
+    pure mEpisode
   case result of
     Left err -> error $ "DB error: " <> show err
     Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing

@@ -13,6 +13,8 @@ import App.Storage (StorageBackend (..), buildMediaUrl)
 import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
+import Data.Aeson ((.=))
+import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has qualified as Has
 import Data.Text (Text)
@@ -39,12 +41,14 @@ handler = do
     Left _err -> pure Nothing -- Graceful degradation on DB error
     Right [] -> pure Nothing
     Right (episode : rest) -> do
-      -- Two shows claim this time. The order is stable, so the stream stays on
-      -- one of them, but the overlap is a data defect and it silences the other.
+      -- More than one row claims this time. The order is stable, so the stream
+      -- stays on one of them, but the extra rows are a data defect. Either two
+      -- slots overlap, and the stream silences one of them, or one airing is
+      -- counted twice. See 'Episodes.getCurrentlyAiringEpisodes'.
       unless (null rest) $
         Log.logAttention
           "More than one episode is airing now"
-          (show (map (.id) (episode : rest)))
+          (Aeson.object ["episode.ids" .= map (.id) (episode : rest)])
       pure (Just episode)
 
   case mEpisode of
