@@ -7,6 +7,7 @@ import Domain.Types.CentsSpec qualified as Cents
 import Domain.Types.FileUploadSpec qualified as FileUpload
 import Domain.Types.SlugSpec qualified as Slug
 import Domain.Types.StorageBackendSpec qualified as StorageBackend
+import Effects.Database.RecurrenceSpec qualified as Recurrence
 import Effects.Database.Tables.BlogPostsSpec qualified as BlogPosts
 import Effects.Database.Tables.BlogTagsSpec qualified as BlogTags
 import Effects.Database.Tables.CurrentlyAiringSpec qualified as CurrentlyAiring
@@ -84,6 +85,9 @@ main = do
 
   -- Database-dependent tests
   withTmpPG $ hspecWith cfg $ parallel $ do
+    -- SQL functions
+    Recurrence.spec
+
     -- DB Models - Core Tables
     UserMetadata.spec
     Shows.spec
