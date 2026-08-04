@@ -253,12 +253,6 @@ data ShowCreation = ShowCreation
 -- @startDate@ arrives as an argument rather than from the clock, because
 -- 'Hasql.Transaction.Sessions.transaction' retries the body on a serialization
 -- conflict and the body must give the same answer each time.
---
--- Only a serialization failure and a deadlock are retried. So two staff creating
--- shows that carry the same brand-new tag at the same moment can collide on
--- @show_tags.name@, which aborts this transaction and reports an error. The retry
--- then finds the tag and succeeds. That is preferred to the old behaviour, which
--- created the show with the tag silently missing.
 createShowTx ::
   Shows.Insert ->
   [User.Id] ->
@@ -276,7 +270,7 @@ createShowTx showData hostIds mTags slots startDate = do
         throwE "Failed to create show."
 
   promoted <- lift $ assignHostsToShow showId hostIds
-  processShowTags showId mTags
+  lift $ processShowTags showId mTags
   templates <- createSchedulesForShow showId slots startDate
 
   pure
@@ -329,22 +323,13 @@ promoteUserToHostIfNeeded userId =
 processShowTags ::
   Shows.Id ->
   Maybe Text ->
-  ExceptT Text HT.Transaction ()
+  HT.Transaction ()
 processShowTags _ Nothing = pure ()
 processShowTags showId (Just tagsText) = do
   let tagNames = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," tagsText
   forM_ tagNames $ \tagName -> do
-    -- Get or create the tag
-    tagId <-
-      lift (HT.statement () (ShowTags.getShowTagByName tagName)) >>= \case
-        Just existingTag -> pure (ShowTags.stId existingTag)
-        Nothing ->
-          lift (HT.statement () (ShowTags.insertShowTag (ShowTags.Insert tagName))) >>= \case
-            Just newTagId -> pure newTagId
-            Nothing -> do
-              lift HT.condemn
-              throwE "Could not save the show's tags. Please try again."
-    lift $ HT.statement () (Shows.addTagToShow showId tagId)
+    tagId <- HT.statement () (ShowTags.upsertShowTag tagName)
+    HT.statement () (Shows.addTagToShow showId tagId)
 
 --------------------------------------------------------------------------------
 -- Schedule Creation Helpers

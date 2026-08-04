@@ -14,6 +14,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (DayOfWeek (..), TimeOfDay (..), addDays, addUTCTime, getCurrentTime, nominalDay, utctDay)
 import Domain.Types.Slug (Slug (..))
+import Domain.Types.Timezone (LocalTime (..), utcToPacific)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -42,6 +43,8 @@ spec =
         it "leaves a pending schedule intact when only the title changes" test_titleEditPreservesPendingSchedule
         it "closes the schedule windows when the show is set inactive" test_deactivateClosesScheduleWindow
         it "rolls the whole schedule change back when an insert fails" test_failedScheduleInsertRollsBack
+        it "closes the old slot and creates the new one when a slot changes" test_slotChangeClosesOldAndCreatesNew
+        it "cancels a pending schedule when the submitted schedule differs" test_scheduleChangeCancelsPendingSchedule
 
 --------------------------------------------------------------------------------
 
@@ -603,3 +606,234 @@ test_failedScheduleInsertRollsBack cfg = do
           -- what the air time used to be.
           episode.scheduleTemplateId `shouldBe` Just templateId
           episode.scheduledAt `shouldBe` storedAirsAt
+
+-- | Changing a slot closes the old template and creates the replacement.
+--
+-- This is the path the whole schedule diff exists for, and the only edit test that
+-- reaches it. Every other case in this module re-posts the show's current slots, so
+-- 'schedulesMatch' short-circuits and the transaction runs no statements at all.
+--
+-- It covers the removal loop in @updateScheduleTemplates@ (end the validity, detach
+-- the upcoming episodes) and the success path of @insertScheduleSlot@ (write the
+-- template and its open-ended validity).
+test_slotChangeClosesOldAndCreatesNew :: TestDBConfig -> IO ()
+test_slotChangeClosesOldAndCreatesNew cfg = do
+  userInsert <- mkUserInsert "edit-slot-change" UserMetadata.Staff
+  now <- getCurrentTime
+  -- The handler dates the change with the Pacific day, which is not the UTC day for
+  -- part of each day.
+  let pacificToday = localDay (utcToPacific now)
+      episodeAirsAt = addUTCTime (7 * nominalDay) now
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Slot Change Show",
+            Shows.siSlug = Slug "edit-slot-change-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      thursdayTwoHours =
+        defaultScheduleInsert
+          { ShowSchedule.stiDayOfWeek = Just Thursday,
+            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+            ShowSchedule.stiStartTime = TimeOfDay 14 0 0,
+            ShowSchedule.stiEndTime = TimeOfDay 16 0 0
+          }
+      -- Same day, same start, half the duration. The slot signature changes, so the
+      -- diff reads it as one slot removed and one added.
+      form =
+        (editForm "Slot Change Show" "active")
+          { sefSchedulesJson =
+              Just "[{\"dayOfWeek\":\"thursday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTime\":\"14:00\",\"duration\":60,\"replayTime\":null}]"
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      (showId, oldTemplateId) <- insertTestShowWithSchedule showInsert thursdayTwoHours
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert oldTemplateId (addDays (-30) pacificToday) Nothing)
+
+      episodeId <-
+        insertTestEpisode
+          Episodes.Insert
+            { Episodes.eiId = showId,
+              Episodes.eiDescription = Nothing,
+              Episodes.eiAudioFilePath = Nothing,
+              Episodes.eiAudioFileSize = Nothing,
+              Episodes.eiAudioMimeType = Nothing,
+              Episodes.eiDurationSeconds = Nothing,
+              Episodes.eiArtworkUrl = Nothing,
+              Episodes.eiScheduleTemplateId = Just oldTemplateId,
+              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiCreatedBy = userId
+            }
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, showId, oldTemplateId, episodeId)
+
+    (userMetaModel, showModel, showId, oldTemplateId, episodeId) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected the edit to succeed but got Left: " <> show err
+      Right (_, _, unscheduled) ->
+        -- The detached episode is reported so the flash can name it.
+        map (.uerId) unscheduled `shouldBe` [episodeId]
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          oldValidities <- TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate oldTemplateId)
+          templates <- TRX.statement () (ShowSchedule.getScheduleTemplatesForShow showId)
+          newValidities <-
+            traverse
+              (\t -> TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate t.stId))
+              (filter (\t -> t.stId /= oldTemplateId) templates)
+          episode <- TRX.statement () (Episodes.getEpisodeById episodeId)
+          pure (oldValidities, filter (\t -> t.stId /= oldTemplateId) templates, concat newValidities, episode)
+
+    liftIO $ do
+      (oldValidities, newTemplates, newValidities, mEpisode) <- expectSetupRight afterResult
+
+      -- The old slot stops on the change date rather than being deleted, so past
+      -- airings keep their template.
+      map (.stvEffectiveUntil) oldValidities `shouldBe` [Just pacificToday]
+
+      -- Exactly one replacement, carrying the submitted end time.
+      map (.stEndTime) newTemplates `shouldBe` [TimeOfDay 15 0 0]
+      map (.stStartTime) newTemplates `shouldBe` [TimeOfDay 14 0 0]
+
+      -- Open-ended from the change date. A template with no validity never airs.
+      map (.stvEffectiveFrom) newValidities `shouldBe` [pacificToday]
+      map (.stvEffectiveUntil) newValidities `shouldBe` [Nothing]
+
+      case mEpisode of
+        Nothing -> expectationFailure "Expected the episode to still exist"
+        Just episode -> do
+          -- Detached, not deleted. It keeps its audio and shows as UNSCHEDULED.
+          episode.scheduleTemplateId `shouldBe` Nothing
+          episode.scheduledAt `shouldBe` Nothing
+
+-- | A genuinely different schedule cancels the pending one before applying the diff.
+--
+-- 'test_titleEditPreservesPendingSchedule' covers the case where the form re-posts the
+-- pending slots and nothing should happen. This is the other half: once the submitted
+-- schedule differs, @cancelPendingSchedule@ has to collapse the pending validity to
+-- the empty window @[from, from)@ and detach anything booked against it.
+--
+-- An episode left pointing at a cancelled pending is invisible to the airing query and
+-- would broadcast as silence, so the detach is the part that matters.
+test_scheduleChangeCancelsPendingSchedule :: TestDBConfig -> IO ()
+test_scheduleChangeCancelsPendingSchedule cfg = do
+  userInsert <- mkUserInsert "edit-cancel-pending" UserMetadata.Staff
+  now <- getCurrentTime
+  let pacificToday = localDay (utcToPacific now)
+      changeoverDate = addDays 30 pacificToday
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Pending Cancel Show",
+            Shows.siSlug = Slug "edit-cancel-pending-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      mondayMorning =
+        defaultScheduleInsert
+          { ShowSchedule.stiDayOfWeek = Just Monday,
+            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+            ShowSchedule.stiStartTime = TimeOfDay 9 0 0,
+            ShowSchedule.stiEndTime = TimeOfDay 10 0 0
+          }
+      tuesdayAfternoon =
+        mondayMorning
+          { ShowSchedule.stiDayOfWeek = Just Tuesday,
+            ShowSchedule.stiStartTime = TimeOfDay 15 0 0,
+            ShowSchedule.stiEndTime = TimeOfDay 16 0 0
+          }
+      -- Neither the active slot nor the pending one. This is a real change.
+      form =
+        (editForm "Pending Cancel Show" "active")
+          { sefSchedulesJson =
+              Just "[{\"dayOfWeek\":\"friday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTime\":\"18:00\",\"duration\":60,\"replayTime\":null}]"
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      (showId, activeTemplateId) <- insertTestShowWithSchedule showInsert mondayMorning
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity
+            (ShowSchedule.ValidityInsert activeTemplateId (addDays (-30) pacificToday) (Just changeoverDate))
+
+      pendingTemplateId <-
+        TRX.statement () $
+          ShowSchedule.insertScheduleTemplate tuesdayAfternoon {ShowSchedule.stiShowId = showId}
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert pendingTemplateId changeoverDate Nothing)
+
+      -- Booked against the pending slot, which is offered by the upload form.
+      pendingEpisodeId <-
+        insertTestEpisode
+          Episodes.Insert
+            { Episodes.eiId = showId,
+              Episodes.eiDescription = Nothing,
+              Episodes.eiAudioFilePath = Nothing,
+              Episodes.eiAudioFileSize = Nothing,
+              Episodes.eiAudioMimeType = Nothing,
+              Episodes.eiDurationSeconds = Nothing,
+              Episodes.eiArtworkUrl = Nothing,
+              Episodes.eiScheduleTemplateId = Just pendingTemplateId,
+              Episodes.eiScheduledAt = Just (addUTCTime (35 * nominalDay) now),
+              Episodes.eiCreatedBy = userId
+            }
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, pendingTemplateId, pendingEpisodeId)
+
+    (userMetaModel, showModel, pendingTemplateId, pendingEpisodeId) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected the edit to succeed but got Left: " <> show err
+      Right _ -> pure ()
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          pendingValidities <- TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate pendingTemplateId)
+          episode <- TRX.statement () (Episodes.getEpisodeById pendingEpisodeId)
+          pure (pendingValidities, episode)
+
+    liftIO $ do
+      (pendingValidities, mEpisode) <- expectSetupRight afterResult
+
+      -- Cancelled means effective_until = effective_from, an empty window no date
+      -- satisfies. Still Nothing here means cancelPendingSchedule never ran.
+      map (.stvEffectiveUntil) pendingValidities `shouldBe` [Just changeoverDate]
+      map (.stvEffectiveFrom) pendingValidities `shouldBe` [changeoverDate]
+
+      case mEpisode of
+        Nothing -> expectationFailure "Expected the pending episode to still exist"
+        Just episode ->
+          -- Detached rather than left pointing at a window that never opens.
+          episode.scheduleTemplateId `shouldBe` Nothing

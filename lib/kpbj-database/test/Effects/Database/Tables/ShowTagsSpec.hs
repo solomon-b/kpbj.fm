@@ -36,6 +36,9 @@ spec =
           runs 10 . it "returns Nothing for missing tag" $ hedgehog . prop_getTagByNameMissing
         describe "insertShowTag" $ do
           runs 10 . it "rejects duplicate name" $ hedgehog . prop_insertDuplicateName
+        describe "upsertShowTag" $ do
+          runs 10 . it "returns the same id when called twice" $ hedgehog . prop_upsertIsIdempotent
+          runs 10 . it "returns the existing id for an already inserted tag" $ hedgehog . prop_upsertFindsExistingTag
 
       describe "Aggregation" $ do
         runs 10 . it "getShowTagsWithCounts: returns tags with active show counts" $
@@ -111,6 +114,51 @@ prop_insertDuplicateName cfg = do
 
       assert $ do
         result <== isLeft
+        pure ()
+
+-- | upsertShowTag is idempotent: the second call returns the first call's id.
+--
+-- This is the difference from 'insertShowTag', which aborts on the duplicate. The
+-- get-then-insert pattern it replaces has a race between the two statements, and the
+-- loser raises SQLSTATE 23505, which a transaction does not retry.
+prop_upsertIsIdempotent :: TestDBConfig -> PropertyT IO ()
+prop_upsertIsIdempotent cfg = do
+  arrange (bracketConn cfg) $ do
+    tagInsert <- forAllT showTagInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        first <- TRX.statement () (UUT.upsertShowTag (UUT.stiName tagInsert))
+        second <- TRX.statement () (UUT.upsertShowTag (UUT.stiName tagInsert))
+        selected <- TRX.statement () (UUT.getShowTagByName (UUT.stiName tagInsert))
+        TRX.condemn
+        pure (first, second, selected)
+
+      assert $ do
+        (first, second, selected) <- assertRight result
+        -- One row, not two, and both calls name it.
+        first === second
+        tag <- assertJust selected
+        UUT.stId tag === first
+        UUT.stName tag === UUT.stiName tagInsert
+        pure ()
+
+-- | upsertShowTag returns the existing id when the tag was already created.
+prop_upsertFindsExistingTag :: TestDBConfig -> PropertyT IO ()
+prop_upsertFindsExistingTag cfg = do
+  arrange (bracketConn cfg) $ do
+    tagInsert <- forAllT showTagInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        inserted <- unwrapInsert (UUT.insertShowTag tagInsert)
+        upserted <- TRX.statement () (UUT.upsertShowTag (UUT.stiName tagInsert))
+        TRX.condemn
+        pure (inserted, upserted)
+
+      assert $ do
+        (inserted, upserted) <- assertRight result
+        inserted === upserted
         pure ()
 
 --------------------------------------------------------------------------------
