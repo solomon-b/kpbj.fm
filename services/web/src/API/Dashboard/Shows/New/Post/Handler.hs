@@ -6,7 +6,7 @@ module API.Dashboard.Shows.New.Post.Handler (handler, action) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..))
-import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, parseScheduleSlot, validateNoOverlaps)
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, insertScheduleSlot, parseScheduleSlot, validateNoOverlaps)
 import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
@@ -14,14 +14,14 @@ import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
-import Control.Monad (forM_, void)
+import Control.Monad (forM, forM_, void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Except (ExceptT)
+import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (getter)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -33,7 +33,7 @@ import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (LocalTime (..), parseDateYMD, utcToPacific)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
-import Effects.Database.Execute (execQuery)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
@@ -42,6 +42,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Effects.HostNotifications qualified as HostNotifications
+import Hasql.Transaction qualified as HT
 import Log qualified
 import Servant qualified
 import Servant.Links qualified as Links
@@ -133,28 +134,29 @@ action form = do
     Right (Just _) -> throwValidationError "A show with this URL already exists. Try a different title."
     Right Nothing -> pure ()
 
-  -- 7. Insert show
-  let finalShowData = showData {Shows.siLogoUrl = mLogoPath}
-  insertResult <- execQuery (Shows.insertShow finalShowData)
-  showId <- case insertResult of
-    Left dbError -> do
-      Log.logInfo "Database error creating show" (Aeson.object ["error" .= Text.pack (show dbError)])
-      throwDatabaseError dbError
-    Right Nothing -> do
-      Log.logInfo_ "Show insert returned Nothing"
-      throwHandlerFailure "Failed to create show."
-    Right (Just sid) -> pure sid
-
-  -- 8. Post-creation side effects (fire and forget)
+  -- 7. Create the show, its hosts, its tags, and its schedule in one transaction.
+  --
+  -- The show row has to be inside. If it committed on its own and a later statement
+  -- failed, staff would be left with a show that has no schedule, and the retry would
+  -- be rejected by the slug uniqueness check in step 6.
   --
   -- The unclamped start date is used here so the stored effective_from is exactly
   -- what staff asked for.
-  lift $ do
-    assignHostsToShow showId (nsfHosts form)
-    processShowTags showId (nsfTags form)
-    createSchedulesForShow showId schedules mStartDate
+  let finalShowData = showData {Shows.siLogoUrl = mLogoPath}
+      startDate = fromMaybe today mStartDate
+  creation <-
+    lift (execTransaction (runExceptT (createShowTx finalShowData (nsfHosts form) (nsfTags form) schedules startDate))) >>= \case
+      Left dbError -> do
+        Log.logAttention "Show creation rolled back" (Aeson.object ["slug" .= showData.siSlug, "error" .= Text.pack (show dbError)])
+        throwDatabaseError dbError
+      Right (Left msg) -> do
+        Log.logAttention "Show creation condemned" (Aeson.object ["slug" .= showData.siSlug, "error" .= msg])
+        throwHandlerFailure msg
+      Right (Right c) -> pure c
 
-  -- 9. Fetch created show
+  let showId = creation.scShowId
+
+  -- 8. Fetch created show
   fetchResult <- execQuery (Shows.getShowById showId)
   createdShow <- case fetchResult of
     Right (Just s) -> pure s
@@ -162,11 +164,20 @@ action form = do
       Log.logInfo_ "Created show but failed to retrieve it"
       throwHandlerFailure "Show was created but there was an error loading it."
 
-  -- 10. Send host notification emails
+  -- 9. Send host notification emails
   let mTimeslot = buildTimeslotDescription schedules
   lift $ HostNotifications.sendHostAssignmentNotifications createdShow mTimeslot (nsfHosts form)
 
-  Log.logInfo "Successfully created show" (Aeson.object ["title" .= createdShow.title, "id" .= show showId])
+  -- The transaction cannot log, so everything it wrote is reported here.
+  Log.logInfo
+    "Successfully created show"
+    ( Aeson.object
+        [ "show.id" .= showId,
+          "title" .= createdShow.title,
+          "promoted_hosts" .= creation.scPromotedHosts,
+          "created_templates" .= creation.scCreatedTemplates
+        ]
+    )
   pure createdShow
 
 -- | Validate and convert form data to show insert data (without file paths yet)
@@ -225,80 +236,115 @@ processShowArtworkUploads showSlug mLogoFile = do
         Right (Just uploadResult) ->
           pure $ Right $ Just $ Text.pack $ uploadResultStoragePath uploadResult
 
--- | Assign hosts to a show and auto-promote regular users to Host role
+-- | What creating a show wrote.
+--
+-- A 'HT.Transaction' has no 'MonadIO', so the transaction cannot log. It reports
+-- what it did instead, and the caller writes one line after the commit.
+data ShowCreation = ShowCreation
+  { scShowId :: Shows.Id,
+    -- | Hosts this creation promoted from User to Host.
+    scPromotedHosts :: [User.Id],
+    -- | Templates created for the submitted slots.
+    scCreatedTemplates :: [ShowSchedule.TemplateId]
+  }
+
+-- | Create a show, its hosts, its tags, and its schedule, in one transaction.
+--
+-- @startDate@ arrives as an argument rather than from the clock, because
+-- 'Hasql.Transaction.Sessions.transaction' retries the body on a serialization
+-- conflict and the body must give the same answer each time.
+--
+-- Only a serialization failure and a deadlock are retried. So two staff creating
+-- shows that carry the same brand-new tag at the same moment can collide on
+-- @show_tags.name@, which aborts this transaction and reports an error. The retry
+-- then finds the tag and succeeds. That is preferred to the old behaviour, which
+-- created the show with the tag silently missing.
+createShowTx ::
+  Shows.Insert ->
+  [User.Id] ->
+  -- | Comma-separated tags from the form.
+  Maybe Text ->
+  [ParsedScheduleSlot] ->
+  Day ->
+  ExceptT Text HT.Transaction ShowCreation
+createShowTx showData hostIds mTags slots startDate = do
+  showId <-
+    lift (HT.statement () (Shows.insertShow showData)) >>= \case
+      Just sid -> pure sid
+      Nothing -> do
+        lift HT.condemn
+        throwE "Failed to create show."
+
+  promoted <- lift $ assignHostsToShow showId hostIds
+  processShowTags showId mTags
+  templates <- createSchedulesForShow showId slots startDate
+
+  pure
+    ShowCreation
+      { scShowId = showId,
+        scPromotedHosts = promoted,
+        scCreatedTemplates = templates
+      }
+
+-- | Assign hosts to a show and auto-promote regular users to Host role.
+--
+-- Returns the users it promoted.
 assignHostsToShow ::
   Shows.Id ->
   [User.Id] ->
-  AppM ()
-assignHostsToShow showId hostIds = do
-  forM_ hostIds $ \userId -> do
-    -- Check if user needs to be promoted to Host role
-    promoteUserToHostIfNeeded userId
+  HT.Transaction [User.Id]
+assignHostsToShow showId hostIds =
+  fmap catMaybes $
+    forM hostIds $ \userId -> do
+      promoted <- promoteUserToHostIfNeeded userId
 
-    let hostInsert =
-          ShowHost.Insert
-            { ShowHost.shiId = showId,
-              ShowHost.shiUserId = userId,
-              ShowHost.shiRole = ShowHost.Host
-            }
-    result <- execQuery (ShowHost.insertShowHost hostInsert)
-    case result of
-      Left dbError ->
-        Log.logInfo "Failed to assign host to show" (Aeson.object ["userId" .= show userId, "error" .= Text.pack (show dbError)])
-      Right () ->
-        Log.logInfo "Assigned host to show" (Aeson.object ["userId" .= show userId])
+      let hostInsert =
+            ShowHost.Insert
+              { ShowHost.shiId = showId,
+                ShowHost.shiUserId = userId,
+                ShowHost.shiRole = ShowHost.Host
+              }
+      HT.statement () (ShowHost.insertShowHost hostInsert)
+      pure $ if promoted then Just userId else Nothing
 
--- | Promote a regular User to Host role if they are not already Host/Staff/Admin
+-- | Promote a regular User to Host role if they are not already Host/Staff/Admin.
+--
+-- Returns whether it promoted them. A user with no metadata row is left alone.
 promoteUserToHostIfNeeded ::
   User.Id ->
-  AppM ()
-promoteUserToHostIfNeeded userId = do
-  execQuery (UserMetadata.getUserMetadata userId) >>= \case
-    Left dbError ->
-      Log.logInfo "Failed to fetch user metadata for promotion check" (Aeson.object ["userId" .= show userId, "error" .= Text.pack (show dbError)])
-    Right Nothing ->
-      Log.logInfo "User metadata not found for promotion check" (Aeson.object ["userId" .= show userId])
-    Right (Just metadata) ->
+  HT.Transaction Bool
+promoteUserToHostIfNeeded userId =
+  HT.statement () (UserMetadata.getUserMetadata userId) >>= \case
+    Nothing -> pure False
+    Just metadata ->
       case metadata.mUserRole of
         UserMetadata.User -> do
-          -- User is a regular user, promote them to Host
-          result <- execQuery (UserMetadata.updateUserRole userId UserMetadata.Host)
-          case result of
-            Left dbError ->
-              Log.logInfo "Failed to promote user to Host" (Aeson.object ["userId" .= show userId, "error" .= Text.pack (show dbError)])
-            Right Nothing ->
-              Log.logInfo "User role update returned no result" (Aeson.object ["userId" .= show userId])
-            Right (Just _) ->
-              Log.logInfo "Promoted user to Host role" (Aeson.object ["userId" .= show userId])
+          void $ HT.statement () (UserMetadata.updateUserRole userId UserMetadata.Host)
+          pure True
         _ ->
           -- User already has Host, Staff, or Admin role - no promotion needed
-          pure ()
+          pure False
 
--- | Process comma-separated tags and associate them with a show
+-- | Process comma-separated tags and associate them with a show.
 processShowTags ::
   Shows.Id ->
   Maybe Text ->
-  AppM ()
+  ExceptT Text HT.Transaction ()
 processShowTags _ Nothing = pure ()
 processShowTags showId (Just tagsText) = do
   let tagNames = filter (not . Text.null) $ map Text.strip $ Text.splitOn "," tagsText
   forM_ tagNames $ \tagName -> do
     -- Get or create the tag
-    execQuery (ShowTags.getShowTagByName tagName) >>= \case
-      Right (Just existingTag) -> do
-        -- Tag exists, associate it with the show
-        void $ execQuery (Shows.addTagToShow showId (ShowTags.stId existingTag))
-        Log.logInfo "Associated existing tag with show" (Aeson.object ["tag" .= tagName, "showId" .= show showId])
-      _ -> do
-        -- Tag doesn't exist, create it and associate
-        execQuery (ShowTags.insertShowTag (ShowTags.Insert tagName)) >>= \case
-          Right (Just newTagId) -> do
-            void $ execQuery (Shows.addTagToShow showId newTagId)
-            Log.logInfo "Created and associated new tag with show" (Aeson.object ["tag" .= tagName, "showId" .= show showId])
-          Right Nothing ->
-            Log.logInfo "Tag insert returned Nothing" (Aeson.object ["tag" .= tagName])
-          Left dbError ->
-            Log.logInfo "Failed to create tag" (Aeson.object ["tag" .= tagName, "error" .= Text.pack (show dbError)])
+    tagId <-
+      lift (HT.statement () (ShowTags.getShowTagByName tagName)) >>= \case
+        Just existingTag -> pure (ShowTags.stId existingTag)
+        Nothing ->
+          lift (HT.statement () (ShowTags.insertShowTag (ShowTags.Insert tagName))) >>= \case
+            Just newTagId -> pure newTagId
+            Nothing -> do
+              lift HT.condemn
+              throwE "Could not save the show's tags. Please try again."
+    lift $ HT.statement () (Shows.addTagToShow showId tagId)
 
 --------------------------------------------------------------------------------
 -- Schedule Creation Helpers
@@ -317,50 +363,16 @@ parseSchedules (Just schedulesJson)
 
 -- | Create schedules for a newly created show.
 --
--- When @mStartDate@ is provided it is used as the @effective_from@ date for
--- validity records. When absent the current Pacific date is used.
+-- @startDate@ becomes the @effective_from@ date of each new validity record. Each
+-- slot goes through 'insertScheduleSlot', the same helper the edit path uses, so
+-- both paths write a template and its validity period the same way.
 createSchedulesForShow ::
   Shows.Id ->
   [ParsedScheduleSlot] ->
-  Maybe Day ->
-  AppM ()
-createSchedulesForShow showId slots mStartDate = do
-  -- Use Pacific time for "today" to match the schedule display
-  nowUtc <- currentSystemTime
-  let today = localDay (utcToPacific nowUtc)
-      startDate = fromMaybe today mStartDate
-
-  forM_ slots $ \slot -> do
-    let templateInsert =
-          ShowSchedule.ScheduleTemplateInsert
-            { ShowSchedule.stiShowId = showId,
-              ShowSchedule.stiDayOfWeek = Just (pssDay slot),
-              ShowSchedule.stiWeeksOfMonth = Just (pssWeeks slot),
-              ShowSchedule.stiStartTime = pssStart slot,
-              ShowSchedule.stiEndTime = pssEnd slot,
-              ShowSchedule.stiTimezone = "America/Los_Angeles",
-              ShowSchedule.stiReplayStartTime = pssReplayStartTime slot
-            }
-
-    templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
-    case templateResult of
-      Left err ->
-        Log.logInfo "Failed to insert schedule template" (Aeson.object ["error" .= Text.pack (show err)])
-      Right templateId -> do
-        let validityInsert =
-              ShowSchedule.ValidityInsert
-                { ShowSchedule.viTemplateId = templateId,
-                  ShowSchedule.viEffectiveFrom = startDate,
-                  ShowSchedule.viEffectiveUntil = Nothing
-                }
-        validityResult <- execQuery (ShowSchedule.insertValidity validityInsert)
-        case validityResult of
-          Left err ->
-            Log.logInfo "Failed to insert validity" (Aeson.object ["error" .= Text.pack (show err)])
-          Right (Just _) ->
-            Log.logInfo "Created schedule for show" (Aeson.object ["showId" .= show showId, "day" .= show (pssDay slot)])
-          Right Nothing ->
-            Log.logInfo "insertValidity returned Nothing" (Aeson.object ["showId" .= show showId, "day" .= show (pssDay slot)])
+  Day ->
+  ExceptT Text HT.Transaction [ShowSchedule.TemplateId]
+createSchedulesForShow showId slots startDate =
+  traverse (insertScheduleSlot showId startDate) slots
 
 --------------------------------------------------------------------------------
 -- Helper Functions

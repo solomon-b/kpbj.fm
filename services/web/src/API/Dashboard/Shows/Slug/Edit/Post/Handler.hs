@@ -13,6 +13,7 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler
     checkScheduleConflicts,
     removedTemplates,
     scheduleUpdateFlash,
+    insertScheduleSlot,
   )
 where
 
@@ -26,10 +27,11 @@ import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
-import Control.Monad (forM_, unless, when)
+import Control.Monad (forM_, unless, void, when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Except (ExceptT)
+import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
+import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Function ((&))
 import Data.Has (getter)
@@ -51,7 +53,7 @@ import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, minutesFromMidnight, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization (sanitizeTitle)
-import Effects.Database.Execute (execQuery)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -61,6 +63,8 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
 import Effects.HostNotifications qualified as HostNotifications
+import Hasql.Pool (UsageError)
+import Hasql.Transaction qualified as HT
 import Log qualified
 import OrphanInstances.DayOfWeek (dayOfWeekFromText)
 import Rel8 (Result)
@@ -246,12 +250,23 @@ action userMetadata slug editForm = do
               Log.logInfo "Schedule conflict with other show" conflictErr
               throwValidationError conflictErr
             Right () -> pure ()
+        -- One transaction. A failure here leaves the show's schedule and its
+        -- episodes exactly as they were, and reaches the user as an error banner.
+        update <-
+          lift (updateSchedulesForShow showModel.id schedules mStartDate today) >>= \case
+            Left (ScheduleDbError dbErr) -> do
+              Log.logAttention "Schedule update rolled back" (Aeson.object ["show.id" .= showModel.id, "error" .= Text.pack (show dbErr)])
+              throwDatabaseError dbErr
+            Left (ScheduleInvariant msg) -> do
+              Log.logAttention "Schedule update condemned" (Aeson.object ["show.id" .= showModel.id, "error" .= msg])
+              throwHandlerFailure msg
+            Right update -> pure update
         lift $ do
-          unscheduled <- updateSchedulesForShow showModel.id schedules mStartDate
+          Log.logInfo "Schedule update committed" (scheduleUpdateLog showModel.id update)
           newlyAddedHosts <- updateHostsForShow showModel.id (sefHosts editForm)
           let mTimeslot = buildTimeslotDescription schedules
           HostNotifications.sendHostAssignmentNotifications showModel mTimeslot newlyAddedHosts
-          pure unscheduled
+          pure update.suUnscheduled
       else pure []
 
   -- 9. If the show is now inactive, close its schedule windows.
@@ -582,7 +597,77 @@ checkScheduleConflicts showId slots fromDate = go slots
                   pure (Left $ "Replay conflict: " <> Text.pack (show (pssDay slot)) <> " " <> formatTimeHHMM replayStart <> "-" <> formatTimeHHMM replayEnd <> " overlaps with \"" <> conflictingShow <> "\"")
                 Right Nothing -> go rest
 
--- | Update schedules for a show.
+-- | What one schedule update changed.
+--
+-- A 'HT.Transaction' has no 'MonadIO', so the transaction cannot log. It reports
+-- what it did instead, and the caller writes one line after the commit.
+data ScheduleUpdate = ScheduleUpdate
+  { -- | Upcoming episodes the change detached. Named in the flash message.
+    suUnscheduled :: [Episodes.UpcomingEpisodeRef],
+    -- | Pending templates whose validity was cancelled.
+    suCancelledPending :: [ShowSchedule.TemplateId],
+    -- | Active templates the diff removed, so their validity was end-dated and
+    -- their upcoming episodes detached.
+    suClosed :: [ShowSchedule.TemplateId],
+    -- | Templates created for the newly added slots.
+    suCreated :: [ShowSchedule.TemplateId],
+    -- | 'False' when the submitted schedule matched the stored one, so nothing ran.
+    suChanged :: Bool
+  }
+  deriving stock (Show, Eq)
+
+-- | Why a schedule update failed. Either way the transaction wrote nothing.
+data ScheduleUpdateError
+  = -- | A statement failed and the transaction rolled back.
+    ScheduleDbError UsageError
+  | -- | The transaction reached a state it cannot proceed from, so it condemned itself.
+    ScheduleInvariant Text
+
+-- | An update that ran no statements, because the submitted schedule already matched.
+noScheduleChange :: ScheduleUpdate
+noScheduleChange = ScheduleUpdate [] [] [] [] False
+
+-- | JSON body for the single log line a committed schedule update writes.
+scheduleUpdateLog :: Shows.Id -> ScheduleUpdate -> Aeson.Value
+scheduleUpdateLog showId update =
+  Aeson.object
+    [ "show.id" .= showId,
+      "changed" .= update.suChanged,
+      "cancelled_pending" .= update.suCancelledPending,
+      "closed" .= update.suClosed,
+      "created" .= update.suCreated,
+      "unscheduled" .= map (.uerId) update.suUnscheduled
+    ]
+
+-- | Update schedules for a show, in one transaction.
+--
+-- Every statement below runs in a single 'execTransaction'. The removals end a
+-- validity period and clear @scheduled_at@ from the upcoming episodes, so a later
+-- failure that committed on its own would destroy a show's schedule and leave no
+-- way to recover the episodes' air times.
+--
+-- The reads are inside the transaction too. They feed the diff that decides which
+-- templates get destroyed, so a concurrent edit landing between the read and the
+-- write is the same class of fault.
+--
+-- 'HT.Transaction' has no 'MonadIO', and
+-- 'Hasql.Transaction.Sessions.transaction' retries the body on a serialization
+-- conflict. So @today@ arrives as an argument rather than from the clock, and the
+-- caller does the logging.
+updateSchedulesForShow ::
+  Shows.Id ->
+  [ParsedScheduleSlot] ->
+  Maybe Day ->
+  -- | Today in Pacific. Used as the effective date when the form gives none.
+  Day ->
+  AppM (Either ScheduleUpdateError ScheduleUpdate)
+updateSchedulesForShow showId newSchedules mStartDate today =
+  execTransaction (runExceptT (scheduleUpdateTx showId newSchedules mStartDate today)) >>= \case
+    Left dbErr -> pure $ Left (ScheduleDbError dbErr)
+    Right (Left msg) -> pure $ Left (ScheduleInvariant msg)
+    Right (Right update) -> pure $ Right update
+
+-- | The body of a schedule update.
 --
 -- Compares the incoming form schedule against the current DB schedule. If they
 -- match, skips the terminate-and-recreate cycle. This prevents orphaning episodes
@@ -598,30 +683,18 @@ checkScheduleConflicts showId slots fromDate = go slots
 -- open-ended). The diff itself is then applied against the active templates.
 --
 -- When @mStartDate@ is provided it is used as the @effective_from@ date for any
--- newly inserted validity records. When absent the current Pacific date is used.
-updateSchedulesForShow ::
+-- newly inserted validity records. When absent @today@ is used.
+scheduleUpdateTx ::
   Shows.Id ->
   [ParsedScheduleSlot] ->
   Maybe Day ->
-  AppM [Episodes.UpcomingEpisodeRef]
-updateSchedulesForShow showId newSchedules mStartDate = do
-  -- Use Pacific time as default start date when none provided
-  nowUtc <- currentSystemTime
-  let startDate = fromMaybe (localDay (utcToPacific nowUtc)) mStartDate
+  Day ->
+  ExceptT Text HT.Transaction ScheduleUpdate
+scheduleUpdateTx showId newSchedules mStartDate today = do
+  let startDate = fromMaybe today mStartDate
 
-  activeTemplates <-
-    execQuery (ShowSchedule.getActiveScheduleTemplatesForShow showId) >>= \case
-      Left err -> do
-        Log.logInfo "Failed to fetch active schedules" (Text.pack $ show err)
-        pure []
-      Right templates -> pure templates
-
-  pendingTemplates <-
-    execQuery (ShowSchedule.getPendingScheduleTemplatesForShow showId) >>= \case
-      Left err -> do
-        Log.logInfo "Failed to fetch pending schedules" (Text.pack $ show err)
-        pure []
-      Right templates -> pure templates
+  activeTemplates <- lift $ HT.statement () (ShowSchedule.getActiveScheduleTemplatesForShow showId)
+  pendingTemplates <- lift $ HT.statement () (ShowSchedule.getPendingScheduleTemplatesForShow showId)
 
   -- The edit form is populated from the pending schedule when one exists (see
   -- 'API.Dashboard.Shows.Slug.Edit.Get.Handler'), so an unrelated save re-posts the
@@ -629,30 +702,34 @@ updateSchedulesForShow showId newSchedules mStartDate = do
   -- always the active templates, or a title-only edit reads as a schedule change and
   -- destroys the pending below.
   let currentTemplates = if null pendingTemplates then activeTemplates else pendingTemplates
-  startDateUnchanged <- pendingStartDateMatches pendingTemplates mStartDate
+  startDateUnchanged <- lift $ pendingStartDateMatches pendingTemplates mStartDate
 
   if schedulesMatch currentTemplates newSchedules && startDateUnchanged
-    then do
-      Log.logInfo "Schedule unchanged, skipping update" (show showId)
-      pure []
+    then pure noScheduleChange
     else do
-      Log.logInfo "Schedule changed, updating" (show showId)
       -- Cancel any pending schedule so the diff below runs against a clean active
       -- state. Only reached when the submitted schedule actually differs.
-      unless (null pendingTemplates) $
-        cancelPendingSchedule pendingTemplates activeTemplates
+      cancelled <-
+        if null pendingTemplates
+          then pure []
+          else lift $ cancelPendingSchedule pendingTemplates activeTemplates
+
+      -- Read the episodes about to be detached before the detach runs.
       let removedIds = map (.stId) (removedTemplates activeTemplates newSchedules)
       unscheduled <-
         if null removedIds
           then pure []
-          else
-            execQuery (Episodes.getUpcomingEpisodesForTemplates removedIds startDate) >>= \case
-              Left err -> do
-                Log.logInfo "Failed to fetch episodes to be unscheduled" (Text.pack $ show err)
-                pure []
-              Right eps -> pure eps
-      updateScheduleTemplates showId activeTemplates newSchedules startDate
-      pure unscheduled
+          else lift $ HT.statement () (Episodes.getUpcomingEpisodesForTemplates removedIds startDate)
+
+      (closed, created) <- updateScheduleTemplates showId activeTemplates newSchedules startDate
+      pure
+        ScheduleUpdate
+          { suUnscheduled = unscheduled,
+            suCancelledPending = cancelled,
+            suClosed = closed,
+            suCreated = created,
+            suChanged = True
+          }
 
 -- | Whether the submitted start date matches the pending schedule's existing one.
 --
@@ -661,21 +738,18 @@ updateSchedulesForShow showId newSchedules mStartDate = do
 -- read as unchanged and be silently dropped.
 --
 -- Vacuously 'True' when there is no pending schedule, since there is no date to move.
--- Fails open: if the validity periods can't be read we report a change, which falls
--- through to the existing update path rather than discarding the edit.
+-- A pending template with no validity period reports a change, which falls through to
+-- the update path rather than discarding the edit.
 pendingStartDateMatches ::
   [ShowSchedule.ScheduleTemplate Result] ->
   Maybe Day ->
-  AppM Bool
+  HT.Transaction Bool
 pendingStartDateMatches [] _ = pure True
-pendingStartDateMatches (template : _) mStartDate =
-  execQuery (ShowSchedule.getValidityPeriodsForTemplate template.stId) >>= \case
-    Left err -> do
-      Log.logAttention "Failed to fetch pending validity for start-date comparison" (Text.pack $ show err)
-      pure False
-    Right validities -> case map (.stvEffectiveFrom) validities of
-      [] -> pure False
-      froms -> pure (mStartDate == Just (minimum froms))
+pendingStartDateMatches (template : _) mStartDate = do
+  validities <- HT.statement () (ShowSchedule.getValidityPeriodsForTemplate template.stId)
+  pure $ case map (.stvEffectiveFrom) validities of
+    [] -> False
+    froms -> mStartDate == Just (minimum froms)
 
 -- | Cancel a pending schedule, restoring active templates to open-ended.
 --
@@ -690,22 +764,18 @@ pendingStartDateMatches (template : _) mStartDate =
 -- 'ShowSchedule.getUpcomingUnscheduledShowDates'), so episodes really do accumulate
 -- on them. Detaching leaves the episode UNSCHEDULED instead, which keeps its audio,
 -- flags it in the dashboard, and lets staff reassign it.
+--
+-- Returns the pending templates it cancelled.
 cancelPendingSchedule ::
   [ShowSchedule.ScheduleTemplate Result] ->
   [ShowSchedule.ScheduleTemplate Result] ->
-  AppM ()
+  HT.Transaction [ShowSchedule.TemplateId]
 cancelPendingSchedule pendingTemplates activeTemplates = do
   -- Cancel pending validity periods
   forM_ pendingTemplates $ \template -> do
-    validities <-
-      execQuery (ShowSchedule.getValidityPeriodsForTemplate template.stId) >>= \case
-        Left err -> do
-          Log.logInfo "Failed to fetch pending validity periods" (Text.pack $ show err)
-          pure []
-        Right vs -> pure vs
-    forM_ validities $ \validity -> do
-      _ <- execQuery (ShowSchedule.endValidity validity.stvId validity.stvEffectiveFrom)
-      Log.logInfo "Cancelled pending schedule validity" (show template.stId, show validity.stvId)
+    validities <- HT.statement () (ShowSchedule.getValidityPeriodsForTemplate template.stId)
+    forM_ validities $ \validity ->
+      void $ HT.statement () (ShowSchedule.endValidity validity.stvId validity.stvEffectiveFrom)
 
     -- Detach episodes booked against the slot being cancelled. A pending template's
     -- episodes all fall on or after its effective_from, so clearing from the earliest
@@ -713,24 +783,17 @@ cancelPendingSchedule pendingTemplates activeTemplates = do
     case map (.stvEffectiveFrom) validities of
       [] -> pure ()
       froms ->
-        execQuery (Episodes.clearTemplateForUpcomingEpisodes template.stId (minimum froms)) >>= \case
-          Left err -> Log.logAttention "Failed to clear template from cancelled pending's episodes" (show err)
-          Right ids -> Log.logInfo "Detached episodes from cancelled pending" (show template.stId, length ids)
+        void $ HT.statement () (Episodes.clearTemplateForUpcomingEpisodes template.stId (minimum froms))
 
   -- Restore active validity periods to open-ended
   forM_ activeTemplates $ \template -> do
-    activeValidities <-
-      execQuery (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId) >>= \case
-        Left err -> do
-          Log.logInfo "Failed to fetch active validity periods" (Text.pack $ show err)
-          pure []
-        Right vs -> pure vs
+    activeValidities <- HT.statement () (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId)
     forM_ activeValidities $ \validity ->
       case validity.stvEffectiveUntil of
-        Just _ -> do
-          _ <- execQuery (ShowSchedule.restoreValidity validity.stvId)
-          Log.logInfo "Restored active validity to open-ended" (show template.stId, show validity.stvId)
+        Just _ -> void $ HT.statement () (ShowSchedule.restoreValidity validity.stvId)
         Nothing -> pure ()
+
+  pure (map (.stId) pendingTemplates)
 
 -- | Apply slot-level diff: terminate removed slots, create added slots, leave unchanged alone.
 --
@@ -745,12 +808,14 @@ cancelPendingSchedule pendingTemplates activeTemplates = do
 -- critical because episodes are linked to templates via schedule_template_id. Destroying
 -- and recreating a template with identical times orphans any episodes uploaded against
 -- the old template, since the episode's foreign key still points to the terminated one.
+--
+-- Returns the templates it closed and the templates it created.
 updateScheduleTemplates ::
   Shows.Id ->
   [ShowSchedule.ScheduleTemplate Result] ->
   [ParsedScheduleSlot] ->
   Day ->
-  AppM ()
+  ExceptT Text HT.Transaction ([ShowSchedule.TemplateId], [ShowSchedule.TemplateId])
 updateScheduleTemplates showId activeTemplates parsedSlots startDate = do
   let -- Normalize each DB template into a ParsedScheduleSlot so we can compute the
       -- set of newly added slots (those in the form but absent from the DB).
@@ -761,60 +826,56 @@ updateScheduleTemplates showId activeTemplates parsedSlots startDate = do
       -- Slots in form but not in DB — user added these
       added = Set.difference formSet dbSet
 
+      removed = removedTemplates activeTemplates parsedSlots
+
   -- For each removed (or re-keyed) template, end its active validity periods by
   -- setting effective_until to startDate, then detach its upcoming episodes.
-  forM_ (removedTemplates activeTemplates parsedSlots) $ \template -> do
-    activeValidities <-
-      execQuery (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId) >>= \case
-        Left err -> do
-          Log.logInfo "Failed to fetch validity periods" (Text.pack $ show err)
-          pure []
-        Right validities -> pure validities
-
-    forM_ activeValidities $ \validity -> do
-      _ <- execQuery (ShowSchedule.endValidity validity.stvId startDate)
-      Log.logInfo "Closed out schedule validity" (show template.stId, show validity.stvId)
+  lift $ forM_ removed $ \template -> do
+    activeValidities <- HT.statement () (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId)
+    forM_ activeValidities $ \validity ->
+      void $ HT.statement () (ShowSchedule.endValidity validity.stvId startDate)
 
     -- Detach upcoming episodes from this expired template, but only those airing
     -- on or after the change date so interim episodes keep their slot.
-    execQuery (Episodes.clearTemplateForUpcomingEpisodes template.stId startDate) >>= \case
-      Left err -> Log.logAttention "Failed to clear template from episodes" (show err)
-      Right ids -> Log.logInfo "Detached episodes from expired template" (show template.stId, length ids)
+    void $ HT.statement () (Episodes.clearTemplateForUpcomingEpisodes template.stId startDate)
 
-  -- For each added slot, create a fresh template and an open-ended validity
-  -- period starting from today.
-  forM_ (Set.toList added) $ \slot -> do
-    let templateInsert =
-          ShowSchedule.ScheduleTemplateInsert
-            { ShowSchedule.stiShowId = showId,
-              ShowSchedule.stiDayOfWeek = Just (pssDay slot),
-              ShowSchedule.stiWeeksOfMonth = Just (pssWeeks slot),
-              ShowSchedule.stiStartTime = pssStart slot,
-              ShowSchedule.stiEndTime = pssEnd slot,
-              ShowSchedule.stiTimezone = "America/Los_Angeles",
-              ShowSchedule.stiReplayStartTime = pssReplayStartTime slot
-            }
+  created <- traverse (insertScheduleSlot showId startDate) (Set.toList added)
+  pure (map (.stId) removed, created)
 
-    templateResult <- execQuery (ShowSchedule.insertScheduleTemplate templateInsert)
-    case templateResult of
-      Left err ->
-        Log.logInfo "Failed to insert schedule template" (Text.pack $ show err)
-      Right templateId -> do
-        -- Open-ended validity: effective from startDate, no end date
-        let validityInsert =
-              ShowSchedule.ValidityInsert
-                { ShowSchedule.viTemplateId = templateId,
-                  ShowSchedule.viEffectiveFrom = startDate,
-                  ShowSchedule.viEffectiveUntil = Nothing
-                }
-        validityResult <- execQuery (ShowSchedule.insertValidity validityInsert)
-        case validityResult of
-          Left err ->
-            Log.logInfo "Failed to insert validity" (Text.pack $ show err)
-          Right (Just _) ->
-            Log.logInfo "Created new schedule for show" (show showId, show (pssDay slot))
-          Right Nothing ->
-            Log.logInfo "insertValidity returned Nothing" (show showId, show (pssDay slot))
+-- | Create one schedule template and its open-ended validity period.
+--
+-- A template with no validity period never airs, so a missing validity row condemns
+-- the transaction rather than leaving the show holding a slot it cannot broadcast.
+insertScheduleSlot ::
+  Shows.Id ->
+  Day ->
+  ParsedScheduleSlot ->
+  ExceptT Text HT.Transaction ShowSchedule.TemplateId
+insertScheduleSlot showId startDate slot = do
+  let templateInsert =
+        ShowSchedule.ScheduleTemplateInsert
+          { ShowSchedule.stiShowId = showId,
+            ShowSchedule.stiDayOfWeek = Just (pssDay slot),
+            ShowSchedule.stiWeeksOfMonth = Just (pssWeeks slot),
+            ShowSchedule.stiStartTime = pssStart slot,
+            ShowSchedule.stiEndTime = pssEnd slot,
+            ShowSchedule.stiTimezone = "America/Los_Angeles",
+            ShowSchedule.stiReplayStartTime = pssReplayStartTime slot
+          }
+  templateId <- lift $ HT.statement () (ShowSchedule.insertScheduleTemplate templateInsert)
+
+  -- Open-ended validity: effective from startDate, no end date
+  let validityInsert =
+        ShowSchedule.ValidityInsert
+          { ShowSchedule.viTemplateId = templateId,
+            ShowSchedule.viEffectiveFrom = startDate,
+            ShowSchedule.viEffectiveUntil = Nothing
+          }
+  lift (HT.statement () (ShowSchedule.insertValidity validityInsert)) >>= \case
+    Just _ -> pure templateId
+    Nothing -> do
+      lift HT.condemn
+      throwE "Could not save the schedule. Please try again."
 
 --------------------------------------------------------------------------------
 -- Host Update Helpers
