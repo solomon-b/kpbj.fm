@@ -12,15 +12,16 @@ import Control.Monad.Trans.Except (runExceptT)
 import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (DayOfWeek (..), TimeOfDay (..), addDays, getCurrentTime, utctDay)
+import Data.Time (DayOfWeek (..), TimeOfDay (..), addDays, addUTCTime, getCurrentTime, nominalDay, utctDay)
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
+import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
-import Test.Database.Helpers (insertTestShowWithSchedule, insertTestUser)
+import Test.Database.Helpers (insertTestEpisode, insertTestShowWithSchedule, insertTestUser)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
@@ -40,6 +41,7 @@ spec =
         it "allows an unrelated edit when another show holds the same slot from a future date" test_unchangedScheduleSkipsConflictCheck
         it "leaves a pending schedule intact when only the title changes" test_titleEditPreservesPendingSchedule
         it "closes the schedule windows when the show is set inactive" test_deactivateClosesScheduleWindow
+        it "rolls the whole schedule change back when an insert fails" test_failedScheduleInsertRollsBack
 
 --------------------------------------------------------------------------------
 
@@ -489,3 +491,115 @@ test_deactivateClosesScheduleWindow cfg = do
           -- Every window is closed. An open one means step 9 ran before step 8, or
           -- did not run at all.
           filter (\v -> isNothing v.stvEffectiveUntil) validities `shouldBe` []
+
+-- | A failed template insert leaves the show's schedule and episodes untouched.
+--
+-- The schedule diff ends the removed template's validity and clears both
+-- @schedule_template_id@ and @scheduled_at@ from its upcoming episodes, then inserts
+-- the replacement. Run as separate statements those removals commit on their own, so
+-- a failed insert leaves the show with no schedule and its episodes stripped of their
+-- air times, with nothing to recover them from. They all run in one transaction now.
+--
+-- The submitted slot carries @weeksOfMonth [6]@, which nothing upstream rejects.
+-- 'parseScheduleSlot' never validates the weeks, 'validateNoOverlaps' sees one slot,
+-- and no other show holds a week 6. The @weeks_of_month@ CHECK on @schedule_templates@
+-- rejects it at the insert, which is the failure the transaction has to contain.
+test_failedScheduleInsertRollsBack :: TestDBConfig -> IO ()
+test_failedScheduleInsertRollsBack cfg = do
+  userInsert <- mkUserInsert "edit-rollback" UserMetadata.Staff
+  now <- getCurrentTime
+  let today = utctDay now
+      episodeAirsAt = addUTCTime (7 * nominalDay) now
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Rollback Show",
+            Shows.siSlug = Slug "edit-rollback-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      mondayEvening =
+        defaultScheduleInsert
+          { ShowSchedule.stiDayOfWeek = Just Monday,
+            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+            ShowSchedule.stiStartTime = TimeOfDay 20 0 0,
+            ShowSchedule.stiEndTime = TimeOfDay 22 0 0
+          }
+      -- Same day and time, different weeks, so the diff reads it as one slot
+      -- removed and one added.
+      form =
+        (editForm "Rollback Show" "active")
+          { sefSchedulesJson =
+              Just "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[6],\"startTime\":\"20:00\",\"duration\":120,\"replayTime\":null}]"
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      (showId, templateId) <- insertTestShowWithSchedule showInsert mondayEvening
+      validityId <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing)
+
+      episodeId <-
+        insertTestEpisode
+          Episodes.Insert
+            { Episodes.eiId = showId,
+              Episodes.eiDescription = Nothing,
+              Episodes.eiAudioFilePath = Nothing,
+              Episodes.eiAudioFileSize = Nothing,
+              Episodes.eiAudioMimeType = Nothing,
+              Episodes.eiDurationSeconds = Nothing,
+              Episodes.eiArtworkUrl = Nothing,
+              Episodes.eiScheduleTemplateId = Just templateId,
+              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiCreatedBy = userId
+            }
+
+      -- Read the air time back rather than reusing episodeAirsAt. Postgres stores
+      -- microseconds and getCurrentTime gives nanoseconds, so the two differ.
+      storedAirsAt <-
+        TRX.statement () (Episodes.getEpisodeById episodeId)
+          >>= maybe (error "episode not found") (pure . (.scheduledAt))
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, templateId, validityId, episodeId, storedAirsAt)
+
+    (userMetaModel, showModel, templateId, _validityId, episodeId, storedAirsAt) <-
+      liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left (DatabaseError _) -> pure ()
+      Left err -> expectationFailure $ "Expected a DatabaseError but got: " <> show err
+      Right _ -> expectationFailure "Expected the edit to fail on the schedule insert"
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          validities <- TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate templateId)
+          episode <- TRX.statement () (Episodes.getEpisodeById episodeId)
+          pure (validities, episode)
+
+    liftIO $ do
+      (validities, mEpisode) <- expectSetupRight afterResult
+
+      -- The original slot is still open. An end date here means the removal committed
+      -- without its replacement.
+      map (.stvEffectiveUntil) validities `shouldBe` [Nothing]
+
+      case mEpisode of
+        Nothing -> expectationFailure "Expected the episode to still exist"
+        Just episode -> do
+          -- The episode keeps its slot. A NULL here is unrecoverable: nothing records
+          -- what the air time used to be.
+          episode.scheduleTemplateId `shouldBe` Just templateId
+          episode.scheduledAt `shouldBe` storedAirsAt

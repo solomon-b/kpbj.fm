@@ -32,6 +32,7 @@ spec =
         it "creates show with inactive status" test_createsShowWithInactiveStatus
         it "returns Right for form with empty schedules JSON" test_createsShowWithEmptySchedules
         it "returns ValidationError for duplicate slug" test_validationErrorForDuplicateSlug
+        it "creates no show when a schedule insert fails" test_failedScheduleInsertCreatesNoShow
 
 --------------------------------------------------------------------------------
 
@@ -175,3 +176,41 @@ test_validationErrorForDuplicateSlug cfg = do
       Left (ValidationError _) -> pure ()
       Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err
       Right _ -> expectationFailure "Expected Left ValidationError but got Right"
+
+-- | A failed schedule insert creates no show at all.
+--
+-- The show row, its hosts, its tags, and its schedule all commit in one transaction.
+-- Run as separate statements the show row would survive a failed schedule insert, and
+-- the retry would then be rejected by the slug uniqueness check, so staff would have
+-- to delete the broken show before trying again.
+--
+-- The submitted slot carries @weeksOfMonth [6]@, which nothing upstream rejects. The
+-- @weeks_of_month@ CHECK on @schedule_templates@ rejects it at the insert.
+test_failedScheduleInsertCreatesNoShow :: TestDBConfig -> IO ()
+test_failedScheduleInsertCreatesNoShow cfg = do
+  let form =
+        (minimalForm "Rolled Back Show" "active")
+          { nsfSchedulesJson =
+              Just "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[6],\"startTime\":\"20:00\",\"duration\":120,\"replayTime\":null}]"
+          }
+      expectedSlug = Slug "rolled-back-show"
+
+  bracketAppM cfg $ do
+    result <- runExceptT $ action form
+
+    liftIO $ case result of
+      Left (DatabaseError _) -> pure ()
+      Left err -> expectationFailure $ "Expected a DatabaseError but got: " <> show err
+      Right _ -> expectationFailure "Expected the creation to fail on the schedule insert"
+
+    showResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (Shows.getShowBySlug expectedSlug)
+
+    liftIO $ do
+      mShow <- expectSetupRight showResult
+      -- A show here means the insert committed without its schedule.
+      mShow `shouldSatisfy` \case
+        Nothing -> True
+        Just _ -> False
