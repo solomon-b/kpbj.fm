@@ -26,6 +26,7 @@ module Effects.Database.Tables.ShowTags
     -- * Queries
     getShowTagByName,
     insertShowTag,
+    upsertShowTag,
     getShowTagsWithCounts,
   )
 where
@@ -40,7 +41,7 @@ import Data.Text.Display (Display (..), RecordInstance (..))
 import Data.Time (UTCTime)
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), getOneRow, interp, sql)
 import Hasql.Statement qualified as Hasql
 import Rel8 hiding (Insert)
 import Rel8 qualified
@@ -176,6 +177,29 @@ insertShowTag Insert {..} =
             onConflict = Abort,
             returning = Returning stId
           }
+
+-- | Return the id of the tag with this name, creating the tag if it is absent.
+--
+-- One statement rather than 'getShowTagByName' followed by 'insertShowTag'. Two
+-- callers naming the same new tag race between those two, and the loser violates
+-- the UNIQUE constraint on @show_tags.name@. That is SQLSTATE 23505, which is
+-- neither a serialization failure nor a deadlock, so a transaction does not retry
+-- it and the caller's whole unit of work fails.
+--
+-- @DO UPDATE@ writes the name onto itself, which is a no-op that still produces a
+-- row. @DO NOTHING@ returns no row when the tag already exists, and that is
+-- exactly the case which has to return an id.
+upsertShowTag :: Text -> Hasql.Statement () Id
+upsertShowTag tagName =
+  getOneRow
+    <$> interp
+      False
+      [sql|
+    INSERT INTO show_tags (name)
+    VALUES (#{tagName})
+    ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id
+  |]
 
 -- | Get all show tags with counts of active shows using each tag.
 --
