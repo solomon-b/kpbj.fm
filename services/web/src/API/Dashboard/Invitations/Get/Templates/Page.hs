@@ -20,6 +20,8 @@ import Component.Table
   )
 import Data.Aeson (Value (..))
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -28,6 +30,7 @@ import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Data.Vector qualified as Vector
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.Recurrence (parseRecurrence, weeksLabel)
 import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Lucid qualified
@@ -232,7 +235,7 @@ renderScheduleSummary _ = "Invalid schedule"
 
 renderSlot :: Value -> Text
 renderSlot (Object obj) =
-  let frequency = renderFrequency weeksOfMonth
+  let frequency = renderFrequency dayOfWeek weeksOfMonth
       day = renderDayAbbrev dayOfWeek
       time = renderTime startTime
       dur = renderDuration duration
@@ -247,7 +250,7 @@ renderSlot (Object obj) =
       Just (String d) -> d
       _ -> "unknown"
 
-    weeksOfMonth :: [Int]
+    weeksOfMonth :: [Int64]
     weeksOfMonth = case KeyMap.lookup "weeksOfMonth" obj of
       Just (Array arr) ->
         [ truncate n | Number n <- Vector.toList arr
@@ -270,16 +273,15 @@ renderSlot (Object obj) =
       _ -> Nothing
 renderSlot _ = "Invalid slot"
 
-renderFrequency :: [Int] -> Text
-renderFrequency weeks
-  | weeks == [1, 2, 3, 4, 5] || weeks == [1, 2, 3, 4] = "Weekly"
-  | otherwise = Text.intercalate " & " (map ordinal weeks)
-  where
-    ordinal :: Int -> Text
-    ordinal 1 = "1st"
-    ordinal 2 = "2nd"
-    ordinal 3 = "3rd"
-    ordinal n = [i|#{n}th|]
+-- | How often the slot airs, for the invitation summary.
+--
+-- Reads the day and weeks an invitation stored as raw JSON. Returns @"Weekly"@ when
+-- the slot covers every week, the ordinals otherwise, and @"Unknown"@ when the stored
+-- JSON does not describe a recurrence the schedule editor could have produced.
+renderFrequency :: Text -> [Int64] -> Text
+renderFrequency dayText weeks = case parseRecurrence dayText weeks of
+  Right recurrence -> fromMaybe "Weekly" (weeksLabel recurrence)
+  Left _ -> "Unknown"
 
 renderDayAbbrev :: Text -> Text
 renderDayAbbrev day = case Text.toLower day of

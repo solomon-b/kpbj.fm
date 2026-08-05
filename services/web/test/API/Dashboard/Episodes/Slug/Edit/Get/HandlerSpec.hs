@@ -8,6 +8,7 @@ import API.Dashboard.Episodes.Slug.Edit.Get.Handler (fetchEpisodeContext)
 import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
+import Data.Time (DayOfWeek (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -48,8 +49,8 @@ setupFixture showInsert userInsert = do
   let scheduleInsert =
         ShowSchedule.ScheduleTemplateInsert
           { stiShowId = Shows.Id 0,
-            stiDayOfWeek = Nothing,
-            stiWeeksOfMonth = Nothing,
+            stiDayOfWeek = Monday,
+            stiWeeksOfMonth = [1, 2, 3, 4, 5],
             stiStartTime = read "10:00:00",
             stiEndTime = read "11:00:00",
             stiTimezone = "America/Los_Angeles",

@@ -551,8 +551,7 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- * an air date outside @[effective_from, effective_until)@ on the joined
 --   validity row
 -- * an air date the recurrence does not cover, by @recurrence_airs_on@ over
---   @day_of_week@ and @weeks_of_month@. A template with @day_of_week IS NULL@ is
---   exempt and always passes this test
+--   @day_of_week@ and @weeks_of_month@
 -- * the replay row of a template with no @replay_start_time@
 -- * an air date that is neither today nor yesterday in Pacific. This prunes the
 --   scan. The window comparison decides the answer
@@ -663,12 +662,8 @@ getCurrentlyAiringEpisodes currentTime =
                            AND (#{currentTime} AT TIME ZONE 'America/Los_Angeles')::DATE
         AND stv.effective_from <= d.air_date
         AND (stv.effective_until IS NULL OR stv.effective_until > d.air_date)
-        -- The air date must be a date the template holds. A one-time template
-        -- has no recurrence and is exempt.
-        AND (
-          st.day_of_week IS NULL
-          OR recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, d.air_date)
-        )
+        -- The air date must be a date the template holds.
+        AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, d.air_date)
     )
     SELECT
       id, show_id, description, episode_number, audio_file_path,

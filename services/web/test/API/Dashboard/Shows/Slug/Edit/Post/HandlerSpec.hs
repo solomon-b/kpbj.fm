@@ -271,8 +271,8 @@ test_unchangedScheduleSkipsConflictCheck cfg = do
       -- Both shows sit on Thursday 20:00-21:00.
       thursdayNight =
         defaultScheduleInsert
-          { ShowSchedule.stiDayOfWeek = Just Thursday,
-            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+          { ShowSchedule.stiDayOfWeek = Thursday,
+            ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
             ShowSchedule.stiStartTime = TimeOfDay 20 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 21 0 0
           }
@@ -352,15 +352,15 @@ test_titleEditPreservesPendingSchedule cfg = do
       -- Currently airing slot, closed out on the changeover date.
       mondayMorning =
         defaultScheduleInsert
-          { ShowSchedule.stiDayOfWeek = Just Monday,
-            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+          { ShowSchedule.stiDayOfWeek = Monday,
+            ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
             ShowSchedule.stiStartTime = TimeOfDay 9 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 10 0 0
           }
       -- Pending slot that takes over on the changeover date.
       tuesdayAfternoon =
         mondayMorning
-          { ShowSchedule.stiDayOfWeek = Just Tuesday,
+          { ShowSchedule.stiDayOfWeek = Tuesday,
             ShowSchedule.stiStartTime = TimeOfDay 15 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 16 0 0
           }
@@ -442,8 +442,8 @@ test_deactivateClosesScheduleWindow cfg = do
           }
       wednesdayNoon =
         defaultScheduleInsert
-          { ShowSchedule.stiDayOfWeek = Just Wednesday,
-            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+          { ShowSchedule.stiDayOfWeek = Wednesday,
+            ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
             ShowSchedule.stiStartTime = TimeOfDay 12 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 13 0 0
           }
@@ -527,8 +527,8 @@ test_failedScheduleInsertRollsBack cfg = do
           }
       mondayEvening =
         defaultScheduleInsert
-          { ShowSchedule.stiDayOfWeek = Just Monday,
-            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+          { ShowSchedule.stiDayOfWeek = Monday,
+            ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
             ShowSchedule.stiStartTime = TimeOfDay 20 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 22 0 0
           }
@@ -643,8 +643,8 @@ test_slotChangeClosesOldAndCreatesNew cfg = do
           }
       thursdayTwoHours =
         defaultScheduleInsert
-          { ShowSchedule.stiDayOfWeek = Just Thursday,
-            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+          { ShowSchedule.stiDayOfWeek = Thursday,
+            ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
             ShowSchedule.stiStartTime = TimeOfDay 14 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 16 0 0
           }
@@ -758,14 +758,14 @@ test_scheduleChangeCancelsPendingSchedule cfg = do
           }
       mondayMorning =
         defaultScheduleInsert
-          { ShowSchedule.stiDayOfWeek = Just Monday,
-            ShowSchedule.stiWeeksOfMonth = Just [1, 2, 3, 4, 5],
+          { ShowSchedule.stiDayOfWeek = Monday,
+            ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
             ShowSchedule.stiStartTime = TimeOfDay 9 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 10 0 0
           }
       tuesdayAfternoon =
         mondayMorning
-          { ShowSchedule.stiDayOfWeek = Just Tuesday,
+          { ShowSchedule.stiDayOfWeek = Tuesday,
             ShowSchedule.stiStartTime = TimeOfDay 15 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 16 0 0
           }

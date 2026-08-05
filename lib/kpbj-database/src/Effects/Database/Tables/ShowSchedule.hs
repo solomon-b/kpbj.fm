@@ -97,15 +97,15 @@ newtype TemplateId = TemplateId {unTemplateId :: Int64}
 
 -- | The @schedule_templates@ table definition using rel8's higher-kinded data pattern.
 --
--- Schedule template model - Immutable schedule pattern that can be either:
---
--- - Recurring: has day_of_week and weeks_of_month
--- - One-time: both fields are NULL (uses validity dates to define specific date)
+-- An immutable recurrence: a weekday plus the weeks of the month it airs on. A show
+-- that airs every week holds all five weeks. Every template recurs, so both columns
+-- are NOT NULL and 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes' can
+-- test the air date against the recurrence without a special case.
 data ScheduleTemplate f = ScheduleTemplate
   { stId :: Column f TemplateId,
     stShowId :: Column f Shows.Id,
-    stDayOfWeek :: Column f (Maybe DayOfWeek),
-    stWeeksOfMonth :: Column f (Maybe [Int64]),
+    stDayOfWeek :: Column f DayOfWeek,
+    stWeeksOfMonth :: Column f [Int64],
     stStartTime :: Column f TimeOfDay,
     stEndTime :: Column f TimeOfDay,
     stTimezone :: Column f Text,
@@ -146,8 +146,8 @@ scheduleTemplateSchema =
 -- | Insert type for creating new schedule templates.
 data ScheduleTemplateInsert = ScheduleTemplateInsert
   { stiShowId :: Shows.Id,
-    stiDayOfWeek :: Maybe DayOfWeek,
-    stiWeeksOfMonth :: Maybe [Int64],
+    stiDayOfWeek :: DayOfWeek,
+    stiWeeksOfMonth :: [Int64],
     stiStartTime :: TimeOfDay,
     stiEndTime :: TimeOfDay,
     stiTimezone :: Text,
@@ -171,9 +171,15 @@ newtype ValidityId = ValidityId {unValidityId :: Int64}
 --
 -- - effective_from: Inclusive start date
 -- - effective_until: Exclusive end date (NULL = currently active)
+--
+-- @show_id@ repeats the template's own show, because @one_active_slot_per_show@ needs
+-- a column to group by and an exclusion constraint cannot reach through a join. A
+-- composite foreign key onto @schedule_templates (id, show_id)@ holds the two in
+-- agreement, and 'insertValidity' fills it from the template rather than the caller.
 data ScheduleTemplateValidity f = ScheduleTemplateValidity
   { stvId :: Column f ValidityId,
     stvTemplateId :: Column f TemplateId,
+    stvShowId :: Column f Shows.Id,
     stvEffectiveFrom :: Column f Day,
     stvEffectiveUntil :: Column f (Maybe Day)
   }
@@ -198,6 +204,7 @@ scheduleTemplateValiditySchema =
         ScheduleTemplateValidity
           { stvId = "id",
             stvTemplateId = "template_id",
+            stvShowId = "show_id",
             stvEffectiveFrom = "effective_from",
             stvEffectiveUntil = "effective_until"
           }
@@ -247,7 +254,7 @@ getScheduleTemplatesForShow :: Shows.Id -> Hasql.Statement () [ScheduleTemplate 
 getScheduleTemplatesForShow showId =
   run $
     select $
-      orderBy ((stDayOfWeek >$< nullsLast asc) <> (stStartTime >$< asc)) do
+      orderBy ((stDayOfWeek >$< asc) <> (stStartTime >$< asc)) do
         st <- each scheduleTemplateSchema
         where_ $ stShowId st ==. lit showId
         pure st
@@ -345,11 +352,6 @@ newtype ConflictingShowTitle = ConflictingShowTitle {getConflictingShowTitle :: 
 -- comparisons therefore widen the week test to @{w, w + 1}@, plus week 1 when
 -- @w@ is 4 or 5. This can report a conflict that a concrete calendar would not
 -- produce. It never misses one.
---
--- A one-time template has @day_of_week IS NULL@ and runs on its
--- @effective_from@ date. The query matches those against the concrete date, so
--- it needs no widening. No write path creates a one-time template today. The
--- schema permits one and the airing queries read one, so the check covers it.
 checkTimeSlotConflict ::
   Shows.Id ->
   DayOfWeek ->
@@ -374,8 +376,6 @@ checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
         s.title,
         day_of_week_num(st.day_of_week) AS day_num,
         st.weeks_of_month AS weeks,
-        st.day_of_week IS NULL AS one_time,
-        stv.effective_from AS on_date,
         (EXTRACT(HOUR FROM st.start_time) * 60 + EXTRACT(MINUTE FROM st.start_time))::INT AS start_min,
         (EXTRACT(HOUR FROM st.end_time) * 60 + EXTRACT(MINUTE FROM st.end_time))::INT
           + CASE WHEN st.end_time > st.start_time THEN 0 ELSE 1440 END AS end_min,
@@ -387,19 +387,13 @@ checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
         AND s.deleted_at IS NULL
         AND st.show_id != #{excludeShowId}
         AND (stv.effective_until IS NULL OR stv.effective_until > stv.effective_from)
-        AND CASE
-              WHEN st.day_of_week IS NULL
-                -- A one-time template runs on effective_from only. The day before
-                -- counts too, because a window can cross midnight from there.
-                THEN stv.effective_from >= #{fromDate} - 1
-              ELSE stv.effective_until IS NULL OR stv.effective_until > #{fromDate}
-            END
+        AND (stv.effective_until IS NULL OR stv.effective_until > #{fromDate})
     ),
     windows AS (
-      SELECT title, day_num, weeks, one_time, on_date, start_min, end_min
+      SELECT title, day_num, weeks, start_min, end_min
       FROM templates
       UNION ALL
-      SELECT title, day_num, weeks, one_time, on_date,
+      SELECT title, day_num, weeks,
              replay_start_min, replay_start_min + (end_min - start_min)
       FROM templates
       WHERE replay_start_min IS NOT NULL
@@ -408,32 +402,23 @@ checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
       SELECT
         w.*,
         -- The window runs on a day the proposed slot also runs on.
-        CASE WHEN w.one_time
-          THEN recurrence_airs_on(#{dayNum}, #{weeks}, w.on_date)
-          ELSE w.day_num = #{dayNum} AND w.weeks && #{weeks}
-        END AS same_day,
+        w.day_num = #{dayNum} AND w.weeks && #{weeks} AS same_day,
         -- The window runs on the day after a day the proposed slot runs on.
-        CASE WHEN w.one_time
-          THEN recurrence_airs_on(#{dayNum}, #{weeks}, w.on_date - 1)
-          ELSE w.day_num = #{nextDay}
-               AND EXISTS (
-                 SELECT 1 FROM unnest(w.weeks) tw
-                 WHERE tw = ANY(#{weeks})
-                    OR tw - 1 = ANY(#{weeks})
-                    OR (tw = 1 AND (4 = ANY(#{weeks}) OR 5 = ANY(#{weeks})))
-               )
-        END AS day_after,
+        w.day_num = #{nextDay}
+          AND EXISTS (
+            SELECT 1 FROM unnest(w.weeks) tw
+            WHERE tw = ANY(#{weeks})
+               OR tw - 1 = ANY(#{weeks})
+               OR (tw = 1 AND (4 = ANY(#{weeks}) OR 5 = ANY(#{weeks})))
+          ) AS day_after,
         -- The window runs on the day before a day the proposed slot runs on.
-        CASE WHEN w.one_time
-          THEN recurrence_airs_on(#{dayNum}, #{weeks}, w.on_date + 1)
-          ELSE w.day_num = #{prevDay}
-               AND EXISTS (
-                 SELECT 1 FROM unnest(w.weeks) tw
-                 WHERE tw = ANY(#{weeks})
-                    OR tw + 1 = ANY(#{weeks})
-                    OR (tw >= 4 AND 1 = ANY(#{weeks}))
-               )
-        END AS day_before
+        w.day_num = #{prevDay}
+          AND EXISTS (
+            SELECT 1 FROM unnest(w.weeks) tw
+            WHERE tw = ANY(#{weeks})
+               OR tw + 1 = ANY(#{weeks})
+               OR (tw >= 4 AND 1 = ANY(#{weeks}))
+          ) AS day_before
       FROM windows w
     )
     SELECT p.title
@@ -496,7 +481,7 @@ getActiveValidityPeriodsForTemplate templateId =
   interp
     False
     [sql|
-    SELECT id, template_id, effective_from, effective_until
+    SELECT id, template_id, show_id, effective_from, effective_until
     FROM schedule_template_validity
     WHERE template_id = #{templateId}
       AND effective_from <= CURRENT_DATE
@@ -512,7 +497,7 @@ getValidityPeriodsForTemplate templateId =
   interp
     False
     [sql|
-    SELECT id, template_id, effective_from, effective_until
+    SELECT id, template_id, show_id, effective_from, effective_until
     FROM schedule_template_validity
     WHERE template_id = #{templateId}
     ORDER BY effective_from DESC
@@ -520,26 +505,22 @@ getValidityPeriodsForTemplate templateId =
 
 -- | Insert a new validity period.
 --
--- Returns the generated ID.
+-- Returns the generated ID, or 'Nothing' when no template carries @viTemplateId@.
+--
+-- @show_id@ is read from the template rather than supplied by the caller, so the two
+-- cannot disagree and no caller repeats something the database already knows.
 insertValidity :: ValidityInsert -> Hasql.Statement () (Maybe ValidityId)
 insertValidity ValidityInsert {..} =
   fmap listToMaybe $
-    run $
-      insert
-        Rel8.Insert
-          { into = scheduleTemplateValiditySchema,
-            rows =
-              values
-                [ ScheduleTemplateValidity
-                    { stvId = nextId "schedule_template_validity_id_seq",
-                      stvTemplateId = lit viTemplateId,
-                      stvEffectiveFrom = lit viEffectiveFrom,
-                      stvEffectiveUntil = lit viEffectiveUntil
-                    }
-                ],
-            onConflict = Abort,
-            returning = Returning stvId
-          }
+    interp
+      False
+      [sql|
+    INSERT INTO schedule_template_validity (template_id, show_id, effective_from, effective_until)
+    SELECT st.id, st.show_id, #{viEffectiveFrom}, #{viEffectiveUntil}
+    FROM schedule_templates st
+    WHERE st.id = #{viTemplateId}
+    RETURNING id
+  |]
 
 -- | End a validity period by setting effective_until to a specific date.
 --
@@ -649,14 +630,7 @@ getScheduledShowsForDate targetDate =
       AND EXISTS (SELECT 1 FROM show_hosts sh2 WHERE sh2.show_id = s.id AND sh2.left_at IS NULL)
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
-      AND (
-        -- Recurring shows: the template's recurrence covers the date
-        recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, #{targetDate}::date)
-        OR
-        -- One-time shows: match exact date via validity period
-        (st.day_of_week IS NULL
-         AND stv.effective_from = #{targetDate}::date)
-      )
+      AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, #{targetDate}::date)
     GROUP BY st.id, st.day_of_week, st.start_time, st.end_time, s.slug, s.title, s.logo_url
 
     UNION ALL
@@ -702,14 +676,7 @@ getScheduledShowsForDate targetDate =
       AND st.replay_start_time IS NOT NULL
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
-      AND (
-        -- Recurring shows: the template's recurrence covers the date
-        recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, #{targetDate}::date)
-        OR
-        -- One-time shows: match exact date via validity period
-        (st.day_of_week IS NULL
-         AND stv.effective_from = #{targetDate}::date)
-      )
+      AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, #{targetDate}::date)
     GROUP BY st.id, st.day_of_week, st.start_time, st.end_time, st.replay_start_time, s.slug, s.title, s.logo_url
 
     ORDER BY start_time
@@ -794,7 +761,6 @@ getUpcomingShowDates showId referenceDate (Limit limitVal) =
       JOIN schedule_template_validity stv ON stv.template_id = st.id
       CROSS JOIN date_series ds
       WHERE st.show_id = #{showId}
-        AND st.day_of_week IS NOT NULL  -- Only recurring shows
         AND stv.effective_from <= ds.date
         AND (stv.effective_until IS NULL OR stv.effective_until > ds.date)
         AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, ds.date)
@@ -852,7 +818,6 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
       JOIN schedule_template_validity stv ON stv.template_id = st.id
       CROSS JOIN date_series ds
       WHERE st.show_id = #{showId}
-        AND st.day_of_week IS NOT NULL
         AND stv.effective_from <= ds.date
         AND (stv.effective_until IS NULL OR stv.effective_until > ds.date)
         AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, ds.date)
@@ -905,7 +870,7 @@ makeUpcomingShowDateFromTemplate template scheduledAt =
         { usdId = template.stShowId,
           usdTemplateId = template.stId,
           usdShowDate = pacificDay,
-          usdDayOfWeek = fromMaybe (dayOfWeek pacificDay) template.stDayOfWeek,
+          usdDayOfWeek = template.stDayOfWeek,
           usdStartTime = scheduledAt,
           usdEndTime = computeEndTime template scheduledAt
         }
@@ -1009,7 +974,6 @@ getShowsMissingEpisodesInDays days =
       CROSS JOIN date_series ds
       WHERE s.status = 'active'
         AND s.deleted_at IS NULL
-        AND st.day_of_week IS NOT NULL
         AND stv.effective_from <= ds.date
         AND (stv.effective_until IS NULL OR stv.effective_until > ds.date)
         AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, ds.date)
@@ -1068,7 +1032,6 @@ getHostsMissingEpisodesOnDay days =
       CROSS JOIN target_date td
       WHERE s.status = 'active'
         AND s.deleted_at IS NULL
-        AND st.day_of_week IS NOT NULL
         AND stv.effective_from <= td.date
         AND (stv.effective_until IS NULL OR stv.effective_until > td.date)
         AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, td.date)

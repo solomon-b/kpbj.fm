@@ -20,7 +20,7 @@ import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Int (Int64)
 import Data.List (find)
-import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
@@ -184,9 +184,8 @@ handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
     renderScheduleInfo :: [ShowSchedule.ScheduleTemplate Result] -> Lucid.Html ()
     renderScheduleInfo [] = Lucid.span_ [] "Not scheduled"
     renderScheduleInfo (firstSchedule : rest) =
-      let allSchedules = firstSchedule : rest
-          dayNames = mapMaybe (fmap display . ShowSchedule.stDayOfWeek) allSchedules
-          dayText = if null dayNames then "One-time" else Text.intercalate ", " dayNames
+      let dayNames = map (display . ShowSchedule.stDayOfWeek) (firstSchedule : rest)
+          dayText = Text.intercalate ", " dayNames
           timeRange = formatTimeOfDay firstSchedule.stStartTime <> "-" <> formatTimeOfDay firstSchedule.stEndTime
        in Lucid.span_ [] $ Lucid.toHtml $ dayText <> " " <> timeRange
 

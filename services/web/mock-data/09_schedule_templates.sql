@@ -112,7 +112,9 @@ INSERT INTO schedule_templates (show_id, day_of_week, weeks_of_month, start_time
 ((SELECT id FROM shows WHERE slug = 'late-night-beats'), 'saturday', ARRAY[1,2,3,4,5], '23:00', '00:00', 'America/Los_Angeles');
 
 -- Create validity periods for all schedule templates
--- All templates are effective from 30 days ago and currently active
-INSERT INTO schedule_template_validity (template_id, effective_from, effective_until)
-SELECT id, CURRENT_DATE - INTERVAL '30 days', NULL
+-- All templates are effective from 30 days ago and currently active.
+-- show_id repeats the template's own show so one_active_slot_per_show has a column
+-- to group by. Each show holds exactly one template above, so no two windows collide.
+INSERT INTO schedule_template_validity (template_id, show_id, effective_from, effective_until)
+SELECT id, show_id, CURRENT_DATE - INTERVAL '30 days', NULL
 FROM schedule_templates;

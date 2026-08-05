@@ -18,7 +18,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Int (Int64)
 import Data.Password.Argon2 (hashPassword, mkPassword)
 import Data.Text (Text)
-import Data.Time (TimeOfDay (..))
+import Data.Time (DayOfWeek (..), TimeOfDay (..))
 import Domain.Types.DisplayName (mkDisplayNameUnsafe)
 import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
@@ -60,8 +60,8 @@ defaultScheduleInsert :: ShowSchedule.ScheduleTemplateInsert
 defaultScheduleInsert =
   ShowSchedule.ScheduleTemplateInsert
     { stiShowId = Shows.Id 0,
-      stiDayOfWeek = Nothing,
-      stiWeeksOfMonth = Nothing,
+      stiDayOfWeek = Monday,
+      stiWeeksOfMonth = [1, 2, 3, 4, 5],
       stiStartTime = TimeOfDay 10 0 0,
       stiEndTime = TimeOfDay 11 0 0,
       stiTimezone = "America/Los_Angeles",

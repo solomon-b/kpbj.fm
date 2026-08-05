@@ -7,6 +7,7 @@ import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Text qualified as Text
+import Data.Time (DayOfWeek (..))
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
@@ -53,8 +54,8 @@ mkScheduleTemplate :: ShowSchedule.ScheduleTemplateInsert
 mkScheduleTemplate =
   ShowSchedule.ScheduleTemplateInsert
     { stiShowId = Shows.Id 0,
-      stiDayOfWeek = Nothing,
-      stiWeeksOfMonth = Nothing,
+      stiDayOfWeek = Monday,
+      stiWeeksOfMonth = [1, 2, 3, 4, 5],
       stiStartTime = read "10:00:00",
       stiEndTime = read "12:00:00",
       stiTimezone = "America/Los_Angeles",

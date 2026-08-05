@@ -5,7 +5,7 @@ module API.Invite.Token.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, parseScheduleSlot, validateNoOverlaps)
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, parseScheduleSlot, validateSingleSlot)
 import API.Invite.Token.Post.Route (InviteOnboardingForm (..))
 import API.Links (dashboardShowsLinks, userLinks)
 import API.Types (DashboardShowsRoutes (..), UserRoutes (..))
@@ -37,6 +37,7 @@ import Domain.Types.EmailAddress qualified as EmailAddress
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
+import Domain.Types.Recurrence (recurrenceDay, weekNumbers)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (LocalTime (..), utcToPacific)
@@ -343,35 +344,36 @@ validateFullName nameText =
 -- | Parse schedule data from invitation JSON.
 --
 -- The invitation stores schedule data as a JSON array of schedule slot objects.
--- This uses the same parsing logic as the show creation/edit handlers, and the
--- same check that the slots do not overlap each other.
-parseInvitationSchedules :: Aeson.Value -> Either Text [ParsedScheduleSlot]
+-- This uses the same parsing logic as the show creation/edit handlers, and the same
+-- check that it carries at most the one slot a show may hold.
+parseInvitationSchedules :: Aeson.Value -> Either Text (Maybe ParsedScheduleSlot)
 parseInvitationSchedules scheduleJson = case scheduleJson of
   Aeson.Array arr
-    | null arr -> Right []
+    | null arr -> Right Nothing
   _ -> case Aeson.fromJSON scheduleJson of
     Aeson.Error err -> Left $ "Invalid schedule JSON: " <> Text.pack err
     Aeson.Success slots -> do
       parsed <- traverse parseScheduleSlot slots
-      validateNoOverlaps parsed
+      validateSingleSlot parsed
 
 -- | Create schedules for a newly created show.
 --
 -- Uses the current Pacific date as the effective_from date.
 createSchedulesForShow ::
   Shows.Id ->
-  [ParsedScheduleSlot] ->
+  Maybe ParsedScheduleSlot ->
   AppM ()
-createSchedulesForShow showId slots = do
+createSchedulesForShow showId slot0 = do
   nowUtc <- currentSystemTime
   let today = localDay (utcToPacific nowUtc)
 
-  forM_ slots $ \slot -> do
-    let templateInsert =
+  forM_ slot0 $ \slot -> do
+    let day = recurrenceDay (pssRecurrence slot)
+        templateInsert =
           ShowSchedule.ScheduleTemplateInsert
             { ShowSchedule.stiShowId = showId,
-              ShowSchedule.stiDayOfWeek = Just (pssDay slot),
-              ShowSchedule.stiWeeksOfMonth = Just (pssWeeks slot),
+              ShowSchedule.stiDayOfWeek = day,
+              ShowSchedule.stiWeeksOfMonth = weekNumbers (pssRecurrence slot),
               ShowSchedule.stiStartTime = pssStart slot,
               ShowSchedule.stiEndTime = pssEnd slot,
               ShowSchedule.stiTimezone = "America/Los_Angeles",
@@ -394,9 +396,9 @@ createSchedulesForShow showId slots = do
           Left err ->
             Log.logInfo "Failed to insert validity" (Aeson.object ["error" .= Text.pack (show err)])
           Right (Just _) ->
-            Log.logInfo "Created schedule for show" (Aeson.object ["showId" .= show showId, "day" .= show (pssDay slot)])
+            Log.logInfo "Created schedule for show" (Aeson.object ["showId" .= show showId, "day" .= show day])
           Right Nothing ->
-            Log.logInfo "insertValidity returned Nothing" (Aeson.object ["showId" .= show showId, "day" .= show (pssDay slot)])
+            Log.logInfo "insertValidity returned Nothing" (Aeson.object ["showId" .= show showId, "day" .= show day])
 
 --------------------------------------------------------------------------------
 -- Logo Upload Helper

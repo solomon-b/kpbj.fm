@@ -5,11 +5,15 @@
 -- A reusable Alpine.js-powered schedule editor with:
 -- - Frequency selection (weekly / twice a month / once a month)
 -- - Week-of-month selection (for non-weekly frequencies)
--- - Multiple time slots with day, time, and duration pickers
+-- - One time slot with day, time, and duration pickers, plus an optional replay
 -- - Time typeahead with shorthand matching (e.g. "8p", "10:30a")
 -- - JSON serialization for form submission
 --
 -- Used in both the New Show and Edit Show forms.
+--
+-- A show holds one slot, which @one_active_slot_per_show@ enforces in the database.
+-- The frequency and the weeks therefore belong to the slot, and @serializeForSubmit@
+-- emits a one-element array so the three write paths keep a single JSON shape.
 module Component.ScheduleEditor
   ( -- * Configuration
     ScheduleEditorData (..),
@@ -26,7 +30,6 @@ where
 
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
-import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -34,6 +37,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Time (TimeOfDay (..))
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.Recurrence (frequencyLabel, recurrenceDay, recurrenceFromRow, weekNumbers)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.Alpine
@@ -45,7 +49,7 @@ import Rel8 (Result)
 
 -- | Data needed to initialize the schedule editor.
 data ScheduleEditorData = ScheduleEditorData
-  { -- | JSON array of existing schedule slots, or "[]" for a new show.
+  { -- | The existing slot as a JSON object, or "null" for a new show.
     sedExistingJson :: Text,
     -- | "YYYY-MM-DD" for edit pre-population, "" for new show.
     sedStartDate :: Text,
@@ -55,45 +59,32 @@ data ScheduleEditorData = ScheduleEditorData
 
 --------------------------------------------------------------------------------
 
--- | Convert active DB schedule templates to Alpine.js editor JSON.
+-- | Convert a show's active schedule template to Alpine.js editor JSON.
 --
--- Reverse-maps the DB representation back to the UI frequency model:
---
--- - @weeks_of_month = Nothing@ → frequency \"weekly\"
--- - @weeks_of_month = Just [1,3]@ → frequency \"twice\"
--- - @weeks_of_month = Just [2,4]@ → frequency \"twice\"
--- - @weeks_of_month = Just [n]@ (single element) → frequency \"once\"
--- - Other multi-element lists → frequency \"twice\" (best guess)
+-- Emits @"null"@ when the show holds no slot, which @init()@ reads as an empty form.
+-- 'Domain.Types.Recurrence.frequencyLabel' decides which of the three frequency
+-- buttons is selected, so the form agrees with every other surface that names the
+-- same recurrence.
 --
 -- Duration is computed as minutes between start and end times.
-schedulesToEditorJson :: [ShowSchedule.ScheduleTemplate Result] -> Text
-schedulesToEditorJson [] = "[]"
-schedulesToEditorJson templates =
-  Text.decodeUtf8 $ BSL.toStrict $ Aeson.encode editorSlots
+schedulesToEditorJson :: Maybe (ShowSchedule.ScheduleTemplate Result) -> Text
+schedulesToEditorJson Nothing = "null"
+schedulesToEditorJson (Just sched) =
+  Text.decodeUtf8 $ BSL.toStrict $ Aeson.encode editorSlot
   where
-    editorSlots = map toEditorSlot templates
+    recurrence = recurrenceFromRow sched.stDayOfWeek sched.stWeeksOfMonth
 
-    toEditorSlot sched =
-      let dayText = maybe ("" :: Text) dayOfWeekToPostgres sched.stDayOfWeek
-          timeText = Text.take 5 (Text.pack $ show sched.stStartTime)
-          durationMins = computeDuration sched.stStartTime sched.stEndTime
-          freq = weeksToFrequency sched.stWeeksOfMonth
-          weeksVal = sched.stWeeksOfMonth
-          replayTimeText = case sched.stReplayStartTime of
+    editorSlot =
+      Aeson.object
+        [ "frequency" Aeson..= frequencyLabel recurrence,
+          "weeks" Aeson..= weekNumbers recurrence,
+          "day" Aeson..= dayOfWeekToPostgres (recurrenceDay recurrence),
+          "time" Aeson..= Text.take 5 (Text.pack $ show sched.stStartTime),
+          "duration" Aeson..= computeDuration sched.stStartTime sched.stEndTime,
+          "replayTime" Aeson..= case sched.stReplayStartTime of
             Just rt -> Text.take 5 (Text.pack $ show rt)
             Nothing -> "" :: Text
-       in Aeson.object
-            [ "frequency" Aeson..= freq,
-              "weeks" Aeson..= weeksVal,
-              "slots"
-                Aeson..= [ Aeson.object
-                             [ "day" Aeson..= dayText,
-                               "time" Aeson..= timeText,
-                               "duration" Aeson..= durationMins,
-                               "replayTime" Aeson..= replayTimeText
-                             ]
-                         ]
-            ]
+        ]
 
     -- Compute duration in minutes between two TimeOfDay values,
     -- handling overnight shows (end < start).
@@ -103,15 +94,6 @@ schedulesToEditorJson templates =
           endMins = todHour end * 60 + todMin end
           rawMins = endMins - startMins
        in if rawMins <= 0 then rawMins + (24 * 60) else rawMins
-
-    weeksToFrequency :: Maybe [Int64] -> Text
-    weeksToFrequency Nothing = "weekly"
-    weeksToFrequency (Just ws) = case ws of
-      [] -> "weekly"
-      [_] -> "once"
-      [1, 3] -> "twice"
-      [2, 4] -> "twice"
-      _ -> "twice"
 
 --------------------------------------------------------------------------------
 
@@ -134,8 +116,7 @@ renderScheduleEditor ScheduleEditorData {..} =
       renderFrequencySelector
       renderWeekSelector
       renderStartDate sedMinDate
-      renderSlots
-      renderAddButton
+      renderSlot
       renderHiddenInput
       renderStartDateHidden
 
@@ -148,9 +129,9 @@ alpineState existingJson startDateText =
   frequency: null,
   weeks: null,
   startDate: '#{startDateText}',
-  slots: [],
-  activeTimePicker: null,
-  activeReplayPicker: null,
+  slot: { day: '', time: '', duration: null, replayTime: '' },
+  timePickerOpen: false,
+  replayPickerOpen: false,
   timeFilter: '',
   replayFilter: '',
   allTimes: (function() {
@@ -171,38 +152,26 @@ alpineState existingJson startDateText =
 
   init() {
     var existing = #{existingJson};
-    if (existing && existing.length > 0) {
-      var first = existing[0];
-      this.frequency = first.frequency || null;
-      this.weeks = first.weeks || null;
-      this.slots = [];
-      for (var i = 0; i < existing.length; i++) {
-        var item = existing[i];
-        if (item.slots && item.slots.length > 0) {
-          for (var j = 0; j < item.slots.length; j++) {
-            this.slots.push({
-              day: item.slots[j].day || '',
-              time: item.slots[j].time || '',
-              duration: item.slots[j].duration || null,
-              replayTime: item.slots[j].replayTime || ''
-            });
-          }
-        }
-      }
+    if (existing) {
+      this.frequency = existing.frequency || null;
+      this.weeks = existing.weeks || null;
+      this.slot = {
+        day: existing.day || '',
+        time: existing.time || '',
+        duration: existing.duration || null,
+        replayTime: existing.replayTime || ''
+      };
     }
   },
 
   setFrequency(f) {
     this.frequency = f;
     if (f === 'weekly') {
-      this.weeks = null;
+      this.weeks = [1, 2, 3, 4, 5];
     } else if (f === 'twice') {
       this.weeks = [1, 3];
     } else if (f === 'once') {
       this.weeks = [1];
-    }
-    if (this.slots.length === 0) {
-      this.slots.push({ day: '', time: '', duration: null, replayTime: '' });
     }
   },
 
@@ -210,59 +179,51 @@ alpineState existingJson startDateText =
     this.weeks = w;
   },
 
-  addSlot() {
-    this.slots.push({ day: '', time: '', duration: null, replayTime: '' });
+  setDuration(dur) {
+    this.slot.duration = dur;
   },
 
-  removeSlot(index) {
-    this.slots.splice(index, 1);
-  },
-
-  setDuration(index, dur) {
-    this.slots[index].duration = dur;
-  },
-
-  openTimePicker(index) {
-    this.activeTimePicker = index;
-    this.timeFilter = this.formatTime(this.slots[index].time);
+  openTimePicker() {
+    this.timePickerOpen = true;
+    this.timeFilter = this.formatTime(this.slot.time);
   },
 
   closeTimePicker(resolve) {
-    if (resolve !== false && this.activeTimePicker !== null) {
+    if (resolve !== false && this.timePickerOpen) {
       var text = (this.timeFilter || '').trim();
       if (text) {
         var match = this.resolveFilter(text, this.filteredTimes());
-        if (match) this.slots[this.activeTimePicker].time = match;
+        if (match) this.slot.time = match;
       }
     }
-    this.activeTimePicker = null;
+    this.timePickerOpen = false;
     this.timeFilter = '';
   },
 
-  selectTime(index, time) {
-    this.slots[index].time = time;
+  selectTime(time) {
+    this.slot.time = time;
     this.closeTimePicker(false);
   },
 
-  openReplayPicker(index) {
-    this.activeReplayPicker = index;
-    this.replayFilter = this.formatTime(this.slots[index].replayTime);
+  openReplayPicker() {
+    this.replayPickerOpen = true;
+    this.replayFilter = this.formatTime(this.slot.replayTime);
   },
 
   closeReplayPicker(resolve) {
-    if (resolve !== false && this.activeReplayPicker !== null) {
+    if (resolve !== false && this.replayPickerOpen) {
       var text = (this.replayFilter || '').trim();
       if (text) {
-        var match = this.resolveFilter(text, this.filteredReplayTimes(this.activeReplayPicker));
-        if (match) this.slots[this.activeReplayPicker].replayTime = match;
+        var match = this.resolveFilter(text, this.filteredReplayTimes());
+        if (match) this.slot.replayTime = match;
       }
     }
-    this.activeReplayPicker = null;
+    this.replayPickerOpen = false;
     this.replayFilter = '';
   },
 
-  selectReplayTime(index, time) {
-    this.slots[index].replayTime = time;
+  selectReplayTime(time) {
+    this.slot.replayTime = time;
     this.closeReplayPicker(false);
   },
 
@@ -281,23 +242,22 @@ alpineState existingJson startDateText =
     return null;
   },
 
-  clearReplayTime(index) {
-    this.slots[index].replayTime = '';
+  clearReplayTime() {
+    this.slot.replayTime = '';
   },
 
-  slotEndTime(slot) {
-    if (!slot.time || !slot.duration) return null;
-    var parts = slot.time.split(':');
+  slotEndTime() {
+    if (!this.slot.time || !this.slot.duration) return null;
+    var parts = this.slot.time.split(':');
     var h = parseInt(parts[0], 10);
     var m = parseInt(parts[1], 10);
-    var totalMins = h * 60 + m + slot.duration;
+    var totalMins = h * 60 + m + this.slot.duration;
     return totalMins % (24 * 60);
   },
 
-  filteredReplayTimes(index) {
+  filteredReplayTimes() {
     var filter = this.replayFilter.trim().toLowerCase();
-    var slot = this.slots[index];
-    var endMins = this.slotEndTime(slot);
+    var endMins = this.slotEndTime();
     var available = this.allTimes;
     if (endMins !== null) {
       available = available.filter(function(t) {
@@ -370,21 +330,16 @@ alpineState existingJson startDateText =
   },
 
   serializeForSubmit() {
-    if (!this.frequency || this.slots.length === 0) return '[]';
-    var weeks = this.frequency === 'weekly' ? [1, 2, 3, 4, 5] : (this.weeks || []);
-    var valid = this.slots
-      .filter(function(s) { return s.day && s.time && s.duration; })
-      .map(function(s) {
-        var obj = {
-          dayOfWeek: s.day,
-          weeksOfMonth: weeks,
-          startTime: s.time,
-          duration: s.duration
-        };
-        if (s.replayTime) { obj.replayTime = s.replayTime; }
-        return obj;
-      });
-    return JSON.stringify(valid);
+    var s = this.slot;
+    if (!this.frequency || !s.day || !s.time || !s.duration) return '[]';
+    var obj = {
+      dayOfWeek: s.day,
+      weeksOfMonth: this.weeks || [1, 2, 3, 4, 5],
+      startTime: s.time,
+      duration: s.duration
+    };
+    if (s.replayTime) { obj.replayTime = s.replayTime; }
+    return JSON.stringify([obj]);
   }
 }|]
 
@@ -464,30 +419,15 @@ onceWeekButton = weeksButton
 --------------------------------------------------------------------------------
 -- Time Slots
 
-renderSlots :: Lucid.Html ()
-renderSlots =
-  Lucid.div_ [xShow_ "frequency !== null"] $
-    Lucid.template_
-      [xFor_ "(slot, index) in slots", xKey_ "index"]
-      renderSlotRow
-
-renderSlotRow :: Lucid.Html ()
-renderSlotRow =
+renderSlot :: Lucid.Html ()
+renderSlot =
   Lucid.div_
-    [ class_ $ base [Tokens.border2, Tokens.borderMuted, Tokens.bgAlt, Tokens.p4, Tokens.mb2]
+    [ xShow_ "frequency !== null",
+      class_ $ base [Tokens.border2, Tokens.borderMuted, Tokens.bgAlt, Tokens.p4, Tokens.mb2]
     ]
     $ do
-      -- Row label
-      Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.mb2]] $ do
+      Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.mb2]] $
         Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fontBold]] "TIME SLOT"
-        -- Remove button (only if more than one slot)
-        Lucid.template_ [xIf_ "slots.length > 1"] $
-          Lucid.button_
-            [ Lucid.type_ "button",
-              xOnClick_ "removeSlot(index)",
-              class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.errorText, "hover:opacity-80"]
-            ]
-            "REMOVE"
 
       Lucid.div_ [class_ $ base ["grid", "grid-cols-1", "md:grid-cols-3", Tokens.gap4]] $ do
         -- Day dropdown
@@ -534,7 +474,7 @@ renderTimePicker :: Lucid.Html ()
 renderTimePicker =
   Lucid.div_
     [ class_ $ base ["relative"],
-      xOnClickOutside_ "if (activeTimePicker === index) closeTimePicker()"
+      xOnClickOutside_ "if (timePickerOpen) closeTimePicker()"
     ]
     $ do
       Lucid.label_ [class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.mb2, "block"]] "TIME"
@@ -543,9 +483,9 @@ renderTimePicker =
       Lucid.input_
         [ Lucid.type_ "text",
           Lucid.placeholder_ "e.g. 8:00 PM",
-          xOnClick_ "openTimePicker(index)",
+          xOnClick_ "openTimePicker()",
           xOnInput_ "timeFilter = $event.target.value",
-          xBindValue_ "activeTimePicker === index ? timeFilter : formatTime(slot.time)",
+          xBindValue_ "timePickerOpen ? timeFilter : formatTime(slot.time)",
           xOn_ "keydown.enter.prevent" "closeTimePicker()",
           xOn_ "keydown.escape" "closeTimePicker(false)",
           class_ $ base ["w-full", Tokens.p3, Tokens.border2, Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "font-mono", Tokens.textSm]
@@ -554,13 +494,13 @@ renderTimePicker =
       -- Dropdown list
       Lucid.div_
         [ class_ $ base ["absolute", "z-10", "w-full", "max-h-48", "overflow-y-auto", Tokens.border2, Tokens.borderMuted, Tokens.bgMain],
-          xShow_ "activeTimePicker === index"
+          xShow_ "timePickerOpen"
         ]
         $ do
           Lucid.template_
             [xFor_ "t in filteredTimes()", xKey_ "t.value"]
             $ Lucid.div_
-              [ xOnClick_ "selectTime(index, t.value)",
+              [ xOnClick_ "selectTime(t.value)",
                 class_ $ base [Tokens.p3, Tokens.textSm, "cursor-pointer", Tokens.hoverBg, "font-mono"],
                 xText_ "t.label"
               ]
@@ -587,7 +527,7 @@ durationButton :: Int -> Text -> Lucid.Html ()
 durationButton dur label =
   Lucid.button_
     [ Lucid.type_ "button",
-      xOnClick_ [i|setDuration(index, #{dur})|],
+      xOnClick_ [i|setDuration(#{dur})|],
       class_ $ base [Tokens.border2, Tokens.fontBold, Tokens.textSm, "hover:opacity-80", Tokens.px4, Tokens.py2],
       xBindClass_
         [i|slot.duration === #{dur}
@@ -613,15 +553,15 @@ renderReplayTimePicker =
         -- Replay time input with typeahead
         Lucid.div_
           [ class_ $ base ["relative", "flex-1"],
-            xOnClickOutside_ "if (activeReplayPicker === index) closeReplayPicker()"
+            xOnClickOutside_ "if (replayPickerOpen) closeReplayPicker()"
           ]
           $ do
             Lucid.input_
               [ Lucid.type_ "text",
                 Lucid.placeholder_ "e.g. 8:00 PM",
-                xOnClick_ "openReplayPicker(index)",
+                xOnClick_ "openReplayPicker()",
                 xOnInput_ "replayFilter = $event.target.value",
-                xBindValue_ "activeReplayPicker === index ? replayFilter : formatTime(slot.replayTime)",
+                xBindValue_ "replayPickerOpen ? replayFilter : formatTime(slot.replayTime)",
                 xOn_ "keydown.enter.prevent" "closeReplayPicker()",
                 xOn_ "keydown.escape" "closeReplayPicker(false)",
                 class_ $ base ["w-full", Tokens.p3, Tokens.border2, Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "font-mono", Tokens.textSm]
@@ -629,27 +569,27 @@ renderReplayTimePicker =
             -- Dropdown list
             Lucid.div_
               [ class_ $ base ["absolute", "z-10", "w-full", "max-h-48", "overflow-y-auto", Tokens.border2, Tokens.borderMuted, Tokens.bgMain],
-                xShow_ "activeReplayPicker === index"
+                xShow_ "replayPickerOpen"
               ]
               $ do
                 Lucid.template_
-                  [xFor_ "t in filteredReplayTimes(index)", xKey_ "t.value"]
+                  [xFor_ "t in filteredReplayTimes()", xKey_ "t.value"]
                   $ Lucid.div_
-                    [ xOnClick_ "selectReplayTime(index, t.value)",
+                    [ xOnClick_ "selectReplayTime(t.value)",
                       class_ $ base [Tokens.p3, Tokens.textSm, "cursor-pointer", Tokens.hoverBg, "font-mono"],
                       xText_ "t.label"
                     ]
                     mempty
                 Lucid.div_
                   [ class_ $ base [Tokens.p3, Tokens.textSm, Tokens.errorText, "font-mono"],
-                    xShow_ "replayFilter.trim() && filteredReplayTimes(index).length === 0"
+                    xShow_ "replayFilter.trim() && filteredReplayTimes().length === 0"
                   ]
                   "No matching times \x2014 try \"8:00 PM\" or \"8p\""
         -- Clear button
         Lucid.template_ [xIf_ "slot.replayTime"] $
           Lucid.button_
             [ Lucid.type_ "button",
-              xOnClick_ "clearReplayTime(index)",
+              xOnClick_ "clearReplayTime()",
               class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.errorText, "hover:opacity-80", Tokens.px4, Tokens.py2]
             ]
             "CLEAR"
@@ -682,22 +622,6 @@ renderStartDateHidden =
       Lucid.name_ "schedule_start_date",
       xBindValue_ "startDate"
     ]
-
---------------------------------------------------------------------------------
--- Add Slot Button
-
-renderAddButton :: Lucid.Html ()
-renderAddButton =
-  Lucid.div_
-    [ class_ $ base [Tokens.mb4],
-      xShow_ "frequency !== null"
-    ]
-    $ Lucid.button_
-      [ Lucid.type_ "button",
-        xOnClick_ "addSlot()",
-        class_ $ base [Tokens.border2, Tokens.borderMuted, Tokens.bgAlt, Tokens.fontBold, Tokens.textSm, "hover:opacity-80", Tokens.px4, Tokens.py2, "w-full"]
-      ]
-      "+ ADD ANOTHER DAY"
 
 --------------------------------------------------------------------------------
 -- Hidden Input
