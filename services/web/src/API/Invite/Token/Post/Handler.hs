@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Invite.Token.Post.Handler (handler) where
+module API.Invite.Token.Post.Handler (handler, parseInvitationSchedules) where
 
 --------------------------------------------------------------------------------
 
