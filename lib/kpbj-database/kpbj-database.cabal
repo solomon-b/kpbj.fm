@@ -261,6 +261,7 @@ test-suite kpbj-database-test
     Effects.Database.Tables.ProductOptionTypesSpec
     Effects.Database.Tables.StoreSettingsSpec
     Domain.Types.CentsSpec
+    Domain.Types.RecurrenceSpec
     Domain.Types.FileUploadSpec
     Domain.Types.SlugSpec
     Domain.Types.StorageBackendSpec
