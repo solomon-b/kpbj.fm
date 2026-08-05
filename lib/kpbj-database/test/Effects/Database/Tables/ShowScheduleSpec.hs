@@ -4,6 +4,7 @@ module Effects.Database.Tables.ShowScheduleSpec where
 
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
+import Data.Either (isLeft)
 import Data.Time (DayOfWeek, addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
 import Data.Time qualified as Time
 import Data.Time.Calendar (fromGregorian, toGregorian)
@@ -22,7 +23,7 @@ import OrphanInstances.DayOfWeek (toDayOfWeek)
 import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
-import Test.Database.Property.Assert (assertJust, assertNothing, assertRight)
+import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, (<==))
 import Test.Gen.Tables.ShowSchedule (allWeeksOfMonth, genDayOfWeek, genFutureDay, genTimeRange, genTimezone, genWeeksOfMonth, weekOfMonth)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
@@ -58,6 +59,10 @@ spec =
 
       -- Timezone validation
       runs 20 . it "timezone is stored and retrieved correctly" $ hedgehog . prop_timezoneStorage
+
+      -- weeks_of_month constraint
+      runs 10 . it "weeks_of_month rejects an empty array" $ hedgehog . prop_rejectsEmptyWeeksOfMonth
+      runs 10 . it "weeks_of_month accepts any subset of 1 to 5" $ hedgehog . prop_acceptsWeeksInRange
       runs 10 . it "upcoming dates use correct timezone for timestamp conversion" $ hedgehog . prop_timezoneConversion
 
       -- Conflict detection
@@ -1013,3 +1018,57 @@ prop_getScheduledShowsForDate cfg = do
         Hedgehog.assert (not $ null scheduled)
         let matchingShows = filter (\s -> UUT.sswdShowTitle s == Shows.siTitle show1) scheduled
         Hedgehog.assert (not $ null matchingShows)
+
+-- | The weeks_of_month CHECK rejects an empty array.
+--
+-- It used to accept one. The constraint read
+-- @array_length(weeks_of_month, 1) > 0@, and array_length of an empty array is
+-- NULL rather than 0, so the whole expression was NULL and Postgres accepts a
+-- CHECK that evaluates to NULL. Migration 20260805061553 swapped it for
+-- cardinality, which returns 0.
+--
+-- An empty array describes a slot that never airs, because recurrence_airs_on
+-- tests the week against ANY(weeks_of_month), and one that never conflicts,
+-- because both conflict checks test week membership the same way.
+prop_rejectsEmptyWeeksOfMonth :: TestDBConfig -> PropertyT IO ()
+prop_rejectsEmptyWeeksOfMonth cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+    dow <- forAllT genDayOfWeek
+    (startTime, endTime) <- forAllT genTimeRange
+    timezone <- forAllT genTimezone
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- unwrapInsert (Shows.insertShow showInsert)
+        let scheduleInsert = UUT.ScheduleTemplateInsert showId (Just dow) (Just []) startTime endTime timezone Nothing
+        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
+        TRX.condemn
+        pure templateId
+
+      assert $ do
+        result <== isLeft
+        pure ()
+
+-- | The same CHECK still accepts every week from 1 to 5, and still rejects a
+-- week outside that range.
+prop_acceptsWeeksInRange :: TestDBConfig -> PropertyT IO ()
+prop_acceptsWeeksInRange cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+    dow <- forAllT genDayOfWeek
+    weeks <- forAllT genWeeksOfMonth
+    (startTime, endTime) <- forAllT genTimeRange
+    timezone <- forAllT genTimezone
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- unwrapInsert (Shows.insertShow showInsert)
+        let mkInsert ws = UUT.ScheduleTemplateInsert showId (Just dow) (Just ws) startTime endTime timezone Nothing
+        valid <- TRX.statement () (UUT.insertScheduleTemplate (mkInsert weeks))
+        TRX.condemn
+        pure valid
+
+      assert $ do
+        _ <- assertRight result
+        pure ()
