@@ -6,6 +6,7 @@ module API.Dashboard.Invitations.New.Post.Handler (handler) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Invitations.New.Post.Route (NewInvitationForm (..))
+import API.Invite.Token.Post.Handler (parseInvitationSchedules)
 import API.Links (dashboardInvitationsLinks, inviteLinks, rootLink)
 import API.Types
 import App.BaseUrl (baseUrl)
@@ -114,22 +115,32 @@ handler cookie form =
 
 --------------------------------------------------------------------------------
 
--- | Validate that the schedules JSON is non-empty and valid.
+-- | Validate the schedules JSON and return it for storage on the invitation.
 --
--- Returns the parsed Aeson 'Value' for storage in the database.
+-- The slots go through 'parseInvitationSchedules', the same function that runs when
+-- the host opens the link. Without that, a schedule the acceptance path rejects is
+-- stored here and fails later, in front of the host, who cannot fix it. Staff see the
+-- message while they still have the form open.
+--
+-- The raw 'Aeson.Value' is what gets stored, not the parsed slot, because the
+-- invitation keeps the submission as sent.
 validateSchedulesJson ::
   Text ->
   ExceptT HandlerError AppM Aeson.Value
 validateSchedulesJson schedulesJson
-  | Text.null (Text.strip schedulesJson) =
-      throwValidationError "Schedule is required. Please add at least one time slot."
-  | schedulesJson == "[]" =
-      throwValidationError "Schedule is required. Please add at least one time slot."
+  | Text.null (Text.strip schedulesJson) = missingSchedule
+  | schedulesJson == "[]" = missingSchedule
   | otherwise =
       case Aeson.eitherDecodeStrict (Text.encodeUtf8 schedulesJson) of
         Left err ->
           throwValidationError ("Invalid schedule data: " <> Text.pack err)
-        Right val -> pure val
+        Right val -> case parseInvitationSchedules val of
+          Left err -> throwValidationError err
+          Right Nothing -> missingSchedule
+          Right (Just _) -> pure val
+  where
+    missingSchedule =
+      throwValidationError "Schedule is required. Please add at least one time slot."
 
 --------------------------------------------------------------------------------
 
