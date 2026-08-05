@@ -33,6 +33,7 @@ library
       aeson
     , base
     , bytestring
+    , containers
     , hasql
     , hasql-interpolate
     , random
@@ -57,6 +58,7 @@ library
     Domain.Types.Origin
     Domain.Types.PageNumber
     Domain.Types.PostStatus
+    Domain.Types.Recurrence
     Domain.Types.Search
     Domain.Types.ShowSortBy
     Domain.Types.Slug
