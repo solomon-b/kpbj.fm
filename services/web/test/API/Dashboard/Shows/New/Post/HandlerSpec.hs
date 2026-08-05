@@ -191,18 +191,28 @@ test_validationErrorForDuplicateSlug cfg = do
 -- the retry would then be rejected by the slug uniqueness check, so staff would have
 -- to delete the broken show before trying again.
 --
--- The submitted slot carries @weeksOfMonth [6]@, which nothing upstream rejects. The
--- @weeks_of_month@ CHECK on @schedule_templates@ rejects it at the insert.
+-- The failure is forced with a CHECK constraint added to this test's own database,
+-- rejecting the end time the submitted slot carries. No form value can reach the
+-- database and fail any more, and the real trigger is an infrastructure failure that
+-- a test cannot stage. What matters is that a statement after @insertShow@ fails.
 test_failedScheduleInsertCreatesNoShow :: TestDBConfig -> IO ()
 test_failedScheduleInsertCreatesNoShow cfg = do
   let form =
         (minimalForm "Rolled Back Show" "active")
           { nsfSchedulesJson =
-              Just "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[6],\"startTime\":\"20:00\",\"duration\":120,\"replayTime\":null}]"
+              Just "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTime\":\"20:00\",\"duration\":120,\"replayTime\":null}]"
           }
       expectedSlug = Slug "rolled-back-show"
 
   bracketAppM cfg $ do
+    -- Fails the schedule insert, which runs after the show row in the same
+    -- transaction. withTestDB gives each test its own database.
+    setupResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $
+          TRX.sql "ALTER TABLE schedule_templates ADD CONSTRAINT test_reject_slot CHECK (end_time <> TIME '22:00')"
+    _ <- liftIO $ expectSetupRight setupResult
+
     result <- runExceptT $ action form
 
     liftIO $ case result of

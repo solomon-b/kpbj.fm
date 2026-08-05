@@ -503,10 +503,13 @@ test_deactivateClosesScheduleWindow cfg = do
 -- a failed insert leaves the show with no schedule and its episodes stripped of their
 -- air times, with nothing to recover them from. They all run in one transaction now.
 --
--- The submitted slot carries @weeksOfMonth [6]@, which nothing upstream rejects.
--- 'parseScheduleSlot' never validates the weeks, 'validateNoOverlaps' sees one slot,
--- and no other show holds a week 6. The @weeks_of_month@ CHECK on @schedule_templates@
--- rejects it at the insert, which is the failure the transaction has to contain.
+-- The failure is forced with a CHECK constraint added to this test's own database,
+-- rejecting the end time the replacement slot carries. No form value can reach the
+-- database and fail any more: 'parseScheduleSlot' now validates the weeks, the time
+-- picker cannot produce @24:00@, and the show exists so the foreign key holds. In
+-- production the trigger is an infrastructure failure landing between the removal and
+-- the insert, which a test cannot stage. What matters here is that some statement in
+-- the middle fails, not which one.
 test_failedScheduleInsertRollsBack :: TestDBConfig -> IO ()
 test_failedScheduleInsertRollsBack cfg = do
   userInsert <- mkUserInsert "edit-rollback" UserMetadata.Staff
@@ -529,12 +532,13 @@ test_failedScheduleInsertRollsBack cfg = do
             ShowSchedule.stiStartTime = TimeOfDay 20 0 0,
             ShowSchedule.stiEndTime = TimeOfDay 22 0 0
           }
-      -- Same day and time, different weeks, so the diff reads it as one slot
-      -- removed and one added.
+      -- Same day and start, half the duration, so the diff reads it as one slot
+      -- removed and one added. The replacement ends at 21:00, which the constraint
+      -- below rejects. The original ends at 22:00 and stays valid.
       form =
         (editForm "Rollback Show" "active")
           { sefSchedulesJson =
-              Just "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[6],\"startTime\":\"20:00\",\"duration\":120,\"replayTime\":null}]"
+              Just "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTime\":\"20:00\",\"duration\":60,\"replayTime\":null}]"
           }
 
   bracketAppM cfg $ do
@@ -548,6 +552,10 @@ test_failedScheduleInsertRollsBack cfg = do
       validityId <-
         TRX.statement () $
           ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing)
+
+      -- Fails the replacement insert only. withTestDB gives each test its own
+      -- database, so this does not escape.
+      TRX.sql "ALTER TABLE schedule_templates ADD CONSTRAINT test_reject_replacement CHECK (end_time <> TIME '21:00')"
 
       episodeId <-
         insertTestEpisode

@@ -36,7 +36,6 @@ import Data.Aeson qualified as Aeson
 import Data.Function ((&))
 import Data.Has (getter)
 import Data.Int (Int64)
-import Data.List (sort)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set qualified as Set
@@ -334,6 +333,7 @@ parseScheduleSlot :: ScheduleSlotInfo -> Either Text ParsedScheduleSlot
 parseScheduleSlot slot = do
   dow <- maybe (Left $ "Invalid day of week: " <> dayOfWeek slot) Right (dayOfWeekFromText (dayOfWeek slot))
   start <- maybe (Left $ "Invalid start time: " <> startTime slot) Right (parseTimeHHMM (startTime slot))
+  weeks <- validateWeeks (weeksOfMonth slot)
   let dur = duration slot
   if dur `notElem` [30, 60, 120]
     then Left $ "Invalid duration: " <> Text.pack (show dur) <> " (must be 30, 60, or 120)"
@@ -349,11 +349,40 @@ parseScheduleSlot slot = do
       Right $
         ParsedScheduleSlot
           { pssDay = dow,
-            pssWeeks = sort (weeksOfMonth slot),
+            pssWeeks = weeks,
             pssStart = start,
             pssEnd = end,
             pssReplayStartTime = mReplay
           }
+
+-- | The weeks of the month a recurring slot holds, sorted and deduplicated.
+--
+-- The @weeks_of_month@ CHECK on @schedule_templates@ rejects a value outside 1 to
+-- 5, but only at insert time. By then the schedule diff has already decided which
+-- templates to close, so the failure arrives as an opaque database error rather
+-- than as a message naming the bad field.
+--
+-- The CHECK does not reject the empty list at all. It reads
+-- @array_length(weeks_of_month, 1) > 0@, and @array_length@ of an empty array is
+-- NULL, so the whole expression is NULL and Postgres accepts a NULL CHECK. An
+-- empty list describes a slot that never airs, because 'recurrence_airs_on'
+-- compares the week against @ANY(weeks)@ and no week is a member of an empty set.
+-- It also never conflicts with anything, since 'weeksOverlap' is @any@ over an
+-- empty list, so the slot blocks nobody while broadcasting nothing.
+--
+-- The schedule editor cannot produce either value. It emits @[1,2,3,4,5]@,
+-- @[1,3]@, @[2,4]@, or a single week. Both need a hand-written POST.
+validateWeeks :: [Int64] -> Either Text [Int64]
+validateWeeks weeks
+  | null weeks = Left "Pick at least one week of the month."
+  | not (null outOfRange) =
+      Left $
+        "Invalid week of month: "
+          <> Text.intercalate ", " (map (Text.pack . show) outOfRange)
+          <> " (must be 1 to 5)."
+  | otherwise = Right (Set.toAscList (Set.fromList weeks))
+  where
+    outOfRange = filter (\w -> w < 1 || w > 5) weeks
 
 -- | Validate that the slots of one submission do not overlap each other.
 --
@@ -493,7 +522,10 @@ normalizeTemplate t = case t.stDayOfWeek of
     Just $
       ParsedScheduleSlot
         { pssDay = dow,
-          pssWeeks = sort (fromMaybe [1, 2, 3, 4, 5] t.stWeeksOfMonth),
+          -- Sorted and deduplicated the same way 'validateWeeks' does. A stored
+          -- duplicate would otherwise stop matching its own form value, and the
+          -- diff would read the slot as removed and re-add it.
+          pssWeeks = Set.toAscList (Set.fromList (fromMaybe [1, 2, 3, 4, 5] t.stWeeksOfMonth)),
           pssStart = t.stStartTime,
           pssEnd = t.stEndTime,
           pssReplayStartTime = t.stReplayStartTime
