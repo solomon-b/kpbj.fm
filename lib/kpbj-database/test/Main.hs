@@ -5,6 +5,7 @@ module Main where
 import Data.Maybe (fromMaybe)
 import Domain.Types.CentsSpec qualified as Cents
 import Domain.Types.FileUploadSpec qualified as FileUpload
+import Domain.Types.RecurrenceSpec qualified as RecurrenceType
 import Domain.Types.SlugSpec qualified as Slug
 import Domain.Types.StorageBackendSpec qualified as StorageBackend
 import Effects.Database.RecurrenceSpec qualified as Recurrence
@@ -78,6 +79,7 @@ main = do
   -- Pure tests that don't need database
   hspecWith cfg $ parallel $ do
     Cents.spec
+    RecurrenceType.spec
     Slug.spec
     StorageBackend.spec
     FileUpload.spec
