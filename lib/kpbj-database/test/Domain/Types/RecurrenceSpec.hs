@@ -27,6 +27,8 @@ import Domain.Types.Recurrence
     recurrenceDay,
     recurrenceFromRow,
     recurrenceWeeks,
+    editorCanShow,
+    editorWeekSets,
     recurring,
     weekNumber,
     weekNumbers,
@@ -138,7 +140,7 @@ spec = describe "Domain.Types.Recurrence" $ do
     it "agrees with the editor on every week set the editor emits" $
       mapM_
         (\(weeks, expected) -> frequencyLabel (recurrenceFromRow Monday weeks) `shouldBe` expected)
-        editorWeekSets
+        editorFrequencies
 
   describe "weeksLabel" $ do
     it "is absent exactly when the recurrence covers every week" $ hedgehog $ do
@@ -193,6 +195,19 @@ spec = describe "Domain.Types.Recurrence" $ do
       n <- forAll (Gen.integral (Range.linear 1 5))
       fmap weekNumber (mkWeekOfMonth n) === Just n
 
+  describe "editorCanShow" $ do
+    it "accepts exactly the sets the editor emits" $ hedgehog $ do
+      recurrence <- forAll genRecurrence
+      editorCanShow recurrence === (weekNumbers recurrence `elem` editorWeekSets)
+
+    it "covers every set this spec names a frequency for" $
+      map fst editorFrequencies `shouldMatchList` editorWeekSets
+
+    it "rejects sets the buttons cannot reach" $
+      mapM_
+        (\weeks -> editorCanShow (recurrenceFromRow Monday weeks) `shouldBe` False)
+        [[1, 2, 3], [1, 4], [5], [2, 3, 4, 5], [1, 2]]
+
   describe "everyWeek" $
     it "is the five-week set the handler writes for a weekly show" $ do
       map weekNumber (NE.toList everyWeek) `shouldBe` [1, 2, 3, 4, 5]
@@ -200,13 +215,9 @@ spec = describe "Domain.Types.Recurrence" $ do
 
 --------------------------------------------------------------------------------
 
--- | The week sets 'Component.ScheduleEditor' can produce, with the frequency button
--- each one lights up.
---
--- The column accepts all 31 non-empty subsets of 1 to 5. These seven are the ones a
--- form submission can carry, and the only ones a week button can round-trip.
-editorWeekSets :: [([Int64], Text)]
-editorWeekSets =
+-- | The frequency button each of 'editorWeekSets' lights up.
+editorFrequencies :: [([Int64], Text)]
+editorFrequencies =
   [ ([1, 2, 3, 4, 5], "weekly"),
     ([1, 3], "twice"),
     ([2, 4], "twice"),

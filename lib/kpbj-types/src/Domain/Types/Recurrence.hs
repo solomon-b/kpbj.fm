@@ -36,6 +36,10 @@ module Domain.Types.Recurrence
     weeksLabel,
     frequencyLabel,
     ordinal,
+
+    -- * What the schedule editor can express
+    editorCanShow,
+    editorWeekSets,
   )
 where
 
@@ -199,3 +203,33 @@ formatRecurrence r =
    in case weeksLabel r of
         Nothing -> days
         Just weeks -> weeks <> " " <> days
+
+--------------------------------------------------------------------------------
+
+-- | The week sets 'Component.ScheduleEditor' can produce.
+--
+-- Every week, the 1st and 3rd, the 2nd and 4th, and each single week from the 1st to
+-- the 4th. There is no 5th button.
+editorWeekSets :: [[Int64]]
+editorWeekSets =
+  [ [1, 2, 3, 4, 5],
+    [1, 3],
+    [2, 4],
+    [1],
+    [2],
+    [3],
+    [4]
+  ]
+
+-- | True when the schedule editor can show this recurrence and post it back unchanged.
+--
+-- @weeks_of_month@ holds any non-empty subset of 1 to 5, which is 31 values. The
+-- editor produces the seven in 'editorWeekSets'. One of the other 24 lights a
+-- frequency button with no week button beside it, and a member of staff who clicks
+-- one to fill that gap rewrites the show's schedule.
+--
+-- The write paths reject what this rejects, so the column receives only what the
+-- editor can read back. The column keeps the full range on purpose. Give the editor
+-- controls for the other 24 and this list grows to match, with no migration.
+editorCanShow :: Recurrence -> Bool
+editorCanShow r = weekNumbers r `elem` editorWeekSets

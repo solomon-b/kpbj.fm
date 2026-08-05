@@ -12,13 +12,13 @@ import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), norm
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..))
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..))
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
 import Data.Int (Int64)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Time (DayOfWeek (..), TimeOfDay (..), UTCTime (..))
 import Data.Time.Calendar (fromGregorian)
-import Domain.Types.Recurrence (recurrenceFromRow, weekNumbers)
+import Domain.Types.Recurrence (editorWeekSets, recurrenceFromRow, weekNumbers)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -53,16 +53,16 @@ spec =
 
     describe "parseScheduleSlot" $ do
       it "parses and normalizes a valid form slot" $ do
-        let slot = mkSlot "friday" [3, 1, 2] "08:00" 120
+        let slot = mkSlot "friday" [3, 1] "08:00" 120
         parseScheduleSlot slot
-          `shouldBe` Right (mkParsed Friday [1, 2, 3] (TimeOfDay 8 0 0) (TimeOfDay 10 0 0) Nothing)
+          `shouldBe` Right (mkParsed Friday [1, 3] (TimeOfDay 8 0 0) (TimeOfDay 10 0 0) Nothing)
 
       it "rejects invalid start time" $ do
-        let slot = mkSlot "friday" [1, 2] "invalid" 60
+        let slot = mkSlot "friday" [1, 3] "invalid" 60
         parseScheduleSlot slot `shouldBe` Left "Invalid start time: invalid"
 
       it "rejects invalid duration" $ do
-        let slot = mkSlot "friday" [1, 2] "08:00" 45
+        let slot = mkSlot "friday" [1, 3] "08:00" 45
         parseScheduleSlot slot `shouldBe` Left "Invalid duration: 45 (must be 30, 60, or 120)"
 
       it "rejects unknown day of week" $ do
@@ -99,6 +99,33 @@ spec =
       it "deduplicates repeated weeks" $ do
         let slot = mkSlot "friday" [3, 1, 3] "08:00" 60
         fmap (weekNumbers . pssRecurrence) (parseScheduleSlot slot) `shouldBe` Right [1, 3]
+
+    describe "week sets the schedule editor cannot show" $ do
+      -- weeks_of_month keeps all 31 non-empty subsets of 1 to 5 so the editor can
+      -- grow into them. Until it does, the parse boundary only lets through the seven
+      -- it can render and post back, because a stored value outside those seven shows
+      -- a frequency button with no week button beside it.
+      it "rejects a three-week set" $ do
+        parseScheduleSlot (mkSlot "friday" [1, 2, 3] "08:00" 60)
+          `shouldBe` Left "The schedule form cannot show 1st & 2nd & 3rd. Pick every week, the 1st and 3rd, the 2nd and 4th, or one week from the 1st to the 4th."
+
+      it "rejects a two-week set the buttons do not offer" $ do
+        parseScheduleSlot (mkSlot "friday" [1, 4] "08:00" 60) `shouldSatisfy` isLeft
+
+      it "rejects the 5th week, which has no button" $ do
+        parseScheduleSlot (mkSlot "friday" [5] "08:00" 60) `shouldSatisfy` isLeft
+
+      it "accepts every set the editor emits" $
+        mapM_
+          (\weeks -> parseScheduleSlot (mkSlot "friday" weeks "08:00" 60) `shouldSatisfy` isRight)
+          editorWeekSets
+
+      -- Reading is not writing. A row already holding one of the other 24 still
+      -- normalizes, so the show renders and a schedule change can still close it.
+      it "still normalizes a stored set the editor cannot show" $ do
+        let template = mkTemplate Friday [1, 2, 3] (TimeOfDay 8 0 0) (TimeOfDay 10 0 0)
+        normalizeTemplate template
+          `shouldBe` mkParsed Friday [1, 2, 3] (TimeOfDay 8 0 0) (TimeOfDay 10 0 0) Nothing
 
     describe "schedulesMatch" $ do
       it "returns True for identical schedules" $ do
