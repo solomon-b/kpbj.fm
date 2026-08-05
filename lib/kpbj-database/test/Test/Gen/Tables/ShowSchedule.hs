@@ -18,17 +18,10 @@ import Hedgehog.Range qualified as Range
 
 --------------------------------------------------------------------------------
 
--- | All weeks of month (1-5)
+-- | All weeks of month (1-5), which is how a weekly show is stored.
 --
--- For recurring shows (where dayOfWeek is Just), this represents a weekly schedule.
---
--- Functionally equivalent to weeksOfMonth = NULL for weekly shows:
--- - NULL: "every occurrence of this weekday" (simpler, recommended)
--- - [1,2,3,4,5]: "weeks 1-5 of each month" (explicit, same result)
---
--- For N-of-month shows (e.g., "first and third Monday"), use subsets like [1,3].
---
--- Note: For one-time shows, BOTH dayOfWeek and weeksOfMonth must be NULL.
+-- For a show that airs some weeks only, for example the first and third Monday, use
+-- a subset like @[1,3]@.
 allWeeksOfMonth :: [Int64]
 allWeeksOfMonth = [1, 2, 3, 4, 5]
 
@@ -47,10 +40,9 @@ genTimeRange = do
 
 -- | Generate weeks of month (1-5).
 --
--- Never empty. A template with an empty weeks_of_month matches no date, so the
--- show never airs and its slot is invisible to the conflict check. The table
--- CHECK meant to forbid that uses array_length, which returns NULL for an empty
--- array, so it lets one through.
+-- Never empty. A template with an empty weeks_of_month matches no date, so the show
+-- never airs and its slot is invisible to the conflict check. The table CHECK rejects
+-- one.
 genWeeksOfMonth :: (MonadGen m) => m [Int64]
 genWeeksOfMonth = do
   weeks <- Gen.subsequence @_ @Int64 [1, 2, 3, 4, 5]
@@ -73,9 +65,6 @@ weekOfMonth day =
 -- satisfies the air-date trigger, which rejects an episode whose date its
 -- template does not air on.
 --
--- A one-time template airs only on its validity date. Pass that date and get it
--- back with the start time applied.
---
 -- The timezone is America/Los_Angeles whatever stiTimezone says, because the
 -- trigger and getCurrentlyAiringEpisode both hardcode it.
 airTimeForTemplate :: ShowSchedule.ScheduleTemplateInsert -> Day -> UTCTime
@@ -83,26 +72,19 @@ airTimeForTemplate template from =
   airTimeOn template (airDayForTemplate template from)
 
 -- | The first date on or after @from@ that @template@ airs.
---
--- A one-time template airs on one date only, so it returns @from@ unchanged and
--- the caller must pass its validity date.
 airDayForTemplate :: ShowSchedule.ScheduleTemplateInsert -> Day -> Day
 airDayForTemplate template from =
-  case ShowSchedule.stiDayOfWeek template of
-    Nothing -> from
-    Just dow ->
-      let weeks = case ShowSchedule.stiWeeksOfMonth template of
-            Just ws | not (null ws) -> ws
-            _ -> allWeeksOfMonth
-          matches =
-            [ day
-              | day <- take 400 (iterate (addDays 1) from),
-                Time.dayOfWeek day == dow,
-                weekOfMonth day `elem` weeks
-            ]
-       in case matches of
-            (day : _) -> day
-            [] -> from
+  let dow = ShowSchedule.stiDayOfWeek template
+      weeks = ShowSchedule.stiWeeksOfMonth template
+      matches =
+        [ day
+          | day <- take 400 (iterate (addDays 1) from),
+            Time.dayOfWeek day == dow,
+            weekOfMonth day `elem` weeks
+        ]
+   in case matches of
+        (day : _) -> day
+        [] -> from
 
 -- | A template's start time on a given date, as an instant.
 --
@@ -115,27 +97,22 @@ airTimeOn template day =
 -- | The last instant strictly before @before@ that @template@ airs.
 --
 -- The backward counterpart of 'airTimeForTemplate', for a fixture that has to sit
--- in the past. A one-time template airs on one date only, so it returns that date
--- unchanged and the caller must pass one that is already in the past.
+-- in the past.
 lastAirTimeBefore :: ShowSchedule.ScheduleTemplateInsert -> Day -> UTCTime
 lastAirTimeBefore template before =
   airTimeOn template airDay
   where
-    airDay = case ShowSchedule.stiDayOfWeek template of
-      Nothing -> before
-      Just dow ->
-        let weeks = case ShowSchedule.stiWeeksOfMonth template of
-              Just ws | not (null ws) -> ws
-              _ -> allWeeksOfMonth
-            matches =
-              [ day
-                | day <- take 400 (iterate (addDays (-1)) (addDays (-1) before)),
-                  Time.dayOfWeek day == dow,
-                  weekOfMonth day `elem` weeks
-              ]
-         in case matches of
-              (day : _) -> day
-              [] -> addDays (-1) before
+    dow = ShowSchedule.stiDayOfWeek template
+    weeks = ShowSchedule.stiWeeksOfMonth template
+    matches =
+      [ day
+        | day <- take 400 (iterate (addDays (-1)) (addDays (-1) before)),
+          Time.dayOfWeek day == dow,
+          weekOfMonth day `elem` weeks
+      ]
+    airDay = case matches of
+      (day : _) -> day
+      [] -> addDays (-1) before
 
 -- | Generate a future Day value
 genFutureDay :: (MonadIO m, MonadGen m) => m Day
@@ -178,12 +155,11 @@ genReplayStartTime endTime = do
     else pure Nothing
 
 -- | Generate a recurring schedule template insert.
--- For recurring shows, both day_of_week and weeks_of_month must be NOT NULL.
 genRecurringScheduleInsert :: (MonadGen m) => Shows.Id -> m ShowSchedule.ScheduleTemplateInsert
 genRecurringScheduleInsert showId = do
   (startTime, endTime) <- genTimeRange
-  dayOfWeek <- Just <$> genDayOfWeek
-  weeksOfMonth <- Just <$> genWeeksOfMonth -- Must be Just for recurring shows
+  dayOfWeek <- genDayOfWeek
+  weeksOfMonth <- genWeeksOfMonth
   timezone <- genTimezone
   replayStartTime <- genReplayStartTime endTime
   pure
@@ -197,24 +173,6 @@ genRecurringScheduleInsert showId = do
         stiReplayStartTime = replayStartTime
       }
 
--- | Generate a one-time schedule template insert
-genOneTimeScheduleInsert :: (MonadGen m) => Shows.Id -> m ShowSchedule.ScheduleTemplateInsert
-genOneTimeScheduleInsert showId = do
-  (startTime, endTime) <- genTimeRange
-  timezone <- genTimezone
-  replayStartTime <- genReplayStartTime endTime
-  pure
-    ShowSchedule.ScheduleTemplateInsert
-      { stiShowId = showId,
-        stiDayOfWeek = Nothing,
-        stiWeeksOfMonth = Nothing,
-        stiStartTime = startTime,
-        stiEndTime = endTime,
-        stiTimezone = timezone,
-        stiReplayStartTime = replayStartTime
-      }
-
--- | Generate any schedule template insert (recurring or one-time)
+-- | Generate a schedule template insert.
 scheduleTemplateInsertGen :: (MonadGen m) => Shows.Id -> m ShowSchedule.ScheduleTemplateInsert
-scheduleTemplateInsertGen showId =
-  Gen.choice [genRecurringScheduleInsert showId, genOneTimeScheduleInsert showId]
+scheduleTemplateInsertGen = genRecurringScheduleInsert

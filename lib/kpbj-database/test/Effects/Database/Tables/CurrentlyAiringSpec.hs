@@ -33,6 +33,7 @@ import Data.Time
     TimeOfDay (..),
     UTCTime (..),
     addDays,
+    dayOfWeek,
     fromGregorian,
     timeOfDayToTime,
   )
@@ -40,7 +41,7 @@ import Domain.Types.DisplayName (mkDisplayNameUnsafe)
 import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Domain.Types.Slug (mkSlug)
-import Domain.Types.Timezone (pacificToUtc)
+import Domain.Types.Timezone (pacificToUtc, utcToPacific)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -120,17 +121,17 @@ spec =
 
       -- Schedule template transitions (slot-level diffing correctness)
       describe "schedule template transitions" $ do
-        it "preserved slot keeps episode visible" transitionPreservedSlot
         it "replaced slot orphans episode" transitionReplacedSlot
         it "removed slot correctly hides episode" transitionRemovedSlot
 
-      -- Multiple timeslots for the same show
-      describe "multiple timeslots" $ do
-        it "returns correct episode for first timeslot" multiSlotFirstSlot
-        it "returns correct episode for second timeslot" multiSlotSecondSlot
-        it "returns Nothing between timeslots" multiSlotBetween
-        it "returns Nothing before all timeslots" multiSlotBeforeAll
-        it "returns Nothing after all timeslots" multiSlotAfterAll
+      -- Two shows airing at different times of the same day. A show holds one
+      -- slot, so the second window belongs to a second show.
+      describe "consecutive timeslots" $ do
+        it "returns the episode whose window covers the query" multiSlotFirstSlot
+        it "returns the later episode once its window opens" multiSlotSecondSlot
+        it "returns Nothing between the two windows" multiSlotBetween
+        it "returns Nothing before both windows" multiSlotBeforeAll
+        it "returns Nothing after both windows" multiSlotAfterAll
 
       -- A span of `time` values and a span of `timestamptz` values differ in
       -- length on these two dates.
@@ -222,6 +223,37 @@ setupTestData passHash startTime endTime replayStartTime scheduledAt mAudioPath 
 --
 -- Like setupTestData but allows specifying the episode duration explicitly
 -- and returns the user ID for use in multi-timeslot tests.
+--------------------------------------------------------------------------------
+
+-- | A template covering every week, on the weekday @airDate@ falls on.
+--
+-- 'Episodes.getCurrentlyAiringEpisode' drops an episode whose air date its template
+-- does not hold. Deriving the weekday from the date, and taking every week, means the
+-- fixture always satisfies that test, so each case below exercises the window
+-- arithmetic rather than the recurrence.
+recurringOn ::
+  -- | The Pacific date the episode airs on.
+  Day ->
+  Shows.Id ->
+  TimeOfDay ->
+  TimeOfDay ->
+  Maybe TimeOfDay ->
+  ShowSchedule.ScheduleTemplateInsert
+recurringOn airDate showId startTime endTime replayStartTime =
+  ShowSchedule.ScheduleTemplateInsert
+    { stiShowId = showId,
+      stiDayOfWeek = dayOfWeek airDate,
+      stiWeeksOfMonth = [1, 2, 3, 4, 5],
+      stiStartTime = startTime,
+      stiEndTime = endTime,
+      stiTimezone = "America/Los_Angeles",
+      stiReplayStartTime = replayStartTime
+    }
+
+-- | The Pacific date an instant falls on.
+pacificDayOf :: UTCTime -> Day
+pacificDayOf = localDay . utcToPacific
+
 setupTestDataFull ::
   -- | Password hash (created in IO before transaction)
   PasswordHash Argon2 ->
@@ -277,15 +309,7 @@ setupTestDataFull passHash startTime endTime replayStartTime scheduledAt mAudioP
   templateId <-
     TRX.statement () $
       ShowSchedule.insertScheduleTemplate
-        ShowSchedule.ScheduleTemplateInsert
-          { stiShowId = showId,
-            stiDayOfWeek = Nothing,
-            stiWeeksOfMonth = Nothing,
-            stiStartTime = startTime,
-            stiEndTime = endTime,
-            stiTimezone = "America/Los_Angeles",
-            stiReplayStartTime = replayStartTime
-          }
+        (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (replayStartTime))
 
   -- Create validity period
   _ <-
@@ -363,8 +387,8 @@ setupRecurringTestData passHash dayOfWeek weeksOfMonth episodeDate = do
       ShowSchedule.insertScheduleTemplate
         ShowSchedule.ScheduleTemplateInsert
           { stiShowId = showId,
-            stiDayOfWeek = Just dayOfWeek,
-            stiWeeksOfMonth = Just weeksOfMonth,
+            stiDayOfWeek = dayOfWeek,
+            stiWeeksOfMonth = weeksOfMonth,
             stiStartTime = TimeOfDay 14 0 0,
             stiEndTime = TimeOfDay 16 0 0,
             stiTimezone = "America/Los_Angeles",
@@ -458,10 +482,15 @@ setupTestDataWithDuration passHash startTime endTime replayStartTime scheduledAt
   (episodeId, showId, _userId) <- setupTestDataFull passHash startTime endTime replayStartTime scheduledAt mAudioPath effectiveFrom effectiveUntil mDuration
   pure (episodeId, showId)
 
--- | Add a second timeslot (template + validity + episode) to an existing show.
+-- | Add a second concurrent airing, as its own show.
+--
+-- @one_active_slot_per_show@ allows a show one slot at a time, so a window overlapping
+-- another belongs to a second show. Which episode
+-- 'Episodes.getCurrentlyAiringEpisode' picks does not depend on whose slot each window
+-- is, so these cases read the same either way.
 addTimeslot ::
-  -- | Existing show
-  Shows.Id ->
+  -- | Slug suffix, so each show in a test is distinct
+  Text ->
   -- | Existing user (for episode creator)
   User.Id ->
   -- | Start time
@@ -479,25 +508,28 @@ addTimeslot ::
   -- | Validity effective_until
   Maybe Day ->
   TRX.Transaction Episodes.Id
-addTimeslot showId userId startTime endTime replayStartTime scheduledAt mAudioPath effectiveFrom effectiveUntil = do
+addTimeslot slugSuffix userId startTime endTime replayStartTime scheduledAt mAudioPath effectiveFrom effectiveUntil = do
   let slotDuration :: Integer
       slotDuration =
         if endTime > startTime
           then truncate (timeOfDayToTime endTime - timeOfDayToTime startTime)
           else truncate ((24 * 3600) - timeOfDayToTime startTime + timeOfDayToTime endTime)
 
+  showId <-
+    unwrapInsert $
+      Shows.insertShow
+        Shows.Insert
+          { siTitle = "Test Show " <> slugSuffix,
+            siSlug = mkSlug ("test-show-" <> slugSuffix),
+            siDescription = Nothing,
+            siLogoUrl = Nothing,
+            siStatus = Shows.Active
+          }
+
   templateId <-
     TRX.statement () $
       ShowSchedule.insertScheduleTemplate
-        ShowSchedule.ScheduleTemplateInsert
-          { stiShowId = showId,
-            stiDayOfWeek = Nothing,
-            stiWeeksOfMonth = Nothing,
-            stiStartTime = startTime,
-            stiEndTime = endTime,
-            stiTimezone = "America/Los_Angeles",
-            stiReplayStartTime = replayStartTime
-          }
+        (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (replayStartTime))
 
   _ <-
     unwrapInsert $
@@ -512,7 +544,7 @@ addTimeslot showId userId startTime endTime replayStartTime scheduledAt mAudioPa
     Episodes.insertEpisode
       Episodes.Insert
         { eiId = showId,
-          eiDescription = Just "Test Episode (second slot)",
+          eiDescription = Just "Test Episode (second show)",
           eiAudioFilePath = mAudioPath,
           eiAudioFileSize = if isJust mAudioPath then Just 1000000 else Nothing,
           eiAudioMimeType = if isJust mAudioPath then Just "audio/mpeg" else Nothing,
@@ -613,15 +645,7 @@ basicInactiveShow cfg = bracketConn cfg $ do
     templateId <-
       TRX.statement () $
         ShowSchedule.insertScheduleTemplate
-          ShowSchedule.ScheduleTemplateInsert
-            { stiShowId = showId,
-              stiDayOfWeek = Nothing,
-              stiWeeksOfMonth = Nothing,
-              stiStartTime = startTime,
-              stiEndTime = endTime,
-              stiTimezone = "America/Los_Angeles",
-              stiReplayStartTime = Nothing
-            }
+          (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
 
     _ <-
       unwrapInsert $
@@ -1227,56 +1251,6 @@ overnightDurationEndedBeforeMidnight cfg = bracketConn cfg $ do
 -- These tests document the behavior difference between slot-level diffing
 -- (preserving unchanged templates) and nuke-and-rebuild (terminating all templates).
 
--- | Preserved slot keeps episode visible.
---
--- When adding a new slot to a show, the existing slot's template and validity
--- are left untouched. Episodes linked to the original template remain visible.
-transitionPreservedSlot :: TestDBConfig -> IO ()
-transitionPreservedSlot cfg = bracketConn cfg $ do
-  passHash <- hashPassword $ mkPassword "testpass"
-  let startTime = TimeOfDay 14 0 0 -- 2 PM (existing slot)
-      endTime = TimeOfDay 16 0 0 -- 4 PM
-      scheduledAt = mkTestTime startTime
-      queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (mid-show)
-      effectiveFrom = addDays (-30) testDay
-
-  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    -- Create T1 (2-4 PM) with episode — the existing slot
-    (episodeId, showId) <- setupTestData passHash startTime endTime Nothing scheduledAt (Just "audio/test.mp3") effectiveFrom Nothing
-
-    -- Create T2 (6-8 PM) — simulating an added slot (slot-level diff leaves T1 alone)
-    templateId2 <-
-      TRX.statement () $
-        ShowSchedule.insertScheduleTemplate
-          ShowSchedule.ScheduleTemplateInsert
-            { stiShowId = showId,
-              stiDayOfWeek = Nothing,
-              stiWeeksOfMonth = Nothing,
-              stiStartTime = TimeOfDay 18 0 0,
-              stiEndTime = TimeOfDay 20 0 0,
-              stiTimezone = "America/Los_Angeles",
-              stiReplayStartTime = Nothing
-            }
-
-    _ <-
-      unwrapInsert $
-        ShowSchedule.insertValidity
-          ShowSchedule.ValidityInsert
-            { viTemplateId = templateId2,
-              viEffectiveFrom = testDay,
-              viEffectiveUntil = Nothing
-            }
-
-    -- T1's validity is NOT ended — this is the slot-level diff behavior
-    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
-    pure (episodeId, mEpisode)
-
-  case result of
-    Left err -> error $ "DB error: " <> show err
-    Right (expectedId, mEpisode) -> liftIO $ do
-      episode <- assertJustIO mEpisode
-      Episodes.id episode `shouldBe` expectedId
-
 -- | Replaced slot orphans episode.
 --
 -- When nuke-and-rebuild terminates an existing template and creates a new one
@@ -1310,15 +1284,7 @@ transitionReplacedSlot cfg = bracketConn cfg $ do
     templateId1 <-
       TRX.statement () $
         ShowSchedule.insertScheduleTemplate
-          ShowSchedule.ScheduleTemplateInsert
-            { stiShowId = showId,
-              stiDayOfWeek = Nothing,
-              stiWeeksOfMonth = Nothing,
-              stiStartTime = startTime,
-              stiEndTime = endTime,
-              stiTimezone = "America/Los_Angeles",
-              stiReplayStartTime = Nothing
-            }
+          (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
 
     validityId1 <-
       unwrapInsert $
@@ -1348,15 +1314,7 @@ transitionReplacedSlot cfg = bracketConn cfg $ do
     templateId2 <-
       TRX.statement () $
         ShowSchedule.insertScheduleTemplate
-          ShowSchedule.ScheduleTemplateInsert
-            { stiShowId = showId,
-              stiDayOfWeek = Nothing,
-              stiWeeksOfMonth = Nothing,
-              stiStartTime = startTime,
-              stiEndTime = endTime,
-              stiTimezone = "America/Los_Angeles",
-              stiReplayStartTime = Nothing
-            }
+          (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
 
     _ <-
       unwrapInsert $
@@ -1402,15 +1360,7 @@ transitionRemovedSlot cfg = bracketConn cfg $ do
     templateId1 <-
       TRX.statement () $
         ShowSchedule.insertScheduleTemplate
-          ShowSchedule.ScheduleTemplateInsert
-            { stiShowId = showId,
-              stiDayOfWeek = Nothing,
-              stiWeeksOfMonth = Nothing,
-              stiStartTime = startTime,
-              stiEndTime = endTime,
-              stiTimezone = "America/Los_Angeles",
-              stiReplayStartTime = Nothing
-            }
+          (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
 
     validityId1 <-
       unwrapInsert $
@@ -1465,7 +1415,7 @@ multiSlotFirstSlot cfg = bracketConn cfg $ do
       queryTime = mkTestTime (TimeOfDay 10 0 0) -- 10 AM (during first slot)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
-    _ep2 <- addTimeslot showId userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     pure (ep1, mEpisode)
 
@@ -1492,7 +1442,7 @@ multiSlotSecondSlot cfg = bracketConn cfg $ do
       queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (during second slot)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
-    ep2 <- addTimeslot showId userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     pure (ep2, mEpisode)
 
@@ -1519,7 +1469,7 @@ multiSlotBetween cfg = bracketConn cfg $ do
       queryTime = mkTestTime (TimeOfDay 12 0 0) -- Noon (between slots)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
-    _ep2 <- addTimeslot showId userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
   case result of
@@ -1542,7 +1492,7 @@ multiSlotBeforeAll cfg = bracketConn cfg $ do
       queryTime = mkTestTime (TimeOfDay 8 0 0) -- 8 AM (before both)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
-    _ep2 <- addTimeslot showId userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
   case result of
@@ -1565,7 +1515,7 @@ multiSlotAfterAll cfg = bracketConn cfg $ do
       queryTime = mkTestTime (TimeOfDay 17 0 0) -- 5 PM (after both)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing scheduledAt1 (Just "audio/slot1.mp3") testDay Nothing Nothing
-    _ep2 <- addTimeslot showId userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
+    _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing scheduledAt2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
   case result of
@@ -1794,7 +1744,7 @@ springForwardGapSlotNeverAirs cfg = bracketConn cfg $ do
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_, showId, userId) <-
       setupTestDataFull passHash (TimeOfDay 2 0 0) (TimeOfDay 3 0 0) Nothing emptyAt (Just "audio/empty.mp3") springForwardDay Nothing Nothing
-    _ <- addTimeslot showId userId (TimeOfDay 2 30 0) (TimeOfDay 3 0 0) Nothing invertedAt (Just "audio/inverted.mp3") springForwardDay Nothing
+    _ <- addTimeslot "inverted" userId (TimeOfDay 2 30 0) (TimeOfDay 3 0 0) Nothing invertedAt (Just "audio/inverted.mp3") springForwardDay Nothing
     airing <- traverse (TRX.statement () . Episodes.getCurrentlyAiringEpisodes) probes
     TRX.condemn
     pure airing
@@ -1818,7 +1768,7 @@ overlapIsDeterministic cfg = bracketConn cfg $ do
       queryTime = mkTestTime (TimeOfDay 15 30 0)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (early, showId, userId) <- setupTestDataFull passHash earlyStart (TimeOfDay 16 0 0) Nothing (mkTestTime earlyStart) (Just "audio/early.mp3") testDay Nothing Nothing
-    late <- addTimeslot showId userId lateStart (TimeOfDay 17 0 0) Nothing (mkTestTime lateStart) (Just "audio/late.mp3") testDay Nothing
+    late <- addTimeslot "late" userId lateStart (TimeOfDay 17 0 0) Nothing (mkTestTime lateStart) (Just "audio/late.mp3") testDay Nothing
     both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime
     picked <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     TRX.condemn
@@ -1896,15 +1846,7 @@ addSecondShow passHash startTime endTime scheduledAt effectiveFrom = do
   templateId <-
     TRX.statement () $
       ShowSchedule.insertScheduleTemplate
-        ShowSchedule.ScheduleTemplateInsert
-          { stiShowId = showId,
-            stiDayOfWeek = Nothing,
-            stiWeeksOfMonth = Nothing,
-            stiStartTime = startTime,
-            stiEndTime = endTime,
-            stiTimezone = "America/Los_Angeles",
-            stiReplayStartTime = Nothing
-          }
+        (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
   _ <-
     unwrapInsert $
       ShowSchedule.insertValidity
@@ -2010,7 +1952,7 @@ primaryBeatsReplay cfg = bracketConn cfg $ do
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (live, showId, userId) <-
       setupTestDataFull passHash (TimeOfDay 18 0 0) (TimeOfDay 23 0 0) Nothing (mkTestTime (TimeOfDay 18 0 0)) (Just "audio/live.mp3") testDay Nothing Nothing
-    replayed <- addTimeslot showId userId (TimeOfDay 20 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 22 0 0)) (mkTestTime (TimeOfDay 20 0 0)) (Just "audio/replayed.mp3") testDay Nothing
+    replayed <- addTimeslot "replayed" userId (TimeOfDay 20 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 22 0 0)) (mkTestTime (TimeOfDay 20 0 0)) (Just "audio/replayed.mp3") testDay Nothing
     both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime
     picked <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     TRX.condemn

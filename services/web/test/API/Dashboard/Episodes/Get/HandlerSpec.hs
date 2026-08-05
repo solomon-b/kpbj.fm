@@ -7,6 +7,7 @@ module API.Dashboard.Episodes.Get.HandlerSpec where
 import API.Dashboard.Episodes.Get.Handler (EpisodeListViewData (..), action)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
+import Data.Time (DayOfWeek (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -43,8 +44,8 @@ test_emptyDbReturnsNoEpisodes cfg = do
       scheduleInsert =
         ShowSchedule.ScheduleTemplateInsert
           { stiShowId = Shows.Id 0,
-            stiDayOfWeek = Nothing,
-            stiWeeksOfMonth = Nothing,
+            stiDayOfWeek = Monday,
+            stiWeeksOfMonth = [1, 2, 3, 4, 5],
             stiStartTime = read "10:00:00",
             stiEndTime = read "11:00:00",
             stiTimezone = "America/Los_Angeles",
@@ -73,8 +74,8 @@ test_insertedEpisodeAppears cfg = do
       scheduleInsert =
         ShowSchedule.ScheduleTemplateInsert
           { stiShowId = Shows.Id 0,
-            stiDayOfWeek = Nothing,
-            stiWeeksOfMonth = Nothing,
+            stiDayOfWeek = Monday,
+            stiWeeksOfMonth = [1, 2, 3, 4, 5],
             stiStartTime = read "10:00:00",
             stiEndTime = read "11:00:00",
             stiTimezone = "America/Los_Angeles",

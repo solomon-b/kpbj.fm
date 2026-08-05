@@ -9,7 +9,7 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler
     normalizeTemplate,
     parseScheduleSlot,
     schedulesMatch,
-    validateNoOverlaps,
+    validateSingleSlot,
     checkScheduleConflicts,
     removedTemplates,
     scheduleUpdateFlash,
@@ -33,20 +33,18 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Function ((&))
 import Data.Has (getter)
-import Data.Int (Int64)
-import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time (Day, DayOfWeek (..), TimeOfDay)
+import Data.Time (Day, TimeOfDay)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
+import Domain.Types.Recurrence (Recurrence, parseWeeks, recurrenceDay, recurrenceFromRow, recurring, weekNumbers)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, minutesFromMidnight, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
@@ -78,9 +76,11 @@ import Utils (fromMaybeM, fromRightM)
 --
 -- Produced by 'parseScheduleSlot'; all downstream functions operate on this
 -- type instead of the raw 'ScheduleSlotInfo' form data.
+--
+-- The recurrence keeps its weeks sorted and free of duplicates, so 'Eq' and 'Ord'
+-- decide whether a schedule changed.
 data ParsedScheduleSlot = ParsedScheduleSlot
-  { pssDay :: DayOfWeek,
-    pssWeeks :: [Int64],
+  { pssRecurrence :: Recurrence,
     pssStart :: TimeOfDay,
     pssEnd :: TimeOfDay,
     pssReplayStartTime :: Maybe TimeOfDay
@@ -317,23 +317,27 @@ fetchShowOrNotFound slug =
 --
 -- This is the single parse boundary: downstream functions receive 'ParsedScheduleSlot'
 -- values with typed fields and never re-parse from text.
-parseSchedules :: Maybe Text -> Either Text [ParsedScheduleSlot]
-parseSchedules Nothing = Right []
+parseSchedules :: Maybe Text -> Either Text (Maybe ParsedScheduleSlot)
+parseSchedules Nothing = Right Nothing
 parseSchedules (Just schedulesJson)
-  | Text.null (Text.strip schedulesJson) = Right []
-  | schedulesJson == "[]" = Right []
+  | Text.null (Text.strip schedulesJson) = Right Nothing
+  | schedulesJson == "[]" = Right Nothing
   | otherwise = case Aeson.eitherDecodeStrict (Text.encodeUtf8 schedulesJson) of
       Left err -> Left $ "Invalid schedules JSON: " <> Text.pack err
       Right slots -> do
         parsed <- traverse parseScheduleSlot slots
-        validateNoOverlaps parsed
+        validateSingleSlot parsed
 
 -- | Parse and validate a single schedule slot from form data.
+--
+-- The field order decides which message a submission with several bad fields gets,
+-- so the weeks are parsed through 'parseWeeks' rather than 'parseRecurrence' to keep
+-- the day, then start time, then weeks ordering.
 parseScheduleSlot :: ScheduleSlotInfo -> Either Text ParsedScheduleSlot
 parseScheduleSlot slot = do
   dow <- maybe (Left $ "Invalid day of week: " <> dayOfWeek slot) Right (dayOfWeekFromText (dayOfWeek slot))
   start <- maybe (Left $ "Invalid start time: " <> startTime slot) Right (parseTimeHHMM (startTime slot))
-  weeks <- validateWeeks (weeksOfMonth slot)
+  weeks <- parseWeeks (weeksOfMonth slot)
   let dur = duration slot
   if dur `notElem` [30, 60, 120]
     then Left $ "Invalid duration: " <> Text.pack (show dur) <> " (must be 30, 60, or 120)"
@@ -348,162 +352,65 @@ parseScheduleSlot slot = do
               Just replayTod -> Right (Just replayTod)
       Right $
         ParsedScheduleSlot
-          { pssDay = dow,
-            pssWeeks = weeks,
+          { pssRecurrence = recurring dow weeks,
             pssStart = start,
             pssEnd = end,
             pssReplayStartTime = mReplay
           }
 
--- | The weeks of the month a recurring slot holds, sorted and deduplicated.
+-- | Reduce a submission to the one slot a show may hold.
 --
--- The @weeks_of_month@ CHECK on @schedule_templates@ rejects a value outside 1 to
--- 5, but only at insert time. By then the schedule diff has already decided which
--- templates to close, so the failure arrives as an opaque database error rather
--- than as a message naming the bad field.
+-- @one_active_slot_per_show@ makes a second concurrent slot unrepresentable, so a
+-- form carrying two is rejected here with a message naming the problem rather than by
+-- the database with an exclusion violation. The editor emits at most one.
 --
--- The CHECK does not reject the empty list at all. It reads
--- @array_length(weeks_of_month, 1) > 0@, and @array_length@ of an empty array is
--- NULL, so the whole expression is NULL and Postgres accepts a NULL CHECK. An
--- empty list describes a slot that never airs, because 'recurrence_airs_on'
--- compares the week against @ANY(weeks)@ and no week is a member of an empty set.
--- It also never conflicts with anything, since 'weeksOverlap' is @any@ over an
--- empty list, so the slot blocks nobody while broadcasting nothing.
---
--- The schedule editor cannot produce either value. It emits @[1,2,3,4,5]@,
--- @[1,3]@, @[2,4]@, or a single week. Both need a hand-written POST.
-validateWeeks :: [Int64] -> Either Text [Int64]
-validateWeeks weeks
-  | null weeks = Left "Pick at least one week of the month."
-  | not (null outOfRange) =
-      Left $
-        "Invalid week of month: "
-          <> Text.intercalate ", " (map (Text.pack . show) outOfRange)
-          <> " (must be 1 to 5)."
-  | otherwise = Right (Set.toAscList (Set.fromList weeks))
-  where
-    outOfRange = filter (\w -> w < 1 || w > 5) weeks
+-- The surviving slot still has to clear its own replay. Those two ranges share a day
+-- and a recurrence, so 'checkScheduleConflicts' cannot see a collision between them.
+-- It asks the database about other shows only.
+validateSingleSlot :: [ParsedScheduleSlot] -> Either Text (Maybe ParsedScheduleSlot)
+validateSingleSlot [] = Right Nothing
+validateSingleSlot [slot] = Just slot <$ validateReplayGap slot
+validateSingleSlot slots =
+  Left $
+    "A show holds one time slot, but this form sent "
+      <> Text.pack (show (length slots))
+      <> ". Remove the extra slots and try again."
 
--- | Validate that the slots of one submission do not overlap each other.
+-- | Reject a replay that runs over the airing it replays.
 --
--- This is the check within a single show. 'checkScheduleConflicts' makes the
--- check against the other shows in the database.
+-- Both ranges start on the same weekday. Two same-day ranges that each cross
+-- midnight must both cover the minute before midnight, so checking the shared day is
+-- enough; there is no separate case for the tails.
+validateReplayGap :: ParsedScheduleSlot -> Either Text ()
+validateReplayGap slot = case pssReplayStartTime slot of
+  Nothing -> Right ()
+  Just replayStart ->
+    let dur = slotDurationMins (pssStart slot) (pssEnd slot)
+        replayEnd = addMinutesToTimeOfDay replayStart dur
+        (primaryFrom, primaryTo) = minuteRange (pssStart slot) (pssEnd slot)
+        (replayFrom, replayTo) = minuteRange replayStart replayEnd
+     in if primaryFrom < min replayTo 1440 && min primaryTo 1440 > replayFrom
+          then
+            Left $
+              "Schedule conflict: the replay at "
+                <> formatTimeHHMM replayStart
+                <> "-"
+                <> formatTimeHHMM replayEnd
+                <> " overlaps the airing at "
+                <> formatTimeHHMM (pssStart slot)
+                <> "-"
+                <> formatTimeHHMM (pssEnd slot)
+          else Right ()
+
+-- | A time range as half-open minutes from midnight of the day it starts on.
 --
--- Each slot expands into its primary range and, when it has one, its replay
--- range. Every pair then goes through 'slotsOverlap', which covers a slot that
--- crosses midnight onto the next day.
-validateNoOverlaps :: [ParsedScheduleSlot] -> Either Text [ParsedScheduleSlot]
-validateNoOverlaps slots =
-  let -- Expand each slot into primary + optional replay virtual slot
-      expandSlot s =
-        let primary = s {pssReplayStartTime = Nothing}
-            replay = case pssReplayStartTime s of
-              Nothing -> []
-              Just rt ->
-                let dur = slotDurationMins (pssStart s) (pssEnd s)
-                 in [ s
-                        { pssStart = rt,
-                          pssEnd = addMinutesToTimeOfDay rt dur,
-                          pssReplayStartTime = Nothing
-                        }
-                    ]
-         in primary : replay
-      allVirtual = concatMap expandSlot slots
-   in case findOverlap allVirtual of
-        Just (slot1, slot2) ->
-          Left $
-            "Schedule conflict: "
-              <> Text.pack (show (pssDay slot1))
-              <> " "
-              <> formatTimeHHMM (pssStart slot1)
-              <> "-"
-              <> formatTimeHHMM (pssEnd slot1)
-              <> " overlaps with "
-              <> Text.pack (show (pssDay slot2))
-              <> " "
-              <> formatTimeHHMM (pssStart slot2)
-              <> "-"
-              <> formatTimeHHMM (pssEnd slot2)
-        Nothing -> Right slots
-
--- | Find the first pair of overlapping slots, if any.
-findOverlap :: [ParsedScheduleSlot] -> Maybe (ParsedScheduleSlot, ParsedScheduleSlot)
-findOverlap [] = Nothing
-findOverlap (x : xs) =
-  case filter (slotsOverlap x) xs of
-    (y : _) -> Just (x, y)
-    [] -> findOverlap xs
-
--- | Check if two schedule slots overlap.
---
--- Each slot becomes a half-open range of minutes from midnight of its own day.
--- See 'slotMinutes'. A slot that crosses midnight takes @[start, 1440)@ on its
--- own day and @[0, end - 1440)@ on the next day.
---
--- Two slots can meet on three days, and this checks all three. They can share a
--- day. The first can cross midnight onto the second's day. The second can cross
--- midnight onto the first's day.
---
--- 'ShowSchedule.checkTimeSlotConflict' applies the same three comparisons
--- against the other shows in the database.
-slotsOverlap :: ParsedScheduleSlot -> ParsedScheduleSlot -> Bool
-slotsOverlap slot1 slot2 = sameDay || tail1HitsSlot2 || tail2HitsSlot1
-  where
-    (start1, end1) = slotMinutes slot1
-    (start2, end2) = slotMinutes slot2
-
-    sameDay =
-      pssDay slot1 == pssDay slot2
-        && weeksOverlap (pssWeeks slot1) (pssWeeks slot2)
-        && start1 < min end2 1440
-        && min end1 1440 > start2
-
-    tail1HitsSlot2 =
-      end1 > 1440
-        && pssDay slot2 == nextDayOfWeek (pssDay slot1)
-        && weeksMeetAcrossMidnight (pssWeeks slot1) (pssWeeks slot2)
-        && start2 < end1 - 1440
-
-    tail2HitsSlot1 =
-      end2 > 1440
-        && pssDay slot1 == nextDayOfWeek (pssDay slot2)
-        && weeksMeetAcrossMidnight (pssWeeks slot2) (pssWeeks slot1)
-        && start1 < end2 - 1440
-
--- | A slot as a half-open range of minutes from midnight of the day it starts on.
---
--- The end goes above 1440 when the slot crosses midnight. A slot that stops at
+-- The end goes above 1440 when the range crosses midnight. A range that stops at
 -- midnight gets an end of exactly 1440 and does not cross.
-slotMinutes :: ParsedScheduleSlot -> (Int, Int)
-slotMinutes slot =
-  let start = minutesFromMidnight (pssStart slot)
-      end = minutesFromMidnight (pssEnd slot)
-   in (start, if end > start then end else end + 1440)
-
--- | The next day of the week. Saturday gives Sunday.
-nextDayOfWeek :: DayOfWeek -> DayOfWeek
-nextDayOfWeek d = toEnum (fromEnum d + 1)
-
--- | Check if two lists of weeks share any common weeks.
-weeksOverlap :: [Int64] -> [Int64] -> Bool
-weeksOverlap weeks1 weeks2 = any (`elem` weeks2) weeks1
-
--- | The weeks of the month a date can fall in, given the week of the day before it.
---
--- Week @w@ covers the days @7(w - 1) + 1@ to @7w@, so the next day is in week
--- @w@ or week @w + 1@. The day after the last day of a month is in week 1, and
--- a month can end in week 4 (February) or week 5.
-nextWeeks :: Int64 -> [Int64]
-nextWeeks w = [w, w + 1] <> [1 | w >= 4]
-
--- | Check if a slot on the @earlier@ weeks can cross midnight onto a slot on the
--- @later@ weeks.
---
--- This can report a meeting that a concrete calendar would not produce. It never
--- misses one.
-weeksMeetAcrossMidnight :: [Int64] -> [Int64] -> Bool
-weeksMeetAcrossMidnight earlier later =
-  any (any (`elem` later) . nextWeeks) earlier
+minuteRange :: TimeOfDay -> TimeOfDay -> (Int, Int)
+minuteRange start end =
+  let s = minutesFromMidnight start
+      e = minutesFromMidnight end
+   in (s, if e > s then e else e + 1440)
 
 -- | Format a TimeOfDay as "HH:MM" for error messages.
 formatTimeHHMM :: TimeOfDay -> Text
@@ -514,59 +421,40 @@ formatTimeHHMM = Text.pack . formatTime defaultTimeLocale "%H:%M"
 
 -- | Normalize a DB template to a 'ParsedScheduleSlot' for comparison.
 --
--- Returns 'Nothing' for templates with no day of week (shouldn't occur in
--- practice, but the DB column is nullable).
-normalizeTemplate :: ShowSchedule.ScheduleTemplate Result -> Maybe ParsedScheduleSlot
-normalizeTemplate t = case t.stDayOfWeek of
-  Just dow ->
-    Just $
-      ParsedScheduleSlot
-        { pssDay = dow,
-          -- Sorted and deduplicated the same way 'validateWeeks' does. A stored
-          -- duplicate would otherwise stop matching its own form value, and the
-          -- diff would read the slot as removed and re-add it.
-          pssWeeks = Set.toAscList (Set.fromList (fromMaybe [1, 2, 3, 4, 5] t.stWeeksOfMonth)),
-          pssStart = t.stStartTime,
-          pssEnd = t.stEndTime,
-          pssReplayStartTime = t.stReplayStartTime
-        }
-  Nothing -> Nothing
+-- Total, because every template carries a day and a non-empty week set. So every
+-- active template reaches both 'schedulesMatch' and 'removedTemplates', and a
+-- schedule change closes all of them.
+normalizeTemplate :: ShowSchedule.ScheduleTemplate Result -> ParsedScheduleSlot
+normalizeTemplate t =
+  ParsedScheduleSlot
+    { pssRecurrence = recurrenceFromRow t.stDayOfWeek t.stWeeksOfMonth,
+      pssStart = t.stStartTime,
+      pssEnd = t.stEndTime,
+      pssReplayStartTime = t.stReplayStartTime
+    }
 
 -- | Check if parsed form schedule matches current DB schedule.
 --
--- Both sides are compared as sets of 'ParsedScheduleSlot'. DB templates with
--- no day of week are excluded (they can't match any valid form slot).
-schedulesMatch :: [ShowSchedule.ScheduleTemplate Result] -> [ParsedScheduleSlot] -> Bool
-schedulesMatch dbTemplates parsedSlots =
-  let dbSet = Set.fromList $ mapMaybe normalizeTemplate dbTemplates
-      formSet = Set.fromList parsedSlots
+-- Both sides are compared as sets of 'ParsedScheduleSlot'. A show holds one slot, so
+-- the sets hold at most one element each. Taking a list of templates keeps the
+-- comparison correct for a show that somehow carries more.
+schedulesMatch :: [ShowSchedule.ScheduleTemplate Result] -> Maybe ParsedScheduleSlot -> Bool
+schedulesMatch dbTemplates parsedSlot =
+  let dbSet = Set.fromList (map normalizeTemplate dbTemplates)
+      formSet = maybe Set.empty Set.singleton parsedSlot
    in dbSet == formSet
 
 -- | Active templates whose slot signature is absent from the submitted form.
 --
--- These are the templates 'updateScheduleTemplates' will terminate and detach
--- episodes from. That means any active template whose normalized slot is not
--- present in the form, either deleted outright or re-keyed to a different
--- signature. Templates with no day of week (which cannot normalize) are dropped,
--- matching 'normalizeTemplate'.
+-- These are the templates 'updateScheduleTemplates' terminates and detaches episodes
+-- from: any active template whose normalized slot differs from the form's, whether
+-- the form dropped the slot or re-keyed it to a different signature.
 removedTemplates ::
   [ShowSchedule.ScheduleTemplate Result] ->
-  [ParsedScheduleSlot] ->
+  Maybe ParsedScheduleSlot ->
   [ShowSchedule.ScheduleTemplate Result]
-removedTemplates activeTemplates parsedSlots =
-  let templateMap :: Map.Map ParsedScheduleSlot [ShowSchedule.ScheduleTemplate Result]
-      templateMap =
-        foldMap
-          ( \t ->
-              normalizeTemplate t & \case
-                Just slot -> Map.singleton slot [t]
-                Nothing -> Map.empty
-          )
-          activeTemplates
-      dbSet = Map.keysSet templateMap
-      formSet = Set.fromList parsedSlots
-      removed = Set.difference dbSet formSet
-   in concatMap (\slot -> Map.findWithDefault [] slot templateMap) (Set.toList removed)
+removedTemplates activeTemplates parsedSlot =
+  filter (\t -> Just (normalizeTemplate t) /= parsedSlot) activeTemplates
 
 -- | Warning-flash body listing the upcoming episodes that a schedule edit just
 -- unscheduled. They keep their audio and show up flagged "UNSCHEDULED" in the
@@ -599,35 +487,35 @@ scheduleUpdateFlash eps =
 -- have already closed by then are not conflicts.
 checkScheduleConflicts ::
   Shows.Id ->
-  [ParsedScheduleSlot] ->
+  Maybe ParsedScheduleSlot ->
   Day ->
   AppM (Either Text ())
-checkScheduleConflicts showId slots fromDate = go slots
-  where
-    go [] = pure (Right ())
-    go (slot : rest) = do
-      let weeks = map fromIntegral (pssWeeks slot)
-      -- Check primary slot
-      execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks (pssStart slot) (pssEnd slot) fromDate) >>= \case
-        Left err -> do
-          Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
-          pure (Left "Unable to verify schedule availability. Please try again.")
-        Right (Just conflictingShow) ->
-          pure (Left $ "Schedule conflict: " <> Text.pack (show (pssDay slot)) <> " " <> formatTimeHHMM (pssStart slot) <> "-" <> formatTimeHHMM (pssEnd slot) <> " overlaps with \"" <> conflictingShow <> "\"")
-        Right Nothing ->
-          -- Check replay slot if set
-          case pssReplayStartTime slot of
-            Nothing -> go rest
-            Just replayStart -> do
-              let dur = slotDurationMins (pssStart slot) (pssEnd slot)
-                  replayEnd = addMinutesToTimeOfDay replayStart dur
-              execQuery (ShowSchedule.checkTimeSlotConflict showId (pssDay slot) weeks replayStart replayEnd fromDate) >>= \case
-                Left err -> do
-                  Log.logAttention "Failed to check replay conflict" (Text.pack $ show err)
-                  pure (Left "Unable to verify schedule availability. Please try again.")
-                Right (Just conflictingShow) ->
-                  pure (Left $ "Replay conflict: " <> Text.pack (show (pssDay slot)) <> " " <> formatTimeHHMM replayStart <> "-" <> formatTimeHHMM replayEnd <> " overlaps with \"" <> conflictingShow <> "\"")
-                Right Nothing -> go rest
+checkScheduleConflicts _ Nothing _ = pure (Right ())
+checkScheduleConflicts showId (Just slot) fromDate = do
+  let day = recurrenceDay (pssRecurrence slot)
+      weeks = weekNumbers (pssRecurrence slot)
+      dayText = Text.pack (show day)
+  -- Check primary slot
+  execQuery (ShowSchedule.checkTimeSlotConflict showId day weeks (pssStart slot) (pssEnd slot) fromDate) >>= \case
+    Left err -> do
+      Log.logAttention "Failed to check schedule conflict" (Text.pack $ show err)
+      pure (Left "Unable to verify schedule availability. Please try again.")
+    Right (Just conflictingShow) ->
+      pure (Left $ "Schedule conflict: " <> dayText <> " " <> formatTimeHHMM (pssStart slot) <> "-" <> formatTimeHHMM (pssEnd slot) <> " overlaps with \"" <> conflictingShow <> "\"")
+    Right Nothing ->
+      -- Check replay slot if set
+      case pssReplayStartTime slot of
+        Nothing -> pure (Right ())
+        Just replayStart -> do
+          let dur = slotDurationMins (pssStart slot) (pssEnd slot)
+              replayEnd = addMinutesToTimeOfDay replayStart dur
+          execQuery (ShowSchedule.checkTimeSlotConflict showId day weeks replayStart replayEnd fromDate) >>= \case
+            Left err -> do
+              Log.logAttention "Failed to check replay conflict" (Text.pack $ show err)
+              pure (Left "Unable to verify schedule availability. Please try again.")
+            Right (Just conflictingShow) ->
+              pure (Left $ "Replay conflict: " <> dayText <> " " <> formatTimeHHMM replayStart <> "-" <> formatTimeHHMM replayEnd <> " overlaps with \"" <> conflictingShow <> "\"")
+            Right Nothing -> pure (Right ())
 
 -- | What one schedule update changed.
 --
@@ -688,7 +576,7 @@ scheduleUpdateLog showId update =
 -- caller does the logging.
 updateSchedulesForShow ::
   Shows.Id ->
-  [ParsedScheduleSlot] ->
+  Maybe ParsedScheduleSlot ->
   Maybe Day ->
   -- | Today in Pacific. Used as the effective date when the form gives none.
   Day ->
@@ -718,7 +606,7 @@ updateSchedulesForShow showId newSchedules mStartDate today =
 -- newly inserted validity records. When absent @today@ is used.
 scheduleUpdateTx ::
   Shows.Id ->
-  [ParsedScheduleSlot] ->
+  Maybe ParsedScheduleSlot ->
   Maybe Day ->
   Day ->
   ExceptT Text HT.Transaction ScheduleUpdate
@@ -845,20 +733,18 @@ cancelPendingSchedule pendingTemplates activeTemplates = do
 updateScheduleTemplates ::
   Shows.Id ->
   [ShowSchedule.ScheduleTemplate Result] ->
-  [ParsedScheduleSlot] ->
+  Maybe ParsedScheduleSlot ->
   Day ->
   ExceptT Text HT.Transaction ([ShowSchedule.TemplateId], [ShowSchedule.TemplateId])
-updateScheduleTemplates showId activeTemplates parsedSlots startDate = do
-  let -- Normalize each DB template into a ParsedScheduleSlot so we can compute the
-      -- set of newly added slots (those in the form but absent from the DB).
-      -- Templates with no day of week (shouldn't happen in practice) are dropped.
-      dbSet = Set.fromList (mapMaybe normalizeTemplate activeTemplates)
-      formSet = Set.fromList parsedSlots
+updateScheduleTemplates showId activeTemplates parsedSlot startDate = do
+  let -- Normalize each DB template so we can tell whether the form's slot is already
+      -- stored or has to be created.
+      dbSet = Set.fromList (map normalizeTemplate activeTemplates)
 
-      -- Slots in form but not in DB — user added these
-      added = Set.difference formSet dbSet
+      -- The form's slot, when it is not already in the database.
+      added = filter (\slot -> not (Set.member slot dbSet)) (maybe [] pure parsedSlot)
 
-      removed = removedTemplates activeTemplates parsedSlots
+      removed = removedTemplates activeTemplates parsedSlot
 
   -- For each removed (or re-keyed) template, end its active validity periods by
   -- setting effective_until to startDate, then detach its upcoming episodes.
@@ -871,7 +757,7 @@ updateScheduleTemplates showId activeTemplates parsedSlots startDate = do
     -- on or after the change date so interim episodes keep their slot.
     void $ HT.statement () (Episodes.clearTemplateForUpcomingEpisodes template.stId startDate)
 
-  created <- traverse (insertScheduleSlot showId startDate) (Set.toList added)
+  created <- traverse (insertScheduleSlot showId startDate) added
   pure (map (.stId) removed, created)
 
 -- | Create one schedule template and its open-ended validity period.
@@ -887,8 +773,8 @@ insertScheduleSlot showId startDate slot = do
   let templateInsert =
         ShowSchedule.ScheduleTemplateInsert
           { ShowSchedule.stiShowId = showId,
-            ShowSchedule.stiDayOfWeek = Just (pssDay slot),
-            ShowSchedule.stiWeeksOfMonth = Just (pssWeeks slot),
+            ShowSchedule.stiDayOfWeek = recurrenceDay (pssRecurrence slot),
+            ShowSchedule.stiWeeksOfMonth = weekNumbers (pssRecurrence slot),
             ShowSchedule.stiStartTime = pssStart slot,
             ShowSchedule.stiEndTime = pssEnd slot,
             ShowSchedule.stiTimezone = "America/Los_Angeles",
@@ -1016,7 +902,7 @@ processShowTags showId mTagsText = do
 --
 -- Returns Nothing if no schedules, otherwise returns a formatted string
 -- like "Fridays 8:00 PM - 10:00 PM PT"
-buildTimeslotDescription :: [ParsedScheduleSlot] -> Maybe Text
-buildTimeslotDescription [] = Nothing
-buildTimeslotDescription (slot : _) =
-  Just $ HostNotifications.formatTimeslotDescription (pssDay slot) (pssStart slot) (pssEnd slot)
+buildTimeslotDescription :: Maybe ParsedScheduleSlot -> Maybe Text
+buildTimeslotDescription =
+  fmap $ \slot ->
+    HostNotifications.formatTimeslotDescription (recurrenceDay (pssRecurrence slot)) (pssStart slot) (pssEnd slot)

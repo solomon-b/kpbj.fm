@@ -14,18 +14,18 @@ import Control.Monad (forM_, unless)
 import Data.List (sortOn)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (DayOfWeek (..))
 import Design (base, class_, desktop)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
+import Domain.Types.Recurrence (formatRecurrence, recurrenceFromRow)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import OrphanInstances.TimeOfDay (formatScheduleDual, formatWeeksOfMonth)
+import OrphanInstances.TimeOfDay (formatScheduleDual)
 import Rel8 (Result)
 import Servant.Links qualified as Links
 
@@ -80,20 +80,8 @@ renderShowHeader backend showModel hosts schedules tags = do
           Tags.renderTags (map showTagToLink tags)
   where
     renderSchedule :: ShowSchedule.ScheduleTemplate Result -> Text
-    renderSchedule ShowSchedule.ScheduleTemplate {stDayOfWeek = mDow, stWeeksOfMonth = weeksOfMonth, stStartTime = st, stEndTime = et, stReplayStartTime = mReplay} =
-      case mDow of
-        Nothing -> "One-time show"
-        Just dow ->
-          let dayName :: Text
-              dayName = case dow of
-                Sunday -> "Sunday"
-                Monday -> "Monday"
-                Tuesday -> "Tuesday"
-                Wednesday -> "Wednesday"
-                Thursday -> "Thursday"
-                Friday -> "Friday"
-                Saturday -> "Saturday"
-           in formatWeeksOfMonth weeksOfMonth <> dayName <> "s " <> formatScheduleDual st et mReplay
+    renderSchedule ShowSchedule.ScheduleTemplate {stDayOfWeek = dow, stWeeksOfMonth = weeks, stStartTime = st, stEndTime = et, stReplayStartTime = mReplay} =
+      formatRecurrence (recurrenceFromRow dow weeks) <> " " <> formatScheduleDual st et mReplay
 
     showTagToLink :: ShowTags.Model -> Tags.TagLink
     showTagToLink tag =

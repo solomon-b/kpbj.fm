@@ -2,21 +2,14 @@
 
 -- | When a show airs.
 --
--- Four places used to answer that question and each answered it differently. The
--- database column pair, the @recurrence_airs_on@ SQL function, the handler's parsed
--- slot, and the Alpine editor all carried their own mapping from weeks of the month
--- to a label, and they disagreed on values the station actually stores. A show on
--- @{1,2,3,4,5}@ read as @""@ to two of them, @"Weekly"@ to a third, and @"twice"@ to
--- the fourth.
+-- This module holds the only parser and the only formatter for a recurrence. Every
+-- caller goes through it, so the database, the schedule editor, the show pages and
+-- the invitation summary all describe a given week set the same way.
 --
--- This module holds the only parser and the only formatter. Every caller goes
--- through it.
---
--- 'Recurrence' is a sum type with one constructor today. The station dropped the
--- one-time template shape because it had zero rows and no interface, but it will
--- come back. Adding @OneTime Day@ here makes 'foldRecurrence' take another argument,
--- and the compiler then names every site that has to handle it. That is why the
--- constructor stays unexported and callers eliminate through 'foldRecurrence'.
+-- The constructor stays unexported and callers eliminate through 'foldRecurrence'.
+-- That keeps the sorted, duplicate-free invariant on the weeks, and it means a new
+-- constructor gives 'foldRecurrence' another argument, so the compiler names every
+-- site that has to handle it.
 module Domain.Types.Recurrence
   ( -- * Type
     Recurrence,
@@ -104,9 +97,8 @@ recurring day weeks =
 -- outside 1 to 5. This drops any value the database cannot hold and falls back to
 -- 'everyWeek' if that leaves nothing.
 --
--- The fallback is unreachable through the constraint. It exists so that display code
--- does not have to thread a 'Maybe' for a case the schema forbids, which is the
--- threading this module removed.
+-- The fallback is unreachable through the constraint. It exists so display code can
+-- take a 'Recurrence' directly rather than a 'Maybe' for a case the schema forbids.
 recurrenceFromRow :: DayOfWeek -> [Int64] -> Recurrence
 recurrenceFromRow day weeks =
   recurring day $ case NE.nonEmpty (mapMaybe mkWeekOfMonth weeks) of
@@ -115,8 +107,8 @@ recurrenceFromRow day weeks =
 
 -- | Eliminate a 'Recurrence'.
 --
--- Prefer this over exposing the constructor. When the one-time shape returns, this
--- gains an argument and the compiler lists every caller that needs updating.
+-- The only way to read a recurrence apart. Adding a constructor gives this another
+-- argument, so the compiler lists every caller that has to handle it.
 foldRecurrence :: (DayOfWeek -> NonEmpty WeekOfMonth -> r) -> Recurrence -> r
 foldRecurrence f (Recurring day weeks) = f day weeks
 
@@ -153,8 +145,8 @@ parseRecurrence dayText weeks = do
 
 -- | Parse the week numbers alone.
 --
--- Split out from 'parseRecurrence' so a caller that validates other fields in
--- between can keep its own error ordering.
+-- Separate from 'parseRecurrence' so a caller that validates other fields in between
+-- can choose which error a submission with several bad fields reports.
 parseWeeks :: [Int64] -> Either Text (NonEmpty WeekOfMonth)
 parseWeeks [] = Left "Pick at least one week of the month."
 parseWeeks weeks =
@@ -192,8 +184,8 @@ weeksLabel r
 -- | The editor's frequency key for this recurrence.
 --
 -- These three values drive the WEEKLY, TWICE A MONTH and ONCE A MONTH buttons in
--- 'Component.ScheduleEditor'. Production stores seven distinct week sets and every
--- one of them lands on the right button here.
+-- 'Component.ScheduleEditor'. Five weeks is weekly, one week is once a month, and
+-- anything between is twice.
 frequencyLabel :: Recurrence -> Text
 frequencyLabel r = case NE.length (recurrenceWeeks r) of
   5 -> "weekly"

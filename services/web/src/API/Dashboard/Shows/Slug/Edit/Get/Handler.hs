@@ -20,6 +20,7 @@ import Control.Monad.Trans.Except (ExceptT)
 import Data.Bool (bool)
 import Data.Either (fromRight)
 import Data.Has (getter)
+import Data.Maybe (listToMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -188,4 +189,6 @@ fetchStaffData showId = do
           [] -> todayText
           vs -> Text.pack $ show $ max today $ minimum $ map (.stvEffectiveFrom) vs
 
-    pure (schedulesToEditorJson formTemplates, eligibleHosts, Set.fromList $ fmap (.shmUserId) currentHostIds, startDate, todayText, currentForDisplay, pendingTemplates)
+    -- A show holds one slot, enforced by one_active_slot_per_show. Take the head so a
+    -- database that predates the constraint still renders rather than failing.
+    pure (schedulesToEditorJson (listToMaybe formTemplates), eligibleHosts, Set.fromList $ fmap (.shmUserId) currentHostIds, startDate, todayText, currentForDisplay, pendingTemplates)

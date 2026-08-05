@@ -6,7 +6,7 @@ module API.Dashboard.Shows.New.Post.Handler (handler, action) where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Shows.New.Post.Route (NewShowForm (..))
-import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, insertScheduleSlot, parseScheduleSlot, validateNoOverlaps)
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, insertScheduleSlot, parseScheduleSlot, validateSingleSlot)
 import API.Links (dashboardShowsLinks)
 import API.Types
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
@@ -29,6 +29,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Time (Day)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
+import Domain.Types.Recurrence (recurrenceDay)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (LocalTime (..), parseDateYMD, utcToPacific)
 import Effects.Clock (currentSystemTime)
@@ -258,10 +259,10 @@ createShowTx ::
   [User.Id] ->
   -- | Comma-separated tags from the form.
   Maybe Text ->
-  [ParsedScheduleSlot] ->
+  Maybe ParsedScheduleSlot ->
   Day ->
   ExceptT Text HT.Transaction ShowCreation
-createShowTx showData hostIds mTags slots startDate = do
+createShowTx showData hostIds mTags slot startDate = do
   showId <-
     lift (HT.statement () (Shows.insertShow showData)) >>= \case
       Just sid -> pure sid
@@ -271,7 +272,7 @@ createShowTx showData hostIds mTags slots startDate = do
 
   promoted <- lift $ assignHostsToShow showId hostIds
   lift $ processShowTags showId mTags
-  templates <- createSchedulesForShow showId slots startDate
+  templates <- createSchedulesForShow showId slot startDate
 
   pure
     ShowCreation
@@ -335,29 +336,29 @@ processShowTags showId (Just tagsText) = do
 -- Schedule Creation Helpers
 
 -- | Parse schedules JSON from form data, validate all fields, and check for overlaps.
-parseSchedules :: Maybe Text -> Either Text [ParsedScheduleSlot]
-parseSchedules Nothing = Right []
+parseSchedules :: Maybe Text -> Either Text (Maybe ParsedScheduleSlot)
+parseSchedules Nothing = Right Nothing
 parseSchedules (Just schedulesJson)
-  | Text.null (Text.strip schedulesJson) = Right []
-  | schedulesJson == "[]" = Right []
+  | Text.null (Text.strip schedulesJson) = Right Nothing
+  | schedulesJson == "[]" = Right Nothing
   | otherwise = case Aeson.eitherDecodeStrict (Text.encodeUtf8 schedulesJson) of
       Left err -> Left $ "Invalid schedules JSON: " <> Text.pack err
       Right slots -> do
         parsed <- traverse parseScheduleSlot slots
-        validateNoOverlaps parsed
+        validateSingleSlot parsed
 
--- | Create schedules for a newly created show.
+-- | Create the show's schedule slot, if the form carried one.
 --
--- @startDate@ becomes the @effective_from@ date of each new validity record. Each
--- slot goes through 'insertScheduleSlot', the same helper the edit path uses, so
--- both paths write a template and its validity period the same way.
+-- @startDate@ becomes the @effective_from@ date of the new validity record. The slot
+-- goes through 'insertScheduleSlot', the same helper the edit path uses, so both
+-- paths write a template and its validity period the same way.
 createSchedulesForShow ::
   Shows.Id ->
-  [ParsedScheduleSlot] ->
+  Maybe ParsedScheduleSlot ->
   Day ->
   ExceptT Text HT.Transaction [ShowSchedule.TemplateId]
-createSchedulesForShow showId slots startDate =
-  traverse (insertScheduleSlot showId startDate) slots
+createSchedulesForShow showId slot startDate =
+  traverse (insertScheduleSlot showId startDate) (maybe [] pure slot)
 
 --------------------------------------------------------------------------------
 -- Helper Functions
@@ -366,7 +367,7 @@ createSchedulesForShow showId slots startDate =
 --
 -- Returns Nothing if no valid schedules, otherwise returns a formatted string
 -- like "Fridays 8:00 PM - 10:00 PM PT"
-buildTimeslotDescription :: [ParsedScheduleSlot] -> Maybe Text
-buildTimeslotDescription [] = Nothing
-buildTimeslotDescription (slot : _) =
-  Just $ HostNotifications.formatTimeslotDescription (pssDay slot) (pssStart slot) (pssEnd slot)
+buildTimeslotDescription :: Maybe ParsedScheduleSlot -> Maybe Text
+buildTimeslotDescription =
+  fmap $ \slot ->
+    HostNotifications.formatTimeslotDescription (recurrenceDay (pssRecurrence slot)) (pssStart slot) (pssEnd slot)

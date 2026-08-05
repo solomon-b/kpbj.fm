@@ -11,7 +11,6 @@ where
 import API.Links (apiLinks)
 import API.Types
 import Component.ScheduleEditor (ScheduleEditorData (..), renderScheduleEditor)
-import Data.Int (Int64)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.String.Interpolate (i)
@@ -21,6 +20,7 @@ import Data.Text.Display (display)
 import Data.Time (TimeOfDay (..))
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.Recurrence (formatRecurrence, recurrenceFromRow)
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -198,10 +198,9 @@ renderSchedulePreview activeTemplates pendingTemplates pendingStartDate =
     renderSlot :: ShowSchedule.ScheduleTemplate Result -> Lucid.Html ()
     renderSlot t =
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
-        let dayName = maybe "—" (Text.pack . show) t.stDayOfWeek
+        let recurrence = recurrenceFromRow t.stDayOfWeek t.stWeeksOfMonth
             timeStr = formatTimeRange t.stStartTime t.stEndTime
-            weeksStr = formatWeeks t.stWeeksOfMonth
-        Lucid.toHtml $ dayName <> " " <> timeStr <> weeksStr
+        Lucid.toHtml $ formatRecurrence recurrence <> " " <> timeStr
 
     formatTimeRange :: TimeOfDay -> TimeOfDay -> Text
     formatTimeRange start end =
@@ -217,22 +216,6 @@ renderSchedulePreview activeTemplates pendingTemplates pendingStartDate =
 
     padZero :: Int -> String
     padZero n = if n < 10 then "0" <> show n else show n
-
-    formatWeeks :: Maybe [Int64] -> Text
-    formatWeeks Nothing = ""
-    formatWeeks (Just ws) = case ws of
-      [1, 2, 3, 4, 5] -> ""
-      [1, 3] -> " (1st & 3rd weeks)"
-      [2, 4] -> " (2nd & 4th weeks)"
-      [n] -> " (" <> ordinal n <> " week)"
-      _ -> " (weeks " <> Text.intercalate ", " (map (Text.pack . show) ws) <> ")"
-
-    ordinal :: Int64 -> Text
-    ordinal 1 = "1st"
-    ordinal 2 = "2nd"
-    ordinal 3 = "3rd"
-    ordinal 4 = "4th"
-    ordinal n = Text.pack (show n) <> "th"
 
 --------------------------------------------------------------------------------
 -- Searchable Multi-Select for Hosts

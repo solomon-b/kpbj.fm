@@ -288,10 +288,10 @@ test_createsShowWithScheduleHostAndTag cfg = do
         Nothing -> expectationFailure "Expected the show to exist"
         Just (templates, validities, hosts, tags, mMeta) -> do
           -- The submitted slot, with the duration turned into an end time.
-          map (.stDayOfWeek) templates `shouldBe` [Just Saturday]
+          map (.stDayOfWeek) templates `shouldBe` [Saturday]
           map (.stStartTime) templates `shouldBe` [TimeOfDay 22 0 0]
           map (.stEndTime) templates `shouldBe` [TimeOfDay 0 0 0]
-          map (.stWeeksOfMonth) templates `shouldBe` [Just [1, 3]]
+          map (.stWeeksOfMonth) templates `shouldBe` [[1, 3]]
 
           -- Open-ended from today. A template with no validity never airs.
           map (.stvEffectiveFrom) validities `shouldBe` [pacificToday]
