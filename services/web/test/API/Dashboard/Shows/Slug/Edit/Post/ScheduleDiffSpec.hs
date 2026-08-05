@@ -52,6 +52,17 @@ spec =
         let template = mkTemplate Nothing (Just [1, 2]) (TimeOfDay 8 0 0) (TimeOfDay 10 0 0)
         normalizeTemplate template `shouldBe` Nothing
 
+      -- Must match what parseScheduleSlot does to the form's weeks. A stored
+      -- duplicate that normalized to [1,1,3] would stop matching its own form value
+      -- of [1,3], and the diff would close the slot and build it again, detaching
+      -- every upcoming episode on it.
+      it "deduplicates a stored duplicate the same way the form side does" $ do
+        let template = mkTemplate (Just Friday) (Just [3, 1, 3]) (TimeOfDay 8 0 0) (TimeOfDay 10 0 0)
+            slot = mkSlot "friday" [3, 1, 3] "08:00" 120
+        normalizeTemplate template
+          `shouldBe` Just (ParsedScheduleSlot Friday [1, 3] (TimeOfDay 8 0 0) (TimeOfDay 10 0 0) Nothing)
+        Right True `shouldBe` fmap (\s -> schedulesMatch [template] [s]) (parseScheduleSlot slot)
+
     describe "parseScheduleSlot" $ do
       it "parses and normalizes a valid form slot" $ do
         let slot = mkSlot "friday" [3, 1, 2] "08:00" 120
@@ -69,6 +80,37 @@ spec =
       it "rejects unknown day of week" $ do
         let slot = mkSlot "funday" [1] "08:00" 60
         parseScheduleSlot slot `shouldBe` Left "Invalid day of week: funday"
+
+      -- The weeks came straight from the form JSON with no check of their own. The
+      -- database CHECK caught an out-of-range week, but only at insert time, after
+      -- the diff had already closed the templates it was replacing. It never caught
+      -- an empty list at all, because array_length of an empty array is NULL and a
+      -- CHECK passes on NULL.
+      it "rejects an empty weeks list" $ do
+        -- An empty list is a slot that never airs and never conflicts. Every date
+        -- fails the ANY(weeks) test, and weeksOverlap is any over an empty list.
+        let slot = mkSlot "friday" [] "08:00" 60
+        parseScheduleSlot slot `shouldBe` Left "Pick at least one week of the month."
+
+      it "rejects a week above 5" $ do
+        let slot = mkSlot "friday" [6] "08:00" 60
+        parseScheduleSlot slot `shouldBe` Left "Invalid week of month: 6 (must be 1 to 5)."
+
+      it "rejects a week below 1" $ do
+        let slot = mkSlot "friday" [0] "08:00" 60
+        parseScheduleSlot slot `shouldBe` Left "Invalid week of month: 0 (must be 1 to 5)."
+
+      it "names every out-of-range week" $ do
+        let slot = mkSlot "friday" [1, 7, 0] "08:00" 60
+        parseScheduleSlot slot `shouldBe` Left "Invalid week of month: 7, 0 (must be 1 to 5)."
+
+      it "accepts every week from 1 to 5" $ do
+        let slot = mkSlot "friday" [1, 2, 3, 4, 5] "08:00" 60
+        fmap pssWeeks (parseScheduleSlot slot) `shouldBe` Right [1, 2, 3, 4, 5]
+
+      it "deduplicates repeated weeks" $ do
+        let slot = mkSlot "friday" [3, 1, 3] "08:00" 60
+        fmap pssWeeks (parseScheduleSlot slot) `shouldBe` Right [1, 3]
 
     describe "schedulesMatch" $ do
       it "returns True for identical schedules" $ do
