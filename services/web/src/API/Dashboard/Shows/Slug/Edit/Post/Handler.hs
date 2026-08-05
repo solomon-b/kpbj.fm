@@ -44,7 +44,7 @@ import Data.Time (Day, TimeOfDay)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
-import Domain.Types.Recurrence (Recurrence, parseWeeks, recurrenceDay, recurrenceFromRow, recurring, weekNumbers)
+import Domain.Types.Recurrence (Recurrence, editorCanShow, parseWeeks, recurrenceDay, recurrenceFromRow, recurring, weekNumbers, weeksLabel)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, minutesFromMidnight, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
@@ -338,6 +338,7 @@ parseScheduleSlot slot = do
   dow <- maybe (Left $ "Invalid day of week: " <> dayOfWeek slot) Right (dayOfWeekFromText (dayOfWeek slot))
   start <- maybe (Left $ "Invalid start time: " <> startTime slot) Right (parseTimeHHMM (startTime slot))
   weeks <- parseWeeks (weeksOfMonth slot)
+  validateEditorCanShow (recurring dow weeks)
   let dur = duration slot
   if dur `notElem` [30, 60, 120]
     then Left $ "Invalid duration: " <> Text.pack (show dur) <> " (must be 30, 60, or 120)"
@@ -357,6 +358,27 @@ parseScheduleSlot slot = do
             pssEnd = end,
             pssReplayStartTime = mReplay
           }
+
+-- | Reject a week set the schedule editor cannot show.
+--
+-- @weeks_of_month@ holds any non-empty subset of 1 to 5. The editor produces seven of
+-- those 31, so it can render the other 24 only as a frequency button with no week
+-- button beside it. A member of staff who clicks one to fill that gap rewrites the
+-- show's schedule, which is the shape of defect this check exists to stop.
+--
+-- The column keeps the full range, so giving the editor controls for the remaining 24
+-- means widening 'editorWeekSets' and nothing else. Until then this is the gate, and
+-- it sits at the parse boundary all three write paths share.
+--
+-- The schedule editor cannot trip this. It takes a hand-written POST.
+validateEditorCanShow :: Recurrence -> Either Text ()
+validateEditorCanShow recurrence
+  | editorCanShow recurrence = Right ()
+  | otherwise =
+      Left $
+        "The schedule form cannot show "
+          <> fromMaybe "that set of weeks" (weeksLabel recurrence)
+          <> ". Pick every week, the 1st and 3rd, the 2nd and 4th, or one week from the 1st to the 4th."
 
 -- | Reduce a submission to the one slot a show may hold.
 --
