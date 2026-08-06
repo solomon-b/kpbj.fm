@@ -1,8 +1,11 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Effects.Database.Tables.EpisodesSpec where
 
 --------------------------------------------------------------------------------
 
 import Control.Monad.IO.Class (liftIO)
+import Data.List (isInfixOf)
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime, utctDay)
 import Domain.Types.Limit (Limit (..))
@@ -13,6 +16,7 @@ import Effects.Database.Tables.Episodes qualified as UUT
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
+import Hasql.Interpolate (interp, sql)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
@@ -49,6 +53,12 @@ spec =
           hedgehog . prop_getPublishedEpisodesForShow
         runs 10 . it "getEpisodeByShowAndNumber: looks up by show slug + episode number" $
           hedgehog . prop_getEpisodeByShowAndNumber
+
+      describe "Episode numbering" $ do
+        runs 10 . it "set_episode_number: consecutive inserts number 1, 2, 3" $
+          hedgehog . prop_episodeNumbersAreConsecutive
+        runs 10 . it "unique_episode_number: a repeated number is rejected" $
+          hedgehog . prop_duplicateEpisodeNumberRejected
 
       describe "Mutations" $ do
         runs 10 . it "deleteEpisode: soft delete sets deleted_at" $
@@ -351,6 +361,109 @@ prop_getEpisodeByShowAndNumber cfg = do
         found <- assertJust mByShowAndNumber
         UUT.id found === episodeId
         pure ()
+
+--------------------------------------------------------------------------------
+-- Episode numbering
+
+-- | Three dates the template airs on, from 'fixtureBaseDay' forward.
+--
+-- The three dates must differ. @unique_episode_scheduled_at@ permits one episode per
+-- show per instant.
+threeAirDays :: ShowSchedule.ScheduleTemplateInsert -> [Day]
+threeAirDays template =
+  take 3 (iterate next (airDayForTemplate template fixtureBaseDay))
+  where
+    next day = airDayForTemplate template (addDays 1 day)
+
+-- | The trigger gives a show's episodes the numbers 1, 2, and 3 in insert order.
+--
+-- 'UUT.insertEpisode' sends no number. The column defaults to 1, and
+-- @set_episode_number@ replaces it with the show's @MAX + 1@ under a per-show
+-- advisory lock.
+prop_episodeNumbersAreConsecutive :: TestDBConfig -> PropertyT IO ()
+prop_episodeNumbersAreConsecutive cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let insertOn day =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeOn scheduleTemplate day),
+                  UUT.eiCreatedBy = userId
+                }
+            numberOf day = do
+              episodeId <- unwrapInsert (UUT.insertEpisode (insertOn day))
+              mEpisode <- TRX.statement () (UUT.getEpisodeById episodeId)
+              pure (fmap UUT.episodeNumber mEpisode)
+
+        numbers <- traverse numberOf (threeAirDays scheduleTemplate)
+        TRX.condemn
+        pure numbers
+
+      assert $ do
+        numbers <- assertRight result
+        numbers === [Just 1, Just 2, Just 3]
+
+-- | @unique_episode_number@ rejects a number the show already holds.
+--
+-- No part of the application sends an explicit number, so the second insert is raw
+-- SQL. It reproduces the outcome the advisory lock prevents. Two concurrent uploads
+-- read the same @MAX@ and both write the same number.
+prop_duplicateEpisodeNumberRejected :: TestDBConfig -> PropertyT IO ()
+prop_duplicateEpisodeNumberRejected cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let insertOn day =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeOn scheduleTemplate day),
+                  UUT.eiCreatedBy = userId
+                }
+            airDays = threeAirDays scheduleTemplate
+
+        -- Two episodes. The trigger gives them the numbers 1 and 2.
+        _ <- traverse (unwrapInsert . UUT.insertEpisode . insertOn) (take 2 airDays)
+
+        -- Write 2 again, on a third date. A third date stops
+        -- unique_episode_scheduled_at from firing first. The trigger keeps an
+        -- explicit number unless it is 1, so this reaches unique_episode_number.
+        let thirdAirTime = airTimeOn scheduleTemplate (last airDays)
+        TRX.statement () $
+          interp @()
+            False
+            [sql|
+          INSERT INTO episodes (show_id, episode_number, schedule_template_id, scheduled_at, created_by)
+          VALUES (#{showId}, 2, #{templateId}, #{thirdAirTime}, #{userId})
+        |]
+
+        TRX.condemn
+
+      assert $ do
+        let outcome = case result of
+              Right () -> "accepted"
+              Left err
+                | "unique_episode_number" `isInfixOf` show err -> "rejected by unique_episode_number"
+                | otherwise -> "rejected for another reason: " <> show err
+        outcome === "rejected by unique_episode_number"
 
 --------------------------------------------------------------------------------
 -- Mutation tests
