@@ -787,6 +787,8 @@ getUpcomingShowDates showId referenceDate (Limit limitVal) =
 --
 -- Like getUpcomingShowDates, but filters out dates that already have episodes scheduled.
 -- This is used in the episode upload form to prevent double-booking time slots.
+-- Only a live episode holds a date. A soft-deleted episode releases it, which matches
+-- the @unique_episode_scheduled_at@ index and the two host-facing queries below.
 -- Uses raw SQL because of recursive CTEs and complex date arithmetic.
 getUpcomingUnscheduledShowDates :: Shows.Id -> Limit -> Hasql.Statement () [UpcomingShowDate]
 getUpcomingUnscheduledShowDates showId (Limit limitVal) =
@@ -838,6 +840,7 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
       FROM schedule_instances si
       LEFT JOIN episodes e ON e.show_id = si.show_id
         AND e.scheduled_at = (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone
+        AND e.deleted_at IS NULL
       WHERE e.id IS NULL  -- Only dates without scheduled episodes
         AND si.show_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::DATE
     )

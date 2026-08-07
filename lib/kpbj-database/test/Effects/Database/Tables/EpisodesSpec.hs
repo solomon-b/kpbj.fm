@@ -60,6 +60,12 @@ spec =
         runs 10 . it "unique_episode_number: a repeated number is rejected" $
           hedgehog . prop_duplicateEpisodeNumberRejected
 
+      describe "Slot reuse" $ do
+        runs 10 . it "unique_episode_scheduled_at: two live episodes cannot share an air time" $
+          hedgehog . prop_twoLiveEpisodesCannotShareAnAirTime
+        runs 10 . it "unique_episode_scheduled_at: a soft-deleted episode releases its air time" $
+          hedgehog . prop_deletedEpisodeReleasesItsSlot
+
       describe "Mutations" $ do
         runs 10 . it "deleteEpisode: soft delete sets deleted_at" $
           hedgehog . prop_deleteEpisode
@@ -464,6 +470,94 @@ prop_duplicateEpisodeNumberRejected cfg = do
                 | "unique_episode_number" `isInfixOf` show err -> "rejected by unique_episode_number"
                 | otherwise -> "rejected for another reason: " <> show err
         outcome === "rejected by unique_episode_number"
+
+--------------------------------------------------------------------------------
+-- Slot reuse
+
+-- | Two live episodes of one show cannot hold the same air time.
+--
+-- This is the half of @unique_episode_scheduled_at@ that stops a double booking. The
+-- partial index narrows the rule to the live rows. It does not relax it.
+prop_twoLiveEpisodesCannotShareAnAirTime :: TestDBConfig -> PropertyT IO ()
+prop_twoLiveEpisodesCannotShareAnAirTime cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let bookSlot =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiCreatedBy = userId
+                }
+
+        _ <- unwrapInsert (UUT.insertEpisode bookSlot)
+        -- The same air time, with the first episode still live. The trigger gives this
+        -- one number 2, so unique_episode_number cannot be what fires.
+        _ <- unwrapInsert (UUT.insertEpisode bookSlot)
+
+        TRX.condemn
+
+      assert $ do
+        let outcome = case result of
+              Right () -> "accepted"
+              Left err
+                | "unique_episode_scheduled_at" `isInfixOf` show err -> "rejected by unique_episode_scheduled_at"
+                | otherwise -> "rejected for another reason: " <> show err
+        outcome === "rejected by unique_episode_scheduled_at"
+
+-- | A soft-deleted episode releases its air time, so a new episode can take it.
+--
+-- @unique_episode_scheduled_at@ is a partial index over the live rows, so a deleted
+-- row holds nothing. 'prop_twoLiveEpisodesCannotShareAnAirTime' covers the other
+-- direction, which the delete here must not weaken.
+prop_deletedEpisodeReleasesItsSlot :: TestDBConfig -> PropertyT IO ()
+prop_deletedEpisodeReleasesItsSlot cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let bookSlot =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiCreatedBy = userId
+                }
+
+        firstId <- unwrapInsert (UUT.insertEpisode bookSlot)
+        _ <- TRX.statement () (UUT.deleteEpisode firstId)
+        -- The same air time, now that the first episode no longer holds it.
+        secondId <- unwrapInsert (UUT.insertEpisode bookSlot)
+
+        TRX.condemn
+        pure (firstId, secondId)
+
+      assert $ do
+        let outcome = case result of
+              Right (firstId, secondId)
+                | firstId /= secondId -> "the freed air time was reusable"
+                | otherwise -> "the two inserts returned one id"
+              Left err
+                | "unique_episode_scheduled_at" `isInfixOf` show err ->
+                    "unique_episode_scheduled_at still held the deleted episode's air time"
+                | otherwise -> "failed for another reason: " <> show err
+        outcome === "the freed air time was reusable"
 
 --------------------------------------------------------------------------------
 -- Mutation tests

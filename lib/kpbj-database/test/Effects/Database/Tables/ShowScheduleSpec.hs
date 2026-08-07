@@ -11,6 +11,7 @@ import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Effects.Database.Class (MonadDB (..))
+import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as UUT
 import Effects.Database.Tables.Shows qualified as Shows
@@ -20,7 +21,7 @@ import Hedgehog (PropertyT, annotate, failure, (===))
 import Hedgehog qualified
 import Hedgehog.Internal.Property (forAllT)
 import OrphanInstances.DayOfWeek (toDayOfWeek)
-import Test.Database.Helpers (insertTestUser, unwrapInsert)
+import Test.Database.Helpers (insertTestEpisode, insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, (<==))
@@ -53,6 +54,7 @@ spec =
 
       -- Unscheduled dates
       runs 20 . it "getUpcomingUnscheduledShowDates excludes scheduled episodes" $ hedgehog . prop_unscheduledExcludesScheduled
+      runs 20 . it "getUpcomingUnscheduledShowDates offers a date whose episode was soft-deleted" $ hedgehog . prop_unscheduledIgnoresDeletedEpisode
 
 
       -- Timezone validation
@@ -396,6 +398,73 @@ prop_handlesYearBoundaries cfg = do
           _ -> do
             annotate $ "Expected at least 2 dates but found " <> show (length upcomingDates)
             failure
+
+-- | A soft-deleted episode releases its date back to the upload form.
+--
+-- The form reads 'UUT.getUpcomingUnscheduledShowDates'. A live episode holds its date
+-- and the form hides it. A soft-deleted episode holds nothing, so the date returns.
+-- The @unique_episode_scheduled_at@ index applies the same rule on the write side.
+prop_unscheduledIgnoresDeletedEpisode :: TestDBConfig -> PropertyT IO ()
+prop_unscheduledIgnoresDeletedEpisode cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    (startTime, endTime) <- forAllT genTimeRange
+    dayOfWeek <- forAllT genDayOfWeek
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        showId <- unwrapInsert (Shows.insertShow showInsert)
+        let scheduleInsert = UUT.ScheduleTemplateInsert showId dayOfWeek allWeeksOfMonth startTime endTime "America/Los_Angeles" Nothing
+        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+
+        before <- TRX.statement () (UUT.getUpcomingUnscheduledShowDates showId 10)
+
+        -- Take the first offered date and book it. An empty list means the fixture
+        -- built no schedule, so the assertion below reports that rather than the
+        -- behaviour under test.
+        case before of
+          [] -> pure Nothing
+          (d : _) -> do
+            let firstDate = UUT.usdStartTime d
+            episodeId <-
+              insertTestEpisode
+                Episodes.Insert
+                  { Episodes.eiId = showId,
+                    Episodes.eiDescription = Nothing,
+                    Episodes.eiAudioFilePath = Nothing,
+                    Episodes.eiAudioFileSize = Nothing,
+                    Episodes.eiAudioMimeType = Nothing,
+                    Episodes.eiDurationSeconds = Nothing,
+                    Episodes.eiArtworkUrl = Nothing,
+                    Episodes.eiScheduleTemplateId = Just templateId,
+                    Episodes.eiScheduledAt = Just firstDate,
+                    Episodes.eiCreatedBy = userId
+                  }
+            booked <- TRX.statement () (UUT.getUpcomingUnscheduledShowDates showId 10)
+
+            _ <- TRX.statement () (Episodes.deleteEpisode episodeId)
+            afterDelete <- TRX.statement () (UUT.getUpcomingUnscheduledShowDates showId 10)
+
+            TRX.condemn
+            pure (Just (map UUT.usdStartTime booked, map UUT.usdStartTime afterDelete, firstDate))
+
+      -- The query carries a LIMIT, so booking one date pulls the next one into the
+      -- window. Test membership of the booked date, not the whole list.
+      assert $ do
+        outcome <- assertRight result
+        case outcome of
+          Nothing -> do
+            annotate "the show offered no upcoming dates, so the fixture is wrong"
+            failure
+          Just (booked, afterDelete, firstDate) -> do
+            -- A live episode hides its own date.
+            (firstDate `elem` booked) === False
+            -- The soft delete gives the date back.
+            (firstDate `elem` afterDelete) === True
 
 prop_unscheduledExcludesScheduled :: TestDBConfig -> PropertyT IO ()
 prop_unscheduledExcludesScheduled cfg = do
