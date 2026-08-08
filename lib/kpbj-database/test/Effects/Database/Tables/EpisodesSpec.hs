@@ -66,6 +66,10 @@ spec =
         runs 10 . it "unique_episode_scheduled_at: a soft-deleted episode releases its air time" $
           hedgehog . prop_deletedEpisodeReleasesItsSlot
 
+      describe "Play logging" $ do
+        runs 10 . it "getEpisodeByAudioPath: finds a soft-deleted episode" $
+          hedgehog . prop_audioPathFindsDeletedEpisode
+
       describe "Mutations" $ do
         runs 10 . it "deleteEpisode: soft delete sets deleted_at" $
           hedgehog . prop_deleteEpisode
@@ -1395,3 +1399,46 @@ prop_closeSchedules_leavesClosedWindow cfg = do
         validity <- assertSingleton validities
         ShowSchedule.stvEffectiveFrom validity === oldFrom
         ShowSchedule.stvEffectiveUntil validity === Just oldUntil
+
+--------------------------------------------------------------------------------
+-- Play logging
+
+-- | getEpisodeByAudioPath must find an episode that someone soft-deleted.
+--
+-- The one caller logs a play to @playback_history@ after the audio went out over
+-- the air. A filter on @deleted_at@ there loses the association when a host
+-- deletes an episode while it plays, and the play then counts against nothing.
+prop_audioPathFindsDeletedEpisode :: TestDBConfig -> PropertyT IO ()
+prop_audioPathFindsDeletedEpisode cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let audioPath = "audio/episodes/2026/08/08/played-while-deleted.mp3"
+            episodeInsert =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiCreatedBy = userId,
+                  UUT.eiAudioFilePath = Just audioPath
+                }
+
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+        _ <- TRX.statement () (UUT.deleteEpisode episodeId)
+        found <- TRX.statement () (UUT.getEpisodeByAudioPath audioPath)
+
+        TRX.condemn
+        pure (episodeId, found)
+
+      assert $ do
+        (episodeId, found) <- assertRight result
+        episode <- assertJust found
+        episode.id === episodeId

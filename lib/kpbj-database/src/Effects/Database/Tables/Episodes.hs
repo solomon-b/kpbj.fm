@@ -416,15 +416,20 @@ getEpisodeById episodeId = fmap listToMaybe $ run $ select do
   where_ $ isNull (ep.deletedAt)
   pure ep
 
--- | Find a non-deleted episode by its audio file path (object key).
+-- | Find an episode by its audio file path (object key).
 --
--- Used to resolve a media URL back to its episode record by matching
--- the stored @audio_file_path@ column.
+-- Resolves a media URL back to its episode record by matching the stored
+-- @audio_file_path@ column.
+--
+-- This matches a soft-deleted episode as well. The only caller logs a play to
+-- @playback_history@ after the audio went out over the air. A play belongs to
+-- the episode whose file played, and a later delete does not undo that. The
+-- airing queries filter deleted rows, so a deleted episode reaches this
+-- function only when someone deletes it while it is playing.
 getEpisodeByAudioPath :: Text -> Hasql.Statement () (Maybe Model)
 getEpisodeByAudioPath audioPath = fmap listToMaybe $ run $ select do
   ep <- each episodeSchema
   where_ $ ep.audioFilePath ==. nullify (lit audioPath)
-  where_ $ isNull ep.deletedAt
   pure ep
 
 -- | Get non-deleted episodes by user (episodes they created).
