@@ -67,12 +67,11 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
-import Data.Time (Day, DayOfWeek (..), LocalTime (..), TimeOfDay, UTCTime, addUTCTime, dayOfWeek)
+import Data.Time (Day, DayOfWeek (..), LocalTime (..), TimeOfDay, UTCTime, addDays, dayOfWeek)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (timeOfDayToTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (minutesFromMidnight, utcToPacific)
+import Domain.Types.Timezone (minutesFromMidnight, pacificToUtc, utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
@@ -855,10 +854,10 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
 
 -- | Construct an UpcomingShowDate from a schedule template and scheduled time.
 --
--- This is used to render the current episode's schedule slot in the same format
--- as the upcoming available slots. The scheduled_at timestamp from the episode
--- is used as the start time, and the end time is calculated from the template's
--- duration.
+-- This renders the current episode's schedule slot in the same format as the
+-- upcoming available slots. The start time is the episode's @scheduled_at@. The
+-- end time comes from the template's local @end_time@ on the episode's Pacific
+-- date, which is the rule 'getUpcomingUnscheduledShowDates' applies in SQL.
 makeUpcomingShowDateFromTemplate ::
   -- | The schedule template
   ScheduleTemplate Result ->
@@ -875,21 +874,26 @@ makeUpcomingShowDateFromTemplate template scheduledAt =
           usdShowDate = pacificDay,
           usdDayOfWeek = template.stDayOfWeek,
           usdStartTime = scheduledAt,
-          usdEndTime = computeEndTime template scheduledAt
+          usdEndTime = computeEndTime template pacificDay
         }
   where
-    -- Compute end time by adding the show duration to the start time
-    computeEndTime :: ScheduleTemplate Result -> UTCTime -> UTCTime
-    computeEndTime tmpl startTime =
-      let startTod = tmpl.stStartTime
-          endTod = tmpl.stEndTime
-          -- Duration in seconds, handling overnight shows
-          durationSecs =
-            if endTod > startTod
-              then timeOfDayToTime endTod - timeOfDayToTime startTod
-              else -- Overnight show: add 24 hours worth of seconds
-                (24 * 60 * 60) - timeOfDayToTime startTod + timeOfDayToTime endTod
-       in addUTCTime (realToFrac durationSecs) startTime
+    -- Read the end instant from the template's local end time on the air date.
+    --
+    -- Adding a wall-clock duration to the start instant gives an answer one hour
+    -- out on the two days a year a slot crosses a DST transition. A slot of
+    -- 01:00 to 03:00 on the spring-forward date runs for one real hour, and the
+    -- duration says two.
+    --
+    -- This is the CASE expression in getUpcomingUnscheduledShowDates, written in
+    -- Haskell. Both treat an end at or before the start as a slot that crosses
+    -- midnight, and pacificToUtc agrees with @AT TIME ZONE@ on both transitions.
+    computeEndTime :: ScheduleTemplate Result -> Day -> UTCTime
+    computeEndTime tmpl airDate =
+      let endDay =
+            if tmpl.stEndTime > tmpl.stStartTime
+              then airDate
+              else addDays 1 airDate
+       in pacificToUtc (LocalTime endDay tmpl.stEndTime)
 
 --------------------------------------------------------------------------------
 -- Missing Episodes

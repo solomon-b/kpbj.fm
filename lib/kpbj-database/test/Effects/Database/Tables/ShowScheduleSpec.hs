@@ -2,7 +2,7 @@ module Effects.Database.Tables.ShowScheduleSpec where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad (forM_)
+import Control.Monad (forM, forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Either (isLeft)
 import Data.Time (DayOfWeek, addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
@@ -15,6 +15,7 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as UUT
 import Effects.Database.Tables.Shows qualified as Shows
+import Domain.Types.Timezone (LocalTime (..), pacificToUtc)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, annotate, failure, (===))
@@ -80,6 +81,10 @@ spec =
       -- Scheduled shows
       describe "getScheduledShowsForDate" $ do
         runs 10 . it "returns shows scheduled for a given date" $ hedgehog . prop_getScheduledShowsForDate
+
+      -- Slot end time
+      describe "makeUpcomingShowDateFromTemplate" $ do
+        runs 5 . it "agrees with the SQL slot query across a DST transition" $ hedgehog . prop_slotEndTimeMatchesSql
 
 --------------------------------------------------------------------------------
 -- Template CRUD Tests
@@ -1012,3 +1017,106 @@ prop_acceptsWeeksInRange cfg = do
       assert $ do
         _ <- assertRight result
         pure ()
+
+--------------------------------------------------------------------------------
+-- Slot End Time
+
+-- | One slot to check, and the show slug suffix that keeps its fixture separate.
+data SlotCase = SlotCase
+  { scSuffix :: Shows.Insert -> Shows.Insert,
+    scLabel :: String,
+    scAirDate :: Time.Day,
+    scStart :: TimeOfDay,
+    scEnd :: TimeOfDay
+  }
+
+-- | The offset between UTC and Pacific time on a given date, read at midday.
+--
+-- Midday sits far from both transitions, so it always reads one offset.
+pacificOffsetAt :: Time.Day -> Time.NominalDiffTime
+pacificOffsetAt d =
+  diffUTCTime
+    (Time.UTCTime d (Time.secondsToDiffTime 43200))
+    (pacificToUtc (LocalTime d (TimeOfDay 12 0 0)))
+
+-- | The next two dates on which Pacific time changes its offset.
+--
+-- The test reads the transitions from the timezone database instead of applying
+-- the US rule. A change to the rule then moves the test with it.
+nextDstTransitions :: Time.Day -> [Time.Day]
+nextDstTransitions from =
+  take 2 [d | d <- [addDays 1 from .. addDays 400 from], pacificOffsetAt d /= pacificOffsetAt (addDays (-1) d)]
+
+-- | Build the slot cases for a given date.
+--
+-- Each transition gets two slots. One runs from 01:00 to 04:00 on the transition
+-- date. The other runs from 23:00 the day before to 04:00, which crosses both
+-- midnight and the transition. Two control slots sit on an ordinary date. The
+-- controls hold the test honest, because they agree under the defect as well.
+slotCases :: Time.Day -> [SlotCase]
+slotCases today = case nextDstTransitions today of
+  [t1, t2] ->
+    [ SlotCase (withSlug "dst-a") ("same day, transition " <> show t1) t1 (TimeOfDay 1 0 0) (TimeOfDay 4 0 0),
+      SlotCase (withSlug "dst-b") ("overnight into transition " <> show t1) (addDays (-1) t1) (TimeOfDay 23 0 0) (TimeOfDay 4 0 0),
+      SlotCase (withSlug "dst-c") ("same day, transition " <> show t2) t2 (TimeOfDay 1 0 0) (TimeOfDay 4 0 0),
+      SlotCase (withSlug "dst-d") ("overnight into transition " <> show t2) (addDays (-1) t2) (TimeOfDay 23 0 0) (TimeOfDay 4 0 0),
+      SlotCase (withSlug "plain-a") "control, ordinary date" control (TimeOfDay 8 0 0) (TimeOfDay 10 0 0),
+      SlotCase (withSlug "plain-b") "control, ordinary overnight date" control (TimeOfDay 23 0 0) (TimeOfDay 1 0 0)
+    ]
+  _ -> []
+  where
+    -- A date 30 days out, moved off a transition week if it lands on one.
+    control =
+      let candidate = addDays 30 today
+       in if pacificOffsetAt candidate == pacificOffsetAt (addDays 1 candidate) then candidate else addDays 14 candidate
+    withSlug suffix si = si {Shows.siSlug = Shows.siSlug si <> suffix}
+
+-- | makeUpcomingShowDateFromTemplate must agree with getUpcomingUnscheduledShowDates.
+--
+-- The edit form renders the episode's current slot through the Haskell function
+-- and the available slots through the SQL query. A slot that crosses a DST
+-- transition read one hour apart in the two paths.
+prop_slotEndTimeMatchesSql :: TestDBConfig -> PropertyT IO ()
+prop_slotEndTimeMatchesSql cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      let cases = slotCases today
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        outcomes <- forM cases $ \sc -> do
+          showId <- unwrapInsert (Shows.insertShow (scSuffix sc showInsert))
+          let templateInsert =
+                UUT.ScheduleTemplateInsert
+                  showId
+                  (Time.dayOfWeek (scAirDate sc))
+                  allWeeksOfMonth
+                  (scStart sc)
+                  (scEnd sc)
+                  "America/Los_Angeles"
+                  Nothing
+          templateId <- TRX.statement () (UUT.insertScheduleTemplate templateInsert)
+          _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+          mTemplate <- TRX.statement () (UUT.getScheduleTemplateById templateId)
+          rows <- TRX.statement () (UUT.getUpcomingUnscheduledShowDates showId 400)
+          pure (sc, mTemplate, filter ((== scAirDate sc) . UUT.usdShowDate) rows)
+        TRX.condemn
+        pure outcomes
+
+      assert $ do
+        outcomes <- assertRight result
+        if null outcomes
+          then do
+            annotate "the timezone database reports fewer than 2 Pacific transitions in the next 400 days"
+            failure
+          else forM_ outcomes $ \(sc, mTemplate, rows) -> do
+            annotate (scLabel sc)
+            template <- assertJust mTemplate
+            case rows of
+              [row] -> do
+                let fromHaskell = UUT.makeUpcomingShowDateFromTemplate template (UUT.usdStartTime row)
+                UUT.usdEndTime fromHaskell === UUT.usdEndTime row
+              _ -> do
+                annotate ("expected 1 slot on " <> show (scAirDate sc) <> " but the query returned " <> show (length rows))
+                failure
