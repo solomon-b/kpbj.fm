@@ -76,6 +76,7 @@ import API.Dashboard.Episodes.Slug.Delete.Handler qualified as Dashboard.Episode
 import API.Dashboard.Episodes.Slug.Edit.Get.Handler qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post.Handler qualified as Dashboard.Episodes.Slug.Edit.Post
 import API.Dashboard.Episodes.Slug.Get.Handler qualified as Dashboard.Episodes.Slug.Get
+import API.Dashboard.Episodes.Slug.Unarchive.Post.Handler qualified as Dashboard.Episodes.Slug.Unarchive.Post
 import API.Dashboard.Events.Get.Handler qualified as Dashboard.Events.Get
 import API.Dashboard.Events.New.Get.Handler qualified as Dashboard.Events.New.Get
 import API.Dashboard.Events.New.Post.Handler qualified as Dashboard.Events.New.Post
@@ -486,7 +487,8 @@ server =
           detail = Dashboard.Episodes.Slug.Get.handler,
           editGet = Dashboard.Episodes.Slug.Edit.Get.handler,
           editPost = Dashboard.Episodes.Slug.Edit.Post.handler,
-          delete = Dashboard.Episodes.Slug.Delete.handler
+          delete = Dashboard.Episodes.Slug.Delete.handler,
+          unarchive = Dashboard.Episodes.Slug.Unarchive.Post.handler
         }
 
     dashboardBlogsRoutes =

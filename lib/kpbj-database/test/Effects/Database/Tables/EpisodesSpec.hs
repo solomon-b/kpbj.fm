@@ -55,6 +55,16 @@ spec =
           hedgehog . prop_getEpisodeByShowAndNumber
         runs 10 . it "getEpisodeByShowAndNumber: an archived episode is gone" $
           hedgehog . prop_archivedEpisodeIsNotFoundByNumber
+        runs 10 . it "IncludeArchived: staff reads see the archived episode" $
+          hedgehog . prop_includeArchivedSeesArchivedEpisode
+
+      describe "Unarchive" $ do
+        runs 10 . it "restoreEpisode: puts the episode back on the public site" $
+          hedgehog . prop_restoreEpisodeClearsDeletedAt
+        runs 10 . it "restoreEpisode: leaves a live episode alone" $
+          hedgehog . prop_restoreEpisodeIgnoresLiveEpisode
+        runs 10 . it "getLiveEpisodeAtAirTime: finds the episode that took the slot" $
+          hedgehog . prop_liveEpisodeAtAirTimeFindsTheHolder
 
       describe "Episode numbering" $ do
         runs 10 . it "set_episode_number: consecutive inserts number 1, 2, 3" $
@@ -283,7 +293,7 @@ prop_getEpisodesForShow cfg = do
         -- Soft-delete one episode
         _ <- TRX.statement () (UUT.deleteEpisode id2)
 
-        episodes <- TRX.statement () (UUT.getEpisodesForShow showId (Limit 10) (Offset 0))
+        episodes <- TRX.statement () (UUT.getEpisodesForShow showId UUT.ExcludeArchived (Limit 10) (Offset 0))
         TRX.condemn
         pure (id1, episodes)
 
@@ -362,7 +372,7 @@ prop_getEpisodeByShowAndNumber cfg = do
           Just ep -> do
             let showSlug = Shows.siSlug showInsert
             let epNumber = UUT.episodeNumber ep
-            byShowAndNumber <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber)
+            byShowAndNumber <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber UUT.ExcludeArchived)
             pure (episodeId, Just ep, byShowAndNumber)
         TRX.condemn
         pure lookupResult
@@ -591,7 +601,7 @@ prop_deleteEpisode cfg = do
         afterDelete <- TRX.statement () (UUT.getEpisodeById episodeId)
 
         -- getEpisodesForShow should also exclude it
-        episodesForShow <- TRX.statement () (UUT.getEpisodesForShow showId (Limit 10) (Offset 0))
+        episodesForShow <- TRX.statement () (UUT.getEpisodesForShow showId UUT.ExcludeArchived (Limit 10) (Offset 0))
 
         TRX.condemn
         pure (episodeId, deleteResult, afterDelete, episodesForShow)
@@ -1004,7 +1014,7 @@ prop_unscheduledEpisodesSortLast cfg = do
         let unscheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Nothing, UUT.eiScheduledAt = Nothing, UUT.eiCreatedBy = userId}
         unscheduledId <- unwrapInsert (UUT.insertEpisode unscheduledInsert)
 
-        episodes <- TRX.statement () (UUT.getEpisodesForShow showId (Limit 10) (Offset 0))
+        episodes <- TRX.statement () (UUT.getEpisodesForShow showId UUT.ExcludeArchived (Limit 10) (Offset 0))
 
         TRX.condemn
         pure (scheduledId, unscheduledId, episodes)
@@ -1434,9 +1444,9 @@ prop_archivedEpisodeIsNotFoundByNumber cfg = do
           Nothing -> pure 0
           Just ep -> pure (UUT.episodeNumber ep)
 
-        found <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber)
+        found <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber UUT.ExcludeArchived)
         _ <- TRX.statement () (UUT.deleteEpisode episodeId)
-        afterArchive <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber)
+        afterArchive <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber UUT.ExcludeArchived)
 
         TRX.condemn
         pure (found, afterArchive)
@@ -1446,6 +1456,174 @@ prop_archivedEpisodeIsNotFoundByNumber cfg = do
         live <- assertJust found
         UUT.deletedAt live === Nothing
         assertNothing afterArchive
+
+-- | IncludeArchived must return what ExcludeArchived hides.
+--
+-- The dashboard reads this way for staff and admins, so they can moderate what
+-- they archived. Both queries take the filter, so both are checked here.
+prop_includeArchivedSeesArchivedEpisode :: TestDBConfig -> PropertyT IO ()
+prop_includeArchivedSeesArchivedEpisode cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let episodeInsert =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiCreatedBy = userId
+                }
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+        mBefore <- TRX.statement () (UUT.getEpisodeById episodeId)
+        epNumber <- case mBefore of
+          Nothing -> pure 0
+          Just ep -> pure (UUT.episodeNumber ep)
+
+        _ <- TRX.statement () (UUT.deleteEpisode episodeId)
+
+        let showSlug = Shows.siSlug showInsert
+        byNumber <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber UUT.IncludeArchived)
+        listed <- TRX.statement () (UUT.getEpisodesForShow showId UUT.IncludeArchived (Limit 10) (Offset 0))
+        hidden <- TRX.statement () (UUT.getEpisodesForShow showId UUT.ExcludeArchived (Limit 10) (Offset 0))
+
+        TRX.condemn
+        pure (episodeId, byNumber, listed, hidden)
+
+      assert $ do
+        (episodeId, byNumber, listed, hidden) <- assertRight result
+        found <- assertJust byNumber
+        UUT.id found === episodeId
+        map UUT.id listed === [episodeId]
+        map UUT.id hidden === []
+
+-- | restoreEpisode must clear deleted_at, so the episode is public again.
+prop_restoreEpisodeClearsDeletedAt :: TestDBConfig -> PropertyT IO ()
+prop_restoreEpisodeClearsDeletedAt cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let episodeInsert =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiCreatedBy = userId
+                }
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+        mBefore <- TRX.statement () (UUT.getEpisodeById episodeId)
+        epNumber <- case mBefore of
+          Nothing -> pure 0
+          Just ep -> pure (UUT.episodeNumber ep)
+
+        _ <- TRX.statement () (UUT.deleteEpisode episodeId)
+        restored <- TRX.statement () (UUT.restoreEpisode episodeId)
+
+        let showSlug = Shows.siSlug showInsert
+        publicAgain <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber UUT.ExcludeArchived)
+
+        TRX.condemn
+        pure (episodeId, restored, publicAgain)
+
+      assert $ do
+        (episodeId, restored, publicAgain) <- assertRight result
+        restored === Just episodeId
+        live <- assertJust publicAgain
+        UUT.deletedAt live === Nothing
+
+-- | restoreEpisode must report that a live episode had nothing to restore.
+--
+-- The handler turns the Nothing into a named message rather than claiming that
+-- it unarchived something.
+prop_restoreEpisodeIgnoresLiveEpisode :: TestDBConfig -> PropertyT IO ()
+prop_restoreEpisodeIgnoresLiveEpisode cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let episodeInsert =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiCreatedBy = userId
+                }
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+        restored <- TRX.statement () (UUT.restoreEpisode episodeId)
+
+        TRX.condemn
+        pure restored
+
+      assert $ do
+        restored <- assertRight result
+        restored === Nothing
+
+-- | getLiveEpisodeAtAirTime must find the episode that took an archived slot.
+--
+-- unique_episode_scheduled_at covers the live rows only, so a second episode can
+-- claim the air time while the first sits archived. The unarchive handler runs
+-- this to refuse with a message instead of failing on the index.
+prop_liveEpisodeAtAirTimeFindsTheHolder :: TestDBConfig -> PropertyT IO ()
+prop_liveEpisodeAtAirTimeFindsTheHolder cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let airTime = airTimeForTemplate scheduleTemplate fixtureBaseDay
+            episodeInsert =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just airTime,
+                  UUT.eiCreatedBy = userId
+                }
+
+        firstId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+        -- Nothing holds the slot while the first episode is live.
+        freeWhileLive <- TRX.statement () (UUT.getLiveEpisodeAtAirTime showId airTime firstId)
+
+        _ <- TRX.statement () (UUT.deleteEpisode firstId)
+        -- The partial index frees the slot, so a second episode can take it.
+        secondId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+        holder <- TRX.statement () (UUT.getLiveEpisodeAtAirTime showId airTime firstId)
+
+        TRX.condemn
+        pure (secondId, freeWhileLive, holder)
+
+      assert $ do
+        (secondId, freeWhileLive, holder) <- assertRight result
+        fmap UUT.id freeWhileLive === Nothing
+        taken <- assertJust holder
+        UUT.id taken === secondId
 
 --------------------------------------------------------------------------------
 -- Play logging

@@ -98,8 +98,9 @@ action user userMetadata showSlug maybePage = do
             elvHasMore = False
           }
     Just showToFetch -> do
-      -- 4. Fetch episodes for the show
-      (allEpisodes, schedules, nextShow) <- fetchEpisodesData today showToFetch limit offset
+      -- 4. Fetch episodes for the show. Staff and admins moderate, so they see
+      -- the archived episodes too. A host sees the live ones only.
+      (allEpisodes, schedules, nextShow) <- fetchEpisodesData today showToFetch (archivedFilterFor userMetadata) limit offset
       let episodes = take (fromIntegral limit) allEpisodes
           hasMore = length allEpisodes > fromIntegral limit
       pure
@@ -199,23 +200,36 @@ fetchShowsForUser user userMetadata =
     then fromRight [] <$> execQuery Shows.getAllActiveShows
     else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
+-- | Which episodes a role may see in the dashboard.
+--
+-- Archive is the moderation tool, so staff and admins see what they archived.
+-- A host sees the live episodes only.
+archivedFilterFor :: UserMetadata.Model -> Episodes.ArchivedFilter
+archivedFilterFor userMetadata
+  | UserMetadata.isStaffOrHigher userMetadata.mUserRole = Episodes.IncludeArchived
+  | otherwise = Episodes.ExcludeArchived
+
 -- | Fetch episodes data for a show with pagination
 fetchEpisodesData ::
   Day ->
   Shows.Model ->
+  Episodes.ArchivedFilter ->
   Limit ->
   Offset ->
   ExceptT HandlerError AppM ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
-fetchEpisodesData today showModel limit offset =
+fetchEpisodesData today showModel archived limit offset =
   fromRightM throwDatabaseError $
-    execTransaction (fetchEpisodesDataPaginated today showModel limit offset)
+    execTransaction (fetchEpisodesDataPaginated today showModel archived limit offset)
 
 -- | Fetch episodes data for dashboard with pagination
-fetchEpisodesDataPaginated :: Day -> Shows.Model -> Limit -> Offset -> Txn.Transaction ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
-fetchEpisodesDataPaginated date showModel lim off = do
+fetchEpisodesDataPaginated :: Day -> Shows.Model -> Episodes.ArchivedFilter -> Limit -> Offset -> Txn.Transaction ([Episodes.Model], [ShowSchedule.ScheduleTemplate Result], Maybe ShowSchedule.UpcomingShowDate)
+fetchEpisodesDataPaginated date showModel archived lim off = do
+  -- Read the id through the field selector. hlint reads showModel.id as a
+  -- composition with Data.Function.id, and reports a redundant id.
+  let showId = Shows.id showModel
   -- Fetch limit + 1 to check if there are more results
-  episodes <- Txn.statement () (Episodes.getEpisodesForShow showModel.id (lim + 1) off)
-  schedules <- Txn.statement () (ShowSchedule.getScheduleTemplatesForShow showModel.id)
-  upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showModel.id date 1)
+  episodes <- Txn.statement () (Episodes.getEpisodesForShow showId archived (lim + 1) off)
+  schedules <- Txn.statement () (ShowSchedule.getScheduleTemplatesForShow showId)
+  upcomingShows <- Txn.statement () (ShowSchedule.getUpcomingShowDates showId date 1)
   let nextShow = listToMaybe upcomingShows
   pure (episodes, schedules, nextShow)

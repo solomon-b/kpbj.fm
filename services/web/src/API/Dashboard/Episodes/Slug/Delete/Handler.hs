@@ -73,7 +73,7 @@ fetchEpisode ::
 fetchEpisode showSlug episodeNumber =
   fromMaybeM (throwNotFound "Episode") $
     fromRightM throwDatabaseError $
-      execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
+      execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber Episodes.ExcludeArchived)
 
 --------------------------------------------------------------------------------
 -- Error Handling

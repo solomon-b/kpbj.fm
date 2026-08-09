@@ -32,6 +32,9 @@ module Effects.Database.Tables.Episodes
     FileUpdate (..),
     ScheduleSlotUpdate (..),
 
+    -- * Archived Filter
+    ArchivedFilter (..),
+
     -- * Queries
     getPublishedEpisodesForShow,
     getPublishedEpisodesWithShows,
@@ -47,6 +50,8 @@ module Effects.Database.Tables.Episodes
     updateEpisodeFiles,
     updateScheduledSlot,
     deleteEpisode,
+    restoreEpisode,
+    getLiveEpisodeAtAirTime,
     clearTemplateForUpcomingEpisodes,
     closeSchedulesAndDetachEpisodes,
     getUpcomingEpisodesForTemplates,
@@ -381,11 +386,31 @@ getPublishedEpisodesWithShows currentTime (Limit lim) (Offset off) =
             where_ $ isNull s.deletedAt
             pure (ep, s)
 
+-- | Whether a read includes the episodes that staff archived.
+--
+-- Archive is the station's moderation tool, so 'ExcludeArchived' is the answer
+-- for anything a listener can reach. Only the staff-facing dashboard reads
+-- 'IncludeArchived', and it decides from the caller's role.
+--
+-- This is a parameter rather than a second function so that GHC makes every
+-- call site say which it wants. A query that quietly omitted the predicate is
+-- what let an archived episode stay on the public site.
+data ArchivedFilter
+  = ExcludeArchived
+  | IncludeArchived
+  deriving stock (Show, Eq)
+
+-- | Restrict a query to the live rows, unless the caller asked for all of them.
+applyArchivedFilter :: ArchivedFilter -> Episode Expr -> Query ()
+applyArchivedFilter = \case
+  ExcludeArchived -> where_ . isNull . (.deletedAt)
+  IncludeArchived -> const (pure ())
+
 -- | Get episodes for a show (for hosts viewing their own show).
 --
--- Returns all non-deleted episodes, ordered by scheduled date descending.
-getEpisodesForShow :: Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
-getEpisodesForShow showId' (Limit lim) (Offset off) =
+-- Ordered by scheduled date descending.
+getEpisodesForShow :: Shows.Id -> ArchivedFilter -> Limit -> Offset -> Hasql.Statement () [Model]
+getEpisodesForShow showId' archived (Limit lim) (Offset off) =
   run $
     select $
       Rel8.limit (fromIntegral lim) $
@@ -393,25 +418,24 @@ getEpisodesForShow showId' (Limit lim) (Offset off) =
           orderBy ((.scheduledAt) >$< nullsLast desc) do
             ep <- each episodeSchema
             where_ $ ep.showId ==. lit showId'
-            where_ $ isNull ep.deletedAt
+            applyArchivedFilter archived ep
             pure ep
 
--- | Get a live episode by show slug and episode number.
+-- | Get an episode by show slug and episode number.
 --
 -- Joins with shows table to filter by show slug.
 --
--- Archive is the station's moderation tool, so an archived episode is gone
--- everywhere. This query backs the public episode page, so without the
--- @deleted_at@ filter that page kept serving the episode and its audio at a
--- guessable URL after staff archived it.
-getEpisodeByShowAndNumber :: Slug -> EpisodeNumber -> Hasql.Statement () (Maybe Model)
-getEpisodeByShowAndNumber showSlug episodeNum = fmap listToMaybe $ run $ select do
+-- Pass 'ExcludeArchived' for anything a listener reaches. This query backs the
+-- public episode page, so without that predicate the page kept serving an
+-- archived episode and its audio at a guessable URL.
+getEpisodeByShowAndNumber :: Slug -> EpisodeNumber -> ArchivedFilter -> Hasql.Statement () (Maybe Model)
+getEpisodeByShowAndNumber showSlug episodeNum archived = fmap listToMaybe $ run $ select do
   ep <- each episodeSchema
   s <- each Shows.showSchema
   where_ $ showId ep ==. Shows.id s
   where_ $ Shows.slug s ==. lit showSlug
   where_ $ episodeNumber ep ==. lit episodeNum
-  where_ $ isNull ep.deletedAt
+  applyArchivedFilter archived ep
   pure ep
 
 -- | Get non-deleted episode by ID.
@@ -814,6 +838,47 @@ deleteEpisode episodeId =
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit episodeId,
+            returning = Returning (.id)
+          }
+
+-- | Find the live episode of a show that already holds an air time.
+--
+-- 'restoreEpisode' calls this first. @unique_episode_scheduled_at@ covers the
+-- live rows only, so another episode can take the air time while this one sits
+-- archived. Without the check the restore fails on the index, and the handler
+-- can only report a database error.
+--
+-- The given episode is excluded, so an episode never collides with itself.
+getLiveEpisodeAtAirTime :: Shows.Id -> UTCTime -> Id -> Hasql.Statement () (Maybe Model)
+getLiveEpisodeAtAirTime showId' airTime exceptId = fmap listToMaybe $ run $ select do
+  ep <- each episodeSchema
+  where_ $ ep.showId ==. lit showId'
+  where_ $ ep.scheduledAt ==. nullify (lit airTime)
+  where_ $ ep.id /=. lit exceptId
+  where_ $ isNull ep.deletedAt
+  pure ep
+
+-- | Restore an archived episode by clearing @deleted_at@.
+--
+-- The episode returns to the public site, so only staff and admins may run this.
+--
+-- This can fail on @unique_episode_scheduled_at@. That index covers the live
+-- rows only, so another episode of the show can take the air time while this one
+-- sits archived. The caller reports that collision rather than showing a 500.
+restoreEpisode :: Id -> Hasql.Statement () (Maybe Id)
+restoreEpisode episodeId =
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = episodeSchema,
+            from = pure (),
+            set = \_ ep ->
+              ep
+                { deletedAt = lit Nothing,
+                  updatedAt = now
+                },
+            updateWhere = \_ ep -> ep.id ==. lit episodeId &&. isNonNull ep.deletedAt,
             returning = Returning (.id)
           }
 

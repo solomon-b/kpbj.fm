@@ -56,8 +56,9 @@ action user userMetadata showSlug episodeNumber = do
   -- 1. Get storage backend
   backend <- asks getter
 
-  -- 2. Fetch the episode
-  episode <- fetchEpisodeOrNotFound showSlug episodeNumber
+  -- 2. Fetch the episode. Staff and admins moderate, so they can open an
+  -- archived one. For a host it is not found, as on the public page.
+  episode <- fetchEpisodeOrNotFound showSlug episodeNumber (archivedFilterFor userMetadata)
 
   -- 3. Fetch the show
   showModel <- fetchShowOrNotFound episode.showId
@@ -107,15 +108,25 @@ handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
         Nothing
         content
 
+-- | Which episodes a role may open in the dashboard.
+--
+-- Archive is the moderation tool, so staff and admins can read what they
+-- archived. A host gets the same answer a listener gets.
+archivedFilterFor :: UserMetadata.Model -> Episodes.ArchivedFilter
+archivedFilterFor userMetadata
+  | UserMetadata.isStaffOrHigher userMetadata.mUserRole = Episodes.IncludeArchived
+  | otherwise = Episodes.ExcludeArchived
+
 -- | Fetch episode by show slug and episode number
 fetchEpisodeOrNotFound ::
   Slug ->
   Episodes.EpisodeNumber ->
+  Episodes.ArchivedFilter ->
   ExceptT HandlerError AppM Episodes.Model
-fetchEpisodeOrNotFound showSlug episodeNumber =
+fetchEpisodeOrNotFound showSlug episodeNumber archived =
   fromMaybeM (throwNotFound "Episode") $
     fromRightM throwDatabaseError $
-      execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
+      execQuery (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber archived)
 
 -- | Fetch show by ID
 fetchShowOrNotFound ::

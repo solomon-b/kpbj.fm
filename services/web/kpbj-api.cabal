@@ -327,6 +327,8 @@ library
     API.Dashboard.EphemeralUploads.New.Post.Route
     API.Dashboard.Episodes.Slug.Delete.Handler
     API.Dashboard.Episodes.Slug.Delete.Route
+    API.Dashboard.Episodes.Slug.Unarchive.Post.Handler
+    API.Dashboard.Episodes.Slug.Unarchive.Post.Route
     API.Dashboard.Episodes.Slug.Edit.Get.Handler
     API.Dashboard.Episodes.Slug.Edit.Get.Route
     API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form
