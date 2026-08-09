@@ -114,7 +114,7 @@ fetchEpisodeContext showSlug episodeNumber user userMetadata = do
     fromRightM throwDatabaseError $
       execTransaction $
         runMaybeT $ do
-          episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
+          episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber Episodes.IncludeArchived)
           showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
           isHost <-
             if UserMetadata.isAdmin userMetadata.mUserRole
@@ -123,7 +123,11 @@ fetchEpisodeContext showSlug episodeNumber user userMetadata = do
           MaybeT $ pure $ Just (episode, showResult, isHost)
   case mResult of
     Nothing -> throwNotFound "Episode"
-    Just ctx -> pure ctx
+    -- The read includes the archived episodes so that this message can name the
+    -- reason. The edit form refuses the same way, so a stale form cannot save.
+    Just ctx@(episode, _, _)
+      | isJust episode.deletedAt -> throwValidationError "This episode is archived. Unarchive it before you edit it."
+      | otherwise -> pure ctx
 
 --------------------------------------------------------------------------------
 -- Schedule Parsing

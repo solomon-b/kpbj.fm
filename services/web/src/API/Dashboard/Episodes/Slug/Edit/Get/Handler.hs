@@ -12,7 +12,7 @@ import App.Common (renderDashboardTemplate)
 import App.Config (Environment)
 import App.Domains (audioUploadUrl)
 import App.Handler.Combinators (requireAuth)
-import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad (unless)
@@ -23,6 +23,7 @@ import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Has (getter)
 import Data.Has qualified as Has
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
@@ -153,7 +154,7 @@ fetchEpisodeContext showSlug episodeNumber user userMetadata = do
     fromRightM throwDatabaseError $
       execTransaction $
         runMaybeT $ do
-          episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber)
+          episode <- MaybeT $ HT.statement () (Episodes.getEpisodeByShowAndNumber showSlug episodeNumber Episodes.IncludeArchived)
           showResult <- MaybeT $ HT.statement () (Shows.getShowById episode.showId)
           tracks <- lift $ HT.statement () (EpisodeTrack.getTracksForEpisode episode.id)
           isHost <-
@@ -163,7 +164,12 @@ fetchEpisodeContext showSlug episodeNumber user userMetadata = do
           MaybeT $ pure $ Just (episode, showResult, tracks, isHost)
   case mResult of
     Nothing -> throwNotFound "Episode"
-    Just ctx -> pure ctx
+    -- The read includes the archived episodes so that this message can name the
+    -- reason. Filtering them in the query would report "not found" instead, and
+    -- staff can see the episode in the list they came from.
+    Just ctx@(episode, _, _, _)
+      | isJust episode.deletedAt -> throwValidationError "This episode is archived. Unarchive it before you edit it."
+      | otherwise -> pure ctx
 
 fetchEpisodeTags ::
   Episodes.Id ->

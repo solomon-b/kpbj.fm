@@ -73,6 +73,7 @@ import API.Dashboard.Episodes.Slug.Delete.Route qualified as Dashboard.Episodes.
 import API.Dashboard.Episodes.Slug.Edit.Get.Route qualified as Dashboard.Episodes.Slug.Edit.Get
 import API.Dashboard.Episodes.Slug.Edit.Post.Route qualified as Dashboard.Episodes.Slug.Edit.Post
 import API.Dashboard.Episodes.Slug.Get.Route qualified as Dashboard.Episodes.Slug.Get
+import API.Dashboard.Episodes.Slug.Unarchive.Post.Route qualified as Dashboard.Episodes.Slug.Unarchive.Post
 import API.Dashboard.Events.Get.Route qualified as Dashboard.Events.Get
 import API.Dashboard.Events.New.Get.Route qualified as Dashboard.Events.New.Get
 import API.Dashboard.Events.New.Post.Route qualified as Dashboard.Events.New.Post
@@ -450,7 +451,9 @@ data DashboardEpisodesRoutes mode = DashboardEpisodesRoutes
     -- | @POST /dashboard/episodes/:showSlug/:episodeNumber/edit@ - Update episode
     editPost :: mode :- Dashboard.Episodes.Slug.Edit.Post.Route,
     -- | @DELETE /dashboard/episodes/:showSlug/:episodeNumber@ - Archive episode (staff only)
-    delete :: mode :- Dashboard.Episodes.Slug.Delete.Route
+    delete :: mode :- Dashboard.Episodes.Slug.Delete.Route,
+    -- | @POST /dashboard/episodes/:showSlug/:episodeNumber/unarchive@ - Restore episode (staff only)
+    unarchive :: mode :- Dashboard.Episodes.Slug.Unarchive.Post.Route
   }
   deriving stock (Generic)
 

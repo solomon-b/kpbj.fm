@@ -37,13 +37,21 @@ episodeEditGetUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.editGe
 episodeArchiveUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
 episodeArchiveUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.delete showSlug epNum
 
+episodeUnarchiveUrl :: Slug -> Episodes.EpisodeNumber -> Links.URI
+episodeUnarchiveUrl showSlug epNum = Links.linkURI $ dashboardEpisodesLinks.unarchive showSlug epNum
+
 --------------------------------------------------------------------------------
 
 -- | Render individual episode as table row.
 --
 -- Actions shown depend on user role:
 -- - Staff+ can "Archive" (soft delete via deleted_at)
+-- - Staff+ can "Unarchive" an already archived episode
 -- - All users can "Edit"
+--
+-- Only staff and admins receive an archived episode, because the list query
+-- gives a host the live rows only. An archived row is dimmed and carries an
+-- ARCHIVED badge, and it offers Unarchive in place of Archive and Edit.
 renderEpisodeTableRow :: UserMetadata.Model -> Shows.Model -> Episodes.Model -> Lucid.Html ()
 renderEpisodeTableRow userMeta showModel episode = do
   let episodeId = episode.id
@@ -56,7 +64,7 @@ renderEpisodeTableRow userMeta showModel episode = do
           hxTarget_ "#main-content",
           hxPushUrl_ "true"
         ]
-  Lucid.tr_ [class_ $ base ["border-b-2", Tokens.borderMuted, Tokens.hoverBg], Lucid.id_ episodeRowId] $ do
+  Lucid.tr_ [class_ $ base $ ["border-b-2", Tokens.borderMuted, Tokens.hoverBg] <> archivedRowClasses, Lucid.id_ episodeRowId] $ do
     -- Episode number and description
     Lucid.td_ cellLinkAttrs $ do
       Lucid.span_ [class_ $ base [Tokens.fontBold]] $
@@ -107,6 +115,16 @@ renderEpisodeTableRow userMeta showModel episode = do
               Lucid.class_ "hidden"
             ]
             ""
+          -- Hidden button for Unarchive (restore for staff+)
+          Lucid.button_
+            [ hxPost_ [i|/#{unarchiveUrl}|],
+              hxTarget_ ("#" <> episodeRowId),
+              hxSwap_ "outerHTML",
+              LucidBase.makeAttributes "hx-confirm" "Unarchive this episode? It will appear publicly again.",
+              xRef_ "unarchiveBtn",
+              Lucid.class_ "hidden"
+            ]
+            ""
           -- Visible dropdown
           Lucid.select_
             [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
@@ -118,18 +136,30 @@ renderEpisodeTableRow userMeta showModel episode = do
                 $refs.editLink.click();
               } else if (action === 'archive') {
                 $refs.archiveBtn.click();
+              } else if (action === 'unarchive') {
+                $refs.unarchiveBtn.click();
               }
             |]
             ]
             $ do
               Lucid.option_ [Lucid.value_ ""] "Actions..."
-              Lucid.option_ [Lucid.value_ "edit"] "Edit"
+              -- An archived episode is read-only. Unarchive it to edit it.
+              if isArchived
+                then mempty
+                else Lucid.option_ [Lucid.value_ "edit"] "Edit"
               -- Staff+ can archive any episode (soft delete)
               if isStaff && not isArchived
                 then Lucid.option_ [Lucid.value_ "archive"] "Archive"
+                else mempty
+              -- Staff+ can put an archived episode back on the public site
+              if isStaff && isArchived
+                then Lucid.option_ [Lucid.value_ "unarchive"] "Unarchive"
                 else mempty
   where
     epNum = episode.episodeNumber
     episodeEditUrl = episodeEditGetUrl showModel.slug epNum
     archiveUrl = episodeArchiveUrl showModel.slug epNum
+    unarchiveUrl = episodeUnarchiveUrl showModel.slug epNum
     isStaff = UserMetadata.isStaffOrHigher userMeta.mUserRole
+    -- Dim an archived row, so the badge is not the only signal.
+    archivedRowClasses = ["opacity-60" | isJust episode.deletedAt]
