@@ -396,9 +396,14 @@ getEpisodesForShow showId' (Limit lim) (Offset off) =
             where_ $ isNull ep.deletedAt
             pure ep
 
--- | Get episode by show slug and episode number.
+-- | Get a live episode by show slug and episode number.
 --
 -- Joins with shows table to filter by show slug.
+--
+-- Archive is the station's moderation tool, so an archived episode is gone
+-- everywhere. This query backs the public episode page, so without the
+-- @deleted_at@ filter that page kept serving the episode and its audio at a
+-- guessable URL after staff archived it.
 getEpisodeByShowAndNumber :: Slug -> EpisodeNumber -> Hasql.Statement () (Maybe Model)
 getEpisodeByShowAndNumber showSlug episodeNum = fmap listToMaybe $ run $ select do
   ep <- each episodeSchema
@@ -406,6 +411,7 @@ getEpisodeByShowAndNumber showSlug episodeNum = fmap listToMaybe $ run $ select 
   where_ $ showId ep ==. Shows.id s
   where_ $ Shows.slug s ==. lit showSlug
   where_ $ episodeNumber ep ==. lit episodeNum
+  where_ $ isNull ep.deletedAt
   pure ep
 
 -- | Get non-deleted episode by ID.

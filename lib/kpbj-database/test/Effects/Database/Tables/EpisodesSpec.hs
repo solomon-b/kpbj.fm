@@ -24,7 +24,7 @@ import Hedgehog.Internal.Property (forAllT)
 import Test.Database.Helpers (insertTestShowWithSchedule, insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
-import Test.Database.Property.Assert (assertJust, assertRight, assertSingleton)
+import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, assertSingleton)
 import Test.Gen.Tables.Episodes (episodeInsertGen)
 import Test.Gen.Tables.ShowSchedule (airDayForTemplate, airTimeForTemplate, airTimeOn, genRecurringScheduleInsert, lastAirTimeBefore)
 import Test.Gen.Tables.Shows (showInsertGen)
@@ -53,6 +53,8 @@ spec =
           hedgehog . prop_getPublishedEpisodesForShow
         runs 10 . it "getEpisodeByShowAndNumber: looks up by show slug + episode number" $
           hedgehog . prop_getEpisodeByShowAndNumber
+        runs 10 . it "getEpisodeByShowAndNumber: an archived episode is gone" $
+          hedgehog . prop_archivedEpisodeIsNotFoundByNumber
 
       describe "Episode numbering" $ do
         runs 10 . it "set_episode_number: consecutive inserts number 1, 2, 3" $
@@ -1399,6 +1401,51 @@ prop_closeSchedules_leavesClosedWindow cfg = do
         validity <- assertSingleton validities
         ShowSchedule.stvEffectiveFrom validity === oldFrom
         ShowSchedule.stvEffectiveUntil validity === Just oldUntil
+
+-- | getEpisodeByShowAndNumber must not return an archived episode.
+--
+-- Archive is the station's moderation tool. This query backs the public episode
+-- page, so a row it returns is a row the public can see and play.
+prop_archivedEpisodeIsNotFoundByNumber :: TestDBConfig -> PropertyT IO ()
+prop_archivedEpisodeIsNotFoundByNumber cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let episodeInsert =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiCreatedBy = userId
+                }
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        let showSlug = Shows.siSlug showInsert
+        mBefore <- TRX.statement () (UUT.getEpisodeById episodeId)
+        epNumber <- case mBefore of
+          Nothing -> pure 0
+          Just ep -> pure (UUT.episodeNumber ep)
+
+        found <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber)
+        _ <- TRX.statement () (UUT.deleteEpisode episodeId)
+        afterArchive <- TRX.statement () (UUT.getEpisodeByShowAndNumber showSlug epNumber)
+
+        TRX.condemn
+        pure (found, afterArchive)
+
+      assert $ do
+        (found, afterArchive) <- assertRight result
+        live <- assertJust found
+        UUT.deletedAt live === Nothing
+        assertNothing afterArchive
 
 --------------------------------------------------------------------------------
 -- Play logging
