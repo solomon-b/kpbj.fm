@@ -118,8 +118,8 @@ test_archivesEpisode cfg = do
           episodeModel.episodeNumber
 
     liftIO $ case result of
-      Left err -> expectationFailure $ "Expected Right () but got Left: " <> show err
-      Right () -> pure ()
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right _ -> pure ()
 
     -- Verify the episode was soft-deleted: getEpisodeById filters out deleted
     -- records, so it should return Nothing after archiving.

@@ -63,9 +63,8 @@ action showSlug episodeNumber = do
     Right Nothing -> do
       Log.logInfo "Unarchive failed: episode was not archived" (Aeson.object ["episodeId" .= archived.id])
       throwValidationError "This episode is not archived."
-    Right (Just _) -> do
+    Right (Just restored) -> do
       Log.logInfo "Episode unarchived" (Aeson.object ["episodeId" .= archived.id])
-      restored <- fetchRestoredEpisode archived.id
       pure (showModel, restored)
 
 --------------------------------------------------------------------------------
@@ -111,10 +110,3 @@ fetchShow showId =
   fromMaybeM (throwNotFound "Show") $
     fromRightM throwDatabaseError $
       execQuery (Shows.getShowById showId)
-
--- | Read the episode back so the row renders its new state.
-fetchRestoredEpisode :: Episodes.Id -> ExceptT HandlerError AppM Episodes.Model
-fetchRestoredEpisode episodeId =
-  fromMaybeM (throwNotFound "Episode") $
-    fromRightM throwDatabaseError $
-      execQuery (Episodes.getEpisodeById episodeId)
