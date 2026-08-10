@@ -19,7 +19,7 @@ import Effects.Database.Tables.User qualified as User
 import Hasql.Interpolate (interp, sql)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
-import Hedgehog (PropertyT, (===))
+import Hedgehog (PropertyT, (/==), (===))
 import Hedgehog.Internal.Property (forAllT)
 import Test.Database.Helpers (insertTestShowWithSchedule, insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
@@ -608,8 +608,10 @@ prop_deleteEpisode cfg = do
 
       assert $ do
         (episodeId, deleteResult, mAfterDelete, episodesForShow) <- assertRight result
-        deletedId <- assertJust deleteResult
-        deletedId === episodeId
+        deleted <- assertJust deleteResult
+        UUT.id deleted === episodeId
+        -- deleteEpisode returns the archived row, so deleted_at is set on it.
+        UUT.deletedAt deleted /== Nothing
 
         -- Episode no longer visible via getById (soft-delete filter excludes it)
         mAfterDelete === Nothing
@@ -643,11 +645,11 @@ prop_deleteEpisode_idempotent cfg = do
 
       assert $ do
         (episodeId, firstDelete, secondDelete) <- assertRight result
-        -- Both deletes return the id (no WHERE deleted_at IS NULL)
-        firstDeleteId <- assertJust firstDelete
-        firstDeleteId === episodeId
-        secondDeleteId <- assertJust secondDelete
-        secondDeleteId === episodeId
+        -- Both deletes return the row (no WHERE deleted_at IS NULL)
+        firstDeleted <- assertJust firstDelete
+        UUT.id firstDeleted === episodeId
+        secondDeleted <- assertJust secondDelete
+        UUT.id secondDeleted === episodeId
         pure ()
 
 --------------------------------------------------------------------------------
@@ -1542,7 +1544,10 @@ prop_restoreEpisodeClearsDeletedAt cfg = do
 
       assert $ do
         (episodeId, restored, publicAgain) <- assertRight result
-        restored === Just episodeId
+        restoredRow <- assertJust restored
+        UUT.id restoredRow === episodeId
+        -- restoreEpisode returns the live row, so deleted_at is already clear.
+        UUT.deletedAt restoredRow === Nothing
         live <- assertJust publicAgain
         UUT.deletedAt live === Nothing
 

@@ -824,7 +824,10 @@ updateScheduledSlot ScheduleSlotUpdate {..} =
           }
 
 -- | Delete an episode (soft delete by setting deleted_at timestamp).
-deleteEpisode :: Id -> Hasql.Statement () (Maybe Id)
+--
+-- Returns the archived row, so a caller can render it without a second read.
+-- 'getEpisodeById' cannot serve that, because it returns the live rows only.
+deleteEpisode :: Id -> Hasql.Statement () (Maybe Model)
 deleteEpisode episodeId =
   fmap listToMaybe $
     run $
@@ -838,7 +841,7 @@ deleteEpisode episodeId =
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit episodeId,
-            returning = Returning (.id)
+            returning = Returning (\ep -> ep)
           }
 
 -- | Find the live episode of a show that already holds an air time.
@@ -865,7 +868,7 @@ getLiveEpisodeAtAirTime showId' airTime exceptId = fmap listToMaybe $ run $ sele
 -- This can fail on @unique_episode_scheduled_at@. That index covers the live
 -- rows only, so another episode of the show can take the air time while this one
 -- sits archived. The caller reports that collision rather than showing a 500.
-restoreEpisode :: Id -> Hasql.Statement () (Maybe Id)
+restoreEpisode :: Id -> Hasql.Statement () (Maybe Model)
 restoreEpisode episodeId =
   fmap listToMaybe $
     run $
@@ -879,7 +882,7 @@ restoreEpisode episodeId =
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit episodeId &&. isNonNull ep.deletedAt,
-            returning = Returning (.id)
+            returning = Returning (\ep -> ep)
           }
 
 -- | Clear schedule_template_id for upcoming episodes tied to a given template,
