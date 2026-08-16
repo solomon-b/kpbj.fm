@@ -26,12 +26,14 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
-import Data.Time (UTCTime)
+import Data.Time (Day, UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Data.Time.LocalTime (localDay)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
+import Domain.Types.Timezone (utcToPacific)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
@@ -132,19 +134,43 @@ fetchEpisodeContext showSlug episodeNumber user userMetadata = do
 --------------------------------------------------------------------------------
 -- Schedule Parsing
 
--- | Parse a schedule value in format "template_id|scheduled_at"
-parseScheduleValue :: Text -> Either Text (ShowSchedule.TemplateId, UTCTime)
+-- | Parse a schedule value with the format "template_id|air_date".
+--
+-- The value gives a slot and a date. It does not give a time.
+-- 'ShowSchedule.templateAirTimeOn' reads the air time from the template. The
+-- client therefore cannot set an air time that differs from the template.
+parseScheduleValue :: Text -> Either Text (ShowSchedule.TemplateId, Day)
 parseScheduleValue txt =
   case Text.splitOn "|" txt of
-    [tidStr, timeStr] -> do
+    [tidStr, dateStr] -> do
       tid <- case readMaybe (Text.unpack tidStr) of
         Just n -> Right $ ShowSchedule.TemplateId n
         Nothing -> Left $ "Invalid template ID: " <> tidStr
-      time <- case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timeStr) of
-        Just t -> Right t
-        Nothing -> Left $ "Invalid timestamp: " <> timeStr
-      Right (tid, time)
+      airDate <- case parseTimeM True defaultTimeLocale "%Y-%m-%d" (Text.unpack dateStr) of
+        Just d -> Right d
+        Nothing -> Left $ "Invalid air date: " <> dateStr
+      Right (tid, airDate)
     _ -> Left $ "Invalid schedule format: " <> txt
+
+-- | The request that the @scheduled_date@ field makes.
+--
+-- The field had three meanings and two values. An unchanged dropdown and a
+-- deliberate "Unscheduled" choice both sent the empty string. The handler read
+-- both as no change. The form now preselects the episode's own slot. An unchanged
+-- dropdown therefore sends that slot, and the empty string has one meaning.
+data SlotChange
+  = -- | The form did not show the field. The slot does not change.
+    LeaveAlone
+  | -- | Clear the slot. The episode keeps its number, its audio, and its tracks.
+    Unschedule
+  | -- | Put the episode in this slot on this date.
+    Assign ShowSchedule.TemplateId Day
+
+parseSlotChange :: Maybe Text -> Either Text SlotChange
+parseSlotChange = \case
+  Nothing -> Right LeaveAlone
+  Just "" -> Right Unschedule
+  Just txt -> uncurry Assign <$> parseScheduleValue txt
 
 --------------------------------------------------------------------------------
 
@@ -269,7 +295,15 @@ processFileUploadsWithWarning userId allowFileUpload showModel episode editForm 
                   Right (Just _) -> Log.logInfo "Successfully updated file paths" episode.id
               pure []
 
--- | Process schedule update, returning a warning if it fails
+-- | Update the schedule. Return a warning if the update fails.
+--
+-- A move of the slot and a clear of the slot need the same permission. Before the
+-- episode airs, any host of the show can do both. After the episode airs, only
+-- staff and admins can. The air date is then a record of the broadcast, not a
+-- plan.
+--
+-- A request that gives the slot the episode already holds writes nothing. It also
+-- runs no query. The form preselects that slot, so most saves take this path.
 processScheduleUpdate ::
   Bool -> -- isPast
   Bool -> -- isStaffOrAdmin
@@ -277,56 +311,80 @@ processScheduleUpdate ::
   EpisodeEditForm ->
   AppM [Text]
 processScheduleUpdate isPast isStaffOrAdmin episode editForm =
-  case eefScheduledDate editForm of
-    Nothing -> pure [] -- Field absent, no change
-    Just "" -> pure [] -- "Unscheduled" selected, stay unscheduled
-    Just scheduleDateValue -> do
-      case parseScheduleValue scheduleDateValue of
-        Left parseErr -> do
-          Log.logInfo "Failed to parse schedule value" parseErr
-          pure ["Schedule update failed: " <> parseErr]
-        Right (newTemplateId, newScheduledAt) -> do
-          let scheduleChanged = Just newTemplateId /= episode.scheduleTemplateId || Just newScheduledAt /= episode.scheduledAt
-          if not scheduleChanged
-            then pure []
-            else
-              if isPast && not isStaffOrAdmin
-                then do
-                  Log.logInfo "Host attempted to change schedule on past episode" episode.id
-                  pure ["Schedule changes not allowed for past episodes"]
-                else
-                  templateBelongsToShow newTemplateId episode.showId >>= \case
-                    False -> do
-                      Log.logAttention "Rejected schedule update: template does not belong to this show" (episode.id, newTemplateId)
-                      pure ["Schedule update failed: that time slot does not belong to this show"]
-                    True -> do
-                      let slotUpdate =
-                            Episodes.ScheduleSlotUpdate
-                              { Episodes.essuId = episode.id,
-                                Episodes.essuScheduleTemplateId = newTemplateId,
-                                Episodes.essuScheduledAt = newScheduledAt
-                              }
-                      execQuery (Episodes.updateScheduledSlot slotUpdate) >>= \case
-                        Left err -> do
-                          Log.logInfo "Failed to update schedule slot" (episode.id, show err)
-                          pure ["Failed to update schedule"]
-                        Right Nothing -> do
-                          Log.logInfo "Schedule slot update returned Nothing" episode.id
-                          pure ["Failed to update schedule"]
-                        Right (Just _) -> do
-                          Log.logInfo "Successfully updated schedule slot" episode.id
-                          pure []
+  case parseSlotChange (eefScheduledDate editForm) of
+    Left parseErr -> do
+      Log.logInfo "Failed to parse schedule value" parseErr
+      pure ["Schedule update failed: " <> parseErr]
+    Right LeaveAlone -> pure []
+    Right Unschedule
+      | alreadyUnscheduled -> pure []
+      | otherwise -> withScheduleRights clearSlot
+    Right (Assign newTemplateId newAirDate)
+      | sameSlot newTemplateId newAirDate -> pure []
+      | otherwise -> withScheduleRights (assignSlot newTemplateId newAirDate)
+  where
+    alreadyUnscheduled =
+      isNothing episode.scheduleTemplateId && isNothing episode.scheduledAt
 
--- | 'ShowSchedule.templateBelongsToShow' in 'AppM'.
+    sameSlot newTemplateId newAirDate =
+      Just newTemplateId == episode.scheduleTemplateId
+        && fmap airDateOf episode.scheduledAt == Just newAirDate
+
+    withScheduleRights act
+      | isPast && not isStaffOrAdmin = do
+          Log.logInfo "Host attempted to change schedule on past episode" episode.id
+          pure ["Schedule changes not allowed for past episodes"]
+      | otherwise = act
+
+    clearSlot =
+      execQuery (Episodes.clearScheduledSlot episode.id) >>= \case
+        Left err -> do
+          Log.logInfo "Failed to clear schedule slot" (episode.id, show err)
+          pure ["Failed to update schedule"]
+        Right Nothing -> do
+          Log.logInfo "Schedule slot clear returned Nothing" episode.id
+          pure ["Failed to update schedule"]
+        Right (Just _) -> do
+          Log.logInfo "Successfully cleared schedule slot" episode.id
+          pure []
+
+    assignSlot newTemplateId newAirDate =
+      templateAirTimeOn newTemplateId episode.showId newAirDate >>= \case
+        Nothing -> do
+          Log.logAttention "Rejected schedule update: the template does not air on that date" (episode.id, newTemplateId, newAirDate)
+          pure ["Schedule update failed: that show does not air in that time slot on that date"]
+        Just newScheduledAt -> do
+          let slotUpdate =
+                Episodes.ScheduleSlotUpdate
+                  { Episodes.essuId = episode.id,
+                    Episodes.essuScheduleTemplateId = newTemplateId,
+                    Episodes.essuScheduledAt = newScheduledAt
+                  }
+          execQuery (Episodes.updateScheduledSlot slotUpdate) >>= \case
+            Left err -> do
+              Log.logInfo "Failed to update schedule slot" (episode.id, show err)
+              pure ["Failed to update schedule"]
+            Right Nothing -> do
+              Log.logInfo "Schedule slot update returned Nothing" episode.id
+              pure ["Failed to update schedule"]
+            Right (Just _) -> do
+              Log.logInfo "Successfully updated schedule slot" episode.id
+              pure []
+
+-- | The station date of an instant.
+airDateOf :: UTCTime -> Day
+airDateOf = localDay . utcToPacific
+
+-- | 'ShowSchedule.templateAirTimeOn' in 'AppM'.
 --
--- Fails closed: on a database error the schedule change is refused.
-templateBelongsToShow :: ShowSchedule.TemplateId -> Shows.Id -> AppM Bool
-templateBelongsToShow templateId showId =
-  execQuery (ShowSchedule.templateBelongsToShow templateId showId) >>= \case
+-- This function fails closed. A database error refuses the schedule change.
+templateAirTimeOn :: ShowSchedule.TemplateId -> Shows.Id -> Day -> AppM (Maybe UTCTime)
+templateAirTimeOn templateId showId airDate =
+  execQuery (ShowSchedule.templateAirTimeOn templateId showId airDate) >>= \case
     Left err -> do
-      Log.logAttention "Failed to check schedule template ownership" (Text.pack $ show err)
-      pure False
-    Right owned -> pure owned
+      Log.logAttention "Failed to check the schedule template air time" (Text.pack $ show err)
+      pure Nothing
+    Right airTime -> pure airTime
 
 -- | Process track updates, returning a warning if it fails
 processTrackUpdates ::

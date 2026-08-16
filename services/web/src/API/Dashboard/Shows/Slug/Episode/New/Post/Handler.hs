@@ -25,7 +25,7 @@ import Data.Text qualified as T (null)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
-import Data.Time (UTCTime)
+import Data.Time (Day, UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
@@ -145,66 +145,68 @@ processEpisodeUpload _userMetadata user showModel form = do
           then pure (Right True) -- Staff and Admins always authorized
           else execQuery (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
-      -- The scheduled_date field carries a raw template_id, so confirm the slot
-      -- belongs to this show before it reaches episodes.schedule_template_id.
-      -- Checked before the upload so a rejected request writes no files.
-      templateOwned <- execQuery (ShowSchedule.templateBelongsToShow episodeData.scheduleTemplateId (Shows.Id episodeData.showId))
+      -- The scheduled_date field holds a raw template_id and a raw date. Confirm
+      -- that the show owns the slot and that the slot airs on the date. The query
+      -- returns the air time. That value goes to episodes.scheduled_at. This check
+      -- runs before the upload, so a refused request writes no files.
+      airTime <- execQuery (ShowSchedule.templateAirTimeOn episodeData.scheduleTemplateId (Shows.Id episodeData.showId) episodeData.airDate)
 
-      case (isAuthorized, templateOwned) of
+      case (isAuthorized, airTime) of
         (Left _err, _) -> pure $ Left "Database error checking host permissions"
         (_, Left _err) -> pure $ Left "Database error checking time slot"
-        (Right isHost, Right isOwned)
+        (Right isHost, Right mScheduledAt)
           | not isHost -> pure $ Left "You are not authorized to create episodes for this show"
-          | not isOwned -> do
-              Log.logAttention "Rejected episode upload: template does not belong to this show" (episodeData.showId, episodeData.scheduleTemplateId)
-              pure $ Left "That time slot does not belong to this show"
-          | otherwise -> do
-              -- Handle file uploads (pass scheduled date for file organization)
-              -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
-              -- Artwork: Direct upload only (small files don't benefit from staged uploads)
-              uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug (Just episodeData.scheduledAt) (eufArtworkFile form) (eufAudioToken form)
+          | otherwise -> case mScheduledAt of
+              Nothing -> do
+                Log.logAttention "Rejected episode upload: the template does not air on that date" (episodeData.showId, episodeData.scheduleTemplateId, episodeData.airDate)
+                pure $ Left "That show does not air in that time slot on that date"
+              Just scheduledAt -> do
+                -- Handle file uploads (pass scheduled date for file organization)
+                -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
+                -- Artwork: Direct upload only (small files don't benefit from staged uploads)
+                uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug (Just scheduledAt) (eufArtworkFile form) (eufAudioToken form)
 
-              case uploadResults of
-                Left uploadErr -> pure $ Left uploadErr
-                Right (audioPath, artworkPath) -> do
-                  -- Create episode insert
-                  let episodeInsert =
-                        Episodes.Insert
-                          { Episodes.eiId = Shows.Id episodeData.showId,
-                            Episodes.eiDescription = episodeData.description,
-                            Episodes.eiAudioFilePath = audioPath,
-                            Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
-                            Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
-                            Episodes.eiDurationSeconds = episodeData.durationSeconds,
-                            Episodes.eiArtworkUrl = artworkPath,
-                            Episodes.eiScheduleTemplateId = Just episodeData.scheduleTemplateId,
-                            Episodes.eiScheduledAt = Just episodeData.scheduledAt,
-                            Episodes.eiCreatedBy = User.mId user
-                          }
+                case uploadResults of
+                  Left uploadErr -> pure $ Left uploadErr
+                  Right (audioPath, artworkPath) -> do
+                    -- Create episode insert
+                    let episodeInsert =
+                          Episodes.Insert
+                            { Episodes.eiId = Shows.Id episodeData.showId,
+                              Episodes.eiDescription = episodeData.description,
+                              Episodes.eiAudioFilePath = audioPath,
+                              Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
+                              Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
+                              Episodes.eiDurationSeconds = episodeData.durationSeconds,
+                              Episodes.eiArtworkUrl = artworkPath,
+                              Episodes.eiScheduleTemplateId = Just episodeData.scheduleTemplateId,
+                              Episodes.eiScheduledAt = Just scheduledAt,
+                              Episodes.eiCreatedBy = User.mId user
+                            }
 
-                  -- Insert episode
-                  episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
+                    -- Insert episode
+                    episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
 
-                  case episodeResult of
-                    Left err -> do
-                      Log.logInfo "Failed to insert episode" (Text.pack $ show err)
-                      pure $ Left "Failed to create episode"
-                    Right Nothing -> do
-                      Log.logInfo_ "Episode insert returned Nothing"
-                      pure $ Left "Failed to create episode"
-                    Right (Just episodeId) -> do
-                      -- Insert tracks if provided
-                      _ <- insertTracks episodeId episodeData.tracks
-                      -- Replace tags with provided ones (single atomic query)
-                      let tagNames = maybe [] parseTagList (eufTags form)
-                      _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
-                      pure $ Right episodeId
+                    case episodeResult of
+                      Left err -> do
+                        Log.logInfo "Failed to insert episode" (Text.pack $ show err)
+                        pure $ Left "Failed to create episode"
+                      Right Nothing -> do
+                        Log.logInfo_ "Episode insert returned Nothing"
+                        pure $ Left "Failed to create episode"
+                      Right (Just episodeId) -> do
+                        -- Insert tracks if provided
+                        _ <- insertTracks episodeId episodeData.tracks
+                        -- Replace tags with provided ones (single atomic query)
+                        let tagNames = maybe [] parseTagList (eufTags form)
+                        _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
+                        pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
 parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Sanitize.ContentValidationError ParsedEpisodeData
 parseFormDataWithShow (Shows.Id showId) showSlug form = do
-  -- Parse schedule value (format: "template_id|scheduled_at")
-  (scheduleTemplateId, scheduledAt) <- case eufScheduledDate form of
+  -- Parse schedule value (format: "template_id|air_date")
+  (scheduleTemplateId, airDate) <- case eufScheduledDate form of
     Nothing -> Left $ Sanitize.ContentInvalid "Scheduled date is required"
     Just "" -> Left $ Sanitize.ContentInvalid "Scheduled date is required"
     Just scheduleStr -> parseScheduleValue scheduleStr
@@ -234,23 +236,27 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
         showSlug = showSlug,
         description = Just validDescription,
         scheduleTemplateId = scheduleTemplateId,
-        scheduledAt = scheduledAt,
+        airDate = airDate,
         tracks = tracks,
         durationSeconds = durationSeconds
       }
 
--- | Parse schedule value from form (format: "template_id|scheduled_at")
-parseScheduleValue :: Text -> Either Sanitize.ContentValidationError (ShowSchedule.TemplateId, UTCTime)
+-- | Parse the schedule value from the form (format: "template_id|air_date").
+--
+-- The value gives a slot and a date. It does not give a time.
+-- 'ShowSchedule.templateAirTimeOn' reads the air time from the template. The
+-- client therefore cannot set an air time that differs from the template.
+parseScheduleValue :: Text -> Either Sanitize.ContentValidationError (ShowSchedule.TemplateId, Day)
 parseScheduleValue txt =
   case Text.splitOn "|" txt of
-    [tidStr, timeStr] -> do
+    [tidStr, dateStr] -> do
       tid <- case readMaybe (Text.unpack tidStr) of
         Just n -> Right $ ShowSchedule.TemplateId n
         Nothing -> Left $ Sanitize.ContentInvalid $ "Invalid template ID: " <> tidStr
-      time <- case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %Z" (Text.unpack timeStr) of
-        Just t -> Right t
-        Nothing -> Left $ Sanitize.ContentInvalid $ "Invalid timestamp: " <> timeStr
-      Right (tid, time)
+      airDate <- case parseTimeM True defaultTimeLocale "%Y-%m-%d" (Text.unpack dateStr) of
+        Just d -> Right d
+        Nothing -> Left $ Sanitize.ContentInvalid $ "Invalid air date: " <> dateStr
+      Right (tid, airDate)
     _ -> Left $ Sanitize.ContentInvalid $ "Invalid schedule format: " <> txt
 
 -- | Sanitize track list by sanitizing all text fields
@@ -268,7 +274,7 @@ data ParsedEpisodeData = ParsedEpisodeData
     showSlug :: Slug,
     description :: Maybe Text,
     scheduleTemplateId :: ShowSchedule.TemplateId,
-    scheduledAt :: UTCTime,
+    airDate :: Day,
     tracks :: [TrackInfo],
     durationSeconds :: Maybe Int64
   }

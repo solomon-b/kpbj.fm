@@ -22,7 +22,7 @@ module Effects.Database.Tables.ShowSchedule
 
     -- * Schedule Template Queries
     getScheduleTemplateById,
-    templateBelongsToShow,
+    templateAirTimeOn,
     getScheduleTemplatesForShow,
     getActiveScheduleTemplatesForShow,
     getPendingScheduleTemplatesForShow,
@@ -227,26 +227,51 @@ getScheduleTemplateById templateId = fmap listToMaybe $ run $ select do
   where_ $ stId st ==. lit templateId
   pure st
 
--- | Whether a schedule template belongs to a given show.
+-- | The instant a template airs on one date. Nothing if it does not air then.
 --
--- The episode upload and edit forms carry a raw @template_id@ inside their
--- @scheduled_date@ field, so a crafted POST can name any show's template.
--- 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisode' joins episodes to
--- templates without comparing show ids, which means an episode pointed at another
--- show's template becomes a real airing candidate in that show's window. Every
--- writer of @episodes.schedule_template_id@ checks ownership first.
-templateBelongsToShow :: TemplateId -> Shows.Id -> Hasql.Statement () Bool
-templateBelongsToShow templateId showId =
-  let query =
-        interp
-          True
-          [sql|
-        SELECT EXISTS(
-          SELECT 1 FROM schedule_templates
-          WHERE id = #{templateId} AND show_id = #{showId}
-        )
+-- Every writer of @episodes.schedule_template_id@ calls this first. Three
+-- conditions must hold:
+--
+-- * the show owns the template,
+-- * a validity window covers the date, and
+-- * the recurrence holds the date.
+--
+-- 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes' applies the same
+-- three conditions to read an episode. A writer that applies fewer conditions
+-- stores an episode that the stream refuses. That episode looks scheduled. It
+-- never airs, and no report shows the problem.
+--
+-- The show ownership condition also stops a different fault. The upload form and
+-- the edit form put a raw @template_id@ in the @scheduled_date@ field. A crafted
+-- POST can therefore name any template. The airing query joins episodes to
+-- templates and does not compare show ids. An episode that points to another
+-- show's template becomes an airing candidate in that show's window.
+--
+-- Use the episode's own air date. Do not use @CURRENT_DATE@. A closed template is
+-- the record of the slot that its episodes aired in. An old episode points to a
+-- closed template for that reason.
+--
+-- The result is the correct @scheduled_at@ for the pair. Callers store this value
+-- and discard any timestamp from the client. The column and the template then give
+-- the same air time. 'getUpcomingShowDates' builds the form values with the same
+-- SQL expression.
+templateAirTimeOn :: TemplateId -> Shows.Id -> Day -> Hasql.Statement () (Maybe UTCTime)
+templateAirTimeOn templateId showId airDate =
+  fmap getOneColumn
+    <$> interp
+      True
+      [sql|
+        SELECT (#{airDate}::TEXT || ' ' || st.start_time::TEXT)::TIMESTAMP
+                 AT TIME ZONE st.timezone
+        FROM schedule_templates st
+        JOIN schedule_template_validity stv ON stv.template_id = st.id
+        WHERE st.id = #{templateId}
+          AND st.show_id = #{showId}
+          AND stv.effective_from <= #{airDate}
+          AND (stv.effective_until IS NULL OR stv.effective_until > #{airDate})
+          AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, #{airDate})
+        LIMIT 1
       |]
-   in maybe False getOneColumn <$> query
 
 -- | Get all schedule templates for a show.
 getScheduleTemplatesForShow :: Shows.Id -> Hasql.Statement () [ScheduleTemplate Result]

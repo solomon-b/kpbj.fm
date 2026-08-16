@@ -11,6 +11,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time.Calendar (fromGregorian)
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -23,7 +24,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
-import Test.Database.Helpers (addTestShowHost, insertTestShowWithSchedule)
+import Test.Database.Helpers (addTestShowHost, insertTestShowWithSchedule, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
@@ -56,6 +57,26 @@ minimalForm showId mScheduledDate mAudioToken =
       eufArtworkFile = Nothing,
       eufAudioToken = mAudioToken
     }
+
+-- | A show, the default Monday 10:00 template, and an open validity window.
+--
+-- A correct schedule includes the window. A template with no window airs on no
+-- date. 'ShowSchedule.templateAirTimeOn' therefore refuses that template and the
+-- upload fails. The stream would refuse the episode for the same reason.
+setupShowWithOpenSchedule ::
+  Shows.Insert ->
+  TRX.Transaction (Shows.Id, ShowSchedule.TemplateId)
+setupShowWithOpenSchedule showInsert = do
+  (showId, templateId) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
+  _ <-
+    unwrapInsert $
+      ShowSchedule.insertValidity $
+        ShowSchedule.ValidityInsert templateId (fromGregorian 2026 3 1) Nothing
+  pure (showId, templateId)
+
+-- | A Monday in the window above. The default template airs on this date.
+testAirDate :: Text
+testAirDate = "2026-03-02"
 
 --------------------------------------------------------------------------------
 
@@ -126,13 +147,13 @@ test_validationErrorForMissingAudio cfg = do
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       (userModel, userMeta) <- setupUserModels userInsert
-      (showId, templateId) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
+      (showId, templateId) <- setupShowWithOpenSchedule showInsert
       addTestShowHost showId userModel.mId
       pure (userModel, userMeta, templateId)
     (userModel, userMeta, templateId) <- liftIO $ expectSetupRight dbResult
 
     -- Form with a valid schedule but no audio token
-    let scheduleVal = Text.pack (show (ShowSchedule.unTemplateId templateId)) <> "|2026-03-01 10:00:00 UTC"
+    let scheduleVal = Text.pack (show (ShowSchedule.unTemplateId templateId)) <> "|" <> testAirDate
         form = minimalForm "0" (Just scheduleVal) Nothing
     result <- runExceptT $ action userModel userMeta (Slug "show-for-missing-audio") form
 
@@ -159,7 +180,7 @@ test_staffCreatesEpisode cfg = do
     -- Set up user, show, schedule template, and staged upload
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       (userModel, userMeta) <- setupUserModels userInsert
-      (showId, templateId) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
+      (showId, templateId) <- setupShowWithOpenSchedule showInsert
       addTestShowHost showId userModel.mId
 
       -- Create a staged upload record for the audio file
@@ -185,7 +206,7 @@ test_staffCreatesEpisode cfg = do
       writeFile stagingFilePath "fake audio content"
 
     -- Build form with valid schedule and audio token
-    let scheduleVal = Text.pack (show (ShowSchedule.unTemplateId templateId)) <> "|2026-03-01 10:00:00 UTC"
+    let scheduleVal = Text.pack (show (ShowSchedule.unTemplateId templateId)) <> "|" <> testAirDate
         form = minimalForm "0" (Just scheduleVal) (Just "test-audio-token-ep-create")
     result <- runExceptT $ action userModel userMeta (Slug "show-for-episode-creation") form
 

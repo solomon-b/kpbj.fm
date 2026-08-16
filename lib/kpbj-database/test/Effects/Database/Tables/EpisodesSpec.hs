@@ -99,6 +99,8 @@ spec =
       describe "Schedule Updates" $ do
         runs 10 . it "updateScheduledSlot: changes template and scheduled_at" $
           hedgehog . prop_updateScheduledSlot
+        runs 10 . it "clearScheduledSlot: nulls both halves and frees the slot" $
+          hedgehog . prop_clearScheduledSlot
 
       describe "Unscheduled Episodes" $ do
         runs 10 . it "clearTemplateForUpcomingEpisodes: nulls schedule fields for future episodes" $
@@ -810,6 +812,48 @@ prop_updateScheduledSlot cfg = do
         UUT.scheduleTemplateId afterUpdate === Just expectedTemplateId
         UUT.scheduledAt afterUpdate === Just expectedScheduledAt
         pure ()
+
+-- | clearScheduledSlot: both columns become NULL, and the air time is free.
+--
+-- The free slot is as important as the NULL values. @unique_episode_scheduled_at@
+-- covers the live rows. A second episode can take the air time only after the
+-- first episode releases it.
+prop_clearScheduledSlot :: TestDBConfig -> PropertyT IO ()
+prop_clearScheduledSlot cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    secondTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+
+        let airTime = airTimeForTemplate scheduleTemplate fixtureBaseDay
+            episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just airTime, UUT.eiCreatedBy = userId}
+        episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
+
+        clearResult <- TRX.statement () (UUT.clearScheduledSlot episodeId)
+        afterClear <- TRX.statement () (UUT.getEpisodeById episodeId)
+
+        -- The slot is free, so a second episode can take the same air time.
+        let successorInsert = secondTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just airTime, UUT.eiCreatedBy = userId}
+        successorId <- unwrapInsert (UUT.insertEpisode successorInsert)
+
+        TRX.condemn
+        pure (episodeId, clearResult, afterClear, successorId)
+
+      assert $ do
+        (episodeId, clearResult, mAfterClear, _successorId) <- assertRight result
+        clearedId <- assertJust clearResult
+        clearedId === episodeId
+
+        afterClear <- assertJust mAfterClear
+        UUT.scheduleTemplateId afterClear === Nothing
+        UUT.scheduledAt afterClear === Nothing
 
 --------------------------------------------------------------------------------
 -- Tag tests

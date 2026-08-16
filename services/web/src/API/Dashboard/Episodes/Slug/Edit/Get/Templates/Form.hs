@@ -104,10 +104,12 @@ template ctx = do
     audioUrl = maybe "" (buildMediaUrl backend) episode.audioFilePath
     artworkUrl = maybe "" (buildMediaUrl backend) episode.artworkUrl
 
-    -- Encode schedule slot value as "template_id|scheduled_at" for form submission
+    -- Encode the schedule slot as "template_id|air_date" for the form.
+    -- The form does not send the air time. The handler reads the air time from
+    -- the template, so the form cannot ask for a time the slot does not hold.
     encodeScheduleValue :: ShowSchedule.UpcomingShowDate -> Text.Text
     encodeScheduleValue usd =
-      display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdStartTime usd)
+      display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdShowDate usd)
 
     postUrl = [i|/dashboard/episodes/#{showSlugText}/#{episodeNumText}/edit|]
 
@@ -150,15 +152,16 @@ template ctx = do
                 selectField "scheduled_date" $ do
                   label "Scheduled Date"
                   hint "Choose when this episode will air"
-                  addOption "" "Unscheduled (Current)"
+                  addOptionSelected "" "Unscheduled (Current)"
                   mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
               (Just currentSlot, _) ->
-                -- Scheduled — allow rescheduling
+                -- Scheduled — allow rescheduling, or clearing the slot
                 selectField "scheduled_date" $ do
                   label "Scheduled Date"
                   hint "Choose when this episode will air"
-                  addOption (encodeScheduleValue currentSlot) (display currentSlot <> " (Current)")
+                  addOptionSelected (encodeScheduleValue currentSlot) (display currentSlot <> " (Current)")
                   mapM_ (\usd -> addOption (encodeScheduleValue usd) (display usd)) upcomingDates
+                  addOption "" "Unscheduled"
 
         textareaField "description" 6 $ do
           label "Description"
