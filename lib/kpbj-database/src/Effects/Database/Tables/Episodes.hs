@@ -49,6 +49,7 @@ module Effects.Database.Tables.Episodes
     updateEpisode,
     updateEpisodeFiles,
     updateScheduledSlot,
+    clearScheduledSlot,
     deleteEpisode,
     restoreEpisode,
     getLiveEpisodeAtAirTime,
@@ -820,6 +821,35 @@ updateScheduledSlot ScheduleSlotUpdate {..} =
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit essuId,
+            returning = Returning (.id)
+          }
+
+-- | Clear the schedule slot of one episode.
+--
+-- The two columns change together. A template with no date gives no airing. A
+-- date with no template gives no window. Each column alone has no use.
+-- 'clearTemplateForUpcomingEpisodes' writes the same pair for a full template.
+--
+-- 'getCurrentlyAiringEpisodes' joins the template with an inner join. A cleared
+-- episode therefore leaves the stream immediately.
+-- @unique_episode_scheduled_at@ covers the live rows only, and NULL values never
+-- collide. A new episode can take the free air time immediately. The cleared
+-- episode keeps its number, its audio, and its tracks.
+clearScheduledSlot :: Id -> Hasql.Statement () (Maybe Id)
+clearScheduledSlot episodeId =
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = episodeSchema,
+            from = pure (),
+            set = \_ ep ->
+              ep
+                { scheduleTemplateId = lit Nothing,
+                  scheduledAt = lit Nothing,
+                  updatedAt = now
+                },
+            updateWhere = \_ ep -> ep.id ==. lit episodeId,
             returning = Returning (.id)
           }
 

@@ -41,7 +41,8 @@ spec =
       -- Template CRUD tests
       runs 20 . it "schema validation: insert and select schedule template" $ hedgehog . prop_insertSelectTemplate
       runs 20 . it "query validation: getScheduleTemplatesForShow" $ hedgehog . prop_getTemplatesForShow
-      runs 10 . it "templateBelongsToShow: only its owning show" $ hedgehog . prop_templateBelongsToShow
+      runs 10 . it "templateAirTimeOn: only its owning show" $ hedgehog . prop_templateAirTimeOnOwnership
+      runs 5 . it "templateAirTimeOn: only a date the template holds" $ hedgehog . prop_templateAirTimeOnDate
 
       -- Active schedule queries
       runs 20 . it "query validation: getActiveScheduleTemplatesForShow" $ hedgehog . prop_getActiveTemplates
@@ -160,20 +161,23 @@ prop_getTemplatesForShow cfg = do
         forM_ templates $ \template -> do
           template.stShowId === showId
 
--- | templateBelongsToShow: a template is owned only by the show it was created for.
+-- | templateAirTimeOn: a template answers only for the show that owns it.
 --
--- Both episode writers gate on this before touching
--- @episodes.schedule_template_id@, because the form field carries a raw template
--- id that a crafted POST can point at any show. A template id that does not exist
--- is not owned either.
-prop_templateBelongsToShow :: TestDBConfig -> PropertyT IO ()
-prop_templateBelongsToShow cfg = do
+-- Both episode writers call this before they write
+-- @episodes.schedule_template_id@. The form field holds a raw template id, and a
+-- crafted POST can point that id at any show. A template id that does not exist
+-- answers for no show.
+prop_templateAirTimeOnOwnership :: TestDBConfig -> PropertyT IO ()
+prop_templateAirTimeOnOwnership cfg = do
   arrange (bracketConn cfg) $ do
     showInsert1 <- forAllT showInsertGen
     showInsert2 <- forAllT showInsertGen
     (startTime, endTime) <- forAllT genTimeRange
-    dow <- forAllT genDayOfWeek
-    timezone <- forAllT genTimezone
+    airDate <- forAllT genFutureDay
+    -- The template must hold the date. If it does not, the answer is Nothing for
+    -- the wrong reason. genTimeRange starts at 06:00 or later, so the instant is
+    -- never in a DST gap and never in a repeated hour.
+    let dow = Time.dayOfWeek airDate
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -182,21 +186,63 @@ prop_templateBelongsToShow cfg = do
         showId1 <- unwrapInsert (Shows.insertShow show1)
         showId2 <- unwrapInsert (Shows.insertShow show2)
 
-        let schedule = UUT.ScheduleTemplateInsert showId1 dow allWeeksOfMonth startTime endTime timezone Nothing
+        let schedule = UUT.ScheduleTemplateInsert showId1 dow allWeeksOfMonth startTime endTime "America/Los_Angeles" Nothing
         templateId <- TRX.statement () (UUT.insertScheduleTemplate schedule)
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-30) airDate) Nothing))
 
-        owned <- TRX.statement () (UUT.templateBelongsToShow templateId showId1)
-        borrowed <- TRX.statement () (UUT.templateBelongsToShow templateId showId2)
-        missing <- TRX.statement () (UUT.templateBelongsToShow (UUT.TemplateId 0) showId1)
+        owned <- TRX.statement () (UUT.templateAirTimeOn templateId showId1 airDate)
+        borrowed <- TRX.statement () (UUT.templateAirTimeOn templateId showId2 airDate)
+        missing <- TRX.statement () (UUT.templateAirTimeOn (UUT.TemplateId 0) showId1 airDate)
 
         TRX.condemn
         pure (owned, borrowed, missing)
 
       assert $ do
         (owned, borrowed, missing) <- assertRight result
-        owned === True
-        borrowed === False
-        missing === False
+        owned === Just (pacificToUtc (LocalTime airDate startTime))
+        borrowed === Nothing
+        missing === Nothing
+
+-- | templateAirTimeOn: the template must hold the date.
+--
+-- getCurrentlyAiringEpisodes applies the same rule when it reads. A writer that
+-- accepts a date outside the validity window stores an episode that the stream
+-- refuses. A writer that accepts a date the recurrence skips does the same. The
+-- dates below are fixed, not generated, so each one gives one reason to refuse.
+--
+-- The template runs on Mondays in weeks 1 and 3. It runs from 2026-09-08 until
+-- 2026-10-05. The Mondays in September 2026 are the 7th, 14th, 21st, and 28th.
+-- Those are weeks 1 to 4. October 5th is the next Monday in week 1.
+prop_templateAirTimeOnDate :: TestDBConfig -> PropertyT IO ()
+prop_templateAirTimeOnDate cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+
+    act $ do
+      let airs = fromGregorian 2026 9 21 -- Monday, week 3, inside the window
+          wrongWeek = fromGregorian 2026 9 14 -- Monday, week 2
+          wrongDay = fromGregorian 2026 9 22 -- Tuesday
+          beforeWindow = fromGregorian 2026 9 7 -- Monday, week 1, too early
+          atWindowEnd = fromGregorian 2026 10 5 -- Monday, week 1, effective_until
+          startTime = TimeOfDay 8 0 0
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- unwrapInsert (Shows.insertShow showInsert)
+        let schedule = UUT.ScheduleTemplateInsert showId Time.Monday [1, 3] startTime (TimeOfDay 10 0 0) "America/Los_Angeles" Nothing
+        templateId <- TRX.statement () (UUT.insertScheduleTemplate schedule)
+        _ <-
+          unwrapInsert $
+            UUT.insertValidity $
+              UUT.ValidityInsert templateId (fromGregorian 2026 9 8) (Just (fromGregorian 2026 10 5))
+
+        answers <- forM [airs, wrongWeek, wrongDay, beforeWindow, atWindowEnd] $ \d ->
+          TRX.statement () (UUT.templateAirTimeOn templateId showId d)
+
+        TRX.condemn
+        pure answers
+
+      assert $ do
+        answers <- assertRight result
+        answers === [Just (pacificToUtc (LocalTime airs startTime)), Nothing, Nothing, Nothing, Nothing]
 
 --------------------------------------------------------------------------------
 -- Active Schedule Tests

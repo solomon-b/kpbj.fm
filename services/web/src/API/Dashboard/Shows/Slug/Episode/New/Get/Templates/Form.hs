@@ -119,7 +119,9 @@ episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
       cancelButton cancelUrl "CANCEL"
       submitButton "SUBMIT"
 
-    -- \| Encode schedule slot value as "template_id|scheduled_at" for form submission
+    -- \| Encode the schedule slot as "template_id|air_date" for the form.
+    -- The form does not send the air time. The handler reads the air time from
+    -- the template, so the form cannot ask for a time the slot does not hold.
     encodeScheduleValue :: ShowSchedule.UpcomingShowDate -> Text.Text
     encodeScheduleValue usd =
-      display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdStartTime usd)
+      display (ShowSchedule.usdTemplateId usd) <> "|" <> Text.pack (show $ ShowSchedule.usdShowDate usd)
