@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
-# Copy Production to Staging (Database + S3)
-# Copies both the production database and S3 bucket to staging.
+# Copy Production to Staging (Database + Images + Placeholder Audio)
+# Copies the production database and the images/ prefix of the production
+# bucket to staging, then generates placeholder audio from the staging
+# database. Production audio is never copied.
 # Database: PII is sanitized for User and Host accounts.
-# S3: Incremental sync — only copies new/changed files.
 #
 # Both databases live on VPS hosts, accessed via SSH tunnel.
 # Credentials are loaded from SOPS-encrypted secrets.
@@ -18,6 +19,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 # shellcheck source=lib/sync-s3.sh
 source "$SCRIPT_DIR/lib/sync-s3.sh"
+# shellcheck source=lib/gen-audio.sh
+source "$SCRIPT_DIR/lib/gen-audio.sh"
 
 echo "========================================"
 echo "Production to Staging Full Copy"
@@ -25,7 +28,8 @@ echo "========================================"
 echo ""
 echo "This will COMPLETELY REPLACE the staging environment with production data."
 echo "  - Database: PII sanitized for User/Host accounts"
-echo "  - S3 Bucket: Incremental sync (new/changed files only)"
+echo "  - Images:   incremental sync (new/changed files only)"
+echo "  - Audio:    placeholder tones generated from the staging database"
 echo ""
 
 read -rp "Type 'yes' to confirm: " CONFIRM
@@ -44,7 +48,7 @@ export STAGING_AWS_SECRET_ACCESS_KEY=$(load_secret staging aws_secret_access_key
 
 echo ""
 echo "========================================"
-echo "  STEP 1/2: Copying Database"
+echo "  STEP 1/3: Copying Database"
 echo "========================================"
 
 # Cleanup function
@@ -84,10 +88,36 @@ kill "$STAGING_TUNNEL_PID" 2>/dev/null || true
 
 echo ""
 echo "========================================"
-echo "  STEP 2/2: Syncing S3 Bucket"
+echo "  STEP 2/3: Syncing Images"
 echo "========================================"
 
-sync_s3_buckets
+sync_s3_buckets "images/"
+
+echo ""
+echo "========================================"
+echo "  STEP 3/3: Generating Placeholder Audio"
+echo "========================================"
+
+open_ssh_tunnel "$STAGING_PROXY_PORT" "$STAGING_VPS_TARGET"
+STAGING_TUNNEL_PID=$TUNNEL_PID
+
+AUDIO_WORK_FILE=$(mktemp)
+AUDIO_EXISTING_FILE=$(mktemp)
+
+echo "Reading the work list from the staging database..."
+gen_audio_work_list \
+  "postgres://$STAGING_DB_USER:$STAGING_DB_PASSWORD@localhost:$STAGING_PROXY_PORT/$STAGING_DB_NAME" \
+  > "$AUDIO_WORK_FILE"
+
+echo "Listing staging audio keys..."
+gen_audio_staging_keys > "$AUDIO_EXISTING_FILE"
+
+# A full refresh reloads the database, so any row that existed only on staging
+# is gone and its object is an orphan. Prune them.
+gen_audio_generate "$AUDIO_WORK_FILE" "$AUDIO_EXISTING_FILE" "" "1"
+
+rm -f "$AUDIO_WORK_FILE" "$AUDIO_EXISTING_FILE"
+kill "$STAGING_TUNNEL_PID" 2>/dev/null || true
 
 echo ""
 echo "Starting staging web service..."
@@ -102,6 +132,10 @@ echo "Database:"
 echo "  - User/Host accounts: email=userN@example.com, password=hunter2"
 echo "  - Staff/Admin accounts: unchanged (use real credentials)"
 echo ""
-echo "S3 Bucket:"
-echo "  - Files available at: https://$STAGING_BUCKET.sfo3.digitaloceanspaces.com/..."
+echo "Images:"
+echo "  - Files available at: https://$STAGING_BUCKET.sfo3.digitaloceanspaces.com/images/..."
+echo ""
+echo "Audio:"
+echo "  - Placeholder tones, 8 kbps mono, matching each row's duration"
+echo "  - Run 'just prod-to-staging-audio --replace' to rewrite every key"
 echo ""

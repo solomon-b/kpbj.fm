@@ -17,38 +17,41 @@
 #   STAGING_ENDPOINT
 #
 
-# List a bucket as tab-separated "size\tkey" lines.
+# List a bucket as tab-separated "size\tkey" lines, restricted to a prefix.
 # Handles keys that contain spaces.
 list_bucket() {
   local access_key="$1"
   local secret_key="$2"
   local bucket="$3"
   local endpoint="$4"
+  local prefix="${5:-}"
 
   AWS_ACCESS_KEY_ID="$access_key" \
   AWS_SECRET_ACCESS_KEY="$secret_key" \
-  aws s3 ls "s3://$bucket" --recursive \
+  aws s3 ls "s3://$bucket/$prefix" --recursive \
     --endpoint-url "$endpoint" \
     | awk '{key=""; for(i=4;i<=NF;i++) key=key (i>4?" ":"") $i; print $3 "\t" key}' \
     | sort -t$'\t' -k2
 }
 
-# Incrementally sync the production bucket to the staging bucket.
-# Only copies files that are new or have a different size, and
-# deletes files from staging that no longer exist in production.
+# Incrementally sync one prefix of the production bucket to staging.
+# Only copies files that are new or have a different size, and deletes files
+# from staging that no longer exist in production under that prefix.
+# Usage: sync_s3_buckets PREFIX
 sync_s3_buckets() {
+  local prefix="${1:-}"
   local tmpdir
   tmpdir=$(mktemp -d)
   # shellcheck disable=SC2064
   trap "rm -rf '$tmpdir'" RETURN
 
   echo ""
-  echo "Listing production bucket..."
-  list_bucket "$PROD_AWS_ACCESS_KEY_ID" "$PROD_AWS_SECRET_ACCESS_KEY" "$PROD_BUCKET" "$PROD_ENDPOINT" \
+  echo "Listing production bucket under '${prefix:-<all>}'..."
+  list_bucket "$PROD_AWS_ACCESS_KEY_ID" "$PROD_AWS_SECRET_ACCESS_KEY" "$PROD_BUCKET" "$PROD_ENDPOINT" "$prefix" \
     > "$tmpdir/prod.txt"
 
-  echo "Listing staging bucket..."
-  list_bucket "$STAGING_AWS_ACCESS_KEY_ID" "$STAGING_AWS_SECRET_ACCESS_KEY" "$STAGING_BUCKET" "$STAGING_ENDPOINT" \
+  echo "Listing staging bucket under '${prefix:-<all>}'..."
+  list_bucket "$STAGING_AWS_ACCESS_KEY_ID" "$STAGING_AWS_SECRET_ACCESS_KEY" "$STAGING_BUCKET" "$STAGING_ENDPOINT" "$prefix" \
     > "$tmpdir/staging.txt"
 
   local prod_count staging_count

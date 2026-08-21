@@ -89,6 +89,10 @@ clean:
 test:
   cabal test all
 
+# Run shell script tests.
+test-scripts:
+  ./scripts/test/gen-audio-test.sh
+
 # Build docs
 haddock:
   cabal haddock
@@ -601,6 +605,12 @@ prod-to-staging-db: _require-sops
 # Copy production S3 bucket to staging
 prod-to-staging-s3: _require-sops _require-aws
   ./scripts/prod-to-staging-s3.sh
+
+# Generate placeholder audio on staging from the staging database.
+# Pass --replace for the initial migration, --prune to drop orphans,
+# --dry-run to preview.
+prod-to-staging-audio *args: _require-sops _require-aws
+  ./scripts/prod-to-staging-audio.sh {{args}}
 
 # Copy both production database and S3 bucket to staging
 prod-to-staging: _require-sops _require-aws
