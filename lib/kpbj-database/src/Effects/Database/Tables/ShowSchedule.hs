@@ -28,6 +28,7 @@ module Effects.Database.Tables.ShowSchedule
     getPendingScheduleTemplatesForShow,
     checkTimeSlotConflict,
     insertScheduleTemplate,
+    updateReplayStartTime,
 
     -- * Schedule Template Validity Queries
     getActiveValidityPeriodsForTemplate,
@@ -493,6 +494,29 @@ insertScheduleTemplate ScheduleTemplateInsert {..} =
     VALUES (#{stiShowId}, #{stiDayOfWeek}::day_of_week, #{stiWeeksOfMonth}, #{stiStartTime}, #{stiEndTime}, #{stiTimezone}, NOW(), #{stiReplayStartTime})
     RETURNING id
   |]
+
+-- | Change only the replay start time of a template.
+--
+-- The replay is a second window on the same recurrence. It does not change the
+-- primary window, and 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes'
+-- builds the primary window from @start_time@ and @end_time@. An episode on this
+-- template therefore keeps its airing.
+--
+-- The show edit form uses this in place of a remove and an add. A remove closes the
+-- validity window and detaches the upcoming episodes, and a replay change gives no
+-- reason to do either.
+updateReplayStartTime :: TemplateId -> Maybe TimeOfDay -> Hasql.Statement () (Maybe TemplateId)
+updateReplayStartTime templateId replayStart =
+  fmap listToMaybe $
+    run $
+      update
+        Rel8.Update
+          { target = scheduleTemplateSchema,
+            from = pure (),
+            set = \_ t -> t {stReplayStartTime = lit replayStart},
+            updateWhere = \_ t -> stId t ==. lit templateId,
+            returning = Returning stId
+          }
 
 --------------------------------------------------------------------------------
 -- Schedule Template Validity Queries

@@ -54,6 +54,7 @@ module Effects.Database.Tables.Episodes
     restoreEpisode,
     getLiveEpisodeAtAirTime,
     clearTemplateForUpcomingEpisodes,
+    migrateUpcomingEpisodes,
     closeSchedulesAndDetachEpisodes,
     getUpcomingEpisodesForTemplates,
 
@@ -933,6 +934,39 @@ clearTemplateForUpcomingEpisodes templateId fromDate =
     UPDATE episodes
     SET schedule_template_id = NULL, scheduled_at = NULL, updated_at = NOW()
     WHERE schedule_template_id = #{templateId}
+      AND scheduled_at > NOW()
+      AND (scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{fromDate}
+      AND deleted_at IS NULL
+    RETURNING id
+  |]
+
+-- | Move upcoming episodes from one template to another. Keep their air times.
+--
+-- A deferred replay change writes a second template that carries the new replay
+-- time from the change date. The two templates hold the same day, the same weeks,
+-- and the same primary window. Every episode on the old template therefore still
+-- airs at the same instant on the new one.
+--
+-- This is the alternative to 'clearTemplateForUpcomingEpisodes'. That function
+-- detaches an episode, which is correct when the new template does not hold the
+-- episode's date. Use this function only when the new template holds every date
+-- that the old one held. The gates match the ones that function applies, so the
+-- two split the same set of episodes.
+migrateUpcomingEpisodes ::
+  -- | The template the episodes are on now
+  ShowSchedule.TemplateId ->
+  -- | The template they move to
+  ShowSchedule.TemplateId ->
+  -- | The change date. Episodes before it stay on the old template.
+  Day ->
+  Hasql.Statement () [Id]
+migrateUpcomingEpisodes fromTemplateId toTemplateId fromDate =
+  interp
+    False
+    [sql|
+    UPDATE episodes
+    SET schedule_template_id = #{toTemplateId}, updated_at = NOW()
+    WHERE schedule_template_id = #{fromTemplateId}
       AND scheduled_at > NOW()
       AND (scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{fromDate}
       AND deleted_at IS NULL
