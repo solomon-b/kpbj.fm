@@ -12,9 +12,9 @@ import Control.Monad.Trans.Except (runExceptT)
 import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (DayOfWeek (..), TimeOfDay (..), addDays, addUTCTime, getCurrentTime, nominalDay, utctDay)
+import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, addUTCTime, dayOfWeek, getCurrentTime, nominalDay, utctDay)
 import Domain.Types.Slug (Slug (..))
-import Domain.Types.Timezone (LocalTime (..), utcToPacific)
+import Domain.Types.Timezone (LocalTime (..), pacificToUtc, utcToPacific)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -45,6 +45,8 @@ spec =
         it "rolls the whole schedule change back when an insert fails" test_failedScheduleInsertRollsBack
         it "closes the old slot and creates the new one when a slot changes" test_slotChangeClosesOldAndCreatesNew
         it "cancels a pending schedule when the submitted schedule differs" test_scheduleChangeCancelsPendingSchedule
+        it "keeps the template and the episodes when only the replay time moves" test_replayChangeKeepsTemplate
+        it "moves the episodes onto the new template when a replay change is deferred" test_deferredReplayChangeMigratesEpisodes
 
 --------------------------------------------------------------------------------
 
@@ -845,3 +847,217 @@ test_scheduleChangeCancelsPendingSchedule cfg = do
         Just episode ->
           -- Detached rather than left pointing at a window that never opens.
           episode.scheduleTemplateId `shouldBe` Nothing
+
+--------------------------------------------------------------------------------
+-- Replay-time changes
+
+-- | The first Monday on or after a date.
+--
+-- A week holds one Monday, so the search ends within 7 days.
+nextMonday :: Day -> Day
+nextMonday d
+  | dayOfWeek d == Monday = d
+  | otherwise = nextMonday (addDays 1 d)
+
+-- | A show that airs Monday 20:00 to 22:00 and replays at 02:00.
+mondayNightWithReplay :: ShowSchedule.ScheduleTemplateInsert
+mondayNightWithReplay =
+  defaultScheduleInsert
+    { ShowSchedule.stiDayOfWeek = Monday,
+      ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
+      ShowSchedule.stiStartTime = TimeOfDay 20 0 0,
+      ShowSchedule.stiEndTime = TimeOfDay 22 0 0,
+      ShowSchedule.stiReplayStartTime = Just (TimeOfDay 2 0 0)
+    }
+
+-- | The same slot with the replay moved to 03:00. Nothing else differs.
+replayMovedJson :: Text
+replayMovedJson =
+  "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTime\":\"20:00\",\"duration\":120,\"replayTime\":\"03:00\"}]"
+
+-- | A replay change keeps the template, so every episode keeps its slot.
+--
+-- The diff used to compare the whole slot, so a replay change read as one slot
+-- removed and one added. That closed the validity window and detached every
+-- upcoming episode. The primary window does not move, so no episode loses its
+-- airing and none of that is correct.
+test_replayChangeKeepsTemplate :: TestDBConfig -> IO ()
+test_replayChangeKeepsTemplate cfg = do
+  userInsert <- mkUserInsert "edit-replay-now" UserMetadata.Staff
+  now <- getCurrentTime
+  let today = utctDay now
+      airDay = nextMonday (addDays 7 today)
+      episodeAirsAt = pacificToUtc (LocalTime airDay (TimeOfDay 20 0 0))
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Replay Now Show",
+            Shows.siSlug = Slug "edit-replay-now-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      form = (editForm "Replay Now Show" "active") {sefSchedulesJson = Just replayMovedJson}
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      (showId, templateId) <- insertTestShowWithSchedule showInsert mondayNightWithReplay
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing)
+
+      episodeId <-
+        insertTestEpisode
+          Episodes.Insert
+            { Episodes.eiId = showId,
+              Episodes.eiDescription = Nothing,
+              Episodes.eiAudioFilePath = Nothing,
+              Episodes.eiAudioFileSize = Nothing,
+              Episodes.eiAudioMimeType = Nothing,
+              Episodes.eiDurationSeconds = Nothing,
+              Episodes.eiArtworkUrl = Nothing,
+              Episodes.eiScheduleTemplateId = Just templateId,
+              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiCreatedBy = userId
+            }
+      storedAirsAt <-
+        TRX.statement () (Episodes.getEpisodeById episodeId)
+          >>= maybe (error "episode not found") (pure . (.scheduledAt))
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, showId, templateId, episodeId, storedAirsAt)
+
+    (userMetaModel, showModel, showId, templateId, episodeId, storedAirsAt) <-
+      liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected the edit to succeed but got Left: " <> show err
+      -- No episode is detached, so the flash reports none.
+      Right (_, _, unscheduled) -> unscheduled `shouldBe` []
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          templates <- TRX.statement () (ShowSchedule.getScheduleTemplatesForShow showId)
+          episode <- TRX.statement () (Episodes.getEpisodeById episodeId)
+          pure (templates, episode)
+
+    liftIO $ do
+      (templates, mEpisode) <- expectSetupRight afterResult
+
+      -- One template, still the original one, carrying the new replay time.
+      map (.stId) templates `shouldBe` [templateId]
+      map (.stReplayStartTime) templates `shouldBe` [Just (TimeOfDay 3 0 0)]
+
+      case mEpisode of
+        Nothing -> expectationFailure "Expected the episode to still exist"
+        Just episode -> do
+          episode.scheduleTemplateId `shouldBe` Just templateId
+          episode.scheduledAt `shouldBe` storedAirsAt
+
+-- | A deferred replay change writes a second template and moves the episodes.
+--
+-- The old replay time runs until the change date, so the two times need two rows.
+-- The upcoming episodes move onto the new row and keep their air times. The old
+-- code detached them and cleared @scheduled_at@, which loses the air time.
+test_deferredReplayChangeMigratesEpisodes :: TestDBConfig -> IO ()
+test_deferredReplayChangeMigratesEpisodes cfg = do
+  userInsert <- mkUserInsert "edit-replay-later" UserMetadata.Staff
+  now <- getCurrentTime
+  let today = utctDay now
+      changeDate = addDays 14 today
+      airDay = nextMonday (addDays 21 today)
+      episodeAirsAt = pacificToUtc (LocalTime airDay (TimeOfDay 20 0 0))
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Replay Later Show",
+            Shows.siSlug = Slug "edit-replay-later-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      form =
+        (editForm "Replay Later Show" "active")
+          { sefSchedulesJson = Just replayMovedJson,
+            sefScheduleStartDate = Just (Text.pack (show changeDate))
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      (showId, templateId) <- insertTestShowWithSchedule showInsert mondayNightWithReplay
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing)
+
+      episodeId <-
+        insertTestEpisode
+          Episodes.Insert
+            { Episodes.eiId = showId,
+              Episodes.eiDescription = Nothing,
+              Episodes.eiAudioFilePath = Nothing,
+              Episodes.eiAudioFileSize = Nothing,
+              Episodes.eiAudioMimeType = Nothing,
+              Episodes.eiDurationSeconds = Nothing,
+              Episodes.eiArtworkUrl = Nothing,
+              Episodes.eiScheduleTemplateId = Just templateId,
+              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiCreatedBy = userId
+            }
+      storedAirsAt <-
+        TRX.statement () (Episodes.getEpisodeById episodeId)
+          >>= maybe (error "episode not found") (pure . (.scheduledAt))
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, showId, templateId, episodeId, storedAirsAt)
+
+    (userMetaModel, showModel, showId, templateId, episodeId, storedAirsAt) <-
+      liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected the edit to succeed but got Left: " <> show err
+      -- The episodes move rather than detach, so the flash reports none.
+      Right (_, _, unscheduled) -> unscheduled `shouldBe` []
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          templates <- TRX.statement () (ShowSchedule.getScheduleTemplatesForShow showId)
+          oldValidities <- TRX.statement () (ShowSchedule.getValidityPeriodsForTemplate templateId)
+          episode <- TRX.statement () (Episodes.getEpisodeById episodeId)
+          pure (templates, oldValidities, episode)
+
+    liftIO $ do
+      (templates, oldValidities, mEpisode) <- expectSetupRight afterResult
+
+      -- The old template closes on the change date. The new one carries the new
+      -- replay time.
+      map (.stvEffectiveUntil) oldValidities `shouldBe` [Just changeDate]
+      map (.stReplayStartTime) (filter (\t -> t.stId /= templateId) templates)
+        `shouldBe` [Just (TimeOfDay 3 0 0)]
+
+      case (mEpisode, filter (\t -> t.stId /= templateId) templates) of
+        (Just episode, [newTemplate]) -> do
+          -- The episode moved, and it kept its air time.
+          episode.scheduleTemplateId `shouldBe` Just newTemplate.stId
+          episode.scheduledAt `shouldBe` storedAirsAt
+        (Nothing, _) -> expectationFailure "Expected the episode to still exist"
+        (_, other) -> expectationFailure $ "Expected exactly one new template, got " <> show (length other)

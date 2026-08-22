@@ -139,6 +139,7 @@
               hsPkgs.hlint
               hsPkgs.weeder
               pkgs.file
+              pkgs.ffmpeg
               pkgs.just
               pkgs.nixpkgs-fmt
               pkgs.ormolu

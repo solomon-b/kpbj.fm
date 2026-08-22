@@ -195,10 +195,18 @@ spec =
             form = mkParsed Friday [1, 3] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
         map ShowSchedule.stId (removedTemplates [template] (Just form)) `shouldBe` [ShowSchedule.TemplateId 5]
 
-      it "returns the original template when the slot is re-keyed by changing replay" $ do
+      -- The replay is not part of the slot identity. A replay is a second window
+      -- on the same recurrence, and a move of it changes no episode's airing. The
+      -- handler edits the template in place instead. See 'retimeReplay'.
+      it "keeps the template when only the replay time moves" $ do
         let template = mkTemplateWith (ShowSchedule.TemplateId 7) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 2 0 0))
             form = mkParsed Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 3 0 0))
-        map ShowSchedule.stId (removedTemplates [template] (Just form)) `shouldBe` [ShowSchedule.TemplateId 7]
+        removedTemplates [template] (Just form) `shouldBe` []
+
+      it "keeps the template when the form drops the replay entirely" $ do
+        let template = mkTemplateWith (ShowSchedule.TemplateId 8) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 2 0 0))
+            form = mkParsed Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
+        removedTemplates [template] (Just form) `shouldBe` []
 
       it "does not return a template whose slot is unchanged" $ do
         let template = mkTemplateWith (ShowSchedule.TemplateId 1) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
