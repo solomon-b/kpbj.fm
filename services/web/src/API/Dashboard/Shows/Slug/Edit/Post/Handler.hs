@@ -466,17 +466,42 @@ schedulesMatch dbTemplates parsedSlot =
       formSet = maybe Set.empty Set.singleton parsedSlot
    in dbSet == formSet
 
--- | Active templates whose slot signature is absent from the submitted form.
+-- | The part of a slot that decides when an episode airs.
+--
+-- 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes' builds the primary
+-- window from the recurrence, the start time, and the end time. A template that
+-- keeps all three still airs every episode that it aired before.
+--
+-- The replay start time is absent on purpose. A replay is a second window on the
+-- same recurrence, and a move of that window changes no episode's airing. The diff
+-- therefore treats a replay change as an edit of the template, not as a removal and
+-- an addition. See 'updateScheduleTemplates'.
+type SlotIdentity = (Recurrence, TimeOfDay, TimeOfDay)
+
+slotIdentity :: ParsedScheduleSlot -> SlotIdentity
+slotIdentity slot = (pssRecurrence slot, pssStart slot, pssEnd slot)
+
+-- | Active templates whose slot identity is absent from the submitted form.
 --
 -- These are the templates 'updateScheduleTemplates' terminates and detaches episodes
--- from: any active template whose normalized slot differs from the form's, whether
--- the form dropped the slot or re-keyed it to a different signature.
+-- from. The form either dropped the slot or moved it to a different day or time.
 removedTemplates ::
   [ShowSchedule.ScheduleTemplate Result] ->
   Maybe ParsedScheduleSlot ->
   [ShowSchedule.ScheduleTemplate Result]
 removedTemplates activeTemplates parsedSlot =
-  filter (\t -> Just (normalizeTemplate t) /= parsedSlot) activeTemplates
+  filter (\t -> Just (slotIdentity (normalizeTemplate t)) /= fmap slotIdentity parsedSlot) activeTemplates
+
+-- | Active templates that hold the submitted slot identity.
+--
+-- A show holds one slot, so this list holds at most one template. A template here
+-- keeps its episodes. Only its replay time can differ from the form.
+keptTemplates ::
+  [ShowSchedule.ScheduleTemplate Result] ->
+  Maybe ParsedScheduleSlot ->
+  [ShowSchedule.ScheduleTemplate Result]
+keptTemplates activeTemplates parsedSlot =
+  filter (\t -> Just (slotIdentity (normalizeTemplate t)) == fmap slotIdentity parsedSlot) activeTemplates
 
 -- | Warning-flash body listing the upcoming episodes that a schedule edit just
 -- unscheduled. They keep their audio and show up flagged "UNSCHEDULED" in the
@@ -553,6 +578,9 @@ data ScheduleUpdate = ScheduleUpdate
     suClosed :: [ShowSchedule.TemplateId],
     -- | Templates created for the newly added slots.
     suCreated :: [ShowSchedule.TemplateId],
+    -- | Upcoming episodes moved onto a new template, which kept their air times.
+    -- A deferred replay change produces these instead of detached episodes.
+    suMigrated :: [Episodes.Id],
     -- | 'False' when the submitted schedule matched the stored one, so nothing ran.
     suChanged :: Bool
   }
@@ -567,7 +595,7 @@ data ScheduleUpdateError
 
 -- | An update that ran no statements, because the submitted schedule already matched.
 noScheduleChange :: ScheduleUpdate
-noScheduleChange = ScheduleUpdate [] [] [] [] False
+noScheduleChange = ScheduleUpdate [] [] [] [] [] False
 
 -- | JSON body for the single log line a committed schedule update writes.
 scheduleUpdateLog :: Shows.Id -> ScheduleUpdate -> Aeson.Value
@@ -578,6 +606,7 @@ scheduleUpdateLog showId update =
       "cancelled_pending" .= update.suCancelledPending,
       "closed" .= update.suClosed,
       "created" .= update.suCreated,
+      "migrated" .= update.suMigrated,
       "unscheduled" .= map (.uerId) update.suUnscheduled
     ]
 
@@ -663,13 +692,14 @@ scheduleUpdateTx showId newSchedules mStartDate today = do
           then pure []
           else lift $ HT.statement () (Episodes.getUpcomingEpisodesForTemplates removedIds startDate)
 
-      (closed, created) <- updateScheduleTemplates showId activeTemplates newSchedules startDate
+      (closed, created, migrated) <- updateScheduleTemplates showId activeTemplates newSchedules startDate today
       pure
         ScheduleUpdate
           { suUnscheduled = unscheduled,
             suCancelledPending = cancelled,
             suClosed = closed,
             suCreated = created,
+            suMigrated = migrated,
             suChanged = True
           }
 
@@ -737,50 +767,89 @@ cancelPendingSchedule pendingTemplates activeTemplates = do
 
   pure (map (.stId) pendingTemplates)
 
--- | Apply slot-level diff: terminate removed slots, create added slots, leave unchanged alone.
+-- | Apply the slot diff. End removed slots, create added slots, keep the rest.
 --
--- Instead of nuking all existing templates and recreating from scratch, we compare
--- the current DB state against the incoming form data as sets of 'ParsedScheduleSlot':
+-- The diff compares slot identities rather than whole slots. See 'slotIdentity'.
 --
---   removed   = dbSet \\ formSet   (slots the user deleted from the form)
---   added     = formSet \\ dbSet   (slots the user added in the form)
---   unchanged = dbSet ∩ formSet    (implicitly left alone — no DB writes)
+--   removed = the active templates whose identity the form does not hold
+--   added   = the form's slot, when no active template holds its identity
+--   kept    = the active template that holds it, if there is one
 --
--- This preserves the template IDs and validity periods of unchanged slots, which is
--- critical because episodes are linked to templates via schedule_template_id. Destroying
--- and recreating a template with identical times orphans any episodes uploaded against
--- the old template, since the episode's foreign key still points to the terminated one.
+-- A kept template keeps its id and its validity window, and its episodes keep their
+-- foreign key. Only the replay time can differ, and 'retimeReplay' handles that.
 --
--- Returns the templates it closed and the templates it created.
+-- Returns the templates it closed, the templates it created, and the episodes it
+-- moved between templates.
 updateScheduleTemplates ::
   Shows.Id ->
   [ShowSchedule.ScheduleTemplate Result] ->
   Maybe ParsedScheduleSlot ->
+  -- | The date the change takes effect
   Day ->
-  ExceptT Text HT.Transaction ([ShowSchedule.TemplateId], [ShowSchedule.TemplateId])
-updateScheduleTemplates showId activeTemplates parsedSlot startDate = do
-  let -- Normalize each DB template so we can tell whether the form's slot is already
-      -- stored or has to be created.
-      dbSet = Set.fromList (map normalizeTemplate activeTemplates)
+  -- | Today in Pacific
+  Day ->
+  ExceptT Text HT.Transaction ([ShowSchedule.TemplateId], [ShowSchedule.TemplateId], [Episodes.Id])
+updateScheduleTemplates showId activeTemplates parsedSlot startDate today = do
+  let dbIdentities = Set.fromList (map (slotIdentity . normalizeTemplate) activeTemplates)
 
-      -- The form's slot, when it is not already in the database.
-      added = filter (\slot -> not (Set.member slot dbSet)) (maybe [] pure parsedSlot)
+      -- The form's slot, when no stored template holds its identity.
+      added = filter (\slot -> not (Set.member (slotIdentity slot) dbIdentities)) (maybe [] pure parsedSlot)
 
       removed = removedTemplates activeTemplates parsedSlot
 
-  -- For each removed (or re-keyed) template, end its active validity periods by
-  -- setting effective_until to startDate, then detach its upcoming episodes.
-  lift $ forM_ removed $ \template -> do
-    activeValidities <- HT.statement () (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId)
-    forM_ activeValidities $ \validity ->
-      void $ HT.statement () (ShowSchedule.endValidity validity.stvId startDate)
+  case (parsedSlot, keptTemplates activeTemplates parsedSlot) of
+    (Just slot, [template]) -> retimeReplay showId slot template startDate today
+    _ -> do
+      -- For each removed (or re-keyed) template, end its active validity periods by
+      -- setting effective_until to startDate, then detach its upcoming episodes.
+      lift $ forM_ removed $ \template -> do
+        activeValidities <- HT.statement () (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId)
+        forM_ activeValidities $ \validity ->
+          void $ HT.statement () (ShowSchedule.endValidity validity.stvId startDate)
 
-    -- Detach upcoming episodes from this expired template, but only those airing
-    -- on or after the change date so interim episodes keep their slot.
-    void $ HT.statement () (Episodes.clearTemplateForUpcomingEpisodes template.stId startDate)
+        -- Detach upcoming episodes from this expired template, but only those airing
+        -- on or after the change date so interim episodes keep their slot.
+        void $ HT.statement () (Episodes.clearTemplateForUpcomingEpisodes template.stId startDate)
 
-  created <- traverse (insertScheduleSlot showId startDate) added
-  pure (map (.stId) removed, created)
+      created <- traverse (insertScheduleSlot showId startDate) added
+      pure (map (.stId) removed, created, [])
+
+-- | Write a new replay time onto a template that keeps its slot identity.
+--
+-- The primary window does not move, so no episode loses its airing. The old code
+-- read this edit as a removal and an addition, which detached every upcoming
+-- episode of the show for no reason.
+--
+-- An immediate change edits the row. A change with a future date needs two rows,
+-- because the old replay time still runs until that date. The second row is a full
+-- template, so the episodes on or after the date move onto it and keep their air
+-- times. The order matters. @one_active_slot_per_show@ compares the open windows of
+-- a show, so the old window closes before the new one opens.
+retimeReplay ::
+  Shows.Id ->
+  ParsedScheduleSlot ->
+  ShowSchedule.ScheduleTemplate Result ->
+  -- | The date the change takes effect
+  Day ->
+  -- | Today in Pacific
+  Day ->
+  ExceptT Text HT.Transaction ([ShowSchedule.TemplateId], [ShowSchedule.TemplateId], [Episodes.Id])
+retimeReplay showId slot template startDate today
+  | template.stReplayStartTime == pssReplayStartTime slot =
+      -- The whole slot matches. A start date move reaches here, and it changes no
+      -- template.
+      pure ([], [], [])
+  | startDate <= today = do
+      lift $ void $ HT.statement () (ShowSchedule.updateReplayStartTime template.stId (pssReplayStartTime slot))
+      pure ([], [], [])
+  | otherwise = do
+      lift $ do
+        activeValidities <- HT.statement () (ShowSchedule.getActiveValidityPeriodsForTemplate template.stId)
+        forM_ activeValidities $ \validity ->
+          void $ HT.statement () (ShowSchedule.endValidity validity.stvId startDate)
+      newTemplateId <- insertScheduleSlot showId startDate slot
+      migrated <- lift $ HT.statement () (Episodes.migrateUpcomingEpisodes template.stId newTemplateId startDate)
+      pure ([template.stId], [newTemplateId], migrated)
 
 -- | Create one schedule template and its open-ended validity period.
 --
