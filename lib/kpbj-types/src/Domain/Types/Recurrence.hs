@@ -62,6 +62,13 @@ import OrphanInstances.DayOfWeek (dayOfWeekFromText)
 --
 -- Week 5 covers days 29 to 31, matching @CEIL(EXTRACT(DAY FROM date) / 7.0)@ in
 -- @recurrence_airs_on@. A February outside a leap year has no week 5.
+--
+-- Week 5 is not a schedule the station offers. A weekday lands on day 29 or later
+-- in four or five months of twelve, so a slot that holds week 5 alone airs about a
+-- third as often as a monthly one. Week 5 exists to spell "every week", in
+-- 'everyWeek', which needs all five to reach the end of a long month. The station
+-- also runs no show on a last-occurrence rule, such as "the last Friday", so
+-- nothing here has to make week 4 and week 5 name one date.
 newtype WeekOfMonth = WeekOfMonth Int64
   deriving stock (Show, Eq, Ord)
 
@@ -209,7 +216,8 @@ formatRecurrence r =
 -- | The week sets 'Component.ScheduleEditor' can produce.
 --
 -- Every week, the 1st and 3rd, the 2nd and 4th, and each single week from the 1st to
--- the 4th. There is no 5th button.
+-- the 4th. There is no 5th button, because week 5 alone is not a schedule. See
+-- 'WeekOfMonth'.
 editorWeekSets :: [[Int64]]
 editorWeekSets =
   [ [1, 2, 3, 4, 5],
@@ -230,6 +238,8 @@ editorWeekSets =
 --
 -- The write paths reject what this rejects, so the column receives only what the
 -- editor can read back. The column keeps the full range on purpose. Give the editor
--- controls for the other 24 and this list grows to match, with no migration.
+-- controls for more combinations and this list grows to match, with no migration.
+-- 15 of the other 24 hold week 5 without holding all four of the others, and those
+-- stay out however the editor grows.
 editorCanShow :: Recurrence -> Bool
 editorCanShow r = weekNumbers r `elem` editorWeekSets
