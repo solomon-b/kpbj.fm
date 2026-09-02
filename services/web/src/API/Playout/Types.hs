@@ -48,7 +48,7 @@ data PlayoutTrack = PlayoutTrack
 instance ToJSON PlayoutTrack where
   toJSON track =
     object
-      [ "url" .= track.ptUrl,
+      [ "url" .= sanitizeAnnotateValue track.ptUrl,
         "title" .= track.ptTitle,
         "artist" .= track.ptArtist,
         "source_type" .= track.ptSourceType
@@ -75,7 +75,7 @@ instance ToJSON NowPlayingResponse where
   toJSON NothingPlaying = toJSON (Nothing :: Maybe Text)
   toJSON (NowPlaying url meta) =
     object
-      [ "url" .= url,
+      [ "url" .= sanitizeAnnotateValue url,
         "title" .= meta.title,
         "artist" .= meta.artist
       ]
@@ -117,5 +117,9 @@ mkPlayoutMetadata t a =
 -- The annotate format uses double quotes as value delimiters and newlines
 -- as command separators in the telnet protocol. Characters that would break
 -- the format are stripped to prevent malformed commands.
+--
+-- Every value that reaches an @annotate:@ URI goes through this, the media URL
+-- included. A URL cannot hold one of these characters today, because an object
+-- key is a slug, a date, a UUID, and an extension. This holds if that changes.
 sanitizeAnnotateValue :: Text -> Text
 sanitizeAnnotateValue = Text.filter (`notElem` ['"', '\n', '\r', '\\'])

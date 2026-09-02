@@ -160,7 +160,8 @@ spec =
 
       -- Behaviour the Haddock states. These pin it so a change is deliberate.
       describe "documented behaviour" $ do
-        it "a duration of 0 never airs" zeroDurationNeverAirs
+        it "a duration of 0 runs to the end of the slot" zeroDurationRunsToSlotEnd
+        it "a negative duration runs to the end of the slot" negativeDurationRunsToSlotEnd
         it "an episode with no published_at still airs" unpublishedEpisodeStillAirs
         it "a detached episode never airs" detachedEpisodeNeverAirs
         it "equal start and end times give a 24-hour window" equalTimesGiveFullDay
@@ -1989,24 +1990,38 @@ twoShowsOverlap cfg = bracketConn cfg $ do
 --------------------------------------------------------------------------------
 -- Documented behaviour that must not drift
 
--- | A duration of 0 makes the window empty, so the episode never airs.
+-- | A duration of 0 reads as NULL, so the episode runs to the end of its slot.
 --
--- @window_stop@ is @LEAST(window_end, window_start + 0)@, which is
--- @window_start@, and the test is @currentTime < window_stop@. Nothing validates
--- @duration_seconds@ on the way in.
-zeroDurationNeverAirs :: TestDBConfig -> IO ()
-zeroDurationNeverAirs cfg = bracketConn cfg $ do
+-- Nothing validates @duration_seconds@ on the way in. Without the guard in the
+-- query, @window_stop@ is @LEAST(window_end, window_start + 0)@, which is
+-- @window_start@, and the test is @currentTime < window_stop@, so the episode
+-- never airs and the slot is dead air.
+zeroDurationRunsToSlotEnd :: TestDBConfig -> IO ()
+zeroDurationRunsToSlotEnd = durationRunsToSlotEnd (Just 0)
+
+-- | A negative duration reads as NULL too.
+--
+-- Without the guard it puts @window_stop@ before @window_start@, which no
+-- instant falls between.
+negativeDurationRunsToSlotEnd :: TestDBConfig -> IO ()
+negativeDurationRunsToSlotEnd = durationRunsToSlotEnd (Just (-1800))
+
+-- | An episode with the given duration airs one hour into a 2 PM to 4 PM slot.
+durationRunsToSlotEnd :: Maybe Int -> TestDBConfig -> IO ()
+durationRunsToSlotEnd mDuration cfg = bracketConn cfg $ do
   passHash <- hashPassword $ mkPassword "testpass"
   let scheduledAt = mkTestTime (TimeOfDay 14 0 0)
       queryTime = mkTestTime (TimeOfDay 15 0 0)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    _ <- setupTestDataWithDuration passHash (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing (Just 0)
+    (episodeId, _) <- setupTestDataWithDuration passHash (TimeOfDay 14 0 0) (TimeOfDay 16 0 0) Nothing scheduledAt (Just "audio/test.mp3") testDay Nothing mDuration
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     TRX.condemn
-    pure mEpisode
+    pure (episodeId, mEpisode)
   case result of
     Left err -> error $ "DB error: " <> show err
-    Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+    Right (episodeId, mEpisode) -> liftIO $ do
+      episode <- assertJustIO mEpisode
+      episode.id `shouldBe` episodeId
 
 -- | An episode with no @published_at@ still airs.
 --

@@ -777,6 +777,12 @@ fromUpcomingShowDateRow (showId, templateId, showDate, dow, startTime, endTime) 
 -- This generates dates based on the show's schedule templates and validity periods.
 -- For N-of-month schedules, it calculates which weeks of each month the show airs.
 -- Uses raw SQL because of recursive CTEs and complex date arithmetic.
+--
+-- The caller supplies the reference date, and it must be the current date in
+-- Pacific. The dates come back as air times in that zone, so a UTC day gives the
+-- next day's slot for eight hours of every day. 'getUpcomingUnscheduledShowDates'
+-- and 'getShowsMissingEpisodes' take no reference date. They read
+-- @(CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::DATE@ instead.
 getUpcomingShowDates :: Shows.Id -> Day -> Limit -> Hasql.Statement () [UpcomingShowDate]
 getUpcomingShowDates showId referenceDate (Limit limitVal) =
   fmap fromUpcomingShowDateRow

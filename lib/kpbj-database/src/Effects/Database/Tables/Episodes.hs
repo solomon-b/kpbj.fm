@@ -566,8 +566,10 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- @LEAST@ skips a NULL, so an episode with no @duration_seconds@ runs to
 -- @window_end@. @duration_seconds@ is written by browser JavaScript at upload
 -- from @HTMLAudioElement.duration@, in @Component.AudioDurationScript@, and
--- nothing validates it. A value of 0 makes @window_stop@ equal @window_start@,
--- so that episode never airs.
+-- nothing validates it on the way in. A value of 0 or less therefore reads as
+-- NULL here, and the episode runs to @window_end@. Without that guard a value
+-- of 0 makes @window_stop@ equal @window_start@, and a negative value puts it
+-- before @window_start@, so the episode never airs and the hour is dead air.
 --
 -- @
 -- Slot: 2 PM ─────────────────────────── 4 PM
@@ -627,10 +629,14 @@ getCurrentlyAiringEpisodes currentTime =
         v.is_replay,
         w.window_start,
         -- The episode stops at the end of its slot or at the end of its audio,
-        -- whichever comes first. LEAST skips a NULL duration.
+        -- whichever comes first. LEAST skips a NULL duration, and a duration of
+        -- 0 or less reads as NULL, so such an episode runs to the end of its slot.
         LEAST(
           w.window_end,
-          w.window_start + e.duration_seconds * INTERVAL '1 second'
+          CASE
+            WHEN e.duration_seconds > 0
+              THEN w.window_start + e.duration_seconds * INTERVAL '1 second'
+          END
         ) AS window_stop
       FROM episodes e
       JOIN schedule_templates st ON st.id = e.schedule_template_id
