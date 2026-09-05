@@ -40,7 +40,7 @@ import Domain.Types.FullName qualified as FullName
 import Domain.Types.Recurrence (recurrenceDay, weekNumbers)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.Timezone (LocalTime (..), utcToPacific)
+import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execQueryThrow)
@@ -188,7 +188,7 @@ action token form = do
   -- 7. Check schedule conflicts
   --
   -- Onboarding never defers the schedule, so it takes effect today.
-  today <- localDay . utcToPacific <$> lift currentSystemTime
+  today <- pacificDay <$> lift currentSystemTime
   conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules today
   case conflictResult of
     Left conflictErr -> do
@@ -364,8 +364,7 @@ createSchedulesForShow ::
   Maybe ParsedScheduleSlot ->
   AppM ()
 createSchedulesForShow showId slot0 = do
-  nowUtc <- currentSystemTime
-  let today = localDay (utcToPacific nowUtc)
+  today <- pacificDay <$> currentSystemTime
 
   forM_ slot0 $ \slot -> do
     let day = recurrenceDay (pssRecurrence slot)

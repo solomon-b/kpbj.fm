@@ -5,9 +5,8 @@ module Domain.Types.FileStorage where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (localDay)
 import Data.Word (Word8)
-import Domain.Types.Timezone (utcToPacific)
+import Domain.Types.Timezone (pacificDay)
 import System.Random qualified as Random
 import Text.Printf (printf)
 
@@ -82,8 +81,8 @@ resourceTypePath = \case
 -- rather than the UTC date.
 dateHierarchyFromTime :: UTCTime -> DateHierarchy
 dateHierarchyFromTime time =
-  let pacificDay = localDay (utcToPacific time)
-      dayStr = formatTime defaultTimeLocale "%F" pacificDay -- YYYY-MM-DD
+  let airDate = pacificDay time
+      dayStr = formatTime defaultTimeLocale "%F" airDate -- YYYY-MM-DD
       parts = Text.splitOn "-" (Text.pack dayStr)
    in case parts of
         [year, month, dayOfMonth] -> DateHierarchy year month dayOfMonth

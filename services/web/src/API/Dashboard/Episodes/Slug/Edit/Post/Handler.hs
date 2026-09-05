@@ -28,12 +28,11 @@ import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (Day, UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Time.LocalTime (localDay)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (utcToPacific)
+import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
@@ -328,7 +327,7 @@ processScheduleUpdate isPast isStaffOrAdmin episode editForm =
 
     sameSlot newTemplateId newAirDate =
       Just newTemplateId == episode.scheduleTemplateId
-        && fmap airDateOf episode.scheduledAt == Just newAirDate
+        && fmap pacificDay episode.scheduledAt == Just newAirDate
 
     withScheduleRights act
       | isPast && not isStaffOrAdmin = do
@@ -370,10 +369,6 @@ processScheduleUpdate isPast isStaffOrAdmin episode editForm =
             Right (Just _) -> do
               Log.logInfo "Successfully updated schedule slot" episode.id
               pure []
-
--- | The station date of an instant.
-airDateOf :: UTCTime -> Day
-airDateOf = localDay . utcToPacific
 
 -- | 'ShowSchedule.templateAirTimeOn' in 'AppM'.
 --

@@ -29,7 +29,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
-import Domain.Types.Timezone (LocalTime (..), utcToPacific)
+import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuery)
@@ -160,7 +160,7 @@ fetchStaffData showId = do
   -- Today in Pacific, computed outside the DB transaction. Used both as the date
   -- picker's lower bound and to clamp the pre-filled start date to no earlier than
   -- today (a future/pending schedule keeps its date, a past active date becomes today).
-  today <- localDay . utcToPacific <$> currentSystemTime
+  today <- pacificDay <$> currentSystemTime
   let todayText = Text.pack (show today)
   runDBTransaction $ do
     activeTemplates <- TRX.statement () $ ShowSchedule.getActiveScheduleTemplatesForShow showId

@@ -31,7 +31,7 @@ import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Recurrence (recurrenceDay)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.Timezone (LocalTime (..), parseDateYMD, utcToPacific)
+import Domain.Types.Timezone (pacificDay, parseDateYMD)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
@@ -111,7 +111,7 @@ action form = do
   -- past date would re-admit long-dead validity windows and report conflicts with
   -- shows that vacated the slot months ago. A past overlap is historical, not
   -- bookable, so only the window from today forward can actually collide.
-  today <- localDay . utcToPacific <$> lift currentSystemTime
+  today <- pacificDay <$> lift currentSystemTime
   let conflictFromDate = maybe today (max today) mStartDate
   conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules conflictFromDate
   case conflictResult of

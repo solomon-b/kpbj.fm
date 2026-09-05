@@ -8,6 +8,7 @@ import Domain.Types.FileUploadSpec qualified as FileUpload
 import Domain.Types.RecurrenceSpec qualified as RecurrenceType
 import Domain.Types.SlugSpec qualified as Slug
 import Domain.Types.StorageBackendSpec qualified as StorageBackend
+import Domain.Types.TimezoneSpec qualified as TimezoneType
 import Effects.Database.RecurrenceSpec qualified as Recurrence
 import Effects.Database.Tables.BlogPostsSpec qualified as BlogPosts
 import Effects.Database.Tables.BlogTagsSpec qualified as BlogTags
@@ -22,13 +23,12 @@ import Effects.Database.Tables.NewsletterSubscribersSpec qualified as Newsletter
 import Effects.Database.Tables.OrderItemsSpec qualified as OrderItems
 import Effects.Database.Tables.OrdersSpec qualified as Orders
 import Effects.Database.Tables.PasswordResetTokensSpec qualified as PasswordResetTokens
+import Effects.Database.Tables.PlaybackHistorySpec qualified as PlaybackHistory
 import Effects.Database.Tables.ProductImagesSpec qualified as ProductImages
 import Effects.Database.Tables.ProductOptionTypesSpec qualified as ProductOptionTypes
 import Effects.Database.Tables.ProductVariantOptionsSpec qualified as ProductVariantOptions
 import Effects.Database.Tables.ProductVariantsSpec qualified as ProductVariants
 import Effects.Database.Tables.ProductsSpec qualified as Products
-import Effects.Database.Tables.StoreSettingsSpec qualified as StoreSettings
-import Effects.Database.Tables.PlaybackHistorySpec qualified as PlaybackHistory
 import Effects.Database.Tables.ShowBlogPostsSpec qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTagsSpec qualified as ShowBlogTags
 import Effects.Database.Tables.ShowHostSpec qualified as ShowHost
@@ -40,6 +40,7 @@ import Effects.Database.Tables.SitePageRevisionsSpec qualified as SitePageRevisi
 import Effects.Database.Tables.SitePagesSpec qualified as SitePages
 import Effects.Database.Tables.StagedUploadsSpec qualified as StagedUploads
 import Effects.Database.Tables.StationIdsSpec qualified as StationIds
+import Effects.Database.Tables.StoreSettingsSpec qualified as StoreSettings
 import Effects.Database.Tables.UserMetadataSpec qualified as UserMetadata
 import Effects.Database.Tables.UserRoleSpec qualified as UserRole
 import System.Directory (getCurrentDirectory, makeAbsolute)
@@ -81,6 +82,7 @@ main = do
     Cents.spec
     RecurrenceType.spec
     Slug.spec
+    TimezoneType.spec
     StorageBackend.spec
     FileUpload.spec
     UserRole.spec

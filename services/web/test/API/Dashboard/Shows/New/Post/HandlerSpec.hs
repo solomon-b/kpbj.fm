@@ -11,7 +11,7 @@ import Data.List (sort)
 import Data.Text (Text)
 import Data.Time (DayOfWeek (..), TimeOfDay (..), getCurrentTime)
 import Domain.Types.Slug (Slug (..))
-import Domain.Types.Timezone (LocalTime (..), utcToPacific)
+import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -245,7 +245,7 @@ test_createsShowWithScheduleHostAndTag cfg = do
   -- A plain User, so assigning them as a host has to promote them to Host.
   userInsert <- mkUserInsert "new-full-show-host" UserMetadata.User
   now <- getCurrentTime
-  let pacificToday = localDay (utcToPacific now)
+  let today = pacificDay now
       expectedSlug = Slug "full-show"
 
   bracketAppM cfg $ do
@@ -294,7 +294,7 @@ test_createsShowWithScheduleHostAndTag cfg = do
           map (.stWeeksOfMonth) templates `shouldBe` [[1, 3]]
 
           -- Open-ended from today. A template with no validity never airs.
-          map (.stvEffectiveFrom) validities `shouldBe` [pacificToday]
+          map (.stvEffectiveFrom) validities `shouldBe` [today]
           map (.stvEffectiveUntil) validities `shouldBe` [Nothing]
 
           map (.shmUserId) hosts `shouldBe` [hostId]

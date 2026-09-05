@@ -264,6 +264,7 @@ test-suite kpbj-database-test
     Domain.Types.RecurrenceSpec
     Domain.Types.FileUploadSpec
     Domain.Types.SlugSpec
+    Domain.Types.TimezoneSpec
     Domain.Types.StorageBackendSpec
     Test.Database.Expectation
     Test.Database.Helpers
