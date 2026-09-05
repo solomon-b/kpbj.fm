@@ -22,10 +22,10 @@ module Effects.Database.Tables.CurrentlyAiringSpec where
 --------------------------------------------------------------------------------
 
 import Control.Monad.IO.Class (liftIO)
+import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, PasswordHash, hashPassword, mkPassword)
 import Data.Text (Text)
-import Data.Int (Int64)
 import Data.Time
   ( Day,
     DayOfWeek (..),
@@ -41,7 +41,7 @@ import Domain.Types.DisplayName (mkDisplayNameUnsafe)
 import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Domain.Types.Slug (mkSlug)
-import Domain.Types.Timezone (pacificToUtc, utcToPacific)
+import Domain.Types.Timezone (pacificDay, pacificToUtc)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -224,6 +224,7 @@ setupTestData passHash startTime endTime replayStartTime scheduledAt mAudioPath 
 --
 -- Like setupTestData but allows specifying the episode duration explicitly
 -- and returns the user ID for use in multi-timeslot tests.
+
 --------------------------------------------------------------------------------
 
 -- | A template covering every week, on the weekday @airDate@ falls on.
@@ -250,10 +251,6 @@ recurringOn airDate showId startTime endTime replayStartTime =
       stiTimezone = "America/Los_Angeles",
       stiReplayStartTime = replayStartTime
     }
-
--- | The Pacific date an instant falls on.
-pacificDayOf :: UTCTime -> Day
-pacificDayOf = localDay . utcToPacific
 
 setupTestDataFull ::
   -- | Password hash (created in IO before transaction)
@@ -310,7 +307,7 @@ setupTestDataFull passHash startTime endTime replayStartTime scheduledAt mAudioP
   templateId <-
     TRX.statement () $
       ShowSchedule.insertScheduleTemplate
-        (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (replayStartTime))
+        (recurringOn (pacificDay scheduledAt) showId (startTime) (endTime) (replayStartTime))
 
   -- Create validity period
   _ <-
@@ -530,7 +527,7 @@ addTimeslot slugSuffix userId startTime endTime replayStartTime scheduledAt mAud
   templateId <-
     TRX.statement () $
       ShowSchedule.insertScheduleTemplate
-        (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (replayStartTime))
+        (recurringOn (pacificDay scheduledAt) showId (startTime) (endTime) (replayStartTime))
 
   _ <-
     unwrapInsert $
@@ -646,7 +643,7 @@ basicInactiveShow cfg = bracketConn cfg $ do
     templateId <-
       TRX.statement () $
         ShowSchedule.insertScheduleTemplate
-          (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
+          (recurringOn (pacificDay scheduledAt) showId (startTime) (endTime) (Nothing))
 
     _ <-
       unwrapInsert $
@@ -1285,7 +1282,7 @@ transitionReplacedSlot cfg = bracketConn cfg $ do
     templateId1 <-
       TRX.statement () $
         ShowSchedule.insertScheduleTemplate
-          (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
+          (recurringOn (pacificDay scheduledAt) showId (startTime) (endTime) (Nothing))
 
     validityId1 <-
       unwrapInsert $
@@ -1315,7 +1312,7 @@ transitionReplacedSlot cfg = bracketConn cfg $ do
     templateId2 <-
       TRX.statement () $
         ShowSchedule.insertScheduleTemplate
-          (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
+          (recurringOn (pacificDay scheduledAt) showId (startTime) (endTime) (Nothing))
 
     _ <-
       unwrapInsert $
@@ -1361,7 +1358,7 @@ transitionRemovedSlot cfg = bracketConn cfg $ do
     templateId1 <-
       TRX.statement () $
         ShowSchedule.insertScheduleTemplate
-          (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
+          (recurringOn (pacificDay scheduledAt) showId (startTime) (endTime) (Nothing))
 
     validityId1 <-
       unwrapInsert $
@@ -1847,7 +1844,7 @@ addSecondShow passHash startTime endTime scheduledAt effectiveFrom = do
   templateId <-
     TRX.statement () $
       ShowSchedule.insertScheduleTemplate
-        (recurringOn (pacificDayOf scheduledAt) showId (startTime) (endTime) (Nothing))
+        (recurringOn (pacificDay scheduledAt) showId (startTime) (endTime) (Nothing))
   _ <-
     unwrapInsert $
       ShowSchedule.insertValidity

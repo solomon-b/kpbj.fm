@@ -67,18 +67,17 @@ import Data.Int (Int32, Int64)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (Display (..))
+import Data.Text.Display (Display (..), display)
 import Data.Time (Day, DayOfWeek (..), LocalTime (..), TimeOfDay, UTCTime, addDays, dayOfWeek)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (minutesFromMidnight, pacificToUtc, utcToPacific)
+import Domain.Types.Timezone (minutesFromMidnight, pacificDay, pacificToUtc, utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
-import Data.Text.Display (display)
 import OrphanInstances.DayOfWeek ()
 import OrphanInstances.Rel8 ()
 import OrphanInstances.TimeOfDay ()
@@ -920,16 +919,14 @@ makeUpcomingShowDateFromTemplate ::
   UTCTime ->
   UpcomingShowDate
 makeUpcomingShowDateFromTemplate template scheduledAt =
-  let -- Convert to Pacific time to get the correct local date
-      pacificTime = utcToPacific scheduledAt
-      pacificDay = localDay pacificTime
+  let airDate = pacificDay scheduledAt
    in UpcomingShowDate
         { usdId = template.stShowId,
           usdTemplateId = template.stId,
-          usdShowDate = pacificDay,
+          usdShowDate = airDate,
           usdDayOfWeek = template.stDayOfWeek,
           usdStartTime = scheduledAt,
-          usdEndTime = computeEndTime template pacificDay
+          usdEndTime = computeEndTime template airDate
         }
   where
     -- Read the end instant from the template's local end time on the air date.
@@ -969,7 +966,6 @@ data ShowMissingEpisode = ShowMissingEpisode
 
 instance Display ShowMissingEpisode where
   displayBuilder _ = "ShowMissingEpisode"
-
 
 -- | A single host of a show scheduled on a specific day that is missing an episode upload.
 --
@@ -1063,7 +1059,6 @@ getShowsMissingEpisodesInDays days =
     GROUP BY si.show_id, si.show_title, si.show_slug, si.show_date, si.day_of_week, si.start_time, si.end_time
     ORDER BY si.show_date ASC, si.start_time ASC
   |]
-
 
 -- | Get hosts of shows missing episodes on exactly N days from now.
 --

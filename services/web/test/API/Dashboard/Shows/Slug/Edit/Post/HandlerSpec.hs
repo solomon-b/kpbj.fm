@@ -14,7 +14,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, addUTCTime, dayOfWeek, getCurrentTime, nominalDay, utctDay)
 import Domain.Types.Slug (Slug (..))
-import Domain.Types.Timezone (LocalTime (..), pacificToUtc, utcToPacific)
+import Domain.Types.Timezone (LocalTime (..), pacificDay, pacificToUtc)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -633,7 +633,7 @@ test_slotChangeClosesOldAndCreatesNew cfg = do
   now <- getCurrentTime
   -- The handler dates the change with the Pacific day, which is not the UTC day for
   -- part of each day.
-  let pacificToday = localDay (utcToPacific now)
+  let today = pacificDay now
       episodeAirsAt = addUTCTime (7 * nominalDay) now
 
   let showInsert =
@@ -669,7 +669,7 @@ test_slotChangeClosesOldAndCreatesNew cfg = do
       (showId, oldTemplateId) <- insertTestShowWithSchedule showInsert thursdayTwoHours
       _ <-
         TRX.statement () $
-          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert oldTemplateId (addDays (-30) pacificToday) Nothing)
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert oldTemplateId (addDays (-30) today) Nothing)
 
       episodeId <-
         insertTestEpisode
@@ -718,14 +718,14 @@ test_slotChangeClosesOldAndCreatesNew cfg = do
 
       -- The old slot stops on the change date rather than being deleted, so past
       -- airings keep their template.
-      map (.stvEffectiveUntil) oldValidities `shouldBe` [Just pacificToday]
+      map (.stvEffectiveUntil) oldValidities `shouldBe` [Just today]
 
       -- Exactly one replacement, carrying the submitted end time.
       map (.stEndTime) newTemplates `shouldBe` [TimeOfDay 15 0 0]
       map (.stStartTime) newTemplates `shouldBe` [TimeOfDay 14 0 0]
 
       -- Open-ended from the change date. A template with no validity never airs.
-      map (.stvEffectiveFrom) newValidities `shouldBe` [pacificToday]
+      map (.stvEffectiveFrom) newValidities `shouldBe` [today]
       map (.stvEffectiveUntil) newValidities `shouldBe` [Nothing]
 
       case mEpisode of
@@ -748,8 +748,8 @@ test_scheduleChangeCancelsPendingSchedule :: TestDBConfig -> IO ()
 test_scheduleChangeCancelsPendingSchedule cfg = do
   userInsert <- mkUserInsert "edit-cancel-pending" UserMetadata.Staff
   now <- getCurrentTime
-  let pacificToday = localDay (utcToPacific now)
-      changeoverDate = addDays 30 pacificToday
+  let today = pacificDay now
+      changeoverDate = addDays 30 today
 
   let showInsert =
         Shows.Insert
@@ -790,7 +790,7 @@ test_scheduleChangeCancelsPendingSchedule cfg = do
       _ <-
         TRX.statement () $
           ShowSchedule.insertValidity
-            (ShowSchedule.ValidityInsert activeTemplateId (addDays (-30) pacificToday) (Just changeoverDate))
+            (ShowSchedule.ValidityInsert activeTemplateId (addDays (-30) today) (Just changeoverDate))
 
       pendingTemplateId <-
         TRX.statement () $

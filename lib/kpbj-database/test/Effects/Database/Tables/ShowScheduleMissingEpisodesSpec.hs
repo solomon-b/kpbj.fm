@@ -8,8 +8,8 @@ import Data.Text.Display (display)
 import Data.Time (Day, addDays)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Clock (getCurrentTime)
-import Data.Time.LocalTime (TimeOfDay (..), localDay)
-import Domain.Types.Timezone (utcToPacific)
+import Data.Time.LocalTime (TimeOfDay (..))
+import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -39,7 +39,7 @@ import Test.Hspec.Hedgehog (hedgehog)
 -- from "today" must use the same timezone — otherwise UTC and PT can disagree
 -- by a calendar day during the late-evening UTC window.
 getPacificToday :: IO Day
-getPacificToday = localDay . utcToPacific <$> getCurrentTime
+getPacificToday = pacificDay <$> getCurrentTime
 
 --------------------------------------------------------------------------------
 
@@ -322,7 +322,6 @@ prop_hostMissingEpisodeOnDay cfg = do
         let emails = map ShowSchedule.hmeHostEmail matchingRows
         Hedgehog.assert (display (UserMetadata.uwmiEmail userMeta) `elem` emails)
 
-
 -- | Show with host and episode WITH audio does not return host row.
 prop_hostNotReturnedWithAudio :: TestDBConfig -> PropertyT IO ()
 prop_hostNotReturnedWithAudio cfg = do
@@ -369,7 +368,6 @@ prop_hostNotReturnedWithAudio cfg = do
         let matchingRows = filter (\h -> ShowSchedule.hmeShowTitle h == Shows.siTitle show1) missing
         length matchingRows === 0
 
-
 -- | Show with missing episode but no host assigned returns no rows.
 prop_noHostNoRow :: TestDBConfig -> PropertyT IO ()
 prop_noHostNoRow cfg = do
@@ -396,7 +394,6 @@ prop_noHostNoRow cfg = do
         (show1, missing) <- assertRight result
         let matchingRows = filter (\h -> ShowSchedule.hmeShowTitle h == Shows.siTitle show1) missing
         length matchingRows === 0
-
 
 -- | Show scheduled one day before the queried day does not appear.
 --
@@ -434,7 +431,6 @@ prop_wrongDayNotReturned cfg = do
         let matchingRows = filter (\h -> ShowSchedule.hmeShowTitle h == Shows.siTitle show1) missing
         length matchingRows === 0
 
-
 -- | Soft-deleted show with host does not appear.
 prop_hostDeletedShowNotReturned :: TestDBConfig -> PropertyT IO ()
 prop_hostDeletedShowNotReturned cfg = do
@@ -466,7 +462,6 @@ prop_hostDeletedShowNotReturned cfg = do
         (show1, missing) <- assertRight result
         let matchingRows = filter (\h -> ShowSchedule.hmeShowTitle h == Shows.siTitle show1) missing
         length matchingRows === 0
-
 
 -- | Episode exists but has no audio file — host should still be returned.
 prop_hostReturnedWithoutAudio :: TestDBConfig -> PropertyT IO ()
@@ -514,7 +509,6 @@ prop_hostReturnedWithoutAudio cfg = do
         let matchingRows = filter (\h -> ShowSchedule.hmeShowTitle h == Shows.siTitle show1) missing
         Hedgehog.assert (not $ null matchingRows)
 
-
 -- | Show with two hosts returns one row per host.
 prop_multipleHostsMultipleRows :: TestDBConfig -> PropertyT IO ()
 prop_multipleHostsMultipleRows cfg = do
@@ -556,7 +550,6 @@ prop_multipleHostsMultipleRows cfg = do
         let emails = map ShowSchedule.hmeHostEmail matchingRows
         Hedgehog.assert (display (UserMetadata.uwmiEmail meta1) `elem` emails)
         Hedgehog.assert (display (UserMetadata.uwmiEmail meta2) `elem` emails)
-
 
 -- | Schedule with expired validity (effective_until in the past) does not appear.
 prop_hostExpiredValidityNotReturned :: TestDBConfig -> PropertyT IO ()

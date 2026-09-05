@@ -5,6 +5,7 @@
 module Domain.Types.Timezone
   ( -- * Pacific Time Conversion
     utcToPacific,
+    pacificDay,
     pacificToUtc,
     formatPacificDate,
     formatPacificDateLong,
@@ -27,7 +28,7 @@ where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, LocalTime (..), TimeOfDay (..), UTCTime)
+import Data.Time (Day, LocalTime (..), TimeOfDay (..), UTCTime, localDay)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Data.Time.Zones (TZ, loadSystemTZ, localTimeToUTCTZ, utcToLocalTimeTZ)
 import System.IO.Unsafe (unsafePerformIO)
@@ -48,6 +49,14 @@ pacificTZ = unsafePerformIO $ loadSystemTZ "America/Los_Angeles"
 -- based on the actual date.
 utcToPacific :: UTCTime -> LocalTime
 utcToPacific = utcToLocalTimeTZ pacificTZ
+
+-- | The Pacific date an instant falls on.
+--
+-- The station keeps its calendar in Pacific, so this is the date a listener
+-- would call it. It is not the UTC date, which is already the next day for the
+-- last seven hours of every Pacific day.
+pacificDay :: UTCTime -> Day
+pacificDay = localDay . utcToPacific
 
 -- | Format a UTC time as a Pacific date string (e.g., "Feb 03, 2026").
 formatPacificDate :: UTCTime -> Text

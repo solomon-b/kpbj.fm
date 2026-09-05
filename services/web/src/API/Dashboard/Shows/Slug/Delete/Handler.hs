@@ -18,7 +18,7 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (LocalTime (..), utcToPacific)
+import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -49,7 +49,7 @@ action ::
   Slug ->
   ExceptT HandlerError AppM (Shows.Id, Text)
 action targetSlug = do
-  today <- localDay . utcToPacific <$> currentSystemTime
+  today <- pacificDay <$> currentSystemTime
   result <- runDBTransaction $ runMaybeT $ do
     showRec <- MaybeT $ TRX.statement () (Shows.getShowBySlug targetSlug)
     void $ MaybeT $ TRX.statement () (Shows.softDeleteShow showRec.id)

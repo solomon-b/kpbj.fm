@@ -47,7 +47,7 @@ import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Recurrence (Recurrence, editorCanShow, parseWeeks, recurrenceDay, recurrenceFromRow, recurring, weekNumbers, weeksLabel)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.Timezone (LocalTime (..), addMinutesToTimeOfDay, minutesFromMidnight, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
+import Domain.Types.Timezone (addMinutesToTimeOfDay, minutesFromMidnight, pacificDay, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization (sanitizeTitle)
 import Effects.Database.Execute (execQuery, execTransaction)
@@ -211,7 +211,7 @@ action userMetadata slug editForm = do
             Log.logInfo "Schedule validation failed" err
             throwValidationError err
           Right s -> pure s
-        today <- localDay . utcToPacific <$> lift currentSystemTime
+        today <- pacificDay <$> lift currentSystemTime
         mStartDate <- case sefScheduleStartDate editForm of
           Nothing -> pure Nothing
           Just dateText -> case parseDateYMD dateText of
@@ -292,7 +292,7 @@ action userMetadata slug editForm = do
 -- show status has already been written and this action must not fail the save.
 closeSchedulesOnDeactivate :: Shows.Id -> AppM [Episodes.UpcomingEpisodeRef]
 closeSchedulesOnDeactivate showId = do
-  today <- localDay . utcToPacific <$> currentSystemTime
+  today <- pacificDay <$> currentSystemTime
   execQuery (Episodes.closeSchedulesAndDetachEpisodes showId today) >>= \case
     Left err -> do
       Log.logAttention "Failed to close schedules for deactivated show" (Text.pack $ show err)

@@ -26,7 +26,6 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (Day, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (LocalTime (..))
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie)
@@ -34,7 +33,7 @@ import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (utcToPacific)
+import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -71,10 +70,8 @@ action ::
   Maybe Int64 ->
   ExceptT HandlerError AppM EpisodeListViewData
 action user userMetadata showSlug maybePage = do
-  -- 1. Set up pagination (use Pacific time for "today")
-  nowUtc <- liftIO getCurrentTime
-  let nowPacific = utcToPacific nowUtc
-      today = localDay nowPacific
+  -- 1. Set up pagination
+  today <- pacificDay <$> liftIO getCurrentTime
   let page = fromMaybe 1 maybePage
       limit = 20 :: Limit
       offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
