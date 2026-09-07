@@ -929,9 +929,10 @@ restoreEpisode episodeId =
 -- explicitly detach future episodes rather than leaving them with a stale FK.
 -- Only episodes whose Pacific air date is on or after @fromDate@ are detached, so
 -- when a change is deferred to a future date the interim episodes keep airing on
--- the old slot until then. The @scheduled_at > NOW()@ guard still applies, so an
--- episode that already aired earlier today is never detached. Returns the IDs of
--- affected episodes for logging.
+-- the old slot until then. An episode that already aired earlier today is never
+-- detached, because @episode_air_time@ reads the airing instant from the
+-- template and compares it against now. Returns the IDs of affected episodes for
+-- logging.
 clearTemplateForUpcomingEpisodes :: ShowSchedule.TemplateId -> Day -> Hasql.Statement () [Id]
 clearTemplateForUpcomingEpisodes templateId fromDate =
   interp
@@ -939,10 +940,18 @@ clearTemplateForUpcomingEpisodes templateId fromDate =
     [sql|
     UPDATE episodes
     SET schedule_template_id = NULL, scheduled_at = NULL, updated_at = NOW()
-    WHERE schedule_template_id = #{templateId}
-      AND scheduled_at > NOW()
-      AND (scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{fromDate}
-      AND deleted_at IS NULL
+    WHERE id IN (
+      SELECT e.id
+      FROM episodes e
+      JOIN schedule_templates st ON st.id = e.schedule_template_id
+      CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
+      WHERE e.schedule_template_id = #{templateId}
+        -- The air time comes from the template. This is the guard that stops a
+        -- change from erasing an episode that already aired.
+        AND episode_air_time(d.air_date, st.start_time, st.timezone) > NOW()
+        AND d.air_date >= #{fromDate}
+        AND e.deleted_at IS NULL
+    )
     RETURNING id
   |]
 
@@ -972,10 +981,16 @@ migrateUpcomingEpisodes fromTemplateId toTemplateId fromDate =
     [sql|
     UPDATE episodes
     SET schedule_template_id = #{toTemplateId}, updated_at = NOW()
-    WHERE schedule_template_id = #{fromTemplateId}
-      AND scheduled_at > NOW()
-      AND (scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{fromDate}
-      AND deleted_at IS NULL
+    WHERE id IN (
+      SELECT e.id
+      FROM episodes e
+      JOIN schedule_templates st ON st.id = e.schedule_template_id
+      CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
+      WHERE e.schedule_template_id = #{fromTemplateId}
+        AND episode_air_time(d.air_date, st.start_time, st.timezone) > NOW()
+        AND d.air_date >= #{fromDate}
+        AND e.deleted_at IS NULL
+    )
     RETURNING id
   |]
 
@@ -1027,9 +1042,11 @@ closeSchedulesAndDetachEpisodes showId closeDate =
     to_detach AS (
       SELECT e.id, e.episode_number, e.scheduled_at
       FROM episodes e
+      JOIN schedule_templates st ON st.id = e.schedule_template_id
+      CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
       WHERE e.schedule_template_id IN (SELECT template_id FROM closed)
-        AND e.scheduled_at > NOW()
-        AND (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{closeDate}
+        AND episode_air_time(d.air_date, st.start_time, st.timezone) > NOW()
+        AND d.air_date >= #{closeDate}
         AND e.deleted_at IS NULL
     ),
     detached AS (
@@ -1047,7 +1064,7 @@ closeSchedulesAndDetachEpisodes showId closeDate =
 -- These are the rows 'clearTemplateForUpcomingEpisodes' would null when a
 -- schedule edit removes or re-keys their slot. It reports which upcoming
 -- episodes an edit unscheduled so staff can reschedule them. The @fromDate@ gate
--- and the @scheduled_at > NOW()@ guard match 'clearTemplateForUpcomingEpisodes',
+-- and the @episode_air_time@ guard match 'clearTemplateForUpcomingEpisodes',
 -- so the report equals the set that gets detached. An empty template
 -- list matches nothing and returns an empty result.
 getUpcomingEpisodesForTemplates :: [ShowSchedule.TemplateId] -> Day -> Hasql.Statement () [UpcomingEpisodeRef]
@@ -1055,13 +1072,15 @@ getUpcomingEpisodesForTemplates templateIds fromDate =
   interp
     False
     [sql|
-    SELECT id, episode_number, scheduled_at
-    FROM episodes
-    WHERE schedule_template_id = ANY(#{templateIds})
-      AND scheduled_at > NOW()
-      AND (scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE >= #{fromDate}
-      AND deleted_at IS NULL
-    ORDER BY scheduled_at
+    SELECT e.id, e.episode_number, e.scheduled_at
+    FROM episodes e
+    JOIN schedule_templates st ON st.id = e.schedule_template_id
+    CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
+    WHERE e.schedule_template_id = ANY(#{templateIds})
+      AND episode_air_time(d.air_date, st.start_time, st.timezone) > NOW()
+      AND d.air_date >= #{fromDate}
+      AND e.deleted_at IS NULL
+    ORDER BY e.scheduled_at
   |]
 
 --------------------------------------------------------------------------------
