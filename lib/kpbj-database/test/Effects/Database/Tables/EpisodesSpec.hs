@@ -53,6 +53,8 @@ spec =
           hedgehog . prop_getEpisodesForShow
         runs 10 . it "getPublishedEpisodesForShow: filters by non-deleted" $
           hedgehog . prop_getPublishedEpisodesForShow
+        runs 10 . it "published listings split on the air time, not the date" $
+          hedgehog . prop_publishedListingsSplitOnAirTime
         runs 10 . it "getEpisodeByShowAndNumber: looks up by show slug + episode number" $
           hedgehog . prop_getEpisodeByShowAndNumber
         runs 10 . it "getEpisodeByShowAndNumber: an archived episode is gone" $
@@ -334,6 +336,79 @@ prop_getEpisodesForShow cfg = do
         -- Only non-deleted episode should be returned
         ep <- assertSingleton episodes
         UUT.id ep === id1
+        pure ()
+
+-- | The published listings split on the episode's air time, not on its date.
+--
+-- These two queries decide what a listener sees on a show page and in the
+-- archive. An episode that aired this morning is public; one airing tonight is
+-- not, even though both fall on today. Two shows rather than two episodes of one
+-- show, because a show holds one episode per date.
+--
+-- The timezone is pinned to Pacific here. The fixtures build air instants with
+-- 'airTimeOn', which is Pacific, while the query reads the air date through
+-- @st.timezone@. Those agree only when the template is Pacific, and every
+-- template in production is. 'middayTemplate' keeps the timezone varied for the
+-- tests that can afford an ambiguous date; this one compares instants, so it
+-- cannot.
+--
+-- The expectations are computed from the same instants the query compares, so
+-- this states that Postgres and Haskell agree rather than restating the rule.
+prop_publishedListingsSplitOnAirTime :: TestDBConfig -> PropertyT IO ()
+prop_publishedListingsSplitOnAirTime cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    earlyShowInsert <- forAllT showInsertGen
+    lateShowInsert <- forAllT showInsertGen
+    earlyTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    lateTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    earlyEpGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    lateEpGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = pacificDay now
+          airsTodayAt t start end =
+            t
+              { ShowSchedule.stiDayOfWeek = dayOfWeek today,
+                ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
+                ShowSchedule.stiStartTime = start,
+                ShowSchedule.stiEndTime = end,
+                ShowSchedule.stiTimezone = "America/Los_Angeles",
+                ShowSchedule.stiReplayStartTime = Nothing
+              }
+          earlyTemplate = airsTodayAt earlyTemplateGen (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+          lateTemplate = airsTodayAt lateTemplateGen (TimeOfDay 23 0 0) (TimeOfDay 23 59 0)
+          earlyTime = airTimeOn earlyTemplate today
+          lateTime = airTimeOn lateTemplate today
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (earlyShowId, earlyTemplateId) <- insertTestShowWithSchedule earlyShowInsert earlyTemplate
+        (lateShowId, lateTemplateId) <- insertTestShowWithSchedule lateShowInsert lateTemplate
+        earlyId <-
+          unwrapInsert . UUT.insertEpisode $
+            earlyEpGen {UUT.eiId = earlyShowId, UUT.eiScheduleTemplateId = Just earlyTemplateId, UUT.eiScheduledAt = Just earlyTime, UUT.eiCreatedBy = userId}
+        lateId <-
+          unwrapInsert . UUT.insertEpisode $
+            lateEpGen {UUT.eiId = lateShowId, UUT.eiScheduleTemplateId = Just lateTemplateId, UUT.eiScheduledAt = Just lateTime, UUT.eiCreatedBy = userId}
+
+        earlyListed <- TRX.statement () (UUT.getPublishedEpisodesForShow now earlyShowId (Limit 10) (Offset 0))
+        lateListed <- TRX.statement () (UUT.getPublishedEpisodesForShow now lateShowId (Limit 10) (Offset 0))
+        archived <- TRX.statement () (UUT.getPublishedEpisodesWithShows now (Limit 100) (Offset 0))
+
+        TRX.condemn
+        pure (earlyId, lateId, earlyListed, lateListed, archived)
+
+      assert $ do
+        (earlyId, lateId, earlyListed, lateListed, archived) <- assertRight result
+        let listedIf episodeId airTime = [episodeId | airTime <= now]
+            archivedIds = map (UUT.id . fst) archived
+        map UUT.id earlyListed === listedIf earlyId earlyTime
+        map UUT.id lateListed === listedIf lateId lateTime
+        -- The archive applies the same rule across every show.
+        filter (== earlyId) archivedIds === listedIf earlyId earlyTime
+        filter (== lateId) archivedIds === listedIf lateId lateTime
         pure ()
 
 -- | getPublishedEpisodesForShow: filters by non-deleted and past schedule.
