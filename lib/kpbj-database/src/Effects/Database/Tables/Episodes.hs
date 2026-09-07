@@ -90,7 +90,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Enum, Insert, Update)
@@ -351,42 +351,79 @@ data UpcomingEpisodeRef = UpcomingEpisodeRef
 --------------------------------------------------------------------------------
 -- Queries
 
--- | Get published episodes for a show (not deleted, scheduled in the past).
+-- | Get published episodes for a show: not deleted, and the episode has aired.
+--
+-- \"Aired\" is decided by @episode_air_time@, which reads the air time from the
+-- template. The episode row carries the date; the template carries the time.
+--
+-- Raw SQL rather than Rel8, because Rel8 1.7 cannot call a three-argument SQL
+-- function. Its escape hatches are 'Rel8.binaryOperator', 'Rel8.unsafeCastExpr'
+-- and 'Rel8.unsafeLiteral', and expressing the airing instant through those puts
+-- a second copy of @episode_air_time@'s body in Haskell, free to drift from the
+-- definition in the migration.
+--
+-- This does __not__ filter on @published_at@. An episode with no publish date
+-- still appears once it has aired.
 getPublishedEpisodesForShow :: UTCTime -> Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy ((.publishedAt) >$< nullsLast desc) do
-            ep <- each episodeSchema
-            where_ $ ep.showId ==. lit showId'
-            where_ $ isNull ep.deletedAt
-            where_ $ isNonNull ep.scheduledAt
-            where_ $ ep.scheduledAt <=. nullify (lit currentTime)
-            pure ep
+  interp
+    False
+    [sql|
+    SELECT
+      e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
+      e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
+      e.schedule_template_id, e.scheduled_at, e.published_at, e.deleted_at,
+      e.created_by, e.created_at, e.updated_at
+    FROM episodes e
+    JOIN schedule_templates st ON st.id = e.schedule_template_id
+    CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
+    WHERE e.show_id = #{showId'}
+      AND e.deleted_at IS NULL
+      AND episode_air_time(d.air_date, st.start_time, st.timezone) <= #{currentTime}
+    ORDER BY e.published_at DESC NULLS LAST
+    LIMIT #{lim} OFFSET #{off}
+  |]
+
+-- | One row of 'getPublishedEpisodesWithShows': an episode and then its show.
+--
+-- @DecodeRow@ over a tuple wants a @DecodeValue@ per element, which decodes one
+-- column each, so @(Model, Shows.Model)@ cannot decode a joined row directly.
+-- This newtype reads the two records in column order instead. It stays private,
+-- and the query unwraps it, so the returned pair is unchanged.
+newtype PublishedEpisodeRow = PublishedEpisodeRow {unPublishedEpisodeRow :: (Model, Shows.Model)}
+
+instance DecodeRow PublishedEpisodeRow where
+  decodeRow = fmap PublishedEpisodeRow ((,) <$> decodeRow <*> decodeRow)
 
 -- | Get published episodes across all non-deleted shows, each paired with its
 -- show, ordered by publish date (newest first).
 --
 -- Powers the public @/archive@ page. Includes episodes from inactive shows —
 -- only soft-deleted shows are excluded. "Published" matches
--- 'getPublishedEpisodesForShow': not deleted and scheduled in the past.
+-- 'getPublishedEpisodesForShow': not deleted, and the episode has aired.
 getPublishedEpisodesWithShows :: UTCTime -> Limit -> Offset -> Hasql.Statement () [(Model, Shows.Model)]
 getPublishedEpisodesWithShows currentTime (Limit lim) (Offset off) =
-  run $
-    select $
-      Rel8.limit (fromIntegral lim) $
-        Rel8.offset (fromIntegral off) $
-          orderBy ((\(ep, _s) -> ep.publishedAt) >$< nullsLast desc) do
-            ep <- each episodeSchema
-            s <- each Shows.showSchema
-            where_ $ ep.showId ==. s.id
-            where_ $ isNull ep.deletedAt
-            where_ $ isNonNull ep.scheduledAt
-            where_ $ ep.scheduledAt <=. nullify (lit currentTime)
-            where_ $ isNull s.deletedAt
-            pure (ep, s)
+  fmap unPublishedEpisodeRow
+    <$> interp
+      False
+      [sql|
+    SELECT
+      e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
+      e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
+      e.schedule_template_id, e.scheduled_at, e.published_at, e.deleted_at,
+      e.created_by, e.created_at, e.updated_at,
+      s.id, s.title, s.slug, s.description, s.logo_url, s.status,
+      s.created_at, s.updated_at, s.deleted_at
+    FROM episodes e
+    JOIN shows s ON s.id = e.show_id
+    JOIN schedule_templates st ON st.id = e.schedule_template_id
+    CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
+    WHERE e.deleted_at IS NULL
+      AND s.deleted_at IS NULL
+      AND episode_air_time(d.air_date, st.start_time, st.timezone) <= #{currentTime}
+    ORDER BY e.published_at DESC NULLS LAST
+    LIMIT #{lim} OFFSET #{off}
+  |]
 
 -- | Whether a read includes the episodes that staff archived.
 --
