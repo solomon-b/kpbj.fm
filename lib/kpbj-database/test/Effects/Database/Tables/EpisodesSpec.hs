@@ -6,10 +6,12 @@ module Effects.Database.Tables.EpisodesSpec where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.List (isInfixOf)
-import Data.Time.Calendar (Day, addDays, fromGregorian)
+import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime, utctDay)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
+import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.Episodes qualified as UUT
@@ -105,8 +107,14 @@ spec =
       describe "Unscheduled Episodes" $ do
         runs 10 . it "clearTemplateForUpcomingEpisodes: nulls schedule fields for future episodes" $
           hedgehog . prop_clearTemplateForUpcomingEpisodes
+        runs 10 . it "clearTemplateForUpcomingEpisodes: a same-day change splits on the air time" $
+          hedgehog . prop_sameDayChangeSplitsOnAirTime
         runs 10 . it "clearTemplateForUpcomingEpisodes: only clears episodes on/after the change date" $
           hedgehog . prop_clearTemplateForUpcomingEpisodes_dateGate
+        runs 10 . it "migrateUpcomingEpisodes: moves upcoming episodes and keeps their air times" $
+          hedgehog . prop_migrateUpcomingEpisodes
+        runs 10 . it "migrateUpcomingEpisodes: only moves episodes on/after the change date" $
+          hedgehog . prop_migrateUpcomingEpisodes_dateGate
         runs 10 . it "getEpisodesForShow: unscheduled episodes sort last" $
           hedgehog . prop_unscheduledEpisodesSortLast
         runs 10 . it "getPublishedEpisodesForShow: excludes unscheduled episodes" $
@@ -119,6 +127,8 @@ spec =
           hedgehog . prop_closeSchedules_pendingWindowNeverInverted
         runs 10 . it "closeSchedulesAndDetachEpisodes: leaves a past episode attached" $
           hedgehog . prop_closeSchedules_keepsPastEpisode
+        runs 10 . it "closeSchedulesAndDetachEpisodes: only detaches episodes on/after the close date" $
+          hedgehog . prop_closeSchedules_dateGate
         runs 10 . it "closeSchedulesAndDetachEpisodes: does not move an already-closed window" $
           hedgehog . prop_closeSchedules_leavesClosedWindow
 
@@ -163,6 +173,26 @@ assertInsertFieldsMatch insert model = do
 -- Lens Laws
 
 -- | Insert-Select: insert then select returns what we inserted.
+-- | A generated template pinned to a midday airing, with no replay.
+--
+-- The date-gate tests need the air date the SQL derives to equal the date the
+-- test asked for. 'genRecurringScheduleInsert' picks any of five timezones, and
+-- the statements read the air date as @scheduled_at AT TIME ZONE st.timezone@
+-- while the fixtures build the instant in Pacific. A midday airing sits far
+-- enough from both midnights that every one of those zones gives the same date,
+-- so the timezone stays varied without making the date ambiguous.
+--
+-- The replay goes, because the generator places one after the template's
+-- original end time and that no longer holds once the times are pinned. None of
+-- the statements under test reads it.
+middayTemplate :: ShowSchedule.ScheduleTemplateInsert -> ShowSchedule.ScheduleTemplateInsert
+middayTemplate t =
+  t
+    { ShowSchedule.stiStartTime = TimeOfDay 12 0 0,
+      ShowSchedule.stiEndTime = TimeOfDay 13 0 0,
+      ShowSchedule.stiReplayStartTime = Nothing
+    }
+
 -- | A fixed day for fixtures that never look at when the episode airs.
 --
 -- 'airTimeForTemplate' moves it to the first date on or after this one that the
@@ -942,6 +972,78 @@ prop_replaceEpisodeTags cfg = do
 --------------------------------------------------------------------------------
 -- Unscheduled Episode tests
 
+-- | A schedule change effective today splits on the episode's own air time.
+--
+-- The guard asks whether the episode's airing is still ahead, and the air time
+-- lives on the template. An episode whose show already aired today keeps its
+-- slot, because clearing it would destroy the record of a real airing. One
+-- airing later today is detached, because its template's window closes today and
+-- it would otherwise never air.
+--
+-- Two shows rather than two episodes of one show, because a show holds one
+-- episode per date. One airs at 00:00 and one at 23:00, so on any run one has
+-- aired and the other has not.
+--
+-- The expectation is computed from the same instant the statement compares
+-- against, so this asserts that Postgres and Haskell agree on when an episode
+-- airs. It does not restate the rule in a second place.
+prop_sameDayChangeSplitsOnAirTime :: TestDBConfig -> PropertyT IO ()
+prop_sameDayChangeSplitsOnAirTime cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    earlyShowInsert <- forAllT showInsertGen
+    lateShowInsert <- forAllT showInsertGen
+    earlyTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    lateTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    earlyEpGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    lateEpGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = pacificDay now
+          airsTodayAt template start end =
+            template
+              { ShowSchedule.stiDayOfWeek = dayOfWeek today,
+                ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
+                ShowSchedule.stiStartTime = start,
+                ShowSchedule.stiEndTime = end
+              }
+          earlyTemplate = airsTodayAt earlyTemplateGen (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
+          lateTemplate = airsTodayAt lateTemplateGen (TimeOfDay 23 0 0) (TimeOfDay 23 59 0)
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (earlyShowId, earlyTemplateId) <- insertTestShowWithSchedule earlyShowInsert earlyTemplate
+        (lateShowId, lateTemplateId) <- insertTestShowWithSchedule lateShowInsert lateTemplate
+        earlyId <-
+          unwrapInsert . UUT.insertEpisode $
+            earlyEpGen
+              { UUT.eiId = earlyShowId,
+                UUT.eiScheduleTemplateId = Just earlyTemplateId,
+                UUT.eiScheduledAt = Just (airTimeOn earlyTemplate today),
+                UUT.eiCreatedBy = userId
+              }
+        lateId <-
+          unwrapInsert . UUT.insertEpisode $
+            lateEpGen
+              { UUT.eiId = lateShowId,
+                UUT.eiScheduleTemplateId = Just lateTemplateId,
+                UUT.eiScheduledAt = Just (airTimeOn lateTemplate today),
+                UUT.eiCreatedBy = userId
+              }
+        earlyDetached <- TRX.statement () (UUT.clearTemplateForUpcomingEpisodes earlyTemplateId today)
+        lateDetached <- TRX.statement () (UUT.clearTemplateForUpcomingEpisodes lateTemplateId today)
+        TRX.condemn
+        pure (earlyId, lateId, earlyDetached, lateDetached)
+
+      assert $ do
+        (earlyId, lateId, earlyDetached, lateDetached) <- assertRight result
+        let detachedIf episodeId template =
+              [episodeId | airTimeOn template today > now]
+        earlyDetached === detachedIf earlyId earlyTemplate
+        lateDetached === detachedIf lateId lateTemplate
+        pure ()
+
 -- | clearTemplateForUpcomingEpisodes: nulls both schedule fields for future episodes.
 prop_clearTemplateForUpcomingEpisodes :: TestDBConfig -> PropertyT IO ()
 prop_clearTemplateForUpcomingEpisodes cfg = do
@@ -1036,6 +1138,211 @@ prop_clearTemplateForUpcomingEpisodes_dateGate cfg = do
         UUT.scheduleTemplateId afterEp === Nothing
         UUT.scheduledAt afterEp === Nothing
         pure ()
+
+-- | migrateUpcomingEpisodes: moves the upcoming episodes and keeps their air times.
+--
+-- A deferred replay change writes a second template carrying the new replay time
+-- and moves the upcoming episodes onto it. The primary window does not move, so
+-- every moved episode still airs at the same instant, and only the template id
+-- changes.
+--
+-- This mirrors the two 'clearTemplateForUpcomingEpisodes' tests, because the two
+-- statements apply the same gates and split the same set of episodes. An episode
+-- that has already aired stays where it is, and both episodes here sit on or
+-- after the change date so that the air-time guard is what separates them.
+prop_migrateUpcomingEpisodes :: TestDBConfig -> PropertyT IO ()
+prop_migrateUpcomingEpisodes cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    oldTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    newTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    pastEpGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    futureEpGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      -- A weekly show airing at 00:00. Today's episode has already gone out and
+      -- next week's has not, so both share a date gate and only the air-time
+      -- guard separates them. Putting the aired episode on an earlier date would
+      -- let the date gate do all the work and leave the guard untested.
+      let today = pacificDay now
+          airsAtMidnight t =
+            t
+              { ShowSchedule.stiDayOfWeek = dayOfWeek today,
+                ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
+                ShowSchedule.stiStartTime = TimeOfDay 0 0 0,
+                ShowSchedule.stiEndTime = TimeOfDay 1 0 0
+              }
+          weeklyTemplate = airsAtMidnight oldTemplate
+          pastTime = airTimeOn weeklyTemplate today
+          futureTime = airTimeOn weeklyTemplate (addDays 7 today)
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, oldTemplateId) <- insertTestShowWithSchedule showInsert weeklyTemplate
+
+        -- The replacement template the episodes move onto.
+        newTemplateId <-
+          TRX.statement () . ShowSchedule.insertScheduleTemplate $
+            newTemplateGen {ShowSchedule.stiShowId = showId}
+
+        pastId <-
+          unwrapInsert . UUT.insertEpisode $
+            pastEpGen
+              { UUT.eiId = showId,
+                UUT.eiScheduleTemplateId = Just oldTemplateId,
+                UUT.eiScheduledAt = Just pastTime,
+                UUT.eiCreatedBy = userId
+              }
+        futureId <-
+          unwrapInsert . UUT.insertEpisode $
+            futureEpGen
+              { UUT.eiId = showId,
+                UUT.eiScheduleTemplateId = Just oldTemplateId,
+                UUT.eiScheduledAt = Just futureTime,
+                UUT.eiCreatedBy = userId
+              }
+
+        migrated <- TRX.statement () (UUT.migrateUpcomingEpisodes oldTemplateId newTemplateId today)
+
+        afterPast <- TRX.statement () (UUT.getEpisodeById pastId)
+        afterFuture <- TRX.statement () (UUT.getEpisodeById futureId)
+
+        TRX.condemn
+        pure (futureId, oldTemplateId, newTemplateId, migrated, afterPast, afterFuture)
+
+      assert $ do
+        (futureId, oldTemplateId, newTemplateId, migrated, mPast, mFuture) <- assertRight result
+        -- Only the upcoming episode moves.
+        migrated === [futureId]
+        -- The episode that already aired keeps its template and its air time.
+        pastEp <- assertJust mPast
+        UUT.scheduleTemplateId pastEp === Just oldTemplateId
+        UUT.scheduledAt pastEp === Just pastTime
+        -- The upcoming episode changes template and nothing else.
+        futureEp <- assertJust mFuture
+        UUT.scheduleTemplateId futureEp === Just newTemplateId
+        UUT.scheduledAt futureEp === Just futureTime
+        pure ()
+
+-- | migrateUpcomingEpisodes: only moves episodes on or after the change date.
+--
+-- A deferred change keeps the interim episodes on the old template, because the
+-- old slot still airs them until the change takes effect. Both episodes here are
+-- upcoming, so the air-time guard admits both and only the date gate separates
+-- them.
+prop_migrateUpcomingEpisodes_dateGate :: TestDBConfig -> PropertyT IO ()
+prop_migrateUpcomingEpisodes_dateGate cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    oldTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    newTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    epBeforeGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    epAfterGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let oldTemplate = middayTemplate oldTemplateGen
+          baseDay = pacificDay now
+          beforeDay = airDayForTemplate oldTemplate (addDays 1 baseDay)
+          afterDay = airDayForTemplate oldTemplate (addDays 1 beforeDay)
+          fromDate = afterDay
+          beforeTime = airTimeOn oldTemplate beforeDay
+          afterTime = airTimeOn oldTemplate afterDay
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, oldTemplateId) <- insertTestShowWithSchedule showInsert oldTemplate
+        newTemplateId <-
+          TRX.statement () . ShowSchedule.insertScheduleTemplate $
+            (middayTemplate newTemplateGen) {ShowSchedule.stiShowId = showId}
+
+        beforeId <-
+          unwrapInsert . UUT.insertEpisode $
+            epBeforeGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiScheduledAt = Just beforeTime, UUT.eiCreatedBy = userId}
+        afterId <-
+          unwrapInsert . UUT.insertEpisode $
+            epAfterGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiScheduledAt = Just afterTime, UUT.eiCreatedBy = userId}
+
+        migrated <- TRX.statement () (UUT.migrateUpcomingEpisodes oldTemplateId newTemplateId fromDate)
+
+        afterBefore <- TRX.statement () (UUT.getEpisodeById beforeId)
+        afterAfter <- TRX.statement () (UUT.getEpisodeById afterId)
+
+        TRX.condemn
+        pure (afterId, oldTemplateId, newTemplateId, migrated, afterBefore, afterAfter)
+
+      assert $ do
+        (afterId, oldTemplateId, newTemplateId, migrated, mBefore, mAfter) <- assertRight result
+        -- Only the on/after episode moved.
+        migrated === [afterId]
+        -- The interim episode keeps the old template and its air time.
+        beforeEp <- assertJust mBefore
+        UUT.scheduleTemplateId beforeEp === Just oldTemplateId
+        UUT.scheduledAt beforeEp === Just beforeTime
+        -- The on/after episode is on the new template, at the same air time.
+        afterEp <- assertJust mAfter
+        UUT.scheduleTemplateId afterEp === Just newTemplateId
+        UUT.scheduledAt afterEp === Just afterTime
+
+-- | closeSchedulesAndDetachEpisodes: only detaches episodes on or after the close date.
+--
+-- A show that closes its window on a future date keeps airing until then, so the
+-- episodes before that date keep their slots. Both episodes here are upcoming,
+-- so the air-time guard admits both and only the date gate separates them.
+prop_closeSchedules_dateGate :: TestDBConfig -> PropertyT IO ()
+prop_closeSchedules_dateGate cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    epBeforeGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    epAfterGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let scheduleTemplate = middayTemplate scheduleTemplateGen
+          baseDay = pacificDay now
+          beforeDay = airDayForTemplate scheduleTemplate (addDays 1 baseDay)
+          afterDay = airDayForTemplate scheduleTemplate (addDays 1 beforeDay)
+          closeDate = afterDay
+          beforeTime = airTimeOn scheduleTemplate beforeDay
+          afterTime = airTimeOn scheduleTemplate afterDay
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+        _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) baseDay) Nothing))
+
+        beforeId <-
+          unwrapInsert . UUT.insertEpisode $
+            epBeforeGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just beforeTime, UUT.eiCreatedBy = userId}
+        afterId <-
+          unwrapInsert . UUT.insertEpisode $
+            epAfterGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just afterTime, UUT.eiCreatedBy = userId}
+
+        detached <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId closeDate)
+
+        afterBefore <- TRX.statement () (UUT.getEpisodeById beforeId)
+        afterAfter <- TRX.statement () (UUT.getEpisodeById afterId)
+
+        TRX.condemn
+        pure (afterId, templateId, detached, afterBefore, afterAfter)
+
+      assert $ do
+        (afterId, templateId, detached, mBefore, mAfter) <- assertRight result
+        -- Only the on/after episode is detached and reported.
+        map UUT.uerId detached === [afterId]
+        -- The interim episode keeps its slot, so it still airs before the close.
+        beforeEp <- assertJust mBefore
+        UUT.scheduleTemplateId beforeEp === Just templateId
+        UUT.scheduledAt beforeEp === Just beforeTime
+        -- The on/after episode is detached.
+        afterEp <- assertJust mAfter
+        UUT.scheduleTemplateId afterEp === Nothing
+        UUT.scheduledAt afterEp === Nothing
 
 -- | getEpisodesForShow: unscheduled episodes (NULL scheduledAt) sort after scheduled ones.
 prop_unscheduledEpisodesSortLast :: TestDBConfig -> PropertyT IO ()
@@ -1154,15 +1461,27 @@ prop_getUpcomingEpisodesForTemplates_excludesPast cfg = do
 
     act $ do
       now <- liftIO getCurrentTime
+      -- The episode airs at 00:00 today, so it has already gone out but still
+      -- sits on the change date. The date gate admits it, and the air-time guard
+      -- is what excludes it. An episode on an earlier date would be gated out on
+      -- the date alone and leave the guard untested.
+      let today = pacificDay now
+          airedToday =
+            scheduleTemplate
+              { ShowSchedule.stiDayOfWeek = dayOfWeek today,
+                ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
+                ShowSchedule.stiStartTime = TimeOfDay 0 0 0,
+                ShowSchedule.stiEndTime = TimeOfDay 1 0 0
+              }
+          pastTime = airTimeOn airedToday today
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+        (showId, templateId) <- insertTestShowWithSchedule showInsert airedToday
 
-        let pastTime = lastAirTimeBefore scheduleTemplate (utctDay now)
         let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
         _episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
-        refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId] (utctDay now))
+        refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId] today)
         TRX.condemn
         pure refs
 
@@ -1402,15 +1721,25 @@ prop_closeSchedules_keepsPastEpisode cfg = do
 
     act $ do
       now <- liftIO getCurrentTime
-      let today = utctDay now
+      -- The episode airs at 00:00 today, so it has already gone out but still
+      -- sits on the close date. The date gate therefore admits it and the
+      -- air-time guard is what keeps it attached. An episode on an earlier date
+      -- would be excluded by the date gate alone and leave the guard untested.
+      let today = pacificDay now
+          airedToday =
+            scheduleTemplate
+              { ShowSchedule.stiDayOfWeek = dayOfWeek today,
+                ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
+                ShowSchedule.stiStartTime = TimeOfDay 0 0 0,
+                ShowSchedule.stiEndTime = TimeOfDay 1 0 0
+              }
+          pastTime = airTimeOn airedToday today
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+        (showId, templateId) <- insertTestShowWithSchedule showInsert airedToday
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing))
 
-        -- The last date this template aired on, for the same reason as above.
-        let pastTime = lastAirTimeBefore scheduleTemplate today
-            pastInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
+        let pastInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
         pastId <- unwrapInsert (UUT.insertEpisode pastInsert)
 
         detached <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId today)
