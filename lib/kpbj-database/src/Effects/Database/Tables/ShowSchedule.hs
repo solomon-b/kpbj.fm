@@ -46,6 +46,7 @@ module Effects.Database.Tables.ShowSchedule
     getUpcomingShowDates,
     getUpcomingUnscheduledShowDates,
     makeUpcomingShowDateFromTemplate,
+    templateAirTime,
 
     -- * Missing Episodes
     ShowMissingEpisode (..),
@@ -912,6 +913,20 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
 -- upcoming available slots. The start time is the episode's @scheduled_at@. The
 -- end time comes from the template's local @end_time@ on the episode's Pacific
 -- date, which is the rule 'getUpcomingUnscheduledShowDates' applies in SQL.
+-- | The instant a template airs on a date.
+--
+-- This is the @episode_air_time@ SQL function written in Haskell, for the
+-- callers that hold a loaded template rather than a query. The episode row
+-- carries the air date and the template carries the local start time, so
+-- neither answers this alone.
+--
+-- Like 'computeEndTime' beside it, this reads the clock as Pacific rather than
+-- as @stTimezone@. Every template the station holds is Pacific, and the airing
+-- query makes the same assumption.
+templateAirTime :: ScheduleTemplate Result -> Day -> UTCTime
+templateAirTime template airDate =
+  pacificToUtc (LocalTime airDate template.stStartTime)
+
 makeUpcomingShowDateFromTemplate ::
   -- | The schedule template
   ScheduleTemplate Result ->

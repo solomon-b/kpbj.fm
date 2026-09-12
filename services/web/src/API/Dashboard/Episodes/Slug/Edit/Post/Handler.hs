@@ -184,8 +184,16 @@ updateEpisode ::
   ExceptT HandlerError AppM [Text]
 updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel editForm = do
   currentTime <- currentSystemTime
+  -- The episode's air time lives on its template, and whether it has aired
+  -- decides who may still replace the audio. A database error refuses the edit
+  -- rather than guessing, because guessing here either blocks a host who is
+  -- allowed or admits one who is not.
+  mTemplate <- case episode.scheduleTemplateId of
+    Nothing -> pure Nothing
+    Just templateId ->
+      fromRightM throwDatabaseError (execQuery (ShowSchedule.getScheduleTemplateById templateId))
   let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-      isPast = Episodes.isAired currentTime episode
+      isPast = Episodes.isAired currentTime mTemplate episode
 
   -- 1. Validation phase (throws on error)
   validDescription <- validateDescription (eefDescription editForm)
@@ -201,7 +209,7 @@ updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel edit
     Just _ -> pure ()
 
   -- 3. Optional updates (accumulate warnings, don't throw)
-  warnings <- lift $ execOptionalUpdates _user.mId currentTime isStaffOrAdmin isPast episode showModel editForm
+  warnings <- lift $ execOptionalUpdates _user.mId isStaffOrAdmin isPast episode showModel editForm
 
   -- 4. Return warnings
   Log.logInfo "Successfully updated episode" episode.id
@@ -222,15 +230,17 @@ validateDescription mDescription = do
 
 execOptionalUpdates ::
   User.Id ->
-  UTCTime ->
   Bool -> -- isStaffOrAdmin
   Bool -> -- isPast
   Episodes.Model ->
   Shows.Model ->
   EpisodeEditForm ->
   AppM [Text] -- Returns list of warning messages
-execOptionalUpdates userId currentTime isStaffOrAdmin isPast episode showModel editForm = do
-  let allowFileUpload = Episodes.isUnaired currentTime episode || isStaffOrAdmin
+execOptionalUpdates userId isStaffOrAdmin isPast episode showModel editForm = do
+  -- 'isPast' is 'Episodes.isAired' over this episode and its template, so this
+  -- is its complement. Asking again would read the air time a second time and
+  -- let the two answers disagree.
+  let allowFileUpload = not isPast || isStaffOrAdmin
 
   -- File uploads
   fileWarning <- processFileUploadsWithWarning userId allowFileUpload showModel episode editForm

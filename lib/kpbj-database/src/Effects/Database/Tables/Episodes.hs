@@ -84,6 +84,7 @@ import Data.Time (Day, UTCTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
 import Domain.Types.Slug (Slug)
+import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -176,15 +177,25 @@ instance Display (Episode Result) where
 -- @Model@ is the same as @Episode Result@.
 type Model = Episode Result
 
--- | An episode is unaired if it has no scheduled date or its date is in the future.
-isUnaired :: UTCTime -> Model -> Bool
-isUnaired currentTime episode = case episode.scheduledAt of
-  Nothing -> True
-  Just sa -> sa > currentTime
+-- | An episode is unaired if it holds no slot, or its airing is still ahead.
+--
+-- The air time lives on the template, not on the episode, so the caller passes
+-- the episode's own template. 'Nothing' means the episode holds no slot, which
+-- @episodes_schedule_consistency@ pairs with a NULL air date, and an episode
+-- with no slot has not aired.
+--
+-- Passing a template the episode does not belong to gives an answer about
+-- neither. The two callers read it from the episode.
+isUnaired :: UTCTime -> Maybe (ShowSchedule.ScheduleTemplate Rel8.Result) -> Model -> Bool
+isUnaired currentTime mTemplate episode =
+  case (mTemplate, episode.scheduledAt) of
+    (Just template, Just airTime) ->
+      ShowSchedule.templateAirTime template (pacificDay airTime) > currentTime
+    _ -> True
 
--- | An episode has aired if it has a scheduled date that has passed.
-isAired :: UTCTime -> Model -> Bool
-isAired currentTime = not . isUnaired currentTime
+-- | An episode has aired if its airing is in the past.
+isAired :: UTCTime -> Maybe (ShowSchedule.ScheduleTemplate Rel8.Result) -> Model -> Bool
+isAired currentTime mTemplate = not . isUnaired currentTime mTemplate
 
 -- | Table schema connecting the Haskell type to the database table.
 episodeSchema :: TableSchema (Episode Name)

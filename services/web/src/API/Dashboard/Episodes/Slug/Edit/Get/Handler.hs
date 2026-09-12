@@ -42,6 +42,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
+import Rel8 (Result)
 import Servant qualified
 import Utils (fromRightM)
 
@@ -106,7 +107,7 @@ action user userMetadata showSlug episodeNumber = do
   currentTime <- liftIO getCurrentTime
 
   episodeTags <- lift $ fetchEpisodeTags episode.id
-  mCurrentSlot <- lift $ fetchCurrentSlot episode
+  (mTemplate, mCurrentSlot) <- lift $ fetchCurrentSlot episode
   upcomingDates <- lift $ fetchUpcomingDates showModel.id
   allShows <- lift $ fetchUserShows user userMetadata
 
@@ -124,6 +125,7 @@ action user userMetadata showSlug episodeNumber = do
             eecEpisode = episode,
             eecTracks = tracks,
             eecTags = episodeTags,
+            eecTemplate = mTemplate,
             eecCurrentSlot = mCurrentSlot,
             eecUpcomingDates = upcomingDates,
             eecIsStaff = UserMetadata.isStaffOrHigher userMetadata.mUserRole
@@ -181,20 +183,28 @@ fetchEpisodeTags episodeId =
       pure []
     Right tags -> pure tags
 
+-- | The episode's own template, and the slot the form renders from it.
+--
+-- The template comes back beside the slot because the form also needs it to
+-- decide whether the episode has aired. Reading it twice would let the two
+-- answers disagree.
 fetchCurrentSlot ::
   Episodes.Model ->
-  AppM (Maybe ShowSchedule.UpcomingShowDate)
+  AppM (Maybe (ShowSchedule.ScheduleTemplate Result), Maybe ShowSchedule.UpcomingShowDate)
 fetchCurrentSlot episode = case (episode.scheduleTemplateId, episode.scheduledAt) of
-  (Nothing, _) -> pure Nothing
-  (_, Nothing) -> pure Nothing
+  (Nothing, _) -> pure (Nothing, Nothing)
+  (_, Nothing) -> pure (Nothing, Nothing)
   (Just templateId, Just sa) ->
     execQuery (ShowSchedule.getScheduleTemplateById templateId) >>= \case
       Left err -> do
         Log.logAttention "Failed to fetch schedule template" (show err)
-        pure Nothing
-      Right Nothing -> pure Nothing
+        pure (Nothing, Nothing)
+      Right Nothing -> pure (Nothing, Nothing)
       Right (Just scheduleTemplate) ->
-        pure $ Just $ ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate sa
+        pure
+          ( Just scheduleTemplate,
+            Just (ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate sa)
+          )
 
 fetchUpcomingDates ::
   Shows.Id ->

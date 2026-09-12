@@ -55,6 +55,8 @@ spec =
           hedgehog . prop_getPublishedEpisodesForShow
         runs 10 . it "published listings split on the air time, not the date" $
           hedgehog . prop_publishedListingsSplitOnAirTime
+        runs 10 . it "isUnaired answers from the template, and agrees with the database" $
+          hedgehog . prop_isUnairedAgreesWithTheDatabase
         runs 10 . it "getEpisodeByShowAndNumber: looks up by show slug + episode number" $
           hedgehog . prop_getEpisodeByShowAndNumber
         runs 10 . it "getEpisodeByShowAndNumber: an archived episode is gone" $
@@ -337,6 +339,58 @@ prop_getEpisodesForShow cfg = do
         ep <- assertSingleton episodes
         UUT.id ep === id1
         pure ()
+
+-- | 'UUT.isUnaired' answers from the template, and agrees with the database.
+--
+-- The Haskell derivation, 'ShowSchedule.templateAirTime', is a second
+-- implementation of the @episode_air_time@ SQL function, for the callers that
+-- hold a loaded template rather than a query. Two implementations can drift, so
+-- this pins them together: the same show and episode are asked in both places.
+--
+-- An episode holding no template has not aired, whatever its date says.
+prop_isUnairedAgreesWithTheDatabase :: TestDBConfig -> PropertyT IO ()
+prop_isUnairedAgreesWithTheDatabase cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    templateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    epGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = pacificDay now
+          template =
+            (middayTemplate templateGen)
+              { ShowSchedule.stiDayOfWeek = dayOfWeek today,
+                ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
+                ShowSchedule.stiTimezone = "America/Los_Angeles"
+              }
+          airTime = airTimeOn template today
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert template
+        episodeId <-
+          unwrapInsert . UUT.insertEpisode $
+            epGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just airTime, UUT.eiCreatedBy = userId}
+        mEpisode <- TRX.statement () (UUT.getEpisodeById episodeId)
+        mTemplate <- TRX.statement () (ShowSchedule.getScheduleTemplateById templateId)
+        -- The database's own answer to "has this aired", through the query that
+        -- decides what the public sees.
+        listed <- TRX.statement () (UUT.getPublishedEpisodesForShow now showId (Limit 10) (Offset 0))
+        TRX.condemn
+        pure (episodeId, mEpisode, mTemplate, listed)
+
+      assert $ do
+        (episodeId, mEpisode, mTemplate, listed) <- assertRight result
+        episode <- assertJust mEpisode
+        template' <- assertJust mTemplate
+        -- Haskell and SQL agree on whether this episode has aired.
+        UUT.isAired now (Just template') episode === (map UUT.id listed == [episodeId])
+        -- isUnaired is its complement.
+        UUT.isUnaired now (Just template') episode === not (UUT.isAired now (Just template') episode)
+        -- An episode with no template has not aired, whatever its date.
+        UUT.isUnaired now Nothing episode === True
 
 -- | The published listings split on the episode's air time, not on its date.
 --
