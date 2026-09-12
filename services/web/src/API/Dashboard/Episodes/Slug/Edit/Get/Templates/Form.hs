@@ -30,6 +30,7 @@ import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Form.Builder
+import Rel8 (Result)
 
 --------------------------------------------------------------------------------
 
@@ -52,6 +53,8 @@ data EpisodeEditContext = EpisodeEditContext
     eecTracks :: [EpisodeTrack.Model],
     -- | Tags associated with the episode
     eecTags :: [EpisodeTags.Model],
+    -- | The episode's own schedule template, which carries its air time
+    eecTemplate :: Maybe (ShowSchedule.ScheduleTemplate Result),
     -- | Current schedule slot (if template exists)
     eecCurrentSlot :: Maybe ShowSchedule.UpcomingShowDate,
     -- | Available future schedule slots
@@ -100,7 +103,7 @@ template ctx = do
     episodeBackUrl = episodeIndexUrl showModel.slug
     descriptionValue = fromMaybe "" episode.description
     -- File uploads allowed if scheduled date is in the future OR user is staff/admin
-    allowFileUpload = Episodes.isUnaired currentTime episode || isStaff
+    allowFileUpload = Episodes.isUnaired currentTime ctx.eecTemplate episode || isStaff
     audioUrl = maybe "" (buildMediaUrl backend) episode.audioFilePath
     artworkUrl = maybe "" (buildMediaUrl backend) episode.artworkUrl
 
