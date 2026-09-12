@@ -10,12 +10,12 @@ import Data.Time qualified as Time
 import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Domain.Types.Timezone (LocalTime (..), pacificToUtc)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as UUT
 import Effects.Database.Tables.Shows qualified as Shows
-import Domain.Types.Timezone (LocalTime (..), pacificToUtc)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, annotate, failure, (===))
@@ -41,8 +41,8 @@ spec =
       -- Template CRUD tests
       runs 20 . it "schema validation: insert and select schedule template" $ hedgehog . prop_insertSelectTemplate
       runs 20 . it "query validation: getScheduleTemplatesForShow" $ hedgehog . prop_getTemplatesForShow
-      runs 10 . it "templateAirTimeOn: only its owning show" $ hedgehog . prop_templateAirTimeOnOwnership
-      runs 5 . it "templateAirTimeOn: only a date the template holds" $ hedgehog . prop_templateAirTimeOnDate
+      runs 10 . it "templateAirsOn: only its owning show" $ hedgehog . prop_templateAirTimeOnOwnership
+      runs 5 . it "templateAirsOn: only a date the template holds" $ hedgehog . prop_templateAirTimeOnDate
 
       -- Active schedule queries
       runs 20 . it "query validation: getActiveScheduleTemplatesForShow" $ hedgehog . prop_getActiveTemplates
@@ -57,7 +57,6 @@ spec =
       -- Unscheduled dates
       runs 20 . it "getUpcomingUnscheduledShowDates excludes scheduled episodes" $ hedgehog . prop_unscheduledExcludesScheduled
       runs 20 . it "getUpcomingUnscheduledShowDates offers a date whose episode was soft-deleted" $ hedgehog . prop_unscheduledIgnoresDeletedEpisode
-
 
       -- Timezone validation
       runs 20 . it "timezone is stored and retrieved correctly" $ hedgehog . prop_timezoneStorage
@@ -161,7 +160,7 @@ prop_getTemplatesForShow cfg = do
         forM_ templates $ \template -> do
           template.stShowId === showId
 
--- | templateAirTimeOn: a template answers only for the show that owns it.
+-- | templateAirsOn: a template answers only for the show that owns it.
 --
 -- Both episode writers call this before they write
 -- @episodes.schedule_template_id@. The form field holds a raw template id, and a
@@ -190,20 +189,20 @@ prop_templateAirTimeOnOwnership cfg = do
         templateId <- TRX.statement () (UUT.insertScheduleTemplate schedule)
         _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-30) airDate) Nothing))
 
-        owned <- TRX.statement () (UUT.templateAirTimeOn templateId showId1 airDate)
-        borrowed <- TRX.statement () (UUT.templateAirTimeOn templateId showId2 airDate)
-        missing <- TRX.statement () (UUT.templateAirTimeOn (UUT.TemplateId 0) showId1 airDate)
+        owned <- TRX.statement () (UUT.templateAirsOn templateId showId1 airDate)
+        borrowed <- TRX.statement () (UUT.templateAirsOn templateId showId2 airDate)
+        missing <- TRX.statement () (UUT.templateAirsOn (UUT.TemplateId 0) showId1 airDate)
 
         TRX.condemn
         pure (owned, borrowed, missing)
 
       assert $ do
         (owned, borrowed, missing) <- assertRight result
-        owned === Just (pacificToUtc (LocalTime airDate startTime))
-        borrowed === Nothing
-        missing === Nothing
+        owned === True
+        borrowed === False
+        missing === False
 
--- | templateAirTimeOn: the template must hold the date.
+-- | templateAirsOn: the template must hold the date.
 --
 -- getCurrentlyAiringEpisodes applies the same rule when it reads. A writer that
 -- accepts a date outside the validity window stores an episode that the stream
@@ -235,14 +234,14 @@ prop_templateAirTimeOnDate cfg = do
               UUT.ValidityInsert templateId (fromGregorian 2026 9 8) (Just (fromGregorian 2026 10 5))
 
         answers <- forM [airs, wrongWeek, wrongDay, beforeWindow, atWindowEnd] $ \d ->
-          TRX.statement () (UUT.templateAirTimeOn templateId showId d)
+          TRX.statement () (UUT.templateAirsOn templateId showId d)
 
         TRX.condemn
         pure answers
 
       assert $ do
         answers <- assertRight result
-        answers === [Just (pacificToUtc (LocalTime airs startTime)), Nothing, Nothing, Nothing, Nothing]
+        answers === [True, False, False, False, False]
 
 --------------------------------------------------------------------------------
 -- Active Schedule Tests
@@ -454,7 +453,7 @@ prop_handlesYearBoundaries cfg = do
 --
 -- The form reads 'UUT.getUpcomingUnscheduledShowDates'. A live episode holds its date
 -- and the form hides it. A soft-deleted episode holds nothing, so the date returns.
--- The @unique_episode_scheduled_at@ index applies the same rule on the write side.
+-- The @unique_episode_air_date@ index applies the same rule on the write side.
 prop_unscheduledIgnoresDeletedEpisode :: TestDBConfig -> PropertyT IO ()
 prop_unscheduledIgnoresDeletedEpisode cfg = do
   arrange (bracketConn cfg) $ do
@@ -480,7 +479,7 @@ prop_unscheduledIgnoresDeletedEpisode cfg = do
         case before of
           [] -> pure Nothing
           (d : _) -> do
-            let firstDate = UUT.usdStartTime d
+            let firstDate = UUT.usdShowDate d
             episodeId <-
               insertTestEpisode
                 Episodes.Insert
@@ -492,7 +491,7 @@ prop_unscheduledIgnoresDeletedEpisode cfg = do
                     Episodes.eiDurationSeconds = Nothing,
                     Episodes.eiArtworkUrl = Nothing,
                     Episodes.eiScheduleTemplateId = Just templateId,
-                    Episodes.eiScheduledAt = Just firstDate,
+                    Episodes.eiAirDate = Just firstDate,
                     Episodes.eiCreatedBy = userId
                   }
             booked <- TRX.statement () (UUT.getUpcomingUnscheduledShowDates showId 10)
@@ -501,7 +500,7 @@ prop_unscheduledIgnoresDeletedEpisode cfg = do
             afterDelete <- TRX.statement () (UUT.getUpcomingUnscheduledShowDates showId 10)
 
             TRX.condemn
-            pure (Just (map UUT.usdStartTime booked, map UUT.usdStartTime afterDelete, firstDate))
+            pure (Just (map UUT.usdShowDate booked, map UUT.usdShowDate afterDelete, firstDate))
 
       -- The query carries a LIMIT, so booking one date pulls the next one into the
       -- window. Test membership of the booked date, not the whole list.
@@ -845,7 +844,8 @@ prop_checkTimeSlotConflictReplayAcrossMidnight cfg = do
                   UUT.insertScheduleTemplate
                     ( UUT.ScheduleTemplateInsert
                         showId
-                        day weeks
+                        day
+                        weeks
                         (TimeOfDay 20 0 0)
                         (TimeOfDay 22 0 0)
                         timezone
@@ -1161,7 +1161,7 @@ prop_slotEndTimeMatchesSql cfg = do
             template <- assertJust mTemplate
             case rows of
               [row] -> do
-                let fromHaskell = UUT.makeUpcomingShowDateFromTemplate template (UUT.usdStartTime row)
+                let fromHaskell = UUT.makeUpcomingShowDateFromTemplate template (UUT.usdShowDate row)
                 UUT.usdEndTime fromHaskell === UUT.usdEndTime row
               _ -> do
                 annotate ("expected 1 slot on " <> show (scAirDate sc) <> " but the query returned " <> show (length rows))

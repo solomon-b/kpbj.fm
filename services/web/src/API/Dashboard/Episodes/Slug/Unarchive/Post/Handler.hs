@@ -56,7 +56,7 @@ action ::
 action showSlug episodeNumber = do
   archived <- fetchArchivedEpisode showSlug episodeNumber
   showModel <- fetchShow archived.showId
-  requireAirTimeIsFree archived
+  requireAirDateIsFree archived
 
   execQuery (Episodes.restoreEpisode archived.id) >>= \case
     Left err -> throwDatabaseError err
@@ -86,24 +86,24 @@ fetchArchivedEpisode showSlug episodeNumber = do
 
 -- | Refuse the restore when another live episode took the air time.
 --
--- @unique_episode_scheduled_at@ covers the live rows only, so a second episode
--- can claim the slot while this one sits archived. The index would reject the
+-- @unique_episode_air_date@ covers the live rows only, so a second episode can
+-- claim the slot while this one sits archived. The index would reject the
 -- restore, and staff would see a database error rather than the reason. An
--- episode with no air time cannot collide, because NULL values never match.
-requireAirTimeIsFree :: Episodes.Model -> ExceptT HandlerError AppM ()
-requireAirTimeIsFree episode = case episode.scheduledAt of
+-- episode with no air date cannot collide, because NULL values never match.
+requireAirDateIsFree :: Episodes.Model -> ExceptT HandlerError AppM ()
+requireAirDateIsFree episode = case episode.airDate of
   Nothing -> pure ()
-  Just airTime -> do
+  Just airDate -> do
     mHolder <-
       fromRightM throwDatabaseError $
-        execQuery (Episodes.getLiveEpisodeAtAirTime episode.showId airTime episode.id)
+        execQuery (Episodes.getLiveEpisodeAtAirDate episode.showId airDate episode.id)
     case mHolder of
       Nothing -> pure ()
       Just holder ->
         throwValidationError $
           "Episode #"
             <> display holder.episodeNumber
-            <> " now holds this air time. Reschedule one of them, then unarchive this episode."
+            <> " now holds this air date. Reschedule one of them, then unarchive this episode."
 
 fetchShow :: Shows.Id -> ExceptT HandlerError AppM Shows.Model
 fetchShow showId =

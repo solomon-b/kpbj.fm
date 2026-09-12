@@ -52,7 +52,7 @@ module Effects.Database.Tables.Episodes
     clearScheduledSlot,
     deleteEpisode,
     restoreEpisode,
-    getLiveEpisodeAtAirTime,
+    getLiveEpisodeAtAirDate,
     clearTemplateForUpcomingEpisodes,
     migrateUpcomingEpisodes,
     closeSchedulesAndDetachEpisodes,
@@ -146,7 +146,7 @@ data Episode f = Episode
     durationSeconds :: Column f (Maybe Int64),
     artworkUrl :: Column f (Maybe Text),
     scheduleTemplateId :: Column f (Maybe ShowSchedule.TemplateId),
-    scheduledAt :: Column f (Maybe UTCTime),
+    airDate :: Column f (Maybe Day),
     publishedAt :: Column f (Maybe UTCTime),
     deletedAt :: Column f (Maybe UTCTime),
     createdBy :: Column f User.Id,
@@ -188,9 +188,9 @@ type Model = Episode Result
 -- neither. The two callers read it from the episode.
 isUnaired :: UTCTime -> Maybe (ShowSchedule.ScheduleTemplate Rel8.Result) -> Model -> Bool
 isUnaired currentTime mTemplate episode =
-  case (mTemplate, episode.scheduledAt) of
-    (Just template, Just airTime) ->
-      ShowSchedule.templateAirTime template (pacificDay airTime) > currentTime
+  case (mTemplate, episode.airDate) of
+    (Just template, Just airDate) ->
+      ShowSchedule.templateAirTime template airDate > currentTime
     _ -> True
 
 -- | An episode has aired if its airing is in the past.
@@ -214,7 +214,7 @@ episodeSchema =
             durationSeconds = "duration_seconds",
             artworkUrl = "artwork_url",
             scheduleTemplateId = "schedule_template_id",
-            scheduledAt = "scheduled_at",
+            airDate = "air_date",
             publishedAt = "published_at",
             deletedAt = "deleted_at",
             createdBy = "created_by",
@@ -261,7 +261,7 @@ data Insert = Insert
     eiDurationSeconds :: Maybe Int64,
     eiArtworkUrl :: Maybe Text,
     eiScheduleTemplateId :: Maybe ShowSchedule.TemplateId,
-    eiScheduledAt :: Maybe UTCTime,
+    eiAirDate :: Maybe Day,
     eiCreatedBy :: User.Id
   }
   deriving stock (Generic, Show, Eq)
@@ -298,7 +298,7 @@ data FileUpdate = FileUpdate
 data ScheduleSlotUpdate = ScheduleSlotUpdate
   { essuId :: Id,
     essuScheduleTemplateId :: ShowSchedule.TemplateId,
-    essuScheduledAt :: UTCTime
+    essuAirDate :: Day
   }
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance ScheduleSlotUpdate)
@@ -339,7 +339,7 @@ data SearchResult = SearchResult
   { srId :: Id,
     srShowTitle :: Text,
     srEpisodeNumber :: EpisodeNumber,
-    srScheduledAt :: Maybe UTCTime,
+    srAirDate :: Maybe Day,
     srDurationSeconds :: Maybe Int64
   }
   deriving stock (Generic, Show, Eq)
@@ -348,12 +348,12 @@ data SearchResult = SearchResult
 
 -- | A reference to an upcoming episode still attached to a template.
 --
--- @scheduled_at@ is non-null and @episode_number@ is non-null by the query's
+-- @air_date@ is non-null and @episode_number@ is non-null by the query's
 -- WHERE clause and the @episodes@ schema, so both are unwrapped here.
 data UpcomingEpisodeRef = UpcomingEpisodeRef
   { uerId :: Id,
     uerEpisodeNumber :: EpisodeNumber,
-    uerScheduledAt :: UTCTime
+    uerAirDate :: Day
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
@@ -383,14 +383,13 @@ getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
     SELECT
       e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
       e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
-      e.schedule_template_id, e.scheduled_at, e.published_at, e.deleted_at,
+      e.schedule_template_id, e.air_date, e.published_at, e.deleted_at,
       e.created_by, e.created_at, e.updated_at
     FROM episodes e
     JOIN schedule_templates st ON st.id = e.schedule_template_id
-    CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
     WHERE e.show_id = #{showId'}
       AND e.deleted_at IS NULL
-      AND episode_air_time(d.air_date, st.start_time, st.timezone) <= #{currentTime}
+      AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
     ORDER BY e.published_at DESC NULLS LAST
     LIMIT #{lim} OFFSET #{off}
   |]
@@ -421,17 +420,16 @@ getPublishedEpisodesWithShows currentTime (Limit lim) (Offset off) =
     SELECT
       e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
       e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
-      e.schedule_template_id, e.scheduled_at, e.published_at, e.deleted_at,
+      e.schedule_template_id, e.air_date, e.published_at, e.deleted_at,
       e.created_by, e.created_at, e.updated_at,
       s.id, s.title, s.slug, s.description, s.logo_url, s.status,
       s.created_at, s.updated_at, s.deleted_at
     FROM episodes e
     JOIN shows s ON s.id = e.show_id
     JOIN schedule_templates st ON st.id = e.schedule_template_id
-    CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
     WHERE e.deleted_at IS NULL
       AND s.deleted_at IS NULL
-      AND episode_air_time(d.air_date, st.start_time, st.timezone) <= #{currentTime}
+      AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
     ORDER BY e.published_at DESC NULLS LAST
     LIMIT #{lim} OFFSET #{off}
   |]
@@ -465,7 +463,7 @@ getEpisodesForShow showId' archived (Limit lim) (Offset off) =
     select $
       Rel8.limit (fromIntegral lim) $
         Rel8.offset (fromIntegral off) $
-          orderBy ((.scheduledAt) >$< nullsLast desc) do
+          orderBy ((.airDate) >$< nullsLast desc) do
             ep <- each episodeSchema
             where_ $ ep.showId ==. lit showId'
             applyArchivedFilter archived ep
@@ -551,8 +549,7 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 --
 -- A window therefore opens at @start_time@ on the episode's air date and closes
 -- at @end_time@, on the following date when @end_time <= start_time@. Two equal
--- values give a 24-hour window. The air date is
--- @(scheduled_at AT TIME ZONE 'America\/Los_Angeles')::DATE@.
+-- values give a 24-hour window. The air date is @air_date@.
 --
 -- A replay window opens at @replay_start_time@ and runs for the same length as
 -- the primary, and it wraps the same way.
@@ -634,7 +631,7 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- * an episode with no @audio_file_path@, or with @deleted_at@ set
 -- * an episode of a show that is not @active@, or that has @deleted_at@ set
 -- * an episode with a NULL @schedule_template_id@, dropped by the join, or a
---   NULL @scheduled_at@, dropped because the air date is then NULL
+--   NULL @air_date@, dropped because the window then has no date
 -- * an air date outside @[effective_from, effective_until)@ on the joined
 --   validity row
 -- * an air date the recurrence does not cover, by @recurrence_airs_on@ over
@@ -647,7 +644,7 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 --
 -- == Why there can be more than one row
 --
--- Rows are ordered @is_replay, scheduled_at DESC, id DESC@, so the first row
+-- Rows are ordered @is_replay, air_date DESC, id DESC@, so the first row
 -- does not change between polls while the data is unchanged. There is no
 -- @LIMIT@. A second row means one of:
 --
@@ -672,7 +669,7 @@ getCurrentlyAiringEpisodes currentTime =
       SELECT
         e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
         e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
-        e.schedule_template_id, e.scheduled_at, e.published_at, e.deleted_at,
+        e.schedule_template_id, e.air_date, e.published_at, e.deleted_at,
         e.created_by, e.created_at, e.updated_at,
         v.is_replay,
         w.window_start,
@@ -690,10 +687,8 @@ getCurrentlyAiringEpisodes currentTime =
       JOIN schedule_templates st ON st.id = e.schedule_template_id
       JOIN schedule_template_validity stv ON stv.template_id = st.id
       JOIN shows s ON s.id = e.show_id
-      -- The date the episode airs on, in the station's timezone.
-      CROSS JOIN LATERAL (
-        SELECT (e.scheduled_at AT TIME ZONE 'America/Los_Angeles')::DATE AS air_date
-      ) d
+      -- The date the episode airs on. The column holds it directly.
+      CROSS JOIN LATERAL (SELECT e.air_date AS air_date) d
       -- The length of the slot as a time interval. An overnight slot wraps midnight.
       CROSS JOIN LATERAL (
         SELECT
@@ -759,14 +754,14 @@ getCurrentlyAiringEpisodes currentTime =
     SELECT
       id, show_id, description, episode_number, audio_file_path,
       audio_file_size, audio_mime_type, duration_seconds, artwork_url,
-      schedule_template_id, scheduled_at, published_at, deleted_at,
+      schedule_template_id, air_date, published_at, deleted_at,
       created_by, created_at, updated_at
     FROM airing_windows
     WHERE #{currentTime} >= window_start
       AND #{currentTime} < window_stop
     -- A primary airing beats a replay. Past that the order only has to be
     -- stable, so the stream does not flip between two claimants on each poll.
-    ORDER BY is_replay, scheduled_at DESC, id DESC
+    ORDER BY is_replay, air_date DESC, id DESC
   |]
 
 -- | The first row of 'getCurrentlyAiringEpisodes', or Nothing.
@@ -801,7 +796,7 @@ insertEpisode Insert {..} =
                       durationSeconds = lit eiDurationSeconds,
                       artworkUrl = lit eiArtworkUrl,
                       scheduleTemplateId = lit eiScheduleTemplateId,
-                      scheduledAt = lit eiScheduledAt,
+                      airDate = lit eiAirDate,
                       publishedAt = nullify now,
                       deletedAt = Rel8.null,
                       createdBy = lit eiCreatedBy,
@@ -860,7 +855,7 @@ updateEpisodeFiles FileUpdate {..} =
 
 -- | Update an episode's scheduled time slot.
 --
--- Changes both the schedule template reference and the scheduled_at timestamp.
+-- Changes both the schedule template reference and the air date.
 updateScheduledSlot :: ScheduleSlotUpdate -> Hasql.Statement () (Maybe Id)
 updateScheduledSlot ScheduleSlotUpdate {..} =
   fmap listToMaybe $
@@ -872,7 +867,7 @@ updateScheduledSlot ScheduleSlotUpdate {..} =
             set = \_ ep ->
               ep
                 { scheduleTemplateId = nullify (lit essuScheduleTemplateId),
-                  scheduledAt = nullify (lit essuScheduledAt),
+                  airDate = nullify (lit essuAirDate),
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit essuId,
@@ -887,8 +882,8 @@ updateScheduledSlot ScheduleSlotUpdate {..} =
 --
 -- 'getCurrentlyAiringEpisodes' joins the template with an inner join. A cleared
 -- episode therefore leaves the stream immediately.
--- @unique_episode_scheduled_at@ covers the live rows only, and NULL values never
--- collide. A new episode can take the free air time immediately. The cleared
+-- @unique_episode_air_date@ covers the live rows only, and NULL values never
+-- collide. A new episode can take the free air date immediately. The cleared
 -- episode keeps its number, its audio, and its tracks.
 clearScheduledSlot :: Id -> Hasql.Statement () (Maybe Id)
 clearScheduledSlot episodeId =
@@ -901,7 +896,7 @@ clearScheduledSlot episodeId =
             set = \_ ep ->
               ep
                 { scheduleTemplateId = lit Nothing,
-                  scheduledAt = lit Nothing,
+                  airDate = lit Nothing,
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit episodeId,
@@ -929,19 +924,19 @@ deleteEpisode episodeId =
             returning = Returning (\ep -> ep)
           }
 
--- | Find the live episode of a show that already holds an air time.
+-- | Find the live episode of a show that already holds an air date.
 --
--- 'restoreEpisode' calls this first. @unique_episode_scheduled_at@ covers the
--- live rows only, so another episode can take the air time while this one sits
+-- 'restoreEpisode' calls this first. @unique_episode_air_date@ covers the live
+-- rows only, so another episode can take the air date while this one sits
 -- archived. Without the check the restore fails on the index, and the handler
 -- can only report a database error.
 --
 -- The given episode is excluded, so an episode never collides with itself.
-getLiveEpisodeAtAirTime :: Shows.Id -> UTCTime -> Id -> Hasql.Statement () (Maybe Model)
-getLiveEpisodeAtAirTime showId' airTime exceptId = fmap listToMaybe $ run $ select do
+getLiveEpisodeAtAirDate :: Shows.Id -> Day -> Id -> Hasql.Statement () (Maybe Model)
+getLiveEpisodeAtAirDate showId' airDate exceptId = fmap listToMaybe $ run $ select do
   ep <- each episodeSchema
   where_ $ ep.showId ==. lit showId'
-  where_ $ ep.scheduledAt ==. nullify (lit airTime)
+  where_ $ ep.airDate ==. nullify (lit airDate)
   where_ $ ep.id /=. lit exceptId
   where_ $ isNull ep.deletedAt
   pure ep
@@ -950,8 +945,8 @@ getLiveEpisodeAtAirTime showId' airTime exceptId = fmap listToMaybe $ run $ sele
 --
 -- The episode returns to the public site, so only staff and admins may run this.
 --
--- This can fail on @unique_episode_scheduled_at@. That index covers the live
--- rows only, so another episode of the show can take the air time while this one
+-- This can fail on @unique_episode_air_date@. That index covers the live
+-- rows only, so another episode of the show can take the air date while this one
 -- sits archived. The caller reports that collision rather than showing a 500.
 restoreEpisode :: Id -> Hasql.Statement () (Maybe Model)
 restoreEpisode episodeId =
@@ -987,17 +982,16 @@ clearTemplateForUpcomingEpisodes templateId fromDate =
     False
     [sql|
     UPDATE episodes
-    SET schedule_template_id = NULL, scheduled_at = NULL, updated_at = NOW()
+    SET schedule_template_id = NULL, air_date = NULL, updated_at = NOW()
     WHERE id IN (
       SELECT e.id
       FROM episodes e
       JOIN schedule_templates st ON st.id = e.schedule_template_id
-      CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
       WHERE e.schedule_template_id = #{templateId}
         -- The air time comes from the template. This is the guard that stops a
         -- change from erasing an episode that already aired.
-        AND episode_air_time(d.air_date, st.start_time, st.timezone) > NOW()
-        AND d.air_date >= #{fromDate}
+        AND episode_air_time(e.air_date, st.start_time, st.timezone) > NOW()
+        AND e.air_date >= #{fromDate}
         AND e.deleted_at IS NULL
     )
     RETURNING id
@@ -1033,10 +1027,9 @@ migrateUpcomingEpisodes fromTemplateId toTemplateId fromDate =
       SELECT e.id
       FROM episodes e
       JOIN schedule_templates st ON st.id = e.schedule_template_id
-      CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
       WHERE e.schedule_template_id = #{fromTemplateId}
-        AND episode_air_time(d.air_date, st.start_time, st.timezone) > NOW()
-        AND d.air_date >= #{fromDate}
+        AND episode_air_time(e.air_date, st.start_time, st.timezone) > NOW()
+        AND e.air_date >= #{fromDate}
         AND e.deleted_at IS NULL
     )
     RETURNING id
@@ -1064,7 +1057,7 @@ migrateUpcomingEpisodes fromTemplateId toTemplateId fromDate =
 --
 -- The rows to detach are read into @to_detach@ before the update runs. @RETURNING@
 -- on an @UPDATE@ gives the new values, and the update writes NULL into
--- @scheduled_at@, so returning from the update itself yields a NULL that cannot
+-- @air_date@, so returning from the update itself yields a NULL that cannot
 -- decode into 'UpcomingEpisodeRef'. Every CTE in one statement reads the same
 -- snapshot, so @to_detach@ holds the values from before the write. Data-modifying
 -- CTEs run exactly once whether or not the outer query reads them, so @detached@
@@ -1088,22 +1081,21 @@ closeSchedulesAndDetachEpisodes showId closeDate =
       RETURNING st.id AS template_id
     ),
     to_detach AS (
-      SELECT e.id, e.episode_number, e.scheduled_at
+      SELECT e.id, e.episode_number, e.air_date
       FROM episodes e
       JOIN schedule_templates st ON st.id = e.schedule_template_id
-      CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
       WHERE e.schedule_template_id IN (SELECT template_id FROM closed)
-        AND episode_air_time(d.air_date, st.start_time, st.timezone) > NOW()
-        AND d.air_date >= #{closeDate}
+        AND episode_air_time(e.air_date, st.start_time, st.timezone) > NOW()
+        AND e.air_date >= #{closeDate}
         AND e.deleted_at IS NULL
     ),
     detached AS (
       UPDATE episodes
-      SET schedule_template_id = NULL, scheduled_at = NULL, updated_at = NOW()
+      SET schedule_template_id = NULL, air_date = NULL, updated_at = NOW()
       WHERE id IN (SELECT id FROM to_detach)
       RETURNING id
     )
-    SELECT id, episode_number, scheduled_at FROM to_detach ORDER BY scheduled_at
+    SELECT id, episode_number, air_date FROM to_detach ORDER BY air_date
   |]
 
 -- | Upcoming, non-deleted episodes attached to any of the given templates, gated
@@ -1120,15 +1112,14 @@ getUpcomingEpisodesForTemplates templateIds fromDate =
   interp
     False
     [sql|
-    SELECT e.id, e.episode_number, e.scheduled_at
+    SELECT e.id, e.episode_number, e.air_date
     FROM episodes e
     JOIN schedule_templates st ON st.id = e.schedule_template_id
-    CROSS JOIN LATERAL (SELECT (e.scheduled_at AT TIME ZONE st.timezone)::DATE AS air_date) d
     WHERE e.schedule_template_id = ANY(#{templateIds})
-      AND episode_air_time(d.air_date, st.start_time, st.timezone) > NOW()
-      AND d.air_date >= #{fromDate}
+      AND episode_air_time(e.air_date, st.start_time, st.timezone) > NOW()
+      AND e.air_date >= #{fromDate}
       AND e.deleted_at IS NULL
-    ORDER BY e.scheduled_at
+    ORDER BY e.air_date
   |]
 
 --------------------------------------------------------------------------------
@@ -1136,7 +1127,7 @@ getUpcomingEpisodesForTemplates templateIds fromDate =
 
 -- | Search episodes that have audio, joining with shows for the title.
 --
--- Filters by show title ILIKE match, ordered by scheduled_at descending.
+-- Filters by show title ILIKE match, ordered by air date descending.
 -- Used by the force-play admin feature to find episodes to push to the stream.
 searchEpisodesWithAudio :: Text -> Hasql.Statement () [SearchResult]
 searchEpisodesWithAudio query =
@@ -1144,14 +1135,14 @@ searchEpisodesWithAudio query =
    in interp
         False
         [sql|
-    SELECT e.id, s.title, e.episode_number, e.scheduled_at, e.duration_seconds
+    SELECT e.id, s.title, e.episode_number, e.air_date, e.duration_seconds
     FROM episodes e
     JOIN shows s ON s.id = e.show_id
     WHERE e.audio_file_path IS NOT NULL
       AND e.deleted_at IS NULL
       AND s.deleted_at IS NULL
       AND s.title ILIKE #{pattern}
-    ORDER BY e.scheduled_at DESC NULLS LAST
+    ORDER BY e.air_date DESC NULLS LAST
     LIMIT 20
   |]
 

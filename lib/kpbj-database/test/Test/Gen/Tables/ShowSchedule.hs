@@ -78,9 +78,9 @@ airDayForTemplate template from =
       weeks = ShowSchedule.stiWeeksOfMonth template
       matches =
         [ day
-          | day <- take 400 (iterate (addDays 1) from),
-            Time.dayOfWeek day == dow,
-            weekOfMonth day `elem` weeks
+        | day <- take 400 (iterate (addDays 1) from),
+          Time.dayOfWeek day == dow,
+          weekOfMonth day `elem` weeks
         ]
    in case matches of
         (day : _) -> day
@@ -98,17 +98,17 @@ airTimeOn template day =
 --
 -- The backward counterpart of 'airTimeForTemplate', for a fixture that has to sit
 -- in the past.
-lastAirTimeBefore :: ShowSchedule.ScheduleTemplateInsert -> Day -> UTCTime
-lastAirTimeBefore template before =
-  airTimeOn template airDay
+lastAirDayBefore :: ShowSchedule.ScheduleTemplateInsert -> Day -> Day
+lastAirDayBefore template before =
+  airDay
   where
     dow = ShowSchedule.stiDayOfWeek template
     weeks = ShowSchedule.stiWeeksOfMonth template
     matches =
       [ day
-        | day <- take 400 (iterate (addDays (-1)) (addDays (-1) before)),
-          Time.dayOfWeek day == dow,
-          weekOfMonth day `elem` weeks
+      | day <- take 400 (iterate (addDays (-1)) (addDays (-1) before)),
+        Time.dayOfWeek day == dow,
+        weekOfMonth day `elem` weeks
       ]
     airDay = case matches of
       (day : _) -> day

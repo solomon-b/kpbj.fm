@@ -19,7 +19,7 @@ import Design (base, class_)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
-import Domain.Types.Timezone (formatPacificDateLong)
+import Domain.Types.Timezone (formatDateLong)
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -66,16 +66,16 @@ template backend _userMeta showModel episode tracks tags = do
                 Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "ARCHIVED"
               else mempty
 
-            -- Aired/Scheduled date (converted to Pacific time)
-            case episode.scheduledAt of
+            -- The date the episode airs on
+            case episode.airDate of
               Nothing ->
                 Lucid.div_ $ do
                   Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Scheduled: "
                   "Unscheduled"
-              Just sa ->
+              Just airDate ->
                 Lucid.div_ $ do
                   Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Scheduled: "
-                  Lucid.toHtml (formatPacificDateLong sa)
+                  Lucid.toHtml (formatDateLong airDate)
 
             -- Published date
             case episode.publishedAt of

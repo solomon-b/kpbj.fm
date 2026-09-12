@@ -268,7 +268,7 @@ spec =
               Episodes.UpcomingEpisodeRef
                 (Episodes.Id 1)
                 (Episodes.EpisodeNumber 3)
-                (UTCTime (fromGregorian 2026 8 1) 0)
+                (fromGregorian 2026 8 1)
         case scheduleUpdateFlash [ref] of
           FlashMessage t _ _ -> t `shouldBe` Warning
 

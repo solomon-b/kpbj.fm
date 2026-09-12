@@ -15,13 +15,12 @@ import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Text qualified as Text
-import Data.Time (UTCTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time (Day)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
+import Domain.Types.Timezone (formatDateLong)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
@@ -79,9 +78,7 @@ renderEpisodeCard backend showShowTitle showModel episode = do
       when showShowTitle $ renderShowTitle showTitle (showDetailUrl showModel.slug)
 
       -- Episode date
-      case episode.scheduledAt of
-        Just sa -> renderEpisodeDate sa
-        Nothing -> mempty
+      maybe mempty renderEpisodeDate episode.airDate
 
 --------------------------------------------------------------------------------
 -- Component Functions
@@ -161,11 +158,10 @@ renderShowTitle title showUrl =
     (Lucid.toHtml title)
 
 -- | Render episode date.
-renderEpisodeDate :: UTCTime -> Lucid.Html ()
-renderEpisodeDate scheduledAt =
-  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $ do
-    let dateStr = Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" scheduledAt
-    Lucid.toHtml dateStr
+renderEpisodeDate :: Day -> Lucid.Html ()
+renderEpisodeDate airDate =
+  Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
+    Lucid.toHtml (formatDateLong airDate)
 
 --------------------------------------------------------------------------------
 -- Alpine.js Script

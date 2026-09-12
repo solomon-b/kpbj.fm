@@ -22,7 +22,7 @@ module Effects.Database.Tables.ShowSchedule
 
     -- * Schedule Template Queries
     getScheduleTemplateById,
-    templateAirTimeOn,
+    templateAirsOn,
     getScheduleTemplatesForShow,
     getActiveScheduleTemplatesForShow,
     getPendingScheduleTemplatesForShow,
@@ -252,18 +252,16 @@ getScheduleTemplateById templateId = fmap listToMaybe $ run $ select do
 -- the record of the slot that its episodes aired in. An old episode points to a
 -- closed template for that reason.
 --
--- The result is the correct @scheduled_at@ for the pair. Callers store this value
--- and discard any timestamp from the client. The column and the template then give
--- the same air time. 'getUpcomingShowDates' builds the form values with the same
--- SQL expression.
-templateAirTimeOn :: TemplateId -> Shows.Id -> Day -> Hasql.Statement () (Maybe UTCTime)
-templateAirTimeOn templateId showId airDate =
-  fmap getOneColumn
+-- The answer is a yes or a no. It used to return the air instant, because the
+-- episode row stored one. The row holds the date now and the template holds the
+-- time, so there is nothing left for a caller to store.
+templateAirsOn :: TemplateId -> Shows.Id -> Day -> Hasql.Statement () Bool
+templateAirsOn templateId showId airDate =
+  maybe False getOneColumn
     <$> interp
       True
       [sql|
-        SELECT (#{airDate}::TEXT || ' ' || st.start_time::TEXT)::TIMESTAMP
-                 AT TIME ZONE st.timezone
+        SELECT TRUE
         FROM schedule_templates st
         JOIN schedule_template_validity stv ON stv.template_id = st.id
         WHERE st.id = #{templateId}
@@ -842,7 +840,7 @@ getUpcomingShowDates showId referenceDate (Limit limitVal) =
 -- Like getUpcomingShowDates, but filters out dates that already have episodes scheduled.
 -- This is used in the episode upload form to prevent double-booking time slots.
 -- Only a live episode holds a date. A soft-deleted episode releases it, which matches
--- the @unique_episode_scheduled_at@ index and the two host-facing queries below.
+-- the @unique_episode_air_date@ index and the two host-facing queries below.
 -- Uses raw SQL because of recursive CTEs and complex date arithmetic.
 getUpcomingUnscheduledShowDates :: Shows.Id -> Limit -> Hasql.Statement () [UpcomingShowDate]
 getUpcomingUnscheduledShowDates showId (Limit limitVal) =
@@ -893,7 +891,7 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
         END)::TIMESTAMP AT TIME ZONE si.timezone as end_time
       FROM schedule_instances si
       LEFT JOIN episodes e ON e.show_id = si.show_id
-        AND e.scheduled_at = (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone
+        AND e.air_date = si.show_date
         AND e.deleted_at IS NULL
       WHERE e.id IS NULL  -- Only dates without scheduled episodes
         AND si.show_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Los_Angeles')::DATE
@@ -910,9 +908,10 @@ getUpcomingUnscheduledShowDates showId (Limit limitVal) =
 -- | Construct an UpcomingShowDate from a schedule template and scheduled time.
 --
 -- This renders the current episode's schedule slot in the same format as the
--- upcoming available slots. The start time is the episode's @scheduled_at@. The
--- end time comes from the template's local @end_time@ on the episode's Pacific
--- date, which is the rule 'getUpcomingUnscheduledShowDates' applies in SQL.
+-- upcoming available slots. The start time comes from the template's local
+-- @start_time@ on the episode's air date, and the end time from its @end_time@ on
+-- the same date, which is the rule 'getUpcomingUnscheduledShowDates' applies in
+-- SQL.
 -- | The instant a template airs on a date.
 --
 -- This is the @episode_air_time@ SQL function written in Haskell, for the
@@ -930,19 +929,18 @@ templateAirTime template airDate =
 makeUpcomingShowDateFromTemplate ::
   -- | The schedule template
   ScheduleTemplate Result ->
-  -- | The scheduled start time (from episode)
-  UTCTime ->
+  -- | The episode's air date
+  Day ->
   UpcomingShowDate
-makeUpcomingShowDateFromTemplate template scheduledAt =
-  let airDate = pacificDay scheduledAt
-   in UpcomingShowDate
-        { usdId = template.stShowId,
-          usdTemplateId = template.stId,
-          usdShowDate = airDate,
-          usdDayOfWeek = template.stDayOfWeek,
-          usdStartTime = scheduledAt,
-          usdEndTime = computeEndTime template airDate
-        }
+makeUpcomingShowDateFromTemplate template airDate =
+  UpcomingShowDate
+    { usdId = template.stShowId,
+      usdTemplateId = template.stId,
+      usdShowDate = airDate,
+      usdDayOfWeek = template.stDayOfWeek,
+      usdStartTime = templateAirTime template airDate,
+      usdEndTime = computeEndTime template airDate
+    }
   where
     -- Read the end instant from the template's local end time on the air date.
     --
@@ -1065,7 +1063,7 @@ getShowsMissingEpisodesInDays days =
       si.end_time
     FROM schedule_instances si
     LEFT JOIN episodes e ON e.show_id = si.show_id
-      AND e.scheduled_at = (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone
+      AND e.air_date = si.show_date
       AND e.deleted_at IS NULL
     LEFT JOIN show_hosts sh ON sh.show_id = si.show_id AND sh.left_at IS NULL
     LEFT JOIN users u ON u.id = sh.user_id
@@ -1119,7 +1117,7 @@ getHostsMissingEpisodesOnDay days =
       si.end_time
     FROM schedule_instances si
     LEFT JOIN episodes e ON e.show_id = si.show_id
-      AND e.scheduled_at = (si.show_date::TEXT || ' ' || si.start_time::TEXT)::TIMESTAMP AT TIME ZONE si.timezone
+      AND e.air_date = si.show_date
       AND e.deleted_at IS NULL
     JOIN show_hosts sh ON sh.show_id = si.show_id AND sh.left_at IS NULL
     JOIN users u ON u.id = sh.user_id AND u.deleted_at IS NULL

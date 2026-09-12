@@ -95,14 +95,13 @@ prop_missingEpisodeAppears cfg = do
 
 -- | Show with schedule and episode WITH audio does NOT appear.
 --
--- Uses UTC timezone so the scheduled_at timestamp computation matches:
--- (show_date || start_time)::TIMESTAMP AT TIME ZONE 'UTC' = show_date start_time in UTC
+-- The query matches an episode to a slot by date, so the timezone only has to
+-- be consistent with the template.
 prop_episodeWithAudioNotMissing :: TestDBConfig -> PropertyT IO ()
 prop_episodeWithAudioNotMissing cfg = do
   arrange (bracketConn cfg) $ do
     showInsert <- forAllT showInsertGen
     userWithMetadata <- forAllT userWithMetadataInsertGen
-    -- Use UTC so scheduled_at computation is straightforward
     let timezone = "UTC"
 
     act $ do
@@ -117,7 +116,7 @@ prop_episodeWithAudioNotMissing cfg = do
         templateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate scheduleInsert)
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-7) today) Nothing))
 
-        -- Insert episode WITH audio, scheduled_at matches: (today 10:00:00) AT TIME ZONE 'UTC'
+        -- Insert episode WITH audio on today's date, so the slot counts as filled
         let episodeInsert =
               Episodes.Insert
                 { eiId = showId,
@@ -128,7 +127,7 @@ prop_episodeWithAudioNotMissing cfg = do
                   eiDurationSeconds = Just 3600,
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = Just templateId,
-                  eiScheduledAt = Just (read (show today ++ " 10:00:00 UTC")),
+                  eiAirDate = Just today,
                   eiCreatedBy = userId
                 }
         _ <- unwrapInsert (Episodes.insertEpisode episodeInsert)
@@ -145,7 +144,7 @@ prop_episodeWithAudioNotMissing cfg = do
 
 -- | Show with schedule and episode WITHOUT audio appears in results.
 --
--- Uses UTC timezone so the scheduled_at timestamp computation matches.
+-- The query matches an episode to a slot by date.
 prop_episodeWithoutAudioIsMissing :: TestDBConfig -> PropertyT IO ()
 prop_episodeWithoutAudioIsMissing cfg = do
   arrange (bracketConn cfg) $ do
@@ -176,7 +175,7 @@ prop_episodeWithoutAudioIsMissing cfg = do
                   eiDurationSeconds = Nothing,
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = Just templateId,
-                  eiScheduledAt = Just (read (show today ++ " 10:00:00 UTC")),
+                  eiAirDate = Just today,
                   eiCreatedBy = userId
                 }
         _ <- unwrapInsert (Episodes.insertEpisode episodeInsert)
@@ -354,7 +353,7 @@ prop_hostNotReturnedWithAudio cfg = do
                   eiDurationSeconds = Just 3600,
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = Just templateId,
-                  eiScheduledAt = Just (read (show targetDate ++ " 10:00:00 UTC")),
+                  eiAirDate = Just targetDate,
                   eiCreatedBy = userId
                 }
         _ <- unwrapInsert (Episodes.insertEpisode episodeInsert)
@@ -495,7 +494,7 @@ prop_hostReturnedWithoutAudio cfg = do
                   eiDurationSeconds = Nothing,
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = Just templateId,
-                  eiScheduledAt = Just (read (show targetDate ++ " 10:00:00 UTC")),
+                  eiAirDate = Just targetDate,
                   eiCreatedBy = userId
                 }
         _ <- unwrapInsert (Episodes.insertEpisode episodeInsert)

@@ -32,6 +32,7 @@ import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
+import Domain.Types.Timezone (startOfPacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
@@ -146,61 +147,62 @@ processEpisodeUpload _userMetadata user showModel form = do
           else execQuery (ShowHost.isUserHostOfShow (User.mId user) (Shows.Id episodeData.showId))
 
       -- The scheduled_date field holds a raw template_id and a raw date. Confirm
-      -- that the show owns the slot and that the slot airs on the date. The query
-      -- returns the air time. That value goes to episodes.scheduled_at. This check
-      -- runs before the upload, so a refused request writes no files.
-      airTime <- execQuery (ShowSchedule.templateAirTimeOn episodeData.scheduleTemplateId (Shows.Id episodeData.showId) episodeData.airDate)
+      -- that the show owns the slot and that the slot airs on the date. The air
+      -- date is what the episode stores, so the answer is a yes or a no. This
+      -- check runs before the upload, so a refused request writes no files.
+      airsOnDate <- execQuery (ShowSchedule.templateAirsOn episodeData.scheduleTemplateId (Shows.Id episodeData.showId) episodeData.airDate)
 
-      case (isAuthorized, airTime) of
+      case (isAuthorized, airsOnDate) of
         (Left _err, _) -> pure $ Left "Database error checking host permissions"
         (_, Left _err) -> pure $ Left "Database error checking time slot"
-        (Right isHost, Right mScheduledAt)
+        (Right isHost, Right airs)
           | not isHost -> pure $ Left "You are not authorized to create episodes for this show"
-          | otherwise -> case mScheduledAt of
-              Nothing -> do
-                Log.logAttention "Rejected episode upload: the template does not air on that date" (episodeData.showId, episodeData.scheduleTemplateId, episodeData.airDate)
-                pure $ Left "That show does not air in that time slot on that date"
-              Just scheduledAt -> do
-                -- Handle file uploads (pass scheduled date for file organization)
-                -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
-                -- Artwork: Direct upload only (small files don't benefit from staged uploads)
-                uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug (Just scheduledAt) (eufArtworkFile form) (eufAudioToken form)
+          | not airs -> do
+              Log.logAttention "Rejected episode upload: the template does not air on that date" (episodeData.showId, episodeData.scheduleTemplateId, episodeData.airDate)
+              pure $ Left "That show does not air in that time slot on that date"
+          | otherwise -> do
+              -- Handle file uploads (pass the air date for file organization)
+              -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
+              -- Artwork: Direct upload only (small files don't benefit from staged uploads)
+              -- The storage path reads only the Pacific date back out of this
+              -- instant, so the first instant of the air date gives the right path.
+              uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug (Just (startOfPacificDay episodeData.airDate)) (eufArtworkFile form) (eufAudioToken form)
 
-                case uploadResults of
-                  Left uploadErr -> pure $ Left uploadErr
-                  Right (audioPath, artworkPath) -> do
-                    -- Create episode insert
-                    let episodeInsert =
-                          Episodes.Insert
-                            { Episodes.eiId = Shows.Id episodeData.showId,
-                              Episodes.eiDescription = episodeData.description,
-                              Episodes.eiAudioFilePath = audioPath,
-                              Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
-                              Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
-                              Episodes.eiDurationSeconds = episodeData.durationSeconds,
-                              Episodes.eiArtworkUrl = artworkPath,
-                              Episodes.eiScheduleTemplateId = Just episodeData.scheduleTemplateId,
-                              Episodes.eiScheduledAt = Just scheduledAt,
-                              Episodes.eiCreatedBy = User.mId user
-                            }
+              case uploadResults of
+                Left uploadErr -> pure $ Left uploadErr
+                Right (audioPath, artworkPath) -> do
+                  -- Create episode insert
+                  let episodeInsert =
+                        Episodes.Insert
+                          { Episodes.eiId = Shows.Id episodeData.showId,
+                            Episodes.eiDescription = episodeData.description,
+                            Episodes.eiAudioFilePath = audioPath,
+                            Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
+                            Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
+                            Episodes.eiDurationSeconds = episodeData.durationSeconds,
+                            Episodes.eiArtworkUrl = artworkPath,
+                            Episodes.eiScheduleTemplateId = Just episodeData.scheduleTemplateId,
+                            Episodes.eiAirDate = Just episodeData.airDate,
+                            Episodes.eiCreatedBy = User.mId user
+                          }
 
-                    -- Insert episode
-                    episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
+                  -- Insert episode
+                  episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
 
-                    case episodeResult of
-                      Left err -> do
-                        Log.logInfo "Failed to insert episode" (Text.pack $ show err)
-                        pure $ Left "Failed to create episode"
-                      Right Nothing -> do
-                        Log.logInfo_ "Episode insert returned Nothing"
-                        pure $ Left "Failed to create episode"
-                      Right (Just episodeId) -> do
-                        -- Insert tracks if provided
-                        _ <- insertTracks episodeId episodeData.tracks
-                        -- Replace tags with provided ones (single atomic query)
-                        let tagNames = maybe [] parseTagList (eufTags form)
-                        _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
-                        pure $ Right episodeId
+                  case episodeResult of
+                    Left err -> do
+                      Log.logInfo "Failed to insert episode" (Text.pack $ show err)
+                      pure $ Left "Failed to create episode"
+                    Right Nothing -> do
+                      Log.logInfo_ "Episode insert returned Nothing"
+                      pure $ Left "Failed to create episode"
+                    Right (Just episodeId) -> do
+                      -- Insert tracks if provided
+                      _ <- insertTracks episodeId episodeData.tracks
+                      -- Replace tags with provided ones (single atomic query)
+                      let tagNames = maybe [] parseTagList (eufTags form)
+                      _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
+                      pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
 parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Sanitize.ContentValidationError ParsedEpisodeData
@@ -310,7 +312,7 @@ processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile m
   -- Get the air date for file organization (use current time as fallback).
   -- NOTE: File paths are set at upload time and never relocated on reschedule.
   -- If downloads are added later, generate user-facing filenames from episode
-  -- metadata (scheduled_at, slug, etc.) rather than relying on storage paths.
+  -- metadata (air date, slug, etc.) rather than relying on storage paths.
   airDate <- maybe currentSystemTime pure mScheduledDate
 
   -- Process main audio file (always required)

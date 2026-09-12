@@ -97,7 +97,7 @@ test_insertedEpisodeAppears cfg = do
                   eiDurationSeconds = Nothing,
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = Just templateId,
-                  eiScheduledAt = Just (read "2020-01-01 10:00:00 UTC"),
+                  eiAirDate = Just (read "2020-01-01"),
                   eiCreatedBy = userModel.mId
                 }
         episodeId <- insertTestEpisode episodeInsert
