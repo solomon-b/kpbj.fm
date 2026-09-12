@@ -9,7 +9,7 @@ import API.Archive.Get.Handler (ArchiveListViewData (..), action)
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
-import Data.Time (UTCTime, addUTCTime)
+import Data.Time (Day, addDays, fromGregorian)
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -38,16 +38,16 @@ spec =
 
 --------------------------------------------------------------------------------
 
--- | A past scheduled time so episodes count as "published".
-baseScheduledAt :: UTCTime
-baseScheduledAt = read "2020-01-01 10:00:00 UTC"
+-- | A past air date so episodes count as "published".
+baseAirDate :: Day
+baseAirDate = fromGregorian 2020 1 1
 
--- | Build a past-scheduled episode insert at an explicit time.
+-- | Build a past-scheduled episode insert on an explicit date.
 -- @eiId@ is the show id — the field is named misleadingly in @Episodes.Insert@.
--- The @(show_id, scheduled_at)@ pair must be unique, so callers inserting
--- multiple episodes for one show must vary the time.
-mkEpisodeAt :: UTCTime -> Shows.Id -> ShowSchedule.TemplateId -> User.Id -> Episodes.Insert
-mkEpisodeAt scheduledAt showId templateId userId =
+-- The @(show_id, air_date)@ pair must be unique, so callers inserting multiple
+-- episodes for one show must vary the date.
+mkEpisodeAt :: Day -> Shows.Id -> ShowSchedule.TemplateId -> User.Id -> Episodes.Insert
+mkEpisodeAt airDate showId templateId userId =
   Episodes.Insert
     { Episodes.eiId = showId,
       Episodes.eiDescription = Just "Archive test episode",
@@ -57,13 +57,13 @@ mkEpisodeAt scheduledAt showId templateId userId =
       Episodes.eiDurationSeconds = Nothing,
       Episodes.eiArtworkUrl = Nothing,
       Episodes.eiScheduleTemplateId = Just templateId,
-      Episodes.eiScheduledAt = Just scheduledAt,
+      Episodes.eiAirDate = Just airDate,
       Episodes.eiCreatedBy = userId
     }
 
--- | Episode at the default past time (one-per-show tests).
+-- | Episode on the default past date (one-per-show tests).
 mkEpisode :: Shows.Id -> ShowSchedule.TemplateId -> User.Id -> Episodes.Insert
-mkEpisode = mkEpisodeAt baseScheduledAt
+mkEpisode = mkEpisodeAt baseAirDate
 
 --------------------------------------------------------------------------------
 
@@ -133,9 +133,9 @@ test_pagination cfg = do
       TRX.transaction TRX.ReadCommitted TRX.Write $ do
         uid <- insertTestUser user
         (sid, tid) <- insertTestShowWithSchedule paginated defaultScheduleInsert
-        -- Distinct scheduled_at per episode: (show_id, scheduled_at) is unique.
+        -- Distinct air date per episode: (show_id, air_date) is unique.
         forM_ [1 .. (13 :: Int)] $ \idx ->
-          insertTestEpisode (mkEpisodeAt (addUTCTime (fromIntegral idx * 86400) baseScheduledAt) sid tid uid)
+          insertTestEpisode (mkEpisodeAt (addDays (fromIntegral idx) baseAirDate) sid tid uid)
     _ <- expectSetupRight dbResult
 
     page1 <- runExceptT $ action (Just 1)

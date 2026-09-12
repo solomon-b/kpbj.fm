@@ -191,10 +191,10 @@ fetchEpisodeTags episodeId =
 fetchCurrentSlot ::
   Episodes.Model ->
   AppM (Maybe (ShowSchedule.ScheduleTemplate Result), Maybe ShowSchedule.UpcomingShowDate)
-fetchCurrentSlot episode = case (episode.scheduleTemplateId, episode.scheduledAt) of
+fetchCurrentSlot episode = case (episode.scheduleTemplateId, episode.airDate) of
   (Nothing, _) -> pure (Nothing, Nothing)
   (_, Nothing) -> pure (Nothing, Nothing)
-  (Just templateId, Just sa) ->
+  (Just templateId, Just airDate) ->
     execQuery (ShowSchedule.getScheduleTemplateById templateId) >>= \case
       Left err -> do
         Log.logAttention "Failed to fetch schedule template" (show err)
@@ -203,7 +203,7 @@ fetchCurrentSlot episode = case (episode.scheduleTemplateId, episode.scheduledAt
       Right (Just scheduleTemplate) ->
         pure
           ( Just scheduleTemplate,
-            Just (ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate sa)
+            Just (ShowSchedule.makeUpcomingShowDateFromTemplate scheduleTemplate airDate)
           )
 
 fetchUpcomingDates ::

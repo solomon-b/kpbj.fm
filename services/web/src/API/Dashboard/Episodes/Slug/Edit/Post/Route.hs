@@ -29,7 +29,7 @@ import Text.HTML (HTML)
 data EpisodeEditForm = EpisodeEditForm
   { eefDescription :: Maybe Text,
     eefTags :: Maybe Text, -- Comma-separated list of tags
-    eefScheduledDate :: Maybe Text, -- Format: "template_id|scheduled_at"
+    eefScheduledDate :: Maybe Text, -- Format: "template_id|air_date"
     eefTracksJson :: Maybe Text, -- JSON array of tracks
     eefDurationSeconds :: Maybe Text, -- Duration from browser audio detection
     -- File uploads
@@ -55,7 +55,7 @@ instance FromMultipart Mem EpisodeEditForm where
   fromMultipart multipartData = do
     let description = either (const Nothing) Just (lookupInput "description" multipartData)
     let tags = either (const Nothing) Just (lookupInput "tags" multipartData)
-    -- Parse scheduled date (optional) - format: "template_id|scheduled_at"
+    -- Parse scheduled date (optional) - format: "template_id|air_date"
     let scheduledDate = either (const Nothing) Just (lookupInput "scheduled_date" multipartData)
     -- Parse tracks JSON (optional) - JSON array of {tiTitle, tiArtist} objects
     let tracksJson = either (const Nothing) Just (lookupInput "tracks_json" multipartData)

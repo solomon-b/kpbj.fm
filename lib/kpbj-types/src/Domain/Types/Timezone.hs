@@ -6,9 +6,14 @@ module Domain.Types.Timezone
   ( -- * Pacific Time Conversion
     utcToPacific,
     pacificDay,
+    startOfPacificDay,
     pacificToUtc,
     formatPacificDate,
     formatPacificDateLong,
+
+    -- * Date Formatting
+    formatDate,
+    formatDateLong,
     formatPacificForDateTimeInput,
     parsePacificFromDateTimeInput,
 
@@ -28,7 +33,7 @@ where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, LocalTime (..), TimeOfDay (..), UTCTime, localDay)
+import Data.Time (Day, LocalTime (..), TimeOfDay (..), UTCTime, localDay, midnight)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Data.Time.Zones (TZ, loadSystemTZ, localTimeToUTCTZ, utcToLocalTimeTZ)
 import System.IO.Unsafe (unsafePerformIO)
@@ -57,6 +62,26 @@ utcToPacific = utcToLocalTimeTZ pacificTZ
 -- last seven hours of every Pacific day.
 pacificDay :: UTCTime -> Day
 pacificDay = localDay . utcToPacific
+
+-- | The first instant of a Pacific date.
+--
+-- 'pacificDay' of the result is the date given, so this is the inverse a caller
+-- needs when something downstream still wants an instant but only reads the date
+-- back out of it. 'Domain.Types.FileStorage.dateHierarchyFromTime' is the case:
+-- it builds a storage path from the Pacific date of an instant.
+startOfPacificDay :: Day -> UTCTime
+startOfPacificDay day = pacificToUtc (LocalTime day midnight)
+
+-- | Format a date (e.g., "Feb 03, 2026").
+--
+-- The counterpart of 'formatPacificDate' for a value that is already a date.
+-- There is no instant to resolve, so there is no zone to apply.
+formatDate :: Day -> Text
+formatDate = Text.pack . formatTime defaultTimeLocale "%b %d, %Y"
+
+-- | Format a date at length (e.g., "February 03, 2026").
+formatDateLong :: Day -> Text
+formatDateLong = Text.pack . formatTime defaultTimeLocale "%B %d, %Y"
 
 -- | Format a UTC time as a Pacific date string (e.g., "Feb 03, 2026").
 formatPacificDate :: UTCTime -> Text

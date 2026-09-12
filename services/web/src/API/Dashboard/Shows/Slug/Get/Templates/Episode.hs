@@ -18,7 +18,7 @@ import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
-import Domain.Types.Timezone (formatPacificDateLong)
+import Domain.Types.Timezone (formatDateLong)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -60,8 +60,8 @@ renderLatestEpisode backend showModel episode tracks = do
             ]
             $ Lucid.toHtml (show epNum)
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
-          case episode.scheduledAt of
-            Just sa -> "Aired: " <> Lucid.toHtml (formatPacificDateLong sa)
+          case episode.airDate of
+            Just airDate -> "Aired: " <> Lucid.toHtml (formatDateLong airDate)
             Nothing -> "Unscheduled"
 
           case episode.durationSeconds of
@@ -208,8 +208,8 @@ renderEpisodeCard backend showModel episode = do
           $ Lucid.toHtml (show epNum)
 
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
-        case episode.scheduledAt of
-          Just sa -> "Aired: " <> Lucid.toHtml (formatPacificDateLong sa)
+        case episode.airDate of
+          Just airDate -> "Aired: " <> Lucid.toHtml (formatDateLong airDate)
           Nothing -> "Unscheduled"
 
         case episode.durationSeconds of

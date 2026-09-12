@@ -16,7 +16,7 @@ import Data.Text qualified as Text
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (formatPacificDate)
+import Domain.Types.Timezone (formatDate)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -76,11 +76,11 @@ renderEpisodeTableRow userMeta showModel episode = do
             Lucid.toHtml $ Text.take 100 desc
             if Text.length desc > 100 then "..." else ""
 
-    -- Scheduled date (converted to Pacific time)
+    -- The date the episode airs on
     Lucid.td_ cellLinkAttrs $
-      case episode.scheduledAt of
+      case episode.airDate of
         Nothing -> mempty
-        Just sa -> Lucid.toHtml $ formatPacificDate sa
+        Just airDate -> Lucid.toHtml $ formatDate airDate
 
     -- Status column
     Lucid.td_ cellLinkAttrs $

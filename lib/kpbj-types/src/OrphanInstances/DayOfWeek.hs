@@ -5,10 +5,11 @@ module OrphanInstances.DayOfWeek where
 
 --------------------------------------------------------------------------------
 
+import Data.String (fromString)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
-import Data.Time (DayOfWeek (..))
+import Data.Time (Day, DayOfWeek (..), showGregorian)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
 import Hasql.Interpolate (DecodeValue (..), EncodeValue (..))
@@ -79,6 +80,13 @@ instance Display DayOfWeek where
     Friday -> "Friday"
     Saturday -> "Saturday"
 
+-- | Display a Day as an ISO date, for log lines and record instances.
+--
+-- @episodes.air_date@ is a 'Day', and the record types that carry it derive
+-- Display through @RecordInstance@, which needs one for every field.
+instance Display Day where
+  displayBuilder = fromString . showGregorian
+
 --------------------------------------------------------------------------------
 
 -- | Convert ISO week date day number (1-7) to DayOfWeek (Monday-Sunday)
@@ -102,4 +110,3 @@ fromDayOfWeek = \case
   Friday -> 4
   Saturday -> 5
   Sunday -> 6
-

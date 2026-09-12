@@ -12,9 +12,9 @@ import Control.Monad.Trans.Except (runExceptT)
 import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, addUTCTime, dayOfWeek, getCurrentTime, nominalDay, utctDay)
+import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, dayOfWeek, getCurrentTime, utctDay)
 import Domain.Types.Slug (Slug (..))
-import Domain.Types.Timezone (LocalTime (..), pacificDay, pacificToUtc)
+import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -501,7 +501,7 @@ test_deactivateClosesScheduleWindow cfg = do
 -- | A failed template insert leaves the show's schedule and episodes untouched.
 --
 -- The schedule diff ends the removed template's validity and clears both
--- @schedule_template_id@ and @scheduled_at@ from its upcoming episodes, then inserts
+-- @schedule_template_id@ and @air_date@ from its upcoming episodes, then inserts
 -- the replacement. Run as separate statements those removals commit on their own, so
 -- a failed insert leaves the show with no schedule and its episodes stripped of their
 -- air times, with nothing to recover them from. They all run in one transaction now.
@@ -518,7 +518,7 @@ test_failedScheduleInsertRollsBack cfg = do
   userInsert <- mkUserInsert "edit-rollback" UserMetadata.Staff
   now <- getCurrentTime
   let today = utctDay now
-      episodeAirsAt = addUTCTime (7 * nominalDay) now
+      episodeAirsAt = addDays 7 today
 
   let showInsert =
         Shows.Insert
@@ -571,15 +571,15 @@ test_failedScheduleInsertRollsBack cfg = do
               Episodes.eiDurationSeconds = Nothing,
               Episodes.eiArtworkUrl = Nothing,
               Episodes.eiScheduleTemplateId = Just templateId,
-              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiAirDate = Just episodeAirsAt,
               Episodes.eiCreatedBy = userId
             }
 
-      -- Read the air time back rather than reusing episodeAirsAt. Postgres stores
-      -- microseconds and getCurrentTime gives nanoseconds, so the two differ.
+      -- Read the air date back from the row, so the assertion compares what the
+      -- database holds rather than what the fixture asked for.
       storedAirsAt <-
         TRX.statement () (Episodes.getEpisodeById episodeId)
-          >>= maybe (error "episode not found") (pure . (.scheduledAt))
+          >>= maybe (error "episode not found") (pure . (.airDate))
 
       showModel <-
         TRX.statement () (Shows.getShowById showId)
@@ -616,7 +616,7 @@ test_failedScheduleInsertRollsBack cfg = do
           -- The episode keeps its slot. A NULL here is unrecoverable: nothing records
           -- what the air time used to be.
           episode.scheduleTemplateId `shouldBe` Just templateId
-          episode.scheduledAt `shouldBe` storedAirsAt
+          episode.airDate `shouldBe` storedAirsAt
 
 -- | Changing a slot closes the old template and creates the replacement.
 --
@@ -634,7 +634,7 @@ test_slotChangeClosesOldAndCreatesNew cfg = do
   -- The handler dates the change with the Pacific day, which is not the UTC day for
   -- part of each day.
   let today = pacificDay now
-      episodeAirsAt = addUTCTime (7 * nominalDay) now
+      episodeAirsAt = addDays 7 today
 
   let showInsert =
         Shows.Insert
@@ -682,7 +682,7 @@ test_slotChangeClosesOldAndCreatesNew cfg = do
               Episodes.eiDurationSeconds = Nothing,
               Episodes.eiArtworkUrl = Nothing,
               Episodes.eiScheduleTemplateId = Just oldTemplateId,
-              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiAirDate = Just episodeAirsAt,
               Episodes.eiCreatedBy = userId
             }
 
@@ -733,7 +733,7 @@ test_slotChangeClosesOldAndCreatesNew cfg = do
         Just episode -> do
           -- Detached, not deleted. It keeps its audio and shows as UNSCHEDULED.
           episode.scheduleTemplateId `shouldBe` Nothing
-          episode.scheduledAt `shouldBe` Nothing
+          episode.airDate `shouldBe` Nothing
 
 -- | A genuinely different schedule cancels the pending one before applying the diff.
 --
@@ -811,7 +811,7 @@ test_scheduleChangeCancelsPendingSchedule cfg = do
               Episodes.eiDurationSeconds = Nothing,
               Episodes.eiArtworkUrl = Nothing,
               Episodes.eiScheduleTemplateId = Just pendingTemplateId,
-              Episodes.eiScheduledAt = Just (addUTCTime (35 * nominalDay) now),
+              Episodes.eiAirDate = Just (addDays 35 today),
               Episodes.eiCreatedBy = userId
             }
 
@@ -888,7 +888,7 @@ test_replayChangeKeepsTemplate cfg = do
   now <- getCurrentTime
   let today = utctDay now
       airDay = nextMonday (addDays 7 today)
-      episodeAirsAt = pacificToUtc (LocalTime airDay (TimeOfDay 20 0 0))
+      episodeAirsAt = airDay
 
   let showInsert =
         Shows.Insert
@@ -923,12 +923,12 @@ test_replayChangeKeepsTemplate cfg = do
               Episodes.eiDurationSeconds = Nothing,
               Episodes.eiArtworkUrl = Nothing,
               Episodes.eiScheduleTemplateId = Just templateId,
-              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiAirDate = Just episodeAirsAt,
               Episodes.eiCreatedBy = userId
             }
       storedAirsAt <-
         TRX.statement () (Episodes.getEpisodeById episodeId)
-          >>= maybe (error "episode not found") (pure . (.scheduledAt))
+          >>= maybe (error "episode not found") (pure . (.airDate))
 
       showModel <-
         TRX.statement () (Shows.getShowById showId)
@@ -963,13 +963,13 @@ test_replayChangeKeepsTemplate cfg = do
         Nothing -> expectationFailure "Expected the episode to still exist"
         Just episode -> do
           episode.scheduleTemplateId `shouldBe` Just templateId
-          episode.scheduledAt `shouldBe` storedAirsAt
+          episode.airDate `shouldBe` storedAirsAt
 
 -- | A deferred replay change writes a second template and moves the episodes.
 --
 -- The old replay time runs until the change date, so the two times need two rows.
 -- The upcoming episodes move onto the new row and keep their air times. The old
--- code detached them and cleared @scheduled_at@, which loses the air time.
+-- code detached them and cleared @air_date@, which loses the airing.
 test_deferredReplayChangeMigratesEpisodes :: TestDBConfig -> IO ()
 test_deferredReplayChangeMigratesEpisodes cfg = do
   userInsert <- mkUserInsert "edit-replay-later" UserMetadata.Staff
@@ -977,7 +977,7 @@ test_deferredReplayChangeMigratesEpisodes cfg = do
   let today = utctDay now
       changeDate = addDays 14 today
       airDay = nextMonday (addDays 21 today)
-      episodeAirsAt = pacificToUtc (LocalTime airDay (TimeOfDay 20 0 0))
+      episodeAirsAt = airDay
 
   let showInsert =
         Shows.Insert
@@ -1016,12 +1016,12 @@ test_deferredReplayChangeMigratesEpisodes cfg = do
               Episodes.eiDurationSeconds = Nothing,
               Episodes.eiArtworkUrl = Nothing,
               Episodes.eiScheduleTemplateId = Just templateId,
-              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiAirDate = Just episodeAirsAt,
               Episodes.eiCreatedBy = userId
             }
       storedAirsAt <-
         TRX.statement () (Episodes.getEpisodeById episodeId)
-          >>= maybe (error "episode not found") (pure . (.scheduledAt))
+          >>= maybe (error "episode not found") (pure . (.airDate))
 
       showModel <-
         TRX.statement () (Shows.getShowById showId)
@@ -1059,7 +1059,7 @@ test_deferredReplayChangeMigratesEpisodes cfg = do
         (Just episode, [newTemplate]) -> do
           -- The episode moved, and it kept its air time.
           episode.scheduleTemplateId `shouldBe` Just newTemplate.stId
-          episode.scheduledAt `shouldBe` storedAirsAt
+          episode.airDate `shouldBe` storedAirsAt
         (Nothing, _) -> expectationFailure "Expected the episode to still exist"
         (_, other) -> expectationFailure $ "Expected exactly one new template, got " <> show (length other)
 
@@ -1083,7 +1083,7 @@ test_cancelPendingScheduleReportsDetachedEpisodes cfg = do
   let today = utctDay now
       changeDate = addDays 14 today
       airDay = nextMonday (addDays 21 today)
-      episodeAirsAt = pacificToUtc (LocalTime airDay (TimeOfDay 20 0 0))
+      episodeAirsAt = airDay
 
   let showInsert =
         Shows.Insert
@@ -1128,7 +1128,7 @@ test_cancelPendingScheduleReportsDetachedEpisodes cfg = do
               Episodes.eiDurationSeconds = Nothing,
               Episodes.eiArtworkUrl = Nothing,
               Episodes.eiScheduleTemplateId = Just templateId,
-              Episodes.eiScheduledAt = Just episodeAirsAt,
+              Episodes.eiAirDate = Just episodeAirsAt,
               Episodes.eiCreatedBy = userId
             }
 

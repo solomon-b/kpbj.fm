@@ -21,7 +21,7 @@ import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertRight, assertSingleton)
 import Test.Gen.Tables.EpisodeTrack (episodeTrackInsertGen)
 import Test.Gen.Tables.Episodes (episodeInsertGen)
-import Test.Gen.Tables.ShowSchedule (airTimeForTemplate, genRecurringScheduleInsert)
+import Test.Gen.Tables.ShowSchedule (airDayForTemplate, genRecurringScheduleInsert)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
@@ -67,7 +67,7 @@ prop_insertSelect cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiAirDate = Just (airDayForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         let trackInsert = trackTemplate {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}
@@ -105,7 +105,7 @@ prop_getTracksForEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiAirDate = Just (airDayForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         -- Insert track 2 first, then track 1, to verify ordering
@@ -146,7 +146,7 @@ prop_deleteAllTracksForEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {Episodes.eiId = showId, Episodes.eiScheduleTemplateId = Just templateId, Episodes.eiAirDate = Just (airDayForTemplate scheduleTemplate episodeTrackBaseDay), Episodes.eiCreatedBy = userId}
         episodeId <- unwrapInsert (Episodes.insertEpisode episodeInsert)
 
         let track1 = track1Template {UUT.etiEpisodeId = episodeId, UUT.etiTrackNumber = 1}

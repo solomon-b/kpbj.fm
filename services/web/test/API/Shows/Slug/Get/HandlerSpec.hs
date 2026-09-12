@@ -69,7 +69,7 @@ test_returnsShowDetail cfg = do
 
 -- | A show with an episode scheduled in the past has a non-empty episodes list.
 --
--- @getPublishedEpisodesForShow@ filters by @scheduledAt <= now@, so the episode
+-- @getPublishedEpisodesForShow@ filters on the air time read from the template,
 -- must be scheduled before the current time to appear in published results.
 test_includesEpisodes :: TestDBConfig -> IO ()
 test_includesEpisodes cfg = do
@@ -93,7 +93,7 @@ test_includesEpisodes cfg = do
                   eiDurationSeconds = Nothing,
                   eiArtworkUrl = Nothing,
                   eiScheduleTemplateId = Just templateId,
-                  eiScheduledAt = Just (read "2020-01-01 10:00:00 UTC"),
+                  eiAirDate = Just (read "2020-01-01"),
                   eiCreatedBy = userId
                 }
         insertTestEpisode episodeInsert

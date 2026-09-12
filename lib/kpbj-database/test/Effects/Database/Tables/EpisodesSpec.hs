@@ -28,7 +28,7 @@ import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, assertSingleton)
 import Test.Gen.Tables.Episodes (episodeInsertGen)
-import Test.Gen.Tables.ShowSchedule (airDayForTemplate, airTimeForTemplate, airTimeOn, genRecurringScheduleInsert, lastAirTimeBefore)
+import Test.Gen.Tables.ShowSchedule (airDayForTemplate, airTimeOn, genRecurringScheduleInsert, lastAirDayBefore)
 import Test.Gen.Tables.Shows (showInsertGen)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
@@ -79,9 +79,9 @@ spec =
           hedgehog . prop_duplicateEpisodeNumberRejected
 
       describe "Slot reuse" $ do
-        runs 10 . it "unique_episode_scheduled_at: two live episodes cannot share an air time" $
+        runs 10 . it "unique_episode_air_date: two live episodes cannot share an air time" $
           hedgehog . prop_twoLiveEpisodesCannotShareAnAirTime
-        runs 10 . it "unique_episode_scheduled_at: a soft-deleted episode releases its air time" $
+        runs 10 . it "unique_episode_air_date: a soft-deleted episode releases its air time" $
           hedgehog . prop_deletedEpisodeReleasesItsSlot
 
       describe "Play logging" $ do
@@ -103,7 +103,7 @@ spec =
           hedgehog . prop_getEpisodesByUser
 
       describe "Schedule Updates" $ do
-        runs 10 . it "updateScheduledSlot: changes template and scheduled_at" $
+        runs 10 . it "updateScheduledSlot: changes template and air date" $
           hedgehog . prop_updateScheduledSlot
         runs 10 . it "clearScheduledSlot: nulls both halves and frees the slot" $
           hedgehog . prop_clearScheduledSlot
@@ -166,7 +166,7 @@ assertInsertFieldsMatch insert model = do
   UUT.eiDescription insert === UUT.description model
   UUT.eiScheduleTemplateId insert === UUT.scheduleTemplateId model
   UUT.eiCreatedBy insert === UUT.createdBy model
-  UUT.eiScheduledAt insert === UUT.scheduledAt model
+  UUT.eiAirDate insert === UUT.airDate model
   UUT.eiAudioFilePath insert === UUT.audioFilePath model
   UUT.eiAudioFileSize insert === UUT.audioFileSize model
   UUT.eiAudioMimeType insert === UUT.audioMimeType model
@@ -181,7 +181,7 @@ assertInsertFieldsMatch insert model = do
 --
 -- The date-gate tests need the air date the SQL derives to equal the date the
 -- test asked for. 'genRecurringScheduleInsert' picks any of five timezones, and
--- the statements read the air date as @scheduled_at AT TIME ZONE st.timezone@
+-- the statements read the air date from @air_date@
 -- while the fixtures build the instant in Pacific. A midday airing sits far
 -- enough from both midnights that every one of those zones gives the same date,
 -- so the timezone stays varied without making the date ambiguous.
@@ -199,7 +199,7 @@ middayTemplate t =
 
 -- | A fixed day for fixtures that never look at when the episode airs.
 --
--- 'airTimeForTemplate' moves it to the first date on or after this one that the
+-- 'airDayForTemplate' moves it to the first date on or after this one that the
 -- template actually airs, which is what the air-date trigger requires.
 fixtureBaseDay :: Day
 fixtureBaseDay = fromGregorian 2026 1 1
@@ -217,7 +217,7 @@ prop_insertSelect cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
 
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
         selected <- TRX.statement () (UUT.getEpisodeById episodeId)
@@ -245,7 +245,7 @@ prop_updateSelect cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         let update = UUT.Update {UUT.euId = episodeId, UUT.euDescription = UUT.eiDescription updateEpisodeTemplate}
@@ -281,7 +281,7 @@ prop_updateUpdate cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         let updateA = UUT.Update {UUT.euId = episodeId, UUT.euDescription = UUT.eiDescription updateATemplate}
@@ -319,9 +319,9 @@ prop_getEpisodesForShow cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        -- Offset scheduledAt to avoid unique constraint on (show_id, scheduled_at)
-        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
-        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = Just (addUTCTime (3600 :: NominalDiffTime) (airTimeForTemplate scheduleTemplate fixtureBaseDay))}
+        -- A different air date, so (show_id, air_date) stays unique
+        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate (addDays 1 (airDayForTemplate scheduleTemplate fixtureBaseDay)))}
 
         id1 <- unwrapInsert (UUT.insertEpisode ep1)
         id2 <- unwrapInsert (UUT.insertEpisode ep2)
@@ -365,14 +365,14 @@ prop_isUnairedAgreesWithTheDatabase cfg = do
                 ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
                 ShowSchedule.stiTimezone = "America/Los_Angeles"
               }
-          airTime = airTimeOn template today
+          airTime = today
 
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert template
         episodeId <-
           unwrapInsert . UUT.insertEpisode $
-            epGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just airTime, UUT.eiCreatedBy = userId}
+            epGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just airTime, UUT.eiCreatedBy = userId}
         mEpisode <- TRX.statement () (UUT.getEpisodeById episodeId)
         mTemplate <- TRX.statement () (ShowSchedule.getScheduleTemplateById templateId)
         -- The database's own answer to "has this aired", through the query that
@@ -433,6 +433,8 @@ prop_publishedListingsSplitOnAirTime cfg = do
               }
           earlyTemplate = airsTodayAt earlyTemplateGen (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
           lateTemplate = airsTodayAt lateTemplateGen (TimeOfDay 23 0 0) (TimeOfDay 23 59 0)
+          -- Both episodes air today. The instants are what the query compares, so
+          -- the expectation reads them from the template the same way it does.
           earlyTime = airTimeOn earlyTemplate today
           lateTime = airTimeOn lateTemplate today
 
@@ -442,10 +444,10 @@ prop_publishedListingsSplitOnAirTime cfg = do
         (lateShowId, lateTemplateId) <- insertTestShowWithSchedule lateShowInsert lateTemplate
         earlyId <-
           unwrapInsert . UUT.insertEpisode $
-            earlyEpGen {UUT.eiId = earlyShowId, UUT.eiScheduleTemplateId = Just earlyTemplateId, UUT.eiScheduledAt = Just earlyTime, UUT.eiCreatedBy = userId}
+            earlyEpGen {UUT.eiId = earlyShowId, UUT.eiScheduleTemplateId = Just earlyTemplateId, UUT.eiAirDate = Just today, UUT.eiCreatedBy = userId}
         lateId <-
           unwrapInsert . UUT.insertEpisode $
-            lateEpGen {UUT.eiId = lateShowId, UUT.eiScheduleTemplateId = Just lateTemplateId, UUT.eiScheduledAt = Just lateTime, UUT.eiCreatedBy = userId}
+            lateEpGen {UUT.eiId = lateShowId, UUT.eiScheduleTemplateId = Just lateTemplateId, UUT.eiAirDate = Just today, UUT.eiCreatedBy = userId}
 
         earlyListed <- TRX.statement () (UUT.getPublishedEpisodesForShow now earlyShowId (Limit 10) (Offset 0))
         lateListed <- TRX.statement () (UUT.getPublishedEpisodesForShow now lateShowId (Limit 10) (Offset 0))
@@ -481,9 +483,9 @@ prop_getPublishedEpisodesForShow cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        -- Offset scheduledAt to avoid unique constraint on (show_id, scheduled_at)
-        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
-        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = Just (addUTCTime (3600 :: NominalDiffTime) (airTimeForTemplate scheduleTemplate fixtureBaseDay))}
+        -- A different air date, so (show_id, air_date) stays unique
+        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate (addDays 1 (airDayForTemplate scheduleTemplate fixtureBaseDay)))}
 
         id1 <- unwrapInsert (UUT.insertEpisode ep1)
         id2 <- unwrapInsert (UUT.insertEpisode ep2)
@@ -499,9 +501,9 @@ prop_getPublishedEpisodesForShow cfg = do
       assert $ do
         (id1, published) <- assertRight result
         -- Deleted episode should never appear in published list.
-        -- Non-deleted episode may or may not appear depending on scheduledAt vs now.
+        -- Non-deleted episode may or may not appear depending on its air date vs now.
         case published of
-          [] -> pure () -- scheduledAt was in the future, OK
+          [] -> pure () -- the air date is in the future, OK
           [ep] -> UUT.id ep === id1 -- If returned, it must be the non-deleted one
           _ -> do
             -- Should never have more than 1 result with only 1 non-deleted episode
@@ -522,7 +524,7 @@ prop_getEpisodeByShowAndNumber cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Get the episode to find its number
@@ -550,7 +552,7 @@ prop_getEpisodeByShowAndNumber cfg = do
 
 -- | Three dates the template airs on, from 'fixtureBaseDay' forward.
 --
--- The three dates must differ. @unique_episode_scheduled_at@ permits one episode per
+-- The three dates must differ. @unique_episode_air_date@ permits one episode per
 -- show per instant.
 threeAirDays :: ShowSchedule.ScheduleTemplateInsert -> [Day]
 threeAirDays template =
@@ -580,7 +582,7 @@ prop_episodeNumbersAreConsecutive cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeOn scheduleTemplate day),
+                  UUT.eiAirDate = Just day,
                   UUT.eiCreatedBy = userId
                 }
             numberOf day = do
@@ -618,7 +620,7 @@ prop_duplicateEpisodeNumberRejected cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeOn scheduleTemplate day),
+                  UUT.eiAirDate = Just day,
                   UUT.eiCreatedBy = userId
                 }
             airDays = threeAirDays scheduleTemplate
@@ -627,14 +629,14 @@ prop_duplicateEpisodeNumberRejected cfg = do
         _ <- traverse (unwrapInsert . UUT.insertEpisode . insertOn) (take 2 airDays)
 
         -- Write 2 again, on a third date. A third date stops
-        -- unique_episode_scheduled_at from firing first. The trigger keeps an
+        -- unique_episode_air_date from firing first. The trigger keeps an
         -- explicit number unless it is 1, so this reaches unique_episode_number.
-        let thirdAirTime = airTimeOn scheduleTemplate (last airDays)
+        let thirdAirTime = last airDays
         TRX.statement () $
           interp @()
             False
             [sql|
-          INSERT INTO episodes (show_id, episode_number, schedule_template_id, scheduled_at, created_by)
+          INSERT INTO episodes (show_id, episode_number, schedule_template_id, air_date, created_by)
           VALUES (#{showId}, 2, #{templateId}, #{thirdAirTime}, #{userId})
         |]
 
@@ -653,7 +655,7 @@ prop_duplicateEpisodeNumberRejected cfg = do
 
 -- | Two live episodes of one show cannot hold the same air time.
 --
--- This is the half of @unique_episode_scheduled_at@ that stops a double booking. The
+-- This is the half of @unique_episode_air_date@ that stops a double booking. The
 -- partial index narrows the rule to the live rows. It does not relax it.
 prop_twoLiveEpisodesCannotShareAnAirTime :: TestDBConfig -> PropertyT IO ()
 prop_twoLiveEpisodesCannotShareAnAirTime cfg = do
@@ -672,7 +674,7 @@ prop_twoLiveEpisodesCannotShareAnAirTime cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay),
                   UUT.eiCreatedBy = userId
                 }
 
@@ -687,13 +689,13 @@ prop_twoLiveEpisodesCannotShareAnAirTime cfg = do
         let outcome = case result of
               Right () -> "accepted"
               Left err
-                | "unique_episode_scheduled_at" `isInfixOf` show err -> "rejected by unique_episode_scheduled_at"
+                | "unique_episode_air_date" `isInfixOf` show err -> "rejected by unique_episode_air_date"
                 | otherwise -> "rejected for another reason: " <> show err
-        outcome === "rejected by unique_episode_scheduled_at"
+        outcome === "rejected by unique_episode_air_date"
 
 -- | A soft-deleted episode releases its air time, so a new episode can take it.
 --
--- @unique_episode_scheduled_at@ is a partial index over the live rows, so a deleted
+-- @unique_episode_air_date@ is a partial index over the live rows, so a deleted
 -- row holds nothing. 'prop_twoLiveEpisodesCannotShareAnAirTime' covers the other
 -- direction, which the delete here must not weaken.
 prop_deletedEpisodeReleasesItsSlot :: TestDBConfig -> PropertyT IO ()
@@ -713,7 +715,7 @@ prop_deletedEpisodeReleasesItsSlot cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay),
                   UUT.eiCreatedBy = userId
                 }
 
@@ -731,8 +733,8 @@ prop_deletedEpisodeReleasesItsSlot cfg = do
                 | firstId /= secondId -> "the freed air time was reusable"
                 | otherwise -> "the two inserts returned one id"
               Left err
-                | "unique_episode_scheduled_at" `isInfixOf` show err ->
-                    "unique_episode_scheduled_at still held the deleted episode's air time"
+                | "unique_episode_air_date" `isInfixOf` show err ->
+                    "unique_episode_air_date still held the deleted episode's air time"
                 | otherwise -> "failed for another reason: " <> show err
         outcome === "the freed air time was reusable"
 
@@ -753,7 +755,7 @@ prop_deleteEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         deleteResult <- TRX.statement () (UUT.deleteEpisode episodeId)
@@ -795,7 +797,7 @@ prop_deleteEpisode_idempotent cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         firstDelete <- TRX.statement () (UUT.deleteEpisode episodeId)
@@ -831,7 +833,7 @@ prop_updateEpisodeFiles cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         -- Insert with no audio/artwork
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId, UUT.eiAudioFilePath = Nothing, UUT.eiArtworkUrl = Nothing}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId, UUT.eiAudioFilePath = Nothing, UUT.eiArtworkUrl = Nothing}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Update with audio file
@@ -898,8 +900,8 @@ prop_getEpisodesByUser cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
-        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiScheduledAt = Just (addUTCTime (3600 :: NominalDiffTime) (airTimeForTemplate scheduleTemplate fixtureBaseDay))}
+        let ep1 = ep1Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let ep2 = ep2Template {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiCreatedBy = userId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate (addDays 1 (airDayForTemplate scheduleTemplate fixtureBaseDay)))}
 
         id1 <- unwrapInsert (UUT.insertEpisode ep1)
         id2 <- unwrapInsert (UUT.insertEpisode ep2)
@@ -927,7 +929,7 @@ prop_getEpisodesByUser cfg = do
 --------------------------------------------------------------------------------
 -- Schedule Update tests
 
--- | updateScheduledSlot: changes template and scheduled_at.
+-- | updateScheduledSlot: changes template and air date.
 prop_updateScheduledSlot :: TestDBConfig -> PropertyT IO ()
 prop_updateScheduledSlot cfg = do
   arrange (bracketConn cfg) $ do
@@ -947,34 +949,33 @@ prop_updateScheduledSlot cfg = do
         let template2WithShowId = scheduleTemplate2 {ShowSchedule.stiShowId = showId}
         templateId2 <- TRX.statement () (ShowSchedule.insertScheduleTemplate template2WithShowId)
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId1, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate1 fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId1, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate1 fixtureBaseDay), UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- The episode moves onto the second template, so the new date has to be one
-        -- that template airs on. Its start time carries whole minutes only, so the
-        -- timestamp round-trips through PostgreSQL unchanged.
-        let newScheduledAt = airTimeForTemplate scheduleTemplate2 (utctDay now)
-        let slotUpdate = UUT.ScheduleSlotUpdate {UUT.essuId = episodeId, UUT.essuScheduleTemplateId = templateId2, UUT.essuScheduledAt = newScheduledAt}
+        -- that template airs on.
+        let newAirDate = airDayForTemplate scheduleTemplate2 (pacificDay now)
+        let slotUpdate = UUT.ScheduleSlotUpdate {UUT.essuId = episodeId, UUT.essuScheduleTemplateId = templateId2, UUT.essuAirDate = newAirDate}
         updateResult <- TRX.statement () (UUT.updateScheduledSlot slotUpdate)
 
         afterUpdate <- TRX.statement () (UUT.getEpisodeById episodeId)
 
         TRX.condemn
-        pure (episodeId, templateId2, newScheduledAt, updateResult, afterUpdate)
+        pure (episodeId, templateId2, newAirDate, updateResult, afterUpdate)
 
       assert $ do
-        (episodeId, expectedTemplateId, expectedScheduledAt, updateResult, mAfterUpdate) <- assertRight result
+        (episodeId, expectedTemplateId, expectedAirDate, updateResult, mAfterUpdate) <- assertRight result
         updatedId <- assertJust updateResult
         updatedId === episodeId
 
         afterUpdate <- assertJust mAfterUpdate
         UUT.scheduleTemplateId afterUpdate === Just expectedTemplateId
-        UUT.scheduledAt afterUpdate === Just expectedScheduledAt
+        UUT.airDate afterUpdate === Just expectedAirDate
         pure ()
 
 -- | clearScheduledSlot: both columns become NULL, and the air time is free.
 --
--- The free slot is as important as the NULL values. @unique_episode_scheduled_at@
+-- The free slot is as important as the NULL values. @unique_episode_air_date@
 -- covers the live rows. A second episode can take the air time only after the
 -- first episode releases it.
 prop_clearScheduledSlot :: TestDBConfig -> PropertyT IO ()
@@ -991,15 +992,15 @@ prop_clearScheduledSlot cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let airTime = airTimeForTemplate scheduleTemplate fixtureBaseDay
-            episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just airTime, UUT.eiCreatedBy = userId}
+        let airTime = airDayForTemplate scheduleTemplate fixtureBaseDay
+            episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just airTime, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         clearResult <- TRX.statement () (UUT.clearScheduledSlot episodeId)
         afterClear <- TRX.statement () (UUT.getEpisodeById episodeId)
 
         -- The slot is free, so a second episode can take the same air time.
-        let successorInsert = secondTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just airTime, UUT.eiCreatedBy = userId}
+        let successorInsert = secondTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just airTime, UUT.eiCreatedBy = userId}
         successorId <- unwrapInsert (UUT.insertEpisode successorInsert)
 
         TRX.condemn
@@ -1012,7 +1013,7 @@ prop_clearScheduledSlot cfg = do
 
         afterClear <- assertJust mAfterClear
         UUT.scheduleTemplateId afterClear === Nothing
-        UUT.scheduledAt afterClear === Nothing
+        UUT.airDate afterClear === Nothing
 
 --------------------------------------------------------------------------------
 -- Tag tests
@@ -1031,7 +1032,7 @@ prop_getTagsForEpisode cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Add tags
@@ -1064,7 +1065,7 @@ prop_replaceEpisodeTags cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- First set of tags
@@ -1149,7 +1150,7 @@ prop_sameDayChangeSplitsOnAirTime cfg = do
             earlyEpGen
               { UUT.eiId = earlyShowId,
                 UUT.eiScheduleTemplateId = Just earlyTemplateId,
-                UUT.eiScheduledAt = Just (airTimeOn earlyTemplate today),
+                UUT.eiAirDate = Just today,
                 UUT.eiCreatedBy = userId
               }
         lateId <-
@@ -1157,7 +1158,7 @@ prop_sameDayChangeSplitsOnAirTime cfg = do
             lateEpGen
               { UUT.eiId = lateShowId,
                 UUT.eiScheduleTemplateId = Just lateTemplateId,
-                UUT.eiScheduledAt = Just (airTimeOn lateTemplate today),
+                UUT.eiAirDate = Just today,
                 UUT.eiCreatedBy = userId
               }
         earlyDetached <- TRX.statement () (UUT.clearTemplateForUpcomingEpisodes earlyTemplateId today)
@@ -1189,8 +1190,8 @@ prop_clearTemplateForUpcomingEpisodes cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         -- Insert an episode scheduled in the future
-        let futureTime = airTimeForTemplate scheduleTemplate (addDays 1 (utctDay now))
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        let futureTime = airDayForTemplate scheduleTemplate (addDays 1 (utctDay now))
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just futureTime, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Clear template for upcoming episodes. Pass today's date as the change
@@ -1209,7 +1210,7 @@ prop_clearTemplateForUpcomingEpisodes cfg = do
         clearedIds === [episodeId]
         afterClear <- assertJust mAfterClear
         UUT.scheduleTemplateId afterClear === Nothing
-        UUT.scheduledAt afterClear === Nothing
+        UUT.airDate afterClear === Nothing
         pure ()
 
 -- | clearTemplateForUpcomingEpisodes: only nulls episodes whose Pacific air date
@@ -1226,7 +1227,7 @@ prop_clearTemplateForUpcomingEpisodes_dateGate cfg = do
 
     act $ do
       now <- liftIO getCurrentTime
-      -- Both episodes are in the future, so the scheduled_at > NOW() guard keeps
+      -- Both episodes are in the future, so the air-time guard keeps
       -- them as candidates, and their Pacific air dates straddle the change date.
       -- The dates are the template's next two airings, so the change date is the
       -- boundary itself rather than an arbitrary day between them.
@@ -1234,14 +1235,14 @@ prop_clearTemplateForUpcomingEpisodes_dateGate cfg = do
           beforeDay = airDayForTemplate scheduleTemplate (addDays 1 baseDay)
           afterDay = airDayForTemplate scheduleTemplate (addDays 1 beforeDay)
           fromDate = afterDay
-          beforeTime = airTimeOn scheduleTemplate beforeDay
-          afterTime = airTimeOn scheduleTemplate afterDay
+          beforeTime = beforeDay
+          afterTime = afterDay
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let epBefore = epBeforeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just beforeTime, UUT.eiCreatedBy = userId}
-        let epAfter = epAfterTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just afterTime, UUT.eiCreatedBy = userId}
+        let epBefore = epBeforeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just beforeTime, UUT.eiCreatedBy = userId}
+        let epAfter = epAfterTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just afterTime, UUT.eiCreatedBy = userId}
 
         beforeId <- unwrapInsert (UUT.insertEpisode epBefore)
         afterId <- unwrapInsert (UUT.insertEpisode epAfter)
@@ -1261,11 +1262,11 @@ prop_clearTemplateForUpcomingEpisodes_dateGate cfg = do
         -- The before-fromDate episode keeps its schedule fields
         beforeEp <- assertJust mAfterBefore
         UUT.scheduleTemplateId beforeEp === Just templateId
-        UUT.scheduledAt beforeEp === Just beforeTime
+        UUT.airDate beforeEp === Just beforeTime
         -- The on/after episode is detached
         afterEp <- assertJust mAfterAfter
         UUT.scheduleTemplateId afterEp === Nothing
-        UUT.scheduledAt afterEp === Nothing
+        UUT.airDate afterEp === Nothing
         pure ()
 
 -- | migrateUpcomingEpisodes: moves the upcoming episodes and keeps their air times.
@@ -1304,8 +1305,8 @@ prop_migrateUpcomingEpisodes cfg = do
                 ShowSchedule.stiEndTime = TimeOfDay 1 0 0
               }
           weeklyTemplate = airsAtMidnight oldTemplate
-          pastTime = airTimeOn weeklyTemplate today
-          futureTime = airTimeOn weeklyTemplate (addDays 7 today)
+          pastTime = today
+          futureTime = addDays 7 today
 
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
@@ -1321,7 +1322,7 @@ prop_migrateUpcomingEpisodes cfg = do
             pastEpGen
               { UUT.eiId = showId,
                 UUT.eiScheduleTemplateId = Just oldTemplateId,
-                UUT.eiScheduledAt = Just pastTime,
+                UUT.eiAirDate = Just pastTime,
                 UUT.eiCreatedBy = userId
               }
         futureId <-
@@ -1329,7 +1330,7 @@ prop_migrateUpcomingEpisodes cfg = do
             futureEpGen
               { UUT.eiId = showId,
                 UUT.eiScheduleTemplateId = Just oldTemplateId,
-                UUT.eiScheduledAt = Just futureTime,
+                UUT.eiAirDate = Just futureTime,
                 UUT.eiCreatedBy = userId
               }
 
@@ -1348,11 +1349,11 @@ prop_migrateUpcomingEpisodes cfg = do
         -- The episode that already aired keeps its template and its air time.
         pastEp <- assertJust mPast
         UUT.scheduleTemplateId pastEp === Just oldTemplateId
-        UUT.scheduledAt pastEp === Just pastTime
+        UUT.airDate pastEp === Just pastTime
         -- The upcoming episode changes template and nothing else.
         futureEp <- assertJust mFuture
         UUT.scheduleTemplateId futureEp === Just newTemplateId
-        UUT.scheduledAt futureEp === Just futureTime
+        UUT.airDate futureEp === Just futureTime
         pure ()
 
 -- | migrateUpcomingEpisodes: only moves episodes on or after the change date.
@@ -1378,8 +1379,8 @@ prop_migrateUpcomingEpisodes_dateGate cfg = do
           beforeDay = airDayForTemplate oldTemplate (addDays 1 baseDay)
           afterDay = airDayForTemplate oldTemplate (addDays 1 beforeDay)
           fromDate = afterDay
-          beforeTime = airTimeOn oldTemplate beforeDay
-          afterTime = airTimeOn oldTemplate afterDay
+          beforeTime = beforeDay
+          afterTime = afterDay
 
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
@@ -1390,10 +1391,10 @@ prop_migrateUpcomingEpisodes_dateGate cfg = do
 
         beforeId <-
           unwrapInsert . UUT.insertEpisode $
-            epBeforeGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiScheduledAt = Just beforeTime, UUT.eiCreatedBy = userId}
+            epBeforeGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiAirDate = Just beforeTime, UUT.eiCreatedBy = userId}
         afterId <-
           unwrapInsert . UUT.insertEpisode $
-            epAfterGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiScheduledAt = Just afterTime, UUT.eiCreatedBy = userId}
+            epAfterGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiAirDate = Just afterTime, UUT.eiCreatedBy = userId}
 
         migrated <- TRX.statement () (UUT.migrateUpcomingEpisodes oldTemplateId newTemplateId fromDate)
 
@@ -1410,11 +1411,11 @@ prop_migrateUpcomingEpisodes_dateGate cfg = do
         -- The interim episode keeps the old template and its air time.
         beforeEp <- assertJust mBefore
         UUT.scheduleTemplateId beforeEp === Just oldTemplateId
-        UUT.scheduledAt beforeEp === Just beforeTime
+        UUT.airDate beforeEp === Just beforeTime
         -- The on/after episode is on the new template, at the same air time.
         afterEp <- assertJust mAfter
         UUT.scheduleTemplateId afterEp === Just newTemplateId
-        UUT.scheduledAt afterEp === Just afterTime
+        UUT.airDate afterEp === Just afterTime
 
 -- | closeSchedulesAndDetachEpisodes: only detaches episodes on or after the close date.
 --
@@ -1437,8 +1438,8 @@ prop_closeSchedules_dateGate cfg = do
           beforeDay = airDayForTemplate scheduleTemplate (addDays 1 baseDay)
           afterDay = airDayForTemplate scheduleTemplate (addDays 1 beforeDay)
           closeDate = afterDay
-          beforeTime = airTimeOn scheduleTemplate beforeDay
-          afterTime = airTimeOn scheduleTemplate afterDay
+          beforeTime = beforeDay
+          afterTime = afterDay
 
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
@@ -1447,10 +1448,10 @@ prop_closeSchedules_dateGate cfg = do
 
         beforeId <-
           unwrapInsert . UUT.insertEpisode $
-            epBeforeGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just beforeTime, UUT.eiCreatedBy = userId}
+            epBeforeGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just beforeTime, UUT.eiCreatedBy = userId}
         afterId <-
           unwrapInsert . UUT.insertEpisode $
-            epAfterGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just afterTime, UUT.eiCreatedBy = userId}
+            epAfterGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just afterTime, UUT.eiCreatedBy = userId}
 
         detached <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId closeDate)
 
@@ -1467,13 +1468,13 @@ prop_closeSchedules_dateGate cfg = do
         -- The interim episode keeps its slot, so it still airs before the close.
         beforeEp <- assertJust mBefore
         UUT.scheduleTemplateId beforeEp === Just templateId
-        UUT.scheduledAt beforeEp === Just beforeTime
+        UUT.airDate beforeEp === Just beforeTime
         -- The on/after episode is detached.
         afterEp <- assertJust mAfter
         UUT.scheduleTemplateId afterEp === Nothing
-        UUT.scheduledAt afterEp === Nothing
+        UUT.airDate afterEp === Nothing
 
--- | getEpisodesForShow: unscheduled episodes (NULL scheduledAt) sort after scheduled ones.
+-- | getEpisodesForShow: unscheduled episodes (NULL air_date) sort after scheduled ones.
 prop_unscheduledEpisodesSortLast :: TestDBConfig -> PropertyT IO ()
 prop_unscheduledEpisodesSortLast cfg = do
   arrange (bracketConn cfg) $ do
@@ -1489,11 +1490,11 @@ prop_unscheduledEpisodesSortLast cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         -- Insert a scheduled episode
-        let scheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
+        let scheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay), UUT.eiCreatedBy = userId}
         scheduledId <- unwrapInsert (UUT.insertEpisode scheduledInsert)
 
         -- Insert an unscheduled episode
-        let unscheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Nothing, UUT.eiScheduledAt = Nothing, UUT.eiCreatedBy = userId}
+        let unscheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Nothing, UUT.eiAirDate = Nothing, UUT.eiCreatedBy = userId}
         unscheduledId <- unwrapInsert (UUT.insertEpisode unscheduledInsert)
 
         episodes <- TRX.statement () (UUT.getEpisodesForShow showId UUT.ExcludeArchived (Limit 10) (Offset 0))
@@ -1511,7 +1512,7 @@ prop_unscheduledEpisodesSortLast cfg = do
           _ -> length episodes === 2
         pure ()
 
--- | getPublishedEpisodesForShow: excludes episodes with NULL scheduledAt.
+-- | getPublishedEpisodesForShow: excludes episodes with NULL air_date.
 prop_publishedExcludesUnscheduled :: TestDBConfig -> PropertyT IO ()
 prop_publishedExcludesUnscheduled cfg = do
   arrange (bracketConn cfg) $ do
@@ -1527,12 +1528,12 @@ prop_publishedExcludesUnscheduled cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         -- Insert a scheduled episode in the past (should appear in published)
-        let pastTime = lastAirTimeBefore scheduleTemplate (utctDay now)
-        let scheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
+        let pastTime = lastAirDayBefore scheduleTemplate (utctDay now)
+        let scheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just pastTime, UUT.eiCreatedBy = userId}
         scheduledId <- unwrapInsert (UUT.insertEpisode scheduledInsert)
 
         -- Insert an unscheduled episode (should NOT appear in published)
-        let unscheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Nothing, UUT.eiScheduledAt = Nothing, UUT.eiCreatedBy = userId}
+        let unscheduledInsert = epTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Nothing, UUT.eiAirDate = Nothing, UUT.eiCreatedBy = userId}
         _unscheduledId <- unwrapInsert (UUT.insertEpisode unscheduledInsert)
 
         published <- TRX.statement () (UUT.getPublishedEpisodesForShow now showId (Limit 10) (Offset 0))
@@ -1565,8 +1566,8 @@ prop_getUpcomingEpisodesForTemplates_returnsUpcoming cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let futureTime = airTimeForTemplate scheduleTemplate (addDays 1 (utctDay now))
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        let futureTime = airDayForTemplate scheduleTemplate (addDays 1 (utctDay now))
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just futureTime, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId] (utctDay now))
@@ -1602,12 +1603,12 @@ prop_getUpcomingEpisodesForTemplates_excludesPast cfg = do
                 ShowSchedule.stiStartTime = TimeOfDay 0 0 0,
                 ShowSchedule.stiEndTime = TimeOfDay 1 0 0
               }
-          pastTime = airTimeOn airedToday today
+          pastTime = today
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert airedToday
 
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just pastTime, UUT.eiCreatedBy = userId}
         _episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [templateId] today)
@@ -1637,14 +1638,14 @@ prop_getUpcomingEpisodesForTemplates_dateGate cfg = do
           beforeDay = airDayForTemplate scheduleTemplate (addDays 1 baseDay)
           afterDay = airDayForTemplate scheduleTemplate (addDays 1 beforeDay)
           fromDate = afterDay
-          beforeTime = airTimeOn scheduleTemplate beforeDay
-          afterTime = airTimeOn scheduleTemplate afterDay
+          beforeTime = beforeDay
+          afterTime = afterDay
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let epBefore = epBeforeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just beforeTime, UUT.eiCreatedBy = userId}
-        let epAfter = epAfterTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just afterTime, UUT.eiCreatedBy = userId}
+        let epBefore = epBeforeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just beforeTime, UUT.eiCreatedBy = userId}
+        let epAfter = epAfterTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just afterTime, UUT.eiCreatedBy = userId}
 
         _beforeId <- unwrapInsert (UUT.insertEpisode epBefore)
         afterId <- unwrapInsert (UUT.insertEpisode epAfter)
@@ -1674,8 +1675,8 @@ prop_getUpcomingEpisodesForTemplates_excludesDeleted cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let futureTime = airTimeForTemplate scheduleTemplate (addDays 1 (utctDay now))
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        let futureTime = airDayForTemplate scheduleTemplate (addDays 1 (utctDay now))
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just futureTime, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Soft-delete the episode: it must no longer block
@@ -1710,8 +1711,8 @@ prop_getUpcomingEpisodesForTemplates_excludesOtherTemplate cfg = do
         let template2WithShowId = scheduleTemplate2 {ShowSchedule.stiShowId = showId}
         templateId2 <- TRX.statement () (ShowSchedule.insertScheduleTemplate template2WithShowId)
 
-        let futureTime = airTimeForTemplate scheduleTemplate1 (addDays 1 (utctDay now))
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId1, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        let futureTime = airDayForTemplate scheduleTemplate1 (addDays 1 (utctDay now))
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId1, UUT.eiAirDate = Just futureTime, UUT.eiCreatedBy = userId}
         _episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         -- Query for the other template only
@@ -1740,8 +1741,8 @@ prop_getUpcomingEpisodesForTemplates_emptyList cfg = do
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
         -- Insert an upcoming episode; the empty-list query must still return nothing
-        let futureTime = airTimeForTemplate scheduleTemplate (addDays 1 (utctDay now))
-        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        let futureTime = airDayForTemplate scheduleTemplate (addDays 1 (utctDay now))
+        let episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just futureTime, UUT.eiCreatedBy = userId}
         _episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         refs <- TRX.statement () (UUT.getUpcomingEpisodesForTemplates [] (utctDay now))
@@ -1781,8 +1782,8 @@ prop_closeSchedules_closesActiveWindow cfg = do
         -- The next date this template airs on, so the episode is a real upcoming
         -- airing. Its start time carries whole minutes, so the timestamp round-trips
         -- through PostgreSQL, which a value from getCurrentTime would not.
-        let futureTime = airTimeForTemplate scheduleTemplate (addDays 1 today)
-            episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just futureTime, UUT.eiCreatedBy = userId}
+        let futureTime = airDayForTemplate scheduleTemplate (addDays 1 today)
+            episodeInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just futureTime, UUT.eiCreatedBy = userId}
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
 
         detached <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId today)
@@ -1799,7 +1800,7 @@ prop_closeSchedules_closesActiveWindow cfg = do
         ShowSchedule.stvEffectiveUntil validity === Just today
         afterClose <- assertJust mAfterClose
         UUT.scheduleTemplateId afterClose === Nothing
-        UUT.scheduledAt afterClose === Nothing
+        UUT.airDate afterClose === Nothing
 
 -- | closeSchedulesAndDetachEpisodes: a pending window closes to @[from, from)@.
 --
@@ -1862,13 +1863,13 @@ prop_closeSchedules_keepsPastEpisode cfg = do
                 ShowSchedule.stiStartTime = TimeOfDay 0 0 0,
                 ShowSchedule.stiEndTime = TimeOfDay 1 0 0
               }
-          pastTime = airTimeOn airedToday today
+          pastTime = today
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert airedToday
         _ <- unwrapInsert (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing))
 
-        let pastInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiScheduledAt = Just pastTime, UUT.eiCreatedBy = userId}
+        let pastInsert = episodeTemplate {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just templateId, UUT.eiAirDate = Just pastTime, UUT.eiCreatedBy = userId}
         pastId <- unwrapInsert (UUT.insertEpisode pastInsert)
 
         detached <- TRX.statement () (UUT.closeSchedulesAndDetachEpisodes showId today)
@@ -1882,7 +1883,7 @@ prop_closeSchedules_keepsPastEpisode cfg = do
         detached === []
         afterClose <- assertJust mAfterClose
         UUT.scheduleTemplateId afterClose === Just templateId
-        UUT.scheduledAt afterClose === Just pastTime
+        UUT.airDate afterClose === Just pastTime
 
 -- | closeSchedulesAndDetachEpisodes: a window that already closed does not move.
 --
@@ -1937,7 +1938,7 @@ prop_archivedEpisodeIsNotFoundByNumber cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay),
                   UUT.eiCreatedBy = userId
                 }
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
@@ -1982,7 +1983,7 @@ prop_includeArchivedSeesArchivedEpisode cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay),
                   UUT.eiCreatedBy = userId
                 }
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
@@ -2026,7 +2027,7 @@ prop_restoreEpisodeClearsDeletedAt cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay),
                   UUT.eiCreatedBy = userId
                 }
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
@@ -2074,7 +2075,7 @@ prop_restoreEpisodeIgnoresLiveEpisode cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay),
                   UUT.eiCreatedBy = userId
                 }
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
@@ -2089,7 +2090,7 @@ prop_restoreEpisodeIgnoresLiveEpisode cfg = do
 
 -- | getLiveEpisodeAtAirTime must find the episode that took an archived slot.
 --
--- unique_episode_scheduled_at covers the live rows only, so a second episode can
+-- unique_episode_air_date covers the live rows only, so a second episode can
 -- claim the air time while the first sits archived. The unarchive handler runs
 -- this to refuse with a message instead of failing on the index.
 prop_liveEpisodeAtAirTimeFindsTheHolder :: TestDBConfig -> PropertyT IO ()
@@ -2105,23 +2106,23 @@ prop_liveEpisodeAtAirTimeFindsTheHolder cfg = do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
 
-        let airTime = airTimeForTemplate scheduleTemplate fixtureBaseDay
+        let airTime = airDayForTemplate scheduleTemplate fixtureBaseDay
             episodeInsert =
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just airTime,
+                  UUT.eiAirDate = Just airTime,
                   UUT.eiCreatedBy = userId
                 }
 
         firstId <- unwrapInsert (UUT.insertEpisode episodeInsert)
         -- Nothing holds the slot while the first episode is live.
-        freeWhileLive <- TRX.statement () (UUT.getLiveEpisodeAtAirTime showId airTime firstId)
+        freeWhileLive <- TRX.statement () (UUT.getLiveEpisodeAtAirDate showId airTime firstId)
 
         _ <- TRX.statement () (UUT.deleteEpisode firstId)
         -- The partial index frees the slot, so a second episode can take it.
         secondId <- unwrapInsert (UUT.insertEpisode episodeInsert)
-        holder <- TRX.statement () (UUT.getLiveEpisodeAtAirTime showId airTime firstId)
+        holder <- TRX.statement () (UUT.getLiveEpisodeAtAirDate showId airTime firstId)
 
         TRX.condemn
         pure (secondId, freeWhileLive, holder)
@@ -2158,7 +2159,7 @@ prop_audioPathFindsDeletedEpisode cfg = do
               episodeTemplate
                 { UUT.eiId = showId,
                   UUT.eiScheduleTemplateId = Just templateId,
-                  UUT.eiScheduledAt = Just (airTimeForTemplate scheduleTemplate fixtureBaseDay),
+                  UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay),
                   UUT.eiCreatedBy = userId,
                   UUT.eiAudioFilePath = Just audioPath
                 }

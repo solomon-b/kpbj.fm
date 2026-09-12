@@ -10,7 +10,7 @@ import Hedgehog (MonadGen (..))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Gen.Text (genText, genUrl)
-import Test.Gen.Time (genUTCTime)
+import Test.Gen.Time (genDay)
 
 --------------------------------------------------------------------------------
 
@@ -24,6 +24,6 @@ episodeInsertGen showId templateId userId = do
   eiAudioMimeType <- Gen.maybe $ Gen.element ["audio/mpeg", "audio/mp3", "audio/wav"]
   eiDurationSeconds <- Gen.maybe $ Gen.integral (Range.linear 60 7200)
   eiArtworkUrl <- Gen.maybe genUrl
-  eiScheduledAt <- Just <$> genUTCTime
+  eiAirDate <- Just <$> genDay
   let eiCreatedBy = userId
   pure Episodes.Insert {..}

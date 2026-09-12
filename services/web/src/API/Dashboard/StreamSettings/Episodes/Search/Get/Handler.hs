@@ -18,11 +18,10 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time (Day, showGregorian)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie (..))
-import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Log qualified
@@ -97,8 +96,8 @@ renderResultRow sr = do
         Lucid.toHtml sr.srShowTitle
       Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textXs, "flex", "gap-3"]] $ do
         Lucid.span_ [] $ Lucid.toHtml ([i|Ep. #{epNum}|] :: Text)
-        case sr.srScheduledAt of
-          Just sa -> Lucid.span_ [] $ Lucid.toHtml $ formatDate sa
+        case sr.srAirDate of
+          Just airDate -> Lucid.span_ [] $ Lucid.toHtml $ formatIsoDate airDate
           Nothing -> mempty
         case sr.srDurationSeconds of
           Just dur -> Lucid.span_ [] $ Lucid.toHtml $ formatDuration dur
@@ -119,7 +118,8 @@ renderResultRow sr = do
           ]
           "FORCE PLAY"
   where
-    formatDate utc = Text.pack $ formatTime defaultTimeLocale "%Y-%m-%d" (utcToPacific utc)
+    formatIsoDate :: Day -> Text
+    formatIsoDate = Text.pack . showGregorian
     formatDuration :: Int64 -> Text
     formatDuration secs =
       let m = secs `div` 60

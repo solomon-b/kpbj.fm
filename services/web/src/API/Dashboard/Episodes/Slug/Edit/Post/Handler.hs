@@ -26,13 +26,13 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
-import Data.Time (Day, UTCTime)
+import Data.Time (Day)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (pacificDay)
+import Domain.Types.Timezone (startOfPacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
@@ -136,8 +136,8 @@ fetchEpisodeContext showSlug episodeNumber user userMetadata = do
 -- | Parse a schedule value with the format "template_id|air_date".
 --
 -- The value gives a slot and a date. It does not give a time.
--- 'ShowSchedule.templateAirTimeOn' reads the air time from the template. The
--- client therefore cannot set an air time that differs from the template.
+-- 'ShowSchedule.templateAirsOn' checks the slot holds the date. The template
+-- carries the air time, so the client cannot set one at all.
 parseScheduleValue :: Text -> Either Text (ShowSchedule.TemplateId, Day)
 parseScheduleValue txt =
   case Text.splitOn "|" txt of
@@ -333,11 +333,11 @@ processScheduleUpdate isPast isStaffOrAdmin episode editForm =
       | otherwise -> withScheduleRights (assignSlot newTemplateId newAirDate)
   where
     alreadyUnscheduled =
-      isNothing episode.scheduleTemplateId && isNothing episode.scheduledAt
+      isNothing episode.scheduleTemplateId && isNothing episode.airDate
 
     sameSlot newTemplateId newAirDate =
       Just newTemplateId == episode.scheduleTemplateId
-        && fmap pacificDay episode.scheduledAt == Just newAirDate
+        && episode.airDate == Just newAirDate
 
     withScheduleRights act
       | isPast && not isStaffOrAdmin = do
@@ -358,16 +358,16 @@ processScheduleUpdate isPast isStaffOrAdmin episode editForm =
           pure []
 
     assignSlot newTemplateId newAirDate =
-      templateAirTimeOn newTemplateId episode.showId newAirDate >>= \case
-        Nothing -> do
+      templateAirsOn newTemplateId episode.showId newAirDate >>= \case
+        False -> do
           Log.logAttention "Rejected schedule update: the template does not air on that date" (episode.id, newTemplateId, newAirDate)
           pure ["Schedule update failed: that show does not air in that time slot on that date"]
-        Just newScheduledAt -> do
+        True -> do
           let slotUpdate =
                 Episodes.ScheduleSlotUpdate
                   { Episodes.essuId = episode.id,
                     Episodes.essuScheduleTemplateId = newTemplateId,
-                    Episodes.essuScheduledAt = newScheduledAt
+                    Episodes.essuAirDate = newAirDate
                   }
           execQuery (Episodes.updateScheduledSlot slotUpdate) >>= \case
             Left err -> do
@@ -380,16 +380,16 @@ processScheduleUpdate isPast isStaffOrAdmin episode editForm =
               Log.logInfo "Successfully updated schedule slot" episode.id
               pure []
 
--- | 'ShowSchedule.templateAirTimeOn' in 'AppM'.
+-- | 'ShowSchedule.templateAirsOn' in 'AppM'.
 --
 -- This function fails closed. A database error refuses the schedule change.
-templateAirTimeOn :: ShowSchedule.TemplateId -> Shows.Id -> Day -> AppM (Maybe UTCTime)
-templateAirTimeOn templateId showId airDate =
-  execQuery (ShowSchedule.templateAirTimeOn templateId showId airDate) >>= \case
+templateAirsOn :: ShowSchedule.TemplateId -> Shows.Id -> Day -> AppM Bool
+templateAirsOn templateId showId airDate =
+  execQuery (ShowSchedule.templateAirsOn templateId showId airDate) >>= \case
     Left err -> do
-      Log.logAttention "Failed to check the schedule template air time" (Text.pack $ show err)
-      pure Nothing
-    Right airTime -> pure airTime
+      Log.logAttention "Failed to check the schedule template air date" (Text.pack $ show err)
+      pure False
+    Right airs -> pure airs
 
 -- | Process track updates, returning a warning if it fails
 processTrackUpdates ::
@@ -428,11 +428,12 @@ processFileUploads userId showModel episode editForm = do
   storageBackend <- asks getter
   mAwsEnv <- asks getter
 
-  -- Get the air date for file organization (use current time as fallback).
+  -- The instant for file organization. The storage path reads only its Pacific
+  -- date, so the first instant of the air date gives the right path.
   -- NOTE: File paths are set at upload time and never relocated on reschedule.
   -- If downloads are added later, generate user-facing filenames from episode
-  -- metadata (scheduled_at, slug, etc.) rather than relying on storage paths.
-  airDate <- maybe currentSystemTime pure episode.scheduledAt
+  -- metadata (air date, slug, etc.) rather than relying on storage paths.
+  airDate <- maybe currentSystemTime (pure . startOfPacificDay) episode.airDate
 
   -- Process audio: staged upload, then move to final location with air date
   audioResult <- case eefAudioToken editForm of

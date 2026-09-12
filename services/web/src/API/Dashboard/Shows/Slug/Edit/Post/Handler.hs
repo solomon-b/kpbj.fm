@@ -40,14 +40,14 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time (Day, TimeOfDay)
+import Data.Time (Day, TimeOfDay, showGregorian)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Recurrence (Recurrence, editorCanShow, parseWeeks, recurrenceDay, recurrenceFromRow, recurring, weekNumbers, weeksLabel)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
-import Domain.Types.Timezone (addMinutesToTimeOfDay, minutesFromMidnight, pacificDay, parseDateYMD, parseTimeHHMM, slotDurationMins, utcToPacific)
+import Domain.Types.Timezone (addMinutesToTimeOfDay, minutesFromMidnight, pacificDay, parseDateYMD, parseTimeHHMM, slotDurationMins)
 import Effects.Clock (currentSystemTime)
 import Effects.ContentSanitization (sanitizeTitle)
 import Effects.Database.Execute (execQuery, execTransaction)
@@ -511,9 +511,8 @@ renderUnscheduledNotice eps =
   let n = length eps
       describeEp ep =
         let epNum = Episodes.unEpisodeNumber ep.uerEpisodeNumber
-            scheduledText =
-              Text.pack $ formatTime defaultTimeLocale "%Y-%m-%d %H:%M" (utcToPacific ep.uerScheduledAt)
-         in [i|Episode \##{epNum} (was #{scheduledText})|] :: Text
+            airDateText = Text.pack (showGregorian ep.uerAirDate)
+         in [i|Episode \##{epNum} (was #{airDateText})|] :: Text
       listing = Text.intercalate ", " (map describeEp eps)
    in [i|Your show was updated, but #{n} upcoming episode(s) were unscheduled because their time slot changed: #{listing}. They now show as UNSCHEDULED in the dashboard and need a new slot.|]
 
@@ -616,7 +615,7 @@ scheduleUpdateLog showId update =
 -- | Update schedules for a show, in one transaction.
 --
 -- Every statement below runs in a single 'execTransaction'. The removals end a
--- validity period and clear @scheduled_at@ from the upcoming episodes, so a later
+-- validity period and clear @air_date@ from the upcoming episodes, so a later
 -- failure that committed on its own would destroy a show's schedule and leave no
 -- way to recover the episodes' air times.
 --

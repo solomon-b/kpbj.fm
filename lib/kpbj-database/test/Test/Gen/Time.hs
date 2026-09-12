@@ -28,3 +28,12 @@ genFutureUTCTime :: (MonadGen m) => m UTCTime
 genFutureUTCTime = do
   posixTime <- Gen.realFrac_ (Range.linearFrac (10 * 365 * 24 * 60 * 60) (20 * 365 * 24 * 60 * 60))
   pure $ truncateToMicroseconds $ posixSecondsToUTCTime posixTime
+
+-- | A date within about ten years of the epoch.
+--
+-- The counterpart of 'genUTCTime' for @episodes.air_date@. A date needs no
+-- truncation, because PostgreSQL stores it exactly.
+genDay :: (MonadGen m) => m Day
+genDay = do
+  offset <- Gen.integral (Range.linear 0 (10 * 365))
+  pure $ addDays offset (fromGregorian 1970 1 1)
