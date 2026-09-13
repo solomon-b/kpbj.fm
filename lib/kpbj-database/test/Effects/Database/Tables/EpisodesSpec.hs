@@ -6,7 +6,7 @@ module Effects.Database.Tables.EpisodesSpec where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.List (isInfixOf)
-import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian)
+import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian, toGregorian)
 import Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime, utctDay)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Domain.Types.Limit (Limit (..))
@@ -119,6 +119,10 @@ spec =
           hedgehog . prop_migrateUpcomingEpisodes
         runs 10 . it "migrateUpcomingEpisodes: only moves episodes on/after the change date" $
           hedgehog . prop_migrateUpcomingEpisodes_dateGate
+        runs 10 . it "migrateUpcomingEpisodesAiringOn: moves the dates the new template airs, leaves the rest" $
+          hedgehog . prop_migrateUpcomingEpisodesAiringOn
+        runs 10 . it "migrateUpcomingEpisodesAiringOn: moves nothing onto a template with no window" $
+          hedgehog . prop_migrateUpcomingEpisodesAiringOn_needsAWindow
         runs 10 . it "getEpisodesForShow: unscheduled episodes sort last" $
           hedgehog . prop_unscheduledEpisodesSortLast
         runs 10 . it "getPublishedEpisodesForShow: excludes unscheduled episodes" $
@@ -1416,6 +1420,126 @@ prop_migrateUpcomingEpisodes_dateGate cfg = do
         afterEp <- assertJust mAfter
         UUT.scheduleTemplateId afterEp === Just newTemplateId
         UUT.airDate afterEp === Just afterTime
+
+-- | The first date after @from@ whose day of the month is in the first week.
+--
+-- Adding 14 days to it lands in the third week, on the same weekday, inside the same
+-- month. So the pair gives one recurrence two dates that a week set can separate.
+firstWeekDayAfter :: Day -> Day
+firstWeekDayAfter from =
+  let inFirstWeek day = let (_, _, dom) = toGregorian day in dom <= 7
+   in case filter inFirstWeek (take 400 (iterate (addDays 1) (addDays 1 from))) of
+        (day : _) -> day
+        [] -> from
+
+-- | A weeks-only change keeps the episodes the new week set still covers.
+--
+-- The show airs every week and then narrows to the first week only. One upcoming
+-- episode sits in the first week of its month and one in the third. The replacement
+-- template airs the first and not the third, so the first moves and the third stays
+-- behind for 'clearTemplateForUpcomingEpisodes' to detach.
+--
+-- The two statements run in that order and split one set between them, which is the
+-- pair the show edit handler applies. Asserting both here is the point: a moved
+-- episode must keep its date, and the episode left behind must lose its slot rather
+-- than sit on a template that does not air it.
+prop_migrateUpcomingEpisodesAiringOn :: TestDBConfig -> PropertyT IO ()
+prop_migrateUpcomingEpisodesAiringOn cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    oldTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    firstWeekEpGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    thirdWeekEpGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = pacificDay now
+          firstWeekDay = firstWeekDayAfter today
+          thirdWeekDay = addDays 14 firstWeekDay
+          everyWeek = (middayTemplate oldTemplateGen) {ShowSchedule.stiDayOfWeek = dayOfWeek firstWeekDay, ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5]}
+          -- Same weekday and same primary window. Only the weeks narrow.
+          firstWeekOnly = everyWeek {ShowSchedule.stiWeeksOfMonth = [1]}
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, oldTemplateId) <- insertTestShowWithSchedule showInsert everyWeek
+
+        newTemplateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate firstWeekOnly {ShowSchedule.stiShowId = showId})
+        _ <- TRX.statement () (ShowSchedule.insertValidity (ShowSchedule.ValidityInsert newTemplateId today Nothing))
+
+        firstWeekId <-
+          unwrapInsert . UUT.insertEpisode $
+            firstWeekEpGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiAirDate = Just firstWeekDay, UUT.eiCreatedBy = userId}
+        thirdWeekId <-
+          unwrapInsert . UUT.insertEpisode $
+            thirdWeekEpGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiAirDate = Just thirdWeekDay, UUT.eiCreatedBy = userId}
+
+        migrated <- TRX.statement () (UUT.migrateUpcomingEpisodesAiringOn oldTemplateId newTemplateId today)
+        detached <- TRX.statement () (UUT.clearTemplateForUpcomingEpisodes oldTemplateId today)
+
+        afterFirst <- TRX.statement () (UUT.getEpisodeById firstWeekId)
+        afterThird <- TRX.statement () (UUT.getEpisodeById thirdWeekId)
+
+        TRX.condemn
+        pure (firstWeekId, thirdWeekId, newTemplateId, migrated, detached, afterFirst, afterThird)
+
+      assert $ do
+        (firstWeekId, thirdWeekId, newTemplateId, migrated, detached, mFirst, mThird) <- assertRight result
+        -- The two statements split the set. Neither episode reaches both.
+        migrated === [firstWeekId]
+        detached === [thirdWeekId]
+        -- The covered episode moves and keeps its date, so it airs at the same instant.
+        firstEp <- assertJust mFirst
+        UUT.scheduleTemplateId firstEp === Just newTemplateId
+        UUT.airDate firstEp === Just firstWeekDay
+        -- The dropped episode holds no slot at all.
+        thirdEp <- assertJust mThird
+        UUT.scheduleTemplateId thirdEp === Nothing
+        UUT.airDate thirdEp === Nothing
+
+-- | A template with no validity window airs on no date, so it takes no episode.
+--
+-- The window is half of the predicate, and the recurrence alone would pass here. A
+-- template with no window is the state 'insertScheduleSlot' refuses to leave behind,
+-- and an episode moved onto one could never reach the transmitter.
+prop_migrateUpcomingEpisodesAiringOn_needsAWindow :: TestDBConfig -> PropertyT IO ()
+prop_migrateUpcomingEpisodesAiringOn_needsAWindow cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    oldTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeGen <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let today = pacificDay now
+          airDay = firstWeekDayAfter today
+          everyWeek = (middayTemplate oldTemplateGen) {ShowSchedule.stiDayOfWeek = dayOfWeek airDay, ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5]}
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, oldTemplateId) <- insertTestShowWithSchedule showInsert everyWeek
+
+        -- Same recurrence as the old template, and no validity row.
+        newTemplateId <- TRX.statement () (ShowSchedule.insertScheduleTemplate everyWeek {ShowSchedule.stiShowId = showId})
+
+        episodeId <-
+          unwrapInsert . UUT.insertEpisode $
+            episodeGen {UUT.eiId = showId, UUT.eiScheduleTemplateId = Just oldTemplateId, UUT.eiAirDate = Just airDay, UUT.eiCreatedBy = userId}
+
+        migrated <- TRX.statement () (UUT.migrateUpcomingEpisodesAiringOn oldTemplateId newTemplateId today)
+        after <- TRX.statement () (UUT.getEpisodeById episodeId)
+
+        TRX.condemn
+        pure (oldTemplateId, migrated, after)
+
+      assert $ do
+        (oldTemplateId, migrated, mEpisode) <- assertRight result
+        migrated === []
+        episode <- assertJust mEpisode
+        UUT.scheduleTemplateId episode === Just oldTemplateId
+        UUT.airDate episode === Just airDay
 
 -- | closeSchedulesAndDetachEpisodes: only detaches episodes on or after the close date.
 --

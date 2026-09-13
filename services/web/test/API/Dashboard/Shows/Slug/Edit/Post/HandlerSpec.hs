@@ -12,7 +12,7 @@ import Control.Monad.Trans.Except (runExceptT)
 import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, dayOfWeek, getCurrentTime, utctDay)
+import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, dayOfWeek, getCurrentTime, toGregorian, utctDay)
 import Domain.Types.Slug (Slug (..))
 import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Class (MonadDB (..))
@@ -48,6 +48,7 @@ spec =
         it "keeps the template and the episodes when only the replay time moves" test_replayChangeKeepsTemplate
         it "moves the episodes onto the new template when a replay change is deferred" test_deferredReplayChangeMigratesEpisodes
         it "reports the episodes detached when a pending schedule is cancelled" test_cancelPendingScheduleReportsDetachedEpisodes
+        it "keeps the covered episodes when the weeks narrow" test_weeksNarrowKeepsCoveredEpisodes
 
 --------------------------------------------------------------------------------
 
@@ -1153,3 +1154,132 @@ test_cancelPendingScheduleReportsDetachedEpisodes cfg = do
       Left err -> expectationFailure $ "Expected the second edit to succeed but got Left: " <> show err
       Right (_, _, unscheduled) ->
         map (.uerId) unscheduled `shouldBe` [episodeId]
+
+-- | A show that airs Monday 20:00 to 22:00 every week, with no replay.
+mondayNightEveryWeek :: ShowSchedule.ScheduleTemplateInsert
+mondayNightEveryWeek =
+  defaultScheduleInsert
+    { ShowSchedule.stiDayOfWeek = Monday,
+      ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
+      ShowSchedule.stiStartTime = TimeOfDay 20 0 0,
+      ShowSchedule.stiEndTime = TimeOfDay 22 0 0,
+      ShowSchedule.stiReplayStartTime = Nothing
+    }
+
+-- | The same slot narrowed to the first week of the month.
+firstWeekOnlyJson :: Text
+firstWeekOnlyJson =
+  "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[1],\"startTime\":\"20:00\",\"duration\":120,\"replayTime\":null}]"
+
+-- | The first Monday after a date whose day of the month is in the first week.
+--
+-- Adding 14 days to it gives a Monday in the third week of the same month. So the
+-- pair gives one recurrence two dates that a narrower week set can separate.
+firstWeekMondayAfter :: Day -> Day
+firstWeekMondayAfter from =
+  let monday = nextMonday (addDays 1 from)
+      (_, _, dayOfMonth) = toGregorian monday
+   in if dayOfMonth <= 7 then monday else firstWeekMondayAfter monday
+
+-- | Narrowing the weeks keeps the episodes the new week set still covers.
+--
+-- The show airs every week and narrows to the first week only. One upcoming episode
+-- sits in the first week of its month and one in the third. The first keeps its
+-- airing, because the show still holds Monday 20:00 on that date. The second has no
+-- date left to air on, so it is detached and named in the flash.
+--
+-- The diff used to key on the weeks, so a narrowing read as one slot removed and one
+-- added, and every upcoming episode lost its slot. The window does not move here.
+-- Only the set of dates it recurs on gets smaller.
+test_weeksNarrowKeepsCoveredEpisodes :: TestDBConfig -> IO ()
+test_weeksNarrowKeepsCoveredEpisodes cfg = do
+  userInsert <- mkUserInsert "edit-weeks-narrow" UserMetadata.Staff
+  now <- getCurrentTime
+  let today = utctDay now
+      firstWeekMonday = firstWeekMondayAfter today
+      thirdWeekMonday = addDays 14 firstWeekMonday
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Weeks Narrow Show",
+            Shows.siSlug = Slug "edit-weeks-narrow-show",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      form = (editForm "Weeks Narrow Show" "active") {sefSchedulesJson = Just firstWeekOnlyJson}
+      episodeOn airDay templateId userId =
+        Episodes.Insert
+          { Episodes.eiId = Shows.Id 0,
+            Episodes.eiDescription = Nothing,
+            Episodes.eiAudioFilePath = Nothing,
+            Episodes.eiAudioFileSize = Nothing,
+            Episodes.eiAudioMimeType = Nothing,
+            Episodes.eiDurationSeconds = Nothing,
+            Episodes.eiArtworkUrl = Nothing,
+            Episodes.eiScheduleTemplateId = Just templateId,
+            Episodes.eiAirDate = Just airDay,
+            Episodes.eiCreatedBy = userId
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+
+      (showId, templateId) <- insertTestShowWithSchedule showInsert mondayNightEveryWeek
+      _ <-
+        TRX.statement () $
+          ShowSchedule.insertValidity (ShowSchedule.ValidityInsert templateId (addDays (-30) today) Nothing)
+
+      firstWeekId <- insertTestEpisode (episodeOn firstWeekMonday templateId userId) {Episodes.eiId = showId}
+      thirdWeekId <- insertTestEpisode (episodeOn thirdWeekMonday templateId userId) {Episodes.eiId = showId}
+
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel, showId, templateId, firstWeekId, thirdWeekId)
+
+    (userMetaModel, showModel, showId, templateId, firstWeekId, thirdWeekId) <-
+      liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected the edit to succeed but got Left: " <> show err
+      -- Only the episode on the dropped date is reported.
+      Right (_, _, unscheduled) -> map (.uerId) unscheduled `shouldBe` [thirdWeekId]
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          templates <- TRX.statement () (ShowSchedule.getScheduleTemplatesForShow showId)
+          firstWeekEp <- TRX.statement () (Episodes.getEpisodeById firstWeekId)
+          thirdWeekEp <- TRX.statement () (Episodes.getEpisodeById thirdWeekId)
+          pure (templates, firstWeekEp, thirdWeekEp)
+
+    liftIO $ do
+      (templates, mFirstWeek, mThirdWeek) <- expectSetupRight afterResult
+
+      -- The old template stays as the record of the weeks it aired, and the new one
+      -- carries the narrower set.
+      case filter ((/= templateId) . (.stId)) templates of
+        [newTemplate] -> do
+          newTemplate.stWeeksOfMonth `shouldBe` [1]
+          newTemplate.stStartTime `shouldBe` TimeOfDay 20 0 0
+          case mFirstWeek of
+            Nothing -> expectationFailure "Expected the first-week episode to still exist"
+            Just episode -> do
+              -- It moved to the new template and kept its date, so it airs as before.
+              episode.scheduleTemplateId `shouldBe` Just newTemplate.stId
+              episode.airDate `shouldBe` Just firstWeekMonday
+        other -> expectationFailure $ "Expected exactly one new template, got " <> show (length other)
+
+      case mThirdWeek of
+        Nothing -> expectationFailure "Expected the third-week episode to still exist"
+        Just episode -> do
+          -- No date left to air on, so it holds no slot at all.
+          episode.scheduleTemplateId `shouldBe` Nothing
+          episode.airDate `shouldBe` Nothing

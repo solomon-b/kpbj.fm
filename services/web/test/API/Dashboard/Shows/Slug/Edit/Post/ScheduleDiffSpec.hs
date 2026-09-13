@@ -189,15 +189,23 @@ spec =
         let friday = mkTemplateWith (ShowSchedule.TemplateId 1) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
         map ShowSchedule.stId (removedTemplates [friday] Nothing) `shouldBe` [ShowSchedule.TemplateId 1]
 
-      it "returns the original template when the slot is re-keyed by changing weeks" $ do
+      -- The weeks are not part of the slot identity either. They say which dates the
+      -- window recurs on, not where it sits, so the episodes on the dates the new set
+      -- still covers keep their slot. 'editKeptSlot' decides each episode separately.
+      it "keeps the template when the weeks narrow" $ do
         let template = mkTemplateWith (ShowSchedule.TemplateId 5) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
-            -- Same day and time, but the weeks changed, so the signature no longer matches.
             form = mkParsed Friday [1, 3] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
-        map ShowSchedule.stId (removedTemplates [template] (Just form)) `shouldBe` [ShowSchedule.TemplateId 5]
+        removedTemplates [template] (Just form) `shouldBe` []
+
+      -- A widening drops no date, so it costs no episode anything at all.
+      it "keeps the template when the weeks widen" $ do
+        let template = mkTemplateWith (ShowSchedule.TemplateId 6) Friday [1, 3] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
+            form = mkParsed Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
+        removedTemplates [template] (Just form) `shouldBe` []
 
       -- The replay is not part of the slot identity. A replay is a second window
       -- on the same recurrence, and a move of it changes no episode's airing. The
-      -- handler edits the template in place instead. See 'retimeReplay'.
+      -- handler edits the template in place instead. See 'editKeptSlot'.
       it "keeps the template when only the replay time moves" $ do
         let template = mkTemplateWith (ShowSchedule.TemplateId 7) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 2 0 0))
             form = mkParsed Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 3 0 0))
@@ -207,6 +215,13 @@ spec =
         let template = mkTemplateWith (ShowSchedule.TemplateId 8) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 2 0 0))
             form = mkParsed Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
         removedTemplates [template] (Just form) `shouldBe` []
+
+      -- The times are part of the identity, because moving either one moves the
+      -- window and no episode still airs where it did.
+      it "returns the template when the start time moves" $ do
+        let template = mkTemplateWith (ShowSchedule.TemplateId 9) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
+            form = mkParsed Friday [1, 2, 3, 4, 5] (TimeOfDay 20 0 0) (TimeOfDay 21 0 0) Nothing
+        map ShowSchedule.stId (removedTemplates [template] (Just form)) `shouldBe` [ShowSchedule.TemplateId 9]
 
       it "does not return a template whose slot is unchanged" $ do
         let template = mkTemplateWith (ShowSchedule.TemplateId 1) Friday [1, 2, 3, 4, 5] (TimeOfDay 19 0 0) (TimeOfDay 21 0 0) Nothing
