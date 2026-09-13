@@ -55,6 +55,7 @@ module Effects.Database.Tables.Episodes
     getLiveEpisodeAtAirDate,
     clearTemplateForUpcomingEpisodes,
     migrateUpcomingEpisodes,
+    migrateUpcomingEpisodesAiringOn,
     closeSchedulesAndDetachEpisodes,
     getUpcomingEpisodesForTemplates,
 
@@ -1031,6 +1032,56 @@ migrateUpcomingEpisodes fromTemplateId toTemplateId fromDate =
         AND episode_air_time(e.air_date, st.start_time, st.timezone) > NOW()
         AND e.air_date >= #{fromDate}
         AND e.deleted_at IS NULL
+    )
+    RETURNING id
+  |]
+
+-- | Move the upcoming episodes that the new template also airs on. Keep their dates.
+--
+-- A weeks-only schedule change writes a second template that holds the same day and
+-- the same primary window, on a narrower or a wider set of weeks. A narrower set can
+-- drop an episode's own date, so this cannot move every episode the way
+-- 'migrateUpcomingEpisodes' does. It asks the new template about each date and moves
+-- only the episodes the new template airs.
+--
+-- The predicate is the one the stream applies: @recurrence_airs_on@ against the new
+-- template's recurrence, plus a validity window that covers the date. So an episode
+-- moves only if it can still reach the transmitter on its own date.
+--
+-- The episodes it leaves behind stay on the old template, which
+-- 'clearTemplateForUpcomingEpisodes' then detaches. The gates match, so the two
+-- functions split one set between them and nothing is missed.
+migrateUpcomingEpisodesAiringOn ::
+  -- | The template the episodes are on now
+  ShowSchedule.TemplateId ->
+  -- | The template they move to, when it airs on their date
+  ShowSchedule.TemplateId ->
+  -- | The change date. Episodes before it stay on the old template.
+  Day ->
+  Hasql.Statement () [Id]
+migrateUpcomingEpisodesAiringOn fromTemplateId toTemplateId fromDate =
+  interp
+    False
+    [sql|
+    UPDATE episodes
+    SET schedule_template_id = #{toTemplateId}, updated_at = NOW()
+    WHERE id IN (
+      SELECT e.id
+      FROM episodes e
+      JOIN schedule_templates st ON st.id = e.schedule_template_id
+      JOIN schedule_templates target ON target.id = #{toTemplateId}
+      WHERE e.schedule_template_id = #{fromTemplateId}
+        AND episode_air_time(e.air_date, st.start_time, st.timezone) > NOW()
+        AND e.air_date >= #{fromDate}
+        AND e.deleted_at IS NULL
+        AND recurrence_airs_on(day_of_week_num(target.day_of_week), target.weeks_of_month, e.air_date)
+        AND EXISTS (
+          SELECT 1
+          FROM schedule_template_validity stv
+          WHERE stv.template_id = target.id
+            AND stv.effective_from <= e.air_date
+            AND (stv.effective_until IS NULL OR stv.effective_until > e.air_date)
+        )
     )
     RETURNING id
   |]
