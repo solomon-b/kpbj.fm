@@ -42,7 +42,7 @@ spec =
       it "does not air in the wrong week of the month" wrongWeekDoesNotAir
       it "treats NULL weeks as every week" nullWeeksAirEveryWeek
       it "never airs with an empty week list" emptyWeeksNeverAir
-      it "returns false, not NULL, for a one-time template" oneTimeIsFalseNotNull
+      it "returns false, not NULL, when both arguments are NULL" oneTimeIsFalseNotNull
       it "puts days 1 to 7 in week 1 and day 8 in week 2" weekBoundaries
       it "agrees with the Haskell model over four months" agreesWithHaskellModel
 
@@ -75,8 +75,8 @@ tuesday = fromGregorian 2026 8 4
 
 -- | Call @recurrence_airs_on@ once.
 --
--- Both the day number and the week list are nullable, because a one-time
--- template holds NULL in both and callers rely on the result being false.
+-- Both the day number and the week list are nullable, because the SQL function
+-- accepts NULL for either one and callers rely on the result being false.
 airsOn :: Maybe Int64 -> Maybe [Int64] -> Day -> Hasql.Statement () Bool
 airsOn mDayNum mWeeks day =
   let query =
@@ -184,9 +184,10 @@ emptyWeeksNeverAir cfg = do
 
 oneTimeIsFalseNotNull :: TestDBConfig -> IO ()
 oneTimeIsFalseNotNull cfg = do
-  -- A one-time template holds NULL in both recurrence columns. Callers put this
-  -- result inside CASE and on the left of OR, where NULL and false differ, so
-  -- the function has to return false.
+  -- No template holds NULL in both recurrence columns, because both are NOT NULL
+  -- since migration 20260805185756. The function still has to answer false rather
+  -- than NULL. Callers put the result inside CASE and on the left of OR, where
+  -- NULL and false differ.
   result <- runQuery cfg $ TRX.statement () $ airsOn Nothing Nothing firstMonday
   result `shouldBe` False
 

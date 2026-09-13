@@ -631,8 +631,8 @@ instance Display ScheduledShowWithDetails where
 
 -- | Get all scheduled shows for a specific date with show and host details.
 --
--- Returns both recurring and one-time shows scheduled for the given date.
--- For shows with replay_start_time set, returns two rows (primary and replay).
+-- Returns one row for each active show whose template holds the given date. A
+-- template that sets replay_start_time returns a second row for the replay.
 -- Used for rendering actual weekly schedules (not just templates).
 -- Uses raw SQL because of complex date arithmetic and CASE expressions.
 -- Excludes soft-deleted shows.
@@ -644,18 +644,7 @@ getScheduledShowsForDate targetDate =
     -- Primary airings (all shows)
     SELECT
       #{targetDate}::date as show_date,
-      COALESCE(
-        st.day_of_week,
-        CASE EXTRACT(DOW FROM #{targetDate}::date)::INTEGER
-          WHEN 0 THEN 'sunday'::day_of_week
-          WHEN 1 THEN 'monday'::day_of_week
-          WHEN 2 THEN 'tuesday'::day_of_week
-          WHEN 3 THEN 'wednesday'::day_of_week
-          WHEN 4 THEN 'thursday'::day_of_week
-          WHEN 5 THEN 'friday'::day_of_week
-          WHEN 6 THEN 'saturday'::day_of_week
-        END
-      ) as day_of_week,
+      st.day_of_week,
       st.start_time::time,
       st.end_time::time,
       s.slug,
@@ -684,18 +673,7 @@ getScheduledShowsForDate targetDate =
     -- Replay airings for shows with replay_start_time set
     SELECT
       #{targetDate}::date as show_date,
-      COALESCE(
-        st.day_of_week,
-        CASE EXTRACT(DOW FROM #{targetDate}::date)::INTEGER
-          WHEN 0 THEN 'sunday'::day_of_week
-          WHEN 1 THEN 'monday'::day_of_week
-          WHEN 2 THEN 'tuesday'::day_of_week
-          WHEN 3 THEN 'wednesday'::day_of_week
-          WHEN 4 THEN 'thursday'::day_of_week
-          WHEN 5 THEN 'friday'::day_of_week
-          WHEN 6 THEN 'saturday'::day_of_week
-        END
-      ) as day_of_week,
+      st.day_of_week,
       st.replay_start_time as start_time,
       (st.replay_start_time + (
         CASE WHEN st.end_time > st.start_time
