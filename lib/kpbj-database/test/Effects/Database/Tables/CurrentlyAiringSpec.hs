@@ -341,8 +341,9 @@ setupTestDataFull passHash startTime endTime replayStartTime airDate mAudioPath 
 -- | Setup a show on a recurring template, with an episode on a chosen date.
 --
 -- The airing query takes the time of day from the template and the date from the
--- episode. These tests check that it also requires the two to agree, which the
--- one-time templates the other fixtures use are exempt from.
+-- episode. These tests check that it also requires the two to agree. The other
+-- fixtures build their template with 'recurringOn', which always satisfies that
+-- test, so they cannot exercise it.
 setupRecurringTestData ::
   PasswordHash Argon2 ->
   -- | The day of the week the template airs on
