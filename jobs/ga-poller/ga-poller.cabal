@@ -37,4 +37,4 @@ executable ga-poller
       ScopedTypeVariables
       StrictData
       TypeApplications
-  ghc-options:      -Wall -threaded
+  ghc-options:      -Wall -threaded -fwrite-ide-info

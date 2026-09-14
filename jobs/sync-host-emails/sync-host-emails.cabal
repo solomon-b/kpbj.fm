@@ -42,7 +42,7 @@ library
                   , time
                   , transformers
   hs-source-dirs:   src
-  ghc-options:      -Wall
+  ghc-options:      -Wall -fwrite-ide-info
 
 executable sync-host-emails
   import:           extensions
@@ -55,7 +55,7 @@ executable sync-host-emails
                   , sync-host-emails
                   , text
   hs-source-dirs:   .
-  ghc-options:      -Wall -threaded
+  ghc-options:      -Wall -threaded -fwrite-ide-info
 
 test-suite sync-host-emails-spec
   import:             extensions
@@ -68,4 +68,4 @@ test-suite sync-host-emails-spec
                     , hspec
                     , sync-host-emails
                     , text
-  ghc-options:        -Wall
+  ghc-options:        -Wall -fwrite-ide-info

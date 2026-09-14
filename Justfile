@@ -238,9 +238,15 @@ hlint-changed:
   fi
 
 # Detect dead code using weeder (rebuilds HIE files first).
+# The report is advisory. The recipe passes even when weeder finds something.
 weeder: build
   @echo running weeder
-  @weeder
+  @./scripts/weeder.sh
+
+# Same report, but the recipe fails when weeder finds something.
+weeder-strict: build
+  @echo running weeder
+  @./scripts/weeder.sh --strict
 
 # =============================================================================
 # Key Generation

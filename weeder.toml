@@ -1,51 +1,44 @@
 # Weeder Configuration
 # https://github.com/ocharles/weeder
+#
+# Run this through `just weeder`, which calls scripts/weeder.sh. That script
+# reads the cabal build plan and points weeder at every local component, so
+# one analysis covers all 17 packages at once. A symbol that any package in
+# the monorepo uses counts as live. An export reported here is reachable from
+# nothing that ships.
+#
+# Weeder needs .hie files. Every component sets -fwrite-ide-info in its
+# ghc-options. If you add a package, add the flag as well, or weeder reports
+# nothing for it and says so.
 
-# Entry point patterns (regex matching fully-qualified symbol names)
+# Entry points.
+# Every executable and every test suite has its own Main.main, and all of them
+# are visible, so the real entry points anchor the graph. The Servant tree
+# hangs off the kpbj-web executable and needs no help. Test modules hang off
+# the Spec.hs that hspec-discover writes.
 roots = [
   "^Main\\.main$",
-  "^Paths_.*",
-  # Test entry points
-  "^Test\\..*\\.spec$",
-  # Servant handlers - type-level routing is invisible to weeder
-  "^API\\..*\\.handler$",
-  "^API\\..*\\.handlerWithSlug$",
-  "^API\\..*\\.handlerWithoutSlug$"
+  # Cabal writes a Paths_ module per package and nothing imports most of them.
+  "^Paths_.*"
 ]
 
-# Modules where ALL exports are considered roots
-# Servant's type-level composition (:<|>) can't be traced, so we need
-# the API module and related utilities as roots
+# Modules where every export counts as a root.
+# The three Lucid libraries under services/web/lib are written to stand alone
+# and are meant to leave this repo. Their public API is the product, so an
+# export that kpbj-web does not call yet is not dead code.
 root-modules = [
-  # Main API composition - Servant :<|> is invisible to HIE
-  "^API$",
-  # Utility functions used throughout
-  "^Utils$",
-  # Background job for cleaning up expired staged uploads
-  "^Effects\\.StagedUploadCleanup$",
-  # Future standalone library for Tailwind style composition
-  "^Design\\.StyleBuilder$",
-  # Design tokens - library of reusable styling constants
-  "^Design\\.Tokens$",
-  # Test utilities - reusable assertion helpers and generators
-  "^Test\\.Database\\.Expectation$",
-  "^Test\\.Database\\.Property\\.Assert$",
-  "^Test\\.Database\\.Monad$",
-  "^Test\\.Gen\\.Text$",
-  # lucid-htmx-alpine library - public API for HTMX/Alpine attributes
   "^Lucid\\.HTMX$",
   "^Lucid\\.Alpine$",
   "^Lucid\\.HTML5\\.Extra$",
-  # lucid-form-builder library - public API for form construction
   "^Lucid\\.Form\\.Builder.*$",
-  # lucid-tailwind library - Tailwind CSS combinators
   "^Lucid\\.Tailwind$"
 ]
 
-# Type class instance handling
-# false = can detect unused instances (stricter)
-# true = all instances are roots (more permissive)
+# Treat every type class instance as a root.
+# Setting this to false also reports unused instances. That produces 224
+# findings here, nearly all of them derived instances that no call site names.
+# The noise buries the rest of the report.
 type-class-roots = true
 
-# Enable detection of unused type definitions
-unused-types = false
+# Report types that nothing outside their own module names.
+unused-types = true

@@ -22,4 +22,4 @@ executable token-cleanup
       RecordWildCards
       ScopedTypeVariables
       StrictData
-  ghc-options:      -Wall -threaded
+  ghc-options:      -Wall -threaded -fwrite-ide-info

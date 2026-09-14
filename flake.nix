@@ -140,6 +140,7 @@
               hsPkgs.weeder
               pkgs.file
               pkgs.ffmpeg
+              pkgs.jq
               pkgs.just
               pkgs.nixpkgs-fmt
               pkgs.ormolu
