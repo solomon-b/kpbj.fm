@@ -336,7 +336,7 @@ uploadEventGalleryImage ::
   -- | AWS environment (required for S3, Nothing for local)
   Maybe AWS.Env ->
   -- | Event slug for filename prefix
-  Text ->
+  Slug ->
   -- | Uploaded gallery image file data
   FileData Mem ->
   m (Either UploadError (Maybe UploadResult))
@@ -362,7 +362,7 @@ uploadEventGalleryImage backend mAwsEnv eventSlug fileData
         -- Generate filename and date hierarchy
         let dateHier = dateHierarchyFromTime time
             extension = getExtensionFromMimeType actualMimeType
-            filename = generateUniqueFilename eventSlug extension seed
+            filename = generateUniqueFilename (display eventSlug) extension seed
 
         -- Store file using appropriate backend
         objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket EventGalleryImage dateHier filename content actualMimeType

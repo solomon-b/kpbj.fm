@@ -24,7 +24,6 @@ import Data.Int (Int64)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text.Encoding
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
@@ -160,7 +159,7 @@ updateEvent eventId event editForm = do
 
   -- 7. Prepare gallery photo updates (validate deletions, upload new files — no DB writes)
   (failedUploads, imagesToDelete, imageIdsToDelete, metaUpdates, newInserts) <-
-    prepareGalleryUpdates eventId (display newSlug) editForm
+    prepareGalleryUpdates eventId newSlug editForm
 
   -- 8. Update the event and apply gallery mutations in a single transaction
   mUpdateResult <-
@@ -228,7 +227,7 @@ instance FromJSON GalleryMetadata where
 prepareGalleryUpdates ::
   Events.Id ->
   -- | Event slug for generating filenames.
-  Text ->
+  Slug ->
   EventEditForm ->
   ExceptT HandlerError AppM (Int, [(EventImages.Id, Text)], [EventImages.Id], [(EventImages.Id, Int64, Text, Text)], [EventImages.Insert])
 prepareGalleryUpdates eventId eventSlug editForm = do
@@ -266,7 +265,7 @@ prepareGalleryUpdates eventId eventSlug editForm = do
 -- with freshly uploaded files). Uploads happen here; DB writes are deferred.
 prepareGalleryOps ::
   Events.Id ->
-  Text ->
+  Slug ->
   [GalleryMetadata] ->
   -- | New photo files (consumed in order for entries without an id).
   [FileData Mem] ->
